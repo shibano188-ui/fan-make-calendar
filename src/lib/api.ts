@@ -242,6 +242,10 @@ export type SharedThemeData = {
   font: string;
   accentColor: string;
   communityThemeId: string;
+  calWeekday?: string;
+  calSaturday?: string;
+  calSunday?: string;
+  calOtherMonth?: string;
 };
 
 export type SharedTheme = {
@@ -280,6 +284,11 @@ export async function shareTheme(authorId: string, name: string, themeData: Shar
 export async function incrementThemeUseCount(themeId: string): Promise<void> {
   const { data } = await supabase.from('shared_themes').select('use_count').eq('id', themeId).single();
   await supabase.from('shared_themes').update({ use_count: ((data?.use_count as number) ?? 0) + 1 }).eq('id', themeId);
+}
+
+export async function deleteSharedTheme(themeId: string): Promise<void> {
+  const { error } = await supabase.from('shared_themes').delete().eq('id', themeId);
+  if (error) throw error;
 }
 
 // ─── ウィジェット用 ────────────────────────────────────────────────

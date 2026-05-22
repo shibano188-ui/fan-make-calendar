@@ -114,6 +114,10 @@ export interface UserSettings {
   customFontUrl: string;
   customFontName: string;
   communityThemeId: string;
+  calWeekday: string;
+  calSaturday: string;
+  calSunday: string;
+  calOtherMonth: string;
 }
 
 const DEFAULT_SETTINGS: UserSettings = {
@@ -124,6 +128,10 @@ const DEFAULT_SETTINGS: UserSettings = {
   customFontUrl: '',
   customFontName: '',
   communityThemeId: '',
+  calWeekday: '',
+  calSaturday: '',
+  calSunday: '',
+  calOtherMonth: '',
 };
 
 const ACCENT_COLORS = ['#2C2C2A', '#888780', '#D85A30', '#1D9E75', '#378ADD', '#D4537E'] as const;
@@ -232,6 +240,21 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     document.documentElement.style.setProperty('--accent-color', settings.accentColor);
   }, [settings.accentColor]);
+
+  // カレンダー文字色をCSS変数に反映
+  useEffect(() => {
+    const root = document.documentElement;
+    const calVars: [string, string][] = [
+      ['--cal-weekday-color', settings.calWeekday],
+      ['--cal-saturday-color', settings.calSaturday],
+      ['--cal-sunday-color', settings.calSunday],
+      ['--cal-other-month-color', settings.calOtherMonth],
+    ];
+    for (const [varName, value] of calVars) {
+      if (value) root.style.setProperty(varName, value);
+      else root.style.removeProperty(varName);
+    }
+  }, [settings.calWeekday, settings.calSaturday, settings.calSunday, settings.calOtherMonth]);
 
   // フォント・背景をCSS変数に反映
   useEffect(() => {

@@ -190,9 +190,8 @@ export default function Calendar() {
           {DAY_LABELS.map((label, i) => (
             <div
               key={label}
-              className={`text-center text-[11px] py-1 font-medium select-none ${
-                i === 0 ? 'text-red-400/80' : i === 6 ? 'text-blue-400/80' : 'text-label-tertiary'
-              }`}
+              className="text-center text-[11px] py-1 font-medium select-none"
+              style={{ color: i === 0 ? 'var(--cal-sunday-color)' : i === 6 ? 'var(--cal-saturday-color)' : 'var(--cal-weekday-color)' }}
             >
               {label}
             </div>
@@ -213,17 +212,16 @@ export default function Calendar() {
                 className={`flex flex-col items-center py-[3px] transition-opacity ${workId ? 'active:opacity-50' : 'cursor-default'}`}
               >
                 <div
-                  className={`w-8 h-8 flex items-center justify-center rounded-full text-[13px] font-medium select-none ${
-                    isToday
-                      ? 'bg-label-primary text-bg-primary font-bold'
-                      : !isCurrentMonth
-                      ? 'text-label-tertiary opacity-30'
+                  className={`w-8 h-8 flex items-center justify-center rounded-full text-[13px] font-medium select-none ${isToday ? 'bg-label-primary text-bg-primary font-bold' : ''}`}
+                  style={!isToday ? {
+                    color: !isCurrentMonth
+                      ? 'var(--cal-other-month-color)'
                       : col === 0
-                      ? 'text-red-400/80'
+                      ? 'var(--cal-sunday-color)'
                       : col === 6
-                      ? 'text-blue-400/80'
-                      : 'text-label-primary'
-                  }`}
+                      ? 'var(--cal-saturday-color)'
+                      : 'var(--cal-weekday-color)',
+                  } : undefined}
                 >
                   {date.getDate()}
                 </div>

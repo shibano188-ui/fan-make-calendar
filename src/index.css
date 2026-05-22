@@ -17,6 +17,10 @@
   --input-placeholder: rgba(255,255,255,0.25);
   --input-caret:       #ffffff;
   --accent-color:      #888780;
+  --cal-weekday-color:    var(--label-primary);
+  --cal-saturday-color:   rgba(96,165,250,0.8);
+  --cal-sunday-color:     rgba(239,68,68,0.8);
+  --cal-other-month-color: rgba(128,128,128,0.35);
 }
 
 * {
