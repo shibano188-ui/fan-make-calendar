@@ -235,6 +235,53 @@ export async function updateUserSettings(userId: string, s: SupabaseUserSettings
   if (error) throw error;
 }
 
+// ─── 共有テーマ ────────────────────────────────────────────────────
+
+export type SharedThemeData = {
+  theme: string;
+  font: string;
+  accentColor: string;
+  communityThemeId: string;
+};
+
+export type SharedTheme = {
+  id: string;
+  name: string;
+  authorId: string;
+  themeData: SharedThemeData;
+  useCount: number;
+  createdAt: string;
+};
+
+export async function listSharedThemes(): Promise<SharedTheme[]> {
+  const { data, error } = await supabase
+    .from('shared_themes')
+    .select('id, name, author_id, theme_data, use_count, created_at')
+    .order('use_count', { ascending: false })
+    .limit(30);
+  if (error) return [];
+  return (data ?? []).map(r => ({
+    id: r.id as string,
+    name: (r.name as string) ?? '名前なし',
+    authorId: r.author_id as string,
+    themeData: r.theme_data as SharedThemeData,
+    useCount: (r.use_count as number) ?? 0,
+    createdAt: r.created_at as string,
+  }));
+}
+
+export async function shareTheme(authorId: string, name: string, themeData: SharedThemeData): Promise<void> {
+  const { error } = await supabase
+    .from('shared_themes')
+    .insert({ author_id: authorId, name, theme_data: themeData, use_count: 0 });
+  if (error) throw error;
+}
+
+export async function incrementThemeUseCount(themeId: string): Promise<void> {
+  const { data } = await supabase.from('shared_themes').select('use_count').eq('id', themeId).single();
+  await supabase.from('shared_themes').update({ use_count: ((data?.use_count as number) ?? 0) + 1 }).eq('id', themeId);
+}
+
 // ─── ウィジェット用 ────────────────────────────────────────────────
 
 export async function getEventById(eventId: string): Promise<CalendarEvent | null> {

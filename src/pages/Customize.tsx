@@ -1,8 +1,10 @@
-import { useRef, useState } from 'react';
-import { Upload, Share2, Users, X, Check } from 'lucide-react';
+import { useRef, useState, useEffect } from 'react';
+import { Upload, Share2, Users, X, Check, Loader } from 'lucide-react';
 import Layout from '../components/Layout';
 import Header from '../components/Header';
 import { useTheme, ACCENT_COLORS, COMMUNITY_THEMES, type FontFamily } from '../contexts/ThemeContext';
+import { listSharedThemes, shareTheme, incrementThemeUseCount, type SharedTheme } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const SYSTEM_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 
@@ -18,15 +20,72 @@ function formatCount(n: number): string {
 
 // ─── コミュニティテーマ モーダル ──────────────────────────────────
 
+type Tab = 'preset' | 'shared';
+
 function CommunityThemeModal({
   currentId,
   onSelect,
   onClose,
+  userId,
+  currentSettings,
 }: {
   currentId: string;
   onSelect: (id: string) => void;
   onClose: () => void;
+  userId: string | undefined;
+  currentSettings: { theme: string; font: string; accentColor: string; communityThemeId: string };
 }) {
+  const [tab, setTab] = useState<Tab>('preset');
+  const [sharedThemes, setSharedThemes] = useState<SharedTheme[]>([]);
+  const [loadingShared, setLoadingShared] = useState(false);
+  const [shareName, setShareName] = useState('');
+  const [sharing, setSharing] = useState(false);
+  const [shareSuccess, setShareSuccess] = useState(false);
+
+  useEffect(() => {
+    if (tab !== 'shared') return;
+    setLoadingShared(true);
+    listSharedThemes().then(setSharedThemes).finally(() => setLoadingShared(false));
+  }, [tab]);
+
+  const handleApplyShared = async (theme: SharedTheme) => {
+    const td = theme.themeData;
+    onSelect(td.communityThemeId ?? '');
+    await incrementThemeUseCount(theme.id);
+    onClose();
+  };
+
+  const handleShare = async () => {
+    if (!userId || !shareName.trim()) return;
+    setSharing(true);
+    try {
+      await shareTheme(userId, shareName.trim(), {
+        theme: currentSettings.theme,
+        font: currentSettings.font,
+        accentColor: currentSettings.accentColor,
+        communityThemeId: currentSettings.communityThemeId,
+      });
+      setShareSuccess(true);
+      setShareName('');
+      listSharedThemes().then(setSharedThemes);
+    } catch {
+      // silent
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  // 共有テーマのプレビューカラーを取得
+  const getPreviewColors = (td: SharedTheme['themeData']) => {
+    if (td.communityThemeId) {
+      const ct = COMMUNITY_THEMES.find(c => c.id === td.communityThemeId);
+      if (ct) return { bg: ct.vars['--bg-primary'], bg2: ct.vars['--bg-secondary'], accent: td.accentColor };
+    }
+    return td.theme === 'dark'
+      ? { bg: '#1a1a1a', bg2: '#2a2a2a', accent: td.accentColor }
+      : { bg: '#f5f5f5', bg2: '#e8e8e8', accent: td.accentColor };
+  };
+
   return (
     <div
       className="fixed inset-0 z-[200] flex flex-col"
@@ -50,57 +109,105 @@ function CommunityThemeModal({
           </button>
         </div>
 
+        {/* タブ */}
+        <div className="flex px-4 pt-3 gap-1">
+          {(['preset', 'shared'] as Tab[]).map(t => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                tab === t
+                  ? 'bg-label-primary text-bg-primary'
+                  : 'text-label-secondary'
+              }`}
+            >
+              {t === 'preset' ? 'プリセット' : 'みんなの共有'}
+            </button>
+          ))}
+        </div>
+
         {/* テーマ一覧 */}
-        <div className="px-4 py-3 flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: '55vh' }}>
-          {COMMUNITY_THEMES.map(theme => {
-            const selected = currentId === theme.id;
-            return (
-              <button
-                key={theme.id}
-                onClick={() => { onSelect(theme.id); onClose(); }}
-                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl border text-left active:opacity-70"
-                style={{
-                  backgroundColor: 'var(--bg-secondary)',
-                  borderColor: selected ? 'var(--border-selected)' : 'var(--border-faint)',
-                }}
-              >
-                {/* カラープレビュー */}
-                <div
-                  className="w-10 h-10 rounded-lg flex-shrink-0 overflow-hidden"
-                  style={{ backgroundColor: theme.vars['--bg-primary'] }}
+        <div className="px-4 py-3 flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: '48vh' }}>
+          {tab === 'preset' ? (
+            COMMUNITY_THEMES.map(theme => {
+              const selected = currentId === theme.id;
+              return (
+                <button
+                  key={theme.id}
+                  onClick={() => { onSelect(theme.id); onClose(); }}
+                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl border text-left active:opacity-70"
+                  style={{
+                    backgroundColor: 'var(--bg-secondary)',
+                    borderColor: selected ? 'var(--border-selected)' : 'var(--border-faint)',
+                  }}
                 >
-                  <div
-                    className="w-full h-1/2"
-                    style={{ backgroundColor: theme.vars['--bg-secondary'] }}
-                  />
-                </div>
-
-                {/* 名前・使用数 */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-label-primary text-sm font-medium">{theme.name}</p>
-                  <p className="text-label-tertiary text-xs mt-0.5">
-                    {formatCount(theme.useCount)}人が使用中
-                  </p>
-                </div>
-
-                {selected && (
-                  <Check size={16} className="text-label-secondary flex-shrink-0" />
-                )}
-              </button>
-            );
-          })}
+                  <div className="w-10 h-10 rounded-lg flex-shrink-0 overflow-hidden" style={{ backgroundColor: theme.vars['--bg-primary'] }}>
+                    <div className="w-full h-1/2" style={{ backgroundColor: theme.vars['--bg-secondary'] }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-label-primary text-sm font-medium">{theme.name}</p>
+                    <p className="text-label-tertiary text-xs mt-0.5">{formatCount(theme.useCount)}人が使用中</p>
+                  </div>
+                  {selected && <Check size={16} className="text-label-secondary flex-shrink-0" />}
+                </button>
+              );
+            })
+          ) : loadingShared ? (
+            <div className="flex justify-center py-8">
+              <Loader size={18} className="text-label-tertiary animate-spin" />
+            </div>
+          ) : sharedThemes.length === 0 ? (
+            <p className="text-center text-label-tertiary text-sm py-8">まだ共有されたテーマがありません</p>
+          ) : (
+            sharedThemes.map(theme => {
+              const colors = getPreviewColors(theme.themeData);
+              return (
+                <button
+                  key={theme.id}
+                  onClick={() => handleApplyShared(theme)}
+                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl border text-left active:opacity-70"
+                  style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-faint)' }}
+                >
+                  <div className="w-10 h-10 rounded-lg flex-shrink-0 overflow-hidden relative" style={{ backgroundColor: colors.bg }}>
+                    <div className="w-full h-1/2" style={{ backgroundColor: colors.bg2 }} />
+                    <div className="absolute bottom-1 right-1 w-3 h-3 rounded-full" style={{ backgroundColor: colors.accent }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-label-primary text-sm font-medium">{theme.name}</p>
+                    <p className="text-label-tertiary text-xs mt-0.5">{formatCount(theme.useCount)}人が使用中</p>
+                  </div>
+                </button>
+              );
+            })
+          )}
         </div>
 
         {/* テーマを共有 */}
-        <div className="px-4 pt-2 pb-4 border-t border-subtle">
-          <button
-            onClick={() => alert('テーマ共有機能はフェーズ3で実装予定です。')}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-subtle text-label-secondary text-sm active:opacity-60"
-            style={{ fontFamily: SYSTEM_FONT }}
-          >
-            <Share2 size={14} />
-            このテーマを共有する
-          </button>
+        <div className="px-4 pt-2 pb-2 border-t border-subtle">
+          {shareSuccess ? (
+            <div className="flex items-center justify-center gap-2 py-3 text-sm text-label-secondary">
+              <Check size={14} />
+              共有しました
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={shareName}
+                onChange={e => setShareName(e.target.value)}
+                placeholder="テーマ名を入力して共有"
+                className="flex-1 bg-bg-secondary rounded-lg px-3 py-2 text-sm text-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong"
+              />
+              <button
+                onClick={handleShare}
+                disabled={!shareName.trim() || sharing}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-label-primary text-bg-primary text-sm font-medium disabled:opacity-30 active:opacity-70"
+              >
+                {sharing ? <Loader size={13} className="animate-spin" /> : <Share2 size={13} />}
+                共有
+              </button>
+            </div>
+          )}
         </div>
 
         {/* セーフエリア */}
@@ -114,6 +221,7 @@ function CommunityThemeModal({
 
 export default function Customize() {
   const { settings, updateSettings } = useTheme();
+  const { user } = useAuth();
   const fontInputRef = useRef<HTMLInputElement>(null);
   const bgInputRef   = useRef<HTMLInputElement>(null);
   const [showCommunityModal, setShowCommunityModal] = useState(false);
@@ -307,6 +415,13 @@ export default function Customize() {
           currentId={settings.communityThemeId}
           onSelect={id => updateSettings({ communityThemeId: id, theme: settings.theme })}
           onClose={() => setShowCommunityModal(false)}
+          userId={user?.id}
+          currentSettings={{
+            theme: settings.theme,
+            font: settings.font,
+            accentColor: settings.accentColor,
+            communityThemeId: settings.communityThemeId,
+          }}
         />
       )}
     </Layout>
