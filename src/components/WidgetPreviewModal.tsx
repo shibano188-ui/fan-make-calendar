@@ -119,53 +119,134 @@ function TodayWidget({ events, dateStr }: { events: CalendarEvent[]; dateStr: st
   );
 }
 
-function CalendarWidget({ events, year, month }: { events: CalendarEvent[]; year: number; month: number }) {
-  const todayStr = toDateStr(new Date());
+function CalendarWidget({ events, year, month, todayStr }: { events: CalendarEvent[]; year: number; month: number; todayStr: string }) {
   const eventDates = new Set(events.map(e => e.date));
   const days = getCalendarDays(year, month);
+  const DAY_LABELS = ['日','月','火','水','木','金','土'];
+  const todayEvents = events.filter(e => e.date === todayStr);
+
+  return (
+    <div
+      className="w-full h-full rounded-[20px] p-3 flex flex-col gap-2"
+      style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(16px)', border: '0.5px solid rgba(255,255,255,0.12)' }}
+    >
+      {/* カレンダーグリッド（コンパクト） */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-white font-semibold text-xs">{month + 1}月</p>
+          <p className="text-white/40 text-[9px]">{year}</p>
+        </div>
+        <div className="grid grid-cols-7 mb-0.5">
+          {DAY_LABELS.map((l, i) => (
+            <div key={l} className="text-center text-[7px]"
+              style={{ color: i === 0 ? 'rgba(248,113,113,0.7)' : i === 6 ? 'rgba(96,165,250,0.7)' : 'rgba(255,255,255,0.35)' }}>
+              {l}
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7">
+          {days.map(({ date, isCurrentMonth }, idx) => {
+            const ds = toDateStr(date);
+            const isToday = ds === todayStr;
+            const hasEvent = eventDates.has(ds) && isCurrentMonth;
+            return (
+              <div key={ds + idx} className="flex flex-col items-center py-px">
+                <div
+                  className="w-[17px] h-[17px] flex items-center justify-center rounded-full text-[7px] font-medium"
+                  style={{
+                    backgroundColor: isToday ? 'white' : 'transparent',
+                    color: isToday ? '#000' : !isCurrentMonth ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.85)',
+                    fontWeight: isToday ? 700 : 400,
+                  }}
+                >
+                  {date.getDate()}
+                </div>
+                {hasEvent && <div className="w-[3px] h-[3px] rounded-full bg-blue-400 mt-px" />}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 区切り線 */}
+      <div className="h-px flex-shrink-0" style={{ background: 'rgba(255,255,255,0.1)' }} />
+
+      {/* 今日の予定 */}
+      <div className="flex flex-col gap-1.5 flex-1 overflow-hidden">
+        <p className="text-white/40 text-[8px]">今日の予定</p>
+        {todayEvents.length === 0 ? (
+          <p className="text-white/25 text-[10px]">予定なし</p>
+        ) : todayEvents.slice(0, 3).map(e => (
+          <div key={e.id} className="flex items-center gap-1.5">
+            <div className="w-[3px] h-[3px] rounded-full bg-blue-400 flex-shrink-0" />
+            <p className="text-white/80 text-[10px] truncate">{e.title}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function WeekWidget({ events, todayStr }: { events: CalendarEvent[]; todayStr: string }) {
+  const today = new Date(todayStr + 'T00:00:00');
+  const startOfWeek = new Date(today);
+  startOfWeek.setDate(today.getDate() - today.getDay());
+  const weekDates = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(startOfWeek);
+    d.setDate(startOfWeek.getDate() + i);
+    return toDateStr(d);
+  });
+
+  const eventDateSet = new Set(events.map(e => e.date));
+  const todayEvents = events.filter(e => e.date === todayStr);
   const DAY_LABELS = ['日','月','火','水','木','金','土'];
 
   return (
     <div
-      className="w-full h-full rounded-[20px] p-3 flex flex-col"
+      className="w-full h-full rounded-[20px] p-4 flex flex-col gap-3"
       style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(16px)', border: '0.5px solid rgba(255,255,255,0.12)' }}
     >
-      <div className="flex items-center justify-between mb-1.5">
-        <p className="text-white font-semibold text-xs">{month + 1}月</p>
-        <p className="text-white/40 text-[9px]">{year}</p>
-      </div>
-      <div className="grid grid-cols-7 mb-1">
-        {DAY_LABELS.map((l, i) => (
-          <div
-            key={l}
-            className="text-center text-[7px]"
-            style={{ color: i === 0 ? 'rgba(248,113,113,0.7)' : i === 6 ? 'rgba(96,165,250,0.7)' : 'rgba(255,255,255,0.35)' }}
-          >
-            {l}
-          </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 flex-1">
-        {days.map(({ date, isCurrentMonth }, idx) => {
-          const ds = toDateStr(date);
+      {/* 週ストリップ */}
+      <div className="flex justify-between">
+        {weekDates.map((ds, i) => {
+          const d = new Date(ds + 'T00:00:00');
           const isToday = ds === todayStr;
-          const hasEvent = eventDates.has(ds) && isCurrentMonth;
+          const hasEvent = eventDateSet.has(ds);
           return (
-            <div key={ds + idx} className="flex flex-col items-center py-px">
+            <div key={ds} className="flex flex-col items-center gap-1">
+              <span className="text-[8px]" style={{ color: isToday ? 'rgba(255,255,255,0.9)' : i === 0 ? 'rgba(248,113,113,0.6)' : i === 6 ? 'rgba(96,165,250,0.6)' : 'rgba(255,255,255,0.35)' }}>
+                {DAY_LABELS[i]}
+              </span>
               <div
-                className="w-[18px] h-[18px] flex items-center justify-center rounded-full text-[7px] font-medium"
+                className="w-7 h-7 flex items-center justify-center rounded-full text-[11px] font-medium"
                 style={{
                   backgroundColor: isToday ? 'white' : 'transparent',
-                  color: isToday ? '#000' : !isCurrentMonth ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.85)',
+                  color: isToday ? '#000' : 'rgba(255,255,255,0.75)',
                   fontWeight: isToday ? 700 : 400,
                 }}
               >
-                {date.getDate()}
+                {d.getDate()}
               </div>
-              {hasEvent && <div className="w-[3px] h-[3px] rounded-full bg-blue-400 mt-px" />}
+              <div className="w-[4px] h-[4px] rounded-full" style={{ backgroundColor: hasEvent ? 'rgba(96,165,250,0.9)' : 'transparent' }} />
             </div>
           );
         })}
+      </div>
+
+      {/* 区切り線 */}
+      <div className="h-px flex-shrink-0" style={{ background: 'rgba(255,255,255,0.1)' }} />
+
+      {/* 今日の予定 */}
+      <div className="flex flex-col gap-1.5 flex-1 overflow-hidden">
+        <p className="text-white/40 text-[8px]">今日の予定</p>
+        {todayEvents.length === 0 ? (
+          <p className="text-white/25 text-[10px]">予定なし</p>
+        ) : todayEvents.slice(0, 3).map(e => (
+          <div key={e.id} className="flex items-center gap-2">
+            <div className="w-1 h-1 rounded-full bg-blue-400 flex-shrink-0" />
+            <p className="text-white/85 text-[11px] truncate">{e.title}</p>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -209,13 +290,26 @@ function PageToday({ todayEvents, todayStr }: PageData) {
   );
 }
 
-function PageCalendar({ monthEvents, year, month }: PageData) {
+function PageCalendar({ monthEvents, year, month, todayStr }: PageData) {
   return (
     <div className="flex flex-col gap-3 h-full">
       <IconRow icons={APP_ICONS.slice(0, 4)} />
       <div className="flex-1 min-h-0">
-        <CalendarWidget events={monthEvents} year={year} month={month} />
+        <CalendarWidget events={monthEvents} year={year} month={month} todayStr={todayStr} />
       </div>
+    </div>
+  );
+}
+
+function PageWeek({ monthEvents, todayStr }: PageData) {
+  return (
+    <div className="flex flex-col gap-3 h-full">
+      <IconRow icons={APP_ICONS.slice(0, 4)} />
+      <div className="flex-shrink-0" style={{ height: 172 }}>
+        <WeekWidget events={monthEvents} todayStr={todayStr} />
+      </div>
+      <IconRow icons={APP_ICONS.slice(4, 8)} />
+      <IconRow icons={[APP_ICONS[0], APP_ICONS[2], APP_ICONS[5], APP_ICONS[7]]} />
     </div>
   );
 }
@@ -224,6 +318,7 @@ const PAGES = [
   { Component: PageCountdown, label: 'カウントダウン' },
   { Component: PageToday,     label: '今日の予定' },
   { Component: PageCalendar,  label: '月カレンダー' },
+  { Component: PageWeek,      label: '1週間' },
 ];
 
 // ─── メインモーダル ────────────────────────────────────────────────
