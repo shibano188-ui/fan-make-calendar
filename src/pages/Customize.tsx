@@ -21,7 +21,7 @@ const CAL_COLOR_FIELDS: { key: keyof UserSettings; label: string; cssVar: string
   { key: 'calOtherMonth', label: '前後月の日付', cssVar: '--cal-other-month-color' },
 ];
 
-// 10列 × 7行のカラーパレット（列 = 色相ファミリー, 行 = 明 → 暗）
+// 10列 × 7行（列 = 色相ファミリー、行 = 明 → 暗）
 const PALETTE_COLS = 10;
 const PALETTE_COLORS: string[][] = [
   ['#ffffff','#f0f0f0','#d9d9d9','#bfbfbf','#808080','#595959','#1a1a1a'],
@@ -35,7 +35,6 @@ const PALETTE_COLORS: string[][] = [
   ['#ede7f6','#d1c4e9','#b39ddb','#9575cd','#7e57c2','#5e35b1','#311b92'],
   ['#fce4ec','#f8bbd0','#f48fb1','#ec407a','#d81b60','#ad1457','#880e4f'],
 ];
-// 表示順: 行優先 (row0: 各色相の最も明るい色, row6: 最も暗い色)
 const PALETTE_FLAT = Array.from(
   { length: PALETTE_COLS * 7 },
   (_, i) => PALETTE_COLORS[i % PALETTE_COLS][Math.floor(i / PALETTE_COLS)],
@@ -43,147 +42,6 @@ const PALETTE_FLAT = Array.from(
 
 function formatCount(n: number): string {
   return n.toLocaleString('ja-JP');
-}
-
-// ─── カレンダー文字色ピッカー ──────────────────────────────────────
-
-function CalColorPicker({
-  value, cssVar, onChange, isOpen, onToggle, onClose, align,
-}: {
-  value: string;
-  cssVar: string;
-  onChange: (v: string) => void;
-  isOpen: boolean;
-  onToggle: () => void;
-  onClose: () => void;
-  align: 'left' | 'right';
-}) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const customInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (!containerRef.current?.contains(e.target as Node)) onClose();
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [isOpen, onClose]);
-
-  const isCustom = !!(value && !PALETTE_FLAT.includes(value));
-
-  return (
-    <div className="relative inline-block" ref={containerRef}>
-      {/* プレビューボタン */}
-      <button
-        onClick={onToggle}
-        className="flex items-center gap-1.5 px-3 py-2 rounded-xl border active:opacity-70"
-        style={{ borderColor: 'var(--border-default)', backgroundColor: 'var(--bg-primary)' }}
-      >
-        <div className="flex flex-col items-center gap-[3px]">
-          <span
-            className="text-[15px] font-bold leading-none w-5 text-center tabular-nums"
-            style={{ color: `var(${cssVar})` }}
-          >
-            15
-          </span>
-          <div className="w-5 h-[2.5px] rounded-full" style={{ backgroundColor: `var(${cssVar})` }} />
-        </div>
-        <ChevronDown
-          size={11}
-          className="text-label-tertiary transition-transform"
-          style={{ transform: isOpen ? 'rotate(180deg)' : undefined }}
-        />
-      </button>
-
-      {/* パレットドロップダウン */}
-      {isOpen && (
-        <div
-          className="absolute mt-1 z-[300] rounded-xl shadow-2xl"
-          style={{
-            top: '100%',
-            [align]: 0,
-            backgroundColor: 'var(--bg-secondary)',
-            border: '1px solid var(--border-default)',
-            padding: '8px',
-            width: 224,
-          }}
-        >
-          {/* 自動（デフォルト）*/}
-          <button
-            onClick={() => { onChange(''); onClose(); }}
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs mb-1.5 active:opacity-70"
-            style={{
-              color: 'var(--label-secondary)',
-              backgroundColor: value === '' ? 'var(--border-subtle)' : undefined,
-            }}
-          >
-            <div
-              className="w-4 h-4 rounded border-[1.5px] flex items-center justify-center"
-              style={{ borderColor: 'var(--border-strong)', color: 'var(--label-tertiary)', fontSize: 7 }}
-            >
-              自
-            </div>
-            自動（デフォルト）
-          </button>
-
-          {/* カラーグリッド */}
-          <div
-            className="grid gap-[2px]"
-            style={{ gridTemplateColumns: `repeat(${PALETTE_COLS}, 1fr)` }}
-          >
-            {PALETTE_FLAT.map((color, i) => (
-              <button
-                key={i}
-                onClick={() => { onChange(color); onClose(); }}
-                className="rounded-[3px] active:scale-90 transition-transform"
-                style={{
-                  backgroundColor: color,
-                  width: 19,
-                  height: 19,
-                  outline: value === color ? '2px solid var(--label-primary)' : undefined,
-                  outlineOffset: 1,
-                }}
-                title={color}
-              />
-            ))}
-          </div>
-
-          <div className="my-2 h-px" style={{ backgroundColor: 'var(--border-subtle)' }} />
-
-          {/* その他の色 */}
-          <div className="relative">
-            <button
-              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs active:opacity-70"
-              style={{ color: 'var(--label-secondary)' }}
-              onClick={() => customInputRef.current?.click()}
-            >
-              <div
-                className="w-4 h-4 rounded-[3px] border"
-                style={{
-                  borderColor: 'var(--border-default)',
-                  background: isCustom
-                    ? value
-                    : 'conic-gradient(red 0deg, yellow 60deg, lime 120deg, cyan 180deg, blue 240deg, magenta 300deg, red 360deg)',
-                  outline: isCustom ? '2px solid var(--label-primary)' : undefined,
-                  outlineOffset: 1,
-                }}
-              />
-              その他の色...
-            </button>
-            <input
-              ref={customInputRef}
-              type="color"
-              value={value && value.startsWith('#') ? value : '#888888'}
-              onChange={e => onChange(e.target.value)}
-              className="absolute opacity-0 pointer-events-none"
-              style={{ width: 0, height: 0, top: 0, left: 0 }}
-            />
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }
 
 // ─── コミュニティテーマ モーダル ──────────────────────────────────
@@ -226,7 +84,7 @@ function CommunityThemeModal({
       await deleteSharedTheme(themeId);
       setSharedThemes(prev => prev.filter(t => t.id !== themeId));
     } catch {
-      alert('削除できませんでした。Supabaseのポリシーを確認してください。');
+      alert('削除できませんでした。SupabaseのSQLエディタで以下を実行してください:\n\nDROP POLICY IF EXISTS "delete own shared_themes" ON shared_themes;\nCREATE POLICY "delete any shared_themes"\nON shared_themes FOR DELETE TO authenticated\nUSING (true);');
     }
   };
 
@@ -270,7 +128,6 @@ function CommunityThemeModal({
             <X size={14} />
           </button>
         </div>
-
         <div className="flex px-4 pt-3 gap-1">
           {(['preset', 'shared'] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)}
@@ -279,7 +136,6 @@ function CommunityThemeModal({
             </button>
           ))}
         </div>
-
         <div className="px-4 py-3 flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: '48vh' }}>
           {tab === 'preset' ? (
             COMMUNITY_THEMES.map(theme => {
@@ -328,7 +184,6 @@ function CommunityThemeModal({
             })
           )}
         </div>
-
         <div className="px-4 pt-2 pb-2 border-t border-subtle">
           {shareSuccess ? (
             <div className="flex items-center justify-center gap-2 py-3 text-sm text-label-secondary">
@@ -362,11 +217,38 @@ function CommunityThemeModal({
 export default function Customize() {
   const { settings, updateSettings } = useTheme();
   const { user } = useAuth();
-  const fontInputRef = useRef<HTMLInputElement>(null);
-  const bgInputRef   = useRef<HTMLInputElement>(null);
+  const fontInputRef     = useRef<HTMLInputElement>(null);
+  const bgInputRef       = useRef<HTMLInputElement>(null);
+  const calColorWrapperRef  = useRef<HTMLDivElement>(null);
+  const calBtnRefs       = useRef<(HTMLButtonElement | null)[]>([null, null, null, null]);
+  const calCustomInputRef = useRef<HTMLInputElement>(null);
+
   const [showCommunityModal, setShowCommunityModal] = useState(false);
-  const [calColorOpen, setCalColorOpen] = useState(false);
-  const [openCalKey, setOpenCalKey] = useState<string | null>(null);
+  const [calColorOpen, setCalColorOpen]   = useState(false);
+  const [openCalKey, setOpenCalKey]       = useState<string | null>(null);
+  const [paletteTop, setPaletteTop]       = useState(0);
+
+  // パレット外クリックで閉じる
+  useEffect(() => {
+    if (!openCalKey) return;
+    const handler = (e: MouseEvent) => {
+      if (!calColorWrapperRef.current?.contains(e.target as Node)) setOpenCalKey(null);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [openCalKey]);
+
+  const handleCalToggle = (key: string, i: number) => {
+    if (openCalKey === key) { setOpenCalKey(null); return; }
+    const btn = calBtnRefs.current[i];
+    const wrapper = calColorWrapperRef.current;
+    if (btn && wrapper) {
+      const btnRect     = btn.getBoundingClientRect();
+      const wrapperRect = wrapper.getBoundingClientRect();
+      setPaletteTop(btnRect.bottom - wrapperRect.top + 6);
+    }
+    setOpenCalKey(key);
+  };
 
   const handleFontUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -407,9 +289,7 @@ export default function Customize() {
       : []),
   ];
 
-  const calColorPreviewDots = CAL_COLOR_FIELDS
-    .map(f => settings[f.key] as string)
-    .filter(Boolean);
+  const calColorPreviewDots = CAL_COLOR_FIELDS.map(f => settings[f.key] as string).filter(Boolean);
 
   return (
     <Layout>
@@ -493,30 +373,108 @@ export default function Customize() {
                   ))}
                 </div>
               )}
-              <ChevronDown
-                size={13}
-                className="text-label-tertiary transition-transform"
-                style={{ transform: calColorOpen ? 'rotate(180deg)' : undefined }}
-              />
+              <ChevronDown size={13} className="text-label-tertiary transition-transform"
+                style={{ transform: calColorOpen ? 'rotate(180deg)' : undefined }} />
             </div>
           </button>
 
           {calColorOpen && (
-            <div className="flex flex-col gap-3">
-              {CAL_COLOR_FIELDS.map(({ key, label, cssVar }, i) => (
-                <div key={key as string} className="flex items-center justify-between">
-                  <span className="text-label-secondary text-sm">{label}</span>
-                  <CalColorPicker
-                    value={settings[key] as string}
-                    cssVar={cssVar}
-                    onChange={v => updateSettings({ [key]: v })}
-                    isOpen={openCalKey === key}
-                    onToggle={() => setOpenCalKey(openCalKey === key ? null : key as string)}
-                    onClose={() => setOpenCalKey(null)}
-                    align={i % 2 === 0 ? 'left' : 'right'}
-                  />
-                </div>
-              ))}
+            // このdivがposition:relativeの基準点。ドロップダウンはここを基準に中央配置する
+            <div className="relative" ref={calColorWrapperRef}>
+              <div className="flex flex-col gap-3">
+                {CAL_COLOR_FIELDS.map(({ key, label, cssVar }, i) => (
+                  <div key={key as string} className="flex items-center justify-between">
+                    <span className="text-label-secondary text-sm">{label}</span>
+                    {/* トリガーボタン */}
+                    <button
+                      ref={el => { calBtnRefs.current[i] = el; }}
+                      onClick={() => handleCalToggle(key as string, i)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl border active:opacity-70"
+                      style={{ borderColor: 'var(--border-default)', backgroundColor: 'var(--bg-primary)' }}
+                    >
+                      <div className="flex flex-col items-center gap-[3px]">
+                        <span className="text-[15px] font-bold leading-none w-5 text-center tabular-nums"
+                          style={{ color: `var(${cssVar})` }}>15</span>
+                        <div className="w-5 h-[2.5px] rounded-full" style={{ backgroundColor: `var(${cssVar})` }} />
+                      </div>
+                      <ChevronDown size={11} className="text-label-tertiary"
+                        style={{ transform: openCalKey === key ? 'rotate(180deg)' : undefined }} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* ドロップダウンパレット：wrapperを基準に中央配置 */}
+              {openCalKey && (() => {
+                const field = CAL_COLOR_FIELDS.find(f => f.key === openCalKey);
+                if (!field) return null;
+                const value = settings[field.key] as string;
+                const isCustom = !!(value && !PALETTE_FLAT.includes(value));
+                return (
+                  <div
+                    className="absolute z-[300] rounded-xl shadow-2xl"
+                    style={{
+                      top: paletteTop,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      backgroundColor: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-default)',
+                      padding: 8,
+                      width: 224,
+                    }}
+                  >
+                    {/* 自動（デフォルト）*/}
+                    <button
+                      onClick={() => { updateSettings({ [field.key]: '' }); setOpenCalKey(null); }}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs mb-1.5 active:opacity-70"
+                      style={{ color: 'var(--label-secondary)', backgroundColor: value === '' ? 'var(--border-subtle)' : undefined }}
+                    >
+                      <div className="w-4 h-4 rounded border-[1.5px] flex items-center justify-center"
+                        style={{ borderColor: 'var(--border-strong)', color: 'var(--label-tertiary)', fontSize: 7 }}>自</div>
+                      自動（デフォルト）
+                    </button>
+
+                    {/* 10×7 カラーグリッド */}
+                    <div className="grid gap-[2px]" style={{ gridTemplateColumns: `repeat(${PALETTE_COLS}, 1fr)` }}>
+                      {PALETTE_FLAT.map((color, ci) => (
+                        <button
+                          key={ci}
+                          onClick={() => { updateSettings({ [field.key]: color }); setOpenCalKey(null); }}
+                          className="rounded-[3px] active:scale-90 transition-transform"
+                          style={{ backgroundColor: color, width: 19, height: 19,
+                            outline: value === color ? '2px solid var(--label-primary)' : undefined, outlineOffset: 1 }}
+                          title={color}
+                        />
+                      ))}
+                    </div>
+
+                    <div className="my-2 h-px" style={{ backgroundColor: 'var(--border-subtle)' }} />
+
+                    {/* その他の色 */}
+                    <div className="relative">
+                      <button
+                        onClick={() => calCustomInputRef.current?.click()}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs active:opacity-70"
+                        style={{ color: 'var(--label-secondary)' }}
+                      >
+                        <div className="w-4 h-4 rounded-[3px] border flex-shrink-0"
+                          style={{ borderColor: 'var(--border-default)',
+                            background: isCustom ? value : 'conic-gradient(red 0deg,yellow 60deg,lime 120deg,cyan 180deg,blue 240deg,magenta 300deg,red 360deg)',
+                            outline: isCustom ? '2px solid var(--label-primary)' : undefined, outlineOffset: 1 }} />
+                        その他の色...
+                      </button>
+                      <input
+                        ref={calCustomInputRef}
+                        type="color"
+                        value={value && value.startsWith('#') ? value : '#888888'}
+                        onChange={e => updateSettings({ [field.key]: e.target.value })}
+                        className="absolute opacity-0 pointer-events-none"
+                        style={{ width: 0, height: 0, top: 0, left: 0 }}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </section>
@@ -527,8 +485,7 @@ export default function Customize() {
           <input ref={bgInputRef} type="file" accept="image/*" onChange={handleBgUpload} className="hidden" />
           <button onClick={() => bgInputRef.current?.click()}
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-subtle text-label-secondary text-sm active:opacity-60">
-            <Upload size={14} />
-            画像をアップロード
+            <Upload size={14} />画像をアップロード
           </button>
           {settings.backgroundImageUrl && (
             <div className="mt-2 flex items-center justify-between px-1">
@@ -548,14 +505,10 @@ export default function Customize() {
           onClose={() => setShowCommunityModal(false)}
           userId={user?.id}
           currentSettings={{
-            theme: settings.theme,
-            font: settings.font,
-            accentColor: settings.accentColor,
+            theme: settings.theme, font: settings.font, accentColor: settings.accentColor,
             communityThemeId: settings.communityThemeId,
-            calWeekday: settings.calWeekday,
-            calSaturday: settings.calSaturday,
-            calSunday: settings.calSunday,
-            calOtherMonth: settings.calOtherMonth,
+            calWeekday: settings.calWeekday, calSaturday: settings.calSaturday,
+            calSunday: settings.calSunday, calOtherMonth: settings.calOtherMonth,
           }}
           canShare={canShare}
         />

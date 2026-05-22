@@ -287,8 +287,14 @@ export async function incrementThemeUseCount(themeId: string): Promise<void> {
 }
 
 export async function deleteSharedTheme(themeId: string): Promise<void> {
-  const { error } = await supabase.from('shared_themes').delete().eq('id', themeId);
+  const { data, error } = await supabase
+    .from('shared_themes')
+    .delete()
+    .eq('id', themeId)
+    .select();
   if (error) throw error;
+  // RLSポリシーが未設定だと0行削除でもエラーにならないため明示的にチェック
+  if (!data || data.length === 0) throw new Error('no_rows_deleted');
 }
 
 // ─── ウィジェット用 ────────────────────────────────────────────────
