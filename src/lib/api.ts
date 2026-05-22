@@ -268,7 +268,7 @@ export async function listRecentWorks(userId: string): Promise<Work[]> {
   return (data ?? [])
     .filter(p => p.works)
     .map(p => {
-      const w = p.works as { id: string; name: string; participant_count: number };
+      const w = p.works as unknown as { id: string; name: string; participant_count: number };
       return { id: w.id, name: w.name, participantCount: w.participant_count };
     });
 }
