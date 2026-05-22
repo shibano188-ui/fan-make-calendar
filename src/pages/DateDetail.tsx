@@ -77,8 +77,6 @@ function LikeButton({
     } catch (e) { console.error(e); }
   };
 
-  const remaining = locked && session.resetAt > 0 ? Math.ceil((session.resetAt - Date.now()) / 1000) : 0;
-
   return (
     <div className="flex items-center gap-2">
       <button
