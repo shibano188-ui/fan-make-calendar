@@ -294,9 +294,10 @@ function PageCalendar({ monthEvents, year, month, todayStr }: PageData) {
   return (
     <div className="flex flex-col gap-3 h-full">
       <IconRow icons={APP_ICONS.slice(0, 4)} />
-      <div className="flex-1 min-h-0">
+      <div className="flex-shrink-0" style={{ height: 258 }}>
         <CalendarWidget events={monthEvents} year={year} month={month} todayStr={todayStr} />
       </div>
+      <IconRow icons={APP_ICONS.slice(4, 8)} />
     </div>
   );
 }
