@@ -235,6 +235,20 @@ export async function updateUserSettings(userId: string, s: SupabaseUserSettings
   if (error) throw error;
 }
 
+// ─── 作品削除 ──────────────────────────────────────────────────────
+
+export async function deleteWork(workId: string): Promise<void> {
+  const { data: eventRows } = await supabase
+    .from('events').select('id').eq('work_id', workId);
+  if (eventRows && eventRows.length > 0) {
+    await supabase.from('likes').delete().in('event_id', eventRows.map(e => e.id as string));
+  }
+  await supabase.from('events').delete().eq('work_id', workId);
+  await supabase.from('participations').delete().eq('work_id', workId);
+  const { error } = await supabase.from('works').delete().eq('id', workId);
+  if (error) throw error;
+}
+
 // ─── 参加履歴 ──────────────────────────────────────────────────────
 
 export async function upsertParticipation(workId: string, userId: string): Promise<void> {

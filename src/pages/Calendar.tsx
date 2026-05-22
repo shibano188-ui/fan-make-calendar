@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Palette, Plus, Heart, MoreVertical, Link2, LogOut } from 'lucide-react';
+import { Palette, Plus, Heart, MoreVertical, Link2, LogOut, Trash2 } from 'lucide-react';
 import Layout from '../components/Layout';
 import Header from '../components/Header';
-import { listEvents, getWorkById, leaveCalendar } from '../lib/api';
+import { listEvents, getWorkById, leaveCalendar, deleteWork } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import type { CalendarEvent } from '../types';
 
@@ -39,25 +39,8 @@ export function toDateStr(d: Date): string {
 export default function Calendar() {
   const { workId = '' } = useParams<{ workId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
-
-  if (!workId) {
-    return (
-      <Layout>
-        <div className="flex flex-col items-center justify-center px-8 py-24 gap-5 text-center">
-          <p className="text-label-primary font-semibold text-base">カレンダーがまだありません</p>
-          <p className="text-label-secondary text-sm">参加したい作品を検索して、みんなのカレンダーに参加しましょう。</p>
-          <button
-            onClick={() => navigate('/')}
-            className="px-5 py-2.5 bg-label-primary text-bg-primary rounded-xl text-sm font-medium active:opacity-70"
-          >
-            作品を追加してみましょう
-          </button>
-        </div>
-      </Layout>
-    );
-  }
   const location = useLocation();
+  const { user } = useAuth();
 
   const today = new Date();
   const todayStr = toDateStr(today);
@@ -66,10 +49,11 @@ export default function Calendar() {
   const [month, setMonth] = useState(today.getMonth());
   const [workName, setWorkName] = useState('');
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!!workId);
   const [error, setError] = useState('');
   const [showMenu, setShowMenu] = useState(false);
   const [copyDone, setCopyDone] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const handleCopyUrl = async () => {
@@ -88,15 +72,29 @@ export default function Calendar() {
     navigate('/');
   };
 
-  // 作品名を取得 & last_workId を保存
+  const handleDelete = async () => {
+    if (!user) return;
+    if (!window.confirm(`「${workName}」のカレンダーをすべてのデータごと完全に削除しますか？\nこの操作は元に戻せません。`)) return;
+    setDeleting(true);
+    setShowMenu(false);
+    try {
+      await deleteWork(workId);
+      localStorage.removeItem('last_calendar_workId');
+      navigate('/');
+    } catch {
+      setDeleting(false);
+      alert('削除に失敗しました。Supabaseの削除ポリシーを確認してください。');
+    }
+  };
+
   useEffect(() => {
     if (!workId) return;
     localStorage.setItem('last_calendar_workId', workId);
     getWorkById(workId).then(w => { if (w) setWorkName(w.name); });
   }, [workId]);
 
-  // イベントをSupabaseから取得
   useEffect(() => {
+    if (!workId) return;
     setLoading(true);
     setError('');
     listEvents(workId, year, month)
@@ -125,7 +123,7 @@ export default function Calendar() {
   return (
     <Layout>
       <Header
-        title={workName || '…'}
+        title={workId ? (workName || '…') : 'カレンダー'}
         subtitleNode={
           <div className="flex items-center justify-center gap-2">
             <button onClick={prevMonth} className="text-label-tertiary text-lg leading-none px-1 active:text-label-primary">‹</button>
@@ -141,36 +139,47 @@ export default function Calendar() {
             >
               <Palette size={16} />
             </button>
-            <div className="relative" ref={menuRef}>
-              <button
-                onClick={() => setShowMenu(v => !v)}
-                className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary"
-              >
-                <MoreVertical size={16} />
-              </button>
-              {showMenu && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-                  <div className="absolute right-0 top-9 z-50 bg-bg-secondary border border-subtle rounded-xl overflow-hidden shadow-lg w-48">
-                    <button
-                      onClick={handleCopyUrl}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-label-primary active:opacity-60"
-                    >
-                      <Link2 size={15} className="text-label-secondary" />
-                      {copyDone ? 'コピーしました！' : '招待リンクをコピー'}
-                    </button>
-                    <div className="h-px bg-subtle mx-3" />
-                    <button
-                      onClick={handleLeave}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 active:opacity-60"
-                    >
-                      <LogOut size={15} />
-                      カレンダーから抜ける
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+            {workId && (
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={() => setShowMenu(v => !v)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary"
+                >
+                  <MoreVertical size={16} />
+                </button>
+                {showMenu && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+                    <div className="absolute right-0 top-9 z-50 bg-bg-secondary border border-subtle rounded-xl overflow-hidden shadow-lg w-48">
+                      <button
+                        onClick={handleCopyUrl}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-label-primary active:opacity-60"
+                      >
+                        <Link2 size={15} className="text-label-secondary" />
+                        {copyDone ? 'コピーしました！' : '招待リンクをコピー'}
+                      </button>
+                      <div className="h-px bg-subtle mx-3" />
+                      <button
+                        onClick={handleLeave}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 active:opacity-60"
+                      >
+                        <LogOut size={15} />
+                        カレンダーから抜ける
+                      </button>
+                      <div className="h-px bg-subtle mx-3" />
+                      <button
+                        onClick={handleDelete}
+                        disabled={deleting}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 active:opacity-60 disabled:opacity-40"
+                      >
+                        <Trash2 size={15} />
+                        {deleting ? '削除中…' : 'カレンダーを削除'}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         }
       />
@@ -200,8 +209,8 @@ export default function Calendar() {
             return (
               <button
                 key={dateStr + idx}
-                onClick={() => navigate(`/calendar/${workId}/date/${dateStr}`)}
-                className="flex flex-col items-center py-[3px] active:opacity-50 transition-opacity"
+                onClick={() => { if (workId) navigate(`/calendar/${workId}/date/${dateStr}`); }}
+                className={`flex flex-col items-center py-[3px] transition-opacity ${workId ? 'active:opacity-50' : 'cursor-default'}`}
               >
                 <div
                   className={`w-8 h-8 flex items-center justify-center rounded-full text-[13px] font-medium select-none ${
@@ -233,7 +242,17 @@ export default function Calendar() {
       <div className="px-4 pt-3 pb-24">
         <p className="text-label-secondary text-xs mb-3 px-1">今月の予定</p>
 
-        {loading ? (
+        {!workId ? (
+          <div className="flex flex-col items-center gap-5 py-14 text-center">
+            <p className="text-label-secondary text-sm">まだカレンダーに参加していません</p>
+            <button
+              onClick={() => navigate('/')}
+              className="px-5 py-2.5 bg-label-primary text-bg-primary rounded-xl text-sm font-medium active:opacity-70"
+            >
+              カレンダーに参加してみましょう
+            </button>
+          </div>
+        ) : loading ? (
           <div className="flex flex-col gap-2">
             {[1, 2, 3].map(i => (
               <div key={i} className="h-16 bg-bg-secondary rounded-xl animate-pulse" />
@@ -273,13 +292,15 @@ export default function Calendar() {
       </div>
 
       {/* FAB */}
-      <button
-        onClick={() => navigate(`/calendar/${workId}/post`)}
-        className="fixed bottom-[76px] right-4 w-[52px] h-[52px] bg-label-primary text-bg-primary rounded-full flex items-center justify-center shadow-xl z-40 active:opacity-80 transition-opacity"
-        aria-label="予定を追加"
-      >
-        <Plus size={22} strokeWidth={2.5} />
-      </button>
+      {workId && (
+        <button
+          onClick={() => navigate(`/calendar/${workId}/post`)}
+          className="fixed bottom-[76px] right-4 w-[52px] h-[52px] bg-label-primary text-bg-primary rounded-full flex items-center justify-center shadow-xl z-40 active:opacity-80 transition-opacity"
+          aria-label="予定を追加"
+        >
+          <Plus size={22} strokeWidth={2.5} />
+        </button>
+      )}
     </Layout>
   );
 }

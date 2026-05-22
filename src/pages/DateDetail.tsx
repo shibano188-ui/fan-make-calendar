@@ -95,9 +95,6 @@ function LikeButton({
         <Heart size={14} style={hasLiked ? { fill: 'var(--accent-color)', color: 'var(--accent-color)' } : {}} />
         <span>{event.likes.toLocaleString('ja-JP')}</span>
       </button>
-      {locked && remaining > 0 && (
-        <span className="text-label-tertiary text-xs">{remaining}秒後にリセット</span>
-      )}
     </div>
   );
 }
