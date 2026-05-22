@@ -235,6 +235,27 @@ export async function updateUserSettings(userId: string, s: SupabaseUserSettings
   if (error) throw error;
 }
 
+// ─── ウィジェット用 ────────────────────────────────────────────────
+
+export async function getEventById(eventId: string): Promise<CalendarEvent | null> {
+  const { data, error } = await supabase.from('events').select('*').eq('id', eventId).single();
+  if (error) return null;
+  return rowToEvent(data as Record<string, unknown>);
+}
+
+export async function listUpcomingEvents(workId: string, from: string, limit = 5): Promise<CalendarEvent[]> {
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .eq('work_id', workId)
+    .eq('pool', 0)
+    .gte('event_date', from)
+    .order('event_date', { ascending: true })
+    .limit(limit);
+  if (error) return [];
+  return (data ?? []).map(e => rowToEvent(e as Record<string, unknown>));
+}
+
 // ─── 作品削除 ──────────────────────────────────────────────────────
 
 export async function deleteWork(workId: string): Promise<void> {
