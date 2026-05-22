@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import WidgetPreviewModal from './WidgetPreviewModal';
 
 function StatusBar() {
   return (
@@ -36,10 +37,12 @@ interface Props {
 }
 
 export default function PhoneFrame({ children }: Props) {
+  const [showPreview, setShowPreview] = useState(false);
+
   return (
     <>
       {/* デスクトップ: スマホフレーム */}
-      <div className="hidden sm:flex min-h-screen items-center justify-center bg-[#0d0d0d]">
+      <div className="hidden sm:flex min-h-screen items-center justify-center bg-[#0d0d0d] relative">
         <div
           className="relative flex-shrink-0"
           style={{ width: 390, height: 'min(844px, calc(100vh - 48px))' }}
@@ -84,6 +87,26 @@ export default function PhoneFrame({ children }: Props) {
           {/* サイレントスイッチ (左) */}
           <div className="absolute left-[-2px] top-[100px] w-[3px] h-[28px] bg-[#4a4a4c] rounded-l" />
         </div>
+        {/* ウィジェットプレビューボタン */}
+        <button
+          onClick={() => setShowPreview(true)}
+          className="absolute bottom-8 right-8 flex flex-col items-center gap-1.5 group"
+        >
+          <div
+            className="w-12 h-12 rounded-2xl flex items-center justify-center transition-colors"
+            style={{ background: 'rgba(255,255,255,0.08)', border: '0.5px solid rgba(255,255,255,0.12)' }}
+          >
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+              <rect x="1" y="1" width="8" height="8" rx="2" fill="rgba(255,255,255,0.7)" />
+              <rect x="13" y="1" width="8" height="8" rx="2" fill="rgba(255,255,255,0.7)" />
+              <rect x="1" y="13" width="8" height="8" rx="2" fill="rgba(255,255,255,0.7)" />
+              <rect x="13" y="13" width="8" height="8" rx="2" fill="rgba(255,255,255,0.35)" />
+            </svg>
+          </div>
+          <span className="text-[10px] text-white/40 group-hover:text-white/60 transition-colors">ウィジェット</span>
+        </button>
+
+        {showPreview && <WidgetPreviewModal onClose={() => setShowPreview(false)} />}
       </div>
 
       {/* スマホ実機: フレームなし、そのまま表示 */}
