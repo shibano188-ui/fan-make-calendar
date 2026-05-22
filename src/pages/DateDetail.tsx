@@ -82,6 +82,7 @@ function LikeButton({
       <button
         onClick={handleTap}
         disabled={!userId || locked}
+        aria-label={`いいね (${event.likes.toLocaleString('ja-JP')}件)`}
         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm select-none ${locked ? 'opacity-30' : 'active:opacity-60'}`}
         style={{
           borderColor: hasLiked ? 'var(--accent-color)' : 'var(--border-default)',

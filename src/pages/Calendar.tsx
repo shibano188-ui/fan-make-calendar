@@ -126,9 +126,9 @@ export default function Calendar() {
         title={workId ? (workName || '…') : 'カレンダー'}
         subtitleNode={
           <div className="flex items-center justify-center gap-2">
-            <button onClick={prevMonth} className="text-label-tertiary text-lg leading-none px-1 active:text-label-primary">‹</button>
+            <button onClick={prevMonth} aria-label="前の月" className="text-label-tertiary text-lg leading-none px-1 active:text-label-primary">‹</button>
             <span className="text-xs text-label-secondary">{year}年 {month + 1}月</span>
-            <button onClick={nextMonth} className="text-label-tertiary text-lg leading-none px-1 active:text-label-primary">›</button>
+            <button onClick={nextMonth} aria-label="次の月" className="text-label-tertiary text-lg leading-none px-1 active:text-label-primary">›</button>
           </div>
         }
         rightAction={

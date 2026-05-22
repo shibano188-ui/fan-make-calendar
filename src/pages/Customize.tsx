@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { Upload, Share2, Users, X, Check, Loader, Trash2 } from 'lucide-react';
+import { Upload, Share2, Users, X, Check, Loader, Trash2, ChevronDown } from 'lucide-react';
 import Layout from '../components/Layout';
 import Header from '../components/Header';
 import { useTheme, ACCENT_COLORS, COMMUNITY_THEMES, type FontFamily, type UserSettings } from '../contexts/ThemeContext';
@@ -14,11 +14,18 @@ const FONT_OPTIONS: { value: FontFamily; label: string; stack: string }[] = [
   { value: 'rounded', label: '丸ゴシック',  stack: '"Hiragino Maru Gothic ProN", "M PLUS Rounded 1c", sans-serif' },
 ];
 
-const CAL_COLOR_FIELDS: { key: keyof UserSettings; label: string; placeholder: string }[] = [
-  { key: 'calWeekday',   label: '平日',        placeholder: '#ffffff' },
-  { key: 'calSaturday',  label: '土曜日',      placeholder: '#60a5fa' },
-  { key: 'calSunday',    label: '日曜日',      placeholder: '#ef4444' },
-  { key: 'calOtherMonth', label: '前後月の日付', placeholder: '#808080' },
+const CAL_COLOR_FIELDS: { key: keyof UserSettings; label: string }[] = [
+  { key: 'calWeekday',    label: '平日' },
+  { key: 'calSaturday',   label: '土曜日' },
+  { key: 'calSunday',     label: '日曜日' },
+  { key: 'calOtherMonth', label: '前後月の日付' },
+];
+
+const CAL_COLOR_PRESETS = [
+  '#ffffff', '#aaaaaa', '#666666',
+  '#60a5fa', '#93c5fd',
+  '#ef4444', '#fca5a5',
+  '#fbbf24',
 ];
 
 function formatCount(n: number): string {
@@ -99,7 +106,6 @@ function CommunityThemeModal({
     }
   };
 
-  // 共有テーマのプレビューカラーを取得
   const getPreviewColors = (td: SharedThemeData) => {
     if (td.communityThemeId) {
       const ct = COMMUNITY_THEMES.find(c => c.id === td.communityThemeId);
@@ -121,7 +127,6 @@ function CommunityThemeModal({
         style={{ backgroundColor: 'var(--bg-primary)' }}
         onClick={e => e.stopPropagation()}
       >
-        {/* ヘッダー */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-subtle">
           <p className="text-label-primary font-semibold text-base">みんなのテーマ</p>
           <button
@@ -133,16 +138,13 @@ function CommunityThemeModal({
           </button>
         </div>
 
-        {/* タブ */}
         <div className="flex px-4 pt-3 gap-1">
           {(['preset', 'shared'] as Tab[]).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
               className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                tab === t
-                  ? 'bg-label-primary text-bg-primary'
-                  : 'text-label-secondary'
+                tab === t ? 'bg-label-primary text-bg-primary' : 'text-label-secondary'
               }`}
             >
               {t === 'preset' ? 'プリセット' : 'みんなの共有'}
@@ -150,7 +152,6 @@ function CommunityThemeModal({
           ))}
         </div>
 
-        {/* テーマ一覧 */}
         <div className="px-4 py-3 flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: '48vh' }}>
           {tab === 'preset' ? (
             COMMUNITY_THEMES.map(theme => {
@@ -185,7 +186,6 @@ function CommunityThemeModal({
           ) : (
             sharedThemes.map(theme => {
               const colors = getPreviewColors(theme.themeData);
-              const isOwn = theme.authorId === userId;
               return (
                 <div
                   key={theme.id}
@@ -205,21 +205,18 @@ function CommunityThemeModal({
                       <p className="text-label-tertiary text-xs mt-0.5">{formatCount(theme.useCount)}人が使用中</p>
                     </div>
                   </button>
-                  {isOwn && (
-                    <button
-                      onClick={() => handleDeleteShared(theme.id)}
-                      className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-label-tertiary active:text-red-400 active:opacity-70"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleDeleteShared(theme.id)}
+                    className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-label-tertiary active:text-red-400"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               );
             })
           )}
         </div>
 
-        {/* テーマを共有 */}
         <div className="px-4 pt-2 pb-2 border-t border-subtle">
           {shareSuccess ? (
             <div className="flex items-center justify-center gap-2 py-3 text-sm text-label-secondary">
@@ -246,12 +243,11 @@ function CommunityThemeModal({
             </div>
           ) : (
             <p className="text-center text-label-tertiary text-xs py-3">
-              独自フォント・背景画像・カレンダー文字色を設定すると共有できます
+              独自フォントと背景画像の両方を設定すると共有できます
             </p>
           )}
         </div>
 
-        {/* セーフエリア */}
         <div className="pb-4" />
       </div>
     </div>
@@ -266,6 +262,7 @@ export default function Customize() {
   const fontInputRef = useRef<HTMLInputElement>(null);
   const bgInputRef   = useRef<HTMLInputElement>(null);
   const [showCommunityModal, setShowCommunityModal] = useState(false);
+  const [calColorOpen, setCalColorOpen] = useState(false);
 
   const handleFontUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -296,14 +293,8 @@ export default function Customize() {
     });
   };
 
-  const canShare = !!(
-    settings.customFontUrl ||
-    settings.backgroundImageUrl ||
-    settings.calWeekday ||
-    settings.calSaturday ||
-    settings.calSunday ||
-    settings.calOtherMonth
-  );
+  // 独自フォントと背景画像の両方が必須
+  const canShare = !!(settings.customFontUrl && settings.backgroundImageUrl);
 
   const isCommunityActive = !!settings.communityThemeId;
 
@@ -317,18 +308,20 @@ export default function Customize() {
       : []),
   ];
 
+  const calColorPreviewDots = CAL_COLOR_FIELDS
+    .map(f => settings[f.key] as string)
+    .filter(Boolean);
+
   return (
     <Layout>
       <Header title="カスタマイズ" />
 
       <div className="px-4 pt-4 pb-8 flex flex-col gap-6">
 
-        {/* テーマ (2×2 グリッド) */}
+        {/* テーマ */}
         <section>
           <p className="text-label-tertiary text-xs mb-3">テーマ</p>
           <div className="grid grid-cols-2 gap-2">
-
-            {/* シンプル */}
             <button
               onClick={() => updateSettings({ theme: 'simple', communityThemeId: '' })}
               className={themeButtonClass(settings.theme === 'simple' && !isCommunityActive)}
@@ -338,8 +331,6 @@ export default function Customize() {
                 <p className="text-xs text-label-primary text-center">シンプル</p>
               </div>
             </button>
-
-            {/* ダーク */}
             <button
               onClick={() => updateSettings({ theme: 'dark', communityThemeId: '' })}
               className={themeButtonClass(settings.theme === 'dark' && !isCommunityActive)}
@@ -349,16 +340,12 @@ export default function Customize() {
                 <p className="text-xs text-label-primary text-center">ダーク</p>
               </div>
             </button>
-
-            {/* 作品公式（フェーズ3） */}
             <button className="rounded-xl overflow-hidden border-2 border-subtle opacity-40" disabled>
               <div className="h-12" style={{ backgroundImage: 'repeating-linear-gradient(45deg,#333 0,#333 4px,#444 4px,#444 8px)' }} />
               <div className="bg-bg-secondary py-1.5">
                 <p className="text-xs text-label-tertiary text-center">作品公式</p>
               </div>
             </button>
-
-            {/* みんなのテーマ */}
             <button
               onClick={() => setShowCommunityModal(true)}
               className={themeButtonClass(isCommunityActive)}
@@ -370,7 +357,6 @@ export default function Customize() {
                 <p className="text-xs text-label-secondary text-center">みんなのテーマ</p>
               </div>
             </button>
-
           </div>
           {isCommunityActive && (
             <p className="text-label-tertiary text-xs mt-1.5 px-1">
@@ -382,10 +368,7 @@ export default function Customize() {
         {/* フォント */}
         <section>
           <p className="text-label-tertiary text-xs mb-3">フォント</p>
-          <div
-            className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4"
-            style={{ scrollbarWidth: 'none' }}
-          >
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
             {fontCards.map(f => {
               const active = settings.font === f.value;
               return (
@@ -396,17 +379,11 @@ export default function Customize() {
                     active ? 'border-selected' : 'border-subtle'
                   }`}
                 >
-                  <div
-                    className="h-16 flex flex-col items-center justify-center bg-bg-secondary"
-                    style={{ fontFamily: f.stack }}
-                  >
+                  <div className="h-16 flex flex-col items-center justify-center bg-bg-secondary" style={{ fontFamily: f.stack }}>
                     <span className="text-label-primary text-sm leading-tight">1月23日</span>
                     <span className="text-label-tertiary text-xs leading-tight mt-1">12:34</span>
                   </div>
-                  <div
-                    className="flex items-center justify-center gap-1 py-1.5 px-1 border-t border-faint bg-bg-secondary"
-                    style={{ fontFamily: SYSTEM_FONT }}
-                  >
+                  <div className="flex items-center justify-center gap-1 py-1.5 px-1 border-t border-faint bg-bg-secondary" style={{ fontFamily: SYSTEM_FONT }}>
                     {active && <Check size={9} className="text-label-primary flex-shrink-0" />}
                     <p className="text-[10px] text-label-secondary truncate leading-tight">{f.label}</p>
                   </div>
@@ -414,7 +391,6 @@ export default function Customize() {
               );
             })}
           </div>
-
           <input ref={fontInputRef} type="file" accept=".ttf,.otf,.woff,.woff2" onChange={handleFontUpload} className="hidden" />
           <button
             onClick={() => fontInputRef.current?.click()}
@@ -431,46 +407,85 @@ export default function Customize() {
           </button>
         </section>
 
-        {/* カレンダー文字色 */}
+        {/* カレンダー文字色（折りたたみ） */}
         <section>
-          <p className="text-label-tertiary text-xs mb-3">カレンダー文字色</p>
-          <div className="flex flex-col gap-3">
-            {CAL_COLOR_FIELDS.map(({ key, label }) => {
-              const value = settings[key] as string;
-              return (
-                <div key={key} className="flex items-center justify-between">
-                  <span className="text-label-secondary text-sm">{label}</span>
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-8 h-8 rounded-lg border overflow-hidden relative"
-                      style={{ borderColor: 'var(--border-default)' }}
-                    >
-                      <input
-                        type="color"
-                        value={value || '#888888'}
-                        onChange={e => updateSettings({ [key]: e.target.value })}
-                        className="absolute inset-0 w-[200%] h-[200%] -top-1/4 -left-1/4 cursor-pointer opacity-0"
-                      />
-                      <div
-                        className="w-full h-full"
-                        style={{ backgroundColor: value || 'var(--bg-secondary)' }}
-                      />
-                    </div>
-                    {value ? (
+          <button
+            onClick={() => setCalColorOpen(v => !v)}
+            className="w-full flex items-center justify-between mb-2"
+          >
+            <p className="text-label-tertiary text-xs">カレンダー文字色</p>
+            <div className="flex items-center gap-2">
+              {calColorPreviewDots.length > 0 && (
+                <div className="flex gap-1">
+                  {calColorPreviewDots.map((c, i) => (
+                    <div key={i} className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c }} />
+                  ))}
+                </div>
+              )}
+              <ChevronDown
+                size={13}
+                className="text-label-tertiary transition-transform"
+                style={{ transform: calColorOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+              />
+            </div>
+          </button>
+
+          {calColorOpen && (
+            <div className="flex flex-col gap-4 pt-1">
+              {CAL_COLOR_FIELDS.map(({ key, label }) => {
+                const value = settings[key] as string;
+                const isCustom = !!(value && !CAL_COLOR_PRESETS.includes(value));
+                return (
+                  <div key={key as string}>
+                    <p className="text-label-secondary text-xs mb-2">{label}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {/* デフォルト */}
                       <button
                         onClick={() => updateSettings({ [key]: '' })}
-                        className="text-label-tertiary text-xs underline active:opacity-60 w-12 text-right"
+                        className="w-7 h-7 rounded-lg border-2 flex items-center justify-center"
+                        style={{
+                          backgroundColor: 'var(--bg-secondary)',
+                          borderColor: !value ? 'var(--label-primary)' : 'var(--border-subtle)',
+                        }}
                       >
-                        リセット
+                        <span className="text-[7px] text-label-tertiary font-medium leading-none">自動</span>
                       </button>
-                    ) : (
-                      <span className="text-label-tertiary text-xs w-12 text-right">デフォルト</span>
-                    )}
+
+                      {/* プリセット */}
+                      {CAL_COLOR_PRESETS.map(color => (
+                        <button
+                          key={color}
+                          onClick={() => updateSettings({ [key]: color })}
+                          className="w-7 h-7 rounded-lg border-2 transition-all active:scale-90"
+                          style={{
+                            backgroundColor: color,
+                            borderColor: value === color ? 'var(--label-primary)' : 'transparent',
+                          }}
+                        />
+                      ))}
+
+                      {/* カスタムカラーピッカー */}
+                      <div className="relative w-7 h-7 flex-shrink-0">
+                        <div
+                          className="w-7 h-7 rounded-lg border-2"
+                          style={{
+                            background: 'conic-gradient(red 0deg, yellow 60deg, lime 120deg, cyan 180deg, blue 240deg, magenta 300deg, red 360deg)',
+                            borderColor: isCustom ? 'var(--label-primary)' : 'var(--border-subtle)',
+                          }}
+                        />
+                        <input
+                          type="color"
+                          value={value || '#888888'}
+                          onChange={e => updateSettings({ [key]: e.target.value })}
+                          className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </section>
 
         {/* アクセントカラー */}
@@ -514,7 +529,6 @@ export default function Customize() {
 
       </div>
 
-      {/* コミュニティテーマモーダル */}
       {showCommunityModal && (
         <CommunityThemeModal
           currentId={settings.communityThemeId}
