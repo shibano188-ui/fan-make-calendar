@@ -6,6 +6,24 @@ import type { CalendarEvent } from '../types';
 
 // ─── 定数 ────────────────────────────────────────────────────────
 
+interface WidgetBg { url: string; x: number; y: number; }
+
+function widgetBgStyle(bg: WidgetBg): React.CSSProperties {
+  if (bg.url) {
+    return {
+      backgroundImage: `linear-gradient(rgba(0,0,0,0.38),rgba(0,0,0,0.38)), url(${bg.url})`,
+      backgroundSize: 'cover',
+      backgroundPosition: `${bg.x}% ${bg.y}%`,
+      border: '0.5px solid rgba(255,255,255,0.18)',
+    };
+  }
+  return {
+    background: 'rgba(0,0,0,0.45)',
+    backdropFilter: 'blur(16px)',
+    border: '0.5px solid rgba(255,255,255,0.12)',
+  };
+}
+
 const APP_ICONS = [
   { label: 'ファンカレ', Icon: Calendar, bg: '#1c2a4a' },
   { label: 'ミュージック', Icon: Music,    bg: '#2d1b3d' },
@@ -60,7 +78,7 @@ function IconRow({ icons }: { icons: typeof APP_ICONS }) {
 
 // ─── ミニウィジェット ─────────────────────────────────────────────
 
-function CountdownWidget({ event, workName }: { event: CalendarEvent | null; workName: string }) {
+function CountdownWidget({ event, workName, bg }: { event: CalendarEvent | null; workName: string; bg: WidgetBg }) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const days = event
     ? Math.ceil((new Date(event.date + 'T00:00:00').getTime() - today.getTime()) / 86_400_000)
@@ -69,7 +87,7 @@ function CountdownWidget({ event, workName }: { event: CalendarEvent | null; wor
   return (
     <div
       className="w-full h-full rounded-[20px] p-4 flex flex-col justify-between"
-      style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(16px)', border: '0.5px solid rgba(255,255,255,0.12)' }}
+      style={widgetBgStyle(bg)}
     >
       <p className="text-white/50 text-[9px] font-medium tracking-wide">{workName || 'カレンダー'}</p>
       <div className="flex flex-col items-center justify-center flex-1">
@@ -91,13 +109,13 @@ function CountdownWidget({ event, workName }: { event: CalendarEvent | null; wor
   );
 }
 
-function TodayWidget({ events, dateStr }: { events: CalendarEvent[]; dateStr: string }) {
+function TodayWidget({ events, dateStr, bg }: { events: CalendarEvent[]; dateStr: string; bg: WidgetBg }) {
   const [, m, d] = dateStr.split('-').map(Number);
   const DAY = ['日','月','火','水','木','金','土'][new Date(dateStr + 'T00:00:00').getDay()];
   return (
     <div
       className="w-full h-full rounded-[20px] p-4 flex flex-col gap-2.5"
-      style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(16px)', border: '0.5px solid rgba(255,255,255,0.12)' }}
+      style={widgetBgStyle(bg)}
     >
       <div className="flex items-end gap-2">
         <span className="text-white font-bold leading-none" style={{ fontSize: '2.2rem' }}>{d}</span>
@@ -120,7 +138,7 @@ function TodayWidget({ events, dateStr }: { events: CalendarEvent[]; dateStr: st
   );
 }
 
-function CalendarWidget({ events, year, month, todayStr }: { events: CalendarEvent[]; year: number; month: number; todayStr: string }) {
+function CalendarWidget({ events, year, month, todayStr, bg }: { events: CalendarEvent[]; year: number; month: number; todayStr: string; bg: WidgetBg }) {
   const eventDates = new Set(events.map(e => e.date));
   const days = getCalendarDays(year, month);
   const DAY_LABELS = ['日','月','火','水','木','金','土'];
@@ -129,7 +147,7 @@ function CalendarWidget({ events, year, month, todayStr }: { events: CalendarEve
   return (
     <div
       className="w-full h-full rounded-[20px] p-3 flex flex-col gap-2"
-      style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(16px)', border: '0.5px solid rgba(255,255,255,0.12)' }}
+      style={widgetBgStyle(bg)}
     >
       {/* カレンダーグリッド（コンパクト） */}
       <div>
@@ -188,7 +206,7 @@ function CalendarWidget({ events, year, month, todayStr }: { events: CalendarEve
   );
 }
 
-function WeekWidget({ events, todayStr }: { events: CalendarEvent[]; todayStr: string }) {
+function WeekWidget({ events, todayStr, bg }: { events: CalendarEvent[]; todayStr: string; bg: WidgetBg }) {
   const today = new Date(todayStr + 'T00:00:00');
   const startOfWeek = new Date(today);
   startOfWeek.setDate(today.getDate() - today.getDay());
@@ -205,7 +223,7 @@ function WeekWidget({ events, todayStr }: { events: CalendarEvent[]; todayStr: s
   return (
     <div
       className="w-full h-full rounded-[20px] p-4 flex flex-col gap-3"
-      style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(16px)', border: '0.5px solid rgba(255,255,255,0.12)' }}
+      style={widgetBgStyle(bg)}
     >
       {/* 週ストリップ */}
       <div className="flex justify-between">
@@ -265,25 +283,25 @@ interface PageData {
   month: number;
 }
 
-function PageCountdown({ event, workName }: PageData) {
+function PageCountdown({ event, workName, bg }: PageData & { bg: WidgetBg }) {
   return (
     <div className="flex flex-col gap-3 h-full">
       <IconRow icons={APP_ICONS.slice(0, 4)} />
       <IconRow icons={APP_ICONS.slice(4, 8)} />
       <div className="flex-shrink-0" style={{ height: 148 }}>
-        <CountdownWidget event={event} workName={workName} />
+        <CountdownWidget event={event} workName={workName} bg={bg} />
       </div>
       <IconRow icons={[APP_ICONS[0], APP_ICONS[2], APP_ICONS[5], APP_ICONS[7]]} />
     </div>
   );
 }
 
-function PageToday({ todayEvents, todayStr }: PageData) {
+function PageToday({ todayEvents, todayStr, bg }: PageData & { bg: WidgetBg }) {
   return (
     <div className="flex flex-col gap-3 h-full">
       <IconRow icons={APP_ICONS.slice(0, 4)} />
       <div className="flex-shrink-0" style={{ height: 148 }}>
-        <TodayWidget events={todayEvents} dateStr={todayStr} />
+        <TodayWidget events={todayEvents} dateStr={todayStr} bg={bg} />
       </div>
       <IconRow icons={APP_ICONS.slice(4, 8)} />
       <IconRow icons={[APP_ICONS[1], APP_ICONS[3], APP_ICONS[6], APP_ICONS[0]]} />
@@ -291,24 +309,24 @@ function PageToday({ todayEvents, todayStr }: PageData) {
   );
 }
 
-function PageCalendar({ monthEvents, year, month, todayStr }: PageData) {
+function PageCalendar({ monthEvents, year, month, todayStr, bg }: PageData & { bg: WidgetBg }) {
   return (
     <div className="flex flex-col gap-3 h-full">
       <IconRow icons={APP_ICONS.slice(0, 4)} />
       <div className="flex-shrink-0" style={{ height: 258 }}>
-        <CalendarWidget events={monthEvents} year={year} month={month} todayStr={todayStr} />
+        <CalendarWidget events={monthEvents} year={year} month={month} todayStr={todayStr} bg={bg} />
       </div>
       <IconRow icons={APP_ICONS.slice(4, 8)} />
     </div>
   );
 }
 
-function PageWeek({ monthEvents, todayStr }: PageData) {
+function PageWeek({ monthEvents, todayStr, bg }: PageData & { bg: WidgetBg }) {
   return (
     <div className="flex flex-col gap-3 h-full">
       <IconRow icons={APP_ICONS.slice(0, 4)} />
       <div className="flex-shrink-0" style={{ height: 172 }}>
-        <WeekWidget events={monthEvents} todayStr={todayStr} />
+        <WeekWidget events={monthEvents} todayStr={todayStr} bg={bg} />
       </div>
       <IconRow icons={APP_ICONS.slice(4, 8)} />
       <IconRow icons={[APP_ICONS[0], APP_ICONS[2], APP_ICONS[5], APP_ICONS[7]]} />
@@ -370,6 +388,7 @@ export default function WidgetPreviewModal({ onClose }: { onClose: () => void })
   const prev = () => setPage(p => (p - 1 + PAGES.length) % PAGES.length);
   const next = () => setPage(p => (p + 1) % PAGES.length);
   const { Component, label } = PAGES[page];
+  const widgetBg: WidgetBg = { url: bgImageUrl, x: bgOffsetX, y: bgOffsetY };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}>
@@ -416,13 +435,7 @@ export default function WidgetPreviewModal({ onClose }: { onClose: () => void })
         {/* スクリーン */}
         <div
           className="absolute inset-[8px] rounded-[36px] overflow-hidden flex flex-col"
-          style={bgImageUrl ? {
-            backgroundImage: `url(${bgImageUrl})`,
-            backgroundSize: 'cover',
-            backgroundPosition: `${bgOffsetX}% ${bgOffsetY}%`,
-          } : {
-            background: 'linear-gradient(155deg, #1c2340 0%, #0f1a30 45%, #0a0f20 100%)',
-          }}
+          style={{ background: 'linear-gradient(155deg, #1c2340 0%, #0f1a30 45%, #0a0f20 100%)' }}
         >
           {/* ステータスバー */}
           <div className="flex items-center justify-between px-6 h-10 flex-shrink-0 pt-1">
@@ -448,7 +461,7 @@ export default function WidgetPreviewModal({ onClose }: { onClose: () => void })
 
           {/* コンテンツ */}
           <div className="flex-1 min-h-0 px-4 pt-3 pb-14 overflow-hidden">
-            <Component {...data} />
+            <Component {...data} bg={widgetBg} />
           </div>
 
           {/* ページドット */}

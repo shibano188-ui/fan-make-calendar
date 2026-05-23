@@ -41,7 +41,8 @@ export default function App() {
               <Route path="/*" element={
                 <PhoneFrame>
                   <Routes>
-                    <Route path="/"                               element={<WorkSelect />} />
+                    <Route path="/"                               element={<Calendar />} />
+                    <Route path="/select"                          element={<WorkSelect />} />
                     <Route path="/calendar"                       element={<Calendar />} />
                     <Route path="/calendar/:workId"               element={<Calendar />} />
                     <Route path="/calendar/:workId/date/:date"    element={<DateDetail />} />

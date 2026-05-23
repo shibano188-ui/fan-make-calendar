@@ -2,9 +2,9 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Palette, Plus, Heart, MoreVertical, Link2, LogOut, Trash2,
-  ChevronDown, ChevronUp, X, Settings, Map,
+  ChevronDown, ChevronUp, ChevronRight, X, Settings, Map,
 } from 'lucide-react';
-import Layout from '../components/Layout';
+import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
 import {
   listEvents, getWorkById, leaveCalendar, deleteWork,
@@ -497,6 +497,94 @@ function RegionFilterPanel({
   );
 }
 
+// ─── 個人予定 ──────────────────────────────────────────────────────
+
+type PersonalEvent = {
+  id: string;
+  title: string;
+  date: string;
+  time?: string;
+  memo?: string;
+};
+
+const PERSONAL_EVENTS_KEY = 'fan_personal_events';
+
+function loadPersonalEvents(): PersonalEvent[] {
+  try { return JSON.parse(localStorage.getItem(PERSONAL_EVENTS_KEY) ?? '[]'); }
+  catch { return []; }
+}
+function savePersonalEvents(evts: PersonalEvent[]) {
+  localStorage.setItem(PERSONAL_EVENTS_KEY, JSON.stringify(evts));
+}
+
+function PersonalEventForm({
+  initialDate,
+  onSuccess,
+  onCancel,
+}: {
+  initialDate: string;
+  onSuccess: () => void;
+  onCancel: () => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [date, setDate] = useState(initialDate);
+  const [time, setTime] = useState('');
+  const [memo, setMemo] = useState('');
+
+  const handleSave = () => {
+    if (!title.trim()) return;
+    const existing = loadPersonalEvents();
+    savePersonalEvents([...existing, {
+      id: crypto.randomUUID(),
+      title: title.trim(),
+      date,
+      ...(time && { time }),
+      ...(memo.trim() && { memo: memo.trim() }),
+    }]);
+    onSuccess();
+  };
+
+  return (
+    <div className="px-4 pt-4 pb-10 flex flex-col gap-4">
+      <div className="flex items-center justify-between pt-2 pb-2">
+        <h2 className="text-label-primary font-bold text-lg">個人の予定を追加</h2>
+        <button onClick={onCancel} className="text-label-secondary text-sm active:opacity-60">キャンセル</button>
+      </div>
+      <div>
+        <label className="text-label-tertiary text-xs mb-1.5 block">タイトル <span className="text-red-400">*</span></label>
+        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="例：打ち合わせ" className={inputCls} autoFocus />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-label-tertiary text-xs mb-1.5 block">日付</label>
+          <input type="date" value={date} onChange={e => setDate(e.target.value)} className={inputCls} />
+        </div>
+        <div>
+          <label className="text-label-tertiary text-xs mb-1.5 block">時間</label>
+          <input type="time" value={time} onChange={e => setTime(e.target.value)} className={inputCls} />
+        </div>
+      </div>
+      <div>
+        <label className="text-label-tertiary text-xs mb-1.5 block">メモ</label>
+        <textarea value={memo} onChange={e => setMemo(e.target.value)} placeholder="補足情報" rows={3} className={`${inputCls} resize-none`} />
+      </div>
+      <button
+        onClick={handleSave}
+        disabled={!title.trim()}
+        className="w-full bg-label-primary text-bg-primary rounded-xl py-3 text-sm font-semibold active:opacity-70 disabled:opacity-40 mt-2"
+      >
+        保存
+      </button>
+    </div>
+  );
+}
+
+// ─── レイアウト定数 ────────────────────────────────────────────────
+
+const BOTTOM_TAB_H = 56;
+const SHEET_COLLAPSED_H = 76;
+const SHEET_FULL_H = 400;
+
 // ─── メイン画面 ────────────────────────────────────────────────────
 
 export default function Calendar() {
@@ -514,7 +602,7 @@ export default function Calendar() {
   const [workName, setWorkName] = useState('');
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(!!workId);
-  const [error, setError] = useState('');
+  const [, setError] = useState('');
   const [showMenu, setShowMenu] = useState(false);
   const [copyDone, setCopyDone] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -531,6 +619,9 @@ export default function Calendar() {
 
   const [postPanelOpen, setPostPanelOpen] = useState(false);
   const [postDate, setPostDate] = useState(todayStr);
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [personalEvents, setPersonalEvents] = useState<PersonalEvent[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -603,6 +694,11 @@ export default function Calendar() {
       .finally(() => setLoading(false));
   }, [workId, year, month, location.key]);
 
+  useEffect(() => {
+    if (workId) return;
+    setPersonalEvents(loadPersonalEvents());
+  }, [workId]);
+
   const activeFilterPrefs = useMemo((): Set<string> | null => {
     if (filterMode === 'region') {
       const r = REGIONS.find(x => x.name === filterValue);
@@ -641,213 +737,249 @@ export default function Calendar() {
   };
 
   const handleDayClick = (dateStr: string, isCurrentMonth: boolean) => {
-    if (!workId) return;
-    if (postPanelOpen) { if (isCurrentMonth) setPostDate(dateStr); }
-    else navigate(`/calendar/${workId}/date/${dateStr}`);
+    if (!isCurrentMonth) return;
+    setSelectedDate(dateStr);
+    setSheetOpen(true);
+  };
+
+  const deletePersonalEvent = (id: string) => {
+    const updated = personalEvents.filter(e => e.id !== id);
+    setPersonalEvents(updated);
+    savePersonalEvents(updated);
   };
 
   const filterActive = filterMode !== 'none';
-  const filterLabel = filterMode === 'pref'
-    ? `${filterValue}${includeAdjacent ? '＋隣接' : ''}`
-    : filterMode === 'region' ? `${filterValue}地方` : '';
+
+  const displayEventDates = useMemo(() => {
+    if (workId) return filteredEventDates;
+    const prefix = `${year}-${String(month + 1).padStart(2, '0')}-`;
+    return new Set(personalEvents.filter(e => e.date.startsWith(prefix)).map(e => e.date));
+  }, [workId, filteredEventDates, personalEvents, year, month]);
+
+  const sheetSharedEvents = useMemo(
+    () => filteredEvents.filter(e => e.date === selectedDate),
+    [filteredEvents, selectedDate],
+  );
+
+  const sheetPersonalEvents = useMemo(
+    () => personalEvents.filter(e => e.date === selectedDate),
+    [personalEvents, selectedDate],
+  );
+
+  const selectedDateLabel = useMemo(() => {
+    const d = new Date(selectedDate + 'T00:00:00');
+    const m = d.getMonth() + 1;
+    const day = d.getDate();
+    const dow = DAY_LABELS[d.getDay()];
+    return `${m}月${day}日（${dow}）`;
+  }, [selectedDate]);
+
+  const sheetEventCount = workId ? sheetSharedEvents.length : sheetPersonalEvents.length;
 
   return (
-    <Layout>
-      <Header
-        title={workId ? (workName || '…') : 'カレンダー'}
-        subtitleNode={
-          <div className="flex flex-col items-center">
-            <span className="text-[10px] text-label-tertiary leading-none">{year}年</span>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <button onClick={prevMonth} aria-label="前の月" className="text-label-tertiary text-lg leading-none px-1 active:text-label-primary">‹</button>
-              <span className="text-sm font-semibold text-label-primary">{month + 1}月</span>
-              <button onClick={nextMonth} aria-label="次の月" className="text-label-tertiary text-lg leading-none px-1 active:text-label-primary">›</button>
-            </div>
-          </div>
-        }
-        rightAction={
-          <div className="flex items-center gap-1">
-            <button onClick={() => navigate('/customize')} className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary">
-              <Palette size={16} />
-            </button>
-
-            {workId && (
-              <button
-                onClick={() => setShowRegionPanel(true)}
-                aria-label="地域で絞り込む"
-                className="relative w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary active:opacity-60"
-              >
-                <Map size={16} style={filterActive ? { color: 'var(--accent-color)' } : {}} />
-                {filterActive && (
-                  <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent-color)' }} />
-                )}
-              </button>
-            )}
-
-            <div className="relative" ref={menuRef}>
-              <button onClick={() => setShowMenu(v => !v)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary">
-                <MoreVertical size={16} />
-              </button>
-              {showMenu && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-                  <div className="absolute right-0 top-9 z-50 bg-bg-secondary border border-subtle rounded-xl overflow-hidden shadow-lg w-48">
-                    {workId && (
-                      <>
-                        <button onClick={handleCopyUrl} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-label-primary active:opacity-60">
-                          <Link2 size={15} className="text-label-secondary" />
-                          {copyDone ? 'コピーしました！' : '招待リンクをコピー'}
-                        </button>
-                        <div className="h-px bg-subtle mx-3" />
-                      </>
-                    )}
-                    <button
-                      onClick={() => { setShowMenu(false); setShowUserSettings(true); }}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-label-primary active:opacity-60"
-                    >
-                      <Settings size={15} className="text-label-secondary" />
-                      ユーザー設定
-                    </button>
-                    {workId && (
-                      <>
-                        <div className="h-px bg-subtle mx-3" />
-                        <button onClick={handleLeave} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 active:opacity-60">
-                          <LogOut size={15} />
-                          カレンダーから抜ける
-                        </button>
-                        <div className="h-px bg-subtle mx-3" />
-                        <button onClick={handleDelete} disabled={deleting} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 active:opacity-60 disabled:opacity-40">
-                          <Trash2 size={15} />
-                          {deleting ? '削除中…' : 'カレンダーを削除'}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        }
-      />
-
-      {/* カレンダーグリッド（フォント・背景画像はこの範囲のみ） */}
+    <>
+      {/* フルスクリーンコンテナ */}
       <div
-        className={`px-3 pt-3 pb-1 transition-colors duration-200 rounded-2xl ${postPanelOpen ? 'bg-bg-secondary/30' : ''}`}
-        style={{
-          fontFamily: calFontFamily,
-          ...(settings.backgroundImageUrl ? {
-            backgroundImage: `url(${settings.backgroundImageUrl})`,
-            backgroundSize: 'cover',
-            backgroundPosition: `${settings.bgImageOffsetX ?? 50}% ${settings.bgImageOffsetY ?? 50}%`,
-          } : {}),
-        }}
+        className="fixed inset-0 max-w-app mx-auto flex flex-col overflow-hidden"
+        style={{ backgroundColor: 'var(--bg-primary)' }}
       >
-        {postPanelOpen && (
-          <p className="text-center text-[11px] text-label-tertiary mb-1 animate-pulse">日付をタップして選択</p>
-        )}
-        <div className="grid grid-cols-7 mb-1">
-          {DAY_LABELS.map((label, i) => (
-            <div
-              key={label}
-              className="text-center text-[11px] py-1 font-medium select-none"
-              style={{ color: i === 0 ? 'var(--cal-sunday-color)' : i === 6 ? 'var(--cal-saturday-color)' : 'var(--cal-weekday-color)' }}
-            >
-              {label}
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7">
-          {calendarDays.map(({ date, isCurrentMonth }, idx) => {
-            const dateStr = toDateStr(date);
-            const isToday = dateStr === todayStr;
-            const hasEvent = filteredEventDates.has(dateStr) && isCurrentMonth;
-            const isSelectedPost = postPanelOpen && dateStr === postDate;
-            const col = idx % 7;
-            return (
-              <button
-                key={dateStr + idx}
-                onClick={() => handleDayClick(dateStr, isCurrentMonth)}
-                className={`flex flex-col items-center py-[3px] transition-opacity ${workId ? 'active:opacity-50' : 'cursor-default'}`}
-              >
-                <div
-                  className="w-8 h-8 flex items-center justify-center rounded-full text-[13px] select-none transition-all"
-                  style={{
-                    background: isSelectedPost ? 'var(--accent-color)' : isToday ? 'var(--label-primary)' : undefined,
-                    color: isSelectedPost || isToday ? 'var(--bg-primary)' : !isCurrentMonth ? 'var(--cal-other-month-color)' : col === 0 ? 'var(--cal-sunday-color)' : col === 6 ? 'var(--cal-saturday-color)' : 'var(--cal-weekday-color)',
-                    fontWeight: isToday || isSelectedPost ? 700 : undefined,
-                  }}
-                >
-                  {date.getDate()}
-                </div>
-                <div className="h-[6px] flex items-center justify-center">
-                  {hasEvent && <div className={`w-[4px] h-[4px] rounded-full ${(isToday || isSelectedPost) ? 'bg-bg-secondary' : 'bg-label-secondary'}`} />}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 今月の予定 / インライン投稿フォーム */}
-      <div className="pb-24">
-        {!workId ? (
-          <div className="flex flex-col items-center gap-5 py-14 text-center px-4">
-            <p className="text-label-secondary text-sm">まだカレンダーに参加していません</p>
-            <button onClick={() => navigate('/')} className="px-5 py-2.5 bg-label-primary text-bg-primary rounded-xl text-sm font-medium active:opacity-70">
-              カレンダーに参加してみましょう
-            </button>
-          </div>
-        ) : postPanelOpen && user ? (
-          <InlinePostForm
-            workId={workId}
-            userId={user.id}
-            selectedDate={postDate}
-            onSuccess={() => {
-              setPostPanelOpen(false);
-              setLoading(true);
-              listEvents(workId, year, month).then(setEvents).finally(() => setLoading(false));
-            }}
-            onCancel={() => setPostPanelOpen(false)}
-          />
-        ) : (
-          <div className="px-4 pt-3">
-            {filterActive && (
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-[11px] text-label-tertiary">絞り込み：</span>
-                <span className="text-[11px] px-2 py-0.5 rounded-full border" style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-color)' }}>
-                  {filterLabel}
-                </span>
-                <button onClick={() => { setFilterMode('none'); setFilterValue(null); setIncludeAdjacent(false); }} className="text-[11px] text-label-tertiary underline active:opacity-60">
-                  解除
-                </button>
+        <Header
+          title={workId ? (workName || '…') : 'マイカレンダー'}
+          subtitleNode={
+            <div className="flex flex-col items-center">
+              <span className="text-[10px] text-label-tertiary leading-none">{year}年</span>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <button onClick={prevMonth} aria-label="前の月" className="text-label-tertiary text-lg leading-none px-1 active:text-label-primary">‹</button>
+                <span className="text-sm font-semibold text-label-primary">{month + 1}月</span>
+                <button onClick={nextMonth} aria-label="次の月" className="text-label-tertiary text-lg leading-none px-1 active:text-label-primary">›</button>
               </div>
-            )}
-            <p className="text-label-secondary text-xs mb-3 px-1">今月の予定</p>
+            </div>
+          }
+          rightAction={
+            <div className="flex items-center gap-1">
+              <button onClick={() => navigate('/customize')} className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary">
+                <Palette size={16} />
+              </button>
+
+              {workId && (
+                <button
+                  onClick={() => setShowRegionPanel(true)}
+                  aria-label="地域で絞り込む"
+                  className="relative w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary active:opacity-60"
+                >
+                  <Map size={16} style={filterActive ? { color: 'var(--accent-color)' } : {}} />
+                  {filterActive && (
+                    <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent-color)' }} />
+                  )}
+                </button>
+              )}
+
+              <div className="relative" ref={menuRef}>
+                <button onClick={() => setShowMenu(v => !v)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary">
+                  <MoreVertical size={16} />
+                </button>
+                {showMenu && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+                    <div className="absolute right-0 top-9 z-50 bg-bg-secondary border border-subtle rounded-xl overflow-hidden shadow-lg w-48">
+                      {workId && (
+                        <>
+                          <button onClick={handleCopyUrl} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-label-primary active:opacity-60">
+                            <Link2 size={15} className="text-label-secondary" />
+                            {copyDone ? 'コピーしました！' : '招待リンクをコピー'}
+                          </button>
+                          <div className="h-px bg-subtle mx-3" />
+                        </>
+                      )}
+                      <button
+                        onClick={() => { setShowMenu(false); setShowUserSettings(true); }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-label-primary active:opacity-60"
+                      >
+                        <Settings size={15} className="text-label-secondary" />
+                        ユーザー設定
+                      </button>
+                      {workId && (
+                        <>
+                          <div className="h-px bg-subtle mx-3" />
+                          <button onClick={handleLeave} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 active:opacity-60">
+                            <LogOut size={15} />
+                            カレンダーから抜ける
+                          </button>
+                          <div className="h-px bg-subtle mx-3" />
+                          <button onClick={handleDelete} disabled={deleting} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 active:opacity-60 disabled:opacity-40">
+                            <Trash2 size={15} />
+                            {deleting ? '削除中…' : 'カレンダーを削除'}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          }
+        />
+
+        {/* カレンダーグリッドエリア（画面いっぱい） */}
+        <div
+          className="flex-1 overflow-hidden flex flex-col px-3 pt-1"
+          style={{
+            paddingBottom: SHEET_COLLAPSED_H + BOTTOM_TAB_H,
+            fontFamily: calFontFamily,
+            ...(settings.backgroundImageUrl ? {
+              backgroundImage: `url(${settings.backgroundImageUrl})`,
+              backgroundSize: 'cover',
+              backgroundPosition: `${settings.bgImageOffsetX ?? 50}% ${settings.bgImageOffsetY ?? 50}%`,
+            } : {}),
+          }}
+        >
+          {/* 曜日ラベル */}
+          <div className="grid grid-cols-7 mb-0.5 flex-shrink-0">
+            {DAY_LABELS.map((label, i) => (
+              <div
+                key={label}
+                className="text-center text-[11px] py-1 font-medium select-none"
+                style={{ color: i === 0 ? 'var(--cal-sunday-color)' : i === 6 ? 'var(--cal-saturday-color)' : 'var(--cal-weekday-color)' }}
+              >
+                {label}
+              </div>
+            ))}
+          </div>
+
+          {/* 日付グリッド（flex-1で残りスペースを埋める） */}
+          <div
+            className="grid grid-cols-7 flex-1"
+            style={{ gridTemplateRows: 'repeat(6, 1fr)' }}
+          >
+            {calendarDays.map(({ date, isCurrentMonth }, idx) => {
+              const dateStr = toDateStr(date);
+              const isToday = dateStr === todayStr;
+              const hasEvent = displayEventDates.has(dateStr) && isCurrentMonth;
+              const isSelected = dateStr === selectedDate && isCurrentMonth;
+              const col = idx % 7;
+              return (
+                <button
+                  key={dateStr + idx}
+                  onClick={() => handleDayClick(dateStr, isCurrentMonth)}
+                  className="flex flex-col items-center justify-start pt-1 active:opacity-50 transition-opacity"
+                  style={{ cursor: isCurrentMonth ? 'pointer' : 'default' }}
+                >
+                  <div
+                    className="w-8 h-8 flex items-center justify-center rounded-full text-[13px] select-none transition-all"
+                    style={{
+                      background: isSelected ? 'var(--accent-color)' : isToday ? 'var(--label-primary)' : undefined,
+                      color: isSelected || isToday ? 'var(--bg-primary)' : !isCurrentMonth ? 'var(--cal-other-month-color)' : col === 0 ? 'var(--cal-sunday-color)' : col === 6 ? 'var(--cal-saturday-color)' : 'var(--cal-weekday-color)',
+                      fontWeight: isToday || isSelected ? 700 : undefined,
+                    }}
+                  >
+                    {date.getDate()}
+                  </div>
+                  <div className="h-[6px] flex items-center justify-center">
+                    {hasEvent && <div className={`w-[4px] h-[4px] rounded-full ${(isToday || isSelected) ? 'bg-bg-secondary' : 'bg-label-secondary'}`} />}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ボトムシート */}
+        <div
+          className="absolute left-0 right-0 rounded-t-2xl border-t"
+          style={{
+            bottom: 0,
+            height: SHEET_FULL_H,
+            transform: sheetOpen
+              ? `translateY(${BOTTOM_TAB_H}px)`
+              : `translateY(${SHEET_FULL_H - SHEET_COLLAPSED_H + BOTTOM_TAB_H}px)`,
+            transition: 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)',
+            backgroundColor: 'var(--bg-primary)',
+            borderColor: 'var(--border-subtle)',
+            zIndex: 30,
+            boxShadow: '0 -4px 24px rgba(0,0,0,0.1)',
+          }}
+        >
+          {/* ハンドル＋日付ヘッダー（タップでトグル） */}
+          <div
+            className="flex flex-col items-center pt-2 flex-shrink-0 cursor-pointer select-none"
+            onClick={() => setSheetOpen(v => !v)}
+          >
+            <div className="w-10 h-1 rounded-full mb-2" style={{ backgroundColor: 'var(--border-subtle)' }} />
+            <div className="w-full px-4 pb-3 flex items-center justify-between">
+              <p className="text-label-primary text-sm font-semibold">{selectedDateLabel}</p>
+              <div className="flex items-center gap-2">
+                {sheetEventCount > 0 && (
+                  <span className="text-label-tertiary text-xs">{sheetEventCount}件</span>
+                )}
+                <ChevronDown
+                  size={16}
+                  className="text-label-tertiary transition-transform duration-300"
+                  style={{ transform: sheetOpen ? 'rotate(180deg)' : 'none' }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* イベントリスト（スクロール可能） */}
+          <div
+            className="overflow-y-auto px-4 pb-4"
+            style={{ height: SHEET_FULL_H - SHEET_COLLAPSED_H - BOTTOM_TAB_H }}
+          >
             {loading ? (
               <div className="flex flex-col gap-2">
-                {[1, 2, 3].map(i => <div key={i} className="h-16 bg-bg-secondary rounded-xl animate-pulse" />)}
+                {[1, 2].map(i => <div key={i} className="h-14 bg-bg-secondary rounded-xl animate-pulse" />)}
               </div>
-            ) : error ? (
-              <p className="text-center text-red-400 text-sm py-10">{error}</p>
-            ) : filteredEvents.length === 0 ? (
-              <p className="text-center text-label-tertiary text-sm py-10">
-                {filterActive ? 'この地域の予定はありません' : 'この月の予定はまだありません'}
-              </p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {filteredEvents.map(event => {
-                  const [, m, d] = event.date.split('-').map(Number);
-                  return (
+            ) : workId ? (
+              sheetSharedEvents.length === 0 ? (
+                <p className="text-center text-label-tertiary text-sm py-8">この日の予定はありません</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {sheetSharedEvents.map(event => (
                     <button
                       key={event.id}
                       onClick={() => navigate(`/calendar/${workId}/date/${event.date}`)}
                       className="w-full flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3 text-left active:opacity-70 transition-opacity"
                     >
-                      <div className="flex-shrink-0 w-10 flex flex-col items-center">
-                        <span className="text-[10px] text-label-tertiary leading-none">{m}月</span>
-                        <span className="text-xl font-bold text-label-primary leading-snug">{d}</span>
-                      </div>
-                      <div className="w-px h-8 bg-white/10 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -862,26 +994,85 @@ export default function Calendar() {
                           )}
                         </div>
                       </div>
+                      <ChevronRight size={14} className="text-label-tertiary flex-shrink-0" />
                     </button>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
+              )
+            ) : (
+              sheetPersonalEvents.length === 0 ? (
+                <p className="text-center text-label-tertiary text-sm py-8">この日の予定はありません</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {sheetPersonalEvents.map(pe => (
+                    <div key={pe.id} className="flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-label-primary text-sm font-medium truncate">{pe.title}</p>
+                        {pe.time && <p className="text-label-tertiary text-xs mt-0.5">{pe.time}</p>}
+                        {pe.memo && <p className="text-label-secondary text-xs mt-0.5 truncate">{pe.memo}</p>}
+                      </div>
+                      <button
+                        onClick={() => deletePersonalEvent(pe.id)}
+                        className="w-6 h-6 flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )
             )}
           </div>
-        )}
+        </div>
       </div>
 
-      {/* FAB */}
-      {workId && (
-        <button
-          onClick={() => { if (postPanelOpen) setPostPanelOpen(false); else { setPostDate(todayStr); setPostPanelOpen(true); } }}
-          className="fixed bottom-[76px] right-4 w-[52px] h-[52px] bg-label-primary text-bg-primary rounded-full flex items-center justify-center shadow-xl z-40 active:opacity-80"
-          aria-label={postPanelOpen ? '閉じる' : '予定を追加'}
+      {/* FAB（常に表示） */}
+      <button
+        onClick={() => {
+          if (postPanelOpen) {
+            setPostPanelOpen(false);
+          } else {
+            setPostDate(selectedDate);
+            setPostPanelOpen(true);
+          }
+        }}
+        className="fixed bottom-[72px] right-4 w-[52px] h-[52px] bg-label-primary text-bg-primary rounded-full flex items-center justify-center shadow-xl z-40 active:opacity-80"
+        aria-label={postPanelOpen ? '閉じる' : '予定を追加'}
+      >
+        <div style={{ transition: 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)', transform: postPanelOpen ? 'rotate(45deg)' : 'rotate(0deg)' }}>
+          <Plus size={22} strokeWidth={2.5} />
+        </div>
+      </button>
+
+      {/* 投稿フォームオーバーレイ */}
+      {postPanelOpen && (
+        <div
+          className="fixed inset-0 max-w-app mx-auto z-50 overflow-y-auto"
+          style={{ backgroundColor: 'var(--bg-primary)' }}
         >
-          <div style={{ transition: 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)', transform: postPanelOpen ? 'rotate(45deg)' : 'rotate(0deg)' }}>
-            <Plus size={22} strokeWidth={2.5} />
-          </div>
-        </button>
+          {workId && user ? (
+            <InlinePostForm
+              workId={workId}
+              userId={user.id}
+              selectedDate={postDate}
+              onSuccess={() => {
+                setPostPanelOpen(false);
+                setLoading(true);
+                listEvents(workId, year, month).then(setEvents).finally(() => setLoading(false));
+              }}
+              onCancel={() => setPostPanelOpen(false)}
+            />
+          ) : (
+            <PersonalEventForm
+              initialDate={postDate}
+              onSuccess={() => {
+                setPostPanelOpen(false);
+                setPersonalEvents(loadPersonalEvents());
+              }}
+              onCancel={() => setPostPanelOpen(false)}
+            />
+          )}
+        </div>
       )}
 
       {showRegionPanel && (
@@ -907,6 +1098,8 @@ export default function Calendar() {
           onClose={() => setShowUserSettings(false)}
         />
       )}
-    </Layout>
+
+      <BottomTab />
+    </>
   );
 }

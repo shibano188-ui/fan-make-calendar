@@ -14,14 +14,14 @@ function getCalendarPath(): string {
 }
 
 function getTabPath(index: number): string {
-  if (index === 0) return '/';
+  if (index === 0) return '/select';
   if (index === 1) return getCalendarPath();
   return '/customize';
 }
 
 function isTabActive(index: number, pathname: string): boolean {
-  if (index === 0) return pathname === '/';
-  if (index === 1) return pathname.startsWith('/calendar/');
+  if (index === 0) return pathname === '/select';
+  if (index === 1) return pathname === '/' || pathname.startsWith('/calendar');
   return pathname === '/customize';
 }
 
