@@ -461,7 +461,7 @@ function RegionFilterPanel({
               className="w-full text-center py-3 rounded-xl text-sm font-medium active:opacity-70"
               style={{ background: 'var(--accent-color)', color: 'var(--bg-primary)' }}
             >
-              🏠 ホーム県（{homePref}）に戻す
+              ホーム県（{homePref}）に戻す
             </button>
           ) : filterActive ? (
             <button

@@ -221,7 +221,7 @@ function EventCard({
 
       {/* 投稿者 */}
       <p className="text-label-tertiary text-xs">
-        投稿者 匿名 ・ {timeAgo(event.createdAt)}
+        {event.authorName ? event.authorName : '匿名'} ・ {timeAgo(event.createdAt)}
       </p>
     </div>
   );

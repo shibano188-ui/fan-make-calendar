@@ -9,6 +9,8 @@ export type CalendarEvent = {
   prefecture?: string;
   locationDetail?: string;
   locationMapLink?: string;
+  authorId?: string;
+  authorName?: string;
   likes: number;
   likedByMe: boolean;
   createdAt: string;

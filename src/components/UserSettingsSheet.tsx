@@ -5,7 +5,7 @@ import { PREFECTURES } from '../lib/prefectures';
 const inputCls =
   'w-full bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong';
 
-// ─── 都道府県選択（クリックで展開・親がスクロール） ────────────────
+// ─── 都道府県選択（検索欄 + ドロップダウンボタン分離） ─────────────
 
 export function PrefectureSearch({
   value,
@@ -24,11 +24,24 @@ export function PrefectureSearch({
     [query],
   );
 
-  const close = () => { setOpen(false); setQuery(''); };
+  const select = (pref: string) => {
+    onChange(pref);
+    setOpen(false);
+    setQuery('');
+  };
 
   return (
     <div className="flex flex-col gap-1.5">
-      {/* トリガーボタン */}
+      {/* ① 検索入力欄（常時表示） */}
+      <input
+        type="text"
+        value={query}
+        onChange={e => { setQuery(e.target.value); if (e.target.value) setOpen(true); }}
+        placeholder={placeholder}
+        className={inputCls}
+      />
+
+      {/* ② ドロップダウントリガーボタン（常時表示） */}
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
@@ -43,32 +56,12 @@ export function PrefectureSearch({
         }
       </button>
 
-      {/* 展開リスト（maxHeight・内部スクロールなし → 親コンテナがスクロール） */}
+      {/* ③ 選択肢リスト（内部スクロールなし・親コンテナがスクロール） */}
       {open && (
         <div className="bg-bg-secondary border border-faint rounded-xl overflow-hidden">
-          {/* 検索欄 */}
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-faint">
-            <input
-              type="text"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder={placeholder}
-              className="flex-1 text-sm bg-transparent outline-none text-label-primary placeholder:text-label-tertiary caret-label-primary"
-              autoFocus
-            />
-            <button
-              type="button"
-              onClick={close}
-              className="text-xs text-label-tertiary whitespace-nowrap active:opacity-60"
-            >
-              閉じる
-            </button>
-          </div>
-
-          {/* 選択肢（スクロールなし・インライン展開） */}
           <button
             type="button"
-            onClick={() => { onChange(''); close(); }}
+            onClick={() => select('')}
             className={`w-full text-left px-3 py-2.5 text-sm border-b border-faint ${!value ? 'text-label-primary font-medium' : 'text-label-tertiary'}`}
           >
             指定なし
@@ -77,7 +70,7 @@ export function PrefectureSearch({
             <button
               key={p}
               type="button"
-              onClick={() => { onChange(p); close(); }}
+              onClick={() => select(p)}
               className={`w-full text-left px-3 py-2.5 text-sm active:opacity-60 ${
                 i < filtered.length - 1 ? 'border-b border-faint' : ''
               } ${value === p ? 'text-label-primary font-semibold bg-label-primary/5' : 'text-label-secondary'}`}
@@ -121,7 +114,6 @@ export default function UserSettingsSheet({
   };
 
   return (
-    /* z-[200] でBottomTab(z-[100])より上に表示 */
     <div className="fixed inset-0 z-[200] flex flex-col justify-end">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div
@@ -165,7 +157,7 @@ export default function UserSettingsSheet({
               className={inputCls}
               maxLength={20}
             />
-            <p className="text-label-tertiary text-[10px] mt-1 px-1">投稿者として表示されます（今後対応予定）</p>
+            <p className="text-label-tertiary text-[10px] mt-1 px-1">投稿したイベントに表示されます</p>
           </div>
 
           {/* ホーム県 */}

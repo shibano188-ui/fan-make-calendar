@@ -87,6 +87,7 @@ function rowToEvent(e: Record<string, unknown>): CalendarEvent {
     prefecture: (e.prefecture as string | null) ?? undefined,
     locationDetail: (e.location_detail as string | null) ?? undefined,
     locationMapLink: (e.location_map_link as string | null) ?? undefined,
+    authorId: (e.author_id as string | null) ?? undefined,
     likes: (e.like_count as number) ?? 0,
     likedByMe: false,
     createdAt: e.created_at as string,
@@ -122,7 +123,21 @@ export async function listEventsByDate(workId: string, date: string, userId?: st
     .order('event_time', { ascending: true, nullsFirst: true });
 
   if (error) throw error;
-  const events = (data ?? []).map(rowToEvent);
+  let events = (data ?? []).map(rowToEvent);
+
+  // 投稿者の表示名を一括取得
+  const authorIds = [...new Set(events.map(e => e.authorId).filter((id): id is string => !!id))];
+  if (authorIds.length > 0) {
+    const { data: nameData } = await supabase
+      .from('user_settings')
+      .select('user_id, display_name')
+      .in('user_id', authorIds);
+    const nameMap = Object.fromEntries((nameData ?? []).map(d => [d.user_id as string, d.display_name as string | null]));
+    events = events.map(e => ({
+      ...e,
+      authorName: e.authorId ? (nameMap[e.authorId] ?? undefined) : undefined,
+    }));
+  }
 
   if (userId && events.length > 0) {
     const { data: likeData } = await supabase
