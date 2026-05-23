@@ -359,18 +359,20 @@ function RegionFilterPanel({
     : filterMode === 'region' ? `${filterValue}地方` : '';
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end">
+    /* z-[200] でBottomTab(z-[100])より上に表示 */
+    <div className="fixed inset-0 z-[200] flex flex-col justify-end">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div
-        className="relative bg-bg-primary rounded-t-2xl flex flex-col"
+        className="relative bg-bg-primary rounded-t-2xl"
         style={{
-          maxHeight: '80vh',
-          overflow: 'hidden',
+          maxHeight: '85vh',
+          display: 'flex',
+          flexDirection: 'column',
           animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both',
         }}
       >
         {/* 固定ヘッダー */}
-        <div className="flex-shrink-0 pt-3 px-4 pb-3 border-b border-faint">
+        <div style={{ flexShrink: 0 }} className="pt-3 px-4 pb-3 border-b border-faint">
           <div className="flex justify-center mb-2">
             <div className="w-10 h-1 rounded-full bg-label-tertiary/50" />
           </div>
@@ -390,8 +392,13 @@ function RegionFilterPanel({
 
         {/* スクロール可能コンテンツ */}
         <div
-          className="flex-1 min-h-0 px-4 pb-8 pt-4"
-          style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'scroll',
+            WebkitOverflowScrolling: 'touch',
+            padding: '16px 16px 40px',
+          } as React.CSSProperties}
         >
           {/* ① 都道府県で選ぶ */}
           <div className="mb-5">

@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { PREFECTURES } from '../lib/prefectures';
 
 const inputCls =
   'w-full bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong';
 
-// ─── 都道府県検索（検索欄＋リスト分離） ────────────────────────────
+// ─── 都道府県選択（クリックで展開・親がスクロール） ────────────────
 
 export function PrefectureSearch({
   value,
@@ -15,65 +16,78 @@ export function PrefectureSearch({
   onChange: (pref: string) => void;
   placeholder?: string;
 }) {
+  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
 
   const filtered = useMemo(
-    () => (query ? Array.from(PREFECTURES).filter(p => p.includes(query)) : Array.from(PREFECTURES)),
+    () => (query ? PREFECTURES.filter(p => p.includes(query)) : PREFECTURES),
     [query],
   );
 
+  const close = () => { setOpen(false); setQuery(''); };
+
   return (
-    <div className="flex flex-col gap-2">
-      {/* ① 検索入力 */}
-      <input
-        type="text"
-        value={query}
-        onChange={e => setQuery(e.target.value)}
-        placeholder={placeholder}
-        className={inputCls}
-      />
-
-      {/* ② スクロール可能リスト */}
-      <div
-        className="bg-bg-secondary border border-faint rounded-xl"
-        style={{ maxHeight: '152px', overflowY: 'auto', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+    <div className="flex flex-col gap-1.5">
+      {/* トリガーボタン */}
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-bg-secondary border border-faint rounded-xl active:opacity-70"
       >
-        <button
-          type="button"
-          onClick={() => { onChange(''); setQuery(''); }}
-          className={`w-full text-left px-3 py-2.5 text-sm border-b border-faint ${!value ? 'text-label-primary font-medium' : 'text-label-tertiary'}`}
-        >
-          指定なし
-        </button>
-        {filtered.map(p => (
-          <button
-            key={p}
-            type="button"
-            onClick={() => { onChange(p); setQuery(''); }}
-            className={`w-full text-left px-3 py-2.5 text-sm active:opacity-60 ${
-              value === p ? 'text-label-primary font-semibold bg-label-primary/5' : 'text-label-secondary'
-            }`}
-          >
-            {p}
-          </button>
-        ))}
-        {filtered.length === 0 && (
-          <p className="px-3 py-3 text-xs text-label-tertiary">見つかりません</p>
-        )}
-      </div>
+        <span className={value ? 'text-label-primary font-medium' : 'text-label-tertiary'}>
+          {value || '都道府県を選択...'}
+        </span>
+        {open
+          ? <ChevronUp size={14} className="text-label-tertiary flex-shrink-0" />
+          : <ChevronDown size={14} className="text-label-tertiary flex-shrink-0" />
+        }
+      </button>
 
-      {/* ③ 選択中の表示 */}
-      {value && (
-        <div className="flex items-center gap-2 px-1">
-          <span className="text-xs text-label-tertiary">選択中：</span>
-          <span className="text-xs font-medium text-label-primary">{value}</span>
+      {/* 展開リスト（maxHeight・内部スクロールなし → 親コンテナがスクロール） */}
+      {open && (
+        <div className="bg-bg-secondary border border-faint rounded-xl overflow-hidden">
+          {/* 検索欄 */}
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-faint">
+            <input
+              type="text"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder={placeholder}
+              className="flex-1 text-sm bg-transparent outline-none text-label-primary placeholder:text-label-tertiary caret-label-primary"
+              autoFocus
+            />
+            <button
+              type="button"
+              onClick={close}
+              className="text-xs text-label-tertiary whitespace-nowrap active:opacity-60"
+            >
+              閉じる
+            </button>
+          </div>
+
+          {/* 選択肢（スクロールなし・インライン展開） */}
           <button
             type="button"
-            onClick={() => onChange('')}
-            className="text-xs text-label-tertiary underline active:opacity-60 ml-auto"
+            onClick={() => { onChange(''); close(); }}
+            className={`w-full text-left px-3 py-2.5 text-sm border-b border-faint ${!value ? 'text-label-primary font-medium' : 'text-label-tertiary'}`}
           >
-            解除
+            指定なし
           </button>
+          {filtered.map((p, i) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => { onChange(p); close(); }}
+              className={`w-full text-left px-3 py-2.5 text-sm active:opacity-60 ${
+                i < filtered.length - 1 ? 'border-b border-faint' : ''
+              } ${value === p ? 'text-label-primary font-semibold bg-label-primary/5' : 'text-label-secondary'}`}
+            >
+              {p}
+            </button>
+          ))}
+          {filtered.length === 0 && (
+            <p className="px-3 py-3 text-xs text-label-tertiary">見つかりません</p>
+          )}
         </div>
       )}
     </div>
@@ -107,18 +121,20 @@ export default function UserSettingsSheet({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end">
+    /* z-[200] でBottomTab(z-[100])より上に表示 */
+    <div className="fixed inset-0 z-[200] flex flex-col justify-end">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div
-        className="relative bg-bg-primary rounded-t-2xl flex flex-col"
+        className="relative bg-bg-primary rounded-t-2xl"
         style={{
-          maxHeight: '80vh',
-          overflow: 'hidden',
+          maxHeight: '85vh',
+          display: 'flex',
+          flexDirection: 'column',
           animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both',
         }}
       >
         {/* 固定ヘッダー */}
-        <div className="flex-shrink-0 pt-3 px-4 pb-3 border-b border-faint">
+        <div style={{ flexShrink: 0 }} className="pt-3 px-4 pb-3 border-b border-faint">
           <div className="flex justify-center mb-2">
             <div className="w-10 h-1 rounded-full bg-label-tertiary/50" />
           </div>
@@ -130,8 +146,13 @@ export default function UserSettingsSheet({
 
         {/* スクロール可能コンテンツ */}
         <div
-          className="flex-1 min-h-0 px-4 pb-8 pt-4"
-          style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'scroll',
+            WebkitOverflowScrolling: 'touch',
+            padding: '16px 16px 40px',
+          } as React.CSSProperties}
         >
           {/* 表示名 */}
           <div className="mb-5">
