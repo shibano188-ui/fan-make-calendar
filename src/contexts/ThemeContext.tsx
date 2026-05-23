@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { getUserSettings, updateUserSettings } from '../lib/api';
 
@@ -137,7 +137,7 @@ const DEFAULT_SETTINGS: UserSettings = {
 const ACCENT_COLORS = ['#2C2C2A', '#888780', '#D85A30', '#1D9E75', '#378ADD', '#D4537E'] as const;
 export { ACCENT_COLORS };
 
-const THEME_VARS: Record<ThemeMode, Record<string, string>> = {
+export const THEME_VARS: Record<ThemeMode, Record<string, string>> = {
   dark: {
     '--bg-primary':        '#1a1a1a',
     '--bg-secondary':      '#2a2a2a',
@@ -170,53 +170,126 @@ const THEME_VARS: Record<ThemeMode, Record<string, string>> = {
   },
 };
 
-function loadSettings(): UserSettings {
+// カレンダーごとのストレージキー（workId='' はグローバルデフォルト）
+function storageKey(workId: string): string {
+  return workId ? `cal_settings_${workId}` : 'user_settings';
+}
+
+function loadSettings(workId: string): UserSettings {
   try {
-    const raw = localStorage.getItem('user_settings');
+    const raw = localStorage.getItem(storageKey(workId));
     if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) as Partial<UserSettings> };
+    // 未設定カレンダーはグローバルデフォルトを引き継ぐ
+    if (workId) {
+      const globalRaw = localStorage.getItem('user_settings');
+      if (globalRaw) return { ...DEFAULT_SETTINGS, ...JSON.parse(globalRaw) as Partial<UserSettings> };
+    }
   } catch {}
   return DEFAULT_SETTINGS;
 }
 
-function saveSettings(s: UserSettings) {
-  localStorage.setItem('user_settings', JSON.stringify(s));
+function saveSettings(workId: string, s: UserSettings) {
+  localStorage.setItem(storageKey(workId), JSON.stringify(s));
+}
+
+// ウィジェットページなど ThemeProvider 外で使用するユーティリティ
+export function loadCalendarSettings(workId: string): UserSettings {
+  return loadSettings(workId);
+}
+
+// カレンダーのフォントスタックを返す
+function fontStack(settings: UserSettings): string {
+  if (settings.font === 'serif') return '"Hiragino Mincho ProN", "Yu Mincho", serif';
+  if (settings.font === 'rounded') return '"Hiragino Maru Gothic ProN", "M PLUS Rounded 1c", sans-serif';
+  if (settings.font === 'custom' && settings.customFontName) return `"${settings.customFontName}", sans-serif`;
+  return '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+}
+
+// ウィジェットページが設定をCSSに反映するためのユーティリティ
+export function applySettingsToCSS(settings: UserSettings) {
+  const root = document.documentElement;
+
+  // テーマカラー
+  const communityTheme = settings.communityThemeId
+    ? COMMUNITY_THEMES.find(t => t.id === settings.communityThemeId)
+    : null;
+  const vars = communityTheme ? communityTheme.vars : THEME_VARS[settings.theme];
+  Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
+
+  // アクセントカラー
+  root.style.setProperty('--accent-color', settings.accentColor);
+
+  // 背景画像
+  if (settings.backgroundImageUrl) {
+    root.style.setProperty('--bg-image', `url(${settings.backgroundImageUrl})`);
+  } else {
+    root.style.removeProperty('--bg-image');
+  }
+
+  // フォント（CSS変数のみ。body全体には適用しない）
+  root.style.setProperty('--font-family', fontStack(settings));
+
+  // カスタムフォントの @font-face 登録
+  if (settings.font === 'custom' && settings.customFontUrl && settings.customFontName) {
+    const existing = document.getElementById('custom-font-style');
+    if (existing) existing.remove();
+    const style = document.createElement('style');
+    style.id = 'custom-font-style';
+    style.textContent = `@font-face { font-family: "${settings.customFontName}"; src: url("${settings.customFontUrl}"); }`;
+    document.head.appendChild(style);
+  }
+
+  // カレンダー文字色
+  const calVars: [string, string][] = [
+    ['--cal-weekday-color',    settings.calWeekday],
+    ['--cal-saturday-color',   settings.calSaturday],
+    ['--cal-sunday-color',     settings.calSunday],
+    ['--cal-other-month-color', settings.calOtherMonth],
+  ];
+  for (const [varName, value] of calVars) {
+    if (value) root.style.setProperty(varName, value);
+    else root.style.removeProperty(varName);
+  }
 }
 
 interface ThemeContextValue {
   settings: UserSettings;
   updateSettings: (patch: Partial<UserSettings>) => void;
+  currentWorkId: string;
+  setCurrentCalendar: (workId: string) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const [settings, setSettings] = useState<UserSettings>(loadSettings);
 
-  // 起動時にSupabaseから設定を読み込んで適用
-  useEffect(() => {
-    if (!user) return;
-    getUserSettings(user.id).then(db => {
-      if (!db) return;
-      setSettings(prev => {
-        const next = {
-          ...prev,
-          ...(db.theme && { theme: db.theme as ThemeMode }),
-          ...(db.font && { font: db.font as FontFamily }),
-          ...(db.accentColor && { accentColor: db.accentColor }),
-        };
-        saveSettings(next);
-        return next;
-      });
-    }).catch(console.error);
-  }, [user?.id]);
+  // 起動時に最後に開いていたカレンダーの設定を読み込む
+  const [currentWorkId, setCurrentWorkId] = useState<string>(() =>
+    localStorage.getItem('last_calendar_workId') ?? ''
+  );
+  const currentWorkIdRef = useRef(currentWorkId);
 
+  const [settings, setSettings] = useState<UserSettings>(() =>
+    loadSettings(localStorage.getItem('last_calendar_workId') ?? '')
+  );
+
+  // カレンダー切り替え（Calendar ページから呼ばれる）
+  const setCurrentCalendar = useCallback((workId: string) => {
+    if (workId === currentWorkIdRef.current) return;
+    currentWorkIdRef.current = workId;
+    localStorage.setItem('last_calendar_workId', workId);
+    setCurrentWorkId(workId);
+    setSettings(loadSettings(workId));
+  }, []);
+
+  // 設定更新（現在のカレンダーのストレージキーに保存）
   const updateSettings = useCallback((patch: Partial<UserSettings>) => {
     setSettings(prev => {
       const next = { ...prev, ...patch };
-      saveSettings(next);
-      // theme・font・accentColorをSupabaseに保存（fire-and-forget）
-      if (user) {
+      saveSettings(currentWorkIdRef.current, next);
+      // グローバル設定のみ Supabase に同期
+      if (user && !currentWorkIdRef.current) {
         updateUserSettings(user.id, {
           theme: next.theme,
           font: next.font,
@@ -227,7 +300,31 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     });
   }, [user]);
 
-  // テーマカラーをCSS変数に反映
+  // 起動時にグローバルデフォルトを Supabase から復元
+  useEffect(() => {
+    if (!user) return;
+    getUserSettings(user.id).then(db => {
+      if (!db) return;
+      // グローバルデフォルト（cal_settings_ なし）のみ更新
+      const globalRaw = localStorage.getItem('user_settings');
+      const globalSettings = globalRaw
+        ? { ...DEFAULT_SETTINGS, ...JSON.parse(globalRaw) as Partial<UserSettings> }
+        : DEFAULT_SETTINGS;
+      const next = {
+        ...globalSettings,
+        ...(db.theme      && { theme:       db.theme      as ThemeMode }),
+        ...(db.font       && { font:        db.font       as FontFamily }),
+        ...(db.accentColor && { accentColor: db.accentColor }),
+      };
+      saveSettings('', next);
+      // カレンダー未選択時のみ現在の表示に反映
+      if (!currentWorkIdRef.current) {
+        setSettings(next);
+      }
+    }).catch(console.error);
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // テーマカラーを CSS 変数に反映
   useEffect(() => {
     const communityTheme = settings.communityThemeId
       ? COMMUNITY_THEMES.find(t => t.id === settings.communityThemeId)
@@ -236,18 +333,18 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     Object.entries(vars).forEach(([k, v]) => document.documentElement.style.setProperty(k, v));
   }, [settings.theme, settings.communityThemeId]);
 
-  // アクセントカラーをCSS変数に反映
+  // アクセントカラーを CSS 変数に反映
   useEffect(() => {
     document.documentElement.style.setProperty('--accent-color', settings.accentColor);
   }, [settings.accentColor]);
 
-  // カレンダー文字色をCSS変数に反映
+  // カレンダー文字色を CSS 変数に反映
   useEffect(() => {
     const root = document.documentElement;
     const calVars: [string, string][] = [
-      ['--cal-weekday-color', settings.calWeekday],
-      ['--cal-saturday-color', settings.calSaturday],
-      ['--cal-sunday-color', settings.calSunday],
+      ['--cal-weekday-color',     settings.calWeekday],
+      ['--cal-saturday-color',    settings.calSaturday],
+      ['--cal-sunday-color',      settings.calSunday],
       ['--cal-other-month-color', settings.calOtherMonth],
     ];
     for (const [varName, value] of calVars) {
@@ -256,7 +353,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [settings.calWeekday, settings.calSaturday, settings.calSunday, settings.calOtherMonth]);
 
-  // フォント・背景をCSS変数に反映
+  // フォント・背景画像を CSS 変数に反映（body には適用しない）
   useEffect(() => {
     const root = document.documentElement;
 
@@ -267,19 +364,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       root.style.removeProperty('--bg-image');
     }
 
-    // フォント
-    let fontStack = '';
-    if (settings.font === 'serif') {
-      fontStack = '"Hiragino Mincho ProN", "Yu Mincho", serif';
-    } else if (settings.font === 'rounded') {
-      fontStack = '"Hiragino Maru Gothic ProN", "M PLUS Rounded 1c", sans-serif';
-    } else if (settings.font === 'custom' && settings.customFontName) {
-      fontStack = `"${settings.customFontName}", sans-serif`;
-    } else {
-      fontStack = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-    }
-    root.style.setProperty('--font-family', fontStack);
-    document.body.style.fontFamily = `var(--font-family)`;
+    // フォント（CSS変数のみ。カレンダーグリッドが fontFamily: var(--font-family) で消費）
+    root.style.setProperty('--font-family', fontStack(settings));
 
     // カスタムフォントの @font-face 登録
     if (settings.font === 'custom' && settings.customFontUrl && settings.customFontName) {
@@ -293,7 +379,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [settings]);
 
   return (
-    <ThemeContext.Provider value={{ settings, updateSettings }}>
+    <ThemeContext.Provider value={{ settings, updateSettings, currentWorkId, setCurrentCalendar }}>
       {children}
     </ThemeContext.Provider>
   );

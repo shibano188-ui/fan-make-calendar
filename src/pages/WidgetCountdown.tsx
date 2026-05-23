@@ -1,27 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { getEventById, listUpcomingEvents, getWorkById } from '../lib/api';
+import { loadCalendarSettings, applySettingsToCSS } from '../contexts/ThemeContext';
 import type { CalendarEvent } from '../types';
-
-const THEMES: Record<string, Record<string, string>> = {
-  dark: {
-    '--bg-primary': '#1a1a1a',
-    '--label-primary': '#ffffff',
-    '--label-secondary': '#aaaaaa',
-    '--label-tertiary': '#666666',
-  },
-  light: {
-    '--bg-primary': '#f5f5f5',
-    '--label-primary': '#111111',
-    '--label-secondary': '#555555',
-    '--label-tertiary': '#888888',
-  },
-};
-
-function applyTheme(theme: string) {
-  const vars = THEMES[theme] ?? THEMES.dark;
-  Object.entries(vars).forEach(([k, v]) => document.documentElement.style.setProperty(k, v));
-}
 
 function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -31,13 +12,16 @@ export default function WidgetCountdown() {
   const { workId = '' } = useParams<{ workId: string }>();
   const [searchParams] = useSearchParams();
   const eventId = searchParams.get('eventId');
-  const theme = searchParams.get('theme') ?? 'dark';
 
   const [event, setEvent] = useState<CalendarEvent | null>(null);
   const [workName, setWorkName] = useState('');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { applyTheme(theme); }, [theme]);
+  // カレンダーごとの設定を適用
+  useEffect(() => {
+    const settings = loadCalendarSettings(workId);
+    applySettingsToCSS(settings);
+  }, [workId]);
 
   useEffect(() => {
     getWorkById(workId).then(w => { if (w) setWorkName(w.name); });
@@ -66,7 +50,12 @@ export default function WidgetCountdown() {
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center gap-6 px-8"
-      style={{ backgroundColor: 'var(--bg-primary)' }}
+      style={{
+        backgroundColor: 'var(--bg-primary)',
+        backgroundImage: 'var(--bg-image, none)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
     >
       {loading ? (
         <div className="w-24 h-24 rounded-full bg-white/5 animate-pulse" />

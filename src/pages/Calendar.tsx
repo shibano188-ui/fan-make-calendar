@@ -15,6 +15,7 @@ import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { PrefectureSearch } from '../components/UserSettingsSheet';
 import UserSettingsSheet from '../components/UserSettingsSheet';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import type { CalendarEvent } from '../types';
 
 export type { CalendarEvent };
@@ -503,6 +504,7 @@ export default function Calendar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const { setCurrentCalendar } = useTheme();
 
   const today = new Date();
   const todayStr = toDateStr(today);
@@ -579,11 +581,17 @@ export default function Calendar() {
     await Promise.all([saveHomePrefecture(user.id, newPref), saveDisplayName(user.id, newName)]);
   };
 
+  // カレンダー切り替え時に設定を分離して読み込む
   useEffect(() => {
     if (!workId) return;
-    localStorage.setItem('last_calendar_workId', workId);
-    getWorkById(workId).then(w => { if (w) setWorkName(w.name); });
-  }, [workId]);
+    setCurrentCalendar(workId);
+    getWorkById(workId).then(w => {
+      if (w) {
+        setWorkName(w.name);
+        localStorage.setItem('last_calendar_work_name', w.name);
+      }
+    });
+  }, [workId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!workId) return;
@@ -722,8 +730,11 @@ export default function Calendar() {
         }
       />
 
-      {/* カレンダーグリッド */}
-      <div className={`px-3 pt-3 pb-1 transition-colors duration-200 ${postPanelOpen ? 'bg-bg-secondary/30' : ''}`}>
+      {/* カレンダーグリッド（フォントはカレンダー数字・曜日のみに適用） */}
+      <div
+        className={`px-3 pt-3 pb-1 transition-colors duration-200 ${postPanelOpen ? 'bg-bg-secondary/30' : ''}`}
+        style={{ fontFamily: 'var(--font-family)' }}
+      >
         {postPanelOpen && (
           <p className="text-center text-[11px] text-label-tertiary mb-1 animate-pulse">日付をタップして選択</p>
         )}

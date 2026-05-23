@@ -216,8 +216,9 @@ function CommunityThemeModal({
 // ─── メイン画面 ────────────────────────────────────────────────────
 
 export default function Customize() {
-  const { settings, updateSettings } = useTheme();
+  const { settings, updateSettings, currentWorkId } = useTheme();
   const { user } = useAuth();
+  const currentWorkName = localStorage.getItem('last_calendar_work_name') ?? '';
   const fontInputRef     = useRef<HTMLInputElement>(null);
   const bgInputRef       = useRef<HTMLInputElement>(null);
   const calColorWrapperRef  = useRef<HTMLDivElement>(null);
@@ -294,7 +295,11 @@ export default function Customize() {
 
   return (
     <Layout>
-      <Header title="カスタマイズ" rightAction={<SettingsMenuButton />} />
+      <Header
+        title="カスタマイズ"
+        subtitle={currentWorkId && currentWorkName ? `「${currentWorkName}」の設定` : undefined}
+        rightAction={<SettingsMenuButton />}
+      />
 
       <div className="px-4 pt-4 pb-8 flex flex-col gap-6">
 

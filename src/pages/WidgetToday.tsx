@@ -1,17 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { listEventsByDate, listUpcomingEvents, getWorkById } from '../lib/api';
+import { loadCalendarSettings, applySettingsToCSS } from '../contexts/ThemeContext';
 import type { CalendarEvent } from '../types';
-
-const THEMES: Record<string, Record<string, string>> = {
-  dark: { '--bg-primary': '#1a1a1a', '--bg-secondary': '#2a2a2a', '--label-primary': '#ffffff', '--label-secondary': '#aaaaaa', '--label-tertiary': '#666666', '--border-subtle': 'rgba(255,255,255,0.08)' },
-  light: { '--bg-primary': '#f5f5f5', '--bg-secondary': '#e8e8e8', '--label-primary': '#111111', '--label-secondary': '#555555', '--label-tertiary': '#888888', '--border-subtle': 'rgba(0,0,0,0.08)' },
-};
-
-function applyTheme(theme: string) {
-  const vars = THEMES[theme] ?? THEMES.dark;
-  Object.entries(vars).forEach(([k, v]) => document.documentElement.style.setProperty(k, v));
-}
 
 function toDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -21,15 +12,17 @@ const DAY_NAMES = ['日', '月', '火', '水', '木', '金', '土'];
 
 export default function WidgetToday() {
   const { workId = '' } = useParams<{ workId: string }>();
-  const [searchParams] = useSearchParams();
-  const theme = searchParams.get('theme') ?? 'dark';
 
   const [todayEvents, setTodayEvents] = useState<CalendarEvent[]>([]);
   const [nextEvent, setNextEvent] = useState<CalendarEvent | null>(null);
   const [workName, setWorkName] = useState('');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { applyTheme(theme); }, [theme]);
+  // カレンダーごとの設定を適用
+  useEffect(() => {
+    const settings = loadCalendarSettings(workId);
+    applySettingsToCSS(settings);
+  }, [workId]);
 
   const today = new Date();
   const todayStr = toDateStr(today);
@@ -59,7 +52,15 @@ export default function WidgetToday() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col px-6 pt-10 pb-8 gap-8" style={{ backgroundColor: 'var(--bg-primary)' }}>
+    <div
+      className="min-h-screen flex flex-col px-6 pt-10 pb-8 gap-8"
+      style={{
+        backgroundColor: 'var(--bg-primary)',
+        backgroundImage: 'var(--bg-image, none)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
       {/* 今日の日付 */}
       <div className="flex items-start justify-between">
         <div>
