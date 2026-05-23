@@ -343,6 +343,7 @@ function RegionFilterPanel({
   onApplyRegion,
   onClear,
   onToggleAdjacent,
+  onSetHome,
   onClose,
 }: {
   filterMode: FilterMode;
@@ -353,6 +354,7 @@ function RegionFilterPanel({
   onApplyRegion: (region: string) => void;
   onClear: () => void;
   onToggleAdjacent: () => void;
+  onSetHome: () => void;
   onClose: () => void;
 }) {
   const filterActive = filterMode !== 'none';
@@ -453,6 +455,23 @@ function RegionFilterPanel({
                 />
               </div>
             </button>
+          )}
+
+          {/* ホーム県未設定 → 設定を促すカード */}
+          {!homePref && (
+            <div className="mb-4 px-4 py-3 bg-bg-secondary rounded-xl border border-faint">
+              <p className="text-label-primary text-sm font-medium mb-1">ホーム県を設定する</p>
+              <p className="text-label-tertiary text-xs mb-3 leading-relaxed">
+                設定しておくとカレンダーを開いたとき自動で絞り込まれ、毎回選ばずに済みます。
+              </p>
+              <button
+                onClick={onSetHome}
+                className="text-xs font-semibold active:opacity-60"
+                style={{ color: 'var(--accent-color)' }}
+              >
+                ユーザー設定で登録する →
+              </button>
+            </div>
           )}
 
           {canGoHome ? (
@@ -857,6 +876,7 @@ export default function Calendar() {
           onApplyRegion={region => { setFilterMode('region'); setFilterValue(region); setIncludeAdjacent(false); setShowRegionPanel(false); }}
           onClear={() => { setFilterMode('none'); setFilterValue(null); setIncludeAdjacent(false); }}
           onToggleAdjacent={() => setIncludeAdjacent(v => !v)}
+          onSetHome={() => { setShowRegionPanel(false); setShowUserSettings(true); }}
           onClose={() => setShowRegionPanel(false)}
         />
       )}
