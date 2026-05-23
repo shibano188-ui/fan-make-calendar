@@ -267,7 +267,7 @@ function InlinePostForm({
   };
 
   return (
-    <div className="px-4 pt-3 pb-6 flex flex-col gap-3" style={{ animation: 'slideUpIn 0.38s cubic-bezier(0.34, 1.30, 0.64, 1) both' }}>
+    <div className="px-4 pt-3 pb-6 flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-label-secondary text-xs">予定を追加</p>
         <div className="flex-shrink-0 flex items-center gap-2">
@@ -389,7 +389,18 @@ function RegionFilterPanel({
 
 // ─── 個人予定 ──────────────────────────────────────────────────────
 
-type PersonalEvent = { id: string; title: string; date: string; time?: string; memo?: string; };
+type PersonalEvent = {
+  id: string;
+  title: string;
+  date: string;
+  time?: string;
+  category?: string;
+  prefecture?: string;
+  locationDetail?: string;
+  locationMapLink?: string;
+  link?: string;
+  memo?: string;
+};
 const PERSONAL_EVENTS_KEY = 'fan_personal_events';
 function loadPersonalEvents(): PersonalEvent[] {
   try { return JSON.parse(localStorage.getItem(PERSONAL_EVENTS_KEY) ?? '[]'); } catch { return []; }
@@ -398,42 +409,75 @@ function savePersonalEvents(evts: PersonalEvent[]) {
   localStorage.setItem(PERSONAL_EVENTS_KEY, JSON.stringify(evts));
 }
 
-function PersonalEventForm({ initialDate, onSuccess, onCancel }: { initialDate: string; onSuccess: () => void; onCancel: () => void; }) {
-  const [title, setTitle] = useState('');
-  const [date, setDate] = useState(initialDate);
-  const [time, setTime] = useState('');
-  const [memo, setMemo] = useState('');
+function PersonalPostForm({ initialDate, onSuccess, onCancel }: { initialDate: string; onSuccess: () => void; onCancel: () => void; }) {
+  const [cards, setCards] = useState<InlineCard[]>([newInlineCard(initialDate)]);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setCards(prev => {
+      const openIdx = prev.findIndex(c => !c.collapsed);
+      if (openIdx === -1) return prev;
+      return prev.map((c, i) => i === openIdx ? { ...c, date: initialDate } : c);
+    });
+  }, [initialDate]);
+
+  const updateCard = (id: string, patch: Partial<InlineCard>) =>
+    setCards(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
+  const toggleCard = (id: string) =>
+    setCards(prev => prev.map(c => c.id === id ? { ...c, collapsed: !c.collapsed } : c));
+  const removeCard = (id: string) =>
+    setCards(prev => prev.filter(c => c.id !== id));
+  const addCard = () =>
+    setCards(prev => [...prev.map(c => ({ ...c, collapsed: true })), newInlineCard(initialDate)]);
+
   const handleSave = () => {
-    if (!title.trim()) return;
+    const invalid = cards.find(c => !c.title.trim() || !c.date);
+    if (invalid) {
+      setError('すべてのカードにタイトルと日付を入力してください');
+      setCards(prev => prev.map(c => c.id === invalid.id ? { ...c, collapsed: false } : c));
+      return;
+    }
     const existing = loadPersonalEvents();
-    savePersonalEvents([...existing, { id: crypto.randomUUID(), title: title.trim(), date, ...(time && { time }), ...(memo.trim() && { memo: memo.trim() }) }]);
+    const newEvents: PersonalEvent[] = cards.map(c => ({
+      id: crypto.randomUUID(),
+      title: c.title.trim(),
+      date: c.date,
+      ...(c.time && { time: c.time }),
+      ...((c.category || c.customCategory.trim()) && { category: c.category || c.customCategory.trim() }),
+      ...(c.prefecture && { prefecture: c.prefecture }),
+      ...(c.locationDetail && { locationDetail: c.locationDetail }),
+      ...(c.locationMapLink && { locationMapLink: c.locationMapLink }),
+      ...(c.link && { link: c.link }),
+      ...(c.memo.trim() && { memo: c.memo.trim() }),
+    }));
+    savePersonalEvents([...existing, ...newEvents]);
     onSuccess();
   };
+
   return (
-    <div className="px-4 pt-3 pb-8 flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <p className="text-label-secondary text-xs">個人の予定を追加</p>
-        <button onClick={onCancel} className="text-label-tertiary text-xs px-3 py-1.5 rounded-lg active:opacity-60">キャンセル</button>
-      </div>
-      <div>
-        <label className="text-label-tertiary text-xs mb-1.5 block">タイトル <span className="text-red-400">*</span></label>
-        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="例：打ち合わせ" className={inputCls} />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-label-tertiary text-xs mb-1.5 block">日付</label>
-          <input type="date" value={date} onChange={e => setDate(e.target.value)} className={inputCls} />
-        </div>
-        <div>
-          <label className="text-label-tertiary text-xs mb-1.5 block">時間</label>
-          <input type="time" value={time} onChange={e => setTime(e.target.value)} className={inputCls} />
+    <div className="px-4 pt-3 pb-6 flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-label-secondary text-xs">予定を追加</p>
+        <div className="flex-shrink-0 flex items-center gap-2">
+          <button onClick={onCancel} className="whitespace-nowrap text-xs text-label-tertiary px-3 py-1.5 rounded-lg active:opacity-60">キャンセル</button>
+          <button onClick={handleSave} className="whitespace-nowrap text-xs font-semibold text-bg-primary bg-label-primary px-4 py-1.5 rounded-lg active:opacity-70">保存</button>
         </div>
       </div>
-      <div>
-        <label className="text-label-tertiary text-xs mb-1.5 block">メモ（任意）</label>
-        <textarea value={memo} onChange={e => setMemo(e.target.value)} placeholder="補足情報" rows={3} className={`${inputCls} resize-none`} />
-      </div>
-      <button onClick={handleSave} disabled={!title.trim()} className="w-full bg-label-primary text-bg-primary rounded-xl py-3 text-sm font-semibold active:opacity-70 disabled:opacity-40">保存</button>
+      {error && <p className="text-red-400 text-xs px-1">{error}</p>}
+      {cards.map((card, i) => (
+        <InlineCardItem
+          key={card.id}
+          card={card}
+          index={i}
+          total={cards.length}
+          onChange={patch => updateCard(card.id, patch)}
+          onToggle={() => toggleCard(card.id)}
+          onRemove={() => removeCard(card.id)}
+        />
+      ))}
+      <button onClick={addCard} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-subtle text-label-secondary text-sm active:opacity-60">
+        <Plus size={15} />別の予定を追加
+      </button>
     </div>
   );
 }
@@ -856,7 +900,11 @@ export default function Calendar() {
                           <div key={pe.id} className="flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3">
                             <div className="flex-1 min-w-0">
                               <p className="text-label-primary text-sm font-medium truncate">{pe.title}</p>
-                              {pe.time && <p className="text-label-tertiary text-xs mt-0.5">{pe.time}</p>}
+                              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                {pe.time && <span className="text-label-tertiary text-xs">{pe.time}</span>}
+                                {pe.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.category}</span>}
+                                {pe.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.prefecture}</span>}
+                              </div>
                               {pe.memo && <p className="text-label-secondary text-xs mt-0.5 truncate">{pe.memo}</p>}
                             </div>
                             <button onClick={() => deletePersonalEvent(pe.id)} className="w-6 h-6 flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
@@ -932,7 +980,11 @@ export default function Calendar() {
                         <div className="w-px h-8 bg-white/10 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-label-primary text-sm font-medium truncate">{pe.title}</p>
-                          {pe.time && <p className="text-label-tertiary text-xs mt-0.5">{pe.time}</p>}
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            {pe.time && <span className="text-label-tertiary text-xs">{pe.time}</span>}
+                            {pe.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.category}</span>}
+                            {pe.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.prefecture}</span>}
+                          </div>
                         </div>
                         <button onClick={() => deletePersonalEvent(pe.id)} className="w-6 h-6 flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
                           <X size={14} />
@@ -961,29 +1013,45 @@ export default function Calendar() {
         </div>
       </button>
 
-      {/* 投稿フォームオーバーレイ（フルスクリーン） */}
+      {/* 投稿フォームパネル（ボトムシートスタイル） */}
       {postPanelOpen && (
-        <div className="fixed inset-0 max-w-app mx-auto z-50 overflow-y-auto" style={{ backgroundColor: 'var(--bg-primary)' }}>
-          {workId && user ? (
-            <InlinePostForm
-              workId={workId}
-              userId={user.id}
-              selectedDate={postDate}
-              onSuccess={() => {
-                setPostPanelOpen(false);
-                setLoading(true);
-                listEvents(workId, year, month).then(setEvents).finally(() => setLoading(false));
-              }}
-              onCancel={() => setPostPanelOpen(false)}
-            />
-          ) : (
-            <PersonalEventForm
-              initialDate={postDate}
-              onSuccess={() => { setPostPanelOpen(false); setPersonalEvents(loadPersonalEvents()); }}
-              onCancel={() => setPostPanelOpen(false)}
-            />
-          )}
-        </div>
+        <>
+          <div className="fixed inset-0 z-[150] bg-black/40" onClick={() => setPostPanelOpen(false)} />
+          <div
+            className="fixed inset-x-0 max-w-app mx-auto z-[160] rounded-t-2xl flex flex-col overflow-hidden"
+            style={{
+              bottom: BOTTOM_TAB_H,
+              maxHeight: '72vh',
+              backgroundColor: 'var(--bg-primary)',
+              animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both',
+            }}
+          >
+            <div className="flex-shrink-0 flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full" style={{ backgroundColor: 'var(--border-subtle)' }} />
+            </div>
+            <div className="overflow-y-auto flex-1">
+              {workId && user ? (
+                <InlinePostForm
+                  workId={workId}
+                  userId={user.id}
+                  selectedDate={postDate}
+                  onSuccess={() => {
+                    setPostPanelOpen(false);
+                    setLoading(true);
+                    listEvents(workId, year, month).then(setEvents).finally(() => setLoading(false));
+                  }}
+                  onCancel={() => setPostPanelOpen(false)}
+                />
+              ) : (
+                <PersonalPostForm
+                  initialDate={postDate}
+                  onSuccess={() => { setPostPanelOpen(false); setPersonalEvents(loadPersonalEvents()); }}
+                  onCancel={() => setPostPanelOpen(false)}
+                />
+              )}
+            </div>
+          </div>
+        </>
       )}
 
       {showRegionPanel && (
