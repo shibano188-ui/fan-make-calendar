@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, X, Calendar, Music, Camera, Mail, Globe, Settings, Star, Heart } from 'lucide-react';
 import { listUpcomingEvents, listEventsByDate, listEvents, getWorkById } from '../lib/api';
+import { loadCalendarSettings } from '../contexts/ThemeContext';
 import type { CalendarEvent } from '../types';
 
 // ─── 定数 ────────────────────────────────────────────────────────
@@ -330,6 +331,9 @@ export default function WidgetPreviewModal({ onClose }: { onClose: () => void })
     event: null, todayEvents: [], monthEvents: [], workName: '',
     todayStr: '', year: new Date().getFullYear(), month: new Date().getMonth(),
   });
+  const [bgImageUrl, setBgImageUrl] = useState('');
+  const [bgOffsetX, setBgOffsetX] = useState(50);
+  const [bgOffsetY, setBgOffsetY] = useState(50);
 
   useEffect(() => {
     const workId = localStorage.getItem('last_calendar_workId') ?? '';
@@ -339,6 +343,12 @@ export default function WidgetPreviewModal({ onClose }: { onClose: () => void })
     const month = today.getMonth();
 
     setData(d => ({ ...d, todayStr, year, month }));
+
+    // カレンダーごとの設定から背景画像を読み込む
+    const calSettings = loadCalendarSettings(workId);
+    setBgImageUrl(calSettings.backgroundImageUrl);
+    setBgOffsetX(calSettings.bgImageOffsetX ?? 50);
+    setBgOffsetY(calSettings.bgImageOffsetY ?? 50);
 
     if (!workId) return;
     Promise.all([
@@ -406,7 +416,13 @@ export default function WidgetPreviewModal({ onClose }: { onClose: () => void })
         {/* スクリーン */}
         <div
           className="absolute inset-[8px] rounded-[36px] overflow-hidden flex flex-col"
-          style={{ background: 'linear-gradient(155deg, #1c2340 0%, #0f1a30 45%, #0a0f20 100%)' }}
+          style={bgImageUrl ? {
+            backgroundImage: `url(${bgImageUrl})`,
+            backgroundSize: 'cover',
+            backgroundPosition: `${bgOffsetX}% ${bgOffsetY}%`,
+          } : {
+            background: 'linear-gradient(155deg, #1c2340 0%, #0f1a30 45%, #0a0f20 100%)',
+          }}
         >
           {/* ステータスバー */}
           <div className="flex items-center justify-between px-6 h-10 flex-shrink-0 pt-1">

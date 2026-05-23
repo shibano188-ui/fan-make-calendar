@@ -504,7 +504,7 @@ export default function Calendar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const { setCurrentCalendar } = useTheme();
+  const { settings, setCurrentCalendar, calFontFamily } = useTheme();
 
   const today = new Date();
   const todayStr = toDateStr(today);
@@ -730,10 +730,17 @@ export default function Calendar() {
         }
       />
 
-      {/* カレンダーグリッド（フォントはカレンダー数字・曜日のみに適用） */}
+      {/* カレンダーグリッド（フォント・背景画像はこの範囲のみ） */}
       <div
-        className={`px-3 pt-3 pb-1 transition-colors duration-200 ${postPanelOpen ? 'bg-bg-secondary/30' : ''}`}
-        style={{ fontFamily: 'var(--font-family)' }}
+        className={`px-3 pt-3 pb-1 transition-colors duration-200 rounded-2xl ${postPanelOpen ? 'bg-bg-secondary/30' : ''}`}
+        style={{
+          fontFamily: calFontFamily,
+          ...(settings.backgroundImageUrl ? {
+            backgroundImage: `url(${settings.backgroundImageUrl})`,
+            backgroundSize: 'cover',
+            backgroundPosition: `${settings.bgImageOffsetX ?? 50}% ${settings.bgImageOffsetY ?? 50}%`,
+          } : {}),
+        }}
       >
         {postPanelOpen && (
           <p className="text-center text-[11px] text-label-tertiary mb-1 animate-pulse">日付をタップして選択</p>

@@ -160,7 +160,7 @@ export default function WorkSelect() {
         ) : (
           <>
             {recentWorks.length > 0 && (
-              <Section title="最近開いた">
+              <Section title="参加中のカレンダー">
                 {recentWorks.map(w => (
                   <WorkItem key={w.id} name={w.name} count={w.participantCount} onClick={() => handleSelect(w)} />
                 ))}

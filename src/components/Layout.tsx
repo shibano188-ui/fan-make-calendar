@@ -8,15 +8,7 @@ interface Props {
 
 export default function Layout({ children, hideBottomTab = false }: Props) {
   return (
-    <div
-      className="min-h-screen"
-      style={{
-        backgroundColor: 'var(--bg-primary)',
-        backgroundImage: 'var(--bg-image, none)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      }}
-    >
+    <div className="min-h-screen bg-bg-primary">
       <div className="mx-auto w-full max-w-app min-h-screen flex flex-col">
         <main className={`flex-1 ${hideBottomTab ? '' : 'pb-16'}`}>
           {children}

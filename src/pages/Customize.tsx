@@ -213,6 +213,111 @@ function CommunityThemeModal({
   );
 }
 
+// ─── 背景画像クロップモーダル ────────────────────────────────────────
+
+const DAY_LABELS_CROP = ['日', '月', '火', '水', '木', '金', '土'];
+
+function BgImageCropModal({
+  imageUrl,
+  initialOffsetX,
+  initialOffsetY,
+  onConfirm,
+  onCancel,
+}: {
+  imageUrl: string;
+  initialOffsetX: number;
+  initialOffsetY: number;
+  onConfirm: (offsetX: number, offsetY: number) => void;
+  onCancel: () => void;
+}) {
+  const [offsetX, setOffsetX] = useState(initialOffsetX);
+  const [offsetY, setOffsetY] = useState(initialOffsetY);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const dragging = useRef(false);
+  const startRef = useRef({ x: 0, y: 0, ox: initialOffsetX, oy: initialOffsetY });
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    dragging.current = true;
+    startRef.current = { x: e.clientX, y: e.clientY, ox: offsetX, oy: offsetY };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    e.preventDefault();
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!dragging.current || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const dx = e.clientX - startRef.current.x;
+    const dy = e.clientY - startRef.current.y;
+    // ドラッグ右 → 背景が右へ移動 → 左側が見える (offsetX 減少)
+    const newX = Math.max(0, Math.min(100, startRef.current.ox - (dx / rect.width) * 100));
+    const newY = Math.max(0, Math.min(100, startRef.current.oy - (dy / rect.height) * 100));
+    setOffsetX(newX);
+    setOffsetY(newY);
+  };
+
+  const handlePointerUp = () => { dragging.current = false; };
+
+  return (
+    <div className="fixed inset-0 z-[400] flex flex-col items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.88)' }}>
+      <div className="flex flex-col items-center gap-5 px-5 w-full max-w-sm">
+        <div className="text-center">
+          <p className="text-white text-sm font-semibold">カレンダー背景の範囲を設定</p>
+          <p className="text-white/50 text-xs mt-1">ドラッグして位置を調整してください</p>
+        </div>
+
+        {/* カレンダープレビュー */}
+        <div
+          ref={containerRef}
+          className="rounded-2xl overflow-hidden cursor-grab active:cursor-grabbing select-none"
+          style={{
+            width: 300,
+            height: 256,
+            backgroundImage: `url(${imageUrl})`,
+            backgroundSize: 'cover',
+            backgroundPosition: `${offsetX}% ${offsetY}%`,
+            touchAction: 'none',
+          }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        >
+          {/* カレンダーシルエットオーバーレイ */}
+          <div className="w-full h-full p-3" style={{ backgroundColor: 'rgba(0,0,0,0.25)' }}>
+            <div className="grid grid-cols-7 mb-1.5">
+              {DAY_LABELS_CROP.map((d, i) => (
+                <div key={d} className="text-center text-[10px] font-medium py-0.5"
+                  style={{ color: i === 0 ? 'rgba(248,113,113,0.9)' : i === 6 ? 'rgba(96,165,250,0.9)' : 'rgba(255,255,255,0.7)' }}>
+                  {d}
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-y-1">
+              {Array.from({ length: 35 }, (_, i) => (
+                <div key={i} className="flex items-center justify-center">
+                  <div className="w-7 h-7 rounded-full bg-white/15" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-3 w-full">
+          <button onClick={onCancel}
+            className="flex-1 py-3 rounded-xl text-sm border"
+            style={{ color: 'rgba(255,255,255,0.6)', borderColor: 'rgba(255,255,255,0.2)' }}>
+            キャンセル
+          </button>
+          <button onClick={() => onConfirm(offsetX, offsetY)}
+            className="flex-1 py-3 rounded-xl text-sm font-semibold bg-white text-black">
+            この範囲で設定
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── メイン画面 ────────────────────────────────────────────────────
 
 export default function Customize() {
@@ -229,6 +334,8 @@ export default function Customize() {
   const [calColorOpen, setCalColorOpen]   = useState(false);
   const [openCalKey, setOpenCalKey]       = useState<string | null>(null);
   const [paletteTop, setPaletteTop]       = useState(0);
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [pendingImageUrl, setPendingImageUrl] = useState('');
 
   // パレット外クリックで閉じる
   useEffect(() => {
@@ -262,8 +369,13 @@ export default function Customize() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = ev => updateSettings({ backgroundImageUrl: ev.target?.result as string });
+    reader.onload = ev => {
+      setPendingImageUrl(ev.target?.result as string);
+      setShowCropModal(true);
+    };
     reader.readAsDataURL(file);
+    // input をリセットして同じファイルを再選択できるようにする
+    e.target.value = '';
   };
 
   const handleApplyShared = (td: SharedThemeData) => {
@@ -487,17 +599,44 @@ export default function Customize() {
 
         {/* 背景画像 */}
         <section>
-          <p className="text-label-tertiary text-xs mb-3">背景画像</p>
+          <p className="text-label-tertiary text-xs mb-3">カレンダー背景画像</p>
           <input ref={bgInputRef} type="file" accept="image/*" onChange={handleBgUpload} className="hidden" />
-          <button onClick={() => bgInputRef.current?.click()}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-subtle text-label-secondary text-sm active:opacity-60">
-            <Upload size={14} />画像をアップロード
-          </button>
-          {settings.backgroundImageUrl && (
-            <div className="mt-2 flex items-center justify-between px-1">
-              <p className="text-label-tertiary text-xs">背景画像 設定済み</p>
-              <button onClick={() => updateSettings({ backgroundImageUrl: '' })} className="text-label-tertiary text-xs underline active:opacity-60">削除</button>
+          {settings.backgroundImageUrl ? (
+            <div className="flex gap-3 items-start">
+              {/* サムネイルプレビュー */}
+              <button
+                onClick={() => { setPendingImageUrl(settings.backgroundImageUrl); setShowCropModal(true); }}
+                className="relative flex-shrink-0 rounded-xl overflow-hidden active:opacity-70"
+                style={{ width: 80, height: 68 }}
+              >
+                <div
+                  className="w-full h-full"
+                  style={{
+                    backgroundImage: `url(${settings.backgroundImageUrl})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: `${settings.bgImageOffsetX ?? 50}% ${settings.bgImageOffsetY ?? 50}%`,
+                  }}
+                />
+                <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.3)' }}>
+                  <span className="text-white text-[9px] font-medium">位置を調整</span>
+                </div>
+              </button>
+              <div className="flex-1 flex flex-col gap-2 pt-1">
+                <button onClick={() => bgInputRef.current?.click()}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-subtle text-label-secondary text-sm active:opacity-60">
+                  <Upload size={13} />画像を変更
+                </button>
+                <button onClick={() => updateSettings({ backgroundImageUrl: '', bgImageOffsetX: 50, bgImageOffsetY: 50 })}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-subtle text-label-tertiary text-sm active:opacity-60">
+                  削除
+                </button>
+              </div>
             </div>
+          ) : (
+            <button onClick={() => bgInputRef.current?.click()}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-subtle text-label-secondary text-sm active:opacity-60">
+              <Upload size={14} />画像をアップロード
+            </button>
           )}
         </section>
 
@@ -517,6 +656,20 @@ export default function Customize() {
             calSunday: settings.calSunday, calOtherMonth: settings.calOtherMonth,
           }}
           canShare={canShare}
+        />
+      )}
+
+      {showCropModal && pendingImageUrl && (
+        <BgImageCropModal
+          imageUrl={pendingImageUrl}
+          initialOffsetX={settings.bgImageOffsetX ?? 50}
+          initialOffsetY={settings.bgImageOffsetY ?? 50}
+          onConfirm={(ox, oy) => {
+            updateSettings({ backgroundImageUrl: pendingImageUrl, bgImageOffsetX: ox, bgImageOffsetY: oy });
+            setShowCropModal(false);
+            setPendingImageUrl('');
+          }}
+          onCancel={() => { setShowCropModal(false); setPendingImageUrl(''); }}
         />
       )}
     </Layout>

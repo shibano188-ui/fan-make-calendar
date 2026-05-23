@@ -111,6 +111,8 @@ export interface UserSettings {
   font: FontFamily;
   accentColor: string;
   backgroundImageUrl: string;
+  bgImageOffsetX: number;
+  bgImageOffsetY: number;
   customFontUrl: string;
   customFontName: string;
   communityThemeId: string;
@@ -125,6 +127,8 @@ const DEFAULT_SETTINGS: UserSettings = {
   font: 'system',
   accentColor: '#888780',
   backgroundImageUrl: '',
+  bgImageOffsetX: 50,
+  bgImageOffsetY: 50,
   customFontUrl: '',
   customFontName: '',
   communityThemeId: '',
@@ -257,6 +261,7 @@ interface ThemeContextValue {
   updateSettings: (patch: Partial<UserSettings>) => void;
   currentWorkId: string;
   setCurrentCalendar: (workId: string) => void;
+  calFontFamily: string;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -353,21 +358,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [settings.calWeekday, settings.calSaturday, settings.calSunday, settings.calOtherMonth]);
 
-  // フォント・背景画像を CSS 変数に反映（body には適用しない）
+  // カスタムフォントの @font-face 登録のみ（フォントはカレンダーグリッドに直接渡すためCSS変数は設定しない）
   useEffect(() => {
-    const root = document.documentElement;
-
-    // 背景画像
-    if (settings.backgroundImageUrl) {
-      root.style.setProperty('--bg-image', `url(${settings.backgroundImageUrl})`);
-    } else {
-      root.style.removeProperty('--bg-image');
-    }
-
-    // フォント（CSS変数のみ。カレンダーグリッドが fontFamily: var(--font-family) で消費）
-    root.style.setProperty('--font-family', fontStack(settings));
-
-    // カスタムフォントの @font-face 登録
     if (settings.font === 'custom' && settings.customFontUrl && settings.customFontName) {
       const existing = document.getElementById('custom-font-style');
       if (existing) existing.remove();
@@ -376,10 +368,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       style.textContent = `@font-face { font-family: "${settings.customFontName}"; src: url("${settings.customFontUrl}"); }`;
       document.head.appendChild(style);
     }
-  }, [settings]);
+  }, [settings.font, settings.customFontUrl, settings.customFontName]);
+
+  const calFontFamily = fontStack(settings);
 
   return (
-    <ThemeContext.Provider value={{ settings, updateSettings, currentWorkId, setCurrentCalendar }}>
+    <ThemeContext.Provider value={{ settings, updateSettings, currentWorkId, setCurrentCalendar, calFontFamily }}>
       {children}
     </ThemeContext.Provider>
   );
