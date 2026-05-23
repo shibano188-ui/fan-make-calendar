@@ -22,6 +22,7 @@ interface PostCard {
   customCategory: string;
   prefecture: string;
   locationDetail: string;
+  locationMapLink: string;
   link: string;
   memo: string;
   collapsed: boolean;
@@ -39,13 +40,14 @@ function newCard(): PostCard {
     customCategory: '',
     prefecture: '',
     locationDetail: '',
+    locationMapLink: '',
     link: '',
     memo: '',
     collapsed: false,
   };
 }
 
-type EventInput = Pick<CalendarEvent, 'title' | 'date' | 'time' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail'>;
+type EventInput = Pick<CalendarEvent, 'title' | 'date' | 'time' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink'>;
 
 function toEventInput(card: PostCard): EventInput {
   return {
@@ -57,6 +59,7 @@ function toEventInput(card: PostCard): EventInput {
     memo: card.memo || undefined,
     prefecture: card.prefecture || undefined,
     locationDetail: card.locationDetail || undefined,
+    locationMapLink: card.locationMapLink || undefined,
   };
 }
 
@@ -186,20 +189,29 @@ function PostCardItem({
             <label className="text-label-tertiary text-xs mb-1.5 block">場所（任意）</label>
             <select
               value={card.prefecture}
-              onChange={e => onChange({ prefecture: e.target.value, locationDetail: e.target.value ? card.locationDetail : '' })}
+              onChange={e => onChange({ prefecture: e.target.value, locationDetail: e.target.value ? card.locationDetail : '', locationMapLink: e.target.value ? card.locationMapLink : '' })}
               className={`${inputCls} appearance-none`}
             >
               <option value="">全国（指定なし）</option>
               {PREFECTURES.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
             {hasPrefecture && (
-              <input
-                type="text"
-                value={card.locationDetail}
-                onChange={e => onChange({ locationDetail: e.target.value })}
-                placeholder="詳しい場所・住所・Google Mapsリンクなど"
-                className={`${inputCls} mt-2`}
-              />
+              <div className="flex flex-col gap-2 mt-2">
+                <input
+                  type="text"
+                  value={card.locationDetail}
+                  onChange={e => onChange({ locationDetail: e.target.value })}
+                  placeholder="詳しい場所・住所"
+                  className={inputCls}
+                />
+                <input
+                  type="url"
+                  value={card.locationMapLink}
+                  onChange={e => onChange({ locationMapLink: e.target.value })}
+                  placeholder="Google Maps リンク"
+                  className={inputCls}
+                />
+              </div>
             )}
           </div>
 

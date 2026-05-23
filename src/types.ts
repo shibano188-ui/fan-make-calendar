@@ -8,6 +8,7 @@ export type CalendarEvent = {
   memo?: string;
   prefecture?: string;
   locationDetail?: string;
+  locationMapLink?: string;
   likes: number;
   likedByMe: boolean;
   createdAt: string;

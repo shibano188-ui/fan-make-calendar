@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, ChevronRight } from 'lucide-react';
 import Layout from '../components/Layout';
+import SettingsMenuButton from '../components/SettingsMenuButton';
 import { listWorks, searchWorks, getOrCreateWork, upsertParticipation, listRecentWorks } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import type { Work } from '../lib/api';
@@ -99,8 +100,13 @@ export default function WorkSelect() {
   return (
     <Layout>
       <div className="px-5 pt-8 pb-5">
-        <h1 className="text-2xl font-bold text-label-primary">作品を選ぶ</h1>
-        <p className="text-sm text-label-secondary mt-1">入りたいカレンダーを検索</p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-label-primary">作品を選ぶ</h1>
+            <p className="text-sm text-label-secondary mt-1">入りたいカレンダーを検索</p>
+          </div>
+          <div className="mt-1"><SettingsMenuButton /></div>
+        </div>
       </div>
 
       {/* 検索ボックス */}

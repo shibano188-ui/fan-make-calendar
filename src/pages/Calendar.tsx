@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Palette, Plus, Heart, MoreVertical, Link2, LogOut, Trash2,
-  ChevronDown, ChevronUp, X, Settings,
+  ChevronDown, ChevronUp, X, Settings, Map,
 } from 'lucide-react';
 import Layout from '../components/Layout';
 import Header from '../components/Header';
@@ -11,7 +11,9 @@ import {
   createEvents, getHomePrefecture, saveHomePrefecture,
   getDisplayName, saveDisplayName,
 } from '../lib/api';
-import { PREFECTURES, REGIONS, ADJACENT } from '../lib/prefectures';
+import { REGIONS, ADJACENT } from '../lib/prefectures';
+import { PrefectureSearch } from '../components/UserSettingsSheet';
+import UserSettingsSheet from '../components/UserSettingsSheet';
 import { useAuth } from '../contexts/AuthContext';
 import type { CalendarEvent } from '../types';
 
@@ -48,70 +50,6 @@ export function toDateStr(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-// ─── 都道府県検索コンポーネント（再利用） ─────────────────────────
-
-function PrefectureSearch({
-  value,
-  onChange,
-  placeholder = '都道府県を検索・選択',
-}: {
-  value: string;
-  onChange: (pref: string) => void;
-  placeholder?: string;
-}) {
-  const [query, setQuery] = useState('');
-  const [open, setOpen] = useState(false);
-
-  const filtered = useMemo(
-    () => (query ? PREFECTURES.filter(p => p.includes(query)) : PREFECTURES),
-    [query],
-  );
-
-  return (
-    <div className="relative">
-      <div className="flex items-center gap-2">
-        <input
-          type="text"
-          value={query}
-          onChange={e => { setQuery(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
-          placeholder={value ? `現在: ${value}（検索して変更）` : placeholder}
-          className={inputCls}
-        />
-        {value && (
-          <button
-            type="button"
-            onClick={() => { onChange(''); setQuery(''); }}
-            className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-label-tertiary bg-bg-secondary active:opacity-60"
-          >
-            <X size={12} />
-          </button>
-        )}
-      </div>
-      {open && filtered.length > 0 && (
-        <div
-          className="absolute left-0 right-0 top-full mt-1 bg-bg-secondary rounded-xl border border-subtle shadow-lg z-20 overflow-y-auto"
-          style={{ maxHeight: '168px' }}
-        >
-          {filtered.slice(0, 10).map(p => (
-            <button
-              key={p}
-              type="button"
-              onMouseDown={() => { onChange(p); setQuery(''); setOpen(false); }}
-              className={`w-full text-left px-3 py-2.5 text-sm active:opacity-60 ${
-                value === p ? 'text-label-primary font-semibold' : 'text-label-secondary'
-              }`}
-            >
-              {p}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── インライン投稿カード ───────────────────────────────────────────
 
 interface InlineCard {
@@ -123,6 +61,7 @@ interface InlineCard {
   customCategory: string;
   prefecture: string;
   locationDetail: string;
+  locationMapLink: string;
   link: string;
   memo: string;
   collapsed: boolean;
@@ -138,6 +77,7 @@ function newInlineCard(date: string): InlineCard {
     customCategory: '',
     prefecture: '',
     locationDetail: '',
+    locationMapLink: '',
     link: '',
     memo: '',
     collapsed: false,
@@ -161,7 +101,6 @@ function InlineCardItem({
 }) {
   return (
     <div className="bg-bg-secondary rounded-xl overflow-hidden">
-      {/* カードヘッダー */}
       <div className="flex items-center justify-between px-4 py-3 cursor-pointer select-none" onClick={onToggle}>
         <span className="text-label-primary text-sm font-medium truncate flex-1 mr-2">
           予定 {index + 1}{card.title.trim() ? `：${card.title.trim()}` : ''}
@@ -171,30 +110,19 @@ function InlineCardItem({
             onClick={e => { e.stopPropagation(); onRemove(); }}
             disabled={total <= 1}
             className="w-6 h-6 flex items-center justify-center text-label-tertiary disabled:opacity-20 active:opacity-50"
-            aria-label="削除"
           >
             <X size={14} />
           </button>
-          {card.collapsed
-            ? <ChevronDown size={16} className="text-label-tertiary" />
-            : <ChevronUp size={16} className="text-label-tertiary" />}
+          {card.collapsed ? <ChevronDown size={16} className="text-label-tertiary" /> : <ChevronUp size={16} className="text-label-tertiary" />}
         </div>
       </div>
 
-      {/* フォーム */}
       {!card.collapsed && (
         <div className="px-4 pb-4 flex flex-col gap-4 border-t border-faint">
           {/* タイトル */}
           <div className="pt-3">
             <label className="text-label-tertiary text-xs mb-1.5 block">タイトル <span className="text-red-400">*</span></label>
-            <input
-              type="text"
-              value={card.title}
-              onChange={e => onChange({ title: e.target.value })}
-              placeholder="例：単行本 第15巻 発売"
-              className={inputCls}
-              autoFocus={index === 0}
-            />
+            <input type="text" value={card.title} onChange={e => onChange({ title: e.target.value })} placeholder="例：単行本 第15巻 発売" className={inputCls} autoFocus={index === 0} />
           </div>
 
           {/* 日付・時間 */}
@@ -218,11 +146,7 @@ function InlineCardItem({
                   key={cat}
                   type="button"
                   onClick={() => onChange({ category: card.category === cat ? '' : cat, customCategory: '' })}
-                  className={`px-3 py-1 rounded-full text-xs border transition-colors ${
-                    card.category === cat
-                      ? 'border-selected text-label-primary bg-label-primary/10'
-                      : 'border-default text-label-secondary'
-                  }`}
+                  className={`px-3 py-1 rounded-full text-xs border transition-colors ${card.category === cat ? 'border-selected text-label-primary bg-label-primary/10' : 'border-default text-label-secondary'}`}
                 >
                   {cat}
                 </button>
@@ -245,20 +169,32 @@ function InlineCardItem({
             <label className="text-label-tertiary text-xs mb-1.5 block">場所（任意）</label>
             <select
               value={card.prefecture}
-              onChange={e => onChange({ prefecture: e.target.value, locationDetail: e.target.value ? card.locationDetail : '' })}
+              onChange={e => onChange({ prefecture: e.target.value })}
               className={`${inputCls} appearance-none`}
             >
               <option value="">全国（指定なし）</option>
-              {PREFECTURES.map(p => <option key={p} value={p}>{p}</option>)}
+              {Array.from({ length: 47 }, (_, i) => {
+                const prefs = ['北海道','青森','岩手','宮城','秋田','山形','福島','茨城','栃木','群馬','埼玉','千葉','東京','神奈川','新潟','富山','石川','福井','山梨','長野','岐阜','静岡','愛知','三重','滋賀','京都','大阪','兵庫','奈良','和歌山','鳥取','島根','岡山','広島','山口','徳島','香川','愛媛','高知','福岡','佐賀','長崎','熊本','大分','宮崎','鹿児島','沖縄'];
+                return <option key={prefs[i]} value={prefs[i]}>{prefs[i]}</option>;
+              })}
             </select>
             {card.prefecture && (
-              <input
-                type="text"
-                value={card.locationDetail}
-                onChange={e => onChange({ locationDetail: e.target.value })}
-                placeholder="詳しい場所・住所・Google Mapsリンクなど"
-                className={`${inputCls} mt-2`}
-              />
+              <div className="flex flex-col gap-2 mt-2">
+                <input
+                  type="text"
+                  value={card.locationDetail}
+                  onChange={e => onChange({ locationDetail: e.target.value })}
+                  placeholder="詳しい場所・住所"
+                  className={inputCls}
+                />
+                <input
+                  type="url"
+                  value={card.locationMapLink}
+                  onChange={e => onChange({ locationMapLink: e.target.value })}
+                  placeholder="Google Maps リンク"
+                  className={inputCls}
+                />
+              </div>
             )}
           </div>
 
@@ -298,7 +234,6 @@ function InlinePostForm({
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // カレンダーで日付が選択されたら、開いているカードのdateを更新
   useEffect(() => {
     setCards(prev => {
       const openIdx = prev.findIndex(c => !c.collapsed);
@@ -309,13 +244,10 @@ function InlinePostForm({
 
   const updateCard = (id: string, patch: Partial<InlineCard>) =>
     setCards(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
-
   const toggleCard = (id: string) =>
     setCards(prev => prev.map(c => c.id === id ? { ...c, collapsed: !c.collapsed } : c));
-
   const removeCard = (id: string) =>
     setCards(prev => prev.filter(c => c.id !== id));
-
   const addCard = () =>
     setCards(prev => [...prev.map(c => ({ ...c, collapsed: true })), newInlineCard(selectedDate)]);
 
@@ -338,6 +270,7 @@ function InlinePostForm({
         memo: c.memo || undefined,
         prefecture: c.prefecture || undefined,
         locationDetail: c.locationDetail || undefined,
+        locationMapLink: c.locationMapLink || undefined,
       })), userId);
       onSuccess();
     } catch {
@@ -353,16 +286,19 @@ function InlinePostForm({
       style={{ animation: 'slideUpIn 0.38s cubic-bezier(0.34, 1.30, 0.64, 1) both' }}
     >
       {/* ヘッダー行 */}
-      <div className="flex items-center justify-between">
-        <p className="text-label-secondary text-xs">予定を追加（カレンダーで日付タップで自動入力）</p>
-        <div className="flex items-center gap-2">
-          <button onClick={onCancel} className="text-xs text-label-tertiary px-3 py-1.5 rounded-lg active:opacity-60">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-label-secondary text-xs">予定を追加</p>
+        <div className="flex-shrink-0 flex items-center gap-2">
+          <button
+            onClick={onCancel}
+            className="whitespace-nowrap text-xs text-label-tertiary px-3 py-1.5 rounded-lg active:opacity-60"
+          >
             キャンセル
           </button>
           <button
             onClick={handleSubmit}
             disabled={submitting}
-            className="text-xs font-semibold text-bg-primary bg-label-primary px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40"
+            className="whitespace-nowrap text-xs font-semibold text-bg-primary bg-label-primary px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40"
           >
             {submitting ? '投稿中…' : '投稿'}
           </button>
@@ -427,10 +363,14 @@ function RegionFilterPanel({
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div
         className="relative bg-bg-primary rounded-t-2xl flex flex-col"
-        style={{ maxHeight: '80vh', animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both' }}
+        style={{
+          maxHeight: '80vh',
+          overflow: 'hidden',
+          animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both',
+        }}
       >
         {/* 固定ヘッダー */}
-        <div className="flex-shrink-0 pt-3 px-4 pb-3">
+        <div className="flex-shrink-0 pt-3 px-4 pb-3 border-b border-faint">
           <div className="flex justify-center mb-2">
             <div className="w-10 h-1 rounded-full bg-label-tertiary/50" />
           </div>
@@ -438,7 +378,6 @@ function RegionFilterPanel({
             <p className="text-label-primary font-semibold text-sm">地域で絞り込む</p>
             <button onClick={onClose} className="text-xs text-label-secondary active:opacity-60">閉じる</button>
           </div>
-          {/* 現在のフィルター */}
           {filterActive && (
             <div className="mt-2 flex items-center gap-2">
               <span className="text-xs rounded-full px-2.5 py-0.5 border" style={{ color: 'var(--accent-color)', borderColor: 'var(--accent-color)' }}>
@@ -450,7 +389,10 @@ function RegionFilterPanel({
         </div>
 
         {/* スクロール可能コンテンツ */}
-        <div className="flex-1 overflow-y-auto min-h-0 px-4 pb-8">
+        <div
+          className="flex-1 min-h-0 px-4 pb-8 pt-4"
+          style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+        >
           {/* ① 都道府県で選ぶ */}
           <div className="mb-5">
             <p className="text-label-tertiary text-xs mb-2">都道府県で選ぶ</p>
@@ -475,7 +417,7 @@ function RegionFilterPanel({
             </select>
           </div>
 
-          {/* ③ 隣接する県を含む（単一県時のみ） */}
+          {/* ③ 隣接する県を含む */}
           {filterMode === 'pref' && filterValue && (ADJACENT[filterValue]?.length ?? 0) > 0 && (
             <button
               onClick={onToggleAdjacent}
@@ -501,7 +443,6 @@ function RegionFilterPanel({
             </button>
           )}
 
-          {/* ④ すべて表示 */}
           {filterActive && (
             <button
               onClick={onClear}
@@ -510,90 +451,6 @@ function RegionFilterPanel({
               すべて表示（全国）
             </button>
           )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── ユーザー設定シート ────────────────────────────────────────────
-
-function UserSettingsSheet({
-  homePref,
-  displayName,
-  onSave,
-  onClose,
-}: {
-  homePref: string | null;
-  displayName: string | null;
-  onSave: (homePref: string | null, displayName: string) => Promise<void>;
-  onClose: () => void;
-}) {
-  const [pref, setPref] = useState(homePref ?? '');
-  const [name, setName] = useState(displayName ?? '');
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  const handleSave = async () => {
-    setSaving(true);
-    await onSave(pref || null, name);
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => { setSaved(false); onClose(); }, 800);
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div
-        className="relative bg-bg-primary rounded-t-2xl flex flex-col"
-        style={{ maxHeight: '70vh', animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both' }}
-      >
-        {/* 固定ヘッダー */}
-        <div className="flex-shrink-0 pt-3 px-4 pb-3">
-          <div className="flex justify-center mb-2">
-            <div className="w-10 h-1 rounded-full bg-label-tertiary/50" />
-          </div>
-          <div className="flex items-center justify-between">
-            <p className="text-label-primary font-semibold text-sm">ユーザー設定</p>
-            <button onClick={onClose} className="text-xs text-label-secondary active:opacity-60">閉じる</button>
-          </div>
-        </div>
-
-        {/* スクロール可能コンテンツ */}
-        <div className="flex-1 overflow-y-auto min-h-0 px-4 pb-8">
-          {/* 表示名 */}
-          <div className="mb-5">
-            <label className="text-label-tertiary text-xs mb-1.5 block">表示名（任意）</label>
-            <input
-              type="text"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="匿名"
-              className={inputCls}
-              maxLength={20}
-            />
-            <p className="text-label-tertiary text-[10px] mt-1 px-1">投稿者として表示されます（今後対応予定）</p>
-          </div>
-
-          {/* ホーム県 */}
-          <div className="mb-6">
-            <label className="text-label-tertiary text-xs mb-1.5 block">ホーム県</label>
-            <PrefectureSearch
-              value={pref}
-              onChange={setPref}
-              placeholder="都道府県を検索（設定するとカレンダーを自動絞り込み）"
-            />
-          </div>
-
-          {/* 保存ボタン */}
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full py-3 rounded-xl bg-label-primary text-bg-primary font-semibold text-sm active:opacity-70 disabled:opacity-40"
-          >
-            {saved ? '保存しました ✓' : saving ? '保存中…' : '保存'}
-          </button>
         </div>
       </div>
     </div>
@@ -611,7 +468,6 @@ export default function Calendar() {
   const today = new Date();
   const todayStr = toDateStr(today);
 
-  // 基本状態
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [workName, setWorkName] = useState('');
@@ -623,32 +479,26 @@ export default function Calendar() {
   const [deleting, setDeleting] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // 地域フィルター
   const [filterMode, setFilterMode] = useState<FilterMode>('none');
   const [filterValue, setFilterValue] = useState<string | null>(null);
   const [includeAdjacent, setIncludeAdjacent] = useState(false);
   const [showRegionPanel, setShowRegionPanel] = useState(false);
 
-  // ユーザー設定
   const [homePref, setHomePref] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [showUserSettings, setShowUserSettings] = useState(false);
 
-  // インライン投稿フォーム
   const [postPanelOpen, setPostPanelOpen] = useState(false);
   const [postDate, setPostDate] = useState(todayStr);
 
-  // ユーザー設定をロード（ホーム県 + 表示名）
   useEffect(() => {
     if (!user) return;
-    Promise.all([
-      getHomePrefecture(user.id),
-      getDisplayName(user.id),
-    ]).then(([pref, name]) => {
-      setHomePref(pref);
-      setDisplayName(name);
-      if (pref) { setFilterMode('pref'); setFilterValue(pref); }
-    });
+    Promise.all([getHomePrefecture(user.id), getDisplayName(user.id)])
+      .then(([pref, name]) => {
+        setHomePref(pref);
+        setDisplayName(name);
+        if (pref) { setFilterMode('pref'); setFilterValue(pref); }
+      });
   }, [user?.id]);
 
   const handleCopyUrl = async () => {
@@ -687,10 +537,7 @@ export default function Calendar() {
     setHomePref(newPref);
     setDisplayName(newName || null);
     if (newPref) { setFilterMode('pref'); setFilterValue(newPref); setIncludeAdjacent(false); }
-    await Promise.all([
-      saveHomePrefecture(user.id, newPref),
-      saveDisplayName(user.id, newName),
-    ]);
+    await Promise.all([saveHomePrefecture(user.id, newPref), saveDisplayName(user.id, newName)]);
   };
 
   useEffect(() => {
@@ -709,7 +556,6 @@ export default function Calendar() {
       .finally(() => setLoading(false));
   }, [workId, year, month, location.key]);
 
-  // フィルター計算
   const activeFilterPrefs = useMemo((): Set<string> | null => {
     if (filterMode === 'region') {
       const r = REGIONS.find(x => x.name === filterValue);
@@ -749,11 +595,8 @@ export default function Calendar() {
 
   const handleDayClick = (dateStr: string, isCurrentMonth: boolean) => {
     if (!workId) return;
-    if (postPanelOpen) {
-      if (isCurrentMonth) setPostDate(dateStr);
-    } else {
-      navigate(`/calendar/${workId}/date/${dateStr}`);
-    }
+    if (postPanelOpen) { if (isCurrentMonth) setPostDate(dateStr); }
+    else navigate(`/calendar/${workId}/date/${dateStr}`);
   };
 
   const filterActive = filterMode !== 'none';
@@ -766,89 +609,76 @@ export default function Calendar() {
       <Header
         title={workId ? (workName || '…') : 'カレンダー'}
         subtitleNode={
-          <div className="flex items-center justify-center gap-1">
-            <button onClick={prevMonth} aria-label="前の月" className="text-label-tertiary text-lg leading-none px-1.5 active:text-label-primary">‹</button>
-            <span className="text-xs text-label-secondary">{year}年 {month + 1}月</span>
-            <button onClick={nextMonth} aria-label="次の月" className="text-label-tertiary text-lg leading-none px-1.5 active:text-label-primary">›</button>
+          <div className="flex flex-col items-center">
+            <span className="text-[10px] text-label-tertiary leading-none">{year}年</span>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <button onClick={prevMonth} aria-label="前の月" className="text-label-tertiary text-lg leading-none px-1 active:text-label-primary">‹</button>
+              <span className="text-sm font-semibold text-label-primary">{month + 1}月</span>
+              <button onClick={nextMonth} aria-label="次の月" className="text-label-tertiary text-lg leading-none px-1 active:text-label-primary">›</button>
+            </div>
           </div>
         }
         rightAction={
           <div className="flex items-center gap-1">
-            {/* カスタマイズ */}
-            <button
-              onClick={() => navigate('/customize')}
-              className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary"
-            >
+            <button onClick={() => navigate('/customize')} className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary">
               <Palette size={16} />
             </button>
 
-            {/* 地域フィルター（カスタマイズの右） */}
             {workId && (
               <button
                 onClick={() => setShowRegionPanel(true)}
                 aria-label="地域で絞り込む"
-                className="relative w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary"
+                className="relative w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary active:opacity-60"
               >
-                <span className="text-base leading-none" role="img" aria-label="地図">🗾</span>
+                <Map size={16} style={filterActive ? { color: 'var(--accent-color)' } : {}} />
                 {filterActive && (
-                  <span
-                    className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full"
-                    style={{ background: 'var(--accent-color)' }}
-                  />
+                  <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent-color)' }} />
                 )}
               </button>
             )}
 
-            {/* ⋮ メニュー */}
-            {workId && (
-              <div className="relative" ref={menuRef}>
-                <button
-                  onClick={() => setShowMenu(v => !v)}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary"
-                >
-                  <MoreVertical size={16} />
-                </button>
-                {showMenu && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-                    <div className="absolute right-0 top-9 z-50 bg-bg-secondary border border-subtle rounded-xl overflow-hidden shadow-lg w-48">
-                      <button
-                        onClick={handleCopyUrl}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-label-primary active:opacity-60"
-                      >
-                        <Link2 size={15} className="text-label-secondary" />
-                        {copyDone ? 'コピーしました！' : '招待リンクをコピー'}
-                      </button>
-                      <div className="h-px bg-subtle mx-3" />
-                      <button
-                        onClick={() => { setShowMenu(false); setShowUserSettings(true); }}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-label-primary active:opacity-60"
-                      >
-                        <Settings size={15} className="text-label-secondary" />
-                        ユーザー設定
-                      </button>
-                      <div className="h-px bg-subtle mx-3" />
-                      <button
-                        onClick={handleLeave}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 active:opacity-60"
-                      >
-                        <LogOut size={15} />
-                        カレンダーから抜ける
-                      </button>
-                      <div className="h-px bg-subtle mx-3" />
-                      <button
-                        onClick={handleDelete}
-                        disabled={deleting}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 active:opacity-60 disabled:opacity-40"
-                      >
-                        <Trash2 size={15} />
-                        {deleting ? '削除中…' : 'カレンダーを削除'}
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
+            <div className="relative" ref={menuRef}>
+              <button onClick={() => setShowMenu(v => !v)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary">
+                <MoreVertical size={16} />
+              </button>
+              {showMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+                  <div className="absolute right-0 top-9 z-50 bg-bg-secondary border border-subtle rounded-xl overflow-hidden shadow-lg w-48">
+                    {workId && (
+                      <>
+                        <button onClick={handleCopyUrl} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-label-primary active:opacity-60">
+                          <Link2 size={15} className="text-label-secondary" />
+                          {copyDone ? 'コピーしました！' : '招待リンクをコピー'}
+                        </button>
+                        <div className="h-px bg-subtle mx-3" />
+                      </>
+                    )}
+                    <button
+                      onClick={() => { setShowMenu(false); setShowUserSettings(true); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-label-primary active:opacity-60"
+                    >
+                      <Settings size={15} className="text-label-secondary" />
+                      ユーザー設定
+                    </button>
+                    {workId && (
+                      <>
+                        <div className="h-px bg-subtle mx-3" />
+                        <button onClick={handleLeave} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 active:opacity-60">
+                          <LogOut size={15} />
+                          カレンダーから抜ける
+                        </button>
+                        <div className="h-px bg-subtle mx-3" />
+                        <button onClick={handleDelete} disabled={deleting} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 active:opacity-60 disabled:opacity-40">
+                          <Trash2 size={15} />
+                          {deleting ? '削除中…' : 'カレンダーを削除'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         }
       />
@@ -856,9 +686,7 @@ export default function Calendar() {
       {/* カレンダーグリッド */}
       <div className={`px-3 pt-3 pb-1 transition-colors duration-200 ${postPanelOpen ? 'bg-bg-secondary/30' : ''}`}>
         {postPanelOpen && (
-          <p className="text-center text-[11px] text-label-tertiary mb-1 animate-pulse">
-            日付をタップして選択
-          </p>
+          <p className="text-center text-[11px] text-label-tertiary mb-1 animate-pulse">日付をタップして選択</p>
         )}
         <div className="grid grid-cols-7 mb-1">
           {DAY_LABELS.map((label, i) => (
@@ -878,7 +706,6 @@ export default function Calendar() {
             const hasEvent = filteredEventDates.has(dateStr) && isCurrentMonth;
             const isSelectedPost = postPanelOpen && dateStr === postDate;
             const col = idx % 7;
-
             return (
               <button
                 key={dateStr + idx}
@@ -896,9 +723,7 @@ export default function Calendar() {
                   {date.getDate()}
                 </div>
                 <div className="h-[6px] flex items-center justify-center">
-                  {hasEvent && (
-                    <div className={`w-[4px] h-[4px] rounded-full ${(isToday || isSelectedPost) ? 'bg-bg-secondary' : 'bg-label-secondary'}`} />
-                  )}
+                  {hasEvent && <div className={`w-[4px] h-[4px] rounded-full ${(isToday || isSelectedPost) ? 'bg-bg-secondary' : 'bg-label-secondary'}`} />}
                 </div>
               </button>
             );
@@ -992,23 +817,16 @@ export default function Calendar() {
       {/* FAB */}
       {workId && (
         <button
-          onClick={() => {
-            if (postPanelOpen) { setPostPanelOpen(false); }
-            else { setPostDate(todayStr); setPostPanelOpen(true); }
-          }}
+          onClick={() => { if (postPanelOpen) setPostPanelOpen(false); else { setPostDate(todayStr); setPostPanelOpen(true); } }}
           className="fixed bottom-[76px] right-4 w-[52px] h-[52px] bg-label-primary text-bg-primary rounded-full flex items-center justify-center shadow-xl z-40 active:opacity-80"
           aria-label={postPanelOpen ? '閉じる' : '予定を追加'}
         >
-          <div style={{
-            transition: 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)',
-            transform: postPanelOpen ? 'rotate(45deg)' : 'rotate(0deg)',
-          }}>
+          <div style={{ transition: 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)', transform: postPanelOpen ? 'rotate(45deg)' : 'rotate(0deg)' }}>
             <Plus size={22} strokeWidth={2.5} />
           </div>
         </button>
       )}
 
-      {/* 地域フィルターパネル */}
       {showRegionPanel && (
         <RegionFilterPanel
           filterMode={filterMode}
@@ -1022,7 +840,6 @@ export default function Calendar() {
         />
       )}
 
-      {/* ユーザー設定シート */}
       {showUserSettings && user && (
         <UserSettingsSheet
           homePref={homePref}

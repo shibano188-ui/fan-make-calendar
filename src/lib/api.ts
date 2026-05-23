@@ -86,6 +86,7 @@ function rowToEvent(e: Record<string, unknown>): CalendarEvent {
     memo: (e.memo as string | null) ?? undefined,
     prefecture: (e.prefecture as string | null) ?? undefined,
     locationDetail: (e.location_detail as string | null) ?? undefined,
+    locationMapLink: (e.location_map_link as string | null) ?? undefined,
     likes: (e.like_count as number) ?? 0,
     likedByMe: false,
     createdAt: e.created_at as string,
@@ -138,7 +139,7 @@ export async function listEventsByDate(workId: string, date: string, userId?: st
 
 export async function createEvents(
   workId: string,
-  events: Pick<CalendarEvent, 'title' | 'date' | 'time' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail'>[],
+  events: Pick<CalendarEvent, 'title' | 'date' | 'time' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink'>[],
   authorId: string,
 ): Promise<void> {
   const rows = await Promise.all(events.map(async e => {
@@ -162,6 +163,7 @@ export async function createEvents(
       memo: e.memo ?? null,
       prefecture: e.prefecture ?? null,
       location_detail: e.locationDetail ?? null,
+      location_map_link: e.locationMapLink ?? null,
       author_id: authorId,
       pool,
     };

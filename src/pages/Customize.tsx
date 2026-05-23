@@ -2,6 +2,7 @@ import { useRef, useState, useEffect } from 'react';
 import { Upload, Share2, Users, X, Check, Loader, Trash2, ChevronDown } from 'lucide-react';
 import Layout from '../components/Layout';
 import Header from '../components/Header';
+import SettingsMenuButton from '../components/SettingsMenuButton';
 import { useTheme, COMMUNITY_THEMES, type FontFamily, type UserSettings } from '../contexts/ThemeContext';
 import { listSharedThemes, shareTheme, incrementThemeUseCount, deleteSharedTheme, type SharedTheme, type SharedThemeData } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -293,7 +294,7 @@ export default function Customize() {
 
   return (
     <Layout>
-      <Header title="カスタマイズ" />
+      <Header title="カスタマイズ" rightAction={<SettingsMenuButton />} />
 
       <div className="px-4 pt-4 pb-8 flex flex-col gap-6">
 
