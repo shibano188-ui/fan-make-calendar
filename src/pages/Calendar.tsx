@@ -746,130 +746,85 @@ export default function Calendar() {
               </div>
             </div>
 
-            {/* ボトムシート（日付タップ / フォームで共用） */}
+            {/* ボトムシート（日付タップ） */}
             <div
               className="flex-shrink-0 overflow-hidden border-t"
               style={{
-                height: postPanelOpen ? SHEET_FULL_H : sheetOpen ? SHEET_FULL_H : SHEET_COLLAPSED_H,
+                height: sheetOpen ? SHEET_FULL_H : SHEET_COLLAPSED_H,
                 transition: 'height 0.3s cubic-bezier(0.32, 0.72, 0, 1)',
                 borderColor: 'var(--border-subtle)',
                 backgroundColor: 'var(--bg-primary)',
               }}
             >
-              {postPanelOpen ? (
-                /* ── フォームモード ── */
-                <div className="flex flex-col" style={{ height: SHEET_FULL_H }}>
-                  {/* フォームコントロールバー */}
-                  <div className="flex-shrink-0 pt-2 pb-2" style={{ height: SHEET_COLLAPSED_H }}>
-                    <div className="flex justify-center mb-2">
-                      <div className="w-10 h-1 rounded-full" style={{ backgroundColor: 'var(--border-subtle)' }} />
+              <div className="flex flex-col" style={{ height: SHEET_FULL_H }}>
+                {/* ハンドル＋日付ヘッダー */}
+                <div
+                  className="flex flex-col items-center pt-2 flex-shrink-0 cursor-pointer select-none"
+                  style={{ height: SHEET_COLLAPSED_H }}
+                  onClick={() => setSheetOpen(v => !v)}
+                >
+                  <div className="w-10 h-1 rounded-full mb-2" style={{ backgroundColor: 'var(--border-subtle)' }} />
+                  <div className="w-full px-4 flex items-center justify-between">
+                    <p className="text-label-primary text-sm font-semibold">{selectedDateLabel}</p>
+                    <div className="flex items-center gap-2">
+                      {sheetEventCount > 0 && <span className="text-label-tertiary text-xs">{sheetEventCount}件</span>}
+                      <ChevronDown size={16} className="text-label-tertiary transition-transform duration-300" style={{ transform: sheetOpen ? 'rotate(180deg)' : 'none' }} />
                     </div>
-                    <div className="px-4 flex items-center justify-between">
-                      <button
-                        onClick={addPostCard}
-                        className="flex items-center gap-1 text-xs text-label-secondary active:opacity-60"
-                      >
-                        <Plus size={13} />別の予定を追加
-                      </button>
-                      <div className="flex items-center gap-2">
-                        <button onClick={closePostForm} className="text-xs text-label-tertiary px-3 py-1.5 rounded-lg active:opacity-60">キャンセル</button>
-                        <button onClick={handlePostSubmit} disabled={postSubmitting} className="text-xs font-semibold text-bg-primary bg-label-primary px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40">
-                          {postSubmitting ? '送信中…' : workId && user ? '投稿' : '保存'}
-                        </button>
-                      </div>
-                    </div>
-                    {postError && <p className="text-red-400 text-[10px] px-4 mt-1">{postError}</p>}
-                  </div>
-                  {/* カードリスト */}
-                  <div className="flex-1 overflow-y-auto px-4 pb-4 flex flex-col gap-3">
-                    {postCards.map((card, i) => (
-                      <InlineCardItem
-                        key={card.id}
-                        card={card}
-                        index={i}
-                        total={postCards.length}
-                        onChange={patch => updatePostCard(card.id, patch)}
-                        onToggle={() => togglePostCard(card.id)}
-                        onRemove={() => removePostCard(card.id)}
-                      />
-                    ))}
-                    <button onClick={addPostCard} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-subtle text-label-secondary text-sm active:opacity-60">
-                      <Plus size={15} />別の予定を追加
-                    </button>
                   </div>
                 </div>
-              ) : (
-                /* ── 予定表示モード ── */
-                <div className="flex flex-col" style={{ height: SHEET_FULL_H }}>
-                  {/* ハンドル＋日付ヘッダー */}
-                  <div
-                    className="flex flex-col items-center pt-2 flex-shrink-0 cursor-pointer select-none"
-                    style={{ height: SHEET_COLLAPSED_H }}
-                    onClick={() => setSheetOpen(v => !v)}
-                  >
-                    <div className="w-10 h-1 rounded-full mb-2" style={{ backgroundColor: 'var(--border-subtle)' }} />
-                    <div className="w-full px-4 flex items-center justify-between">
-                      <p className="text-label-primary text-sm font-semibold">{selectedDateLabel}</p>
-                      <div className="flex items-center gap-2">
-                        {sheetEventCount > 0 && <span className="text-label-tertiary text-xs">{sheetEventCount}件</span>}
-                        <ChevronDown size={16} className="text-label-tertiary transition-transform duration-300" style={{ transform: sheetOpen ? 'rotate(180deg)' : 'none' }} />
-                      </div>
-                    </div>
-                  </div>
-                  {/* イベントリスト */}
-                  <div className="flex-1 overflow-y-auto px-4 pb-4">
-                    {loading ? (
-                      <div className="flex flex-col gap-2">{[1, 2].map(i => <div key={i} className="h-14 bg-bg-secondary rounded-xl animate-pulse" />)}</div>
-                    ) : workId ? (
-                      sheetSharedEvents.length === 0 ? (
-                        <p className="text-center text-label-tertiary text-sm py-6">この日の予定はありません</p>
-                      ) : (
-                        <div className="flex flex-col gap-2">
-                          {sheetSharedEvents.map(event => (
-                            <button key={event.id} onClick={() => navigate(`/calendar/${workId}/date/${event.date}`)}
-                              className="w-full flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3 text-left active:opacity-70 transition-opacity">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
-                                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                  <div className="flex items-center gap-1">
-                                    <Heart size={11} className={event.likedByMe ? 'fill-red-400 text-red-400' : 'text-label-tertiary'} />
-                                    <span className="text-label-tertiary text-xs">{event.likes.toLocaleString('ja-JP')}</span>
-                                  </div>
-                                  {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>}
-                                </div>
-                              </div>
-                              <ChevronRight size={14} className="text-label-tertiary flex-shrink-0" />
-                            </button>
-                          ))}
-                        </div>
-                      )
+                {/* イベントリスト */}
+                <div className="flex-1 overflow-y-auto px-4 pb-4">
+                  {loading ? (
+                    <div className="flex flex-col gap-2">{[1, 2].map(i => <div key={i} className="h-14 bg-bg-secondary rounded-xl animate-pulse" />)}</div>
+                  ) : workId ? (
+                    sheetSharedEvents.length === 0 ? (
+                      <p className="text-center text-label-tertiary text-sm py-6">この日の予定はありません</p>
                     ) : (
-                      sheetPersonalEvents.length === 0 ? (
-                        <p className="text-center text-label-tertiary text-sm py-6">この日の予定はありません</p>
-                      ) : (
-                        <div className="flex flex-col gap-2">
-                          {sheetPersonalEvents.map(pe => (
-                            <div key={pe.id} className="flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-label-primary text-sm font-medium truncate">{pe.title}</p>
-                                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                  {pe.time && <span className="text-label-tertiary text-xs">{pe.time}</span>}
-                                  {pe.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.category}</span>}
-                                  {pe.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.prefecture}</span>}
+                      <div className="flex flex-col gap-2">
+                        {sheetSharedEvents.map(event => (
+                          <button key={event.id} onClick={() => navigate(`/calendar/${workId}/date/${event.date}`)}
+                            className="w-full flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3 text-left active:opacity-70 transition-opacity">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
+                              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                <div className="flex items-center gap-1">
+                                  <Heart size={11} className={event.likedByMe ? 'fill-red-400 text-red-400' : 'text-label-tertiary'} />
+                                  <span className="text-label-tertiary text-xs">{event.likes.toLocaleString('ja-JP')}</span>
                                 </div>
-                                {pe.memo && <p className="text-label-secondary text-xs mt-0.5 truncate">{pe.memo}</p>}
+                                {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>}
                               </div>
-                              <button onClick={() => deletePersonalEvent(pe.id)} className="w-6 h-6 flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
-                                <X size={14} />
-                              </button>
                             </div>
-                          ))}
-                        </div>
-                      )
-                    )}
-                  </div>
+                            <ChevronRight size={14} className="text-label-tertiary flex-shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    )
+                  ) : (
+                    sheetPersonalEvents.length === 0 ? (
+                      <p className="text-center text-label-tertiary text-sm py-6">この日の予定はありません</p>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {sheetPersonalEvents.map(pe => (
+                          <div key={pe.id} className="flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-label-primary text-sm font-medium truncate">{pe.title}</p>
+                              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                {pe.time && <span className="text-label-tertiary text-xs">{pe.time}</span>}
+                                {pe.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.category}</span>}
+                                {pe.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.prefecture}</span>}
+                              </div>
+                              {pe.memo && <p className="text-label-secondary text-xs mt-0.5 truncate">{pe.memo}</p>}
+                            </div>
+                            <button onClick={() => deletePersonalEvent(pe.id)} className="w-6 h-6 flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
         ) : (
@@ -967,6 +922,52 @@ export default function Calendar() {
           <Plus size={22} strokeWidth={2.5} />
         </div>
       </button>
+
+      {/* 予定追加フォームパネル（下から72vh、背景オーバーレイなし） */}
+      {postPanelOpen && (
+        <div
+          className="fixed inset-x-0 max-w-app mx-auto z-[160] rounded-t-2xl flex flex-col overflow-hidden"
+          style={{
+            bottom: BOTTOM_TAB_H,
+            maxHeight: '72vh',
+            backgroundColor: 'var(--bg-primary)',
+            animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both',
+          }}
+        >
+          {/* ハンドルバー */}
+          <div className="flex-shrink-0 flex justify-center pt-3 pb-1">
+            <div className="w-10 h-1 rounded-full" style={{ backgroundColor: 'var(--border-subtle)' }} />
+          </div>
+          {/* フォームヘッダー（キャンセル・投稿） */}
+          <div className="flex-shrink-0 px-4 pb-2 flex items-center justify-between">
+            <p className="text-label-secondary text-xs">予定を追加</p>
+            <div className="flex items-center gap-2">
+              <button onClick={closePostForm} className="text-xs text-label-tertiary px-3 py-1.5 rounded-lg active:opacity-60">キャンセル</button>
+              <button onClick={handlePostSubmit} disabled={postSubmitting} className="text-xs font-semibold text-bg-primary bg-label-primary px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40">
+                {postSubmitting ? '送信中…' : workId && user ? '投稿' : '保存'}
+              </button>
+            </div>
+          </div>
+          {postError && <p className="text-red-400 text-xs px-4 mb-1">{postError}</p>}
+          {/* カードリスト（スクロール可） */}
+          <div className="overflow-y-auto flex-1 px-4 pb-6 flex flex-col gap-3">
+            {postCards.map((card, i) => (
+              <InlineCardItem
+                key={card.id}
+                card={card}
+                index={i}
+                total={postCards.length}
+                onChange={patch => updatePostCard(card.id, patch)}
+                onToggle={() => togglePostCard(card.id)}
+                onRemove={() => removePostCard(card.id)}
+              />
+            ))}
+            <button onClick={addPostCard} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-subtle text-label-secondary text-sm active:opacity-60">
+              <Plus size={15} />別の予定を追加
+            </button>
+          </div>
+        </div>
+      )}
 
       {showRegionPanel && (
         <RegionFilterPanel
