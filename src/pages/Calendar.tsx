@@ -583,7 +583,7 @@ function PersonalEventForm({
 
 const BOTTOM_TAB_H = 56;
 const SHEET_COLLAPSED_H = 76;
-const SHEET_FULL_H = 400;
+const SHEET_FULL_H = 280;
 
 // ─── メイン画面 ────────────────────────────────────────────────────
 
@@ -602,7 +602,7 @@ export default function Calendar() {
   const [workName, setWorkName] = useState('');
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(!!workId);
-  const [, setError] = useState('');
+  const [error, setError] = useState('');
   const [showMenu, setShowMenu] = useState(false);
   const [copyDone, setCopyDone] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -622,6 +622,7 @@ export default function Calendar() {
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [personalEvents, setPersonalEvents] = useState<PersonalEvent[]>([]);
+  const [topView, setTopView] = useState<'calendar' | 'list'>('calendar');
 
   useEffect(() => {
     if (!user) return;
@@ -749,6 +750,14 @@ export default function Calendar() {
   };
 
   const filterActive = filterMode !== 'none';
+  const filterLabel = filterMode === 'pref'
+    ? `${filterValue}${includeAdjacent ? '＋隣接' : ''}`
+    : filterMode === 'region' ? `${filterValue}地方` : '';
+
+  const monthPersonalEvents = useMemo(() => {
+    const prefix = `${year}-${String(month + 1).padStart(2, '0')}-`;
+    return [...personalEvents.filter(e => e.date.startsWith(prefix))].sort((a, b) => a.date.localeCompare(b.date));
+  }, [personalEvents, year, month]);
 
   const displayEventDates = useMemo(() => {
     if (workId) return filteredEventDates;
@@ -778,10 +787,10 @@ export default function Calendar() {
 
   return (
     <>
-      {/* フルスクリーンコンテナ */}
+      {/* フルスクリーンコンテナ（ステータスバー分44px + BottomTab分56pxを除く） */}
       <div
         className="fixed inset-0 max-w-app mx-auto flex flex-col overflow-hidden"
-        style={{ backgroundColor: 'var(--bg-primary)' }}
+        style={{ backgroundColor: 'var(--bg-primary)', paddingTop: 44, paddingBottom: BOTTOM_TAB_H }}
       >
         <Header
           title={workId ? (workName || '…') : 'マイカレンダー'}
@@ -860,170 +869,283 @@ export default function Calendar() {
           }
         />
 
-        {/* カレンダーグリッドエリア（画面いっぱい） */}
-        <div
-          className="flex-1 overflow-hidden flex flex-col px-3 pt-1"
-          style={{
-            paddingBottom: SHEET_COLLAPSED_H + BOTTOM_TAB_H,
-            fontFamily: calFontFamily,
-            ...(settings.backgroundImageUrl ? {
-              backgroundImage: `url(${settings.backgroundImageUrl})`,
-              backgroundSize: 'cover',
-              backgroundPosition: `${settings.bgImageOffsetX ?? 50}% ${settings.bgImageOffsetY ?? 50}%`,
-            } : {}),
-          }}
-        >
-          {/* 曜日ラベル */}
-          <div className="grid grid-cols-7 mb-0.5 flex-shrink-0">
-            {DAY_LABELS.map((label, i) => (
-              <div
-                key={label}
-                className="text-center text-[11px] py-1 font-medium select-none"
-                style={{ color: i === 0 ? 'var(--cal-sunday-color)' : i === 6 ? 'var(--cal-saturday-color)' : 'var(--cal-weekday-color)' }}
-              >
-                {label}
-              </div>
-            ))}
-          </div>
-
-          {/* 日付グリッド（flex-1で残りスペースを埋める） */}
-          <div
-            className="grid grid-cols-7 flex-1"
-            style={{ gridTemplateRows: 'repeat(6, 1fr)' }}
-          >
-            {calendarDays.map(({ date, isCurrentMonth }, idx) => {
-              const dateStr = toDateStr(date);
-              const isToday = dateStr === todayStr;
-              const hasEvent = displayEventDates.has(dateStr) && isCurrentMonth;
-              const isSelected = dateStr === selectedDate && isCurrentMonth;
-              const col = idx % 7;
-              return (
-                <button
-                  key={dateStr + idx}
-                  onClick={() => handleDayClick(dateStr, isCurrentMonth)}
-                  className="flex flex-col items-center justify-start pt-1 active:opacity-50 transition-opacity"
-                  style={{ cursor: isCurrentMonth ? 'pointer' : 'default' }}
-                >
-                  <div
-                    className="w-8 h-8 flex items-center justify-center rounded-full text-[13px] select-none transition-all"
-                    style={{
-                      background: isSelected ? 'var(--accent-color)' : isToday ? 'var(--label-primary)' : undefined,
-                      color: isSelected || isToday ? 'var(--bg-primary)' : !isCurrentMonth ? 'var(--cal-other-month-color)' : col === 0 ? 'var(--cal-sunday-color)' : col === 6 ? 'var(--cal-saturday-color)' : 'var(--cal-weekday-color)',
-                      fontWeight: isToday || isSelected ? 700 : undefined,
-                    }}
-                  >
-                    {date.getDate()}
-                  </div>
-                  <div className="h-[6px] flex items-center justify-center">
-                    {hasEvent && <div className={`w-[4px] h-[4px] rounded-full ${(isToday || isSelected) ? 'bg-bg-secondary' : 'bg-label-secondary'}`} />}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+        {/* 上部タブ（カレンダー / 予定一覧） */}
+        <div className="flex flex-shrink-0 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
+          {(['calendar', 'list'] as const).map(v => (
+            <button
+              key={v}
+              onClick={() => setTopView(v)}
+              className="flex-1 py-2.5 text-sm font-medium transition-colors relative"
+              style={{ color: topView === v ? 'var(--accent-color)' : 'var(--label-tertiary)' }}
+            >
+              {v === 'calendar' ? 'カレンダー' : '予定一覧'}
+              {topView === v && (
+                <span
+                  className="absolute bottom-0 left-4 right-4 h-0.5 rounded-full"
+                  style={{ backgroundColor: 'var(--accent-color)' }}
+                />
+              )}
+            </button>
+          ))}
         </div>
 
-        {/* ボトムシート */}
-        <div
-          className="absolute left-0 right-0 rounded-t-2xl border-t"
-          style={{
-            bottom: 0,
-            height: SHEET_FULL_H,
-            transform: sheetOpen
-              ? `translateY(${BOTTOM_TAB_H}px)`
-              : `translateY(${SHEET_FULL_H - SHEET_COLLAPSED_H + BOTTOM_TAB_H}px)`,
-            transition: 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)',
-            backgroundColor: 'var(--bg-primary)',
-            borderColor: 'var(--border-subtle)',
-            zIndex: 30,
-            boxShadow: '0 -4px 24px rgba(0,0,0,0.1)',
-          }}
-        >
-          {/* ハンドル＋日付ヘッダー（タップでトグル） */}
-          <div
-            className="flex flex-col items-center pt-2 flex-shrink-0 cursor-pointer select-none"
-            onClick={() => setSheetOpen(v => !v)}
-          >
-            <div className="w-10 h-1 rounded-full mb-2" style={{ backgroundColor: 'var(--border-subtle)' }} />
-            <div className="w-full px-4 pb-3 flex items-center justify-between">
-              <p className="text-label-primary text-sm font-semibold">{selectedDateLabel}</p>
-              <div className="flex items-center gap-2">
-                {sheetEventCount > 0 && (
-                  <span className="text-label-tertiary text-xs">{sheetEventCount}件</span>
-                )}
-                <ChevronDown
-                  size={16}
-                  className="text-label-tertiary transition-transform duration-300"
-                  style={{ transform: sheetOpen ? 'rotate(180deg)' : 'none' }}
-                />
+        {topView === 'calendar' ? (
+          /* ─── カレンダービュー ─── */
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* カレンダーグリッドエリア */}
+            <div
+              className="flex-1 overflow-hidden flex flex-col px-3 pt-1"
+              style={{
+                fontFamily: calFontFamily,
+                ...(settings.backgroundImageUrl ? {
+                  backgroundImage: `url(${settings.backgroundImageUrl})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: `${settings.bgImageOffsetX ?? 50}% ${settings.bgImageOffsetY ?? 50}%`,
+                } : {}),
+              }}
+            >
+              {/* 曜日ラベル */}
+              <div className="grid grid-cols-7 mb-0.5 flex-shrink-0">
+                {DAY_LABELS.map((label, i) => (
+                  <div
+                    key={label}
+                    className="text-center text-[11px] py-1 font-medium select-none"
+                    style={{ color: i === 0 ? 'var(--cal-sunday-color)' : i === 6 ? 'var(--cal-saturday-color)' : 'var(--cal-weekday-color)' }}
+                  >
+                    {label}
+                  </div>
+                ))}
+              </div>
+
+              {/* 日付グリッド */}
+              <div
+                className="grid grid-cols-7 flex-1"
+                style={{ gridTemplateRows: 'repeat(6, 1fr)' }}
+              >
+                {calendarDays.map(({ date, isCurrentMonth }, idx) => {
+                  const dateStr = toDateStr(date);
+                  const isToday = dateStr === todayStr;
+                  const hasEvent = displayEventDates.has(dateStr) && isCurrentMonth;
+                  const isSelected = dateStr === selectedDate && isCurrentMonth;
+                  const col = idx % 7;
+                  return (
+                    <button
+                      key={dateStr + idx}
+                      onClick={() => handleDayClick(dateStr, isCurrentMonth)}
+                      className="flex flex-col items-center justify-start pt-1 active:opacity-50 transition-opacity"
+                      style={{ cursor: isCurrentMonth ? 'pointer' : 'default' }}
+                    >
+                      <div
+                        className="w-8 h-8 flex items-center justify-center rounded-full text-[13px] select-none transition-all"
+                        style={{
+                          background: isSelected ? 'var(--accent-color)' : isToday ? 'var(--label-primary)' : undefined,
+                          color: isSelected || isToday ? 'var(--bg-primary)' : !isCurrentMonth ? 'var(--cal-other-month-color)' : col === 0 ? 'var(--cal-sunday-color)' : col === 6 ? 'var(--cal-saturday-color)' : 'var(--cal-weekday-color)',
+                          fontWeight: isToday || isSelected ? 700 : undefined,
+                        }}
+                      >
+                        {date.getDate()}
+                      </div>
+                      <div className="h-[6px] flex items-center justify-center">
+                        {hasEvent && <div className={`w-[4px] h-[4px] rounded-full ${(isToday || isSelected) ? 'bg-bg-secondary' : 'bg-label-secondary'}`} />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ボトムシート（フロー内 → 日付タップでカレンダーが縮む） */}
+            <div
+              className="flex-shrink-0 overflow-hidden border-t"
+              style={{
+                height: sheetOpen ? SHEET_FULL_H : SHEET_COLLAPSED_H,
+                transition: 'height 0.3s cubic-bezier(0.32, 0.72, 0, 1)',
+                borderColor: 'var(--border-subtle)',
+                backgroundColor: 'var(--bg-primary)',
+              }}
+            >
+              {/* 高さ固定の内側コンテナ（クリップで制御） */}
+              <div className="flex flex-col" style={{ height: SHEET_FULL_H }}>
+                {/* ハンドル＋日付ヘッダー */}
+                <div
+                  className="flex flex-col items-center pt-2 flex-shrink-0 cursor-pointer select-none"
+                  style={{ height: SHEET_COLLAPSED_H }}
+                  onClick={() => setSheetOpen(v => !v)}
+                >
+                  <div className="w-10 h-1 rounded-full mb-2" style={{ backgroundColor: 'var(--border-subtle)' }} />
+                  <div className="w-full px-4 flex items-center justify-between">
+                    <p className="text-label-primary text-sm font-semibold">{selectedDateLabel}</p>
+                    <div className="flex items-center gap-2">
+                      {sheetEventCount > 0 && (
+                        <span className="text-label-tertiary text-xs">{sheetEventCount}件</span>
+                      )}
+                      <ChevronDown
+                        size={16}
+                        className="text-label-tertiary transition-transform duration-300"
+                        style={{ transform: sheetOpen ? 'rotate(180deg)' : 'none' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* イベントリスト（スクロール可能） */}
+                <div className="flex-1 overflow-y-auto px-4 pb-4">
+                  {loading ? (
+                    <div className="flex flex-col gap-2">
+                      {[1, 2].map(i => <div key={i} className="h-14 bg-bg-secondary rounded-xl animate-pulse" />)}
+                    </div>
+                  ) : workId ? (
+                    sheetSharedEvents.length === 0 ? (
+                      <p className="text-center text-label-tertiary text-sm py-6">この日の予定はありません</p>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {sheetSharedEvents.map(event => (
+                          <button
+                            key={event.id}
+                            onClick={() => navigate(`/calendar/${workId}/date/${event.date}`)}
+                            className="w-full flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3 text-left active:opacity-70 transition-opacity"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
+                              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                <div className="flex items-center gap-1">
+                                  <Heart size={11} className={event.likedByMe ? 'fill-red-400 text-red-400' : 'text-label-tertiary'} />
+                                  <span className="text-label-tertiary text-xs">{event.likes.toLocaleString('ja-JP')}</span>
+                                </div>
+                                {event.prefecture && (
+                                  <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">
+                                    {event.prefecture}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <ChevronRight size={14} className="text-label-tertiary flex-shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    )
+                  ) : (
+                    sheetPersonalEvents.length === 0 ? (
+                      <p className="text-center text-label-tertiary text-sm py-6">この日の予定はありません</p>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {sheetPersonalEvents.map(pe => (
+                          <div key={pe.id} className="flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-label-primary text-sm font-medium truncate">{pe.title}</p>
+                              {pe.time && <p className="text-label-tertiary text-xs mt-0.5">{pe.time}</p>}
+                              {pe.memo && <p className="text-label-secondary text-xs mt-0.5 truncate">{pe.memo}</p>}
+                            </div>
+                            <button
+                              onClick={() => deletePersonalEvent(pe.id)}
+                              className="w-6 h-6 flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  )}
+                </div>
               </div>
             </div>
           </div>
-
-          {/* イベントリスト（スクロール可能） */}
-          <div
-            className="overflow-y-auto px-4 pb-4"
-            style={{ height: SHEET_FULL_H - SHEET_COLLAPSED_H - BOTTOM_TAB_H }}
-          >
+        ) : (
+          /* ─── 予定一覧ビュー ─── */
+          <div className="flex-1 overflow-y-auto px-4 pt-3 pb-4">
+            {filterActive && (
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-[11px] text-label-tertiary">絞り込み：</span>
+                <span className="text-[11px] px-2 py-0.5 rounded-full border" style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-color)' }}>
+                  {filterLabel}
+                </span>
+                <button
+                  onClick={() => { setFilterMode('none'); setFilterValue(null); setIncludeAdjacent(false); }}
+                  className="text-[11px] text-label-tertiary underline active:opacity-60"
+                >
+                  解除
+                </button>
+              </div>
+            )}
+            <p className="text-label-secondary text-xs mb-3 px-1">今月の予定</p>
             {loading ? (
               <div className="flex flex-col gap-2">
-                {[1, 2].map(i => <div key={i} className="h-14 bg-bg-secondary rounded-xl animate-pulse" />)}
+                {[1, 2, 3].map(i => <div key={i} className="h-16 bg-bg-secondary rounded-xl animate-pulse" />)}
               </div>
+            ) : error ? (
+              <p className="text-center text-red-400 text-sm py-10">{error}</p>
             ) : workId ? (
-              sheetSharedEvents.length === 0 ? (
-                <p className="text-center text-label-tertiary text-sm py-8">この日の予定はありません</p>
+              filteredEvents.length === 0 ? (
+                <p className="text-center text-label-tertiary text-sm py-10">
+                  {filterActive ? 'この地域の予定はありません' : 'この月の予定はまだありません'}
+                </p>
               ) : (
                 <div className="flex flex-col gap-2">
-                  {sheetSharedEvents.map(event => (
-                    <button
-                      key={event.id}
-                      onClick={() => navigate(`/calendar/${workId}/date/${event.date}`)}
-                      className="w-full flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3 text-left active:opacity-70 transition-opacity"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
-                        <div className="flex items-center gap-2 mt-1 flex-wrap">
-                          <div className="flex items-center gap-1">
-                            <Heart size={11} className={event.likedByMe ? 'fill-red-400 text-red-400' : 'text-label-tertiary'} />
-                            <span className="text-label-tertiary text-xs">{event.likes.toLocaleString('ja-JP')}</span>
-                          </div>
-                          {event.prefecture && (
-                            <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">
-                              {event.prefecture}
-                            </span>
-                          )}
+                  {filteredEvents.map(event => {
+                    const [, em, ed] = event.date.split('-').map(Number);
+                    return (
+                      <button
+                        key={event.id}
+                        onClick={() => navigate(`/calendar/${workId}/date/${event.date}`)}
+                        className="w-full flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3 text-left active:opacity-70 transition-opacity"
+                      >
+                        <div className="flex-shrink-0 w-10 flex flex-col items-center">
+                          <span className="text-[10px] text-label-tertiary leading-none">{em}月</span>
+                          <span className="text-xl font-bold text-label-primary leading-snug">{ed}</span>
                         </div>
-                      </div>
-                      <ChevronRight size={14} className="text-label-tertiary flex-shrink-0" />
-                    </button>
-                  ))}
+                        <div className="w-px h-8 bg-white/10 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            <div className="flex items-center gap-1">
+                              <Heart size={11} className={event.likedByMe ? 'fill-red-400 text-red-400' : 'text-label-tertiary'} />
+                              <span className="text-label-tertiary text-xs">{event.likes.toLocaleString('ja-JP')}</span>
+                            </div>
+                            {event.prefecture && (
+                              <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">
+                                {event.prefecture}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               )
             ) : (
-              sheetPersonalEvents.length === 0 ? (
-                <p className="text-center text-label-tertiary text-sm py-8">この日の予定はありません</p>
+              monthPersonalEvents.length === 0 ? (
+                <p className="text-center text-label-tertiary text-sm py-10">この月の予定はまだありません</p>
               ) : (
                 <div className="flex flex-col gap-2">
-                  {sheetPersonalEvents.map(pe => (
-                    <div key={pe.id} className="flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-label-primary text-sm font-medium truncate">{pe.title}</p>
-                        {pe.time && <p className="text-label-tertiary text-xs mt-0.5">{pe.time}</p>}
-                        {pe.memo && <p className="text-label-secondary text-xs mt-0.5 truncate">{pe.memo}</p>}
+                  {monthPersonalEvents.map(pe => {
+                    const [, pm, pd] = pe.date.split('-').map(Number);
+                    return (
+                      <div key={pe.id} className="flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3">
+                        <div className="flex-shrink-0 w-10 flex flex-col items-center">
+                          <span className="text-[10px] text-label-tertiary leading-none">{pm}月</span>
+                          <span className="text-xl font-bold text-label-primary leading-snug">{pd}</span>
+                        </div>
+                        <div className="w-px h-8 bg-white/10 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-label-primary text-sm font-medium truncate">{pe.title}</p>
+                          {pe.time && <p className="text-label-tertiary text-xs mt-0.5">{pe.time}</p>}
+                        </div>
+                        <button
+                          onClick={() => deletePersonalEvent(pe.id)}
+                          className="w-6 h-6 flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0"
+                        >
+                          <X size={14} />
+                        </button>
                       </div>
-                      <button
-                        onClick={() => deletePersonalEvent(pe.id)}
-                        className="w-6 h-6 flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )
             )}
           </div>
-        </div>
+        )}
       </div>
 
       {/* FAB（常に表示） */}
