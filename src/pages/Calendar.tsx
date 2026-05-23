@@ -830,6 +830,7 @@ export default function Calendar() {
         ) : (
           /* ─── 予定一覧ビュー ─── */
           <div className="flex-1 overflow-y-auto px-4 pt-3 pb-4">
+            <p className="text-label-secondary text-xs px-1" style={{ marginBottom: filterActive ? 4 : 12 }}>今月の予定</p>
             {filterActive && (
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-[11px] text-label-tertiary">絞り込み：</span>
@@ -837,7 +838,6 @@ export default function Calendar() {
                 <button onClick={() => { setFilterMode('none'); setFilterValue(null); setIncludeAdjacent(false); }} className="text-[11px] text-label-tertiary underline active:opacity-60">解除</button>
               </div>
             )}
-            <p className="text-label-secondary text-xs mb-3 px-1">今月の予定</p>
             {loading ? (
               <div className="flex flex-col gap-2">{[1, 2, 3].map(i => <div key={i} className="h-16 bg-bg-secondary rounded-xl animate-pulse" />)}</div>
             ) : error ? (
@@ -923,13 +923,13 @@ export default function Calendar() {
         </div>
       </button>
 
-      {/* 予定追加フォームパネル（下から72vh、背景オーバーレイなし） */}
+      {/* 予定追加フォームパネル（下から72vh固定、背景オーバーレイなし） */}
       {postPanelOpen && (
         <div
-          className="fixed inset-x-0 max-w-app mx-auto z-[160] rounded-t-2xl flex flex-col"
+          className="fixed inset-x-0 max-w-app mx-auto z-[160] rounded-t-2xl flex flex-col overflow-hidden"
           style={{
             bottom: BOTTOM_TAB_H,
-            maxHeight: '72vh',
+            height: '72vh',
             backgroundColor: 'var(--bg-primary)',
             animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both',
           }}
