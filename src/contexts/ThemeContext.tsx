@@ -120,6 +120,7 @@ export interface UserSettings {
   calSaturday: string;
   calSunday: string;
   calOtherMonth: string;
+  calGridColor: string;
 }
 
 const DEFAULT_SETTINGS: UserSettings = {
@@ -136,6 +137,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   calSaturday: '',
   calSunday: '',
   calOtherMonth: '',
+  calGridColor: '',
 };
 
 const ACCENT_COLORS = ['#2C2C2A', '#888780', '#D85A30', '#1D9E75', '#378ADD', '#D4537E'] as const;
@@ -254,6 +256,9 @@ export function applySettingsToCSS(settings: UserSettings) {
     if (value) root.style.setProperty(varName, value);
     else root.style.removeProperty(varName);
   }
+
+  // グリッド線の色（常に設定 → フォールバック色を保証）
+  root.style.setProperty('--cal-grid-color', settings.calGridColor || 'rgba(128,128,128,0.15)');
 }
 
 interface ThemeContextValue {

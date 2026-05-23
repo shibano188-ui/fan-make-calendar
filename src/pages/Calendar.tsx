@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Palette, Plus, Heart, MoreVertical, Link2, LogOut, Trash2,
-  ChevronDown, ChevronUp, ChevronRight, X, Settings, Map,
+  ChevronDown, ChevronRight, X, Settings, Map,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
@@ -23,8 +23,6 @@ export type { CalendarEvent };
 // ─── 定数 ──────────────────────────────────────────────────────────
 
 const DAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
-const POST_CATEGORIES = ['単行本', 'グッズ', 'イベント', '誕生日', '配信'] as const;
-type PostCategory = (typeof POST_CATEGORIES)[number];
 
 const inputCls =
   'w-full bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong';
@@ -49,286 +47,6 @@ export function toDateStr(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
-}
-
-// ─── インライン投稿カード ───────────────────────────────────────────
-
-interface InlineCard {
-  id: string;
-  title: string;
-  date: string;
-  time: string;
-  category: PostCategory | '';
-  customCategory: string;
-  prefecture: string;
-  locationDetail: string;
-  locationMapLink: string;
-  link: string;
-  memo: string;
-  collapsed: boolean;
-}
-
-function newInlineCard(date: string): InlineCard {
-  return {
-    id: crypto.randomUUID(),
-    title: '',
-    date,
-    time: '',
-    category: '',
-    customCategory: '',
-    prefecture: '',
-    locationDetail: '',
-    locationMapLink: '',
-    link: '',
-    memo: '',
-    collapsed: false,
-  };
-}
-
-function InlineCardItem({
-  card,
-  index,
-  total,
-  onChange,
-  onToggle,
-  onRemove,
-}: {
-  card: InlineCard;
-  index: number;
-  total: number;
-  onChange: (patch: Partial<InlineCard>) => void;
-  onToggle: () => void;
-  onRemove: () => void;
-}) {
-  return (
-    <div className="bg-bg-secondary rounded-xl overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 cursor-pointer select-none" onClick={onToggle}>
-        <span className="text-label-primary text-sm font-medium truncate flex-1 mr-2">
-          予定 {index + 1}{card.title.trim() ? `：${card.title.trim()}` : ''}
-        </span>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={e => { e.stopPropagation(); onRemove(); }}
-            disabled={total <= 1}
-            className="w-6 h-6 flex items-center justify-center text-label-tertiary disabled:opacity-20 active:opacity-50"
-          >
-            <X size={14} />
-          </button>
-          {card.collapsed ? <ChevronDown size={16} className="text-label-tertiary" /> : <ChevronUp size={16} className="text-label-tertiary" />}
-        </div>
-      </div>
-
-      {!card.collapsed && (
-        <div className="px-4 pb-4 flex flex-col gap-4 border-t border-faint">
-          {/* タイトル */}
-          <div className="pt-3">
-            <label className="text-label-tertiary text-xs mb-1.5 block">タイトル <span className="text-red-400">*</span></label>
-            <input type="text" value={card.title} onChange={e => onChange({ title: e.target.value })} placeholder="例：単行本 第15巻 発売" className={inputCls} autoFocus={index === 0} />
-          </div>
-
-          {/* 日付・時間 */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-label-tertiary text-xs mb-1.5 block">日付 <span className="text-red-400">*</span></label>
-              <input type="date" value={card.date} onChange={e => onChange({ date: e.target.value })} className={inputCls} />
-            </div>
-            <div>
-              <label className="text-label-tertiary text-xs mb-1.5 block">時間</label>
-              <input type="time" value={card.time} onChange={e => onChange({ time: e.target.value })} className={inputCls} />
-            </div>
-          </div>
-
-          {/* カテゴリ */}
-          <div>
-            <label className="text-label-tertiary text-xs mb-1.5 block">カテゴリ</label>
-            <div className="flex flex-wrap gap-2 mb-2">
-              {POST_CATEGORIES.map(cat => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => onChange({ category: card.category === cat ? '' : cat, customCategory: '' })}
-                  className={`px-3 py-1 rounded-full text-xs border transition-colors ${card.category === cat ? 'border-selected text-label-primary bg-label-primary/10' : 'border-default text-label-secondary'}`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-label-tertiary text-xs flex-shrink-0">その他：</span>
-              <input
-                type="text"
-                value={card.customCategory}
-                onChange={e => onChange({ customCategory: e.target.value, category: '' })}
-                placeholder="自由に入力"
-                className="flex-1 bg-bg-primary rounded-lg px-3 py-1.5 text-xs text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong"
-              />
-            </div>
-          </div>
-
-          {/* 場所 */}
-          <div>
-            <label className="text-label-tertiary text-xs mb-1.5 block">場所（任意）</label>
-            <select
-              value={card.prefecture}
-              onChange={e => onChange({ prefecture: e.target.value })}
-              className={`${inputCls} appearance-none`}
-            >
-              <option value="">全国（指定なし）</option>
-              {Array.from({ length: 47 }, (_, i) => {
-                const prefs = ['北海道','青森','岩手','宮城','秋田','山形','福島','茨城','栃木','群馬','埼玉','千葉','東京','神奈川','新潟','富山','石川','福井','山梨','長野','岐阜','静岡','愛知','三重','滋賀','京都','大阪','兵庫','奈良','和歌山','鳥取','島根','岡山','広島','山口','徳島','香川','愛媛','高知','福岡','佐賀','長崎','熊本','大分','宮崎','鹿児島','沖縄'];
-                return <option key={prefs[i]} value={prefs[i]}>{prefs[i]}</option>;
-              })}
-            </select>
-            {card.prefecture && (
-              <div className="flex flex-col gap-2 mt-2">
-                <input
-                  type="text"
-                  value={card.locationDetail}
-                  onChange={e => onChange({ locationDetail: e.target.value })}
-                  placeholder="詳しい場所・住所"
-                  className={inputCls}
-                />
-                <input
-                  type="url"
-                  value={card.locationMapLink}
-                  onChange={e => onChange({ locationMapLink: e.target.value })}
-                  placeholder="Google Maps リンク"
-                  className={inputCls}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* リンク */}
-          <div>
-            <label className="text-label-tertiary text-xs mb-1.5 block">リンク（任意）</label>
-            <input type="url" value={card.link} onChange={e => onChange({ link: e.target.value })} placeholder="購入先 / 公式ポストなど" className={inputCls} />
-          </div>
-
-          {/* メモ */}
-          <div>
-            <label className="text-label-tertiary text-xs mb-1.5 block">メモ（任意）</label>
-            <textarea value={card.memo} onChange={e => onChange({ memo: e.target.value })} placeholder="補足情報" rows={3} className={`${inputCls} resize-none`} />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── インライン投稿フォーム（複数カード対応） ─────────────────────
-
-function InlinePostForm({
-  workId,
-  userId,
-  selectedDate,
-  onSuccess,
-  onCancel,
-}: {
-  workId: string;
-  userId: string;
-  selectedDate: string;
-  onSuccess: () => void;
-  onCancel: () => void;
-}) {
-  const [cards, setCards] = useState<InlineCard[]>([newInlineCard(selectedDate)]);
-  const [error, setError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    setCards(prev => {
-      const openIdx = prev.findIndex(c => !c.collapsed);
-      if (openIdx === -1) return prev;
-      return prev.map((c, i) => i === openIdx ? { ...c, date: selectedDate } : c);
-    });
-  }, [selectedDate]);
-
-  const updateCard = (id: string, patch: Partial<InlineCard>) =>
-    setCards(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
-  const toggleCard = (id: string) =>
-    setCards(prev => prev.map(c => c.id === id ? { ...c, collapsed: !c.collapsed } : c));
-  const removeCard = (id: string) =>
-    setCards(prev => prev.filter(c => c.id !== id));
-  const addCard = () =>
-    setCards(prev => [...prev.map(c => ({ ...c, collapsed: true })), newInlineCard(selectedDate)]);
-
-  const handleSubmit = async () => {
-    const invalid = cards.find(c => !c.title.trim() || !c.date);
-    if (invalid) {
-      setError('すべてのカードにタイトルと日付を入力してください');
-      setCards(prev => prev.map(c => c.id === invalid.id ? { ...c, collapsed: false } : c));
-      return;
-    }
-    setError('');
-    setSubmitting(true);
-    try {
-      await createEvents(workId, cards.map(c => ({
-        title: c.title.trim(),
-        date: c.date,
-        time: c.time || undefined,
-        category: c.category || c.customCategory.trim() || undefined,
-        link: c.link || undefined,
-        memo: c.memo || undefined,
-        prefecture: c.prefecture || undefined,
-        locationDetail: c.locationDetail || undefined,
-        locationMapLink: c.locationMapLink || undefined,
-      })), userId);
-      onSuccess();
-    } catch {
-      setError('投稿に失敗しました。もう一度お試しください');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div
-      className="px-4 pt-3 pb-6 flex flex-col gap-3"
-      style={{ animation: 'slideUpIn 0.38s cubic-bezier(0.34, 1.30, 0.64, 1) both' }}
-    >
-      {/* ヘッダー行 */}
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-label-secondary text-xs">予定を追加</p>
-        <div className="flex-shrink-0 flex items-center gap-2">
-          <button
-            onClick={onCancel}
-            className="whitespace-nowrap text-xs text-label-tertiary px-3 py-1.5 rounded-lg active:opacity-60"
-          >
-            キャンセル
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="whitespace-nowrap text-xs font-semibold text-bg-primary bg-label-primary px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40"
-          >
-            {submitting ? '投稿中…' : '投稿'}
-          </button>
-        </div>
-      </div>
-
-      {error && <p className="text-red-400 text-xs px-1">{error}</p>}
-
-      {cards.map((card, i) => (
-        <InlineCardItem
-          key={card.id}
-          card={card}
-          index={i}
-          total={cards.length}
-          onChange={patch => updateCard(card.id, patch)}
-          onToggle={() => toggleCard(card.id)}
-          onRemove={() => removeCard(card.id)}
-        />
-      ))}
-
-      <button
-        onClick={addCard}
-        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-subtle text-label-secondary text-sm active:opacity-60"
-      >
-        <Plus size={15} />
-        別の予定を追加
-      </button>
-    </div>
-  );
 }
 
 // ─── 地域フィルターパネル ─────────────────────────────────────────
@@ -517,11 +235,24 @@ function savePersonalEvents(evts: PersonalEvent[]) {
   localStorage.setItem(PERSONAL_EVENTS_KEY, JSON.stringify(evts));
 }
 
-function PersonalEventForm({
+// ─── レイアウト定数 ────────────────────────────────────────────────
+
+const BOTTOM_TAB_H = 56;
+const SHEET_COLLAPSED_H = 76;
+const SHEET_FULL_H = 280;
+const SHEET_FORM_H = 300;
+
+// ─── シート内クイック追加フォーム ────────────────────────────────
+
+function SheetAddForm({
+  workId,
+  userId,
   initialDate,
   onSuccess,
   onCancel,
 }: {
+  workId: string;
+  userId: string | undefined;
   initialDate: string;
   onSuccess: () => void;
   onCancel: () => void;
@@ -529,61 +260,67 @@ function PersonalEventForm({
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(initialDate);
   const [time, setTime] = useState('');
-  const [memo, setMemo] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSave = () => {
-    if (!title.trim()) return;
-    const existing = loadPersonalEvents();
-    savePersonalEvents([...existing, {
-      id: crypto.randomUUID(),
-      title: title.trim(),
-      date,
-      ...(time && { time }),
-      ...(memo.trim() && { memo: memo.trim() }),
-    }]);
-    onSuccess();
+  useEffect(() => { setDate(initialDate); }, [initialDate]);
+
+  const handleSave = async () => {
+    if (!title.trim() || submitting) return;
+    setSubmitting(true);
+    try {
+      if (workId && userId) {
+        await createEvents(workId, [{ title: title.trim(), date, time: time || undefined }], userId);
+      } else {
+        const existing = loadPersonalEvents();
+        savePersonalEvents([...existing, {
+          id: crypto.randomUUID(),
+          title: title.trim(),
+          date,
+          ...(time && { time }),
+        }]);
+      }
+      onSuccess();
+    } catch { /* silent */ } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <div className="px-4 pt-4 pb-10 flex flex-col gap-4">
-      <div className="flex items-center justify-between pt-2 pb-2">
-        <h2 className="text-label-primary font-bold text-lg">個人の予定を追加</h2>
-        <button onClick={onCancel} className="text-label-secondary text-sm active:opacity-60">キャンセル</button>
+    <div className="px-4 pt-2 pb-4 flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <p className="text-label-tertiary text-xs">予定を追加</p>
+        <button onClick={onCancel} className="text-label-tertiary text-xs px-2 py-1 rounded-lg active:opacity-60">
+          キャンセル
+        </button>
       </div>
-      <div>
-        <label className="text-label-tertiary text-xs mb-1.5 block">タイトル <span className="text-red-400">*</span></label>
-        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="例：打ち合わせ" className={inputCls} autoFocus />
-      </div>
+      <input
+        type="text"
+        value={title}
+        onChange={e => setTitle(e.target.value)}
+        placeholder="タイトル（必須）"
+        className={inputCls}
+        autoFocus
+      />
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-label-tertiary text-xs mb-1.5 block">日付</label>
+          <label className="text-label-tertiary text-xs mb-1 block">日付</label>
           <input type="date" value={date} onChange={e => setDate(e.target.value)} className={inputCls} />
         </div>
         <div>
-          <label className="text-label-tertiary text-xs mb-1.5 block">時間</label>
+          <label className="text-label-tertiary text-xs mb-1 block">時間</label>
           <input type="time" value={time} onChange={e => setTime(e.target.value)} className={inputCls} />
         </div>
       </div>
-      <div>
-        <label className="text-label-tertiary text-xs mb-1.5 block">メモ</label>
-        <textarea value={memo} onChange={e => setMemo(e.target.value)} placeholder="補足情報" rows={3} className={`${inputCls} resize-none`} />
-      </div>
       <button
         onClick={handleSave}
-        disabled={!title.trim()}
-        className="w-full bg-label-primary text-bg-primary rounded-xl py-3 text-sm font-semibold active:opacity-70 disabled:opacity-40 mt-2"
+        disabled={!title.trim() || submitting}
+        className="w-full bg-label-primary text-bg-primary rounded-xl py-3 text-sm font-semibold active:opacity-70 disabled:opacity-40"
       >
-        保存
+        {submitting ? '保存中…' : '保存'}
       </button>
     </div>
   );
 }
-
-// ─── レイアウト定数 ────────────────────────────────────────────────
-
-const BOTTOM_TAB_H = 56;
-const SHEET_COLLAPSED_H = 76;
-const SHEET_FULL_H = 280;
 
 // ─── メイン画面 ────────────────────────────────────────────────────
 
@@ -617,10 +354,9 @@ export default function Calendar() {
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [showUserSettings, setShowUserSettings] = useState(false);
 
-  const [postPanelOpen, setPostPanelOpen] = useState(false);
-  const [postDate, setPostDate] = useState(todayStr);
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetMode, setSheetMode] = useState<'events' | 'form'>('events');
   const [personalEvents, setPersonalEvents] = useState<PersonalEvent[]>([]);
   const [topView, setTopView] = useState<'calendar' | 'list'>('calendar');
 
@@ -740,6 +476,7 @@ export default function Calendar() {
   const handleDayClick = (dateStr: string, isCurrentMonth: boolean) => {
     if (!isCurrentMonth) return;
     setSelectedDate(dateStr);
+    setSheetMode('events');
     setSheetOpen(true);
   };
 
@@ -920,7 +657,11 @@ export default function Calendar() {
               {/* 日付グリッド */}
               <div
                 className="grid grid-cols-7 flex-1"
-                style={{ gridTemplateRows: 'repeat(6, 1fr)' }}
+                style={{
+                  gridTemplateRows: 'repeat(6, 1fr)',
+                  borderTop: '1px solid var(--cal-grid-color)',
+                  borderLeft: '1px solid var(--cal-grid-color)',
+                }}
               >
                 {calendarDays.map(({ date, isCurrentMonth }, idx) => {
                   const dateStr = toDateStr(date);
@@ -933,7 +674,11 @@ export default function Calendar() {
                       key={dateStr + idx}
                       onClick={() => handleDayClick(dateStr, isCurrentMonth)}
                       className="flex flex-col items-center justify-start pt-1 active:opacity-50 transition-opacity"
-                      style={{ cursor: isCurrentMonth ? 'pointer' : 'default' }}
+                      style={{
+                        cursor: isCurrentMonth ? 'pointer' : 'default',
+                        borderRight: '1px solid var(--cal-grid-color)',
+                        borderBottom: '1px solid var(--cal-grid-color)',
+                      }}
                     >
                       <div
                         className="w-8 h-8 flex items-center justify-center rounded-full text-[13px] select-none transition-all"
@@ -958,14 +703,14 @@ export default function Calendar() {
             <div
               className="flex-shrink-0 overflow-hidden border-t"
               style={{
-                height: sheetOpen ? SHEET_FULL_H : SHEET_COLLAPSED_H,
+                height: sheetOpen ? (sheetMode === 'form' ? SHEET_FORM_H : SHEET_FULL_H) : SHEET_COLLAPSED_H,
                 transition: 'height 0.3s cubic-bezier(0.32, 0.72, 0, 1)',
                 borderColor: 'var(--border-subtle)',
                 backgroundColor: 'var(--bg-primary)',
               }}
             >
               {/* 高さ固定の内側コンテナ（クリップで制御） */}
-              <div className="flex flex-col" style={{ height: SHEET_FULL_H }}>
+              <div className="flex flex-col" style={{ height: sheetMode === 'form' ? SHEET_FORM_H : SHEET_FULL_H }}>
                 {/* ハンドル＋日付ヘッダー */}
                 <div
                   className="flex flex-col items-center pt-2 flex-shrink-0 cursor-pointer select-none"
@@ -988,64 +733,84 @@ export default function Calendar() {
                   </div>
                 </div>
 
-                {/* イベントリスト（スクロール可能） */}
-                <div className="flex-1 overflow-y-auto px-4 pb-4">
-                  {loading ? (
-                    <div className="flex flex-col gap-2">
-                      {[1, 2].map(i => <div key={i} className="h-14 bg-bg-secondary rounded-xl animate-pulse" />)}
-                    </div>
-                  ) : workId ? (
-                    sheetSharedEvents.length === 0 ? (
-                      <p className="text-center text-label-tertiary text-sm py-6">この日の予定はありません</p>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        {sheetSharedEvents.map(event => (
-                          <button
-                            key={event.id}
-                            onClick={() => navigate(`/calendar/${workId}/date/${event.date}`)}
-                            className="w-full flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3 text-left active:opacity-70 transition-opacity"
-                          >
-                            <div className="flex-1 min-w-0">
-                              <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
-                              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                <div className="flex items-center gap-1">
-                                  <Heart size={11} className={event.likedByMe ? 'fill-red-400 text-red-400' : 'text-label-tertiary'} />
-                                  <span className="text-label-tertiary text-xs">{event.likes.toLocaleString('ja-JP')}</span>
-                                </div>
-                                {event.prefecture && (
-                                  <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">
-                                    {event.prefecture}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <ChevronRight size={14} className="text-label-tertiary flex-shrink-0" />
-                          </button>
-                        ))}
-                      </div>
-                    )
+                {/* シートコンテンツ（イベント一覧 or 追加フォーム） */}
+                <div className="flex-1 overflow-y-auto">
+                  {sheetMode === 'form' ? (
+                    <SheetAddForm
+                      workId={workId}
+                      userId={user?.id}
+                      initialDate={selectedDate}
+                      onSuccess={() => {
+                        setSheetMode('events');
+                        if (workId) {
+                          setLoading(true);
+                          listEvents(workId, year, month).then(setEvents).finally(() => setLoading(false));
+                        } else {
+                          setPersonalEvents(loadPersonalEvents());
+                        }
+                      }}
+                      onCancel={() => setSheetMode('events')}
+                    />
                   ) : (
-                    sheetPersonalEvents.length === 0 ? (
-                      <p className="text-center text-label-tertiary text-sm py-6">この日の予定はありません</p>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        {sheetPersonalEvents.map(pe => (
-                          <div key={pe.id} className="flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-label-primary text-sm font-medium truncate">{pe.title}</p>
-                              {pe.time && <p className="text-label-tertiary text-xs mt-0.5">{pe.time}</p>}
-                              {pe.memo && <p className="text-label-secondary text-xs mt-0.5 truncate">{pe.memo}</p>}
-                            </div>
-                            <button
-                              onClick={() => deletePersonalEvent(pe.id)}
-                              className="w-6 h-6 flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0"
-                            >
-                              <X size={14} />
-                            </button>
+                    <div className="px-4 pb-4">
+                      {loading ? (
+                        <div className="flex flex-col gap-2">
+                          {[1, 2].map(i => <div key={i} className="h-14 bg-bg-secondary rounded-xl animate-pulse" />)}
+                        </div>
+                      ) : workId ? (
+                        sheetSharedEvents.length === 0 ? (
+                          <p className="text-center text-label-tertiary text-sm py-6">この日の予定はありません</p>
+                        ) : (
+                          <div className="flex flex-col gap-2">
+                            {sheetSharedEvents.map(event => (
+                              <button
+                                key={event.id}
+                                onClick={() => navigate(`/calendar/${workId}/date/${event.date}`)}
+                                className="w-full flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3 text-left active:opacity-70 transition-opacity"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
+                                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                    <div className="flex items-center gap-1">
+                                      <Heart size={11} className={event.likedByMe ? 'fill-red-400 text-red-400' : 'text-label-tertiary'} />
+                                      <span className="text-label-tertiary text-xs">{event.likes.toLocaleString('ja-JP')}</span>
+                                    </div>
+                                    {event.prefecture && (
+                                      <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">
+                                        {event.prefecture}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <ChevronRight size={14} className="text-label-tertiary flex-shrink-0" />
+                              </button>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    )
+                        )
+                      ) : (
+                        sheetPersonalEvents.length === 0 ? (
+                          <p className="text-center text-label-tertiary text-sm py-6">この日の予定はありません</p>
+                        ) : (
+                          <div className="flex flex-col gap-2">
+                            {sheetPersonalEvents.map(pe => (
+                              <div key={pe.id} className="flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-label-primary text-sm font-medium truncate">{pe.title}</p>
+                                  {pe.time && <p className="text-label-tertiary text-xs mt-0.5">{pe.time}</p>}
+                                  {pe.memo && <p className="text-label-secondary text-xs mt-0.5 truncate">{pe.memo}</p>}
+                                </div>
+                                <button
+                                  onClick={() => deletePersonalEvent(pe.id)}
+                                  className="w-6 h-6 flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -1151,51 +916,20 @@ export default function Calendar() {
       {/* FAB（常に表示） */}
       <button
         onClick={() => {
-          if (postPanelOpen) {
-            setPostPanelOpen(false);
+          if (sheetOpen && sheetMode === 'form') {
+            setSheetMode('events');
           } else {
-            setPostDate(selectedDate);
-            setPostPanelOpen(true);
+            setSheetMode('form');
+            setSheetOpen(true);
           }
         }}
         className="fixed bottom-[72px] right-4 w-[52px] h-[52px] bg-label-primary text-bg-primary rounded-full flex items-center justify-center shadow-xl z-40 active:opacity-80"
-        aria-label={postPanelOpen ? '閉じる' : '予定を追加'}
+        aria-label={sheetOpen && sheetMode === 'form' ? '閉じる' : '予定を追加'}
       >
-        <div style={{ transition: 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)', transform: postPanelOpen ? 'rotate(45deg)' : 'rotate(0deg)' }}>
+        <div style={{ transition: 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)', transform: (sheetOpen && sheetMode === 'form') ? 'rotate(45deg)' : 'rotate(0deg)' }}>
           <Plus size={22} strokeWidth={2.5} />
         </div>
       </button>
-
-      {/* 投稿フォームオーバーレイ */}
-      {postPanelOpen && (
-        <div
-          className="fixed inset-0 max-w-app mx-auto z-50 overflow-y-auto"
-          style={{ backgroundColor: 'var(--bg-primary)' }}
-        >
-          {workId && user ? (
-            <InlinePostForm
-              workId={workId}
-              userId={user.id}
-              selectedDate={postDate}
-              onSuccess={() => {
-                setPostPanelOpen(false);
-                setLoading(true);
-                listEvents(workId, year, month).then(setEvents).finally(() => setLoading(false));
-              }}
-              onCancel={() => setPostPanelOpen(false)}
-            />
-          ) : (
-            <PersonalEventForm
-              initialDate={postDate}
-              onSuccess={() => {
-                setPostPanelOpen(false);
-                setPersonalEvents(loadPersonalEvents());
-              }}
-              onCancel={() => setPostPanelOpen(false)}
-            />
-          )}
-        </div>
-      )}
 
       {showRegionPanel && (
         <RegionFilterPanel

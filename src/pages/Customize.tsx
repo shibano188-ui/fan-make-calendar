@@ -20,6 +20,7 @@ const CAL_COLOR_FIELDS: { key: keyof UserSettings; label: string; cssVar: string
   { key: 'calSaturday',   label: '土曜日',      cssVar: '--cal-saturday-color' },
   { key: 'calSunday',     label: '日曜日',      cssVar: '--cal-sunday-color' },
   { key: 'calOtherMonth', label: '前後月の日付', cssVar: '--cal-other-month-color' },
+  { key: 'calGridColor',  label: 'グリッド線',   cssVar: '--cal-grid-color' },
 ];
 
 // 10列 × 7行（列 = 色相ファミリー、行 = 明 → 暗）
@@ -327,7 +328,7 @@ export default function Customize() {
   const fontInputRef     = useRef<HTMLInputElement>(null);
   const bgInputRef       = useRef<HTMLInputElement>(null);
   const calColorWrapperRef  = useRef<HTMLDivElement>(null);
-  const calBtnRefs       = useRef<(HTMLButtonElement | null)[]>([null, null, null, null]);
+  const calBtnRefs       = useRef<(HTMLButtonElement | null)[]>([null, null, null, null, null]);
   const calCustomInputRef = useRef<HTMLInputElement>(null);
 
   const [showCommunityModal, setShowCommunityModal] = useState(false);
@@ -511,9 +512,15 @@ export default function Customize() {
                       style={{ borderColor: 'var(--border-default)', backgroundColor: 'var(--bg-primary)' }}
                     >
                       <div className="flex flex-col items-center gap-[3px]">
-                        <span className="text-[15px] font-bold leading-none w-5 text-center tabular-nums"
-                          style={{ color: `var(${cssVar})` }}>15</span>
-                        <div className="w-5 h-[2.5px] rounded-full" style={{ backgroundColor: `var(${cssVar})` }} />
+                        {key === 'calGridColor' ? (
+                          <div className="w-5 h-5 rounded-[2px] border-[1.5px]" style={{ borderColor: `var(${cssVar})` }} />
+                        ) : (
+                          <>
+                            <span className="text-[15px] font-bold leading-none w-5 text-center tabular-nums"
+                              style={{ color: `var(${cssVar})` }}>15</span>
+                            <div className="w-5 h-[2.5px] rounded-full" style={{ backgroundColor: `var(${cssVar})` }} />
+                          </>
+                        )}
                       </div>
                       <ChevronDown size={11} className="text-label-tertiary"
                         style={{ transform: openCalKey === key ? 'rotate(180deg)' : undefined }} />
