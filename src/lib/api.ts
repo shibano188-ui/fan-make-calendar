@@ -84,8 +84,10 @@ function rowToEvent(e: Record<string, unknown>): CalendarEvent {
     category: (e.category as string | null) ?? undefined,
     link: (e.link_url as string | null) ?? undefined,
     memo: (e.memo as string | null) ?? undefined,
+    prefecture: (e.prefecture as string | null) ?? undefined,
+    locationDetail: (e.location_detail as string | null) ?? undefined,
     likes: (e.like_count as number) ?? 0,
-    likedByMe: false, // 2-C で実装
+    likedByMe: false,
     createdAt: e.created_at as string,
   };
 }
@@ -136,7 +138,7 @@ export async function listEventsByDate(workId: string, date: string, userId?: st
 
 export async function createEvents(
   workId: string,
-  events: Pick<CalendarEvent, 'title' | 'date' | 'time' | 'category' | 'link' | 'memo'>[],
+  events: Pick<CalendarEvent, 'title' | 'date' | 'time' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail'>[],
   authorId: string,
 ): Promise<void> {
   const rows = await Promise.all(events.map(async e => {
@@ -158,6 +160,8 @@ export async function createEvents(
       category: e.category ?? null,
       link_url: e.link ?? null,
       memo: e.memo ?? null,
+      prefecture: e.prefecture ?? null,
+      location_detail: e.locationDetail ?? null,
       author_id: authorId,
       pool,
     };
@@ -233,6 +237,24 @@ export async function updateUserSettings(userId: string, s: SupabaseUserSettings
       { onConflict: 'user_id' },
     );
   if (error) throw error;
+}
+
+export async function getHomePrefecture(userId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from('user_settings')
+    .select('home_prefecture')
+    .eq('user_id', userId)
+    .maybeSingle();
+  return (data?.home_prefecture as string | null) ?? null;
+}
+
+export async function saveHomePrefecture(userId: string, prefecture: string | null): Promise<void> {
+  await supabase
+    .from('user_settings')
+    .upsert(
+      { user_id: userId, home_prefecture: prefecture, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' },
+    );
 }
 
 // ─── 共有テーマ ────────────────────────────────────────────────────

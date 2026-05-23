@@ -4,6 +4,7 @@ import { ChevronDown, ChevronUp, X, Plus } from 'lucide-react';
 import Layout from '../components/Layout';
 import Header from '../components/Header';
 import { createEvents } from '../lib/api';
+import { PREFECTURES } from '../lib/prefectures';
 import { useAuth } from '../contexts/AuthContext';
 import type { CalendarEvent } from '../types';
 
@@ -19,6 +20,8 @@ interface PostCard {
   time: string;
   category: Category | '';
   customCategory: string;
+  prefecture: string;
+  locationDetail: string;
   link: string;
   memo: string;
   collapsed: boolean;
@@ -34,13 +37,15 @@ function newCard(): PostCard {
     time: '',
     category: '',
     customCategory: '',
+    prefecture: '',
+    locationDetail: '',
     link: '',
     memo: '',
     collapsed: false,
   };
 }
 
-type EventInput = Pick<CalendarEvent, 'title' | 'date' | 'time' | 'category' | 'link' | 'memo'>;
+type EventInput = Pick<CalendarEvent, 'title' | 'date' | 'time' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail'>;
 
 function toEventInput(card: PostCard): EventInput {
   return {
@@ -50,6 +55,8 @@ function toEventInput(card: PostCard): EventInput {
     category: card.category || card.customCategory.trim() || undefined,
     link: card.link || undefined,
     memo: card.memo || undefined,
+    prefecture: card.prefecture || undefined,
+    locationDetail: card.locationDetail || undefined,
   };
 }
 
@@ -75,6 +82,7 @@ function PostCardItem({
   onRemove: () => void;
 }) {
   const isCustomActive = !card.category && card.customCategory.trim().length > 0;
+  const hasPrefecture = card.prefecture.length > 0;
 
   return (
     <div className="bg-bg-secondary rounded-xl overflow-hidden">
@@ -171,6 +179,28 @@ function PostCardItem({
                 }`}
               />
             </div>
+          </div>
+
+          {/* 場所（都道府県） */}
+          <div>
+            <label className="text-label-tertiary text-xs mb-1.5 block">場所（任意）</label>
+            <select
+              value={card.prefecture}
+              onChange={e => onChange({ prefecture: e.target.value, locationDetail: e.target.value ? card.locationDetail : '' })}
+              className={`${inputCls} appearance-none`}
+            >
+              <option value="">全国（指定なし）</option>
+              {PREFECTURES.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+            {hasPrefecture && (
+              <input
+                type="text"
+                value={card.locationDetail}
+                onChange={e => onChange({ locationDetail: e.target.value })}
+                placeholder="詳しい場所・住所・Google Mapsリンクなど"
+                className={`${inputCls} mt-2`}
+              />
+            )}
           </div>
 
           {/* リンク */}

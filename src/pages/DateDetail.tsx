@@ -31,6 +31,8 @@ function saveSession(eventId: string, s: LikeSession) {
 
 // ─── いいねボタン ──────────────────────────────────────────────────
 
+interface Floater { id: number; x: number; }
+
 function LikeButton({
   event,
   userId,
@@ -42,6 +44,8 @@ function LikeButton({
 }) {
   const [session, setSession] = useState<LikeSession>(() => loadSession(event.id));
   const [bumped, setBumped] = useState(false);
+  const [flash, setFlash] = useState(false);
+  const [floaters, setFloaters] = useState<Floater[]>([]);
   const [, forceRender] = useState(0);
 
   const locked = session.tapsUsed >= MAX_TAPS;
@@ -69,31 +73,88 @@ function LikeButton({
     const next = { tapsUsed: newTaps, resetAt };
     setSession(next);
     saveSession(event.id, next);
+
+    // アニメーション
     setBumped(true);
-    setTimeout(() => setBumped(false), 150);
+    setFlash(true);
+    setTimeout(() => setBumped(false), 280);
+    setTimeout(() => setFlash(false), 180);
+
+    // フローティングハート（1〜2個、ランダムx）
+    const count = Math.random() > 0.5 ? 2 : 1;
+    const newFloaters: Floater[] = Array.from({ length: count }, (_, i) => ({
+      id: Date.now() + i,
+      x: Math.floor(Math.random() * 28),
+    }));
+    setFloaters(prev => [...prev, ...newFloaters]);
+    setTimeout(() => {
+      setFloaters(prev => prev.filter(f => !newFloaters.find(nf => nf.id === f.id)));
+    }, 900);
+
     try {
       const newCount = await addLikeTap(event.id, userId);
       onTapped(newCount);
     } catch (e) { console.error(e); }
   };
 
+  const remainSec = locked && session.resetAt > 0
+    ? Math.ceil((session.resetAt - Date.now()) / 1000)
+    : 0;
+
   return (
     <div className="flex items-center gap-2">
-      <button
-        onClick={handleTap}
-        disabled={!userId || locked}
-        aria-label={`いいね (${event.likes.toLocaleString('ja-JP')}件)`}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm select-none ${locked ? 'opacity-30' : 'active:opacity-60'}`}
-        style={{
-          borderColor: hasLiked ? 'var(--accent-color)' : 'var(--border-default)',
-          color: hasLiked ? 'var(--accent-color)' : 'var(--label-secondary)',
-          transform: bumped ? 'scale(1.14)' : 'scale(1)',
-          transition: 'transform 0.12s ease-out',
-        }}
-      >
-        <Heart size={14} style={hasLiked ? { fill: 'var(--accent-color)', color: 'var(--accent-color)' } : {}} />
-        <span>{event.likes.toLocaleString('ja-JP')}</span>
-      </button>
+      <div className="relative">
+        {/* フローティングハート */}
+        {floaters.map(f => (
+          <div
+            key={f.id}
+            className="absolute pointer-events-none"
+            style={{
+              bottom: '100%',
+              left: `${8 + f.x}px`,
+              animation: 'floatHeart 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards',
+              color: 'var(--accent-color)',
+            }}
+          >
+            <Heart size={11} style={{ fill: 'var(--accent-color)' }} />
+          </div>
+        ))}
+
+        <button
+          onClick={handleTap}
+          disabled={!userId || locked}
+          aria-label={`いいね (${event.likes.toLocaleString('ja-JP')}件)`}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm select-none ${locked ? 'opacity-30' : ''}`}
+          style={{
+            borderColor: hasLiked || flash ? 'var(--accent-color)' : 'var(--border-default)',
+            color: hasLiked ? 'var(--accent-color)' : 'var(--label-secondary)',
+            background: flash ? 'color-mix(in srgb, var(--accent-color) 15%, transparent)' : 'transparent',
+            transform: bumped ? 'scale(1.26)' : 'scale(1)',
+            transition: 'transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.15s, background 0.2s',
+          }}
+        >
+          <Heart
+            size={14}
+            style={{
+              fill: hasLiked ? 'var(--accent-color)' : 'none',
+              color: hasLiked ? 'var(--accent-color)' : 'var(--label-secondary)',
+              transform: bumped ? 'scale(1.15)' : 'scale(1)',
+              transition: 'transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            }}
+          />
+          <span
+            style={{
+              animation: bumped ? 'countPop 0.3s ease-out both' : undefined,
+            }}
+          >
+            {event.likes.toLocaleString('ja-JP')}
+          </span>
+        </button>
+      </div>
+
+      {locked && remainSec > 0 && (
+        <span className="text-label-tertiary text-xs">{remainSec}秒後にリセット</span>
+      )}
     </div>
   );
 }
