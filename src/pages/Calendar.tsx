@@ -338,6 +338,7 @@ function RegionFilterPanel({
   filterMode,
   filterValue,
   includeAdjacent,
+  homePref,
   onApplyPref,
   onApplyRegion,
   onClear,
@@ -347,6 +348,7 @@ function RegionFilterPanel({
   filterMode: FilterMode;
   filterValue: string | null;
   includeAdjacent: boolean;
+  homePref: string | null;
   onApplyPref: (pref: string) => void;
   onApplyRegion: (region: string) => void;
   onClear: () => void;
@@ -357,6 +359,9 @@ function RegionFilterPanel({
   const filterLabel = filterMode === 'pref'
     ? `${filterValue}${includeAdjacent ? '（隣接含む）' : ''}`
     : filterMode === 'region' ? `${filterValue}地方` : '';
+
+  const isOnHomePref = homePref && filterMode === 'pref' && filterValue === homePref && !includeAdjacent;
+  const canGoHome = homePref && !isOnHomePref;
 
   return (
     /* z-[200] でBottomTab(z-[100])より上に表示 */
@@ -450,14 +455,22 @@ function RegionFilterPanel({
             </button>
           )}
 
-          {filterActive && (
+          {canGoHome ? (
+            <button
+              onClick={() => onApplyPref(homePref!)}
+              className="w-full text-center py-3 rounded-xl text-sm font-medium active:opacity-70"
+              style={{ background: 'var(--accent-color)', color: 'var(--bg-primary)' }}
+            >
+              🏠 ホーム県（{homePref}）に戻す
+            </button>
+          ) : filterActive ? (
             <button
               onClick={onClear}
               className="w-full text-center py-3 rounded-xl border border-subtle text-sm text-label-secondary active:opacity-60"
             >
-              すべて表示（全国）
+              全国表示（絞り込みなし）
             </button>
-          )}
+          ) : null}
         </div>
       </div>
     </div>
@@ -839,6 +852,7 @@ export default function Calendar() {
           filterMode={filterMode}
           filterValue={filterValue}
           includeAdjacent={includeAdjacent}
+          homePref={homePref}
           onApplyPref={pref => { setFilterMode('pref'); setFilterValue(pref); setIncludeAdjacent(false); setShowRegionPanel(false); }}
           onApplyRegion={region => { setFilterMode('region'); setFilterValue(region); setIncludeAdjacent(false); setShowRegionPanel(false); }}
           onClear={() => { setFilterMode('none'); setFilterValue(null); setIncludeAdjacent(false); }}
