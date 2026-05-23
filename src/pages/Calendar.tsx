@@ -923,48 +923,63 @@ export default function Calendar() {
         </div>
       </button>
 
-      {/* 予定追加フォームパネル（下から72vh固定、背景オーバーレイなし） */}
+      {/* 予定追加フォームパネル（絶対配置スクロール方式） */}
       {postPanelOpen && (
         <div
-          className="fixed inset-x-0 max-w-app mx-auto z-[160] rounded-t-2xl flex flex-col overflow-hidden"
+          className="fixed inset-x-0 max-w-app mx-auto z-[160] rounded-t-2xl overflow-hidden"
           style={{
             bottom: BOTTOM_TAB_H,
             height: '72vh',
             backgroundColor: 'var(--bg-primary)',
             animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both',
+            position: 'fixed',
           }}
         >
-          {/* ハンドルバー */}
-          <div className="flex-shrink-0 flex justify-center pt-3 pb-1">
-            <div className="w-10 h-1 rounded-full" style={{ backgroundColor: 'var(--border-subtle)' }} />
+          {/* ヘッダー：絶対配置でtop固定 */}
+          <div
+            className="absolute inset-x-0 top-0 z-10 rounded-t-2xl"
+            style={{ backgroundColor: 'var(--bg-primary)' }}
+          >
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full" style={{ backgroundColor: 'var(--border-subtle)' }} />
+            </div>
+            <div className="px-4 pb-2 flex items-center justify-between">
+              <p className="text-label-secondary text-xs">予定を追加</p>
+              <div className="flex items-center gap-2">
+                <button onClick={closePostForm} className="text-xs text-label-tertiary px-3 py-1.5 rounded-lg active:opacity-60">キャンセル</button>
+                <button onClick={handlePostSubmit} disabled={postSubmitting} className="text-xs font-semibold text-bg-primary bg-label-primary px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40">
+                  {postSubmitting ? '送信中…' : workId && user ? '投稿' : '保存'}
+                </button>
+              </div>
+            </div>
+            {postError && <p className="text-red-400 text-xs px-4 pb-1">{postError}</p>}
           </div>
-          {/* フォームヘッダー（キャンセル・投稿） */}
-          <div className="flex-shrink-0 px-4 pb-2 flex items-center justify-between">
-            <p className="text-label-secondary text-xs">予定を追加</p>
-            <div className="flex items-center gap-2">
-              <button onClick={closePostForm} className="text-xs text-label-tertiary px-3 py-1.5 rounded-lg active:opacity-60">キャンセル</button>
-              <button onClick={handlePostSubmit} disabled={postSubmitting} className="text-xs font-semibold text-bg-primary bg-label-primary px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40">
-                {postSubmitting ? '送信中…' : workId && user ? '投稿' : '保存'}
+
+          {/* スクロールエリア：top:60px から bottom:0 の絶対配置 */}
+          <div
+            className="absolute inset-x-0 bottom-0"
+            style={{
+              top: 60,
+              overflowY: 'scroll',
+              WebkitOverflowScrolling: 'touch',
+            } as React.CSSProperties}
+          >
+            <div className="px-4 pt-2 pb-8 flex flex-col gap-3">
+              {postCards.map((card, i) => (
+                <InlineCardItem
+                  key={card.id}
+                  card={card}
+                  index={i}
+                  total={postCards.length}
+                  onChange={patch => updatePostCard(card.id, patch)}
+                  onToggle={() => togglePostCard(card.id)}
+                  onRemove={() => removePostCard(card.id)}
+                />
+              ))}
+              <button onClick={addPostCard} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-subtle text-label-secondary text-sm active:opacity-60">
+                <Plus size={15} />別の予定を追加
               </button>
             </div>
-          </div>
-          {postError && <p className="text-red-400 text-xs px-4 mb-1">{postError}</p>}
-          {/* カードリスト（スクロール可） */}
-          <div className="px-4 pb-6 flex flex-col gap-3" style={{ flex: 1, minHeight: 0, overflowY: 'scroll', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
-            {postCards.map((card, i) => (
-              <InlineCardItem
-                key={card.id}
-                card={card}
-                index={i}
-                total={postCards.length}
-                onChange={patch => updatePostCard(card.id, patch)}
-                onToggle={() => togglePostCard(card.id)}
-                onRemove={() => removePostCard(card.id)}
-              />
-            ))}
-            <button onClick={addPostCard} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-subtle text-label-secondary text-sm active:opacity-60">
-              <Plus size={15} />別の予定を追加
-            </button>
           </div>
         </div>
       )}
