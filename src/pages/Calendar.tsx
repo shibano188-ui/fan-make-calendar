@@ -704,6 +704,10 @@ export default function Calendar() {
 
   const handleDayClick = (dateStr: string, isCurrentMonth: boolean) => {
     if (!isCurrentMonth) return;
+    if (postPanelOpen) {
+      setPostDate(dateStr);
+      return;
+    }
     setSelectedDate(dateStr);
     setSheetOpen(true);
   };
@@ -755,7 +759,16 @@ export default function Calendar() {
       {/* フルスクリーンコンテナ（ステータスバー分44px + BottomTab分56pxを除く） */}
       <div
         className="fixed inset-0 max-w-app mx-auto flex flex-col overflow-hidden"
-        style={{ backgroundColor: 'var(--bg-primary)', paddingTop: 44, paddingBottom: BOTTOM_TAB_H }}
+        style={{
+          backgroundColor: 'var(--bg-primary)',
+          paddingTop: 44,
+          paddingBottom: BOTTOM_TAB_H,
+          ...(settings.backgroundImageUrl ? {
+            backgroundImage: `url(${settings.backgroundImageUrl})`,
+            backgroundSize: 'cover',
+            backgroundPosition: `${settings.bgImageOffsetX ?? 50}% ${settings.bgImageOffsetY ?? 50}%`,
+          } : {}),
+        }}
       >
         <Header
           title={workId ? (workName || '…') : 'マイカレンダー'}
@@ -860,15 +873,12 @@ export default function Calendar() {
             {/* カレンダーグリッドエリア */}
             <div
               className="flex-1 overflow-hidden flex flex-col px-3 pt-1"
-              style={{
-                fontFamily: calFontFamily,
-                ...(settings.backgroundImageUrl ? {
-                  backgroundImage: `url(${settings.backgroundImageUrl})`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: `${settings.bgImageOffsetX ?? 50}% ${settings.bgImageOffsetY ?? 50}%`,
-                } : {}),
-              }}
+              style={{ fontFamily: calFontFamily }}
             >
+              {postPanelOpen && (
+                <p className="text-center text-[11px] text-label-tertiary mb-1 animate-pulse">日付をタップして選択</p>
+              )}
+
               {/* 曜日ラベル */}
               <div className="grid grid-cols-7 mb-0.5 flex-shrink-0">
                 {DAY_LABELS.map((label, i) => (
@@ -895,7 +905,9 @@ export default function Calendar() {
                   const dateStr = toDateStr(date);
                   const isToday = dateStr === todayStr;
                   const hasEvent = displayEventDates.has(dateStr) && isCurrentMonth;
-                  const isSelected = dateStr === selectedDate && isCurrentMonth;
+                  const isSelectedPost = postPanelOpen && dateStr === postDate && isCurrentMonth;
+                  const isSelected = !postPanelOpen && dateStr === selectedDate && isCurrentMonth && sheetOpen;
+                  const highlighted = isSelectedPost || isSelected;
                   const col = idx % 7;
                   return (
                     <button
@@ -911,15 +923,15 @@ export default function Calendar() {
                       <div
                         className="w-8 h-8 flex items-center justify-center rounded-full text-[13px] select-none transition-all"
                         style={{
-                          background: isSelected ? 'var(--accent-color)' : isToday ? 'var(--label-primary)' : undefined,
-                          color: isSelected || isToday ? 'var(--bg-primary)' : !isCurrentMonth ? 'var(--cal-other-month-color)' : col === 0 ? 'var(--cal-sunday-color)' : col === 6 ? 'var(--cal-saturday-color)' : 'var(--cal-weekday-color)',
-                          fontWeight: isToday || isSelected ? 700 : undefined,
+                          background: highlighted ? 'var(--accent-color)' : isToday ? 'var(--label-primary)' : undefined,
+                          color: highlighted || isToday ? 'var(--bg-primary)' : !isCurrentMonth ? 'var(--cal-other-month-color)' : col === 0 ? 'var(--cal-sunday-color)' : col === 6 ? 'var(--cal-saturday-color)' : 'var(--cal-weekday-color)',
+                          fontWeight: isToday || highlighted ? 700 : undefined,
                         }}
                       >
                         {date.getDate()}
                       </div>
                       <div className="h-[6px] flex items-center justify-center">
-                        {hasEvent && <div className={`w-[4px] h-[4px] rounded-full ${(isToday || isSelected) ? 'bg-bg-secondary' : 'bg-label-secondary'}`} />}
+                        {hasEvent && <div className={`w-[4px] h-[4px] rounded-full ${(isToday || highlighted) ? 'bg-bg-secondary' : 'bg-label-secondary'}`} />}
                       </div>
                     </button>
                   );

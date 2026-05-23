@@ -364,8 +364,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     root.style.setProperty('--cal-grid-color', settings.calGridColor || 'rgba(128,128,128,0.15)');
   }, [settings.calWeekday, settings.calSaturday, settings.calSunday, settings.calOtherMonth, settings.calGridColor]);
 
-  // カスタムフォントの @font-face 登録のみ（フォントはカレンダーグリッドに直接渡すためCSS変数は設定しない）
+  // フォントを CSS 変数に反映（body全体に適用）
   useEffect(() => {
+    document.documentElement.style.setProperty('--font-family', fontStack(settings));
     if (settings.font === 'custom' && settings.customFontUrl && settings.customFontName) {
       const existing = document.getElementById('custom-font-style');
       if (existing) existing.remove();
@@ -375,6 +376,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       document.head.appendChild(style);
     }
   }, [settings.font, settings.customFontUrl, settings.customFontName]);
+
+  // 背景画像を CSS 変数に反映
+  useEffect(() => {
+    const root = document.documentElement;
+    if (settings.backgroundImageUrl) {
+      root.style.setProperty('--bg-image', `url(${settings.backgroundImageUrl})`);
+    } else {
+      root.style.removeProperty('--bg-image');
+    }
+  }, [settings.backgroundImageUrl]);
 
   const calFontFamily = fontStack(settings);
 
