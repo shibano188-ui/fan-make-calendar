@@ -2,13 +2,14 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Palette, Plus, Heart, MoreVertical, Link2, LogOut, Trash2,
-  Map, ChevronDown, ChevronUp,
+  ChevronDown, ChevronUp, X, Settings,
 } from 'lucide-react';
 import Layout from '../components/Layout';
 import Header from '../components/Header';
 import {
   listEvents, getWorkById, leaveCalendar, deleteWork,
   createEvents, getHomePrefecture, saveHomePrefecture,
+  getDisplayName, saveDisplayName,
 } from '../lib/api';
 import { PREFECTURES, REGIONS, ADJACENT } from '../lib/prefectures';
 import { useAuth } from '../contexts/AuthContext';
@@ -47,7 +48,238 @@ export function toDateStr(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-// ─── インライン投稿フォーム ─────────────────────────────────────────
+// ─── 都道府県検索コンポーネント（再利用） ─────────────────────────
+
+function PrefectureSearch({
+  value,
+  onChange,
+  placeholder = '都道府県を検索・選択',
+}: {
+  value: string;
+  onChange: (pref: string) => void;
+  placeholder?: string;
+}) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+
+  const filtered = useMemo(
+    () => (query ? PREFECTURES.filter(p => p.includes(query)) : PREFECTURES),
+    [query],
+  );
+
+  return (
+    <div className="relative">
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={query}
+          onChange={e => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          placeholder={value ? `現在: ${value}（検索して変更）` : placeholder}
+          className={inputCls}
+        />
+        {value && (
+          <button
+            type="button"
+            onClick={() => { onChange(''); setQuery(''); }}
+            className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-label-tertiary bg-bg-secondary active:opacity-60"
+          >
+            <X size={12} />
+          </button>
+        )}
+      </div>
+      {open && filtered.length > 0 && (
+        <div
+          className="absolute left-0 right-0 top-full mt-1 bg-bg-secondary rounded-xl border border-subtle shadow-lg z-20 overflow-y-auto"
+          style={{ maxHeight: '168px' }}
+        >
+          {filtered.slice(0, 10).map(p => (
+            <button
+              key={p}
+              type="button"
+              onMouseDown={() => { onChange(p); setQuery(''); setOpen(false); }}
+              className={`w-full text-left px-3 py-2.5 text-sm active:opacity-60 ${
+                value === p ? 'text-label-primary font-semibold' : 'text-label-secondary'
+              }`}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── インライン投稿カード ───────────────────────────────────────────
+
+interface InlineCard {
+  id: string;
+  title: string;
+  date: string;
+  time: string;
+  category: PostCategory | '';
+  customCategory: string;
+  prefecture: string;
+  locationDetail: string;
+  link: string;
+  memo: string;
+  collapsed: boolean;
+}
+
+function newInlineCard(date: string): InlineCard {
+  return {
+    id: crypto.randomUUID(),
+    title: '',
+    date,
+    time: '',
+    category: '',
+    customCategory: '',
+    prefecture: '',
+    locationDetail: '',
+    link: '',
+    memo: '',
+    collapsed: false,
+  };
+}
+
+function InlineCardItem({
+  card,
+  index,
+  total,
+  onChange,
+  onToggle,
+  onRemove,
+}: {
+  card: InlineCard;
+  index: number;
+  total: number;
+  onChange: (patch: Partial<InlineCard>) => void;
+  onToggle: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="bg-bg-secondary rounded-xl overflow-hidden">
+      {/* カードヘッダー */}
+      <div className="flex items-center justify-between px-4 py-3 cursor-pointer select-none" onClick={onToggle}>
+        <span className="text-label-primary text-sm font-medium truncate flex-1 mr-2">
+          予定 {index + 1}{card.title.trim() ? `：${card.title.trim()}` : ''}
+        </span>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={e => { e.stopPropagation(); onRemove(); }}
+            disabled={total <= 1}
+            className="w-6 h-6 flex items-center justify-center text-label-tertiary disabled:opacity-20 active:opacity-50"
+            aria-label="削除"
+          >
+            <X size={14} />
+          </button>
+          {card.collapsed
+            ? <ChevronDown size={16} className="text-label-tertiary" />
+            : <ChevronUp size={16} className="text-label-tertiary" />}
+        </div>
+      </div>
+
+      {/* フォーム */}
+      {!card.collapsed && (
+        <div className="px-4 pb-4 flex flex-col gap-4 border-t border-faint">
+          {/* タイトル */}
+          <div className="pt-3">
+            <label className="text-label-tertiary text-xs mb-1.5 block">タイトル <span className="text-red-400">*</span></label>
+            <input
+              type="text"
+              value={card.title}
+              onChange={e => onChange({ title: e.target.value })}
+              placeholder="例：単行本 第15巻 発売"
+              className={inputCls}
+              autoFocus={index === 0}
+            />
+          </div>
+
+          {/* 日付・時間 */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-label-tertiary text-xs mb-1.5 block">日付 <span className="text-red-400">*</span></label>
+              <input type="date" value={card.date} onChange={e => onChange({ date: e.target.value })} className={inputCls} />
+            </div>
+            <div>
+              <label className="text-label-tertiary text-xs mb-1.5 block">時間</label>
+              <input type="time" value={card.time} onChange={e => onChange({ time: e.target.value })} className={inputCls} />
+            </div>
+          </div>
+
+          {/* カテゴリ */}
+          <div>
+            <label className="text-label-tertiary text-xs mb-1.5 block">カテゴリ</label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {POST_CATEGORIES.map(cat => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => onChange({ category: card.category === cat ? '' : cat, customCategory: '' })}
+                  className={`px-3 py-1 rounded-full text-xs border transition-colors ${
+                    card.category === cat
+                      ? 'border-selected text-label-primary bg-label-primary/10'
+                      : 'border-default text-label-secondary'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-label-tertiary text-xs flex-shrink-0">その他：</span>
+              <input
+                type="text"
+                value={card.customCategory}
+                onChange={e => onChange({ customCategory: e.target.value, category: '' })}
+                placeholder="自由に入力"
+                className="flex-1 bg-bg-primary rounded-lg px-3 py-1.5 text-xs text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong"
+              />
+            </div>
+          </div>
+
+          {/* 場所 */}
+          <div>
+            <label className="text-label-tertiary text-xs mb-1.5 block">場所（任意）</label>
+            <select
+              value={card.prefecture}
+              onChange={e => onChange({ prefecture: e.target.value, locationDetail: e.target.value ? card.locationDetail : '' })}
+              className={`${inputCls} appearance-none`}
+            >
+              <option value="">全国（指定なし）</option>
+              {PREFECTURES.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+            {card.prefecture && (
+              <input
+                type="text"
+                value={card.locationDetail}
+                onChange={e => onChange({ locationDetail: e.target.value })}
+                placeholder="詳しい場所・住所・Google Mapsリンクなど"
+                className={`${inputCls} mt-2`}
+              />
+            )}
+          </div>
+
+          {/* リンク */}
+          <div>
+            <label className="text-label-tertiary text-xs mb-1.5 block">リンク（任意）</label>
+            <input type="url" value={card.link} onChange={e => onChange({ link: e.target.value })} placeholder="購入先 / 公式ポストなど" className={inputCls} />
+          </div>
+
+          {/* メモ */}
+          <div>
+            <label className="text-label-tertiary text-xs mb-1.5 block">メモ（任意）</label>
+            <textarea value={card.memo} onChange={e => onChange({ memo: e.target.value })} placeholder="補足情報" rows={3} className={`${inputCls} resize-none`} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── インライン投稿フォーム（複数カード対応） ─────────────────────
 
 function InlinePostForm({
   workId,
@@ -62,35 +294,51 @@ function InlinePostForm({
   onSuccess: () => void;
   onCancel: () => void;
 }) {
-  const [title, setTitle] = useState('');
-  const [date, setDate] = useState(selectedDate);
-  const [time, setTime] = useState('');
-  const [category, setCategory] = useState<PostCategory | ''>('');
-  const [customCategory, setCustomCategory] = useState('');
-  const [prefecture, setPrefecture] = useState('');
-  const [locationDetail, setLocationDetail] = useState('');
-  const [link, setLink] = useState('');
-  const [memo, setMemo] = useState('');
+  const [cards, setCards] = useState<InlineCard[]>([newInlineCard(selectedDate)]);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => { setDate(selectedDate); }, [selectedDate]);
+  // カレンダーで日付が選択されたら、開いているカードのdateを更新
+  useEffect(() => {
+    setCards(prev => {
+      const openIdx = prev.findIndex(c => !c.collapsed);
+      if (openIdx === -1) return prev;
+      return prev.map((c, i) => i === openIdx ? { ...c, date: selectedDate } : c);
+    });
+  }, [selectedDate]);
+
+  const updateCard = (id: string, patch: Partial<InlineCard>) =>
+    setCards(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
+
+  const toggleCard = (id: string) =>
+    setCards(prev => prev.map(c => c.id === id ? { ...c, collapsed: !c.collapsed } : c));
+
+  const removeCard = (id: string) =>
+    setCards(prev => prev.filter(c => c.id !== id));
+
+  const addCard = () =>
+    setCards(prev => [...prev.map(c => ({ ...c, collapsed: true })), newInlineCard(selectedDate)]);
 
   const handleSubmit = async () => {
-    if (!title.trim() || !date) { setError('タイトルと日付を入力してください'); return; }
+    const invalid = cards.find(c => !c.title.trim() || !c.date);
+    if (invalid) {
+      setError('すべてのカードにタイトルと日付を入力してください');
+      setCards(prev => prev.map(c => c.id === invalid.id ? { ...c, collapsed: false } : c));
+      return;
+    }
     setError('');
     setSubmitting(true);
     try {
-      await createEvents(workId, [{
-        title: title.trim(),
-        date,
-        time: time || undefined,
-        category: category || customCategory.trim() || undefined,
-        link: link || undefined,
-        memo: memo || undefined,
-        prefecture: prefecture || undefined,
-        locationDetail: locationDetail || undefined,
-      }], userId);
+      await createEvents(workId, cards.map(c => ({
+        title: c.title.trim(),
+        date: c.date,
+        time: c.time || undefined,
+        category: c.category || c.customCategory.trim() || undefined,
+        link: c.link || undefined,
+        memo: c.memo || undefined,
+        prefecture: c.prefecture || undefined,
+        locationDetail: c.locationDetail || undefined,
+      })), userId);
       onSuccess();
     } catch {
       setError('投稿に失敗しました。もう一度お試しください');
@@ -101,17 +349,14 @@ function InlinePostForm({
 
   return (
     <div
-      className="px-4 pt-3 pb-6 flex flex-col gap-4"
+      className="px-4 pt-3 pb-6 flex flex-col gap-3"
       style={{ animation: 'slideUpIn 0.38s cubic-bezier(0.34, 1.30, 0.64, 1) both' }}
     >
       {/* ヘッダー行 */}
       <div className="flex items-center justify-between">
-        <p className="text-label-secondary text-xs px-1">予定を追加</p>
+        <p className="text-label-secondary text-xs">予定を追加（カレンダーで日付タップで自動入力）</p>
         <div className="flex items-center gap-2">
-          <button
-            onClick={onCancel}
-            className="text-xs text-label-tertiary px-3 py-1.5 rounded-lg active:opacity-60"
-          >
+          <button onClick={onCancel} className="text-xs text-label-tertiary px-3 py-1.5 rounded-lg active:opacity-60">
             キャンセル
           </button>
           <button
@@ -126,126 +371,25 @@ function InlinePostForm({
 
       {error && <p className="text-red-400 text-xs px-1">{error}</p>}
 
-      {/* 日付ヒント */}
-      <p className="text-label-tertiary text-[11px] px-1 -mt-2">
-        カレンダーの日付をタップすると自動で入力されます
-      </p>
-
-      {/* タイトル */}
-      <div>
-        <label className="text-label-tertiary text-xs mb-1.5 block">
-          タイトル <span className="text-red-400">*</span>
-        </label>
-        <input
-          type="text"
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          placeholder="例：単行本 第15巻 発売"
-          className={inputCls}
-          autoFocus
+      {cards.map((card, i) => (
+        <InlineCardItem
+          key={card.id}
+          card={card}
+          index={i}
+          total={cards.length}
+          onChange={patch => updateCard(card.id, patch)}
+          onToggle={() => toggleCard(card.id)}
+          onRemove={() => removeCard(card.id)}
         />
-      </div>
+      ))}
 
-      {/* 日付・時間 */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-label-tertiary text-xs mb-1.5 block">
-            日付 <span className="text-red-400">*</span>
-          </label>
-          <input
-            type="date"
-            value={date}
-            onChange={e => setDate(e.target.value)}
-            className={inputCls}
-          />
-        </div>
-        <div>
-          <label className="text-label-tertiary text-xs mb-1.5 block">時間</label>
-          <input
-            type="time"
-            value={time}
-            onChange={e => setTime(e.target.value)}
-            className={inputCls}
-          />
-        </div>
-      </div>
-
-      {/* カテゴリ */}
-      <div>
-        <label className="text-label-tertiary text-xs mb-1.5 block">カテゴリ</label>
-        <div className="flex flex-wrap gap-2 mb-2">
-          {POST_CATEGORIES.map(cat => (
-            <button
-              key={cat}
-              type="button"
-              onClick={() => { setCategory(c => c === cat ? '' : cat); setCustomCategory(''); }}
-              className={`px-3 py-1 rounded-full text-xs border transition-colors ${
-                category === cat
-                  ? 'border-selected text-label-primary bg-label-primary/10'
-                  : 'border-default text-label-secondary'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-label-tertiary text-xs flex-shrink-0">その他：</span>
-          <input
-            type="text"
-            value={customCategory}
-            onChange={e => { setCustomCategory(e.target.value); setCategory(''); }}
-            placeholder="自由に入力"
-            className="flex-1 bg-bg-primary rounded-lg px-3 py-1.5 text-xs text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong"
-          />
-        </div>
-      </div>
-
-      {/* 場所 */}
-      <div>
-        <label className="text-label-tertiary text-xs mb-1.5 block">場所（任意）</label>
-        <select
-          value={prefecture}
-          onChange={e => { setPrefecture(e.target.value); if (!e.target.value) setLocationDetail(''); }}
-          className={`${inputCls} appearance-none`}
-        >
-          <option value="">全国（指定なし）</option>
-          {PREFECTURES.map(p => <option key={p} value={p}>{p}</option>)}
-        </select>
-        {prefecture && (
-          <input
-            type="text"
-            value={locationDetail}
-            onChange={e => setLocationDetail(e.target.value)}
-            placeholder="詳しい場所・住所・Google Mapsリンクなど"
-            className={`${inputCls} mt-2`}
-          />
-        )}
-      </div>
-
-      {/* リンク */}
-      <div>
-        <label className="text-label-tertiary text-xs mb-1.5 block">リンク（任意）</label>
-        <input
-          type="url"
-          value={link}
-          onChange={e => setLink(e.target.value)}
-          placeholder="購入先 / 公式ポストなど"
-          className={inputCls}
-        />
-      </div>
-
-      {/* メモ */}
-      <div>
-        <label className="text-label-tertiary text-xs mb-1.5 block">メモ（任意）</label>
-        <textarea
-          value={memo}
-          onChange={e => setMemo(e.target.value)}
-          placeholder="補足情報"
-          rows={3}
-          className={`${inputCls} resize-none`}
-        />
-      </div>
+      <button
+        onClick={addCard}
+        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-subtle text-label-secondary text-sm active:opacity-60"
+      >
+        <Plus size={15} />
+        別の予定を追加
+      </button>
     </div>
   );
 }
@@ -258,105 +402,95 @@ function RegionFilterPanel({
   filterMode,
   filterValue,
   includeAdjacent,
-  homePref,
-  userId,
   onApplyPref,
   onApplyRegion,
   onClear,
   onToggleAdjacent,
-  onSetHomePref,
   onClose,
 }: {
   filterMode: FilterMode;
   filterValue: string | null;
   includeAdjacent: boolean;
-  homePref: string | null;
-  userId: string | undefined;
   onApplyPref: (pref: string) => void;
   onApplyRegion: (region: string) => void;
   onClear: () => void;
   onToggleAdjacent: () => void;
-  onSetHomePref: (pref: string | null) => void;
   onClose: () => void;
 }) {
-  const [showPrefGrid, setShowPrefGrid] = useState(false);
-  const [showHomeSetting, setShowHomeSetting] = useState(false);
+  const filterActive = filterMode !== 'none';
+  const filterLabel = filterMode === 'pref'
+    ? `${filterValue}${includeAdjacent ? '（隣接含む）' : ''}`
+    : filterMode === 'region' ? `${filterValue}地方` : '';
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div
-        className="relative bg-bg-primary rounded-t-2xl max-h-[78vh] flex flex-col"
-        style={{ animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both' }}
+        className="relative bg-bg-primary rounded-t-2xl flex flex-col"
+        style={{ maxHeight: '80vh', animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both' }}
       >
-        {/* ハンドル */}
-        <div className="flex-shrink-0 pt-3 pb-1 flex justify-center">
-          <div className="w-10 h-1 rounded-full bg-label-tertiary/60" />
-        </div>
-
-        <div className="px-4 pb-2 flex-shrink-0 flex items-center justify-between">
-          <p className="text-label-primary font-semibold text-sm">地域で絞り込む</p>
-          <button onClick={onClose} className="text-label-tertiary text-xs active:opacity-60">閉じる</button>
-        </div>
-
-        <div className="overflow-y-auto flex-1 px-4 pb-8">
-          {/* 現在のフィルター表示 */}
-          {filterMode !== 'none' && (
-            <div className="mb-4 p-3 bg-bg-secondary rounded-xl flex items-center justify-between">
-              <div>
-                <p className="text-[10px] text-label-tertiary">絞り込み中</p>
-                <p className="text-sm text-label-primary font-medium">
-                  {filterMode === 'pref'
-                    ? `${filterValue}${includeAdjacent ? '（隣接含む）' : ''}`
-                    : `${filterValue}地方`}
-                </p>
-              </div>
-              <button
-                onClick={onClear}
-                className="text-xs text-label-secondary px-3 py-1.5 rounded-lg bg-bg-primary border border-subtle active:opacity-60"
-              >
-                解除
-              </button>
+        {/* 固定ヘッダー */}
+        <div className="flex-shrink-0 pt-3 px-4 pb-3">
+          <div className="flex justify-center mb-2">
+            <div className="w-10 h-1 rounded-full bg-label-tertiary/50" />
+          </div>
+          <div className="flex items-center justify-between">
+            <p className="text-label-primary font-semibold text-sm">地域で絞り込む</p>
+            <button onClick={onClose} className="text-xs text-label-secondary active:opacity-60">閉じる</button>
+          </div>
+          {/* 現在のフィルター */}
+          {filterActive && (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-xs rounded-full px-2.5 py-0.5 border" style={{ color: 'var(--accent-color)', borderColor: 'var(--accent-color)' }}>
+                {filterLabel}
+              </span>
+              <button onClick={onClear} className="text-xs text-label-tertiary underline active:opacity-60">解除</button>
             </div>
           )}
+        </div>
 
-          {/* 全表示 */}
-          {filterMode !== 'none' && (
-            <button
-              onClick={onClear}
-              className="w-full text-left px-4 py-2.5 rounded-xl text-sm text-label-secondary active:opacity-60 flex items-center gap-2 mb-4 border border-subtle"
-            >
-              すべて表示（全国）
-            </button>
-          )}
-
-          {/* 地域ボタン */}
-          <p className="text-label-tertiary text-xs mb-2">地域で選ぶ</p>
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            {REGIONS.map(r => (
-              <button
-                key={r.name}
-                onClick={() => onApplyRegion(r.name)}
-                className={`py-2.5 rounded-xl text-xs text-center border transition-colors ${
-                  filterMode === 'region' && filterValue === r.name
-                    ? 'border-selected bg-label-primary/10 text-label-primary font-semibold'
-                    : 'border-subtle text-label-secondary'
-                } active:opacity-60`}
-              >
-                {r.name}
-              </button>
-            ))}
+        {/* スクロール可能コンテンツ */}
+        <div className="flex-1 overflow-y-auto min-h-0 px-4 pb-8">
+          {/* ① 都道府県で選ぶ */}
+          <div className="mb-5">
+            <p className="text-label-tertiary text-xs mb-2">都道府県で選ぶ</p>
+            <PrefectureSearch
+              value={filterMode === 'pref' ? filterValue ?? '' : ''}
+              onChange={pref => { if (pref) onApplyPref(pref); else onClear(); }}
+            />
           </div>
 
-          {/* 隣接する県を含むトグル（単一県選択時のみ） */}
-          {filterMode === 'pref' && (
+          {/* ② 地域で選ぶ */}
+          <div className="mb-5">
+            <p className="text-label-tertiary text-xs mb-2">地域で選ぶ</p>
+            <select
+              value={filterMode === 'region' ? filterValue ?? '' : ''}
+              onChange={e => { if (e.target.value) onApplyRegion(e.target.value); else onClear(); }}
+              className="w-full bg-bg-secondary rounded-xl px-3 py-3 text-sm text-label-primary outline-none border border-subtle appearance-none"
+            >
+              <option value="">地域を選ぶ</option>
+              {REGIONS.map(r => (
+                <option key={r.name} value={r.name}>{r.name}地方</option>
+              ))}
+            </select>
+          </div>
+
+          {/* ③ 隣接する県を含む（単一県時のみ） */}
+          {filterMode === 'pref' && filterValue && (ADJACENT[filterValue]?.length ?? 0) > 0 && (
             <button
               onClick={onToggleAdjacent}
-              className="w-full flex items-center justify-between px-4 py-3 bg-bg-secondary rounded-xl mb-4"
+              className="w-full flex items-center justify-between px-4 py-3 bg-bg-secondary rounded-xl mb-5"
             >
-              <span className="text-sm text-label-primary">隣接する県を含む</span>
+              <div>
+                <p className="text-sm text-label-primary text-left">隣接する県を含む</p>
+                {includeAdjacent && (
+                  <p className="text-[10px] text-label-tertiary text-left mt-0.5">
+                    {ADJACENT[filterValue].join('・')}
+                  </p>
+                )}
+              </div>
               <div
-                className="w-11 h-6 rounded-full relative transition-colors"
+                className="flex-shrink-0 w-11 h-6 rounded-full relative transition-colors ml-3"
                 style={{ background: includeAdjacent ? 'var(--accent-color)' : 'rgba(128,128,128,0.4)' }}
               >
                 <div
@@ -367,72 +501,99 @@ function RegionFilterPanel({
             </button>
           )}
 
-          {/* 都道府県グリッド */}
+          {/* ④ すべて表示 */}
+          {filterActive && (
+            <button
+              onClick={onClear}
+              className="w-full text-center py-3 rounded-xl border border-subtle text-sm text-label-secondary active:opacity-60"
+            >
+              すべて表示（全国）
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ユーザー設定シート ────────────────────────────────────────────
+
+function UserSettingsSheet({
+  homePref,
+  displayName,
+  onSave,
+  onClose,
+}: {
+  homePref: string | null;
+  displayName: string | null;
+  onSave: (homePref: string | null, displayName: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [pref, setPref] = useState(homePref ?? '');
+  const [name, setName] = useState(displayName ?? '');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave(pref || null, name);
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => { setSaved(false); onClose(); }, 800);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div
+        className="relative bg-bg-primary rounded-t-2xl flex flex-col"
+        style={{ maxHeight: '70vh', animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both' }}
+      >
+        {/* 固定ヘッダー */}
+        <div className="flex-shrink-0 pt-3 px-4 pb-3">
+          <div className="flex justify-center mb-2">
+            <div className="w-10 h-1 rounded-full bg-label-tertiary/50" />
+          </div>
+          <div className="flex items-center justify-between">
+            <p className="text-label-primary font-semibold text-sm">ユーザー設定</p>
+            <button onClick={onClose} className="text-xs text-label-secondary active:opacity-60">閉じる</button>
+          </div>
+        </div>
+
+        {/* スクロール可能コンテンツ */}
+        <div className="flex-1 overflow-y-auto min-h-0 px-4 pb-8">
+          {/* 表示名 */}
+          <div className="mb-5">
+            <label className="text-label-tertiary text-xs mb-1.5 block">表示名（任意）</label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="匿名"
+              className={inputCls}
+              maxLength={20}
+            />
+            <p className="text-label-tertiary text-[10px] mt-1 px-1">投稿者として表示されます（今後対応予定）</p>
+          </div>
+
+          {/* ホーム県 */}
+          <div className="mb-6">
+            <label className="text-label-tertiary text-xs mb-1.5 block">ホーム県</label>
+            <PrefectureSearch
+              value={pref}
+              onChange={setPref}
+              placeholder="都道府県を検索（設定するとカレンダーを自動絞り込み）"
+            />
+          </div>
+
+          {/* 保存ボタン */}
           <button
-            onClick={() => setShowPrefGrid(v => !v)}
-            className="w-full flex items-center justify-between mb-2 active:opacity-60"
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full py-3 rounded-xl bg-label-primary text-bg-primary font-semibold text-sm active:opacity-70 disabled:opacity-40"
           >
-            <p className="text-label-tertiary text-xs">都道府県で選ぶ</p>
-            {showPrefGrid ? <ChevronUp size={14} className="text-label-tertiary" /> : <ChevronDown size={14} className="text-label-tertiary" />}
+            {saved ? '保存しました ✓' : saving ? '保存中…' : '保存'}
           </button>
-
-          {showPrefGrid && (
-            <div className="mb-4">
-              {REGIONS.map(r => (
-                <div key={r.name} className="mb-3">
-                  <p className="text-label-tertiary text-[10px] mb-1.5">{r.name}</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {r.prefectures.map(p => (
-                      <button
-                        key={p}
-                        onClick={() => onApplyPref(p)}
-                        className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
-                          filterMode === 'pref' && filterValue === p
-                            ? 'border-selected bg-label-primary/10 text-label-primary font-semibold'
-                            : 'border-subtle text-label-secondary'
-                        } active:opacity-60`}
-                      >
-                        {p}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* ホーム県設定 */}
-          {userId && (
-            <div className="border-t border-subtle pt-4">
-              <button
-                onClick={() => setShowHomeSetting(v => !v)}
-                className="w-full flex items-center justify-between mb-2 active:opacity-60"
-              >
-                <div>
-                  <p className="text-xs text-label-tertiary text-left">ホーム県</p>
-                  <p className="text-xs text-label-secondary text-left">
-                    {homePref ? homePref : '未設定'}
-                  </p>
-                </div>
-                {showHomeSetting ? <ChevronUp size={14} className="text-label-tertiary" /> : <ChevronDown size={14} className="text-label-tertiary" />}
-              </button>
-              {showHomeSetting && (
-                <>
-                  <p className="text-[10px] text-label-tertiary mb-2">
-                    設定するとカレンダーを開いたとき自動で絞り込まれます
-                  </p>
-                  <select
-                    value={homePref ?? ''}
-                    onChange={e => onSetHomePref(e.target.value || null)}
-                    className="w-full bg-bg-secondary rounded-lg px-3 py-2 text-sm text-label-primary outline-none border border-faint mb-1"
-                  >
-                    <option value="">設定しない</option>
-                    {PREFECTURES.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                </>
-              )}
-            </div>
-          )}
         </div>
       </div>
     </div>
@@ -467,21 +628,26 @@ export default function Calendar() {
   const [filterValue, setFilterValue] = useState<string | null>(null);
   const [includeAdjacent, setIncludeAdjacent] = useState(false);
   const [showRegionPanel, setShowRegionPanel] = useState(false);
+
+  // ユーザー設定
   const [homePref, setHomePref] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState<string | null>(null);
+  const [showUserSettings, setShowUserSettings] = useState(false);
 
   // インライン投稿フォーム
   const [postPanelOpen, setPostPanelOpen] = useState(false);
   const [postDate, setPostDate] = useState(todayStr);
 
-  // ホーム県を読み込んで自動フィルター
+  // ユーザー設定をロード（ホーム県 + 表示名）
   useEffect(() => {
     if (!user) return;
-    getHomePrefecture(user.id).then(pref => {
+    Promise.all([
+      getHomePrefecture(user.id),
+      getDisplayName(user.id),
+    ]).then(([pref, name]) => {
       setHomePref(pref);
-      if (pref) {
-        setFilterMode('pref');
-        setFilterValue(pref);
-      }
+      setDisplayName(name);
+      if (pref) { setFilterMode('pref'); setFilterValue(pref); }
     });
   }, [user?.id]);
 
@@ -512,8 +678,19 @@ export default function Calendar() {
       navigate('/');
     } catch {
       setDeleting(false);
-      alert('削除に失敗しました。Supabaseの削除ポリシーを確認してください。');
+      alert('削除に失敗しました。');
     }
+  };
+
+  const handleSaveUserSettings = async (newPref: string | null, newName: string) => {
+    if (!user) return;
+    setHomePref(newPref);
+    setDisplayName(newName || null);
+    if (newPref) { setFilterMode('pref'); setFilterValue(newPref); setIncludeAdjacent(false); }
+    await Promise.all([
+      saveHomePrefecture(user.id, newPref),
+      saveDisplayName(user.id, newName),
+    ]);
   };
 
   useEffect(() => {
@@ -570,32 +747,6 @@ export default function Calendar() {
     else setMonth(m => m + 1);
   };
 
-  const handleApplyPref = (pref: string) => {
-    setFilterMode('pref');
-    setFilterValue(pref);
-    setIncludeAdjacent(false);
-    setShowRegionPanel(false);
-  };
-
-  const handleApplyRegion = (region: string) => {
-    setFilterMode('region');
-    setFilterValue(region);
-    setIncludeAdjacent(false);
-    setShowRegionPanel(false);
-  };
-
-  const handleClearFilter = () => {
-    setFilterMode('none');
-    setFilterValue(null);
-    setIncludeAdjacent(false);
-  };
-
-  const handleSetHomePref = async (pref: string | null) => {
-    setHomePref(pref);
-    if (pref) { setFilterMode('pref'); setFilterValue(pref); setIncludeAdjacent(false); }
-    if (user) await saveHomePrefecture(user.id, pref);
-  };
-
   const handleDayClick = (dateStr: string, isCurrentMonth: boolean) => {
     if (!workId) return;
     if (postPanelOpen) {
@@ -606,6 +757,9 @@ export default function Calendar() {
   };
 
   const filterActive = filterMode !== 'none';
+  const filterLabel = filterMode === 'pref'
+    ? `${filterValue}${includeAdjacent ? '＋隣接' : ''}`
+    : filterMode === 'region' ? `${filterValue}地方` : '';
 
   return (
     <Layout>
@@ -616,13 +770,26 @@ export default function Calendar() {
             <button onClick={prevMonth} aria-label="前の月" className="text-label-tertiary text-lg leading-none px-1.5 active:text-label-primary">‹</button>
             <span className="text-xs text-label-secondary">{year}年 {month + 1}月</span>
             <button onClick={nextMonth} aria-label="次の月" className="text-label-tertiary text-lg leading-none px-1.5 active:text-label-primary">›</button>
+          </div>
+        }
+        rightAction={
+          <div className="flex items-center gap-1">
+            {/* カスタマイズ */}
+            <button
+              onClick={() => navigate('/customize')}
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary"
+            >
+              <Palette size={16} />
+            </button>
+
+            {/* 地域フィルター（カスタマイズの右） */}
             {workId && (
               <button
                 onClick={() => setShowRegionPanel(true)}
                 aria-label="地域で絞り込む"
-                className="relative ml-1 w-7 h-7 flex items-center justify-center rounded-lg text-label-secondary active:opacity-60"
+                className="relative w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary"
               >
-                <Map size={14} style={filterActive ? { color: 'var(--accent-color)' } : {}} />
+                <span className="text-base leading-none" role="img" aria-label="地図">🗾</span>
                 {filterActive && (
                   <span
                     className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full"
@@ -631,16 +798,8 @@ export default function Calendar() {
                 )}
               </button>
             )}
-          </div>
-        }
-        rightAction={
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => navigate('/customize')}
-              className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary"
-            >
-              <Palette size={16} />
-            </button>
+
+            {/* ⋮ メニュー */}
             {workId && (
               <div className="relative" ref={menuRef}>
                 <button
@@ -659,6 +818,14 @@ export default function Calendar() {
                       >
                         <Link2 size={15} className="text-label-secondary" />
                         {copyDone ? 'コピーしました！' : '招待リンクをコピー'}
+                      </button>
+                      <div className="h-px bg-subtle mx-3" />
+                      <button
+                        onClick={() => { setShowMenu(false); setShowUserSettings(true); }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-label-primary active:opacity-60"
+                      >
+                        <Settings size={15} className="text-label-secondary" />
+                        ユーザー設定
                       </button>
                       <div className="h-px bg-subtle mx-3" />
                       <button
@@ -688,7 +855,6 @@ export default function Calendar() {
 
       {/* カレンダーグリッド */}
       <div className={`px-3 pt-3 pb-1 transition-colors duration-200 ${postPanelOpen ? 'bg-bg-secondary/30' : ''}`}>
-        {/* 投稿モードのヒント */}
         {postPanelOpen && (
           <p className="text-center text-[11px] text-label-tertiary mb-1 animate-pulse">
             日付をタップして選択
@@ -705,7 +871,6 @@ export default function Calendar() {
             </div>
           ))}
         </div>
-
         <div className="grid grid-cols-7">
           {calendarDays.map(({ date, isCurrentMonth }, idx) => {
             const dateStr = toDateStr(date);
@@ -721,24 +886,11 @@ export default function Calendar() {
                 className={`flex flex-col items-center py-[3px] transition-opacity ${workId ? 'active:opacity-50' : 'cursor-default'}`}
               >
                 <div
-                  className="w-8 h-8 flex items-center justify-center rounded-full text-[13px] font-medium select-none transition-all"
+                  className="w-8 h-8 flex items-center justify-center rounded-full text-[13px] select-none transition-all"
                   style={{
-                    background: isSelectedPost
-                      ? 'var(--accent-color)'
-                      : isToday
-                      ? 'var(--label-primary)'
-                      : undefined,
-                    color: isSelectedPost || isToday
-                      ? 'var(--bg-primary)'
-                      : !isCurrentMonth
-                      ? 'var(--cal-other-month-color)'
-                      : col === 0
-                      ? 'var(--cal-sunday-color)'
-                      : col === 6
-                      ? 'var(--cal-saturday-color)'
-                      : 'var(--cal-weekday-color)',
+                    background: isSelectedPost ? 'var(--accent-color)' : isToday ? 'var(--label-primary)' : undefined,
+                    color: isSelectedPost || isToday ? 'var(--bg-primary)' : !isCurrentMonth ? 'var(--cal-other-month-color)' : col === 0 ? 'var(--cal-sunday-color)' : col === 6 ? 'var(--cal-saturday-color)' : 'var(--cal-weekday-color)',
                     fontWeight: isToday || isSelectedPost ? 700 : undefined,
-                    boxShadow: isSelectedPost ? '0 0 0 2px var(--accent-color)' : undefined,
                   }}
                 >
                   {date.getDate()}
@@ -759,10 +911,7 @@ export default function Calendar() {
         {!workId ? (
           <div className="flex flex-col items-center gap-5 py-14 text-center px-4">
             <p className="text-label-secondary text-sm">まだカレンダーに参加していません</p>
-            <button
-              onClick={() => navigate('/')}
-              className="px-5 py-2.5 bg-label-primary text-bg-primary rounded-xl text-sm font-medium active:opacity-70"
-            >
+            <button onClick={() => navigate('/')} className="px-5 py-2.5 bg-label-primary text-bg-primary rounded-xl text-sm font-medium active:opacity-70">
               カレンダーに参加してみましょう
             </button>
           </div>
@@ -773,41 +922,28 @@ export default function Calendar() {
             selectedDate={postDate}
             onSuccess={() => {
               setPostPanelOpen(false);
-              // イベントを再取得
               setLoading(true);
-              listEvents(workId, year, month)
-                .then(setEvents)
-                .finally(() => setLoading(false));
+              listEvents(workId, year, month).then(setEvents).finally(() => setLoading(false));
             }}
             onCancel={() => setPostPanelOpen(false)}
           />
         ) : (
           <div className="px-4 pt-3">
-            {/* フィルターバッジ */}
             {filterActive && (
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-[11px] text-label-tertiary">絞り込み：</span>
-                <span
-                  className="text-[11px] px-2 py-0.5 rounded-full border"
-                  style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-color)' }}
-                >
-                  {filterMode === 'pref'
-                    ? `${filterValue}${includeAdjacent ? '＋隣接' : ''}`
-                    : `${filterValue}地方`}
+                <span className="text-[11px] px-2 py-0.5 rounded-full border" style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-color)' }}>
+                  {filterLabel}
                 </span>
-                <button onClick={handleClearFilter} className="text-[11px] text-label-tertiary underline active:opacity-60">
+                <button onClick={() => { setFilterMode('none'); setFilterValue(null); setIncludeAdjacent(false); }} className="text-[11px] text-label-tertiary underline active:opacity-60">
                   解除
                 </button>
               </div>
             )}
-
             <p className="text-label-secondary text-xs mb-3 px-1">今月の予定</p>
-
             {loading ? (
               <div className="flex flex-col gap-2">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="h-16 bg-bg-secondary rounded-xl animate-pulse" />
-                ))}
+                {[1, 2, 3].map(i => <div key={i} className="h-16 bg-bg-secondary rounded-xl animate-pulse" />)}
               </div>
             ) : error ? (
               <p className="text-center text-red-400 text-sm py-10">{error}</p>
@@ -834,7 +970,7 @@ export default function Calendar() {
                         <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           <div className="flex items-center gap-1">
-                            <Heart size={11} className={event.likedByMe ? 'text-red-400 fill-red-400' : 'text-label-tertiary'} />
+                            <Heart size={11} className={event.likedByMe ? 'fill-red-400 text-red-400' : 'text-label-tertiary'} />
                             <span className="text-label-tertiary text-xs">{event.likes.toLocaleString('ja-JP')}</span>
                           </div>
                           {event.prefecture && (
@@ -857,12 +993,8 @@ export default function Calendar() {
       {workId && (
         <button
           onClick={() => {
-            if (postPanelOpen) {
-              setPostPanelOpen(false);
-            } else {
-              setPostDate(todayStr);
-              setPostPanelOpen(true);
-            }
+            if (postPanelOpen) { setPostPanelOpen(false); }
+            else { setPostDate(todayStr); setPostPanelOpen(true); }
           }}
           className="fixed bottom-[76px] right-4 w-[52px] h-[52px] bg-label-primary text-bg-primary rounded-full flex items-center justify-center shadow-xl z-40 active:opacity-80"
           aria-label={postPanelOpen ? '閉じる' : '予定を追加'}
@@ -882,14 +1014,21 @@ export default function Calendar() {
           filterMode={filterMode}
           filterValue={filterValue}
           includeAdjacent={includeAdjacent}
-          homePref={homePref}
-          userId={user?.id}
-          onApplyPref={handleApplyPref}
-          onApplyRegion={handleApplyRegion}
-          onClear={() => { handleClearFilter(); setShowRegionPanel(false); }}
+          onApplyPref={pref => { setFilterMode('pref'); setFilterValue(pref); setIncludeAdjacent(false); setShowRegionPanel(false); }}
+          onApplyRegion={region => { setFilterMode('region'); setFilterValue(region); setIncludeAdjacent(false); setShowRegionPanel(false); }}
+          onClear={() => { setFilterMode('none'); setFilterValue(null); setIncludeAdjacent(false); }}
           onToggleAdjacent={() => setIncludeAdjacent(v => !v)}
-          onSetHomePref={handleSetHomePref}
           onClose={() => setShowRegionPanel(false)}
+        />
+      )}
+
+      {/* ユーザー設定シート */}
+      {showUserSettings && user && (
+        <UserSettingsSheet
+          homePref={homePref}
+          displayName={displayName}
+          onSave={handleSaveUserSettings}
+          onClose={() => setShowUserSettings(false)}
         />
       )}
     </Layout>

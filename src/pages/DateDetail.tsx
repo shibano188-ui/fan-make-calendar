@@ -97,14 +97,10 @@ function LikeButton({
     } catch (e) { console.error(e); }
   };
 
-  const remainSec = locked && session.resetAt > 0
-    ? Math.ceil((session.resetAt - Date.now()) / 1000)
-    : 0;
-
   return (
     <div className="flex items-center gap-2">
       <div className="relative">
-        {/* フローティングハート */}
+        {/* フローティングハート（赤） */}
         {floaters.map(f => (
           <div
             key={f.id}
@@ -113,10 +109,10 @@ function LikeButton({
               bottom: '100%',
               left: `${8 + f.x}px`,
               animation: 'floatHeart 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards',
-              color: 'var(--accent-color)',
+              color: 'rgb(248,113,113)',
             }}
           >
-            <Heart size={11} style={{ fill: 'var(--accent-color)' }} />
+            <Heart size={11} style={{ fill: 'rgb(248,113,113)' }} />
           </div>
         ))}
 
@@ -126,9 +122,9 @@ function LikeButton({
           aria-label={`いいね (${event.likes.toLocaleString('ja-JP')}件)`}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm select-none ${locked ? 'opacity-30' : ''}`}
           style={{
-            borderColor: hasLiked || flash ? 'var(--accent-color)' : 'var(--border-default)',
-            color: hasLiked ? 'var(--accent-color)' : 'var(--label-secondary)',
-            background: flash ? 'color-mix(in srgb, var(--accent-color) 15%, transparent)' : 'transparent',
+            borderColor: flash ? 'rgb(248,113,113)' : hasLiked ? 'rgb(248,113,113)' : 'var(--border-default)',
+            color: hasLiked ? 'rgb(248,113,113)' : 'var(--label-secondary)',
+            background: flash ? 'rgba(248,113,113,0.12)' : 'transparent',
             transform: bumped ? 'scale(1.26)' : 'scale(1)',
             transition: 'transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.15s, background 0.2s',
           }}
@@ -136,10 +132,11 @@ function LikeButton({
           <Heart
             size={14}
             style={{
-              fill: hasLiked ? 'var(--accent-color)' : 'none',
-              color: hasLiked ? 'var(--accent-color)' : 'var(--label-secondary)',
-              transform: bumped ? 'scale(1.15)' : 'scale(1)',
-              transition: 'transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1)',
+              fill: hasLiked ? 'rgb(248,113,113)' : 'none',
+              color: hasLiked ? 'rgb(248,113,113)' : 'var(--label-secondary)',
+              filter: hasLiked ? 'drop-shadow(0 0 5px rgba(248,113,113,0.8))' : 'none',
+              transform: bumped ? 'scale(1.2)' : 'scale(1)',
+              transition: 'all 0.32s cubic-bezier(0.34, 1.56, 0.64, 1)',
             }}
           />
           <span
@@ -151,10 +148,6 @@ function LikeButton({
           </span>
         </button>
       </div>
-
-      {locked && remainSec > 0 && (
-        <span className="text-label-tertiary text-xs">{remainSec}秒後にリセット</span>
-      )}
     </div>
   );
 }

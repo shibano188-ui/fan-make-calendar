@@ -239,6 +239,24 @@ export async function updateUserSettings(userId: string, s: SupabaseUserSettings
   if (error) throw error;
 }
 
+export async function getDisplayName(userId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from('user_settings')
+    .select('display_name')
+    .eq('user_id', userId)
+    .maybeSingle();
+  return (data?.display_name as string | null) ?? null;
+}
+
+export async function saveDisplayName(userId: string, name: string): Promise<void> {
+  await supabase
+    .from('user_settings')
+    .upsert(
+      { user_id: userId, display_name: name.trim() || null, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' },
+    );
+}
+
 export async function getHomePrefecture(userId: string): Promise<string | null> {
   const { data } = await supabase
     .from('user_settings')
