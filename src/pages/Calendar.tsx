@@ -676,19 +676,6 @@ export default function Calendar() {
           ))}
         </div>
 
-        {/* 地域絞り込みインジケーター（filterActive時のみ） */}
-        {filterActive && (
-          <div className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-            <Map size={10} style={{ color: 'var(--accent-color)', flexShrink: 0 }} />
-            <span className="text-[11px] font-medium" style={{ color: 'var(--accent-color)' }}>{filterLabel}</span>
-            <button
-              onClick={() => { setFilterMode('none'); setFilterValue(null); setIncludeAdjacent(false); }}
-              className="ml-auto text-[11px] text-label-tertiary active:opacity-60 px-1"
-              aria-label="絞り込みを解除"
-            >✕</button>
-          </div>
-        )}
-
         {/* タブ以下のコンテンツエリア（背景画像はここから） */}
         <div
           className="flex-1 overflow-hidden flex flex-col"
@@ -939,7 +926,7 @@ export default function Calendar() {
       {/* 予定追加フォームパネル（下から72vh、背景オーバーレイなし） */}
       {postPanelOpen && (
         <div
-          className="fixed inset-x-0 max-w-app mx-auto z-[160] rounded-t-2xl flex flex-col overflow-hidden"
+          className="fixed inset-x-0 max-w-app mx-auto z-[160] rounded-t-2xl flex flex-col"
           style={{
             bottom: BOTTOM_TAB_H,
             maxHeight: '72vh',
@@ -963,7 +950,7 @@ export default function Calendar() {
           </div>
           {postError && <p className="text-red-400 text-xs px-4 mb-1">{postError}</p>}
           {/* カードリスト（スクロール可） */}
-          <div className="overflow-y-auto flex-1 min-h-0 px-4 pb-6 flex flex-col gap-3">
+          <div className="px-4 pb-6 flex flex-col gap-3" style={{ flex: 1, minHeight: 0, overflowY: 'scroll', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
             {postCards.map((card, i) => (
               <InlineCardItem
                 key={card.id}
