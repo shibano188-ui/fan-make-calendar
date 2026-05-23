@@ -244,6 +244,8 @@ const SHEET_FORM_H = 300;
 
 // ─── シート内クイック追加フォーム ────────────────────────────────
 
+type QuickCard = { id: string; title: string; date: string; time: string };
+
 function SheetAddForm({
   workId,
   userId,
@@ -257,27 +259,52 @@ function SheetAddForm({
   onSuccess: () => void;
   onCancel: () => void;
 }) {
-  const [title, setTitle] = useState('');
-  const [date, setDate] = useState(initialDate);
-  const [time, setTime] = useState('');
+  const [cards, setCards] = useState<QuickCard[]>([
+    { id: crypto.randomUUID(), title: '', date: initialDate, time: '' },
+  ]);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => { setDate(initialDate); }, [initialDate]);
+  // 日付タップで先頭カードの日付を同期
+  useEffect(() => {
+    setCards(prev => {
+      if (!prev.length) return prev;
+      return [{ ...prev[0], date: initialDate }, ...prev.slice(1)];
+    });
+  }, [initialDate]);
+
+  const updateCard = (id: string, patch: Partial<QuickCard>) =>
+    setCards(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
+
+  const addCard = () =>
+    setCards(prev => [...prev, { id: crypto.randomUUID(), title: '', date: initialDate, time: '' }]);
+
+  const removeCard = (id: string) =>
+    setCards(prev => prev.filter(c => c.id !== id));
+
+  const canSave = cards.some(c => c.title.trim() && c.date);
 
   const handleSave = async () => {
-    if (!title.trim() || submitting) return;
+    const valid = cards.filter(c => c.title.trim() && c.date);
+    if (!valid.length || submitting) return;
     setSubmitting(true);
     try {
       if (workId && userId) {
-        await createEvents(workId, [{ title: title.trim(), date, time: time || undefined }], userId);
+        await createEvents(
+          workId,
+          valid.map(c => ({ title: c.title.trim(), date: c.date, time: c.time || undefined })),
+          userId,
+        );
       } else {
         const existing = loadPersonalEvents();
-        savePersonalEvents([...existing, {
-          id: crypto.randomUUID(),
-          title: title.trim(),
-          date,
-          ...(time && { time }),
-        }]);
+        savePersonalEvents([
+          ...existing,
+          ...valid.map(c => ({
+            id: crypto.randomUUID(),
+            title: c.title.trim(),
+            date: c.date,
+            ...(c.time && { time: c.time }),
+          })),
+        ]);
       }
       onSuccess();
     } catch { /* silent */ } finally {
@@ -287,36 +314,70 @@ function SheetAddForm({
 
   return (
     <div className="px-4 pt-2 pb-4 flex flex-col gap-3">
+      {/* ヘッダー */}
       <div className="flex items-center justify-between">
         <p className="text-label-tertiary text-xs">予定を追加</p>
-        <button onClick={onCancel} className="text-label-tertiary text-xs px-2 py-1 rounded-lg active:opacity-60">
-          キャンセル
-        </button>
-      </div>
-      <input
-        type="text"
-        value={title}
-        onChange={e => setTitle(e.target.value)}
-        placeholder="タイトル（必須）"
-        className={inputCls}
-        autoFocus
-      />
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-label-tertiary text-xs mb-1 block">日付</label>
-          <input type="date" value={date} onChange={e => setDate(e.target.value)} className={inputCls} />
-        </div>
-        <div>
-          <label className="text-label-tertiary text-xs mb-1 block">時間</label>
-          <input type="time" value={time} onChange={e => setTime(e.target.value)} className={inputCls} />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onCancel}
+            className="text-label-tertiary text-xs px-2 py-1 rounded-lg active:opacity-60"
+          >
+            キャンセル
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!canSave || submitting}
+            className="text-xs font-semibold text-bg-primary bg-label-primary px-3 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40"
+          >
+            {submitting ? '保存中…' : '保存'}
+          </button>
         </div>
       </div>
+
+      {/* 予定カード */}
+      {cards.map(card => (
+        <div key={card.id} className="bg-bg-secondary rounded-xl px-3 py-3 flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={card.title}
+              onChange={e => updateCard(card.id, { title: e.target.value })}
+              placeholder="タイトル（必須）"
+              className={inputCls}
+            />
+            {cards.length > 1 && (
+              <button
+                onClick={() => removeCard(card.id)}
+                className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-label-tertiary active:text-red-400"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="date"
+              value={card.date}
+              onChange={e => updateCard(card.id, { date: e.target.value })}
+              className={inputCls}
+            />
+            <input
+              type="time"
+              value={card.time}
+              onChange={e => updateCard(card.id, { time: e.target.value })}
+              className={inputCls}
+            />
+          </div>
+        </div>
+      ))}
+
+      {/* 別の予定を追加 */}
       <button
-        onClick={handleSave}
-        disabled={!title.trim() || submitting}
-        className="w-full bg-label-primary text-bg-primary rounded-xl py-3 text-sm font-semibold active:opacity-70 disabled:opacity-40"
+        onClick={addCard}
+        className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-subtle text-label-secondary text-sm active:opacity-60"
       >
-        {submitting ? '保存中…' : '保存'}
+        <Plus size={14} />
+        別の予定を追加
       </button>
     </div>
   );
@@ -476,6 +537,7 @@ export default function Calendar() {
   const handleDayClick = (dateStr: string, isCurrentMonth: boolean) => {
     if (!isCurrentMonth) return;
     setSelectedDate(dateStr);
+    if (sheetMode === 'form') return; // フォームモード中は日付だけ更新
     setSheetMode('events');
     setSheetOpen(true);
   };

@@ -348,7 +348,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     document.documentElement.style.setProperty('--accent-color', settings.accentColor);
   }, [settings.accentColor]);
 
-  // カレンダー文字色を CSS 変数に反映
+  // カレンダー文字色・グリッド線色を CSS 変数に反映
   useEffect(() => {
     const root = document.documentElement;
     const calVars: [string, string][] = [
@@ -361,7 +361,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       if (value) root.style.setProperty(varName, value);
       else root.style.removeProperty(varName);
     }
-  }, [settings.calWeekday, settings.calSaturday, settings.calSunday, settings.calOtherMonth]);
+    root.style.setProperty('--cal-grid-color', settings.calGridColor || 'rgba(128,128,128,0.15)');
+  }, [settings.calWeekday, settings.calSaturday, settings.calSunday, settings.calOtherMonth, settings.calGridColor]);
 
   // カスタムフォントの @font-face 登録のみ（フォントはカレンダーグリッドに直接渡すためCSS変数は設定しない）
   useEffect(() => {
