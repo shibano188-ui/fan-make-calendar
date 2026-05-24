@@ -425,6 +425,17 @@ export async function deleteWork(workId: string): Promise<void> {
 
 // ─── 参加履歴 ──────────────────────────────────────────────────────
 
+async function syncParticipantCount(workId: string): Promise<void> {
+  const { count } = await supabase
+    .from('participations')
+    .select('*', { count: 'exact', head: true })
+    .eq('work_id', workId);
+  await supabase
+    .from('works')
+    .update({ participant_count: count ?? 0 })
+    .eq('id', workId);
+}
+
 export async function upsertParticipation(workId: string, userId: string): Promise<void> {
   const { error } = await supabase
     .from('participations')
@@ -433,6 +444,7 @@ export async function upsertParticipation(workId: string, userId: string): Promi
       { onConflict: 'work_id,user_id' },
     );
   if (error) throw error;
+  await syncParticipantCount(workId);
 }
 
 export async function leaveCalendar(workId: string, userId: string): Promise<void> {
@@ -441,6 +453,7 @@ export async function leaveCalendar(workId: string, userId: string): Promise<voi
     .delete()
     .eq('work_id', workId)
     .eq('user_id', userId);
+  await syncParticipantCount(workId);
 }
 
 export async function listRecentWorks(userId: string): Promise<Work[]> {
