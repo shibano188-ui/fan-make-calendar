@@ -40,12 +40,15 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error('parse failed');
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        throw new Error(`${res.status}: ${body.slice(0, 120)}`);
+      }
       const parsed: ParsedEvent = await res.json();
       onApply(parsed);
       showFlash('フォームに反映しました');
-    } catch {
-      setError('解析に失敗しました。もう一度お試しください。');
+    } catch (e) {
+      setError(`解析に失敗しました（${e instanceof Error ? e.message : '不明なエラー'}）`);
     } finally {
       setLoading(false);
     }
