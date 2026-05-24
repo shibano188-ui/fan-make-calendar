@@ -31,7 +31,12 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
     setTimeout(() => setFlashMsg(null), 2500);
   };
 
-  const parseAndApply = async (body: object) => {
+  const clean = (v: unknown): string | null => {
+    if (v === null || v === undefined || v === 'null' || v === '') return null;
+    return String(v);
+  };
+
+  const parseAndApply = async (body: object, isUrl = false) => {
     setLoading(true);
     setError(null);
     try {
@@ -41,11 +46,22 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const body = await res.text().catch(() => '');
-        throw new Error(`${res.status}: ${body.slice(0, 400)}`);
+        const text = await res.text().catch(() => '');
+        throw new Error(`${res.status}: ${text.slice(0, 400)}`);
       }
-      const parsed: ParsedEvent = await res.json();
+      const raw = await res.json();
+      const parsed: ParsedEvent = {
+        title:          clean(raw.title),
+        date:           clean(raw.date),
+        time:           clean(raw.time),
+        category:       clean(raw.category),
+        prefecture:     clean(raw.prefecture),
+        locationDetail: clean(raw.locationDetail),
+        link:           clean(raw.link),
+        memo:           clean(raw.memo),
+      };
       onApply(parsed);
+      if (isUrl) setUrlValue('');
       showFlash('フォームに反映しました');
     } catch (e) {
       setError(`解析に失敗しました（${e instanceof Error ? e.message : '不明なエラー'}）`);
@@ -56,7 +72,7 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
 
   const handleUrlParse = () => {
     if (!urlValue.trim()) return;
-    parseAndApply({ url: urlValue.trim() });
+    parseAndApply({ url: urlValue.trim() }, true);
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
