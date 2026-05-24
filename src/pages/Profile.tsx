@@ -1,15 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Settings } from 'lucide-react';
 import Header from '../components/Header';
 import Layout from '../components/Layout';
 import TitleBadge from '../components/TitleBadge';
-import UserSettingsSheet from '../components/UserSettingsSheet';
+import SettingsMenuButton from '../components/SettingsMenuButton';
 import { getTitleTier, getNextTier, getProgress, TITLE_TIERS } from '../lib/titles';
 import { getUserPoints, getUserStats, ACHIEVEMENTS } from '../lib/points';
-import {
-  getDisplayName, getHomePrefecture,
-  saveDisplayName, saveHomePrefecture,
-} from '../lib/api';
+import { getDisplayName, getHomePrefecture } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Profile() {
@@ -19,8 +15,6 @@ export default function Profile() {
   const [points, setPoints]           = useState({ points: 0, total_earned: 0 });
   const [stats, setStats]             = useState({ postCount: 0, reactionsReceived: 0 });
   const [loading, setLoading]         = useState(true);
-  const [showSettings, setShowSettings] = useState(false);
-
   useEffect(() => {
     if (!user) return;
     setLoading(true);
@@ -36,16 +30,6 @@ export default function Profile() {
       setStats(st);
     }).finally(() => setLoading(false));
   }, [user?.id]);
-
-  const handleSave = async (newPref: string | null, newName: string) => {
-    if (!user) return;
-    setDisplayName(newName || null);
-    setHomePref(newPref);
-    await Promise.all([
-      saveDisplayName(user.id, newName),
-      saveHomePrefecture(user.id, newPref),
-    ]);
-  };
 
   const totalEarned = points.total_earned;
   const tier        = getTitleTier(totalEarned);
@@ -67,15 +51,7 @@ export default function Profile() {
     <Layout>
       <Header
         title="プロフィール"
-        rightAction={
-          <button
-            onClick={() => setShowSettings(true)}
-            className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary"
-            aria-label="設定を変更"
-          >
-            <Settings size={16} />
-          </button>
-        }
+        rightAction={<SettingsMenuButton />}
       />
 
       <div className="px-4 pt-5 pb-8 flex flex-col gap-5">
@@ -220,15 +196,6 @@ export default function Profile() {
         )}
       </div>
 
-      {/* 設定シート */}
-      {showSettings && user && (
-        <UserSettingsSheet
-          homePref={homePref}
-          displayName={displayName}
-          onSave={handleSave}
-          onClose={() => setShowSettings(false)}
-        />
-      )}
     </Layout>
   );
 }

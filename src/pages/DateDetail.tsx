@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ExternalLink, Heart, Plus } from 'lucide-react';
 import Layout from '../components/Layout';
 import Header from '../components/Header';
-import { listEventsByDate, addLikeTap, setReaction, grantPoints, REACTION_POINTS } from '../lib/api';
+import { listEventsByDate, addLikeTap, setReaction } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import type { CalendarEvent, ReactionType, ReactionCounts } from '../types';
 
@@ -223,16 +223,6 @@ function ReactionButton({
     try {
       const newCounts = await setReaction(event.id, userId, reactionType);
       onReactionChange(event.id, newCounts, reactionType);
-      // 投稿者（自分以外）にポイント付与
-      if (reactionType && event.authorId && event.authorId !== userId) {
-        grantPoints(
-          event.authorId,
-          REACTION_POINTS[reactionType],
-          'reaction_received',
-          event.id,
-          reactionType,
-        ).catch(console.error);
-      }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
