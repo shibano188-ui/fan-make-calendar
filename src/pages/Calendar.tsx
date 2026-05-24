@@ -597,9 +597,12 @@ export default function Calendar() {
   const applyParsedToPost = (parsed: ParsedEvent) => {
     const VALID_CATS = POST_CATEGORIES as unknown as string[];
     const filled = (c: InlineCard) => c.title.trim() !== '' || c.date !== postDate;
+    const titleLower = (parsed.title ?? '').toLowerCase();
+    const matchedWork = participatedWorks.find(w => w.name && titleLower.includes(w.name.toLowerCase()));
     const parsedCard = (base: InlineCard): InlineCard => ({
       ...base,
       collapsed: false,
+      workId:         matchedWork ? matchedWork.id : base.workId,
       title:          parsed.title          ?? base.title,
       date:           parsed.date           ?? base.date,
       time:           parsed.time           ?? base.time,
@@ -625,6 +628,17 @@ export default function Calendar() {
   useEffect(() => {
     sessionStorage.removeItem('pendingParsedEvent');
   }, []);
+
+  // Web Share Target: participatedWorks読み込み後にタイトルから保存先を自動選択
+  useEffect(() => {
+    if (!shareData || !participatedWorks.length) return;
+    setPostCards(prev => prev.map(card => {
+      if (card.workId !== '') return card;
+      const titleLower = card.title.toLowerCase();
+      const match = participatedWorks.find(w => w.name && titleLower.includes(w.name.toLowerCase()));
+      return match ? { ...card, workId: match.id } : card;
+    }));
+  }, [participatedWorks]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openPostForm = (date: string) => {
     const defaultWorkId = !workId && participatedWorks.length > 0 ? participatedWorks[0].id : '';

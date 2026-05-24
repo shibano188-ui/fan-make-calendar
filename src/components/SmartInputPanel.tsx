@@ -57,7 +57,7 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
         category:       clean(raw.category),
         prefecture:     clean(raw.prefecture),
         locationDetail: clean(raw.locationDetail),
-        link:           clean(raw.link),
+        link:           clean(raw.link) ?? (isUrl ? urlValue.trim() : null),
         memo:           clean(raw.memo),
       };
       onApply(parsed);
