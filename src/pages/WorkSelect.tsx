@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, ChevronRight } from 'lucide-react';
+import { Search, ChevronRight, MoreVertical, LogOut, Trash2 } from 'lucide-react';
 import Layout from '../components/Layout';
 import SettingsMenuButton from '../components/SettingsMenuButton';
-import { listWorks, searchWorks, getOrCreateWork, upsertParticipation, listRecentWorks } from '../lib/api';
+import { listWorks, searchWorks, getOrCreateWork, upsertParticipation, listRecentWorks, leaveCalendar, deleteWork } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import type { Work } from '../lib/api';
 
@@ -26,6 +26,58 @@ function WorkItem({ name, count, onClick }: { name: string; count: number; onCli
   );
 }
 
+function ParticipatedWorkItem({
+  work,
+  onLeave,
+  onDelete,
+}: {
+  work: Work;
+  onLeave: () => void;
+  onDelete: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  return (
+    <div className="relative">
+      <div className="w-full flex items-center justify-between px-4 py-3.5 bg-bg-secondary rounded-xl">
+        <div>
+          <p className="text-label-primary font-semibold text-[15px]">{work.name}</p>
+          <p className="text-label-secondary text-xs mt-0.5">参加者 {formatCount(work.participantCount)}人</p>
+        </div>
+        <div ref={menuRef} className="relative">
+          <button
+            onClick={() => setMenuOpen(v => !v)}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-label-secondary active:opacity-60"
+          >
+            <MoreVertical size={16} />
+          </button>
+          {menuOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+              <div className="absolute right-0 top-9 z-50 bg-bg-secondary border border-subtle rounded-xl overflow-hidden shadow-lg w-48">
+                <button
+                  onClick={() => { setMenuOpen(false); onLeave(); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-label-primary active:opacity-60"
+                >
+                  <LogOut size={14} className="text-label-secondary" />カレンダーから抜ける
+                </button>
+                <div className="h-px bg-subtle mx-3" />
+                <button
+                  onClick={() => { setMenuOpen(false); onDelete(); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 active:opacity-60"
+                >
+                  <Trash2 size={14} />カレンダーを削除
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-6">
@@ -45,7 +97,6 @@ export default function WorkSelect() {
   const [loadingPopular, setLoadingPopular] = useState(true);
   const [error, setError] = useState('');
 
-  // 人気作品を取得
   useEffect(() => {
     listWorks()
       .then(setPopularWorks)
@@ -53,13 +104,11 @@ export default function WorkSelect() {
       .finally(() => setLoadingPopular(false));
   }, []);
 
-  // 最近開いた作品を取得（ユーザー認証後）
   useEffect(() => {
     if (!user) return;
     listRecentWorks(user.id).then(setRecentWorks).catch(console.error);
   }, [user?.id]);
 
-  // 検索（デバウンス300ms）
   useEffect(() => {
     const q = query.trim();
     if (!q) { setSearchResults([]); return; }
@@ -91,6 +140,29 @@ export default function WorkSelect() {
     }
   };
 
+  const handleLeave = async (work: Work) => {
+    if (!user) return;
+    if (!window.confirm(`「${work.name}」から抜けますか？`)) return;
+    try {
+      await leaveCalendar(work.id, user.id);
+      setRecentWorks(prev => prev.filter(w => w.id !== work.id));
+    } catch {
+      setError('操作に失敗しました');
+    }
+  };
+
+  const handleDelete = async (work: Work) => {
+    if (!user) return;
+    if (!window.confirm(`「${work.name}」を完全に削除しますか？\nこの操作は元に戻せません。`)) return;
+    try {
+      await deleteWork(work.id);
+      setRecentWorks(prev => prev.filter(w => w.id !== work.id));
+      setPopularWorks(prev => prev.filter(w => w.id !== work.id));
+    } catch {
+      setError('削除に失敗しました');
+    }
+  };
+
   const q = query.trim();
   const exactMatch = q ? searchResults.some(w => w.name.toLowerCase() === q.toLowerCase()) : false;
   const canCreate = q.length > 0 && !exactMatch;
@@ -109,7 +181,6 @@ export default function WorkSelect() {
         </div>
       </div>
 
-      {/* 検索ボックス */}
       <div className="px-5 mb-6">
         <div className="flex items-center gap-3 bg-bg-secondary rounded-xl px-4 py-3">
           <Search size={16} className="text-label-tertiary flex-shrink-0" />
@@ -123,9 +194,7 @@ export default function WorkSelect() {
         </div>
       </div>
 
-      {error && (
-        <p className="px-5 mb-4 text-red-400 text-xs">{error}</p>
-      )}
+      {error && <p className="px-5 mb-4 text-red-400 text-xs">{error}</p>}
 
       <div className="px-5">
         {showSearchResults ? (
@@ -162,7 +231,12 @@ export default function WorkSelect() {
             {recentWorks.length > 0 && (
               <Section title="参加中のカレンダー">
                 {recentWorks.map(w => (
-                  <WorkItem key={w.id} name={w.name} count={w.participantCount} onClick={() => handleSelect(w)} />
+                  <ParticipatedWorkItem
+                    key={w.id}
+                    work={w}
+                    onLeave={() => handleLeave(w)}
+                    onDelete={() => handleDelete(w)}
+                  />
                 ))}
               </Section>
             )}

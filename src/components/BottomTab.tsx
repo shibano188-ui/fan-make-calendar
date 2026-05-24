@@ -8,8 +8,6 @@ const tabs = [
 ];
 
 function getCalendarPath(): string {
-  const lastId = localStorage.getItem('last_calendar_workId');
-  if (lastId) return `/calendar/${lastId}`;
   return '/calendar';
 }
 

@@ -28,6 +28,12 @@ const DAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
 const POST_CATEGORIES = ['単行本', 'グッズ', 'イベント', '誕生日', '配信'] as const;
 type PostCategory = (typeof POST_CATEGORIES)[number];
 
+// 作品ごとの識別カラー（最大8作品まで色分け、以降はループ）
+const WORK_COLORS = [
+  '#FF6B6B', '#4FC3F7', '#81C784', '#FFB74D',
+  '#BA68C8', '#4DB6AC', '#F06292', '#A1887F',
+];
+
 const inputCls =
   'w-full bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong';
 
@@ -637,23 +643,33 @@ export default function Calendar() {
     return [...personalEvents.filter(e => e.date.startsWith(prefix))].sort((a, b) => a.date.localeCompare(b.date));
   }, [personalEvents, year, month]);
 
-  // カレンダーセル用: 日付→タイトル[]
+  // 作品ID → カラーのマップ
+  const workColorMap = useMemo(() => {
+    const m = new Map<string, string>();
+    participatedWorks.forEach((w, i) => m.set(w.id, WORK_COLORS[i % WORK_COLORS.length]));
+    return m;
+  }, [participatedWorks]);
+
+  // カレンダーセル用: 日付→{title, color}[]
   const cellEventsByDate = useMemo(() => {
-    const map = new Map<string, string[]>();
+    const map = new Map<string, Array<{ title: string; color: string }>>();
     for (const e of visibleEvents) {
       const arr = map.get(e.date) ?? [];
-      arr.push(e.title);
+      const color = e.workId
+        ? (workColorMap.get(e.workId) ?? 'var(--accent-color)')
+        : 'var(--accent-color)';
+      arr.push({ title: e.title, color });
       map.set(e.date, arr);
     }
     if (!workId) {
       for (const pe of monthPersonalEvents) {
         const arr = map.get(pe.date) ?? [];
-        arr.push(pe.title);
+        arr.push({ title: pe.title, color: '#888888' });
         map.set(pe.date, arr);
       }
     }
     return map;
-  }, [workId, visibleEvents, monthPersonalEvents]);
+  }, [workId, visibleEvents, monthPersonalEvents, workColorMap]);
 
   // ボトムシート用: 選択日の作品イベント
   const sheetWorkEvents = useMemo(
@@ -785,18 +801,24 @@ export default function Calendar() {
             className="flex-shrink-0 flex items-center gap-2 px-4 py-2 overflow-x-auto border-b"
             style={{ borderColor: 'var(--border-subtle)' }}
           >
-            {participatedWorks.map(w => {
+            {participatedWorks.map((w, i) => {
               const hidden = hiddenWorkIds.has(w.id);
+              const color = WORK_COLORS[i % WORK_COLORS.length];
               return (
                 <button
                   key={w.id}
                   onClick={() => toggleWorkVisibility(w.id)}
-                  className="flex-shrink-0 text-xs px-3 py-1 rounded-full border transition-all active:opacity-70"
+                  className="flex-shrink-0 flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border transition-all active:opacity-70"
                   style={{
-                    borderColor: hidden ? 'var(--border-subtle)' : 'var(--accent-color)',
-                    color: hidden ? 'var(--label-tertiary)' : 'var(--accent-color)',
+                    borderColor: hidden ? 'var(--border-subtle)' : color,
+                    color: hidden ? 'var(--label-tertiary)' : color,
+                    opacity: hidden ? 0.5 : 1,
                   }}
                 >
+                  <span
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ background: hidden ? 'var(--label-tertiary)' : color }}
+                  />
                   {w.name}
                 </button>
               );
@@ -860,7 +882,7 @@ export default function Calendar() {
                   const isToday = dateStr === todayStr;
                   const isSelected = dateStr === selectedDate && isCurrentMonth && sheetOpen;
                   const col = idx % 7;
-                  const cellTitles = isCurrentMonth ? (cellEventsByDate.get(dateStr) ?? []) : [];
+                  const cellItems = isCurrentMonth ? (cellEventsByDate.get(dateStr) ?? []) : [];
                   return (
                     <button
                       key={dateStr + idx}
@@ -882,26 +904,28 @@ export default function Calendar() {
                       >
                         {date.getDate()}
                       </div>
-                      {cellTitles.length > 0 ? (
+                      {cellItems.length > 0 ? (
                         <div className="w-full px-[2px] flex flex-col gap-[1px] mt-[1px] overflow-hidden">
-                          {cellTitles.slice(0, 2).map((title, ti) => (
+                          {cellItems.slice(0, 2).map((item, ti) => (
                             <div
                               key={ti}
                               className="w-full text-[8px] leading-none truncate rounded-[2px] px-[2px] py-[1px]"
                               style={{
-                                background: isToday || isSelected ? 'rgba(255,255,255,0.25)' : 'rgba(128,128,128,0.18)',
-                                color: isToday || isSelected ? 'var(--bg-primary)' : 'var(--accent-color)',
+                                background: isToday || isSelected
+                                  ? 'rgba(255,255,255,0.25)'
+                                  : item.color.startsWith('#') ? item.color + '28' : 'rgba(128,128,128,0.18)',
+                                color: isToday || isSelected ? 'var(--bg-primary)' : item.color,
                               }}
                             >
-                              {title}
+                              {item.title}
                             </div>
                           ))}
-                          {cellTitles.length > 2 && (
+                          {cellItems.length > 2 && (
                             <div
                               className="text-[8px] text-center leading-none py-[1px]"
                               style={{ color: isToday || isSelected ? 'var(--bg-primary)' : 'var(--label-tertiary)' }}
                             >
-                              +{cellTitles.length - 2}
+                              +{cellItems.length - 2}
                             </div>
                           )}
                         </div>
