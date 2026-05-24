@@ -41,7 +41,7 @@ export default function ShareTarget() {
           category:       clean(raw.category),
           prefecture:     clean(raw.prefecture),
           locationDetail: clean(raw.locationDetail),
-          link:           clean(raw.link) ?? sharedUrl,
+          link:           sharedUrl,
           memo:           clean(raw.memo),
         };
         sessionStorage.setItem('pendingParsedEvent', JSON.stringify(parsed));

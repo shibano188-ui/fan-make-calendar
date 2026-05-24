@@ -39,35 +39,50 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
   const parseAndApply = async (body: object, isUrl = false) => {
     setLoading(true);
     setError(null);
-    try {
-      const res = await fetch('/api/parse-event', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`${res.status}: ${text.slice(0, 400)}`);
+
+    const MAX_RETRIES = 3;
+    let lastRaw: Record<string, unknown> | null = null;
+    let lastError: string | null = null;
+
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const res = await fetch('/api/parse-event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          throw new Error(`${res.status}: ${text.slice(0, 400)}`);
+        }
+        lastRaw = await res.json();
+        lastError = null;
+        if (clean(lastRaw?.title)) break;
+      } catch (e) {
+        lastError = e instanceof Error ? e.message : '不明なエラー';
       }
-      const raw = await res.json();
-      const parsed: ParsedEvent = {
-        title:          clean(raw.title),
-        date:           clean(raw.date),
-        time:           clean(raw.time),
-        category:       clean(raw.category),
-        prefecture:     clean(raw.prefecture),
-        locationDetail: clean(raw.locationDetail),
-        link:           clean(raw.link) ?? (isUrl ? urlValue.trim() : null),
-        memo:           clean(raw.memo),
-      };
-      onApply(parsed);
-      if (isUrl) setUrlValue('');
-      showFlash('フォームに反映しました');
-    } catch (e) {
-      setError(`解析に失敗しました（${e instanceof Error ? e.message : '不明なエラー'}）`);
-    } finally {
-      setLoading(false);
     }
+
+    if (!lastRaw) {
+      setError(`解析に失敗しました（${lastError ?? '不明なエラー'}）`);
+      setLoading(false);
+      return;
+    }
+
+    const parsed: ParsedEvent = {
+      title:          clean(lastRaw.title),
+      date:           clean(lastRaw.date),
+      time:           clean(lastRaw.time),
+      category:       clean(lastRaw.category),
+      prefecture:     clean(lastRaw.prefecture),
+      locationDetail: clean(lastRaw.locationDetail),
+      link:           isUrl ? urlValue.trim() : clean(lastRaw.link),
+      memo:           clean(lastRaw.memo),
+    };
+    onApply(parsed);
+    if (isUrl) setUrlValue('');
+    showFlash('フォームに反映しました');
+    setLoading(false);
   };
 
   const handleUrlParse = () => {
