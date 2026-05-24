@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ChevronDown, ChevronUp, X, Plus } from 'lucide-react';
 import Layout from '../components/Layout';
 import Header from '../components/Header';
+import SmartInputPanel, { type ParsedEvent } from '../components/SmartInputPanel';
 import { createEvents } from '../lib/api';
 import { PREFECTURES } from '../lib/prefectures';
 import { useAuth } from '../contexts/AuthContext';
@@ -268,6 +269,33 @@ export default function PostCreate() {
   const addCard = () =>
     setCards(prev => [...prev.map(c => ({ ...c, collapsed: true })), newCard()]);
 
+  const applyParsed = (parsed: ParsedEvent) => {
+    const VALID_CATS = CATEGORIES as unknown as string[];
+    const filled = (c: PostCard) => c.title.trim() !== '' || c.date !== '';
+    const parsedCard = (base: PostCard): PostCard => ({
+      ...base,
+      collapsed: false,
+      title:          parsed.title          ?? base.title,
+      date:           parsed.date           ?? base.date,
+      time:           parsed.time           ?? base.time,
+      category:       VALID_CATS.includes(parsed.category ?? '')
+                        ? (parsed.category as typeof base.category)
+                        : base.category,
+      customCategory: !VALID_CATS.includes(parsed.category ?? '') && parsed.category
+                        ? parsed.category
+                        : base.customCategory,
+      prefecture:     parsed.prefecture     ?? base.prefecture,
+      locationDetail: parsed.locationDetail ?? base.locationDetail,
+      link:           parsed.link           ?? base.link,
+      memo:           parsed.memo           ?? base.memo,
+    });
+    setCards(prev => {
+      const [first, ...rest] = prev;
+      if (!filled(first)) return [parsedCard(first), ...rest];
+      return [...prev.map(c => ({ ...c, collapsed: true })), parsedCard({ ...newCard() })];
+    });
+  };
+
   const handleSubmit = async () => {
     if (!user) { setError('認証エラーです。リロードしてください'); return; }
     const invalid = cards.find(c => !c.title.trim() || !c.date);
@@ -305,6 +333,8 @@ export default function PostCreate() {
       />
 
       <div className="px-4 pt-4 pb-6 flex flex-col gap-3">
+        <SmartInputPanel onApply={applyParsed} />
+
         {error && <p className="text-red-400 text-xs px-1">{error}</p>}
 
         {cards.map((card, i) => (

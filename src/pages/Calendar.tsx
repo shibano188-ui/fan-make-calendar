@@ -18,6 +18,7 @@ import { PrefectureSearch } from '../components/UserSettingsSheet';
 import UserSettingsSheet from '../components/UserSettingsSheet';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import SmartInputPanel, { type ParsedEvent } from '../components/SmartInputPanel';
 import type { CalendarEvent } from '../types';
 
 export type { CalendarEvent };
@@ -568,6 +569,65 @@ export default function Calendar() {
     setPostCards(prev => prev.map(c => c.id === id ? { ...c, collapsed: !c.collapsed } : c));
   const removePostCard = (id: string) =>
     setPostCards(prev => prev.filter(c => c.id !== id));
+
+  const applyParsedToPost = (parsed: ParsedEvent) => {
+    const VALID_CATS = POST_CATEGORIES as unknown as string[];
+    const filled = (c: InlineCard) => c.title.trim() !== '' || c.date !== postDate;
+    const parsedCard = (base: InlineCard): InlineCard => ({
+      ...base,
+      collapsed: false,
+      title:          parsed.title          ?? base.title,
+      date:           parsed.date           ?? base.date,
+      time:           parsed.time           ?? base.time,
+      category:       VALID_CATS.includes(parsed.category ?? '')
+                        ? (parsed.category as typeof base.category)
+                        : base.category,
+      customCategory: !VALID_CATS.includes(parsed.category ?? '') && parsed.category
+                        ? parsed.category
+                        : base.customCategory,
+      prefecture:     parsed.prefecture     ?? base.prefecture,
+      locationDetail: parsed.locationDetail ?? base.locationDetail,
+      link:           parsed.link           ?? base.link,
+      memo:           parsed.memo           ?? base.memo,
+    });
+    const defaultWorkId = !workId && participatedWorks.length > 0 ? participatedWorks[0].id : '';
+    setPostCards(prev => {
+      const [first, ...rest] = prev;
+      if (!filled(first)) return [parsedCard(first), ...rest];
+      return [...prev.map(c => ({ ...c, collapsed: true })), parsedCard({ ...newInlineCard(postDate), workId: defaultWorkId })];
+    });
+  };
+
+  // Web Share Target から来た場合、sessionStorageの解析済みデータを投稿フォームに展開
+  useEffect(() => {
+    const raw = sessionStorage.getItem('pendingParsedEvent');
+    if (!raw) return;
+    sessionStorage.removeItem('pendingParsedEvent');
+    try {
+      const parsed = JSON.parse(raw);
+      const defaultWorkId = !workId && participatedWorks.length > 0 ? participatedWorks[0].id : '';
+      const today = new Date().toISOString().slice(0, 10);
+      const date = parsed.date ?? today;
+      const VALID_CATS = POST_CATEGORIES as unknown as string[];
+      setPostDate(date);
+      setPostCards([{
+        ...newInlineCard(date),
+        workId:         defaultWorkId,
+        title:          parsed.title          ?? '',
+        time:           parsed.time           ?? '',
+        category:       VALID_CATS.includes(parsed.category ?? '') ? parsed.category as PostCategory : '',
+        customCategory: !VALID_CATS.includes(parsed.category ?? '') && parsed.category ? parsed.category : '',
+        prefecture:     parsed.prefecture     ?? '',
+        locationDetail: parsed.locationDetail ?? '',
+        link:           parsed.link           ?? '',
+        memo:           parsed.memo           ?? '',
+        collapsed: false,
+      }]);
+      setPostError('');
+      setSheetOpen(true);
+      setPostPanelOpen(true);
+    } catch { /* ignore */ }
+  }, [participatedWorks]);
 
   const openPostForm = (date: string) => {
     const defaultWorkId = !workId && participatedWorks.length > 0 ? participatedWorks[0].id : '';
@@ -1234,6 +1294,7 @@ export default function Calendar() {
             } as React.CSSProperties}
           >
             <div className="px-4 pt-2 pb-8 flex flex-col gap-3">
+              <SmartInputPanel onApply={applyParsedToPost} />
               {postCards.map((card, i) => (
                 <InlineCardItem
                   key={card.id}
