@@ -1,7 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '');
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 const EXTRACT_PROMPT = `以下のイベント情報から、次のJSON形式でデータを抽出してください。
 日本語で回答し、情報がない・不明な場合はnullを設定してください。
@@ -64,32 +65,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    let userContent: Anthropic.MessageParam['content'];
+    let result;
 
     if (imageBase64) {
-      userContent = [
-        {
-          type: 'image',
-          source: {
-            type: 'base64',
-            media_type: (mimeType ?? 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-            data: imageBase64,
-          },
-        },
-        { type: 'text', text: `この画像のイベント情報を抽出してください。\n\n${EXTRACT_PROMPT}` },
-      ];
+      result = await model.generateContent([
+        { inlineData: { data: imageBase64, mimeType: mimeType ?? 'image/jpeg' } },
+        `この画像のイベント情報を抽出してください。\n\n${EXTRACT_PROMPT}`,
+      ]);
     } else {
       const pageText = await fetchPageText(url!);
-      userContent = `${pageText}\n\n---\n${EXTRACT_PROMPT}`;
+      result = await model.generateContent(`${pageText}\n\n---\n${EXTRACT_PROMPT}`);
     }
 
-    const message = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 512,
-      messages: [{ role: 'user', content: userContent }],
-    });
-
-    const rawText = message.content[0].type === 'text' ? message.content[0].text : '';
+    const rawText = result.response.text();
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return res.status(422).json({ error: 'Could not parse response' });
 
