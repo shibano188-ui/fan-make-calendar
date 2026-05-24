@@ -271,28 +271,30 @@ export default function PostCreate() {
 
   const applyParsed = (parsed: ParsedEvent) => {
     const VALID_CATS = CATEGORIES as unknown as string[];
+    const filled = (c: PostCard) => c.title.trim() !== '' || c.date !== '';
+    const parsedCard = (base: PostCard): PostCard => ({
+      ...base,
+      collapsed: false,
+      title:          parsed.title          ?? base.title,
+      date:           parsed.date           ?? base.date,
+      time:           parsed.time           ?? base.time,
+      category:       VALID_CATS.includes(parsed.category ?? '')
+                        ? (parsed.category as typeof base.category)
+                        : base.category,
+      customCategory: !VALID_CATS.includes(parsed.category ?? '') && parsed.category
+                        ? parsed.category
+                        : base.customCategory,
+      prefecture:     parsed.prefecture     ?? base.prefecture,
+      locationDetail: parsed.locationDetail ?? base.locationDetail,
+      link:           parsed.link           ?? base.link,
+      memo:           parsed.memo           ?? base.memo,
+    });
     setCards(prev => {
       const [first, ...rest] = prev;
-      return [
-        {
-          ...first,
-          collapsed: false,
-          title:         parsed.title         ?? first.title,
-          date:          parsed.date           ?? first.date,
-          time:          parsed.time           ?? first.time,
-          category:      VALID_CATS.includes(parsed.category ?? '')
-                           ? (parsed.category as typeof first.category)
-                           : first.category,
-          customCategory: !VALID_CATS.includes(parsed.category ?? '') && parsed.category
-                           ? parsed.category
-                           : first.customCategory,
-          prefecture:    parsed.prefecture     ?? first.prefecture,
-          locationDetail: parsed.locationDetail ?? first.locationDetail,
-          link:          parsed.link           ?? first.link,
-          memo:          parsed.memo           ?? first.memo,
-        },
-        ...rest,
-      ];
+      if (!filled(first)) {
+        return [parsedCard(first), ...rest];
+      }
+      return [...prev.map(c => ({ ...c, collapsed: true })), parsedCard({ ...newCard() })];
     });
   };
 

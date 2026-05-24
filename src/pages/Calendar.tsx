@@ -572,28 +572,31 @@ export default function Calendar() {
 
   const applyParsedToPost = (parsed: ParsedEvent) => {
     const VALID_CATS = POST_CATEGORIES as unknown as string[];
+    const filled = (c: InlineCard) => c.title.trim() !== '' || c.date !== postDate;
+    const parsedCard = (base: InlineCard): InlineCard => ({
+      ...base,
+      collapsed: false,
+      title:          parsed.title          ?? base.title,
+      date:           parsed.date           ?? base.date,
+      time:           parsed.time           ?? base.time,
+      category:       VALID_CATS.includes(parsed.category ?? '')
+                        ? (parsed.category as typeof base.category)
+                        : base.category,
+      customCategory: !VALID_CATS.includes(parsed.category ?? '') && parsed.category
+                        ? parsed.category
+                        : base.customCategory,
+      prefecture:     parsed.prefecture     ?? base.prefecture,
+      locationDetail: parsed.locationDetail ?? base.locationDetail,
+      link:           parsed.link           ?? base.link,
+      memo:           parsed.memo           ?? base.memo,
+    });
+    const defaultWorkId = !workId && participatedWorks.length > 0 ? participatedWorks[0].id : '';
     setPostCards(prev => {
       const [first, ...rest] = prev;
-      return [
-        {
-          ...first,
-          collapsed: false,
-          title:          parsed.title          ?? first.title,
-          date:           parsed.date           ?? first.date,
-          time:           parsed.time           ?? first.time,
-          category:       VALID_CATS.includes(parsed.category ?? '')
-                            ? (parsed.category as typeof first.category)
-                            : first.category,
-          customCategory: !VALID_CATS.includes(parsed.category ?? '') && parsed.category
-                            ? parsed.category
-                            : first.customCategory,
-          prefecture:     parsed.prefecture     ?? first.prefecture,
-          locationDetail: parsed.locationDetail ?? first.locationDetail,
-          link:           parsed.link           ?? first.link,
-          memo:           parsed.memo           ?? first.memo,
-        },
-        ...rest,
-      ];
+      if (!filled(first)) {
+        return [parsedCard(first), ...rest];
+      }
+      return [...prev.map(c => ({ ...c, collapsed: true })), parsedCard({ ...newInlineCard(postDate), workId: defaultWorkId })];
     });
   };
 
