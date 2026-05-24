@@ -18,6 +18,7 @@ import { PrefectureSearch } from '../components/UserSettingsSheet';
 import UserSettingsSheet from '../components/UserSettingsSheet';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import SmartInputPanel, { type ParsedEvent } from '../components/SmartInputPanel';
 import type { CalendarEvent } from '../types';
 
 export type { CalendarEvent };
@@ -568,6 +569,33 @@ export default function Calendar() {
     setPostCards(prev => prev.map(c => c.id === id ? { ...c, collapsed: !c.collapsed } : c));
   const removePostCard = (id: string) =>
     setPostCards(prev => prev.filter(c => c.id !== id));
+
+  const applyParsedToPost = (parsed: ParsedEvent) => {
+    const VALID_CATS = POST_CATEGORIES as unknown as string[];
+    setPostCards(prev => {
+      const [first, ...rest] = prev;
+      return [
+        {
+          ...first,
+          collapsed: false,
+          title:          parsed.title          ?? first.title,
+          date:           parsed.date           ?? first.date,
+          time:           parsed.time           ?? first.time,
+          category:       VALID_CATS.includes(parsed.category ?? '')
+                            ? (parsed.category as typeof first.category)
+                            : first.category,
+          customCategory: !VALID_CATS.includes(parsed.category ?? '') && parsed.category
+                            ? parsed.category
+                            : first.customCategory,
+          prefecture:     parsed.prefecture     ?? first.prefecture,
+          locationDetail: parsed.locationDetail ?? first.locationDetail,
+          link:           parsed.link           ?? first.link,
+          memo:           parsed.memo           ?? first.memo,
+        },
+        ...rest,
+      ];
+    });
+  };
 
   const openPostForm = (date: string) => {
     const defaultWorkId = !workId && participatedWorks.length > 0 ? participatedWorks[0].id : '';
@@ -1234,6 +1262,7 @@ export default function Calendar() {
             } as React.CSSProperties}
           >
             <div className="px-4 pt-2 pb-8 flex flex-col gap-3">
+              <SmartInputPanel onApply={applyParsedToPost} />
               {postCards.map((card, i) => (
                 <InlineCardItem
                   key={card.id}
