@@ -146,28 +146,34 @@ export async function listEventsByDate(workId: string, date: string, userId?: st
   }
 
   if (events.length > 0) {
-    const { data: allReactions } = await supabase
+    const { data: allLikes } = await supabase
       .from('likes')
-      .select('event_id, reaction_type, user_id')
+      .select('event_id, reaction_type, user_id, heart_tapped')
       .in('event_id', events.map(e => e.id));
 
     const countsMap: Record<string, ReactionCounts> = {};
     const userReactionMap: Record<string, ReactionType | null> = {};
+    const heartLikedSet = new Set<string>();
     events.forEach(e => {
       countsMap[e.id] = { like: 0, want: 0, hot: 0, amazing: 0, best: 0 };
       userReactionMap[e.id] = null;
     });
 
-    (allReactions ?? []).forEach(row => {
+    (allLikes ?? []).forEach(row => {
       const eid = row.event_id as string;
-      const rt = ((row.reaction_type as string) ?? 'like') as ReactionType;
-      if (eid in countsMap && rt in countsMap[eid]) countsMap[eid][rt]++;
-      if (userId && row.user_id === userId) userReactionMap[eid] = rt;
+      const rt = row.reaction_type as string | null;
+      if (rt && eid in countsMap && rt in countsMap[eid]) {
+        countsMap[eid][rt as ReactionType]++;
+      }
+      if (userId && row.user_id === userId) {
+        if (row.heart_tapped) heartLikedSet.add(eid);
+        if (rt) userReactionMap[eid] = rt as ReactionType;
+      }
     });
 
     return events.map(e => ({
       ...e,
-      likedByMe: userReactionMap[e.id] !== null,
+      likedByMe: heartLikedSet.has(e.id),
       userReaction: userReactionMap[e.id],
       reactionCounts: countsMap[e.id],
     }));
@@ -220,7 +226,9 @@ export async function setReaction(
   reactionType: ReactionType | null,
 ): Promise<ReactionCounts> {
   if (reactionType === null) {
-    await supabase.from('likes').delete()
+    // reaction_typeをNULLに戻す（heart_tappedは維持）
+    await supabase.from('likes')
+      .update({ reaction_type: null })
       .eq('event_id', eventId).eq('user_id', userId);
   } else {
     await supabase.from('likes').upsert(
@@ -229,19 +237,18 @@ export async function setReaction(
     );
   }
 
+  // reaction_typeがNULLでない行のみ集計（heart_tapとは独立）
   const { data } = await supabase
     .from('likes')
     .select('reaction_type')
-    .eq('event_id', eventId);
+    .eq('event_id', eventId)
+    .not('reaction_type', 'is', null);
 
   const counts: ReactionCounts = { like: 0, want: 0, hot: 0, amazing: 0, best: 0 };
   (data ?? []).forEach(row => {
-    const rt = ((row.reaction_type as string) ?? 'like') as ReactionType;
+    const rt = row.reaction_type as ReactionType;
     if (rt in counts) counts[rt]++;
   });
-
-  const total = Object.values(counts).reduce((a, b) => a + b, 0);
-  await supabase.from('events').update({ like_count: total }).eq('id', eventId);
 
   return counts;
 }
@@ -250,10 +257,11 @@ export async function setReaction(
 
 // 1タップ = +1（10回連打対応）
 export async function addLikeTap(eventId: string, userId: string): Promise<number> {
-  // likesテーブルにユーザー行を確保（初回のみ挿入）
-  await supabase
-    .from('likes')
-    .upsert({ event_id: eventId, user_id: userId }, { onConflict: 'event_id,user_id', ignoreDuplicates: true });
+  // heart_tapped = true でupsert（reaction_typeは上書きしない）
+  await supabase.from('likes').upsert(
+    { event_id: eventId, user_id: userId, heart_tapped: true },
+    { onConflict: 'event_id,user_id' },
+  );
 
   // like_countをインクリメント
   const { data: ev } = await supabase.from('events').select('like_count').eq('id', eventId).single();
