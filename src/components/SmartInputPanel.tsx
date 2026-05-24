@@ -42,7 +42,7 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
       });
       if (!res.ok) {
         const body = await res.text().catch(() => '');
-        throw new Error(`${res.status}: ${body.slice(0, 120)}`);
+        throw new Error(`${res.status}: ${body.slice(0, 400)}`);
       }
       const parsed: ParsedEvent = await res.json();
       onApply(parsed);
