@@ -68,7 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (imageBase64) {
       const completion = await groq.chat.completions.create({
-        model: 'llama-3.2-11b-vision-preview',
+        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
         max_tokens: 512,
         messages: [{
           role: 'user',
