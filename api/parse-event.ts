@@ -1,8 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import Groq from 'groq-sdk';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '');
-const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const EXTRACT_PROMPT = `以下のイベント情報から、次のJSON形式でデータを抽出してください。
 日本語で回答し、情報がない・不明な場合はnullを設定してください。
@@ -65,19 +64,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    let result;
+    let rawText: string;
 
     if (imageBase64) {
-      result = await model.generateContent([
-        { inlineData: { data: imageBase64, mimeType: mimeType ?? 'image/jpeg' } },
-        `この画像のイベント情報を抽出してください。\n\n${EXTRACT_PROMPT}`,
-      ]);
+      const completion = await groq.chat.completions.create({
+        model: 'llama-3.2-11b-vision-preview',
+        max_tokens: 512,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'image_url',
+              image_url: { url: `data:${mimeType ?? 'image/jpeg'};base64,${imageBase64}` },
+            },
+            { type: 'text', text: `この画像のイベント情報を抽出してください。\n\n${EXTRACT_PROMPT}` },
+          ],
+        }],
+      });
+      rawText = completion.choices[0]?.message?.content ?? '';
     } else {
       const pageText = await fetchPageText(url!);
-      result = await model.generateContent(`${pageText}\n\n---\n${EXTRACT_PROMPT}`);
+      const completion = await groq.chat.completions.create({
+        model: 'llama-3.1-8b-instant',
+        max_tokens: 512,
+        messages: [{
+          role: 'user',
+          content: `${pageText}\n\n---\n${EXTRACT_PROMPT}`,
+        }],
+      });
+      rawText = completion.choices[0]?.message?.content ?? '';
     }
 
-    const rawText = result.response.text();
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return res.status(422).json({ error: 'Could not parse response' });
 
