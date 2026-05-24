@@ -35,7 +35,7 @@ export default function ShareTarget() {
       })
       .then(raw => {
         const parsed = {
-          title:          clean(raw.title) ?? sharedTitle || null,
+          title:          clean(raw.title) ?? (sharedTitle || null),
           date:           clean(raw.date),
           time:           clean(raw.time),
           category:       clean(raw.category),
