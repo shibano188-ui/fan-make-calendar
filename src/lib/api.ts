@@ -7,6 +7,26 @@ export const REACTION_POINTS: Record<ReactionType, number> = {
   like: 1, want: 2, hot: 2, amazing: 3, best: 5,
 };
 
+// ─── ポイント付与 ──────────────────────────────────────────────────
+
+export async function grantPoints(
+  userId: string,
+  amount: number,
+  reason: string,
+  referenceId?: string,
+  reactionType?: string,
+): Promise<void> {
+  await supabase.rpc('increment_points', { uid: userId, delta: amount });
+  await supabase.from('point_transactions').insert({
+    user_id: userId,
+    amount,
+    reason,
+    reference_id: referenceId ?? null,
+    reaction_type: reactionType ?? null,
+    status: 'confirmed',
+  });
+}
+
 export type Work = {
   id: string;
   name: string;
@@ -214,8 +234,15 @@ export async function createEvents(
     };
   }));
 
-  const { error } = await supabase.from('events').insert(rows);
+  const { data: inserted, error } = await supabase.from('events').insert(rows).select('id, pool');
   if (error) throw error;
+
+  // pool=0（重複なし）の投稿に +10pt 付与（fire and forget）
+  (inserted ?? [])
+    .filter(e => (e.pool as number) === 0)
+    .forEach(e => {
+      grantPoints(authorId, 10, 'post_created', e.id as string).catch(console.error);
+    });
 }
 
 // ─── リアクション ──────────────────────────────────────────────────

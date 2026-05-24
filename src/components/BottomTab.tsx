@@ -1,10 +1,11 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Search, CalendarDays, Palette } from 'lucide-react';
+import { Search, CalendarDays, Palette, User } from 'lucide-react';
 
 const tabs = [
-  { label: '作品', icon: Search, index: 0 },
+  { label: '作品',       icon: Search,       index: 0 },
   { label: 'カレンダー', icon: CalendarDays, index: 1 },
-  { label: '設定', icon: Palette, index: 2 },
+  { label: 'プロフィール', icon: User,        index: 2 },
+  { label: 'カスタマイズ', icon: Palette,    index: 3 },
 ];
 
 function getCalendarPath(): string {
@@ -14,12 +15,14 @@ function getCalendarPath(): string {
 function getTabPath(index: number): string {
   if (index === 0) return '/select';
   if (index === 1) return getCalendarPath();
+  if (index === 2) return '/profile';
   return '/customize';
 }
 
 function isTabActive(index: number, pathname: string): boolean {
   if (index === 0) return pathname === '/select';
   if (index === 1) return pathname === '/' || pathname.startsWith('/calendar');
+  if (index === 2) return pathname === '/profile';
   return pathname === '/customize';
 }
 
@@ -49,7 +52,7 @@ export default function BottomTab() {
                 strokeWidth={active ? 2 : 1.5}
               />
               <span
-                className={`text-[10px] ${active ? '' : 'text-label-tertiary'}`}
+                className={`text-[9px] ${active ? '' : 'text-label-tertiary'}`}
                 style={active ? { color: 'var(--accent-color)' } : {}}
               >
                 {label}

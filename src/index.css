@@ -49,6 +49,18 @@
   100% { transform: scale(1); }
 }
 
+@keyframes rainbowShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.rainbow-badge {
+  background: linear-gradient(90deg, #EC4899, #A78BFA, #60A5FA, #34D399, #FBBF24, #EC4899);
+  background-size: 200% 100%;
+  animation: rainbowShift 3s linear infinite;
+}
+
 body {
   margin: 0;
   background-color: var(--bg-primary);
