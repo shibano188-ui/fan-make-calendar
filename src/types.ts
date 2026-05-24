@@ -14,4 +14,6 @@ export type CalendarEvent = {
   likes: number;
   likedByMe: boolean;
   createdAt: string;
+  workId?: string;
+  workName?: string;
 };

@@ -73,7 +73,7 @@ export default function WorkSelect() {
     if (!user) return;
     try {
       await upsertParticipation(work.id, user.id);
-      navigate(`/calendar/${work.id}`);
+      navigate('/calendar');
     } catch {
       setError('参加に失敗しました');
     }
@@ -85,7 +85,7 @@ export default function WorkSelect() {
     try {
       const work = await getOrCreateWork(name);
       await upsertParticipation(work.id, user.id);
-      navigate(`/calendar/${work.id}`);
+      navigate('/calendar');
     } catch {
       setError('作品の作成に失敗しました');
     }

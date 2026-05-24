@@ -2,15 +2,17 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Palette, Plus, Heart, MoreVertical, Link2, LogOut, Trash2,
-  ChevronDown, ChevronUp, ChevronRight, X, Settings, Map,
+  ChevronDown, ChevronUp, ChevronRight, X, Settings, Map as MapIcon,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
 import {
   listEvents, getWorkById, leaveCalendar, deleteWork,
   createEvents, getHomePrefecture, saveHomePrefecture,
-  getDisplayName, saveDisplayName,
+  getDisplayName, saveDisplayName, listRecentWorks,
+  listAllParticipatedWorkEvents,
 } from '../lib/api';
+import type { Work } from '../lib/api';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { PrefectureSearch } from '../components/UserSettingsSheet';
 import UserSettingsSheet from '../components/UserSettingsSheet';
@@ -59,6 +61,7 @@ export function toDateStr(d: Date): string {
 
 interface InlineCard {
   id: string;
+  workId: string;
   title: string;
   date: string;
   time: string;
@@ -75,6 +78,7 @@ interface InlineCard {
 function newInlineCard(date: string): InlineCard {
   return {
     id: crypto.randomUUID(),
+    workId: '',
     title: '',
     date,
     time: '',
@@ -93,6 +97,7 @@ function InlineCardItem({
   card,
   index,
   total,
+  participatedWorks,
   onChange,
   onToggle,
   onRemove,
@@ -100,6 +105,7 @@ function InlineCardItem({
   card: InlineCard;
   index: number;
   total: number;
+  participatedWorks?: Work[];
   onChange: (patch: Partial<InlineCard>) => void;
   onToggle: () => void;
   onRemove: () => void;
@@ -124,7 +130,31 @@ function InlineCardItem({
 
       {!card.collapsed && (
         <div className="px-4 pb-4 flex flex-col gap-4 border-t border-faint">
-          <div className="pt-3">
+          {participatedWorks && participatedWorks.length > 0 && (
+            <div className="pt-3">
+              <label className="text-label-tertiary text-xs mb-1.5 block">保存先</label>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => onChange({ workId: '' })}
+                  className={`px-3 py-1 rounded-full text-xs border transition-colors ${!card.workId ? 'border-selected text-label-primary bg-label-primary/10' : 'border-default text-label-secondary'}`}
+                >
+                  個人
+                </button>
+                {participatedWorks.map(w => (
+                  <button
+                    key={w.id}
+                    type="button"
+                    onClick={() => onChange({ workId: w.id })}
+                    className={`px-3 py-1 rounded-full text-xs border transition-colors ${card.workId === w.id ? 'border-selected text-label-primary bg-label-primary/10' : 'border-default text-label-secondary'}`}
+                  >
+                    {w.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className={participatedWorks && participatedWorks.length > 0 ? '' : 'pt-3'}>
             <label className="text-label-tertiary text-xs mb-1.5 block">タイトル <span className="text-red-400">*</span></label>
             <input type="text" value={card.title} onChange={e => onChange({ title: e.target.value })} placeholder="例：単行本 第15巻 発売" className={inputCls} />
           </div>
@@ -346,6 +376,9 @@ export default function Calendar() {
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [showUserSettings, setShowUserSettings] = useState(false);
 
+  const [participatedWorks, setParticipatedWorks] = useState<Work[]>([]);
+  const [hiddenWorkIds, setHiddenWorkIds] = useState<Set<string>>(new Set());
+
   const [postPanelOpen, setPostPanelOpen] = useState(false);
   const [postDate, setPostDate] = useState(todayStr);
   const [selectedDate, setSelectedDate] = useState(todayStr);
@@ -430,6 +463,31 @@ export default function Calendar() {
     setPersonalEvents(loadPersonalEvents());
   }, [workId]);
 
+  // MyCalendar: 参加中の作品リストを取得
+  useEffect(() => {
+    if (workId || !user) return;
+    listRecentWorks(user.id).then(setParticipatedWorks).catch(console.error);
+  }, [workId, user?.id]);
+
+  // MyCalendar: 参加中の全作品のイベントを取得
+  useEffect(() => {
+    if (workId || !user) return;
+    setLoading(true);
+    setError('');
+    listAllParticipatedWorkEvents(user.id, year, month)
+      .then(setEvents)
+      .catch(() => setError('イベントの読み込みに失敗しました'))
+      .finally(() => setLoading(false));
+  }, [workId, user?.id, year, month, location.key]);
+
+  const toggleWorkVisibility = (wId: string) =>
+    setHiddenWorkIds(prev => {
+      const next = new Set(prev);
+      if (next.has(wId)) next.delete(wId);
+      else next.add(wId);
+      return next;
+    });
+
   const activeFilterPrefs = useMemo((): Set<string> | null => {
     if (filterMode === 'region') {
       const r = REGIONS.find(x => x.name === filterValue);
@@ -455,7 +513,11 @@ export default function Calendar() {
     return monthEvents.filter(e => !e.prefecture || activeFilterPrefs.has(e.prefecture));
   }, [monthEvents, activeFilterPrefs]);
 
-  const filteredEventDates = useMemo(() => new Set(filteredEvents.map(e => e.date)), [filteredEvents]);
+  // 表示中のイベント（作品非表示フィルター適用済み）
+  const visibleEvents = useMemo(() => {
+    if (workId) return filteredEvents;
+    return filteredEvents.filter(e => !e.workId || !hiddenWorkIds.has(e.workId));
+  }, [workId, filteredEvents, hiddenWorkIds]);
 
   const prevMonth = () => {
     if (month === 0) { setYear(y => y - 1); setMonth(11); }
@@ -506,35 +568,55 @@ export default function Calendar() {
     }
     setPostError('');
     setPostSubmitting(true);
+    const toEventPayload = (c: InlineCard) => ({
+      title: c.title.trim(), date: c.date, time: c.time || undefined,
+      category: c.category || c.customCategory.trim() || undefined,
+      link: c.link || undefined, memo: c.memo || undefined,
+      prefecture: c.prefecture || undefined,
+      locationDetail: c.locationDetail || undefined,
+      locationMapLink: c.locationMapLink || undefined,
+    });
+    const toPersonalEvent = (c: InlineCard): PersonalEvent => ({
+      id: crypto.randomUUID(), title: c.title.trim(), date: c.date,
+      ...(c.time && { time: c.time }),
+      ...((c.category || c.customCategory.trim()) && { category: c.category || c.customCategory.trim() }),
+      ...(c.prefecture && { prefecture: c.prefecture }),
+      ...(c.locationDetail && { locationDetail: c.locationDetail }),
+      ...(c.locationMapLink && { locationMapLink: c.locationMapLink }),
+      ...(c.link && { link: c.link }),
+      ...(c.memo.trim() && { memo: c.memo.trim() }),
+    });
     try {
       if (workId && user) {
-        await createEvents(workId, postCards.map(c => ({
-          title: c.title.trim(),
-          date: c.date,
-          time: c.time || undefined,
-          category: c.category || c.customCategory.trim() || undefined,
-          link: c.link || undefined,
-          memo: c.memo || undefined,
-          prefecture: c.prefecture || undefined,
-          locationDetail: c.locationDetail || undefined,
-          locationMapLink: c.locationMapLink || undefined,
-        })), user.id);
+        await createEvents(workId, postCards.map(toEventPayload), user.id);
         listEvents(workId, year, month).then(setEvents).catch(() => {});
+      } else if (user) {
+        // MyCalendar: 作品ごとにグループ化して投稿
+        const workGroups = new Map<string, InlineCard[]>();
+        const personalCards: InlineCard[] = [];
+        for (const c of postCards) {
+          if (c.workId) {
+            const arr = workGroups.get(c.workId) ?? [];
+            arr.push(c);
+            workGroups.set(c.workId, arr);
+          } else {
+            personalCards.push(c);
+          }
+        }
+        for (const [wId, cards] of workGroups) {
+          await createEvents(wId, cards.map(toEventPayload), user.id);
+        }
+        if (personalCards.length > 0) {
+          const existing = loadPersonalEvents();
+          savePersonalEvents([...existing, ...personalCards.map(toPersonalEvent)]);
+          setPersonalEvents(loadPersonalEvents());
+        }
+        if (workGroups.size > 0) {
+          listAllParticipatedWorkEvents(user.id, year, month).then(setEvents).catch(() => {});
+        }
       } else {
         const existing = loadPersonalEvents();
-        const newEvts: PersonalEvent[] = postCards.map(c => ({
-          id: crypto.randomUUID(),
-          title: c.title.trim(),
-          date: c.date,
-          ...(c.time && { time: c.time }),
-          ...((c.category || c.customCategory.trim()) && { category: c.category || c.customCategory.trim() }),
-          ...(c.prefecture && { prefecture: c.prefecture }),
-          ...(c.locationDetail && { locationDetail: c.locationDetail }),
-          ...(c.locationMapLink && { locationMapLink: c.locationMapLink }),
-          ...(c.link && { link: c.link }),
-          ...(c.memo.trim() && { memo: c.memo.trim() }),
-        }));
-        savePersonalEvents([...existing, ...newEvts]);
+        savePersonalEvents([...existing, ...postCards.map(toPersonalEvent)]);
         setPersonalEvents(loadPersonalEvents());
       }
       closePostForm();
@@ -555,20 +637,56 @@ export default function Calendar() {
     return [...personalEvents.filter(e => e.date.startsWith(prefix))].sort((a, b) => a.date.localeCompare(b.date));
   }, [personalEvents, year, month]);
 
-  const displayEventDates = useMemo(() => {
-    if (workId) return filteredEventDates;
-    const prefix = `${year}-${String(month + 1).padStart(2, '0')}-`;
-    return new Set(personalEvents.filter(e => e.date.startsWith(prefix)).map(e => e.date));
-  }, [workId, filteredEventDates, personalEvents, year, month]);
+  // カレンダーセル用: 日付→タイトル[]
+  const cellEventsByDate = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const e of visibleEvents) {
+      const arr = map.get(e.date) ?? [];
+      arr.push(e.title);
+      map.set(e.date, arr);
+    }
+    if (!workId) {
+      for (const pe of monthPersonalEvents) {
+        const arr = map.get(pe.date) ?? [];
+        arr.push(pe.title);
+        map.set(pe.date, arr);
+      }
+    }
+    return map;
+  }, [workId, visibleEvents, monthPersonalEvents]);
 
-  const sheetSharedEvents = useMemo(
-    () => filteredEvents.filter(e => e.date === selectedDate),
-    [filteredEvents, selectedDate],
+  // ボトムシート用: 選択日の作品イベント
+  const sheetWorkEvents = useMemo(
+    () => visibleEvents.filter(e => e.date === selectedDate),
+    [visibleEvents, selectedDate],
   );
   const sheetPersonalEvents = useMemo(
     () => personalEvents.filter(e => e.date === selectedDate),
     [personalEvents, selectedDate],
   );
+
+  // 予定一覧ビュー用: 作品イベント+個人予定を日付順にまとめたリスト
+  type ListItem = {
+    id: string; date: string; title: string; time?: string;
+    category?: string; prefecture?: string; memo?: string;
+    tag: string; isPersonal: boolean; workId?: string;
+    likes?: number; likedByMe?: boolean;
+  };
+  const myCalendarListItems = useMemo((): ListItem[] => {
+    if (workId) return [];
+    const workItems: ListItem[] = visibleEvents.map(e => ({
+      id: e.id, date: e.date, title: e.title, time: e.time,
+      category: e.category, prefecture: e.prefecture,
+      tag: e.workName ?? '', isPersonal: false, workId: e.workId,
+      likes: e.likes, likedByMe: e.likedByMe,
+    }));
+    const personalItems: ListItem[] = monthPersonalEvents.map(pe => ({
+      id: pe.id, date: pe.date, title: pe.title, time: pe.time,
+      category: pe.category, prefecture: pe.prefecture, memo: pe.memo,
+      tag: '個人', isPersonal: true,
+    }));
+    return [...workItems, ...personalItems].sort((a, b) => a.date.localeCompare(b.date));
+  }, [workId, visibleEvents, monthPersonalEvents]);
 
   const selectedDateLabel = useMemo(() => {
     const d = new Date(selectedDate + 'T00:00:00');
@@ -578,7 +696,9 @@ export default function Calendar() {
     return `${m}月${day}日（${dow}）`;
   }, [selectedDate]);
 
-  const sheetEventCount = workId ? sheetSharedEvents.length : sheetPersonalEvents.length;
+  const sheetEventCount = workId
+    ? sheetWorkEvents.length
+    : sheetWorkEvents.length + sheetPersonalEvents.length;
 
   return (
     <>
@@ -615,7 +735,7 @@ export default function Calendar() {
                 aria-label="地域で絞り込む"
                 className="relative w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary active:opacity-60"
               >
-                <Map size={16} style={filterActive ? { color: 'var(--accent-color)' } : {}} />
+                <MapIcon size={16} style={filterActive ? { color: 'var(--accent-color)' } : {}} />
                 {filterActive && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent-color)' }} />}
               </button>
 
@@ -658,6 +778,31 @@ export default function Calendar() {
             </div>
           }
         />
+
+        {/* 参加中の作品チップ（MyCalendarのみ） */}
+        {!workId && participatedWorks.length > 0 && (
+          <div
+            className="flex-shrink-0 flex items-center gap-2 px-4 py-2 overflow-x-auto border-b"
+            style={{ borderColor: 'var(--border-subtle)' }}
+          >
+            {participatedWorks.map(w => {
+              const hidden = hiddenWorkIds.has(w.id);
+              return (
+                <button
+                  key={w.id}
+                  onClick={() => toggleWorkVisibility(w.id)}
+                  className="flex-shrink-0 text-xs px-3 py-1 rounded-full border transition-all active:opacity-70"
+                  style={{
+                    borderColor: hidden ? 'var(--border-subtle)' : 'var(--accent-color)',
+                    color: hidden ? 'var(--label-tertiary)' : 'var(--accent-color)',
+                  }}
+                >
+                  {w.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* 上部タブ（カレンダー / 予定一覧） */}
         <div className="flex flex-shrink-0 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
@@ -713,14 +858,14 @@ export default function Calendar() {
                 {calendarDays.map(({ date, isCurrentMonth }, idx) => {
                   const dateStr = toDateStr(date);
                   const isToday = dateStr === todayStr;
-                  const hasEvent = displayEventDates.has(dateStr) && isCurrentMonth;
                   const isSelected = dateStr === selectedDate && isCurrentMonth && sheetOpen;
                   const col = idx % 7;
+                  const cellTitles = isCurrentMonth ? (cellEventsByDate.get(dateStr) ?? []) : [];
                   return (
                     <button
                       key={dateStr + idx}
                       onClick={() => handleDayClick(dateStr, isCurrentMonth)}
-                      className="flex flex-col items-center justify-start pt-1 active:opacity-50 transition-opacity"
+                      className="flex flex-col items-center justify-start pt-0.5 active:opacity-50 transition-opacity overflow-hidden"
                       style={{
                         cursor: isCurrentMonth ? 'pointer' : 'default',
                         borderRight: '1px solid var(--cal-grid-color)',
@@ -728,7 +873,7 @@ export default function Calendar() {
                       }}
                     >
                       <div
-                        className="w-8 h-8 flex items-center justify-center rounded-full text-[13px] select-none transition-all"
+                        className="w-7 h-7 flex items-center justify-center rounded-full text-[13px] select-none transition-all flex-shrink-0"
                         style={{
                           background: isSelected ? 'var(--accent-color)' : isToday ? 'var(--label-primary)' : undefined,
                           color: isSelected || isToday ? 'var(--bg-primary)' : !isCurrentMonth ? 'var(--cal-other-month-color)' : col === 0 ? 'var(--cal-sunday-color)' : col === 6 ? 'var(--cal-saturday-color)' : 'var(--cal-weekday-color)',
@@ -737,9 +882,32 @@ export default function Calendar() {
                       >
                         {date.getDate()}
                       </div>
-                      <div className="h-[6px] flex items-center justify-center">
-                        {hasEvent && <div className={`w-[4px] h-[4px] rounded-full ${(isToday || isSelected) ? 'bg-bg-secondary' : 'bg-label-secondary'}`} />}
-                      </div>
+                      {cellTitles.length > 0 ? (
+                        <div className="w-full px-[2px] flex flex-col gap-[1px] mt-[1px] overflow-hidden">
+                          {cellTitles.slice(0, 2).map((title, ti) => (
+                            <div
+                              key={ti}
+                              className="w-full text-[8px] leading-none truncate rounded-[2px] px-[2px] py-[1px]"
+                              style={{
+                                background: isToday || isSelected ? 'rgba(255,255,255,0.25)' : 'rgba(128,128,128,0.18)',
+                                color: isToday || isSelected ? 'var(--bg-primary)' : 'var(--accent-color)',
+                              }}
+                            >
+                              {title}
+                            </div>
+                          ))}
+                          {cellTitles.length > 2 && (
+                            <div
+                              className="text-[8px] text-center leading-none py-[1px]"
+                              style={{ color: isToday || isSelected ? 'var(--bg-primary)' : 'var(--label-tertiary)' }}
+                            >
+                              +{cellTitles.length - 2}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="h-[6px]" />
+                      )}
                     </button>
                   );
                 })}
@@ -777,11 +945,11 @@ export default function Calendar() {
                   {loading ? (
                     <div className="flex flex-col gap-2">{[1, 2].map(i => <div key={i} className="h-14 bg-bg-secondary rounded-xl animate-pulse" />)}</div>
                   ) : workId ? (
-                    sheetSharedEvents.length === 0 ? (
+                    sheetWorkEvents.length === 0 ? (
                       <p className="text-center text-label-tertiary text-sm py-6">この日の予定はありません</p>
                     ) : (
                       <div className="flex flex-col gap-2">
-                        {sheetSharedEvents.map(event => (
+                        {sheetWorkEvents.map(event => (
                           <button key={event.id} onClick={() => navigate(`/calendar/${workId}/date/${event.date}`)}
                             className="w-full flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3 text-left active:opacity-70 transition-opacity">
                             <div className="flex-1 min-w-0">
@@ -800,15 +968,34 @@ export default function Calendar() {
                       </div>
                     )
                   ) : (
-                    sheetPersonalEvents.length === 0 ? (
+                    sheetWorkEvents.length === 0 && sheetPersonalEvents.length === 0 ? (
                       <p className="text-center text-label-tertiary text-sm py-6">この日の予定はありません</p>
                     ) : (
                       <div className="flex flex-col gap-2">
+                        {sheetWorkEvents.map(event => (
+                          <button key={event.id}
+                            onClick={() => event.workId && navigate(`/calendar/${event.workId}/date/${event.date}`)}
+                            className="w-full flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3 text-left active:opacity-70 transition-opacity">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
+                              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                {event.workName && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.workName}</span>}
+                                <div className="flex items-center gap-1">
+                                  <Heart size={11} className={event.likedByMe ? 'fill-red-400 text-red-400' : 'text-label-tertiary'} />
+                                  <span className="text-label-tertiary text-xs">{event.likes.toLocaleString('ja-JP')}</span>
+                                </div>
+                                {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>}
+                              </div>
+                            </div>
+                            <ChevronRight size={14} className="text-label-tertiary flex-shrink-0" />
+                          </button>
+                        ))}
                         {sheetPersonalEvents.map(pe => (
                           <div key={pe.id} className="flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3">
                             <div className="flex-1 min-w-0">
                               <p className="text-label-primary text-sm font-medium truncate">{pe.title}</p>
                               <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">個人</span>
                                 {pe.time && <span className="text-label-tertiary text-xs">{pe.time}</span>}
                                 {pe.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.category}</span>}
                                 {pe.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.prefecture}</span>}
@@ -873,30 +1060,42 @@ export default function Calendar() {
                 </div>
               )
             ) : (
-              monthPersonalEvents.length === 0 ? (
-                <p className="text-center text-label-tertiary text-sm py-10">この月の予定はまだありません</p>
+              myCalendarListItems.length === 0 ? (
+                <p className="text-center text-label-tertiary text-sm py-10">
+                  {participatedWorks.length === 0 ? 'まだ作品に参加していません' : 'この月の予定はありません'}
+                </p>
               ) : (
                 <div className="flex flex-col gap-2">
-                  {monthPersonalEvents.map(pe => {
-                    const [, pm, pd] = pe.date.split('-').map(Number);
+                  {myCalendarListItems.map(item => {
+                    const [, im, id] = item.date.split('-').map(Number);
                     return (
-                      <div key={pe.id} className="flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3">
+                      <div
+                        key={item.id}
+                        className={`flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3 ${!item.isPersonal ? 'cursor-pointer active:opacity-70 transition-opacity' : ''}`}
+                        onClick={() => { if (!item.isPersonal && item.workId) navigate(`/calendar/${item.workId}/date/${item.date}`); }}
+                      >
                         <div className="flex-shrink-0 w-10 flex flex-col items-center">
-                          <span className="text-[10px] text-label-tertiary leading-none">{pm}月</span>
-                          <span className="text-xl font-bold text-label-primary leading-snug">{pd}</span>
+                          <span className="text-[10px] text-label-tertiary leading-none">{im}月</span>
+                          <span className="text-xl font-bold text-label-primary leading-snug">{id}</span>
                         </div>
                         <div className="w-px h-8 bg-white/10 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-label-primary text-sm font-medium truncate">{pe.title}</p>
+                          <p className="text-label-primary text-sm font-medium truncate">{item.title}</p>
                           <div className="flex items-center gap-2 mt-1 flex-wrap">
-                            {pe.time && <span className="text-label-tertiary text-xs">{pe.time}</span>}
-                            {pe.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.category}</span>}
-                            {pe.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.prefecture}</span>}
+                            {item.tag && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.tag}</span>}
+                            {item.time && <span className="text-label-tertiary text-xs">{item.time}</span>}
+                            {item.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.category}</span>}
+                            {item.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.prefecture}</span>}
                           </div>
+                          {item.memo && <p className="text-label-secondary text-xs mt-0.5 truncate">{item.memo}</p>}
                         </div>
-                        <button onClick={() => deletePersonalEvent(pe.id)} className="w-6 h-6 flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
-                          <X size={14} />
-                        </button>
+                        {item.isPersonal ? (
+                          <button onClick={e => { e.stopPropagation(); deletePersonalEvent(item.id); }} className="w-6 h-6 flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
+                            <X size={14} />
+                          </button>
+                        ) : (
+                          <ChevronRight size={14} className="text-label-tertiary flex-shrink-0" />
+                        )}
                       </div>
                     );
                   })}
@@ -971,6 +1170,7 @@ export default function Calendar() {
                   card={card}
                   index={i}
                   total={postCards.length}
+                  participatedWorks={workId ? undefined : participatedWorks}
                   onChange={patch => updatePostCard(card.id, patch)}
                   onToggle={() => togglePostCard(card.id)}
                   onRemove={() => removePostCard(card.id)}

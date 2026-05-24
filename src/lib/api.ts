@@ -375,6 +375,32 @@ export async function listUpcomingEvents(workId: string, from: string, limit = 5
   return (data ?? []).map(e => rowToEvent(e as Record<string, unknown>));
 }
 
+export async function listAllParticipatedWorkEvents(
+  userId: string, year: number, month: number,
+): Promise<CalendarEvent[]> {
+  const works = await listRecentWorks(userId);
+  if (works.length === 0) return [];
+  const m = String(month + 1).padStart(2, '0');
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const from = `${year}-${m}-01`;
+  const to = `${year}-${m}-${String(lastDay).padStart(2, '0')}`;
+  const workMap = Object.fromEntries(works.map(w => [w.id, w.name]));
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .in('work_id', works.map(w => w.id))
+    .eq('pool', 0)
+    .gte('event_date', from)
+    .lte('event_date', to)
+    .order('event_date', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(e => ({
+    ...rowToEvent(e as Record<string, unknown>),
+    workId: e.work_id as string,
+    workName: workMap[e.work_id as string] ?? '',
+  }));
+}
+
 // ─── 作品削除 ──────────────────────────────────────────────────────
 
 export async function deleteWork(workId: string): Promise<void> {
