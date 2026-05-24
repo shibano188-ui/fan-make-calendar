@@ -1,5 +1,11 @@
 import { supabase } from './supabase';
-import type { CalendarEvent } from '../types';
+import type { CalendarEvent, ReactionType, ReactionCounts } from '../types';
+
+// ─── リアクション定数 ──────────────────────────────────────────────
+
+export const REACTION_POINTS: Record<ReactionType, number> = {
+  like: 1, want: 2, hot: 2, amazing: 3, best: 5,
+};
 
 export type Work = {
   id: string;
@@ -139,14 +145,32 @@ export async function listEventsByDate(workId: string, date: string, userId?: st
     }));
   }
 
-  if (userId && events.length > 0) {
-    const { data: likeData } = await supabase
+  if (events.length > 0) {
+    const { data: allReactions } = await supabase
       .from('likes')
-      .select('event_id')
-      .in('event_id', events.map(e => e.id))
-      .eq('user_id', userId);
-    const likedSet = new Set((likeData ?? []).map(l => l.event_id as string));
-    return events.map(e => ({ ...e, likedByMe: likedSet.has(e.id) }));
+      .select('event_id, reaction_type, user_id')
+      .in('event_id', events.map(e => e.id));
+
+    const countsMap: Record<string, ReactionCounts> = {};
+    const userReactionMap: Record<string, ReactionType | null> = {};
+    events.forEach(e => {
+      countsMap[e.id] = { like: 0, want: 0, hot: 0, amazing: 0, best: 0 };
+      userReactionMap[e.id] = null;
+    });
+
+    (allReactions ?? []).forEach(row => {
+      const eid = row.event_id as string;
+      const rt = ((row.reaction_type as string) ?? 'like') as ReactionType;
+      if (eid in countsMap && rt in countsMap[eid]) countsMap[eid][rt]++;
+      if (userId && row.user_id === userId) userReactionMap[eid] = rt;
+    });
+
+    return events.map(e => ({
+      ...e,
+      likedByMe: userReactionMap[e.id] !== null,
+      userReaction: userReactionMap[e.id],
+      reactionCounts: countsMap[e.id],
+    }));
   }
 
   return events;
@@ -188,7 +212,41 @@ export async function createEvents(
   if (error) throw error;
 }
 
-// ─── いいね ────────────────────────────────────────────────────────
+// ─── リアクション ──────────────────────────────────────────────────
+
+export async function setReaction(
+  eventId: string,
+  userId: string,
+  reactionType: ReactionType | null,
+): Promise<ReactionCounts> {
+  if (reactionType === null) {
+    await supabase.from('likes').delete()
+      .eq('event_id', eventId).eq('user_id', userId);
+  } else {
+    await supabase.from('likes').upsert(
+      { event_id: eventId, user_id: userId, reaction_type: reactionType },
+      { onConflict: 'event_id,user_id' },
+    );
+  }
+
+  const { data } = await supabase
+    .from('likes')
+    .select('reaction_type')
+    .eq('event_id', eventId);
+
+  const counts: ReactionCounts = { like: 0, want: 0, hot: 0, amazing: 0, best: 0 };
+  (data ?? []).forEach(row => {
+    const rt = ((row.reaction_type as string) ?? 'like') as ReactionType;
+    if (rt in counts) counts[rt]++;
+  });
+
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  await supabase.from('events').update({ like_count: total }).eq('id', eventId);
+
+  return counts;
+}
+
+// ─── いいね（後方互換・未使用） ────────────────────────────────────
 
 // 1タップ = +1（10回連打対応）
 export async function addLikeTap(eventId: string, userId: string): Promise<number> {

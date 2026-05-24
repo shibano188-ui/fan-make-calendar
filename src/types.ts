@@ -1,3 +1,13 @@
+export type ReactionType = 'like' | 'want' | 'hot' | 'amazing' | 'best';
+
+export type ReactionCounts = {
+  like: number;
+  want: number;
+  hot: number;
+  amazing: number;
+  best: number;
+};
+
 export type CalendarEvent = {
   id: string;
   title: string;
@@ -13,6 +23,8 @@ export type CalendarEvent = {
   authorName?: string;
   likes: number;
   likedByMe: boolean;
+  userReaction?: ReactionType | null;
+  reactionCounts?: ReactionCounts;
   createdAt: string;
   workId?: string;
   workName?: string;
