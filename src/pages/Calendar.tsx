@@ -387,15 +387,39 @@ export default function Calendar() {
   const [participatedWorks, setParticipatedWorks] = useState<Work[]>([]);
   const [hiddenWorkIds, setHiddenWorkIds] = useState<Set<string>>(new Set());
 
-  const [postPanelOpen, setPostPanelOpen] = useState(false);
-  const [postDate, setPostDate] = useState(todayStr);
+  const [shareData] = useState<Record<string, string | null> | null>(() => {
+    const raw = sessionStorage.getItem('pendingParsedEvent');
+    if (!raw) return null;
+    try { return JSON.parse(raw) as Record<string, string | null>; } catch { return null; }
+  });
+
+  const shareInitDate = shareData?.date ?? todayStr;
+  const [postPanelOpen, setPostPanelOpen] = useState(!!shareData);
+  const [postDate, setPostDate] = useState(shareInitDate);
   const [selectedDate, setSelectedDate] = useState(todayStr);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(!!shareData);
   const [personalEvents, setPersonalEvents] = useState<PersonalEvent[]>([]);
   const [topView, setTopView] = useState<'calendar' | 'list'>('calendar');
 
   // フォームstate（ボトムシート内に統合）
-  const [postCards, setPostCards] = useState<InlineCard[]>([newInlineCard(todayStr)]);
+  const [postCards, setPostCards] = useState<InlineCard[]>(() => {
+    if (!shareData) return [newInlineCard(todayStr)];
+    const VALID_CATS = POST_CATEGORIES as unknown as string[];
+    const date = shareData.date ?? todayStr;
+    return [{
+      ...newInlineCard(date),
+      workId: '',
+      title: shareData.title ?? '',
+      time: shareData.time ?? '',
+      category: VALID_CATS.includes(shareData.category ?? '') ? shareData.category as PostCategory : '',
+      customCategory: !VALID_CATS.includes(shareData.category ?? '') && shareData.category ? shareData.category : '',
+      prefecture: shareData.prefecture ?? '',
+      locationDetail: shareData.locationDetail ?? '',
+      link: shareData.link ?? '',
+      memo: shareData.memo ?? '',
+      collapsed: false,
+    }];
+  });
   const [postError, setPostError] = useState('');
   const [postSubmitting, setPostSubmitting] = useState(false);
 
@@ -598,36 +622,9 @@ export default function Calendar() {
     });
   };
 
-  // Web Share Target から来た場合、sessionStorageの解析済みデータを投稿フォームに展開
   useEffect(() => {
-    const raw = sessionStorage.getItem('pendingParsedEvent');
-    if (!raw) return;
     sessionStorage.removeItem('pendingParsedEvent');
-    try {
-      const parsed = JSON.parse(raw);
-      const defaultWorkId = !workId && participatedWorks.length > 0 ? participatedWorks[0].id : '';
-      const today = new Date().toISOString().slice(0, 10);
-      const date = parsed.date ?? today;
-      const VALID_CATS = POST_CATEGORIES as unknown as string[];
-      setPostDate(date);
-      setPostCards([{
-        ...newInlineCard(date),
-        workId:         defaultWorkId,
-        title:          parsed.title          ?? '',
-        time:           parsed.time           ?? '',
-        category:       VALID_CATS.includes(parsed.category ?? '') ? parsed.category as PostCategory : '',
-        customCategory: !VALID_CATS.includes(parsed.category ?? '') && parsed.category ? parsed.category : '',
-        prefecture:     parsed.prefecture     ?? '',
-        locationDetail: parsed.locationDetail ?? '',
-        link:           parsed.link           ?? '',
-        memo:           parsed.memo           ?? '',
-        collapsed: false,
-      }]);
-      setPostError('');
-      setSheetOpen(true);
-      setPostPanelOpen(true);
-    } catch { /* ignore */ }
-  }, [participatedWorks]);
+  }, []);
 
   const openPostForm = (date: string) => {
     const defaultWorkId = !workId && participatedWorks.length > 0 ? participatedWorks[0].id : '';
