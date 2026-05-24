@@ -29,7 +29,7 @@ const POST_CATEGORIES = ['単行本', 'グッズ', 'イベント', '誕生日', 
 type PostCategory = (typeof POST_CATEGORIES)[number];
 
 // 作品ごとの識別カラー（最大8作品まで色分け、以降はループ）
-const WORK_COLORS = [
+export const WORK_COLORS = [
   '#FF6B6B', '#4FC3F7', '#81C784', '#FFB74D',
   '#BA68C8', '#4DB6AC', '#F06292', '#A1887F',
 ];
@@ -547,8 +547,10 @@ export default function Calendar() {
   };
 
   // フォームハンドラー
-  const addPostCard = () =>
-    setPostCards(prev => [...prev.map(c => ({ ...c, collapsed: true })), newInlineCard(postDate)]);
+  const addPostCard = () => {
+    const defaultWorkId = !workId && participatedWorks.length > 0 ? participatedWorks[0].id : '';
+    setPostCards(prev => [...prev.map(c => ({ ...c, collapsed: true })), { ...newInlineCard(postDate), workId: defaultWorkId }]);
+  };
   const updatePostCard = (id: string, patch: Partial<InlineCard>) =>
     setPostCards(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
   const togglePostCard = (id: string) =>
@@ -557,8 +559,9 @@ export default function Calendar() {
     setPostCards(prev => prev.filter(c => c.id !== id));
 
   const openPostForm = (date: string) => {
+    const defaultWorkId = !workId && participatedWorks.length > 0 ? participatedWorks[0].id : '';
     setPostDate(date);
-    setPostCards([newInlineCard(date)]);
+    setPostCards([{ ...newInlineCard(date), workId: defaultWorkId }]);
     setPostError('');
     setSheetOpen(true);
     setPostPanelOpen(true);
@@ -643,10 +646,13 @@ export default function Calendar() {
     return [...personalEvents.filter(e => e.date.startsWith(prefix))].sort((a, b) => a.date.localeCompare(b.date));
   }, [personalEvents, year, month]);
 
-  // 作品ID → カラーのマップ
+  // 作品ID → カラーのマップ（localStorage の fan_work_colors を優先）
   const workColorMap = useMemo(() => {
     const m = new Map<string, string>();
-    participatedWorks.forEach((w, i) => m.set(w.id, WORK_COLORS[i % WORK_COLORS.length]));
+    const saved: Record<string, string> = (() => {
+      try { return JSON.parse(localStorage.getItem('fan_work_colors') ?? '{}'); } catch { return {}; }
+    })();
+    participatedWorks.forEach((w, i) => m.set(w.id, saved[w.id] ?? WORK_COLORS[i % WORK_COLORS.length]));
     return m;
   }, [participatedWorks]);
 

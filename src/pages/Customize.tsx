@@ -4,8 +4,9 @@ import Layout from '../components/Layout';
 import Header from '../components/Header';
 import SettingsMenuButton from '../components/SettingsMenuButton';
 import { useTheme, COMMUNITY_THEMES, type FontFamily, type UserSettings } from '../contexts/ThemeContext';
-import { listSharedThemes, shareTheme, incrementThemeUseCount, deleteSharedTheme, type SharedTheme, type SharedThemeData } from '../lib/api';
+import { listSharedThemes, shareTheme, incrementThemeUseCount, deleteSharedTheme, listRecentWorks, type SharedTheme, type SharedThemeData, type Work } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import { WORK_COLORS } from './Calendar';
 
 const SYSTEM_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 
@@ -338,6 +339,22 @@ export default function Customize() {
   const [showCropModal, setShowCropModal] = useState(false);
   const [pendingImageUrl, setPendingImageUrl] = useState('');
 
+  const [participatedWorks, setParticipatedWorks] = useState<Work[]>([]);
+  const [workColors, setWorkColors] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem('fan_work_colors') ?? '{}'); } catch { return {}; }
+  });
+  const [workColorOpen, setWorkColorOpen] = useState(false);
+  const [openWorkColorKey, setOpenWorkColorKey] = useState<string | null>(null);
+  const [workColorPaletteTop, setWorkColorPaletteTop] = useState(0);
+  const workColorWrapperRef = useRef<HTMLDivElement>(null);
+  const workBtnRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const workCustomInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    listRecentWorks(user.id).then(setParticipatedWorks).catch(console.error);
+  }, [user?.id]);
+
   // パレット外クリックで閉じる
   useEffect(() => {
     if (!openCalKey) return;
@@ -347,6 +364,15 @@ export default function Customize() {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [openCalKey]);
+
+  useEffect(() => {
+    if (!openWorkColorKey) return;
+    const handler = (e: MouseEvent) => {
+      if (!workColorWrapperRef.current?.contains(e.target as Node)) setOpenWorkColorKey(null);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [openWorkColorKey]);
 
   const handleCalToggle = (key: string, i: number) => {
     if (openCalKey === key) { setOpenCalKey(null); return; }
@@ -358,6 +384,26 @@ export default function Customize() {
       setPaletteTop(btnRect.bottom - wrapperRect.top + 6);
     }
     setOpenCalKey(key);
+  };
+
+  const handleWorkColorToggle = (workId: string, i: number) => {
+    if (openWorkColorKey === workId) { setOpenWorkColorKey(null); return; }
+    const btn = workBtnRefs.current[i];
+    const wrapper = workColorWrapperRef.current;
+    if (btn && wrapper) {
+      const btnRect = btn.getBoundingClientRect();
+      const wrapperRect = wrapper.getBoundingClientRect();
+      setWorkColorPaletteTop(btnRect.bottom - wrapperRect.top + 6);
+    }
+    setOpenWorkColorKey(workId);
+  };
+
+  const updateWorkColor = (workId: string, color: string | null) => {
+    const updated = { ...workColors };
+    if (color === null) { delete updated[workId]; } else { updated[workId] = color; }
+    setWorkColors(updated);
+    localStorage.setItem('fan_work_colors', JSON.stringify(updated));
+    setOpenWorkColorKey(null);
   };
 
   const handleFontUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -603,6 +649,120 @@ export default function Customize() {
             </div>
           )}
         </section>
+
+        {/* 作品カラー */}
+        {participatedWorks.length > 0 && (
+          <section>
+            <button
+              onClick={() => { setWorkColorOpen(v => !v); setOpenWorkColorKey(null); }}
+              className="w-full flex items-center justify-between mb-2"
+            >
+              <p className="text-label-tertiary text-xs">作品カラー</p>
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1">
+                  {participatedWorks.slice(0, 5).map((w, i) => (
+                    <div key={w.id} className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: workColors[w.id] ?? WORK_COLORS[i % WORK_COLORS.length] }} />
+                  ))}
+                </div>
+                <ChevronDown size={13} className="text-label-tertiary transition-transform"
+                  style={{ transform: workColorOpen ? 'rotate(180deg)' : undefined }} />
+              </div>
+            </button>
+
+            {workColorOpen && (
+              <div className="relative" ref={workColorWrapperRef}>
+                <div className="flex flex-col gap-3">
+                  {participatedWorks.map((w, i) => {
+                    const currentColor = workColors[w.id] ?? WORK_COLORS[i % WORK_COLORS.length];
+                    return (
+                      <div key={w.id} className="flex items-center justify-between">
+                        <span className="text-label-secondary text-sm">{w.name}</span>
+                        <button
+                          ref={el => { workBtnRefs.current[i] = el; }}
+                          onClick={() => handleWorkColorToggle(w.id, i)}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl border active:opacity-70"
+                          style={{ borderColor: 'var(--border-default)', backgroundColor: 'var(--bg-primary)' }}
+                        >
+                          <div className="w-5 h-5 rounded-full" style={{ backgroundColor: currentColor }} />
+                          <ChevronDown size={11} className="text-label-tertiary"
+                            style={{ transform: openWorkColorKey === w.id ? 'rotate(180deg)' : undefined }} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {openWorkColorKey && (() => {
+                  const workIdx = participatedWorks.findIndex(w => w.id === openWorkColorKey);
+                  const defaultColor = WORK_COLORS[workIdx % WORK_COLORS.length];
+                  const value = workColors[openWorkColorKey] ?? '';
+                  const isCustom = !!(value && !PALETTE_FLAT.includes(value));
+                  return (
+                    <div
+                      className="absolute z-[300] rounded-xl shadow-2xl"
+                      style={{
+                        top: workColorPaletteTop,
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        backgroundColor: 'var(--bg-secondary)',
+                        border: '1px solid var(--border-default)',
+                        padding: 8,
+                        width: 224,
+                      }}
+                    >
+                      <button
+                        onClick={() => updateWorkColor(openWorkColorKey, null)}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs mb-1.5 active:opacity-70"
+                        style={{ color: 'var(--label-secondary)', backgroundColor: !workColors[openWorkColorKey] ? 'var(--border-subtle)' : undefined }}
+                      >
+                        <div className="w-4 h-4 rounded-full" style={{ backgroundColor: defaultColor }} />
+                        デフォルト（{defaultColor}）
+                      </button>
+                      <div className="grid gap-[2px]" style={{ gridTemplateColumns: `repeat(${PALETTE_COLS}, 1fr)` }}>
+                        {PALETTE_FLAT.map((color, ci) => (
+                          <button
+                            key={ci}
+                            onClick={() => updateWorkColor(openWorkColorKey, color)}
+                            className="rounded-[3px] active:scale-90 transition-transform"
+                            style={{ backgroundColor: color, width: 19, height: 19,
+                              outline: value === color ? '2px solid var(--label-primary)' : undefined, outlineOffset: 1 }}
+                            title={color}
+                          />
+                        ))}
+                      </div>
+                      <div className="my-2 h-px" style={{ backgroundColor: 'var(--border-subtle)' }} />
+                      <div className="relative">
+                        <button
+                          onClick={() => workCustomInputRef.current?.click()}
+                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs active:opacity-70"
+                          style={{ color: 'var(--label-secondary)' }}
+                        >
+                          <div className="w-4 h-4 rounded-[3px] border flex-shrink-0"
+                            style={{ borderColor: 'var(--border-default)',
+                              background: isCustom ? value : 'conic-gradient(red 0deg,yellow 60deg,lime 120deg,cyan 180deg,blue 240deg,magenta 300deg,red 360deg)',
+                              outline: isCustom ? '2px solid var(--label-primary)' : undefined, outlineOffset: 1 }} />
+                          その他の色...
+                        </button>
+                        <input
+                          ref={workCustomInputRef}
+                          type="color"
+                          value={(value && value.startsWith('#')) ? value : '#888888'}
+                          onChange={e => {
+                            const updated = { ...workColors, [openWorkColorKey]: e.target.value };
+                            setWorkColors(updated);
+                            localStorage.setItem('fan_work_colors', JSON.stringify(updated));
+                          }}
+                          className="absolute opacity-0 pointer-events-none"
+                          style={{ width: 0, height: 0, top: 0, left: 0 }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+          </section>
+        )}
 
         {/* 背景画像 */}
         <section>
