@@ -13,6 +13,7 @@ const WidgetCountdown = lazy(() => import('./pages/WidgetCountdown'));
 const WidgetToday     = lazy(() => import('./pages/WidgetToday'));
 const WidgetMonth     = lazy(() => import('./pages/WidgetMonth'));
 const Profile         = lazy(() => import('./pages/Profile'));
+const ShareTarget     = lazy(() => import('./pages/ShareTarget'));
 const NotFound        = lazy(() => import('./pages/NotFound'));
 
 function PageLoader() {
@@ -33,10 +34,11 @@ export default function App() {
         <ThemeProvider>
           <Suspense fallback={<PageLoader />}>
             <Routes>
-              {/* ウィジェット（PhoneFrameなし） */}
+              {/* ウィジェット・共有ターゲット（PhoneFrameなし） */}
               <Route path="/widget/countdown/:workId" element={<WidgetCountdown />} />
               <Route path="/widget/today/:workId"     element={<WidgetToday />} />
               <Route path="/widget/month/:workId"     element={<WidgetMonth />} />
+              <Route path="/share"                    element={<ShareTarget />} />
 
               {/* メインアプリ */}
               <Route path="/*" element={

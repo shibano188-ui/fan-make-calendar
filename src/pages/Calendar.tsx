@@ -608,6 +608,40 @@ export default function Calendar() {
     setSheetOpen(true);
     setPostPanelOpen(true);
   };
+
+  // Web Share Target から来た場合、sessionStorageの解析済みデータを投稿フォームに展開
+  useEffect(() => {
+    const raw = sessionStorage.getItem('pendingParsedEvent');
+    if (!raw) return;
+    sessionStorage.removeItem('pendingParsedEvent');
+    try {
+      const parsed = JSON.parse(raw);
+      const defaultWorkId = !workId && participatedWorks.length > 0 ? participatedWorks[0].id : '';
+      const today = new Date().toISOString().slice(0, 10);
+      const date = parsed.date ?? today;
+      const VALID_CATS = POST_CATEGORIES as unknown as string[];
+      setPostDate(date);
+      setPostCards([{
+        ...newInlineCard(date),
+        workId: defaultWorkId,
+        title:          parsed.title          ?? '',
+        time:           parsed.time           ?? '',
+        category:       VALID_CATS.includes(parsed.category ?? '')
+                          ? parsed.category as PostCategory
+                          : '',
+        customCategory: !VALID_CATS.includes(parsed.category ?? '') && parsed.category
+                          ? parsed.category : '',
+        prefecture:     parsed.prefecture     ?? '',
+        locationDetail: parsed.locationDetail ?? '',
+        link:           parsed.link           ?? '',
+        memo:           parsed.memo           ?? '',
+        collapsed: false,
+      }]);
+      setPostError('');
+      setSheetOpen(true);
+      setPostPanelOpen(true);
+    } catch { /* ignore */ }
+  }, [participatedWorks]);
   const closePostForm = () => setPostPanelOpen(false);
 
   const handlePostSubmit = async () => {
