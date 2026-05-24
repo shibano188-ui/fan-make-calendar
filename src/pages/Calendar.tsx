@@ -34,13 +34,6 @@ export const WORK_COLORS = [
   '#BA68C8', '#4DB6AC', '#F06292', '#A1887F',
 ];
 
-function stableColorIndex(workId: string): number {
-  let hash = 0;
-  for (let i = 0; i < workId.length; i++) {
-    hash = (hash * 31 + workId.charCodeAt(i)) >>> 0;
-  }
-  return hash % WORK_COLORS.length;
-}
 
 const inputCls =
   'w-full bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong';
@@ -666,11 +659,25 @@ export default function Calendar() {
 
   // 作品ID → カラーのマップ（localStorage の fan_work_colors を優先）
   const workColorMap = useMemo(() => {
-    const m = new Map<string, string>();
     const saved: Record<string, string> = (() => {
       try { return JSON.parse(localStorage.getItem('fan_work_colors') ?? '{}'); } catch { return {}; }
     })();
-    participatedWorks.forEach(w => m.set(w.id, saved[w.id] ?? WORK_COLORS[stableColorIndex(w.id)]));
+    const usedColors = new Set<string>(
+      participatedWorks.filter(w => saved[w.id]).map(w => saved[w.id]),
+    );
+    const updated = { ...saved };
+    let hasNew = false;
+    const m = new Map<string, string>();
+    participatedWorks.forEach(w => {
+      if (!updated[w.id]) {
+        const color = WORK_COLORS.find(c => !usedColors.has(c)) ?? WORK_COLORS[0];
+        updated[w.id] = color;
+        usedColors.add(color);
+        hasNew = true;
+      }
+      m.set(w.id, updated[w.id]);
+    });
+    if (hasNew) localStorage.setItem('fan_work_colors', JSON.stringify(updated));
     return m;
   }, [participatedWorks]);
 
