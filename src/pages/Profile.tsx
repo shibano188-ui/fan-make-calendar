@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { Gift } from 'lucide-react';
 import Header from '../components/Header';
 import Layout from '../components/Layout';
 import TitleBadge from '../components/TitleBadge';
 import SettingsMenuButton from '../components/SettingsMenuButton';
+import GiftExchangeSheet from '../components/GiftExchangeSheet';
 import { getTitleTier, getNextTier, getProgress, TITLE_TIERS } from '../lib/titles';
 import { getUserPoints, getUserStats, ACHIEVEMENTS } from '../lib/points';
 import { getDisplayName, getHomePrefecture } from '../lib/api';
@@ -15,6 +17,8 @@ export default function Profile() {
   const [points, setPoints]           = useState({ points: 0, total_earned: 0 });
   const [stats, setStats]             = useState({ postCount: 0, reactionsReceived: 0 });
   const [loading, setLoading]         = useState(true);
+  const [showGift, setShowGift]       = useState(false);
+
   useEffect(() => {
     if (!user) return;
     setLoading(true);
@@ -83,22 +87,32 @@ export default function Profile() {
             </div>
 
             {/* ポイントカード */}
-            <div className="bg-bg-secondary rounded-xl px-4 py-4 flex justify-around">
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-label-tertiary text-[11px]">現在のポイント</span>
-                <span className="text-label-primary text-2xl font-bold">
-                  {points.points.toLocaleString('ja-JP')}
-                </span>
-                <span className="text-label-tertiary text-[10px]">pt</span>
+            <div className="bg-bg-secondary rounded-xl px-4 py-4 flex flex-col gap-3">
+              <div className="flex justify-around">
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-label-tertiary text-[11px]">現在のポイント</span>
+                  <span className="text-label-primary text-2xl font-bold">
+                    {points.points.toLocaleString('ja-JP')}
+                  </span>
+                  <span className="text-label-tertiary text-[10px]">pt</span>
+                </div>
+                <div className="w-px" style={{ backgroundColor: 'var(--border-faint)' }} />
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-label-tertiary text-[11px]">累計獲得</span>
+                  <span className="text-label-primary text-2xl font-bold">
+                    {totalEarned.toLocaleString('ja-JP')}
+                  </span>
+                  <span className="text-label-tertiary text-[10px]">pt</span>
+                </div>
               </div>
-              <div className="w-px" style={{ backgroundColor: 'var(--border-faint)' }} />
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-label-tertiary text-[11px]">累計獲得</span>
-                <span className="text-label-primary text-2xl font-bold">
-                  {totalEarned.toLocaleString('ja-JP')}
-                </span>
-                <span className="text-label-tertiary text-[10px]">pt</span>
-              </div>
+              <button
+                onClick={() => setShowGift(true)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold active:opacity-70"
+                style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'var(--label-primary)' }}
+              >
+                <Gift size={15} />
+                ポイントを交換する
+              </button>
             </div>
 
             {/* 称号プログレスバー */}
@@ -196,6 +210,18 @@ export default function Profile() {
         )}
       </div>
 
+      {showGift && user && (
+        <GiftExchangeSheet
+          currentPoints={points.points}
+          userId={user.id}
+          userEmail={user.email ?? ''}
+          onClose={() => setShowGift(false)}
+          onExchanged={(newPoints) => {
+            setPoints(p => ({ ...p, points: newPoints }));
+            setShowGift(false);
+          }}
+        />
+      )}
     </Layout>
   );
 }

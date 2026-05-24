@@ -7,6 +7,31 @@ export const REACTION_POINTS: Record<ReactionType, number> = {
   like: 1, want: 2, hot: 2, amazing: 3, best: 5,
 };
 
+// ─── ギフトカード交換 ─────────────────────────────────────────────
+
+export type GiftType = 'amazon_500' | 'amazon_1000' | 'appstore_500';
+
+export const GIFT_OPTIONS: { type: GiftType; label: string; points: number }[] = [
+  { type: 'amazon_500',   label: 'Amazonギフトカード 500円分',                  points: 500  },
+  { type: 'amazon_1000',  label: 'Amazonギフトカード 1000円分',                 points: 1000 },
+  { type: 'appstore_500', label: 'App Store & Google Playギフトカード 500円分', points: 500  },
+];
+
+export async function requestGiftExchange(
+  userId: string,
+  email: string,
+  giftType: GiftType,
+  pointsCost: number,
+): Promise<void> {
+  const { error } = await supabase.rpc('request_gift_exchange', {
+    uid: userId,
+    gift_type: giftType,
+    points_cost: pointsCost,
+    user_email: email,
+  });
+  if (error) throw error;
+}
+
 // ─── ポイント付与 ──────────────────────────────────────────────────
 
 export async function grantPoints(
