@@ -8,7 +8,7 @@ import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
 import {
   listEvents, getWorkById, leaveCalendar, deleteWork,
-  createEvents, getHomePrefecture, saveHomePrefecture,
+  createEvents, deleteEvent, getHomePrefecture, saveHomePrefecture,
   getDisplayName, saveDisplayName, listRecentWorks,
   listAllParticipatedWorkEvents,
 } from '../lib/api';
@@ -546,6 +546,16 @@ export default function Calendar() {
     savePersonalEvents(updated);
   };
 
+  const handleDeleteEvent = async (eventId: string) => {
+    if (!window.confirm('この予定を削除しますか？')) return;
+    try {
+      await deleteEvent(eventId);
+      setEvents(prev => prev.filter(e => e.id !== eventId));
+    } catch {
+      alert('削除に失敗しました');
+    }
+  };
+
   // フォームハンドラー
   const addPostCard = () => {
     const defaultWorkId = !workId && participatedWorks.length > 0 ? participatedWorks[0].id : '';
@@ -809,7 +819,7 @@ export default function Calendar() {
           >
             {participatedWorks.map((w, i) => {
               const hidden = hiddenWorkIds.has(w.id);
-              const color = WORK_COLORS[i % WORK_COLORS.length];
+              const color = workColorMap.get(w.id) ?? WORK_COLORS[i % WORK_COLORS.length];
               return (
                 <button
                   key={w.id}
@@ -917,10 +927,8 @@ export default function Calendar() {
                               key={ti}
                               className="w-full text-[8px] leading-none truncate rounded-[2px] px-[2px] py-[1px]"
                               style={{
-                                background: isToday || isSelected
-                                  ? 'rgba(255,255,255,0.25)'
-                                  : item.color.startsWith('#') ? item.color + '28' : 'rgba(128,128,128,0.18)',
-                                color: isToday || isSelected ? 'var(--bg-primary)' : item.color,
+                                background: item.color.startsWith('#') ? item.color + '28' : 'rgba(128,128,128,0.18)',
+                                color: item.color,
                               }}
                             >
                               {item.title}
@@ -929,7 +937,7 @@ export default function Calendar() {
                           {cellItems.length > 2 && (
                             <div
                               className="text-[8px] text-center leading-none py-[1px]"
-                              style={{ color: isToday || isSelected ? 'var(--bg-primary)' : 'var(--label-tertiary)' }}
+                              style={{ color: 'var(--label-tertiary)' }}
                             >
                               +{cellItems.length - 2}
                             </div>
@@ -980,20 +988,25 @@ export default function Calendar() {
                     ) : (
                       <div className="flex flex-col gap-2">
                         {sheetWorkEvents.map(event => (
-                          <button key={event.id} onClick={() => navigate(`/calendar/${workId}/date/${event.date}`)}
-                            className="w-full flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3 text-left active:opacity-70 transition-opacity">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
-                              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                <div className="flex items-center gap-1">
-                                  <Heart size={11} className={event.likedByMe ? 'fill-red-400 text-red-400' : 'text-label-tertiary'} />
-                                  <span className="text-label-tertiary text-xs">{event.likes.toLocaleString('ja-JP')}</span>
+                          <div key={event.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden">
+                            <button onClick={() => navigate(`/calendar/${workId}/date/${event.date}`)}
+                              className="flex-1 flex items-center gap-3 pl-3 py-3 pr-1 text-left active:opacity-70 transition-opacity min-w-0">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
+                                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                  <div className="flex items-center gap-1">
+                                    <Heart size={11} className={event.likedByMe ? 'fill-red-400 text-red-400' : 'text-label-tertiary'} />
+                                    <span className="text-label-tertiary text-xs">{event.likes.toLocaleString('ja-JP')}</span>
+                                  </div>
+                                  {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>}
                                 </div>
-                                {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>}
                               </div>
-                            </div>
-                            <ChevronRight size={14} className="text-label-tertiary flex-shrink-0" />
-                          </button>
+                              <ChevronRight size={14} className="text-label-tertiary flex-shrink-0" />
+                            </button>
+                            <button onClick={() => handleDeleteEvent(event.id)} className="w-9 self-stretch flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
+                              <X size={14} />
+                            </button>
+                          </div>
                         ))}
                       </div>
                     )
@@ -1003,22 +1016,27 @@ export default function Calendar() {
                     ) : (
                       <div className="flex flex-col gap-2">
                         {sheetWorkEvents.map(event => (
-                          <button key={event.id}
-                            onClick={() => event.workId && navigate(`/calendar/${event.workId}/date/${event.date}`)}
-                            className="w-full flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3 text-left active:opacity-70 transition-opacity">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
-                              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                {event.workName && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.workName}</span>}
-                                <div className="flex items-center gap-1">
-                                  <Heart size={11} className={event.likedByMe ? 'fill-red-400 text-red-400' : 'text-label-tertiary'} />
-                                  <span className="text-label-tertiary text-xs">{event.likes.toLocaleString('ja-JP')}</span>
+                          <div key={event.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden">
+                            <button
+                              onClick={() => event.workId && navigate(`/calendar/${event.workId}/date/${event.date}`)}
+                              className="flex-1 flex items-center gap-3 pl-3 py-3 pr-1 text-left active:opacity-70 transition-opacity min-w-0">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
+                                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                  {event.workName && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.workName}</span>}
+                                  <div className="flex items-center gap-1">
+                                    <Heart size={11} className={event.likedByMe ? 'fill-red-400 text-red-400' : 'text-label-tertiary'} />
+                                    <span className="text-label-tertiary text-xs">{event.likes.toLocaleString('ja-JP')}</span>
+                                  </div>
+                                  {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>}
                                 </div>
-                                {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>}
                               </div>
-                            </div>
-                            <ChevronRight size={14} className="text-label-tertiary flex-shrink-0" />
-                          </button>
+                              <ChevronRight size={14} className="text-label-tertiary flex-shrink-0" />
+                            </button>
+                            <button onClick={() => handleDeleteEvent(event.id)} className="w-9 self-stretch flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
+                              <X size={14} />
+                            </button>
+                          </div>
                         ))}
                         {sheetPersonalEvents.map(pe => (
                           <div key={pe.id} className="flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3">
@@ -1067,24 +1085,29 @@ export default function Calendar() {
                   {filteredEvents.map(event => {
                     const [, em, ed] = event.date.split('-').map(Number);
                     return (
-                      <button key={event.id} onClick={() => navigate(`/calendar/${workId}/date/${event.date}`)}
-                        className="w-full flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3 text-left active:opacity-70 transition-opacity">
-                        <div className="flex-shrink-0 w-10 flex flex-col items-center">
-                          <span className="text-[10px] text-label-tertiary leading-none">{em}月</span>
-                          <span className="text-xl font-bold text-label-primary leading-snug">{ed}</span>
-                        </div>
-                        <div className="w-px h-8 bg-white/10 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
-                          <div className="flex items-center gap-2 mt-1 flex-wrap">
-                            <div className="flex items-center gap-1">
-                              <Heart size={11} className={event.likedByMe ? 'fill-red-400 text-red-400' : 'text-label-tertiary'} />
-                              <span className="text-label-tertiary text-xs">{event.likes.toLocaleString('ja-JP')}</span>
-                            </div>
-                            {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>}
+                      <div key={event.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden">
+                        <button onClick={() => navigate(`/calendar/${workId}/date/${event.date}`)}
+                          className="flex-1 flex items-center gap-3 pl-3 py-3 pr-1 text-left active:opacity-70 transition-opacity min-w-0">
+                          <div className="flex-shrink-0 w-10 flex flex-col items-center">
+                            <span className="text-[10px] text-label-tertiary leading-none">{em}月</span>
+                            <span className="text-xl font-bold text-label-primary leading-snug">{ed}</span>
                           </div>
-                        </div>
-                      </button>
+                          <div className="w-px h-8 bg-white/10 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              <div className="flex items-center gap-1">
+                                <Heart size={11} className={event.likedByMe ? 'fill-red-400 text-red-400' : 'text-label-tertiary'} />
+                                <span className="text-label-tertiary text-xs">{event.likes.toLocaleString('ja-JP')}</span>
+                              </div>
+                              {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>}
+                            </div>
+                          </div>
+                        </button>
+                        <button onClick={() => handleDeleteEvent(event.id)} className="w-9 self-stretch flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
+                          <X size={14} />
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -1119,13 +1142,15 @@ export default function Calendar() {
                           </div>
                           {item.memo && <p className="text-label-secondary text-xs mt-0.5 truncate">{item.memo}</p>}
                         </div>
-                        {item.isPersonal ? (
-                          <button onClick={e => { e.stopPropagation(); deletePersonalEvent(item.id); }} className="w-6 h-6 flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
-                            <X size={14} />
-                          </button>
-                        ) : (
-                          <ChevronRight size={14} className="text-label-tertiary flex-shrink-0" />
-                        )}
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            item.isPersonal ? deletePersonalEvent(item.id) : handleDeleteEvent(item.id);
+                          }}
+                          className="w-6 h-6 flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0"
+                        >
+                          <X size={14} />
+                        </button>
                       </div>
                     );
                   })}

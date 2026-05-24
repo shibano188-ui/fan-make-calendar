@@ -401,6 +401,14 @@ export async function listAllParticipatedWorkEvents(
   }));
 }
 
+// ─── イベント削除 ─────────────────────────────────────────────────
+
+export async function deleteEvent(eventId: string): Promise<void> {
+  await supabase.from('likes').delete().eq('event_id', eventId);
+  const { error } = await supabase.from('events').delete().eq('id', eventId);
+  if (error) throw error;
+}
+
 // ─── 作品削除 ──────────────────────────────────────────────────────
 
 export async function deleteWork(workId: string): Promise<void> {
