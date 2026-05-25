@@ -80,7 +80,7 @@ function rowToEvent(e: Record<string, unknown>): CalendarEvent {
     id: e.id as string,
     title: e.title as string,
     date: e.event_date as string,
-    time: (e.event_time as string | null) ?? undefined,
+    time: ((e.event_time as string | null) ?? undefined)?.slice(0, 5),
     category: (e.category as string | null) ?? undefined,
     link: (e.link_url as string | null) ?? undefined,
     memo: (e.memo as string | null) ?? undefined,
