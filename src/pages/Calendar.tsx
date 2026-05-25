@@ -1151,18 +1151,33 @@ export default function Calendar() {
                           <ExternalLink size={11} /><span>{getDomain(sheetDetailEvent.link)}</span>
                         </a>
                       )}
-                      <button
-                        onClick={() => handleSheetEventLike(sheetDetailEvent.id)}
-                        disabled={!user}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm w-fit disabled:opacity-40"
-                        style={{
-                          borderColor: sheetDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'var(--border-default)',
-                          color: sheetDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'var(--label-secondary)',
-                        }}
-                      >
-                        <Heart size={14} style={{ fill: sheetDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'none', color: sheetDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'var(--label-secondary)' }} />
-                        <span>{sheetDetailEvent.likes.toLocaleString('ja-JP')}</span>
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleSheetEventLike(sheetDetailEvent.id)}
+                          disabled={!user}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm disabled:opacity-40"
+                          style={{
+                            borderColor: sheetDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'var(--border-default)',
+                            color: sheetDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'var(--label-secondary)',
+                          }}
+                        >
+                          <Heart size={14} style={{ fill: sheetDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'none', color: sheetDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'var(--label-secondary)' }} />
+                          <span>{sheetDetailEvent.likes.toLocaleString('ja-JP')}</span>
+                        </button>
+                        <button
+                          onClick={() => setOpenReactionPickerId(prev => prev === sheetDetailEvent.id ? null : sheetDetailEvent.id)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm active:opacity-60"
+                          style={{
+                            borderColor: myReactions[sheetDetailEvent.id] ? 'var(--accent-color)' : 'var(--border-default)',
+                            color: myReactions[sheetDetailEvent.id] ? 'var(--accent-color)' : 'var(--label-secondary)',
+                          }}
+                        >
+                          <Smile size={14} />
+                          {myReactions[sheetDetailEvent.id] && (
+                            <span className="text-sm">{REACTIONS.find(r => r.type === myReactions[sheetDetailEvent.id])?.emoji}</span>
+                          )}
+                        </button>
+                      </div>
                       {sheetDetailEvent.authorName && (
                         <p className="text-label-tertiary text-xs">{sheetDetailEvent.authorName}</p>
                       )}
