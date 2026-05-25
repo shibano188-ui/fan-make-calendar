@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { ExternalLink, Heart, Plus } from 'lucide-react';
+import { ExternalLink, Heart, Plus, Smile } from 'lucide-react';
 import Layout from '../components/Layout';
 import Header from '../components/Header';
 import { useNavigate } from 'react-router-dom';
-import { listEventsByDate, addLikeTap } from '../lib/api';
+import { listEventsByDate, addLikeTap, getReactionData, setReaction } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import type { CalendarEvent } from '../types';
+import { REACTIONS, type ReactionType } from '../lib/reactions';
 
 // ─── いいねセッション（localStorage）────────────────────────────────
 
@@ -177,15 +178,23 @@ function timeAgo(isoStr: string): string {
 
 // ─── イベントカード ────────────────────────────────────────────────
 
+type ReactionData = { counts: Record<string, number>; myReaction: string | null };
+
 function EventCard({
   event,
   userId,
   onTapped,
+  reactionData,
+  onOpenReactionPicker,
 }: {
   event: CalendarEvent;
   userId: string | undefined;
   onTapped: (id: string, newCount: number) => void;
+  reactionData?: ReactionData;
+  onOpenReactionPicker?: () => void;
 }) {
+  const hasReactions = reactionData && Object.values(reactionData.counts).some(c => c > 0);
+
   return (
     <div className="bg-bg-secondary rounded-xl px-4 py-4 flex flex-col gap-3">
       {/* タイトル + 時間 */}
@@ -216,8 +225,37 @@ function EventCard({
         </div>
       )}
 
-      {/* いいねボタン */}
-      <LikeButton event={event} userId={userId} onTapped={count => onTapped(event.id, count)} />
+      {/* いいね + リアクションボタン */}
+      <div className="flex items-center gap-2">
+        <LikeButton event={event} userId={userId} onTapped={count => onTapped(event.id, count)} />
+        {userId && onOpenReactionPicker && (
+          <button
+            onClick={onOpenReactionPicker}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm active:opacity-60"
+            style={{
+              borderColor: reactionData?.myReaction ? 'var(--accent-color)' : 'var(--border-default)',
+              color: reactionData?.myReaction ? 'var(--accent-color)' : 'var(--label-secondary)',
+            }}
+          >
+            <Smile size={14} />
+            {reactionData?.myReaction && (
+              <span>{REACTIONS.find(r => r.type === reactionData.myReaction)?.emoji}</span>
+            )}
+          </button>
+        )}
+      </div>
+
+      {/* リアクション集計 */}
+      {hasReactions && (
+        <div className="flex items-center gap-3 flex-wrap">
+          {REACTIONS.filter(r => (reactionData?.counts[r.type] ?? 0) > 0).map(r => (
+            <span key={r.type} className="flex items-center gap-0.5 text-label-secondary">
+              <span className="text-base leading-none">{r.emoji}</span>
+              <span className="text-xs">{reactionData!.counts[r.type]}</span>
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* 投稿者 */}
       <p className="text-label-tertiary text-xs">
@@ -235,11 +273,21 @@ export default function DateDetail() {
   const navigate = useNavigate();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [eventReactions, setEventReactions] = useState<Record<string, ReactionData>>({});
+  const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
     listEventsByDate(workId, date, user?.id)
-      .then(setEvents)
+      .then(async evts => {
+        setEvents(evts);
+        if (evts.length > 0) {
+          const pairs = await Promise.all(
+            evts.map(e => getReactionData(e.id, user?.id).then(r => [e.id, r] as const)),
+          );
+          setEventReactions(Object.fromEntries(pairs));
+        }
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [workId, date, user?.id]);
@@ -248,6 +296,36 @@ export default function DateDetail() {
     setEvents(prev =>
       prev.map(e => e.id === eventId ? { ...e, likes: newCount } : e),
     );
+  };
+
+  const handleReaction = async (eventId: string, type: ReactionType) => {
+    if (!user) return;
+    const current = eventReactions[eventId];
+    const isToggleOff = current?.myReaction === type;
+    const newMyReaction = isToggleOff ? null : type;
+
+    // 楽観的更新
+    setEventReactions(prev => {
+      const prevData = prev[eventId] ?? { counts: {}, myReaction: null };
+      const counts = { ...prevData.counts };
+      if (isToggleOff) {
+        counts[type] = Math.max(0, (counts[type] ?? 0) - 1);
+        if (counts[type] === 0) delete counts[type];
+      } else {
+        if (prevData.myReaction) {
+          const old = prevData.myReaction;
+          counts[old] = Math.max(0, (counts[old] ?? 0) - 1);
+          if (counts[old] === 0) delete counts[old];
+        }
+        counts[type] = (counts[type] ?? 0) + 1;
+      }
+      return { ...prev, [eventId]: { counts, myReaction: newMyReaction } };
+    });
+    setOpenReactionPickerId(null);
+
+    try {
+      await setReaction(eventId, user.id, newMyReaction);
+    } catch (e) { console.error(e); }
   };
 
   // ヘッダータイトル
@@ -275,11 +353,44 @@ export default function DateDetail() {
         ) : (
           <div className="flex flex-col gap-3">
             {events.map(event => (
-              <EventCard key={event.id} event={event} userId={user?.id} onTapped={handleTapped} />
+              <EventCard
+                key={event.id}
+                event={event}
+                userId={user?.id}
+                onTapped={handleTapped}
+                reactionData={eventReactions[event.id]}
+                onOpenReactionPicker={() => setOpenReactionPickerId(prev => prev === event.id ? null : event.id)}
+              />
             ))}
           </div>
         )}
       </div>
+
+      {/* リアクションピッカー */}
+      {openReactionPickerId && (
+        <>
+          <div className="fixed inset-0 z-[310]" onClick={() => setOpenReactionPickerId(null)} />
+          <div className="fixed inset-x-0 max-w-app mx-auto z-[320]" style={{ bottom: 80 }}>
+            <div className="mx-4 bg-bg-primary rounded-2xl border border-subtle shadow-xl p-3 flex justify-around">
+              {REACTIONS.map(r => (
+                <button
+                  key={r.type}
+                  onClick={() => handleReaction(openReactionPickerId, r.type)}
+                  className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl active:opacity-60"
+                  style={{
+                    background: eventReactions[openReactionPickerId]?.myReaction === r.type
+                      ? 'var(--bg-secondary)'
+                      : 'transparent',
+                  }}
+                >
+                  <span className="text-2xl">{r.emoji}</span>
+                  <span className="text-[10px] text-label-secondary">{r.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* FAB */}
       <button

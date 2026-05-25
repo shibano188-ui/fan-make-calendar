@@ -10,8 +10,9 @@ import {
   listEvents, getWorkById, leaveCalendar, deleteWork,
   createEvents, deleteEvent, getHomePrefecture, saveHomePrefecture,
   getDisplayName, saveDisplayName, listRecentWorks,
-  listAllParticipatedWorkEvents, addLikeTap,
+  listAllParticipatedWorkEvents, addLikeTap, setReaction,
 } from '../lib/api';
+import { REACTIONS, type ReactionType } from '../lib/reactions';
 import type { Work } from '../lib/api';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { PrefectureSearch } from '../components/UserSettingsSheet';
@@ -35,17 +36,25 @@ export const WORK_COLORS = [
   '#BA68C8', '#4DB6AC', '#F06292', '#A1887F',
 ];
 
-const REACTIONS = [
-  { type: 'want_go', label: '行きたい！', emoji: '📅' },
-  { type: 'want',    label: '欲しい！',   emoji: '⭐' },
-  { type: 'happy',   label: '嬉しい！',   emoji: '😊' },
-  { type: 'excited', label: '楽しみ！',   emoji: '🎉' },
-] as const;
-type ReactionType = typeof REACTIONS[number]['type'];
-
 const REACTIONS_KEY = 'fan_reactions';
 function loadMyReactions(): Record<string, ReactionType> {
   try { return JSON.parse(localStorage.getItem(REACTIONS_KEY) ?? '{}'); } catch { return {}; }
+}
+
+const LIKE_MAX_TAPS = 10;
+const LIKE_COOLDOWN_MS = 60_000;
+interface LikeSession { tapsUsed: number; resetAt: number; }
+function loadLikeSession(id: string): LikeSession {
+  try {
+    const raw = localStorage.getItem(`like_session:${id}`);
+    if (!raw) return { tapsUsed: 0, resetAt: 0 };
+    const s = JSON.parse(raw) as LikeSession;
+    if (s.resetAt > 0 && Date.now() >= s.resetAt) return { tapsUsed: 0, resetAt: 0 };
+    return s;
+  } catch { return { tapsUsed: 0, resetAt: 0 }; }
+}
+function saveLikeSession(id: string, s: LikeSession) {
+  localStorage.setItem(`like_session:${id}`, JSON.stringify(s));
 }
 
 function getDomain(url: string): string {
@@ -428,6 +437,20 @@ export default function Calendar() {
   const [sheetDetailEvent, setSheetDetailEvent] = useState<CalendarEvent | null>(null);
   const [myReactions, setMyReactions] = useState<Record<string, ReactionType>>(() => loadMyReactions());
   const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
+  const [lockedLikeIds, setLockedLikeIds] = useState<Set<string>>(() => {
+    const set = new Set<string>();
+    try {
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith('like_session:')) {
+          const s = JSON.parse(localStorage.getItem(key) ?? '{}') as LikeSession;
+          if (s.tapsUsed >= LIKE_MAX_TAPS && (s.resetAt === 0 || Date.now() < s.resetAt)) {
+            set.add(key.slice('like_session:'.length));
+          }
+        }
+      }
+    } catch {}
+    return set;
+  });
 
   // フォームstate（ボトムシート内に統合）
   const [postCards, setPostCards] = useState<InlineCard[]>(() => {
@@ -603,6 +626,17 @@ export default function Calendar() {
 
   const handleSheetEventLike = async (eventId: string) => {
     if (!user) return;
+    const session = loadLikeSession(eventId);
+    if (session.tapsUsed >= LIKE_MAX_TAPS) return;
+    const newTaps = session.tapsUsed + 1;
+    const resetAt = newTaps >= LIKE_MAX_TAPS ? Date.now() + LIKE_COOLDOWN_MS : 0;
+    saveLikeSession(eventId, { tapsUsed: newTaps, resetAt });
+    if (newTaps >= LIKE_MAX_TAPS) {
+      setLockedLikeIds(prev => { const next = new Set(prev); next.add(eventId); return next; });
+      setTimeout(() => {
+        setLockedLikeIds(prev => { const next = new Set(prev); next.delete(eventId); return next; });
+      }, LIKE_COOLDOWN_MS);
+    }
     try {
       const newCount = await addLikeTap(eventId, user.id);
       setSheetDetailEvent(prev => prev?.id === eventId ? { ...prev, likes: newCount, likedByMe: true } : prev);
@@ -611,13 +645,17 @@ export default function Calendar() {
   };
 
   const handleReaction = (eventId: string, type: ReactionType) => {
+    const isToggleOff = myReactions[eventId] === type;
     setMyReactions(prev => {
       const next = { ...prev };
-      if (next[eventId] === type) { delete next[eventId]; } else { next[eventId] = type; }
+      if (isToggleOff) { delete next[eventId]; } else { next[eventId] = type; }
       localStorage.setItem(REACTIONS_KEY, JSON.stringify(next));
       return next;
     });
     setOpenReactionPickerId(null);
+    if (user) {
+      setReaction(eventId, user.id, isToggleOff ? null : type).catch(console.error);
+    }
   };
 
   const handleDeleteEvent = async (eventId: string) => {
@@ -1154,7 +1192,7 @@ export default function Calendar() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleSheetEventLike(sheetDetailEvent.id)}
-                          disabled={!user}
+                          disabled={!user || lockedLikeIds.has(sheetDetailEvent.id)}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm disabled:opacity-40"
                           style={{
                             borderColor: sheetDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'var(--border-default)',
@@ -1204,7 +1242,7 @@ export default function Calendar() {
                             </button>
                             <button
                               onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); }}
-                              disabled={!user}
+                              disabled={!user || lockedLikeIds.has(event.id)}
                               className="flex items-center gap-0.5 px-2 self-stretch text-xs disabled:opacity-30"
                               style={{ color: event.likedByMe ? 'rgb(248,113,113)' : 'var(--label-tertiary)' }}
                             >
@@ -1248,7 +1286,7 @@ export default function Calendar() {
                             </button>
                             <button
                               onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); }}
-                              disabled={!user}
+                              disabled={!user || lockedLikeIds.has(event.id)}
                               className="flex items-center gap-0.5 px-2 self-stretch text-xs disabled:opacity-30"
                               style={{ color: event.likedByMe ? 'rgb(248,113,113)' : 'var(--label-tertiary)' }}
                             >
@@ -1336,7 +1374,7 @@ export default function Calendar() {
                         </button>
                         <button
                           onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); }}
-                          disabled={!user}
+                          disabled={!user || lockedLikeIds.has(event.id)}
                           className="flex items-center gap-0.5 px-2 self-stretch text-xs disabled:opacity-30"
                           style={{ color: event.likedByMe ? 'rgb(248,113,113)' : 'var(--label-tertiary)' }}
                         >
@@ -1392,7 +1430,7 @@ export default function Calendar() {
                         {!item.isPersonal && (
                           <button
                             onClick={e => { e.stopPropagation(); handleSheetEventLike(item.id); }}
-                            disabled={!user}
+                            disabled={!user || lockedLikeIds.has(item.id)}
                             className="flex items-center gap-0.5 px-2 self-stretch text-xs disabled:opacity-30"
                             style={{ color: item.likedByMe ? 'rgb(248,113,113)' : 'var(--label-tertiary)' }}
                           >

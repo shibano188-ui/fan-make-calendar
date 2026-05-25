@@ -423,6 +423,44 @@ export async function deleteWork(workId: string): Promise<void> {
   if (error) throw error;
 }
 
+// ─── リアクション ─────────────────────────────────────────────────
+
+export async function setReaction(eventId: string, userId: string, type: string | null): Promise<void> {
+  if (type === null) {
+    await supabase.from('reactions').delete().eq('event_id', eventId).eq('user_id', userId);
+  } else {
+    await supabase.from('reactions').upsert(
+      { event_id: eventId, user_id: userId, reaction_type: type },
+      { onConflict: 'event_id,user_id' },
+    );
+  }
+}
+
+export async function getReactionData(
+  eventId: string,
+  userId?: string,
+): Promise<{ counts: Record<string, number>; myReaction: string | null }> {
+  const { data } = await supabase.from('reactions').select('reaction_type, user_id').eq('event_id', eventId);
+  const counts: Record<string, number> = {};
+  let myReaction: string | null = null;
+  for (const row of data ?? []) {
+    const t = row.reaction_type as string;
+    counts[t] = (counts[t] ?? 0) + 1;
+    if (userId && row.user_id === userId) myReaction = t;
+  }
+  return { counts, myReaction };
+}
+
+export async function getMyReactionsBatch(eventIds: string[], userId: string): Promise<Record<string, string>> {
+  if (eventIds.length === 0) return {};
+  const { data } = await supabase
+    .from('reactions')
+    .select('event_id, reaction_type')
+    .in('event_id', eventIds)
+    .eq('user_id', userId);
+  return Object.fromEntries((data ?? []).map(r => [r.event_id as string, r.reaction_type as string]));
+}
+
 // ─── 参加履歴 ──────────────────────────────────────────────────────
 
 async function syncParticipantCount(workId: string): Promise<void> {
