@@ -1204,16 +1204,17 @@ export default function Calendar() {
                         </button>
                         <button
                           onClick={() => setOpenReactionPickerId(prev => prev === sheetDetailEvent.id ? null : sheetDetailEvent.id)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm active:opacity-60"
+                          className="flex items-center justify-center px-3 py-1.5 rounded-xl border text-sm active:opacity-60"
                           style={{
                             borderColor: myReactions[sheetDetailEvent.id] ? 'var(--accent-color)' : 'var(--border-default)',
                             color: myReactions[sheetDetailEvent.id] ? 'var(--accent-color)' : 'var(--label-secondary)',
+                            minWidth: '2.5rem',
                           }}
                         >
-                          <Smile size={14} />
-                          {myReactions[sheetDetailEvent.id] && (
-                            <span className="text-sm">{REACTIONS.find(r => r.type === myReactions[sheetDetailEvent.id])?.emoji}</span>
-                          )}
+                          {myReactions[sheetDetailEvent.id]
+                            ? <span className="text-base leading-none">{REACTIONS.find(r => r.type === myReactions[sheetDetailEvent.id])?.emoji}</span>
+                            : <Smile size={14} />
+                          }
                         </button>
                       </div>
                       {sheetDetailEvent.authorName && (

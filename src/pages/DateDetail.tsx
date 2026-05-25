@@ -228,19 +228,20 @@ function EventCard({
       {/* いいね + リアクションボタン */}
       <div className="flex items-center gap-2">
         <LikeButton event={event} userId={userId} onTapped={count => onTapped(event.id, count)} />
-        {userId && onOpenReactionPicker && (
+        {onOpenReactionPicker && (
           <button
             onClick={onOpenReactionPicker}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm active:opacity-60"
+            className="flex items-center justify-center px-3 py-1.5 rounded-xl border text-sm active:opacity-60"
             style={{
               borderColor: reactionData?.myReaction ? 'var(--accent-color)' : 'var(--border-default)',
               color: reactionData?.myReaction ? 'var(--accent-color)' : 'var(--label-secondary)',
+              minWidth: '2.5rem',
             }}
           >
-            <Smile size={14} />
-            {reactionData?.myReaction && (
-              <span>{REACTIONS.find(r => r.type === reactionData.myReaction)?.emoji}</span>
-            )}
+            {reactionData?.myReaction
+              ? <span className="text-base leading-none">{REACTIONS.find(r => r.type === reactionData.myReaction)?.emoji}</span>
+              : <Smile size={14} />
+            }
           </button>
         )}
       </div>
@@ -276,21 +277,26 @@ export default function DateDetail() {
   const [eventReactions, setEventReactions] = useState<Record<string, ReactionData>>({});
   const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
 
+  // イベント取得
   useEffect(() => {
     setLoading(true);
     listEventsByDate(workId, date, user?.id)
-      .then(async evts => {
-        setEvents(evts);
-        if (evts.length > 0) {
-          const pairs = await Promise.all(
-            evts.map(e => getReactionData(e.id, user?.id).then(r => [e.id, r] as const)),
-          );
-          setEventReactions(Object.fromEntries(pairs));
-        }
-      })
+      .then(setEvents)
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [workId, date, user?.id]);
+
+  // リアクション取得（イベント取得と分離してエラーが独立）
+  useEffect(() => {
+    if (events.length === 0) return;
+    Promise.all(
+      events.map(e =>
+        getReactionData(e.id, user?.id)
+          .then(r => [e.id, r] as const)
+          .catch(() => [e.id, { counts: {}, myReaction: null }] as const),
+      ),
+    ).then(pairs => setEventReactions(Object.fromEntries(pairs)));
+  }, [events, user?.id]);
 
   const handleTapped = (eventId: string, newCount: number) => {
     setEvents(prev =>
