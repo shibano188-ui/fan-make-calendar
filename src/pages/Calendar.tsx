@@ -35,6 +35,18 @@ export const WORK_COLORS = [
   '#BA68C8', '#4DB6AC', '#F06292', '#A1887F',
 ];
 
+const REACTIONS = [
+  { type: 'want_go', label: '行きたい！', emoji: '📅' },
+  { type: 'want',    label: '欲しい！',   emoji: '⭐' },
+  { type: 'happy',   label: '嬉しい！',   emoji: '😊' },
+  { type: 'excited', label: '楽しみ！',   emoji: '🎉' },
+] as const;
+type ReactionType = typeof REACTIONS[number]['type'];
+
+const REACTIONS_KEY = 'fan_reactions';
+function loadMyReactions(): Record<string, ReactionType> {
+  try { return JSON.parse(localStorage.getItem(REACTIONS_KEY) ?? '{}'); } catch { return {}; }
+}
 
 function getDomain(url: string): string {
   try {
@@ -414,6 +426,8 @@ export default function Calendar() {
     () => (sessionStorage.getItem('cal_topView') as 'calendar' | 'list') ?? 'calendar',
   );
   const [sheetDetailEvent, setSheetDetailEvent] = useState<CalendarEvent | null>(null);
+  const [myReactions, setMyReactions] = useState<Record<string, ReactionType>>(() => loadMyReactions());
+  const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
 
   // フォームstate（ボトムシート内に統合）
   const [postCards, setPostCards] = useState<InlineCard[]>(() => {
@@ -594,6 +608,16 @@ export default function Calendar() {
       setSheetDetailEvent(prev => prev?.id === eventId ? { ...prev, likes: newCount, likedByMe: true } : prev);
       setEvents(prev => prev.map(e => e.id === eventId ? { ...e, likes: newCount, likedByMe: true } : e));
     } catch (e) { console.error(e); }
+  };
+
+  const handleReaction = (eventId: string, type: ReactionType) => {
+    setMyReactions(prev => {
+      const next = { ...prev };
+      if (next[eventId] === type) { delete next[eventId]; } else { next[eventId] = type; }
+      localStorage.setItem(REACTIONS_KEY, JSON.stringify(next));
+      return next;
+    });
+    setOpenReactionPickerId(null);
   };
 
   const handleDeleteEvent = async (eventId: string) => {
@@ -1077,7 +1101,7 @@ export default function Calendar() {
                 <div
                   className="flex flex-col items-center pt-2 flex-shrink-0 cursor-pointer select-none"
                   style={{ height: SHEET_COLLAPSED_H }}
-                  onClick={() => { setSheetOpen(v => !v); setSheetDetailEvent(null); }}
+                  onClick={() => { setSheetOpen(v => !v); setSheetDetailEvent(null); setOpenReactionPickerId(null); }}
                 >
                   <div className="w-10 h-1 rounded-full mb-2" style={{ backgroundColor: 'var(--border-subtle)' }} />
                   <div className="w-full px-4 flex items-center justify-between">
@@ -1153,18 +1177,32 @@ export default function Calendar() {
                         {sheetWorkEvents.map(event => (
                           <div key={event.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden">
                             <button onClick={() => setSheetDetailEvent(event)}
-                              className="flex-1 flex items-center gap-3 pl-3 py-3 pr-1 text-left active:opacity-70 transition-opacity min-w-0">
+                              className="flex-1 flex items-center gap-2 pl-3 py-3 pr-1 text-left active:opacity-70 transition-opacity min-w-0">
                               <div className="flex-1 min-w-0">
                                 <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
-                                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                  <div className="flex items-center gap-1">
-                                    <Heart size={11} className={event.likedByMe ? 'fill-red-400 text-red-400' : 'text-label-tertiary'} />
-                                    <span className="text-label-tertiary text-xs">{event.likes.toLocaleString('ja-JP')}</span>
+                                {event.prefecture && (
+                                  <div className="flex items-center mt-1">
+                                    <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>
                                   </div>
-                                  {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>}
-                                </div>
+                                )}
                               </div>
                               <ChevronRight size={14} className="text-label-tertiary flex-shrink-0" />
+                            </button>
+                            <button
+                              onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); }}
+                              disabled={!user}
+                              className="flex items-center gap-0.5 px-2 self-stretch text-xs disabled:opacity-30"
+                              style={{ color: event.likedByMe ? 'rgb(248,113,113)' : 'var(--label-tertiary)' }}
+                            >
+                              <Heart size={12} style={{ fill: event.likedByMe ? 'rgb(248,113,113)' : 'none' }} />
+                              <span>{event.likes}</span>
+                            </button>
+                            <button
+                              onClick={e => { e.stopPropagation(); setOpenReactionPickerId(prev => prev === event.id ? null : event.id); }}
+                              className="px-1.5 self-stretch flex items-center text-base leading-none active:opacity-60"
+                              style={{ opacity: myReactions[event.id] ? 1 : 0.35 }}
+                            >
+                              {REACTIONS.find(r => r.type === myReactions[event.id])?.emoji ?? '😊'}
                             </button>
                             <button onClick={() => handleDeleteEvent(event.id)} className="w-9 self-stretch flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
                               <X size={14} />
@@ -1182,19 +1220,31 @@ export default function Calendar() {
                           <div key={event.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden">
                             <button
                               onClick={() => event.workId && setSheetDetailEvent(event)}
-                              className="flex-1 flex items-center gap-3 pl-3 py-3 pr-1 text-left active:opacity-70 transition-opacity min-w-0">
+                              className="flex-1 flex items-center gap-2 pl-3 py-3 pr-1 text-left active:opacity-70 transition-opacity min-w-0">
                               <div className="flex-1 min-w-0">
                                 <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
                                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                                   {event.workName && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.workName}</span>}
-                                  <div className="flex items-center gap-1">
-                                    <Heart size={11} className={event.likedByMe ? 'fill-red-400 text-red-400' : 'text-label-tertiary'} />
-                                    <span className="text-label-tertiary text-xs">{event.likes.toLocaleString('ja-JP')}</span>
-                                  </div>
                                   {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>}
                                 </div>
                               </div>
                               <ChevronRight size={14} className="text-label-tertiary flex-shrink-0" />
+                            </button>
+                            <button
+                              onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); }}
+                              disabled={!user}
+                              className="flex items-center gap-0.5 px-2 self-stretch text-xs disabled:opacity-30"
+                              style={{ color: event.likedByMe ? 'rgb(248,113,113)' : 'var(--label-tertiary)' }}
+                            >
+                              <Heart size={12} style={{ fill: event.likedByMe ? 'rgb(248,113,113)' : 'none' }} />
+                              <span>{event.likes}</span>
+                            </button>
+                            <button
+                              onClick={e => { e.stopPropagation(); setOpenReactionPickerId(prev => prev === event.id ? null : event.id); }}
+                              className="px-1.5 self-stretch flex items-center text-base leading-none active:opacity-60"
+                              style={{ opacity: myReactions[event.id] ? 1 : 0.35 }}
+                            >
+                              {REACTIONS.find(r => r.type === myReactions[event.id])?.emoji ?? '😊'}
                             </button>
                             <button onClick={() => handleDeleteEvent(event.id)} className="w-9 self-stretch flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
                               <X size={14} />
@@ -1258,14 +1308,28 @@ export default function Calendar() {
                           <div className="w-px h-8 bg-white/10 flex-shrink-0" />
                           <div className="flex-1 min-w-0">
                             <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
-                            <div className="flex items-center gap-2 mt-1 flex-wrap">
-                              <div className="flex items-center gap-1">
-                                <Heart size={11} className={event.likedByMe ? 'fill-red-400 text-red-400' : 'text-label-tertiary'} />
-                                <span className="text-label-tertiary text-xs">{event.likes.toLocaleString('ja-JP')}</span>
+                            {event.prefecture && (
+                              <div className="flex items-center mt-1">
+                                <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>
                               </div>
-                              {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>}
-                            </div>
+                            )}
                           </div>
+                        </button>
+                        <button
+                          onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); }}
+                          disabled={!user}
+                          className="flex items-center gap-0.5 px-2 self-stretch text-xs disabled:opacity-30"
+                          style={{ color: event.likedByMe ? 'rgb(248,113,113)' : 'var(--label-tertiary)' }}
+                        >
+                          <Heart size={12} style={{ fill: event.likedByMe ? 'rgb(248,113,113)' : 'none' }} />
+                          <span>{event.likes}</span>
+                        </button>
+                        <button
+                          onClick={e => { e.stopPropagation(); setOpenReactionPickerId(prev => prev === event.id ? null : event.id); }}
+                          className="px-1.5 self-stretch flex items-center text-base leading-none active:opacity-60"
+                          style={{ opacity: myReactions[event.id] ? 1 : 0.35 }}
+                        >
+                          {REACTIONS.find(r => r.type === myReactions[event.id])?.emoji ?? '😊'}
                         </button>
                         <button onClick={() => handleDeleteEvent(event.id)} className="w-9 self-stretch flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
                           <X size={14} />
@@ -1285,32 +1349,50 @@ export default function Calendar() {
                   {myCalendarListItems.map(item => {
                     const [, im, id] = item.date.split('-').map(Number);
                     return (
-                      <div
-                        key={item.id}
-                        className={`flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3 ${!item.isPersonal ? 'cursor-pointer active:opacity-70 transition-opacity' : ''}`}
-                        onClick={() => { if (!item.isPersonal && item.workId) navigate(`/calendar/${item.workId}/date/${item.date}`); }}
-                      >
-                        <div className="flex-shrink-0 w-10 flex flex-col items-center">
-                          <span className="text-[10px] text-label-tertiary leading-none">{im}月</span>
-                          <span className="text-xl font-bold text-label-primary leading-snug">{id}</span>
-                        </div>
-                        <div className="w-px h-8 bg-white/10 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-label-primary text-sm font-medium truncate">{item.title}</p>
-                          <div className="flex items-center gap-2 mt-1 flex-wrap">
-                            {item.tag && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.tag}</span>}
-                            {item.time && <span className="text-label-tertiary text-xs">{item.time}</span>}
-                            {item.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.category}</span>}
-                            {item.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.prefecture}</span>}
-                          </div>
-                          {item.memo && <p className="text-label-secondary text-xs mt-0.5 truncate">{item.memo}</p>}
-                        </div>
+                      <div key={item.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden">
                         <button
-                          onClick={e => {
-                            e.stopPropagation();
-                            item.isPersonal ? deletePersonalEvent(item.id) : handleDeleteEvent(item.id);
-                          }}
-                          className="w-6 h-6 flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0"
+                          onClick={() => { if (!item.isPersonal && item.workId) navigate(`/calendar/${item.workId}/date/${item.date}`); }}
+                          className={`flex-1 flex items-center gap-3 pl-3 py-3 pr-1 text-left min-w-0 ${!item.isPersonal ? 'active:opacity-70 transition-opacity' : 'cursor-default'}`}
+                        >
+                          <div className="flex-shrink-0 w-10 flex flex-col items-center">
+                            <span className="text-[10px] text-label-tertiary leading-none">{im}月</span>
+                            <span className="text-xl font-bold text-label-primary leading-snug">{id}</span>
+                          </div>
+                          <div className="w-px h-8 bg-white/10 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-label-primary text-sm font-medium truncate">{item.title}</p>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              {item.tag && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.tag}</span>}
+                              {item.time && <span className="text-label-tertiary text-xs">{item.time}</span>}
+                              {item.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.category}</span>}
+                              {item.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.prefecture}</span>}
+                            </div>
+                            {item.memo && <p className="text-label-secondary text-xs mt-0.5 truncate">{item.memo}</p>}
+                          </div>
+                        </button>
+                        {!item.isPersonal && (
+                          <button
+                            onClick={e => { e.stopPropagation(); handleSheetEventLike(item.id); }}
+                            disabled={!user}
+                            className="flex items-center gap-0.5 px-2 self-stretch text-xs disabled:opacity-30"
+                            style={{ color: item.likedByMe ? 'rgb(248,113,113)' : 'var(--label-tertiary)' }}
+                          >
+                            <Heart size={12} style={{ fill: item.likedByMe ? 'rgb(248,113,113)' : 'none' }} />
+                            <span>{item.likes ?? 0}</span>
+                          </button>
+                        )}
+                        {!item.isPersonal && (
+                          <button
+                            onClick={e => { e.stopPropagation(); setOpenReactionPickerId(prev => prev === item.id ? null : item.id); }}
+                            className="px-1.5 self-stretch flex items-center text-base leading-none active:opacity-60"
+                            style={{ opacity: myReactions[item.id] ? 1 : 0.35 }}
+                          >
+                            {REACTIONS.find(r => r.type === myReactions[item.id])?.emoji ?? '😊'}
+                          </button>
+                        )}
+                        <button
+                          onClick={e => { e.stopPropagation(); item.isPersonal ? deletePersonalEvent(item.id) : handleDeleteEvent(item.id); }}
+                          className="w-9 self-stretch flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0"
                         >
                           <X size={14} />
                         </button>
@@ -1339,6 +1421,28 @@ export default function Calendar() {
           <Plus size={22} strokeWidth={2.5} />
         </div>
       </button>
+
+      {/* リアクションピッカー */}
+      {openReactionPickerId && (
+        <>
+          <div className="fixed inset-0 z-[310]" onClick={() => setOpenReactionPickerId(null)} />
+          <div className="fixed inset-x-0 max-w-app mx-auto z-[320]" style={{ bottom: BOTTOM_TAB_H + 8 }}>
+            <div className="mx-4 bg-bg-primary rounded-2xl border border-subtle shadow-xl p-3 flex justify-around">
+              {REACTIONS.map(r => (
+                <button
+                  key={r.type}
+                  onClick={() => handleReaction(openReactionPickerId, r.type)}
+                  className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl active:opacity-60"
+                  style={{ background: myReactions[openReactionPickerId] === r.type ? 'var(--bg-secondary)' : 'transparent' }}
+                >
+                  <span className="text-2xl">{r.emoji}</span>
+                  <span className="text-[10px] text-label-secondary">{r.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* 予定追加フォームパネル（絶対配置スクロール方式） */}
       {postPanelOpen && (
