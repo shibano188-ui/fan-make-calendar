@@ -10,7 +10,7 @@ import {
   listEvents, getWorkById, leaveCalendar, deleteWork,
   createEvents, deleteEvent, getHomePrefecture, saveHomePrefecture,
   getDisplayName, saveDisplayName, listRecentWorks,
-  listAllParticipatedWorkEvents, addLikeTap, setReaction,
+  listAllParticipatedWorkEvents, addLikeTap, setReaction, getReactionData,
 } from '../lib/api';
 import { REACTIONS, type ReactionType } from '../lib/reactions';
 import type { Work } from '../lib/api';
@@ -435,6 +435,7 @@ export default function Calendar() {
     () => (sessionStorage.getItem('cal_topView') as 'calendar' | 'list') ?? 'calendar',
   );
   const [sheetDetailEvent, setSheetDetailEvent] = useState<CalendarEvent | null>(null);
+  const [sheetDetailReactionData, setSheetDetailReactionData] = useState<{ counts: Record<string, number>; myReaction: string | null } | null>(null);
   const [myReactions, setMyReactions] = useState<Record<string, ReactionType>>(() => loadMyReactions());
   const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
   const [lockedLikeIds, setLockedLikeIds] = useState<Set<string>>(() => {
@@ -624,6 +625,14 @@ export default function Calendar() {
     savePersonalEvents(updated);
   };
 
+  // sheetDetailEvent が変わったらリアクションデータをSupabaseから取得
+  useEffect(() => {
+    if (!sheetDetailEvent) { setSheetDetailReactionData(null); return; }
+    getReactionData(sheetDetailEvent.id, user?.id)
+      .then(setSheetDetailReactionData)
+      .catch(() => setSheetDetailReactionData({ counts: {}, myReaction: null }));
+  }, [sheetDetailEvent?.id, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleSheetEventLike = async (eventId: string) => {
     if (!user) return;
     const session = loadLikeSession(eventId);
@@ -652,6 +661,25 @@ export default function Calendar() {
       localStorage.setItem(REACTIONS_KEY, JSON.stringify(next));
       return next;
     });
+    // sheetDetailReactionData の楽観的更新
+    if (eventId === sheetDetailEvent?.id) {
+      setSheetDetailReactionData(prev => {
+        if (!prev) return prev;
+        const counts = { ...prev.counts };
+        if (isToggleOff) {
+          counts[type] = Math.max(0, (counts[type] ?? 0) - 1);
+          if (counts[type] === 0) delete counts[type];
+        } else {
+          if (prev.myReaction) {
+            const old = prev.myReaction;
+            counts[old] = Math.max(0, (counts[old] ?? 0) - 1);
+            if (counts[old] === 0) delete counts[old];
+          }
+          counts[type] = (counts[type] ?? 0) + 1;
+        }
+        return { counts, myReaction: isToggleOff ? null : type };
+      });
+    }
     setOpenReactionPickerId(null);
     if (user) {
       setReaction(eventId, user.id, isToggleOff ? null : type).catch(console.error);
@@ -1206,17 +1234,28 @@ export default function Calendar() {
                           onClick={() => setOpenReactionPickerId(prev => prev === sheetDetailEvent.id ? null : sheetDetailEvent.id)}
                           className="flex items-center justify-center px-3 py-1.5 rounded-xl border text-sm active:opacity-60"
                           style={{
-                            borderColor: myReactions[sheetDetailEvent.id] ? 'var(--accent-color)' : 'var(--border-default)',
-                            color: myReactions[sheetDetailEvent.id] ? 'var(--accent-color)' : 'var(--label-secondary)',
+                            borderColor: (sheetDetailReactionData?.myReaction ?? myReactions[sheetDetailEvent.id]) ? 'var(--accent-color)' : 'var(--border-default)',
+                            color: (sheetDetailReactionData?.myReaction ?? myReactions[sheetDetailEvent.id]) ? 'var(--accent-color)' : 'var(--label-secondary)',
                             minWidth: '2.5rem',
                           }}
                         >
-                          {myReactions[sheetDetailEvent.id]
-                            ? <span className="text-base leading-none">{REACTIONS.find(r => r.type === myReactions[sheetDetailEvent.id])?.emoji}</span>
+                          {(sheetDetailReactionData?.myReaction ?? myReactions[sheetDetailEvent.id])
+                            ? <span className="text-base leading-none">{REACTIONS.find(r => r.type === (sheetDetailReactionData?.myReaction ?? myReactions[sheetDetailEvent.id]))?.emoji}</span>
                             : <Smile size={14} />
                           }
                         </button>
                       </div>
+                      {/* リアクション集計 */}
+                      {sheetDetailReactionData && Object.values(sheetDetailReactionData.counts).some(c => c > 0) && (
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {REACTIONS.filter(r => (sheetDetailReactionData.counts[r.type] ?? 0) > 0).map(r => (
+                            <span key={r.type} className="flex items-center gap-0.5 text-label-secondary">
+                              <span className="text-base leading-none">{r.emoji}</span>
+                              <span className="text-xs">{sheetDetailReactionData.counts[r.type]}</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       {sheetDetailEvent.authorName && (
                         <p className="text-label-tertiary text-xs">{sheetDetailEvent.authorName}</p>
                       )}
@@ -1255,7 +1294,10 @@ export default function Calendar() {
                               className="px-1.5 self-stretch flex items-center active:opacity-60"
                               style={{ color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[event.id] ? 1 : 0.5 }}
                             >
-                              <Smile size={14} />
+                              {myReactions[event.id]
+                                ? <span className="text-sm leading-none">{REACTIONS.find(r => r.type === myReactions[event.id])?.emoji}</span>
+                                : <Smile size={14} />
+                              }
                             </button>
                             <div className="px-1 self-stretch flex items-center text-label-tertiary flex-shrink-0">
                               <ChevronRight size={14} />
@@ -1299,7 +1341,10 @@ export default function Calendar() {
                               className="px-1.5 self-stretch flex items-center active:opacity-60"
                               style={{ color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[event.id] ? 1 : 0.5 }}
                             >
-                              <Smile size={14} />
+                              {myReactions[event.id]
+                                ? <span className="text-sm leading-none">{REACTIONS.find(r => r.type === myReactions[event.id])?.emoji}</span>
+                                : <Smile size={14} />
+                              }
                             </button>
                             <div className="px-1 self-stretch flex items-center text-label-tertiary flex-shrink-0">
                               <ChevronRight size={14} />
@@ -1387,7 +1432,10 @@ export default function Calendar() {
                           className="px-1.5 self-stretch flex items-center text-base leading-none active:opacity-60"
                           style={{ color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[event.id] ? 1 : 0.5 }}
                         >
-                          <Smile size={14} />
+                          {myReactions[event.id]
+                            ? <span className="text-sm leading-none">{REACTIONS.find(r => r.type === myReactions[event.id])?.emoji}</span>
+                            : <Smile size={14} />
+                          }
                         </button>
                         <button onClick={() => handleDeleteEvent(event.id)} className="w-9 self-stretch flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
                           <X size={14} />
@@ -1445,7 +1493,10 @@ export default function Calendar() {
                             className="px-1.5 self-stretch flex items-center text-base leading-none active:opacity-60"
                             style={{ color: myReactions[item.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[item.id] ? 1 : 0.5 }}
                           >
-                            <Smile size={14} />
+                            {myReactions[item.id]
+                              ? <span className="text-sm leading-none">{REACTIONS.find(r => r.type === myReactions[item.id])?.emoji}</span>
+                              : <Smile size={14} />
+                            }
                           </button>
                         )}
                         <button
