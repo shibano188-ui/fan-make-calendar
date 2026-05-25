@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Palette, Plus, Heart, MoreVertical, Link2, LogOut, Trash2,
-  ChevronDown, ChevronUp, ChevronRight, X, Settings, Map as MapIcon,
+  ChevronDown, ChevronUp, ChevronRight, ChevronLeft, X, Settings, Map as MapIcon, ExternalLink,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
@@ -10,7 +10,7 @@ import {
   listEvents, getWorkById, leaveCalendar, deleteWork,
   createEvents, deleteEvent, getHomePrefecture, saveHomePrefecture,
   getDisplayName, saveDisplayName, listRecentWorks,
-  listAllParticipatedWorkEvents,
+  listAllParticipatedWorkEvents, addLikeTap,
 } from '../lib/api';
 import type { Work } from '../lib/api';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
@@ -35,6 +35,17 @@ export const WORK_COLORS = [
   '#BA68C8', '#4DB6AC', '#F06292', '#A1887F',
 ];
 
+
+function getDomain(url: string): string {
+  try {
+    const { hostname } = new URL(url);
+    if (hostname.includes('amazon')) return 'Amazon';
+    if (hostname.includes('twitter.com') || hostname.includes('x.com')) return '公式X';
+    if (hostname.includes('kindle')) return 'Kindle';
+    if (hostname.includes('bookwalker')) return 'BOOKWALKER';
+    return hostname.replace(/^www\./, '');
+  } catch { return url; }
+}
 
 const inputCls =
   'w-full bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong';
@@ -399,7 +410,10 @@ export default function Calendar() {
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [sheetOpen, setSheetOpen] = useState(!!shareData);
   const [personalEvents, setPersonalEvents] = useState<PersonalEvent[]>([]);
-  const [topView, setTopView] = useState<'calendar' | 'list'>('calendar');
+  const [topView, setTopView] = useState<'calendar' | 'list'>(
+    () => (sessionStorage.getItem('cal_topView') as 'calendar' | 'list') ?? 'calendar',
+  );
+  const [sheetDetailEvent, setSheetDetailEvent] = useState<CalendarEvent | null>(null);
 
   // フォームstate（ボトムシート内に統合）
   const [postCards, setPostCards] = useState<InlineCard[]>(() => {
@@ -564,12 +578,22 @@ export default function Calendar() {
     if (!isCurrentMonth) return;
     setSelectedDate(dateStr);
     setSheetOpen(true);
+    setSheetDetailEvent(null);
   };
 
   const deletePersonalEvent = (id: string) => {
     const updated = personalEvents.filter(e => e.id !== id);
     setPersonalEvents(updated);
     savePersonalEvents(updated);
+  };
+
+  const handleSheetEventLike = async (eventId: string) => {
+    if (!user) return;
+    try {
+      const newCount = await addLikeTap(eventId, user.id);
+      setSheetDetailEvent(prev => prev?.id === eventId ? { ...prev, likes: newCount, likedByMe: true } : prev);
+      setEvents(prev => prev.map(e => e.id === eventId ? { ...e, likes: newCount, likedByMe: true } : e));
+    } catch (e) { console.error(e); }
   };
 
   const handleDeleteEvent = async (eventId: string) => {
@@ -933,7 +957,7 @@ export default function Calendar() {
           {(['calendar', 'list'] as const).map(v => (
             <button
               key={v}
-              onClick={() => setTopView(v)}
+              onClick={() => { setTopView(v); sessionStorage.setItem('cal_topView', v); }}
               className="flex-1 py-2.5 text-sm font-medium transition-colors relative"
               style={{ color: topView === v ? 'var(--accent-color)' : 'var(--label-tertiary)' }}
             >
@@ -1053,7 +1077,7 @@ export default function Calendar() {
                 <div
                   className="flex flex-col items-center pt-2 flex-shrink-0 cursor-pointer select-none"
                   style={{ height: SHEET_COLLAPSED_H }}
-                  onClick={() => setSheetOpen(v => !v)}
+                  onClick={() => { setSheetOpen(v => !v); setSheetDetailEvent(null); }}
                 >
                   <div className="w-10 h-1 rounded-full mb-2" style={{ backgroundColor: 'var(--border-subtle)' }} />
                   <div className="w-full px-4 flex items-center justify-between">
@@ -1064,9 +1088,62 @@ export default function Calendar() {
                     </div>
                   </div>
                 </div>
-                {/* イベントリスト */}
+                {/* イベントリスト / 詳細 */}
                 <div className="flex-1 overflow-y-auto px-4 pb-4">
-                  {loading ? (
+                  {sheetDetailEvent ? (
+                    <div className="flex flex-col gap-3">
+                      <button
+                        onClick={() => setSheetDetailEvent(null)}
+                        className="flex items-center gap-1 text-xs text-label-secondary active:opacity-60 -ml-1"
+                      >
+                        <ChevronLeft size={14} />一覧に戻る
+                      </button>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-label-primary font-bold text-[15px] leading-snug flex-1">{sheetDetailEvent.title}</p>
+                        {sheetDetailEvent.time && <span className="text-label-secondary text-sm flex-shrink-0">{sheetDetailEvent.time}</span>}
+                      </div>
+                      {(sheetDetailEvent.workName || sheetDetailEvent.category) && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {sheetDetailEvent.workName && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{sheetDetailEvent.workName}</span>}
+                          {sheetDetailEvent.category && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{sheetDetailEvent.category}</span>}
+                        </div>
+                      )}
+                      {sheetDetailEvent.prefecture && (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5 w-fit">{sheetDetailEvent.prefecture}</span>
+                          {sheetDetailEvent.locationDetail && <p className="text-xs text-label-secondary">{sheetDetailEvent.locationDetail}</p>}
+                          {sheetDetailEvent.locationMapLink && (
+                            <a href={sheetDetailEvent.locationMapLink} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-xs active:opacity-60 w-fit" style={{ color: 'var(--accent-color)' }}>
+                              <ExternalLink size={11} />地図を開く
+                            </a>
+                          )}
+                        </div>
+                      )}
+                      {sheetDetailEvent.memo && <p className="text-label-secondary text-sm leading-relaxed">{sheetDetailEvent.memo}</p>}
+                      {sheetDetailEvent.link && (
+                        <a href={sheetDetailEvent.link} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-default text-label-secondary text-xs w-fit active:opacity-60">
+                          <ExternalLink size={11} /><span>{getDomain(sheetDetailEvent.link)}</span>
+                        </a>
+                      )}
+                      <button
+                        onClick={() => handleSheetEventLike(sheetDetailEvent.id)}
+                        disabled={!user}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm w-fit disabled:opacity-40"
+                        style={{
+                          borderColor: sheetDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'var(--border-default)',
+                          color: sheetDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'var(--label-secondary)',
+                        }}
+                      >
+                        <Heart size={14} style={{ fill: sheetDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'none', color: sheetDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'var(--label-secondary)' }} />
+                        <span>{sheetDetailEvent.likes.toLocaleString('ja-JP')}</span>
+                      </button>
+                      {sheetDetailEvent.authorName && (
+                        <p className="text-label-tertiary text-xs">{sheetDetailEvent.authorName}</p>
+                      )}
+                    </div>
+                  ) : loading ? (
                     <div className="flex flex-col gap-2">{[1, 2].map(i => <div key={i} className="h-14 bg-bg-secondary rounded-xl animate-pulse" />)}</div>
                   ) : workId ? (
                     sheetWorkEvents.length === 0 ? (
@@ -1075,7 +1152,7 @@ export default function Calendar() {
                       <div className="flex flex-col gap-2">
                         {sheetWorkEvents.map(event => (
                           <div key={event.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden">
-                            <button onClick={() => navigate(`/calendar/${workId}/date/${event.date}`)}
+                            <button onClick={() => setSheetDetailEvent(event)}
                               className="flex-1 flex items-center gap-3 pl-3 py-3 pr-1 text-left active:opacity-70 transition-opacity min-w-0">
                               <div className="flex-1 min-w-0">
                                 <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
@@ -1104,7 +1181,7 @@ export default function Calendar() {
                         {sheetWorkEvents.map(event => (
                           <div key={event.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden">
                             <button
-                              onClick={() => event.workId && navigate(`/calendar/${event.workId}/date/${event.date}`)}
+                              onClick={() => event.workId && setSheetDetailEvent(event)}
                               className="flex-1 flex items-center gap-3 pl-3 py-3 pr-1 text-left active:opacity-70 transition-opacity min-w-0">
                               <div className="flex-1 min-w-0">
                                 <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
