@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Palette, Plus, Heart, MoreVertical, Link2, LogOut, Trash2,
-  ChevronDown, ChevronUp, ChevronRight, ChevronLeft, X, Settings, Map as MapIcon, ExternalLink,
+  ChevronDown, ChevronUp, ChevronRight, ChevronLeft, X, Settings, Map as MapIcon, ExternalLink, Smile,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
@@ -1177,7 +1177,7 @@ export default function Calendar() {
                         {sheetWorkEvents.map(event => (
                           <div key={event.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden">
                             <button onClick={() => setSheetDetailEvent(event)}
-                              className="flex-1 flex items-center gap-2 pl-3 py-3 pr-1 text-left active:opacity-70 transition-opacity min-w-0">
+                              className="flex-1 pl-3 py-3 pr-2 text-left active:opacity-70 transition-opacity min-w-0">
                               <div className="flex-1 min-w-0">
                                 <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
                                 {event.prefecture && (
@@ -1186,7 +1186,6 @@ export default function Calendar() {
                                   </div>
                                 )}
                               </div>
-                              <ChevronRight size={14} className="text-label-tertiary flex-shrink-0" />
                             </button>
                             <button
                               onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); }}
@@ -1199,11 +1198,14 @@ export default function Calendar() {
                             </button>
                             <button
                               onClick={e => { e.stopPropagation(); setOpenReactionPickerId(prev => prev === event.id ? null : event.id); }}
-                              className="px-1.5 self-stretch flex items-center text-base leading-none active:opacity-60"
-                              style={{ opacity: myReactions[event.id] ? 1 : 0.35 }}
+                              className="px-1.5 self-stretch flex items-center active:opacity-60"
+                              style={{ color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[event.id] ? 1 : 0.5 }}
                             >
-                              {REACTIONS.find(r => r.type === myReactions[event.id])?.emoji ?? '😊'}
+                              <Smile size={14} />
                             </button>
+                            <div className="px-1 self-stretch flex items-center text-label-tertiary flex-shrink-0">
+                              <ChevronRight size={14} />
+                            </div>
                             <button onClick={() => handleDeleteEvent(event.id)} className="w-9 self-stretch flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
                               <X size={14} />
                             </button>
@@ -1220,7 +1222,7 @@ export default function Calendar() {
                           <div key={event.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden">
                             <button
                               onClick={() => event.workId && setSheetDetailEvent(event)}
-                              className="flex-1 flex items-center gap-2 pl-3 py-3 pr-1 text-left active:opacity-70 transition-opacity min-w-0">
+                              className="flex-1 pl-3 py-3 pr-2 text-left active:opacity-70 transition-opacity min-w-0">
                               <div className="flex-1 min-w-0">
                                 <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
                                 <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -1228,7 +1230,6 @@ export default function Calendar() {
                                   {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>}
                                 </div>
                               </div>
-                              <ChevronRight size={14} className="text-label-tertiary flex-shrink-0" />
                             </button>
                             <button
                               onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); }}
@@ -1241,11 +1242,14 @@ export default function Calendar() {
                             </button>
                             <button
                               onClick={e => { e.stopPropagation(); setOpenReactionPickerId(prev => prev === event.id ? null : event.id); }}
-                              className="px-1.5 self-stretch flex items-center text-base leading-none active:opacity-60"
-                              style={{ opacity: myReactions[event.id] ? 1 : 0.35 }}
+                              className="px-1.5 self-stretch flex items-center active:opacity-60"
+                              style={{ color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[event.id] ? 1 : 0.5 }}
                             >
-                              {REACTIONS.find(r => r.type === myReactions[event.id])?.emoji ?? '😊'}
+                              <Smile size={14} />
                             </button>
+                            <div className="px-1 self-stretch flex items-center text-label-tertiary flex-shrink-0">
+                              <ChevronRight size={14} />
+                            </div>
                             <button onClick={() => handleDeleteEvent(event.id)} className="w-9 self-stretch flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
                               <X size={14} />
                             </button>
@@ -1327,9 +1331,9 @@ export default function Calendar() {
                         <button
                           onClick={e => { e.stopPropagation(); setOpenReactionPickerId(prev => prev === event.id ? null : event.id); }}
                           className="px-1.5 self-stretch flex items-center text-base leading-none active:opacity-60"
-                          style={{ opacity: myReactions[event.id] ? 1 : 0.35 }}
+                          style={{ color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[event.id] ? 1 : 0.5 }}
                         >
-                          {REACTIONS.find(r => r.type === myReactions[event.id])?.emoji ?? '😊'}
+                          <Smile size={14} />
                         </button>
                         <button onClick={() => handleDeleteEvent(event.id)} className="w-9 self-stretch flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
                           <X size={14} />
@@ -1385,9 +1389,9 @@ export default function Calendar() {
                           <button
                             onClick={e => { e.stopPropagation(); setOpenReactionPickerId(prev => prev === item.id ? null : item.id); }}
                             className="px-1.5 self-stretch flex items-center text-base leading-none active:opacity-60"
-                            style={{ opacity: myReactions[item.id] ? 1 : 0.35 }}
+                            style={{ color: myReactions[item.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[item.id] ? 1 : 0.5 }}
                           >
-                            {REACTIONS.find(r => r.type === myReactions[item.id])?.emoji ?? '😊'}
+                            <Smile size={14} />
                           </button>
                         )}
                         <button
