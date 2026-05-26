@@ -11,6 +11,8 @@ export type CalendarEvent = {
   locationMapLink?: string;
   authorId?: string;
   authorName?: string;
+  endDate?: string;    // 'YYYY-MM-DD'
+  endTime?: string;    // 'HH:mm'
   likes: number;
   likedByMe: boolean;
   createdAt: string;

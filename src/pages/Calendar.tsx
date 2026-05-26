@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Palette, Plus, Heart, MoreVertical, Link2, LogOut, Trash2,
-  ChevronDown, ChevronUp, ChevronRight, ChevronLeft, X, Settings, Map as MapIcon, ExternalLink, Smile,
+  ChevronDown, ChevronUp, ChevronRight, ChevronLeft, X, Settings, Map as MapIcon, ExternalLink, Smile, SlidersHorizontal,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
@@ -24,11 +24,11 @@ import type { CalendarEvent } from '../types';
 
 export type { CalendarEvent };
 
+import { POST_CATEGORIES, type PostCategory, loadCategoryFilters, saveCategoryFilters } from '../lib/constants';
+
 // ─── 定数 ──────────────────────────────────────────────────────────
 
 const DAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
-const POST_CATEGORIES = ['単行本', 'グッズ', 'イベント', '誕生日', '配信'] as const;
-type PostCategory = (typeof POST_CATEGORIES)[number];
 
 // 作品ごとの識別カラー（最大8作品まで色分け、以降はループ）
 export const WORK_COLORS = [
@@ -105,6 +105,8 @@ interface InlineCard {
   title: string;
   date: string;
   time: string;
+  endDate: string;
+  endTime: string;
   category: PostCategory | '';
   customCategory: string;
   prefecture: string;
@@ -122,6 +124,8 @@ function newInlineCard(date: string): InlineCard {
     title: '',
     date,
     time: '',
+    endDate: '',
+    endTime: '',
     category: '',
     customCategory: '',
     prefecture: '',
@@ -199,14 +203,26 @@ function InlineCardItem({
             <input type="text" value={card.title} onChange={e => onChange({ title: e.target.value })} placeholder="例：単行本 第15巻 発売" className={inputCls} />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-label-tertiary text-xs mb-1.5 block">日付 <span className="text-red-400">*</span></label>
-              <input type="date" value={card.date} onChange={e => onChange({ date: e.target.value })} className={inputCls} />
+          <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-label-tertiary text-xs mb-1.5 block">開始日 <span className="text-red-400">*</span></label>
+                <input type="date" value={card.date} onChange={e => onChange({ date: e.target.value })} className={inputCls} />
+              </div>
+              <div>
+                <label className="text-label-tertiary text-xs mb-1.5 block">開始時間</label>
+                <input type="time" value={card.time} onChange={e => onChange({ time: e.target.value })} className={inputCls} />
+              </div>
             </div>
-            <div>
-              <label className="text-label-tertiary text-xs mb-1.5 block">時間</label>
-              <input type="time" value={card.time} onChange={e => onChange({ time: e.target.value })} className={inputCls} />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-label-tertiary text-xs mb-1.5 block">終了日（任意）</label>
+                <input type="date" value={card.endDate} min={card.date || undefined} onChange={e => onChange({ endDate: e.target.value })} className={inputCls} />
+              </div>
+              <div>
+                <label className="text-label-tertiary text-xs mb-1.5 block">終了時間</label>
+                <input type="time" value={card.endTime} onChange={e => onChange({ endTime: e.target.value })} className={inputCls} />
+              </div>
             </div>
           </div>
 
@@ -369,6 +385,8 @@ type PersonalEvent = {
   title: string;
   date: string;
   time?: string;
+  endDate?: string;
+  endTime?: string;
   category?: string;
   prefecture?: string;
   locationDetail?: string;
@@ -418,6 +436,8 @@ export default function Calendar() {
 
   const [participatedWorks, setParticipatedWorks] = useState<Work[]>([]);
   const [hiddenWorkIds, setHiddenWorkIds] = useState<Set<string>>(new Set());
+  const [categoryFilters, setCategoryFilters] = useState<Record<string, string[]>>(loadCategoryFilters);
+  const [filterPickerWorkId, setFilterPickerWorkId] = useState<string | null>(null);
 
   const [shareData] = useState<Record<string, string | null> | null>(() => {
     const raw = sessionStorage.getItem('pendingParsedEvent');
@@ -597,11 +617,18 @@ export default function Calendar() {
     return monthEvents.filter(e => !e.prefecture || activeFilterPrefs.has(e.prefecture));
   }, [monthEvents, activeFilterPrefs]);
 
-  // 表示中のイベント（作品非表示フィルター適用済み）
+  // 表示中のイベント（作品非表示・カテゴリフィルター適用済み）
   const visibleEvents = useMemo(() => {
-    if (workId) return filteredEvents;
-    return filteredEvents.filter(e => !e.workId || !hiddenWorkIds.has(e.workId));
-  }, [workId, filteredEvents, hiddenWorkIds]);
+    let evts = workId ? filteredEvents : filteredEvents.filter(e => !e.workId || !hiddenWorkIds.has(e.workId));
+    evts = evts.filter(e => {
+      const wId = e.workId ?? (workId || '');
+      if (!wId) return true;
+      const cats = categoryFilters[wId];
+      if (!cats || cats.length === 0) return true;
+      return cats.includes(e.category ?? '');
+    });
+    return evts;
+  }, [workId, filteredEvents, hiddenWorkIds, categoryFilters]);
 
   const prevMonth = () => {
     if (month === 0) { setYear(y => y - 1); setMonth(11); }
@@ -775,6 +802,7 @@ export default function Calendar() {
     setPostSubmitting(true);
     const toEventPayload = (c: InlineCard) => ({
       title: c.title.trim(), date: c.date, time: c.time || undefined,
+      endDate: c.endDate || undefined, endTime: c.endTime || undefined,
       category: c.category || c.customCategory.trim() || undefined,
       link: c.link || undefined, memo: c.memo || undefined,
       prefecture: c.prefecture || undefined,
@@ -784,6 +812,8 @@ export default function Calendar() {
     const toPersonalEvent = (c: InlineCard): PersonalEvent => ({
       id: crypto.randomUUID(), title: c.title.trim(), date: c.date,
       ...(c.time && { time: c.time }),
+      ...(c.endDate && { endDate: c.endDate }),
+      ...(c.endTime && { endTime: c.endTime }),
       ...((c.category || c.customCategory.trim()) && { category: c.category || c.customCategory.trim() }),
       ...(c.prefecture && { prefecture: c.prefecture }),
       ...(c.locationDetail && { locationDetail: c.locationDetail }),
@@ -1020,23 +1050,35 @@ export default function Calendar() {
             {participatedWorks.map((w, i) => {
               const hidden = hiddenWorkIds.has(w.id);
               const color = workColorMap.get(w.id) ?? WORK_COLORS[i % WORK_COLORS.length];
+              const hasCatFilter = (categoryFilters[w.id]?.length ?? 0) > 0;
               return (
-                <button
+                <div
                   key={w.id}
-                  onClick={() => toggleWorkVisibility(w.id)}
-                  className="flex-shrink-0 flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border transition-all active:opacity-70"
+                  className="flex-shrink-0 flex items-center rounded-full border transition-all overflow-hidden"
                   style={{
                     borderColor: hidden ? 'var(--border-subtle)' : color,
                     color: hidden ? 'var(--label-tertiary)' : color,
                     opacity: hidden ? 0.5 : 1,
                   }}
                 >
-                  <span
-                    className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ background: hidden ? 'var(--label-tertiary)' : color }}
-                  />
-                  {w.name}
-                </button>
+                  <button
+                    onClick={() => toggleWorkVisibility(w.id)}
+                    className="flex items-center gap-1.5 text-xs pl-3 pr-2 py-1 active:opacity-70"
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      style={{ background: hidden ? 'var(--label-tertiary)' : color }}
+                    />
+                    {w.name}
+                  </button>
+                  <button
+                    onClick={e => { e.stopPropagation(); setFilterPickerWorkId(w.id); }}
+                    className="pr-2.5 py-1 active:opacity-70"
+                    style={{ color: hasCatFilter ? color : 'var(--label-tertiary)' }}
+                  >
+                    <SlidersHorizontal size={11} strokeWidth={hasCatFilter ? 2.5 : 1.5} />
+                  </button>
+                </div>
               );
             })}
           </div>
@@ -1639,6 +1681,60 @@ export default function Calendar() {
           onClose={() => setShowUserSettings(false)}
         />
       )}
+
+      {/* カテゴリフィルターピッカー */}
+      {filterPickerWorkId !== null && (() => {
+        const work = participatedWorks.find(w => w.id === filterPickerWorkId);
+        if (!work) return null;
+        const current = categoryFilters[filterPickerWorkId] ?? [];
+        const toggle = (cat: string) => {
+          const next = current.includes(cat) ? current.filter(c => c !== cat) : [...current, cat];
+          const updated = { ...categoryFilters, [filterPickerWorkId]: next };
+          setCategoryFilters(updated);
+          saveCategoryFilters(updated);
+        };
+        const clearAll = () => {
+          const updated = { ...categoryFilters, [filterPickerWorkId]: [] };
+          setCategoryFilters(updated);
+          saveCategoryFilters(updated);
+        };
+        return (
+          <>
+            <div className="fixed inset-0 z-[180]" onClick={() => setFilterPickerWorkId(null)} />
+            <div className="fixed bottom-14 left-0 right-0 z-[190] max-w-app mx-auto px-4 pb-2">
+              <div className="bg-bg-secondary rounded-2xl shadow-lg overflow-hidden border border-subtle">
+                <div className="flex items-center justify-between px-4 pt-4 pb-2">
+                  <span className="text-label-primary text-sm font-semibold">{work.name} の表示カテゴリ</span>
+                  <button onClick={clearAll} className="text-xs text-label-tertiary underline active:opacity-60">すべて表示</button>
+                </div>
+                <p className="px-4 text-[11px] text-label-tertiary mb-3">選択したカテゴリのみ表示します（未選択 = 全表示）</p>
+                <div className="flex flex-wrap gap-2 px-4 pb-4">
+                  {POST_CATEGORIES.map(cat => {
+                    const active = current.includes(cat);
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => toggle(cat)}
+                        className="px-3 py-1.5 rounded-full text-xs border transition-colors active:opacity-70"
+                        style={active ? {
+                          borderColor: workColorMap.get(filterPickerWorkId) ?? 'var(--accent-color)',
+                          color: workColorMap.get(filterPickerWorkId) ?? 'var(--accent-color)',
+                          backgroundColor: `${workColorMap.get(filterPickerWorkId) ?? 'var(--accent-color)'}18`,
+                        } : {
+                          borderColor: 'var(--border-default)',
+                          color: 'var(--label-secondary)',
+                        }}
+                      >
+                        {cat}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       <BottomTab />
     </>

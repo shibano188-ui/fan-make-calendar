@@ -6,6 +6,7 @@ import SettingsMenuButton from '../components/SettingsMenuButton';
 import { listWorks, searchWorks, getOrCreateWork, upsertParticipation, listRecentWorks, leaveCalendar, deleteWork } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import type { Work } from '../lib/api';
+import { POST_CATEGORIES, loadCategoryFilters, saveCategoryFilters } from '../lib/constants';
 
 function formatCount(n: number): string {
   return n.toLocaleString('ja-JP');
@@ -96,6 +97,8 @@ export default function WorkSelect() {
   const [searchResults, setSearchResults] = useState<Work[]>([]);
   const [loadingPopular, setLoadingPopular] = useState(true);
   const [error, setError] = useState('');
+  const [pendingWork, setPendingWork] = useState<Work | null>(null);
+  const [pendingCats, setPendingCats] = useState<string[]>([]);
 
   useEffect(() => {
     listWorks()
@@ -122,7 +125,9 @@ export default function WorkSelect() {
     if (!user) return;
     try {
       await upsertParticipation(work.id, user.id);
-      navigate('/calendar');
+      const existing = loadCategoryFilters();
+      setPendingCats(existing[work.id] ?? []);
+      setPendingWork(work);
     } catch {
       setError('参加に失敗しました');
     }
@@ -134,7 +139,9 @@ export default function WorkSelect() {
     try {
       const work = await getOrCreateWork(name);
       await upsertParticipation(work.id, user.id);
-      navigate('/calendar');
+      const existing = loadCategoryFilters();
+      setPendingCats(existing[work.id] ?? []);
+      setPendingWork(work);
     } catch {
       setError('作品の作成に失敗しました');
     }
@@ -259,6 +266,56 @@ export default function WorkSelect() {
           </>
         )}
       </div>
+
+      {pendingWork && (
+        <>
+          <div className="fixed inset-0 z-[150] bg-black/40" onClick={() => { navigate('/calendar'); }} />
+          <div className="fixed bottom-0 left-0 right-0 z-[160] max-w-app mx-auto rounded-t-2xl overflow-hidden" style={{ backgroundColor: 'var(--bg-primary)' }}>
+            <div className="px-5 pt-5 pb-4">
+              <p className="text-label-primary font-semibold text-[15px] mb-1">「{pendingWork.name}」に参加しました</p>
+              <p className="text-label-secondary text-xs mb-4">表示するカテゴリを絞り込めます（後からでも変更できます）</p>
+              <div className="flex flex-wrap gap-2 mb-5">
+                {POST_CATEGORIES.map(cat => {
+                  const active = pendingCats.includes(cat);
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => setPendingCats(prev => active ? prev.filter(c => c !== cat) : [...prev, cat])}
+                      className="px-3 py-1.5 rounded-full text-xs border transition-colors active:opacity-70"
+                      style={active ? {
+                        borderColor: 'var(--accent-color)',
+                        color: 'var(--accent-color)',
+                        backgroundColor: 'color-mix(in srgb, var(--accent-color) 12%, transparent)',
+                      } : {
+                        borderColor: 'var(--border-default)',
+                        color: 'var(--label-secondary)',
+                      }}
+                    >
+                      {cat}
+                    </button>
+                  );
+                })}
+              </div>
+              {pendingCats.length > 0 && (
+                <p className="text-[11px] text-label-tertiary mb-3">
+                  {pendingCats.join('・')} のみ表示
+                </p>
+              )}
+              <button
+                onClick={() => {
+                  const updated = { ...loadCategoryFilters(), [pendingWork.id]: pendingCats };
+                  saveCategoryFilters(updated);
+                  navigate('/calendar');
+                }}
+                className="w-full py-3 rounded-xl text-sm font-semibold active:opacity-70"
+                style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' }}
+              >
+                {pendingCats.length === 0 ? 'すべて表示してカレンダーへ' : '設定してカレンダーへ'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </Layout>
   );
 }
