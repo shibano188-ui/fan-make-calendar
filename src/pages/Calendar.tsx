@@ -68,6 +68,19 @@ function getDomain(url: string): string {
   } catch { return url; }
 }
 
+function fmtMD(dateStr: string): string {
+  const [, m, d] = dateStr.split('-');
+  return `${parseInt(m)}月${parseInt(d)}日`;
+}
+function formatDateRange(startDate: string, endDate?: string): string | null {
+  if (!endDate || endDate === startDate) return null;
+  return `${fmtMD(startDate)}〜${fmtMD(endDate)}`;
+}
+function formatTimeRange(startTime?: string, endTime?: string): string | null {
+  if (!startTime) return null;
+  return endTime ? `${startTime}〜${endTime}` : startTime;
+}
+
 const inputCls =
   'w-full bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong';
 
@@ -798,6 +811,12 @@ export default function Calendar() {
       setPostCards(prev => prev.map(c => c.id === invalid.id ? { ...c, collapsed: false } : c));
       return;
     }
+    const noCat = postCards.find(c => !c.category && !c.customCategory.trim());
+    if (noCat) {
+      setPostError('カテゴリを選択してください');
+      setPostCards(prev => prev.map(c => c.id === noCat.id ? { ...c, collapsed: false } : c));
+      return;
+    }
     setPostError('');
     setPostSubmitting(true);
     const toEventPayload = (c: InlineCard) => ({
@@ -896,40 +915,70 @@ export default function Calendar() {
     return m;
   }, [participatedWorks]);
 
-  // カレンダーセル用: 日付→{title, color}[]
+  // カレンダーセル用: 日付→{title, color, position?, eventId}[]
+  type CellItem = { title: string; color: string; position?: 'start' | 'middle' | 'end'; eventId: string };
   const cellEventsByDate = useMemo(() => {
-    const map = new Map<string, Array<{ title: string; color: string }>>();
+    const map = new Map<string, CellItem[]>();
+    const add = (d: string, item: CellItem) => {
+      const arr = map.get(d) ?? [];
+      arr.push(item);
+      map.set(d, arr);
+    };
     for (const e of visibleEvents) {
-      const arr = map.get(e.date) ?? [];
       const color = e.workId
         ? (workColorMap.get(e.workId) ?? 'var(--accent-color)')
         : 'var(--accent-color)';
-      arr.push({ title: e.title, color });
-      map.set(e.date, arr);
+      if (e.endDate && e.endDate > e.date) {
+        let cur = e.date;
+        while (cur <= e.endDate) {
+          const pos: CellItem['position'] = cur === e.date ? 'start' : cur === e.endDate ? 'end' : 'middle';
+          add(cur, { title: e.title, color, position: pos, eventId: e.id });
+          const next = new Date(cur + 'T00:00:00');
+          next.setDate(next.getDate() + 1);
+          cur = toDateStr(next);
+        }
+      } else {
+        add(e.date, { title: e.title, color, eventId: e.id });
+      }
     }
     if (!workId) {
       for (const pe of monthPersonalEvents) {
-        const arr = map.get(pe.date) ?? [];
-        arr.push({ title: pe.title, color: '#888888' });
-        map.set(pe.date, arr);
+        if (pe.endDate && pe.endDate > pe.date) {
+          let cur = pe.date;
+          while (cur <= pe.endDate) {
+            const pos: CellItem['position'] = cur === pe.date ? 'start' : cur === pe.endDate ? 'end' : 'middle';
+            add(cur, { title: pe.title, color: '#888888', position: pos, eventId: pe.id });
+            const next = new Date(cur + 'T00:00:00');
+            next.setDate(next.getDate() + 1);
+            cur = toDateStr(next);
+          }
+        } else {
+          add(pe.date, { title: pe.title, color: '#888888', eventId: pe.id });
+        }
       }
     }
     return map;
   }, [workId, visibleEvents, monthPersonalEvents, workColorMap]);
 
-  // ボトムシート用: 選択日の作品イベント
+  // ボトムシート用: 選択日の作品イベント（複数日イベント対応）
   const sheetWorkEvents = useMemo(
-    () => visibleEvents.filter(e => e.date === selectedDate),
+    () => visibleEvents.filter(e => {
+      const end = e.endDate || e.date;
+      return e.date <= selectedDate && selectedDate <= end;
+    }),
     [visibleEvents, selectedDate],
   );
   const sheetPersonalEvents = useMemo(
-    () => personalEvents.filter(e => e.date === selectedDate),
+    () => personalEvents.filter(e => {
+      const end = e.endDate || e.date;
+      return e.date <= selectedDate && selectedDate <= end;
+    }),
     [personalEvents, selectedDate],
   );
 
   // 予定一覧ビュー用: 作品イベント+個人予定を日付順にまとめたリスト
   type ListItem = {
-    id: string; date: string; title: string; time?: string;
+    id: string; date: string; title: string; time?: string; endDate?: string; endTime?: string;
     category?: string; prefecture?: string; memo?: string;
     tag: string; isPersonal: boolean; workId?: string;
     likes?: number; likedByMe?: boolean;
@@ -937,13 +986,13 @@ export default function Calendar() {
   const myCalendarListItems = useMemo((): ListItem[] => {
     if (workId) return [];
     const workItems: ListItem[] = visibleEvents.map(e => ({
-      id: e.id, date: e.date, title: e.title, time: e.time,
+      id: e.id, date: e.date, title: e.title, time: e.time, endDate: e.endDate, endTime: e.endTime,
       category: e.category, prefecture: e.prefecture,
       tag: e.workName ?? '', isPersonal: false, workId: e.workId,
       likes: e.likes, likedByMe: e.likedByMe,
     }));
     const personalItems: ListItem[] = monthPersonalEvents.map(pe => ({
-      id: pe.id, date: pe.date, title: pe.title, time: pe.time,
+      id: pe.id, date: pe.date, title: pe.title, time: pe.time, endDate: pe.endDate, endTime: pe.endTime,
       category: pe.category, prefecture: pe.prefecture, memo: pe.memo,
       tag: '個人', isPersonal: true,
     }));
@@ -1163,19 +1212,27 @@ export default function Calendar() {
                         {date.getDate()}
                       </div>
                       {cellItems.length > 0 ? (
-                        <div className="w-full px-[2px] flex flex-col gap-[1px] mt-[1px] overflow-hidden">
-                          {cellItems.slice(0, 2).map((item, ti) => (
-                            <div
-                              key={ti}
-                              className="w-full text-[8px] leading-none truncate rounded-[2px] px-[2px] py-[1px]"
-                              style={{
-                                background: item.color.startsWith('#') ? item.color + '28' : 'rgba(128,128,128,0.18)',
-                                color: item.color,
-                              }}
-                            >
-                              {item.title}
-                            </div>
-                          ))}
+                        <div className="w-full px-[2px] flex flex-col gap-[1px] mt-[1px]">
+                          {cellItems.slice(0, 2).map((item, ti) => {
+                            const pos = item.position;
+                            const barCls = !pos
+                              ? 'rounded-[2px] px-[2px]'
+                              : pos === 'start' ? 'rounded-l-[2px] rounded-r-none px-[2px] mr-[-3px]'
+                              : pos === 'end'   ? 'rounded-r-[2px] rounded-l-none px-[2px] ml-[-3px]'
+                              :                  'rounded-none px-[2px] mx-[-3px]';
+                            return (
+                              <div
+                                key={`${item.eventId}-${ti}`}
+                                className={`w-full text-[8px] leading-none truncate py-[1px] ${barCls}`}
+                                style={{
+                                  background: item.color.startsWith('#') ? item.color + '28' : 'rgba(128,128,128,0.18)',
+                                  color: item.color,
+                                }}
+                              >
+                                {pos === 'middle' || pos === 'end' ? ' ' : item.title}
+                              </div>
+                            );
+                          })}
                           {cellItems.length > 2 && (
                             <div
                               className="text-[8px] text-center leading-none py-[1px]"
@@ -1232,8 +1289,13 @@ export default function Calendar() {
                       </button>
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-label-primary font-bold text-[15px] leading-snug flex-1">{sheetDetailEvent.title}</p>
-                        {sheetDetailEvent.time && <span className="text-label-secondary text-sm flex-shrink-0">{sheetDetailEvent.time}</span>}
+                        {formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime) && (
+                          <span className="text-label-secondary text-sm flex-shrink-0">{formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime)}</span>
+                        )}
                       </div>
+                      {formatDateRange(sheetDetailEvent.date, sheetDetailEvent.endDate) && (
+                        <p className="text-label-secondary text-xs">{formatDateRange(sheetDetailEvent.date, sheetDetailEvent.endDate)}</p>
+                      )}
                       {(sheetDetailEvent.workName || sheetDetailEvent.category) && (
                         <div className="flex items-center gap-2 flex-wrap">
                           {sheetDetailEvent.workName && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{sheetDetailEvent.workName}</span>}
@@ -1315,11 +1377,11 @@ export default function Calendar() {
                               className="flex-1 pl-3 py-3 pr-2 text-left active:opacity-70 transition-opacity min-w-0">
                               <div className="flex-1 min-w-0">
                                 <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
-                                {event.prefecture && (
-                                  <div className="flex items-center mt-1">
-                                    <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>
-                                  </div>
-                                )}
+                                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                  {formatDateRange(event.date, event.endDate) && <span className="text-label-tertiary text-xs">{formatDateRange(event.date, event.endDate)}</span>}
+                                  {formatTimeRange(event.time, event.endTime) && <span className="text-label-tertiary text-xs">{formatTimeRange(event.time, event.endTime)}</span>}
+                                  {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>}
+                                </div>
                               </div>
                             </button>
                             <button
@@ -1365,6 +1427,8 @@ export default function Calendar() {
                                 <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
                                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                                   {event.workName && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.workName}</span>}
+                                  {formatDateRange(event.date, event.endDate) && <span className="text-label-tertiary text-xs">{formatDateRange(event.date, event.endDate)}</span>}
+                                  {formatTimeRange(event.time, event.endTime) && <span className="text-label-tertiary text-xs">{formatTimeRange(event.time, event.endTime)}</span>}
                                   {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>}
                                 </div>
                               </div>
@@ -1402,7 +1466,8 @@ export default function Calendar() {
                               <p className="text-label-primary text-sm font-medium truncate">{pe.title}</p>
                               <div className="flex items-center gap-2 mt-1 flex-wrap">
                                 <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">個人</span>
-                                {pe.time && <span className="text-label-tertiary text-xs">{pe.time}</span>}
+                                {formatDateRange(pe.date, pe.endDate) && <span className="text-label-tertiary text-xs">{formatDateRange(pe.date, pe.endDate)}</span>}
+                                {formatTimeRange(pe.time, pe.endTime) && <span className="text-label-tertiary text-xs">{formatTimeRange(pe.time, pe.endTime)}</span>}
                                 {pe.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.category}</span>}
                                 {pe.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.prefecture}</span>}
                               </div>
@@ -1511,7 +1576,8 @@ export default function Calendar() {
                             <p className="text-label-primary text-sm font-medium truncate">{item.title}</p>
                             <div className="flex items-center gap-2 mt-1 flex-wrap">
                               {item.tag && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.tag}</span>}
-                              {item.time && <span className="text-label-tertiary text-xs">{item.time}</span>}
+                              {formatDateRange(item.date, item.endDate) && <span className="text-label-tertiary text-xs">{formatDateRange(item.date, item.endDate)}</span>}
+                              {formatTimeRange(item.time, item.endTime) && <span className="text-label-tertiary text-xs">{formatTimeRange(item.time, item.endTime)}</span>}
                               {item.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.category}</span>}
                               {item.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.prefecture}</span>}
                             </div>

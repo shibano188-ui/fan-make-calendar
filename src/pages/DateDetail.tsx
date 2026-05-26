@@ -195,15 +195,22 @@ function EventCard({
 }) {
   const hasReactions = reactionData && Object.values(reactionData.counts).some(c => c > 0);
 
+  const timeLabel = event.endTime ? `${event.time}〜${event.endTime}` : event.time;
+  const dateLabel = event.endDate && event.endDate !== event.date
+    ? (() => { const fmt = (d: string) => { const [, m, day] = d.split('-'); return `${parseInt(m)}月${parseInt(day)}日`; }; return `${fmt(event.date)}〜${fmt(event.endDate)}`; })()
+    : null;
   return (
     <div className="bg-bg-secondary rounded-xl px-4 py-4 flex flex-col gap-3">
       {/* タイトル + 時間 */}
       <div className="flex items-start justify-between gap-2">
         <p className="text-label-primary font-bold text-[15px] leading-snug flex-1">{event.title}</p>
-        {event.time && (
-          <span className="text-label-secondary text-sm flex-shrink-0">{event.time}</span>
+        {timeLabel && (
+          <span className="text-label-secondary text-sm flex-shrink-0">{timeLabel}</span>
         )}
       </div>
+      {dateLabel && (
+        <p className="text-label-secondary text-xs -mt-1">{dateLabel}</p>
+      )}
 
       {/* メモ */}
       {event.memo && (
