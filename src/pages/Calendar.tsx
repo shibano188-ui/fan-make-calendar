@@ -644,6 +644,7 @@ export default function Calendar() {
   }, [monthEvents, activeFilterPrefs]);
 
   // 表示中のイベント（作品非表示・カテゴリフィルター適用済み）
+  // categoryFilters[wId] = 非表示にするカテゴリのリスト（空 = 全表示）
   const visibleEvents = useMemo(() => {
     let evts = workId ? filteredEvents : filteredEvents.filter(e => !e.workId || !hiddenWorkIds.has(e.workId));
     evts = evts.filter(e => {
@@ -651,7 +652,7 @@ export default function Calendar() {
       if (!wId) return true;
       const cats = categoryFilters[wId];
       if (!cats || cats.length === 0) return true;
-      return cats.includes(e.category ?? '');
+      return !cats.includes(e.category ?? '');
     });
     return evts;
   }, [workId, filteredEvents, hiddenWorkIds, categoryFilters]);
@@ -1936,22 +1937,22 @@ export default function Calendar() {
                   <span className="text-label-primary text-sm font-semibold">{work.name} の表示カテゴリ</span>
                   <button onClick={clearAll} className="text-xs text-label-tertiary underline active:opacity-60">すべて表示</button>
                 </div>
-                <p className="px-4 text-[11px] text-label-tertiary mb-3">選択したカテゴリのみ表示します（未選択 = 全表示）</p>
+                <p className="px-4 text-[11px] text-label-tertiary mb-3">色ありが表示中。タップしたカテゴリを非表示にします</p>
                 <div className="flex flex-wrap gap-2 px-4 pb-4">
                   {POST_CATEGORIES.map(cat => {
-                    const active = current.includes(cat);
+                    const hidden = current.includes(cat);
                     return (
                       <button
                         key={cat}
                         onClick={() => toggle(cat)}
                         className="px-3 py-1.5 rounded-full text-xs border transition-colors active:opacity-70"
-                        style={active ? {
+                        style={hidden ? {
+                          borderColor: 'var(--border-default)',
+                          color: 'var(--label-tertiary)',
+                        } : {
                           borderColor: workColorMap.get(filterPickerWorkId) ?? 'var(--accent-color)',
                           color: workColorMap.get(filterPickerWorkId) ?? 'var(--accent-color)',
                           backgroundColor: `${workColorMap.get(filterPickerWorkId) ?? 'var(--accent-color)'}18`,
-                        } : {
-                          borderColor: 'var(--border-default)',
-                          color: 'var(--label-secondary)',
                         }}
                       >
                         {cat}
