@@ -24,7 +24,7 @@ import type { CalendarEvent } from '../types';
 
 export type { CalendarEvent };
 
-import { POST_CATEGORIES, type PostCategory, loadCategoryFilters, saveCategoryFilters } from '../lib/constants';
+import { POST_CATEGORIES, type PostCategory, loadCategoryFilters, saveCategoryFilters, loadLikedEventIds } from '../lib/constants';
 
 // ─── 定数 ──────────────────────────────────────────────────────────
 
@@ -498,6 +498,7 @@ export default function Calendar() {
   const [myReactions, setMyReactions] = useState<Record<string, ReactionType>>(() => loadMyReactions());
   const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
   const [hiddenEventIds, setHiddenEventIds] = useState<Set<string>>(loadHiddenEventIds);
+  const [likedEventIds, setLikedEventIds] = useState<Set<string>>(loadLikedEventIds);
 
   const [lockedLikeIds, setLockedLikeIds] = useState<Set<string>>(() => {
     const set = new Set<string>();
@@ -608,6 +609,11 @@ export default function Calendar() {
     setPersonalEvents(loadPersonalEvents());
   }, [workId]);
 
+  // 発見タブから戻ったときにいいね済みIDを再読み込み
+  useEffect(() => {
+    if (!workId) setLikedEventIds(loadLikedEventIds());
+  }, [workId, location.key]);
+
   // MyCalendar: 参加中の作品リストを取得
   useEffect(() => {
     if (workId || !user) return;
@@ -659,9 +665,12 @@ export default function Calendar() {
   }, [monthEvents, activeFilterPrefs]);
 
   // 表示中のイベント（作品非表示・カテゴリフィルター・個人非表示リスト適用済み）
+  // Model A: MyCalendarモードでは、発見タブでいいねしたイベントのみ表示
   // categoryFilters[wId] = 非表示にするカテゴリのリスト（空 = 全表示）
   const visibleEvents = useMemo(() => {
     let evts = workId ? filteredEvents : filteredEvents.filter(e => !e.workId || !hiddenWorkIds.has(e.workId));
+    // MyCalendarモード: いいね済みのイベントのみ
+    if (!workId) evts = evts.filter(e => likedEventIds.has(e.id));
     evts = evts.filter(e => !hiddenEventIds.has(e.id));
     evts = evts.filter(e => {
       const wId = e.workId ?? (workId || '');
@@ -671,7 +680,7 @@ export default function Calendar() {
       return !cats.includes(e.category ?? '');
     });
     return evts;
-  }, [workId, filteredEvents, hiddenWorkIds, hiddenEventIds, categoryFilters]);
+  }, [workId, filteredEvents, hiddenWorkIds, likedEventIds, hiddenEventIds, categoryFilters]);
 
   const prevMonth = () => {
     if (month === 0) { setYear(y => y - 1); setMonth(11); }
@@ -1892,7 +1901,9 @@ export default function Calendar() {
             ) : (
               myCalendarListItems.length === 0 ? (
                 <p className="text-center text-label-tertiary text-sm py-10">
-                  {participatedWorks.length === 0 ? 'まだ作品に参加していません' : 'この月の予定はありません'}
+                  {participatedWorks.length === 0
+                    ? 'まだ作品に参加していません'
+                    : '発見タブで❤️した予定がここに表示されます'}
                 </p>
               ) : (
                 <div className="flex flex-col gap-2">

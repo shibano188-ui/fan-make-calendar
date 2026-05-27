@@ -538,6 +538,32 @@ export async function leaveCalendar(workId: string, userId: string): Promise<voi
   await syncParticipantCount(workId);
 }
 
+// ─── 発見タブ: 参加中の全作品の今日以降のイベント ────────────────
+export async function listUpcomingParticipatedEvents(
+  userId: string,
+  limit = 60,
+): Promise<CalendarEvent[]> {
+  const { data: parts } = await supabase
+    .from('participations')
+    .select('work_id')
+    .eq('user_id', userId);
+  const workIds = (parts ?? []).map(p => p.work_id as string);
+  if (workIds.length === 0) return [];
+
+  const today = new Date().toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from('events')
+    .select('*, works(name)')
+    .in('work_id', workIds)
+    .gte('event_date', today)
+    .order('event_date', { ascending: true })
+    .limit(limit);
+  if (error) throw error;
+
+  const events = (data ?? []).map(rowToEvent);
+  return resolveAuthorNames(events);
+}
+
 export async function listRecentWorks(userId: string): Promise<Work[]> {
   const { data, error } = await supabase
     .from('participations')

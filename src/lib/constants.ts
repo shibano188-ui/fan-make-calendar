@@ -9,3 +9,19 @@ export function loadCategoryFilters(): Record<string, string[]> {
 export function saveCategoryFilters(filters: Record<string, string[]>): void {
   localStorage.setItem(CATEGORY_FILTERS_KEY, JSON.stringify(filters));
 }
+
+// ─── 発見タブ: マイカレンダーに追加済みのイベントID ─────────────────
+const LIKED_EVENTS_KEY = 'fan_liked_event_ids';
+export function loadLikedEventIds(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(LIKED_EVENTS_KEY) ?? '[]') as string[]); }
+  catch { return new Set(); }
+}
+export function saveLikedEventIds(ids: Set<string>): void {
+  localStorage.setItem(LIKED_EVENTS_KEY, JSON.stringify([...ids]));
+}
+export function toggleLikedEventId(id: string): Set<string> {
+  const set = loadLikedEventIds();
+  if (set.has(id)) set.delete(id); else set.add(id);
+  saveLikedEventIds(set);
+  return new Set(set);
+}
