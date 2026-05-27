@@ -1,4 +1,21 @@
 export const POST_CATEGORIES = ['単行本', 'グッズ', 'イベント', '誕生日', '配信'] as const;
+
+// ─── 複数リンク: linkフィールドのパース/シリアライズ ─────────────────
+// 単一URLはそのまま文字列、複数URLはJSON配列文字列で保存
+export function parseLinks(link?: string): string[] {
+  if (!link) return [];
+  try {
+    const parsed = JSON.parse(link);
+    if (Array.isArray(parsed)) return (parsed as unknown[]).filter(s => typeof s === 'string' && s) as string[];
+    return [link];
+  } catch { return [link]; }
+}
+export function serializeLinks(links: string[]): string | undefined {
+  const filtered = links.map(s => s.trim()).filter(Boolean);
+  if (filtered.length === 0) return undefined;
+  if (filtered.length === 1) return filtered[0];
+  return JSON.stringify(filtered);
+}
 export type PostCategory = (typeof POST_CATEGORIES)[number];
 
 const CATEGORY_FILTERS_KEY = 'fan_category_filters';

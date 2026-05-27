@@ -27,6 +27,7 @@ export type { CalendarEvent };
 import {
   POST_CATEGORIES, type PostCategory, loadCategoryFilters, saveCategoryFilters,
   loadCalendarEventIds, saveCalendarEventIds, removeCalendarEventId,
+  parseLinks, serializeLinks,
 } from '../lib/constants';
 
 // ─── 定数 ──────────────────────────────────────────────────────────
@@ -140,7 +141,7 @@ interface InlineCard {
   prefecture: string;
   locationDetail: string;
   locationMapLink: string;
-  link: string;
+  links: string[];
   memo: string;
   collapsed: boolean;
 }
@@ -159,7 +160,7 @@ function newInlineCard(date: string): InlineCard {
     prefecture: '',
     locationDetail: '',
     locationMapLink: '',
-    link: '',
+    links: [''],
     memo: '',
     collapsed: false,
   };
@@ -301,8 +302,35 @@ function InlineCardItem({
           </div>
 
           <div>
-            <label className="text-label-tertiary text-xs mb-1.5 block">リンク（任意）</label>
-            <input type="url" value={card.link} onChange={e => onChange({ link: e.target.value })} placeholder="購入先 / 公式ポストなど" className={inputCls} />
+            <label className="text-label-tertiary text-xs mb-1.5 block">リンク（任意・複数可）</label>
+            <div className="flex flex-col gap-2">
+              {card.links.map((lnk, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input type="url" value={lnk}
+                    onChange={e => {
+                      const next = [...card.links];
+                      next[i] = e.target.value;
+                      onChange({ links: next });
+                    }}
+                    placeholder={i === 0 ? '購入先 / 公式ポストなど' : '追加リンク'}
+                    className={`${inputCls} flex-1`} />
+                  {card.links.length > 1 && (
+                    <button type="button"
+                      onClick={() => onChange({ links: card.links.filter((_, j) => j !== i) })}
+                      className="w-7 h-7 flex items-center justify-center text-label-tertiary active:opacity-60 flex-shrink-0">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              ))}
+              {card.links.length < 5 && (
+                <button type="button"
+                  onClick={() => onChange({ links: [...card.links, ''] })}
+                  className="flex items-center gap-1 text-xs text-label-tertiary active:opacity-60 mt-0.5 w-fit">
+                  <Plus size={12} />リンクを追加
+                </button>
+              )}
+            </div>
           </div>
 
           <div>
@@ -500,6 +528,7 @@ export default function Calendar() {
   const [listDetailEvent, setListDetailEvent] = useState<CalendarEvent | null>(null);
   const [myReactions, setMyReactions] = useState<Record<string, ReactionType>>(() => loadMyReactions());
   const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
+  const [linkPickerLinks, setLinkPickerLinks] = useState<string[] | null>(null);
   const [hiddenEventIds, setHiddenEventIds] = useState<Set<string>>(loadHiddenEventIds);
   const [calendarEventIds, setCalendarEventIds] = useState<Set<string>>(loadCalendarEventIds);
 
@@ -816,6 +845,7 @@ export default function Calendar() {
     const VALID = POST_CATEGORIES as unknown as string[];
     setEditEventId(event.id);
     setEditError('');
+    const existingLinks = parseLinks(event.link);
     setEditForm({
       title: event.title,
       date: event.date,
@@ -827,7 +857,7 @@ export default function Calendar() {
       prefecture: event.prefecture ?? '',
       locationDetail: event.locationDetail ?? '',
       locationMapLink: event.locationMapLink ?? '',
-      link: event.link ?? '',
+      links: existingLinks.length > 0 ? existingLinks : [''],
       memo: event.memo ?? '',
     });
   };
@@ -849,7 +879,7 @@ export default function Calendar() {
         prefecture: editForm.prefecture || undefined,
         locationDetail: editForm.locationDetail || undefined,
         locationMapLink: editForm.locationMapLink || undefined,
-        link: editForm.link || undefined,
+        link: serializeLinks(editForm.links ?? []),
         memo: editForm.memo?.trim() || undefined,
       };
       await updateEvent(editEventId, patch);
@@ -894,7 +924,7 @@ export default function Calendar() {
                         : base.customCategory,
       prefecture:     parsed.prefecture     ?? base.prefecture,
       locationDetail: parsed.locationDetail ?? base.locationDetail,
-      link:           parsed.link           ?? base.link,
+      links:          parsed.link ? (parseLinks(parsed.link).length > 0 ? parseLinks(parsed.link) : base.links) : base.links,
       memo:           parsed.memo           ?? base.memo,
     });
     const defaultWorkId = !workId && participatedWorks.length > 0 ? participatedWorks[0].id : '';
@@ -949,11 +979,12 @@ export default function Calendar() {
       title: c.title.trim(), date: c.date, time: c.time || undefined,
       endDate: c.endDate || undefined, endTime: c.endTime || undefined,
       category: c.category || c.customCategory.trim() || undefined,
-      link: c.link || undefined, memo: c.memo || undefined,
+      link: serializeLinks(c.links), memo: c.memo || undefined,
       prefecture: c.prefecture || undefined,
       locationDetail: c.locationDetail || undefined,
       locationMapLink: c.locationMapLink || undefined,
     });
+    const serializedLinks = (c: InlineCard) => serializeLinks(c.links);
     const toPersonalEvent = (c: InlineCard): PersonalEvent => ({
       id: crypto.randomUUID(), title: c.title.trim(), date: c.date,
       ...(c.time && { time: c.time }),
@@ -963,7 +994,7 @@ export default function Calendar() {
       ...(c.prefecture && { prefecture: c.prefecture }),
       ...(c.locationDetail && { locationDetail: c.locationDetail }),
       ...(c.locationMapLink && { locationMapLink: c.locationMapLink }),
-      ...(c.link && { link: c.link }),
+      ...(serializedLinks(c) && { link: serializedLinks(c) }),
       ...(c.memo.trim() && { memo: c.memo.trim() }),
     });
     try {
@@ -1484,12 +1515,12 @@ export default function Calendar() {
                       {/* メモ（❤️の前） */}
                       {sheetDetailEvent.memo && <p className="text-label-secondary text-sm leading-relaxed">{sheetDetailEvent.memo}</p>}
                       {/* リンク */}
-                      {sheetDetailEvent.link && (
-                        <a href={sheetDetailEvent.link} target="_blank" rel="noopener noreferrer"
+                      {parseLinks(sheetDetailEvent.link).map((url, i) => (
+                        <a key={i} href={url} target="_blank" rel="noopener noreferrer"
                           className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-default text-label-secondary text-xs w-fit active:opacity-60">
-                          <ExternalLink size={11} /><span>{getDomain(sheetDetailEvent.link)}</span>
+                          <ExternalLink size={11} /><span>{getDomain(url)}</span>
                         </a>
-                      )}
+                      ))}
                       {/* ❤️いいね + 😊リアクション */}
                       <div className="flex items-center gap-2">
                         <button
@@ -1593,12 +1624,17 @@ export default function Calendar() {
                                     : <Smile size={14} />
                                   }
                                 </button>
-                                {event.link && (
-                                  <a href={event.link} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                                {parseLinks(event.link).length === 1 ? (
+                                  <a href={parseLinks(event.link)[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
                                     className="px-1 h-7 flex items-center active:opacity-60 text-label-tertiary">
                                     <ExternalLink size={12} />
                                   </a>
-                                )}
+                                ) : parseLinks(event.link).length > 1 ? (
+                                  <button onClick={e => { e.stopPropagation(); setLinkPickerLinks(parseLinks(event.link)); }}
+                                    className="px-1 h-7 flex items-center active:opacity-60 text-label-tertiary">
+                                    <ExternalLink size={12} />
+                                  </button>
+                                ) : null}
                                 {event.authorId && user && event.authorId === user.id && (
                                   <button
                                     onClick={e => { e.stopPropagation(); openEditEvent(event); }}
@@ -1673,12 +1709,17 @@ export default function Calendar() {
                                     : <Smile size={14} />
                                   }
                                 </button>
-                                {event.link && (
-                                  <a href={event.link} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                                {parseLinks(event.link).length === 1 ? (
+                                  <a href={parseLinks(event.link)[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
                                     className="px-1 h-7 flex items-center active:opacity-60 text-label-tertiary">
                                     <ExternalLink size={12} />
                                   </a>
-                                )}
+                                ) : parseLinks(event.link).length > 1 ? (
+                                  <button onClick={e => { e.stopPropagation(); setLinkPickerLinks(parseLinks(event.link)); }}
+                                    className="px-1 h-7 flex items-center active:opacity-60 text-label-tertiary">
+                                    <ExternalLink size={12} />
+                                  </button>
+                                ) : null}
                                 {event.authorId && user && event.authorId === user.id && (
                                   <button
                                     onClick={e => { e.stopPropagation(); openEditEvent(event); }}
@@ -1796,12 +1837,12 @@ export default function Calendar() {
               {/* メモ（❤️の前） */}
               {listDetailEvent.memo && <p className="text-label-secondary text-sm leading-relaxed">{listDetailEvent.memo}</p>}
               {/* リンク */}
-              {listDetailEvent.link && (
-                <a href={listDetailEvent.link} target="_blank" rel="noopener noreferrer"
+              {parseLinks(listDetailEvent.link).map((url, i) => (
+                <a key={i} href={url} target="_blank" rel="noopener noreferrer"
                   className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-default text-label-secondary text-xs w-fit active:opacity-60">
-                  <ExternalLink size={11} /><span>{getDomain(listDetailEvent.link)}</span>
+                  <ExternalLink size={11} /><span>{getDomain(url)}</span>
                 </a>
-              )}
+              ))}
               {/* ❤️いいね + 😊リアクション */}
               <div className="flex items-center gap-2">
                 <button
@@ -1923,12 +1964,17 @@ export default function Calendar() {
                             : <Smile size={14} />
                           }
                         </button>
-                        {event.link && (
-                          <a href={event.link} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                        {parseLinks(event.link).length === 1 ? (
+                          <a href={parseLinks(event.link)[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
                             className="w-8 self-stretch flex items-center justify-center text-label-tertiary active:opacity-60 flex-shrink-0">
                             <ExternalLink size={13} />
                           </a>
-                        )}
+                        ) : parseLinks(event.link).length > 1 ? (
+                          <button onClick={e => { e.stopPropagation(); setLinkPickerLinks(parseLinks(event.link)); }}
+                            className="w-8 self-stretch flex items-center justify-center text-label-tertiary active:opacity-60 flex-shrink-0">
+                            <ExternalLink size={13} />
+                          </button>
+                        ) : null}
                         {event.authorId && user && event.authorId === user.id && (
                           <button
                             onClick={e => { e.stopPropagation(); openEditEvent(event); }}
@@ -2022,12 +2068,17 @@ export default function Calendar() {
                             }
                           </button>
                         )}
-                        {item.link && (
-                          <a href={item.link} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                        {parseLinks(item.link).length === 1 ? (
+                          <a href={parseLinks(item.link)[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
                             className="w-8 self-stretch flex items-center justify-center text-label-tertiary active:opacity-60 flex-shrink-0">
                             <ExternalLink size={13} />
                           </a>
-                        )}
+                        ) : parseLinks(item.link).length > 1 ? (
+                          <button onClick={e => { e.stopPropagation(); setLinkPickerLinks(parseLinks(item.link)); }}
+                            className="w-8 self-stretch flex items-center justify-center text-label-tertiary active:opacity-60 flex-shrink-0">
+                            <ExternalLink size={13} />
+                          </button>
+                        ) : null}
                         {!item.isPersonal && item.authorId && user && item.authorId === user.id && (
                           <button
                             onClick={e => { e.stopPropagation(); const ev = visibleEvents.find(x => x.id === item.id); if (ev) openEditEvent(ev); }}
@@ -2090,6 +2141,28 @@ export default function Calendar() {
                   <span className="text-[10px] text-label-secondary">{r.label}</span>
                 </button>
               ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* リンクピッカー（複数リンクがある時） */}
+      {linkPickerLinks && (
+        <>
+          <div className="fixed inset-0 z-[310]" onClick={() => setLinkPickerLinks(null)} />
+          <div className="fixed inset-x-0 max-w-app mx-auto z-[320]" style={{ bottom: BOTTOM_TAB_H + 8 }}>
+            <div className="mx-4 bg-bg-primary rounded-2xl border border-subtle shadow-xl overflow-hidden">
+              <p className="text-label-tertiary text-xs px-4 pt-3 pb-2">リンクを選択</p>
+              {linkPickerLinks.map((url, i) => (
+                <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                  onClick={() => setLinkPickerLinks(null)}
+                  className="flex items-center gap-3 px-4 py-3 border-t text-sm text-label-primary active:opacity-60"
+                  style={{ borderColor: 'var(--border-subtle)' }}>
+                  <ExternalLink size={14} className="text-label-tertiary flex-shrink-0" />
+                  <span className="truncate">{getDomain(url)}</span>
+                </a>
+              ))}
+              <div className="h-2" />
             </div>
           </div>
         </>
@@ -2270,10 +2343,37 @@ export default function Calendar() {
                     </div>
                   )}
                 </div>
-                {/* リンク */}
+                {/* リンク（複数可） */}
                 <div>
-                  <label className="text-label-tertiary text-xs mb-1.5 block">リンク（任意）</label>
-                  <input type="url" value={editForm.link ?? ''} onChange={e => setEditForm(f => ({ ...f!, link: e.target.value }))} placeholder="購入先 / 公式ポストなど" className={inputCls} />
+                  <label className="text-label-tertiary text-xs mb-1.5 block">リンク（任意・複数可）</label>
+                  <div className="flex flex-col gap-2">
+                    {(editForm.links ?? ['']).map((lnk, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <input type="url" value={lnk}
+                          onChange={e => {
+                            const next = [...(editForm.links ?? [''])];
+                            next[i] = e.target.value;
+                            setEditForm(f => ({ ...f!, links: next }));
+                          }}
+                          placeholder={i === 0 ? '購入先 / 公式ポストなど' : '追加リンク'}
+                          className={`${inputCls} flex-1`} />
+                        {(editForm.links ?? ['']).length > 1 && (
+                          <button type="button"
+                            onClick={() => setEditForm(f => ({ ...f!, links: (f?.links ?? ['']).filter((_, j) => j !== i) }))}
+                            className="w-7 h-7 flex items-center justify-center text-label-tertiary active:opacity-60 flex-shrink-0">
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {(editForm.links ?? ['']).length < 5 && (
+                      <button type="button"
+                        onClick={() => setEditForm(f => ({ ...f!, links: [...(f?.links ?? ['']), ''] }))}
+                        className="flex items-center gap-1 text-xs text-label-tertiary active:opacity-60 mt-0.5 w-fit">
+                        <Plus size={12} />リンクを追加
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {/* メモ */}
                 <div>

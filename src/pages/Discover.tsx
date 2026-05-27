@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
-  Heart, Smile, Pencil, SlidersHorizontal, ExternalLink, ChevronLeft, Plus,
+  Heart, Smile, Pencil, SlidersHorizontal, ExternalLink, ChevronLeft, Plus, X,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
@@ -16,6 +16,7 @@ import {
   loadCategoryFilters, saveCategoryFilters,
   loadLikedEventIds, addLikedEventId,
   loadCalendarEventIds, addCalendarEventId, saveCalendarEventIds,
+  parseLinks, serializeLinks,
 } from '../lib/constants';
 import { useAuth } from '../contexts/AuthContext';
 import { WORK_COLORS } from './Calendar';
@@ -111,7 +112,7 @@ export default function Discover() {
   const [editForm, setEditForm] = useState<{
     title: string; date: string; time: string; endDate: string; endTime: string;
     category: PostCategory | ''; customCategory: string;
-    prefecture: string; locationDetail: string; locationMapLink: string; link: string; memo: string;
+    prefecture: string; locationDetail: string; locationMapLink: string; links: string[]; memo: string;
   } | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState('');
@@ -151,11 +152,12 @@ export default function Discover() {
       }).catch(() => {});
   }, [user?.id, events]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 表示イベント（作品・カテゴリフィルター・自分の投稿除外）
+  // 表示イベント（作品・カテゴリフィルター・自分の投稿除外・追加済み除外）
   const visibleEvents = useMemo(() => {
     let evts = events.filter(e => !e.workId || !hiddenWorkIds.has(e.workId));
-    // 自分の投稿は発見タブに表示しない（自分でカレンダーに直接追加済みのため）
+    // 自分の投稿は発見タブに表示しない
     if (user) evts = evts.filter(e => e.authorId !== user.id);
+    // カテゴリフィルター
     evts = evts.filter(e => {
       const wId = e.workId ?? '';
       if (!wId) return true;
@@ -163,8 +165,10 @@ export default function Discover() {
       if (!cats || cats.length === 0) return true;
       return !cats.includes(e.category ?? '');
     });
+    // 追加済みの予定は非表示（マイカレンダーで削除すると再表示）
+    evts = evts.filter(e => !calendarEventIds.has(e.id));
     return evts;
-  }, [events, hiddenWorkIds, categoryFilters, user]);
+  }, [events, hiddenWorkIds, categoryFilters, user, calendarEventIds]);
 
   const toggleWork = (wId: string) =>
     setHiddenWorkIds(prev => {
@@ -243,6 +247,7 @@ export default function Discover() {
     const VALID = POST_CATEGORIES as unknown as string[];
     setEditEventId(event.id);
     setEditError('');
+    const existingLinks = parseLinks(event.link);
     setEditForm({
       title: event.title,
       date: event.date,
@@ -254,7 +259,7 @@ export default function Discover() {
       prefecture: event.prefecture ?? '',
       locationDetail: event.locationDetail ?? '',
       locationMapLink: event.locationMapLink ?? '',
-      link: event.link ?? '',
+      links: existingLinks.length > 0 ? existingLinks : [''],
       memo: event.memo ?? '',
     });
   };
@@ -273,7 +278,7 @@ export default function Discover() {
         prefecture: editForm.prefecture || undefined,
         locationDetail: editForm.locationDetail || undefined,
         locationMapLink: editForm.locationMapLink || undefined,
-        link: editForm.link || undefined, memo: editForm.memo.trim() || undefined,
+        link: serializeLinks(editForm.links), memo: editForm.memo.trim() || undefined,
       };
       await updateEvent(editEventId, patch);
       setEvents(prev => prev.map(e => e.id === editEventId ? { ...e, ...patch } : e));
@@ -634,8 +639,35 @@ export default function Discover() {
                   <textarea value={editForm.memo} onChange={e => setEditForm(f => f && ({ ...f, memo: e.target.value }))} rows={3} className={`${inputCls} resize-none`} />
                 </div>
                 <div>
-                  <label className="text-label-tertiary text-xs mb-1.5 block">リンク（任意）</label>
-                  <input type="url" value={editForm.link} onChange={e => setEditForm(f => f && ({ ...f, link: e.target.value }))} className={inputCls} />
+                  <label className="text-label-tertiary text-xs mb-1.5 block">リンク（任意・複数可）</label>
+                  <div className="flex flex-col gap-2">
+                    {editForm.links.map((lnk, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <input type="url" value={lnk}
+                          onChange={e => {
+                            const next = [...editForm.links];
+                            next[i] = e.target.value;
+                            setEditForm(f => f && ({ ...f, links: next }));
+                          }}
+                          placeholder={i === 0 ? '購入先 / 公式ポストなど' : '追加リンク'}
+                          className={`${inputCls} flex-1`} />
+                        {editForm.links.length > 1 && (
+                          <button type="button"
+                            onClick={() => setEditForm(f => f && ({ ...f, links: f.links.filter((_, j) => j !== i) }))}
+                            className="w-7 h-7 flex items-center justify-center text-label-tertiary active:opacity-60 flex-shrink-0">
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {editForm.links.length < 5 && (
+                      <button type="button"
+                        onClick={() => setEditForm(f => f && ({ ...f, links: [...f.links, ''] }))}
+                        className="flex items-center gap-1 text-xs text-label-tertiary active:opacity-60 mt-0.5 w-fit">
+                        <Plus size={12} />リンクを追加
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

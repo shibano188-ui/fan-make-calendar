@@ -273,7 +273,7 @@ export default function WorkSelect() {
           <div className="fixed bottom-0 left-0 right-0 z-[160] max-w-app mx-auto rounded-t-2xl overflow-hidden" style={{ backgroundColor: 'var(--bg-primary)' }}>
             <div className="px-5 pt-5 pb-4">
               {/* タイトル */}
-              <p className="text-label-primary font-semibold text-[15px] mb-1">みたいカテゴリだけを事前に絞り込み</p>
+              <p className="text-label-primary font-semibold text-[15px] mb-1">見たいカテゴリを事前に絞り込み</p>
               <p className="text-label-secondary text-xs mb-3">タップで選択。未選択は全カテゴリ表示（後からでも変更できます）</p>
 
               {/* カテゴリ選択 + 全て選択ボタン */}

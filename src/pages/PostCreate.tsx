@@ -6,6 +6,7 @@ import Header from '../components/Header';
 import SmartInputPanel, { type ParsedEvent } from '../components/SmartInputPanel';
 import { createEvents } from '../lib/api';
 import { PREFECTURES } from '../lib/prefectures';
+import { parseLinks, serializeLinks } from '../lib/constants';
 import { useAuth } from '../contexts/AuthContext';
 import type { CalendarEvent } from '../types';
 
@@ -24,7 +25,7 @@ interface PostCard {
   prefecture: string;
   locationDetail: string;
   locationMapLink: string;
-  link: string;
+  links: string[];
   memo: string;
   collapsed: boolean;
 }
@@ -42,7 +43,7 @@ function newCard(): PostCard {
     prefecture: '',
     locationDetail: '',
     locationMapLink: '',
-    link: '',
+    links: [''],
     memo: '',
     collapsed: false,
   };
@@ -56,7 +57,7 @@ function toEventInput(card: PostCard): EventInput {
     date: card.date,
     time: card.time || undefined,
     category: card.category || card.customCategory.trim() || undefined,
-    link: card.link || undefined,
+    link: serializeLinks(card.links),
     memo: card.memo || undefined,
     prefecture: card.prefecture || undefined,
     locationDetail: card.locationDetail || undefined,
@@ -216,16 +217,44 @@ function PostCardItem({
             )}
           </div>
 
-          {/* リンク */}
+          {/* リンク（複数可） */}
           <div>
-            <label className="text-label-tertiary text-xs mb-1.5 block">リンク（任意）</label>
-            <input
-              type="url"
-              value={card.link}
-              onChange={e => onChange({ link: e.target.value })}
-              placeholder="購入先 / 公式ポストなど"
-              className={inputCls}
-            />
+            <label className="text-label-tertiary text-xs mb-1.5 block">リンク（任意・複数可）</label>
+            <div className="flex flex-col gap-2">
+              {card.links.map((lnk, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input
+                    type="url"
+                    value={lnk}
+                    onChange={e => {
+                      const next = [...card.links];
+                      next[i] = e.target.value;
+                      onChange({ links: next });
+                    }}
+                    placeholder={i === 0 ? '購入先 / 公式ポストなど' : '追加リンク'}
+                    className={`${inputCls} flex-1`}
+                  />
+                  {card.links.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => onChange({ links: card.links.filter((_, j) => j !== i) })}
+                      className="w-7 h-7 flex items-center justify-center text-label-tertiary active:opacity-60 flex-shrink-0"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              ))}
+              {card.links.length < 5 && (
+                <button
+                  type="button"
+                  onClick={() => onChange({ links: [...card.links, ''] })}
+                  className="flex items-center gap-1 text-xs text-label-tertiary active:opacity-60 mt-0.5 w-fit"
+                >
+                  <Plus size={12} />リンクを追加
+                </button>
+              )}
+            </div>
           </div>
 
           {/* メモ */}
@@ -286,7 +315,7 @@ export default function PostCreate() {
                         : base.customCategory,
       prefecture:     parsed.prefecture     ?? base.prefecture,
       locationDetail: parsed.locationDetail ?? base.locationDetail,
-      link:           parsed.link           ?? base.link,
+      links:          parsed.link ? parseLinks(parsed.link).length > 0 ? parseLinks(parsed.link) : base.links : base.links,
       memo:           parsed.memo           ?? base.memo,
     });
     setCards(prev => {
