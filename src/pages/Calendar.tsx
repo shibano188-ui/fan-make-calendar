@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Palette, Plus, Heart, MoreVertical, Link2, LogOut, Trash2,
-  ChevronDown, ChevronUp, ChevronRight, ChevronLeft, X, Settings, Map as MapIcon, ExternalLink, Smile, SlidersHorizontal,
+  ChevronDown, ChevronUp, ChevronRight, ChevronLeft, X, Settings, Map as MapIcon, ExternalLink, Smile, SlidersHorizontal, Pencil,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
@@ -10,7 +10,7 @@ import {
   listEvents, getWorkById, leaveCalendar, deleteWork,
   createEvents, getHomePrefecture, saveHomePrefecture,
   getDisplayName, saveDisplayName, listRecentWorks,
-  listAllParticipatedWorkEvents, addLikeTap, setReaction, getReactionData,
+  listAllParticipatedWorkEvents, addLikeTap, setReaction, getReactionData, updateEvent,
 } from '../lib/api';
 import { REACTIONS, type ReactionType } from '../lib/reactions';
 import type { Work } from '../lib/api';
@@ -765,6 +765,62 @@ export default function Calendar() {
     setListDetailEvent(prev => prev?.id === eventId ? null : prev);
   };
 
+  // ─── イベント編集（投稿者本人のみ） ────────────────────────────
+  const [editEventId, setEditEventId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Partial<InlineCard> | null>(null);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  const openEditEvent = (event: CalendarEvent) => {
+    const VALID = POST_CATEGORIES as unknown as string[];
+    setEditEventId(event.id);
+    setEditError('');
+    setEditForm({
+      title: event.title,
+      date: event.date,
+      time: event.time ?? '',
+      endDate: event.endDate ?? '',
+      endTime: event.endTime ?? '',
+      category: VALID.includes(event.category ?? '') ? event.category as typeof POST_CATEGORIES[number] : '',
+      customCategory: !VALID.includes(event.category ?? '') && event.category ? event.category : '',
+      prefecture: event.prefecture ?? '',
+      locationDetail: event.locationDetail ?? '',
+      locationMapLink: event.locationMapLink ?? '',
+      link: event.link ?? '',
+      memo: event.memo ?? '',
+    });
+  };
+
+  const handleEditSubmit = async () => {
+    if (!editEventId || !editForm) return;
+    if (!editForm.title?.trim() || !editForm.date) { setEditError('タイトルと日付は必須です'); return; }
+    setEditSubmitting(true);
+    setEditError('');
+    try {
+      const category = editForm.category || (editForm.customCategory?.trim() ?? '') || undefined;
+      const patch = {
+        title: editForm.title.trim(),
+        date: editForm.date,
+        time: editForm.time || undefined,
+        endDate: editForm.endDate || undefined,
+        endTime: editForm.endTime || undefined,
+        category,
+        prefecture: editForm.prefecture || undefined,
+        locationDetail: editForm.locationDetail || undefined,
+        locationMapLink: editForm.locationMapLink || undefined,
+        link: editForm.link || undefined,
+        memo: editForm.memo?.trim() || undefined,
+      };
+      await updateEvent(editEventId, patch);
+      setEvents(prev => prev.map(e => e.id === editEventId ? { ...e, ...patch } : e));
+      setSheetDetailEvent(prev => prev?.id === editEventId ? { ...prev, ...patch } : prev);
+      setListDetailEvent(prev => prev?.id === editEventId ? { ...prev, ...patch } : prev);
+      setEditEventId(null);
+      setEditForm(null);
+    } catch { setEditError('更新に失敗しました'); }
+    finally { setEditSubmitting(false); }
+  };
+
   // フォームハンドラー
   const addPostCard = () => {
     const defaultWorkId = !workId && participatedWorks.length > 0 ? participatedWorks[0].id : '';
@@ -1025,6 +1081,7 @@ export default function Calendar() {
     category?: string; prefecture?: string; memo?: string;
     tag: string; isPersonal: boolean; workId?: string;
     likes?: number; likedByMe?: boolean;
+    authorId?: string; authorName?: string;
   };
   const myCalendarListItems = useMemo((): ListItem[] => {
     if (workId) return [];
@@ -1033,6 +1090,7 @@ export default function Calendar() {
       category: e.category, prefecture: e.prefecture,
       tag: e.workName ?? '', isPersonal: false, workId: e.workId,
       likes: e.likes, likedByMe: e.likedByMe,
+      authorId: e.authorId, authorName: e.authorName,
     }));
     const personalItems: ListItem[] = monthPersonalEvents.map(pe => ({
       id: pe.id, date: pe.date, title: pe.title, time: pe.time, endDate: pe.endDate, endTime: pe.endTime,
@@ -1410,8 +1468,21 @@ export default function Calendar() {
                           <ExternalLink size={11} /><span>{getDomain(sheetDetailEvent.link)}</span>
                         </a>
                       )}
-                      {sheetDetailEvent.authorName && (
-                        <p className="text-label-tertiary text-xs">{sheetDetailEvent.authorName}</p>
+                      {(sheetDetailEvent.authorName || (sheetDetailEvent.authorId && user && sheetDetailEvent.authorId === user.id)) && (
+                        <div className="flex items-center justify-between">
+                          {sheetDetailEvent.authorName && (
+                            <p className="text-label-tertiary text-xs">by {sheetDetailEvent.authorName}</p>
+                          )}
+                          {sheetDetailEvent.authorId && user && sheetDetailEvent.authorId === user.id && (
+                            <button
+                              onClick={() => openEditEvent(sheetDetailEvent)}
+                              className="flex items-center gap-1 text-xs active:opacity-60 ml-auto"
+                              style={{ color: 'var(--accent-color)' }}
+                            >
+                              <Pencil size={12} />編集
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   ) : loading ? (
@@ -1466,6 +1537,11 @@ export default function Calendar() {
                                 <div className="flex items-center gap-2 px-3 pb-2 -mt-1">
                                   {dateLabel && <span className="text-label-tertiary text-xs">{dateLabel}</span>}
                                   {timeLabel && <span className="text-label-tertiary text-xs">{timeLabel}</span>}
+                                </div>
+                              )}
+                              {event.authorName && (
+                                <div className="px-3 pb-2 -mt-1">
+                                  <span className="text-[10px] text-label-tertiary">by {event.authorName}</span>
                                 </div>
                               )}
                             </div>
@@ -1524,6 +1600,11 @@ export default function Calendar() {
                                 <div className="flex items-center gap-2 px-3 pb-2 -mt-1">
                                   {dateLabel && <span className="text-label-tertiary text-xs">{dateLabel}</span>}
                                   {timeLabel && <span className="text-label-tertiary text-xs">{timeLabel}</span>}
+                                </div>
+                              )}
+                              {event.authorName && (
+                                <div className="px-3 pb-2 -mt-1">
+                                  <span className="text-[10px] text-label-tertiary">by {event.authorName}</span>
                                 </div>
                               )}
                             </div>
@@ -1653,8 +1734,21 @@ export default function Calendar() {
                   <ExternalLink size={11} /><span>{getDomain(listDetailEvent.link)}</span>
                 </a>
               )}
-              {listDetailEvent.authorName && (
-                <p className="text-label-tertiary text-xs">{listDetailEvent.authorName}</p>
+              {(listDetailEvent.authorName || (listDetailEvent.authorId && user && listDetailEvent.authorId === user.id)) && (
+                <div className="flex items-center justify-between">
+                  {listDetailEvent.authorName && (
+                    <p className="text-label-tertiary text-xs">by {listDetailEvent.authorName}</p>
+                  )}
+                  {listDetailEvent.authorId && user && listDetailEvent.authorId === user.id && (
+                    <button
+                      onClick={() => openEditEvent(listDetailEvent)}
+                      className="flex items-center gap-1 text-xs active:opacity-60 ml-auto"
+                      style={{ color: 'var(--accent-color)' }}
+                    >
+                      <Pencil size={12} />編集
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           ) : (
@@ -1693,6 +1787,7 @@ export default function Calendar() {
                                 <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>
                               </div>
                             )}
+                            {event.authorName && <p className="text-[10px] text-label-tertiary mt-0.5">by {event.authorName}</p>}
                           </div>
                         </button>
                         <button
@@ -1756,6 +1851,7 @@ export default function Calendar() {
                               {item.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.category}</span>}
                               {item.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.prefecture}</span>}
                             </div>
+                            {item.authorName && <p className="text-[10px] text-label-tertiary mt-0.5">by {item.authorName}</p>}
                             {item.memo && <p className="text-label-secondary text-xs mt-0.5 truncate">{item.memo}</p>}
                           </div>
                         </button>
@@ -1899,6 +1995,134 @@ export default function Calendar() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 予定編集フォームパネル（投稿者本人のみ） */}
+      {editEventId && editForm && (
+        <>
+          <div className="fixed inset-0 z-[159] bg-black/40" onClick={() => { setEditEventId(null); setEditForm(null); }} />
+          <div
+            className="fixed inset-x-0 max-w-app mx-auto z-[160] rounded-t-2xl overflow-hidden"
+            style={{
+              bottom: BOTTOM_TAB_H,
+              height: '80vh',
+              backgroundColor: 'var(--bg-primary)',
+              animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both',
+            }}
+          >
+            {/* ヘッダー */}
+            <div
+              className="absolute inset-x-0 top-0 z-10 rounded-t-2xl"
+              style={{ backgroundColor: 'var(--bg-primary)' }}
+            >
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full" style={{ backgroundColor: 'var(--border-subtle)' }} />
+              </div>
+              <div className="px-4 pb-2 flex items-center justify-between">
+                <p className="text-label-secondary text-xs">予定を編集</p>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => { setEditEventId(null); setEditForm(null); }} className="text-xs text-label-tertiary px-3 py-1.5 rounded-lg active:opacity-60">キャンセル</button>
+                  <button onClick={handleEditSubmit} disabled={editSubmitting} className="text-xs font-semibold text-bg-primary bg-label-primary px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40">
+                    {editSubmitting ? '更新中…' : '保存'}
+                  </button>
+                </div>
+              </div>
+              {editError && <p className="text-red-400 text-xs px-4 pb-1">{editError}</p>}
+            </div>
+            {/* スクロールエリア */}
+            <div
+              className="absolute inset-x-0 bottom-0"
+              style={{ top: 60, overflowY: 'scroll', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+            >
+              <div className="px-4 pt-2 pb-8 flex flex-col gap-4">
+                {/* タイトル */}
+                <div>
+                  <label className="text-label-tertiary text-xs mb-1.5 block">タイトル <span className="text-red-400">*</span></label>
+                  <input type="text" value={editForm.title ?? ''} onChange={e => setEditForm(f => ({ ...f!, title: e.target.value }))} placeholder="タイトル" className={inputCls} />
+                </div>
+                {/* 日時 */}
+                <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-label-tertiary text-xs mb-1.5 block">開始日 <span className="text-red-400">*</span></label>
+                      <input type="date" value={editForm.date ?? ''} onChange={e => setEditForm(f => ({ ...f!, date: e.target.value }))} className={inputCls} />
+                    </div>
+                    <div>
+                      <label className="text-label-tertiary text-xs mb-1.5 block">開始時間</label>
+                      <input type="time" value={editForm.time ?? ''} onChange={e => setEditForm(f => ({ ...f!, time: e.target.value }))} className={inputCls} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-label-tertiary text-xs mb-1.5 block">終了日（任意）</label>
+                      <input type="date" value={editForm.endDate ?? ''} onChange={e => setEditForm(f => ({ ...f!, endDate: e.target.value }))} className={inputCls} />
+                    </div>
+                    <div>
+                      <label className="text-label-tertiary text-xs mb-1.5 block">終了時間</label>
+                      <input type="time" value={editForm.endTime ?? ''} onChange={e => setEditForm(f => ({ ...f!, endTime: e.target.value }))} className={inputCls} />
+                    </div>
+                  </div>
+                </div>
+                {/* カテゴリ */}
+                <div>
+                  <label className="text-label-tertiary text-xs mb-1.5 block">カテゴリ</label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {POST_CATEGORIES.map(cat => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setEditForm(f => ({ ...f!, category: f?.category === cat ? '' : cat, customCategory: '' }))}
+                        className={`px-3 py-1 rounded-full text-xs border transition-colors ${editForm.category === cat ? 'border-selected text-label-primary bg-label-primary/10' : 'border-default text-label-secondary'}`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-label-tertiary text-xs flex-shrink-0">その他：</span>
+                    <input
+                      type="text"
+                      value={editForm.customCategory ?? ''}
+                      onChange={e => setEditForm(f => ({ ...f!, customCategory: e.target.value, category: '' }))}
+                      placeholder="自由に入力"
+                      className="flex-1 bg-bg-primary rounded-lg px-3 py-1.5 text-xs text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong"
+                    />
+                  </div>
+                </div>
+                {/* 場所 */}
+                <div>
+                  <label className="text-label-tertiary text-xs mb-1.5 block">場所（任意）</label>
+                  <select
+                    value={editForm.prefecture ?? ''}
+                    onChange={e => setEditForm(f => ({ ...f!, prefecture: e.target.value }))}
+                    className={`${inputCls} appearance-none`}
+                  >
+                    <option value="">全国（指定なし）</option>
+                    {['北海道','青森','岩手','宮城','秋田','山形','福島','茨城','栃木','群馬','埼玉','千葉','東京','神奈川','新潟','富山','石川','福井','山梨','長野','岐阜','静岡','愛知','三重','滋賀','京都','大阪','兵庫','奈良','和歌山','鳥取','島根','岡山','広島','山口','徳島','香川','愛媛','高知','福岡','佐賀','長崎','熊本','大分','宮崎','鹿児島','沖縄'].map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                  {editForm.prefecture && (
+                    <div className="flex flex-col gap-2 mt-2">
+                      <input type="text" value={editForm.locationDetail ?? ''} onChange={e => setEditForm(f => ({ ...f!, locationDetail: e.target.value }))} placeholder="詳しい場所・住所" className={inputCls} />
+                      <input type="url" value={editForm.locationMapLink ?? ''} onChange={e => setEditForm(f => ({ ...f!, locationMapLink: e.target.value }))} placeholder="Google Maps リンク" className={inputCls} />
+                    </div>
+                  )}
+                </div>
+                {/* リンク */}
+                <div>
+                  <label className="text-label-tertiary text-xs mb-1.5 block">リンク（任意）</label>
+                  <input type="url" value={editForm.link ?? ''} onChange={e => setEditForm(f => ({ ...f!, link: e.target.value }))} placeholder="購入先 / 公式ポストなど" className={inputCls} />
+                </div>
+                {/* メモ */}
+                <div>
+                  <label className="text-label-tertiary text-xs mb-1.5 block">メモ（任意）</label>
+                  <textarea value={editForm.memo ?? ''} onChange={e => setEditForm(f => ({ ...f!, memo: e.target.value }))} placeholder="補足情報" rows={3} className={`${inputCls} resize-none`} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {showRegionPanel && (

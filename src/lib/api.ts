@@ -75,6 +75,23 @@ export async function getOrCreateWork(name: string): Promise<Work> {
 
 // ─── イベント ──────────────────────────────────────────────────────
 
+// 投稿者名を一括解決するヘルパー
+async function resolveAuthorNames(events: CalendarEvent[]): Promise<CalendarEvent[]> {
+  const authorIds = [...new Set(events.map(e => e.authorId).filter((id): id is string => !!id))];
+  if (authorIds.length === 0) return events;
+  const { data } = await supabase
+    .from('user_settings')
+    .select('user_id, display_name')
+    .in('user_id', authorIds);
+  const nameMap = Object.fromEntries(
+    (data ?? []).map(d => [d.user_id as string, (d.display_name as string | null) ?? '匿名']),
+  );
+  return events.map(e => ({
+    ...e,
+    authorName: e.authorId ? (nameMap[e.authorId] ?? '匿名') : undefined,
+  }));
+}
+
 function rowToEvent(e: Record<string, unknown>): CalendarEvent {
   return {
     id: e.id as string,
@@ -112,7 +129,7 @@ export async function listEvents(workId: string, year: number, month: number): P
     .order('event_date', { ascending: true });
 
   if (error) throw error;
-  return (data ?? []).map(rowToEvent);
+  return resolveAuthorNames((data ?? []).map(rowToEvent));
 }
 
 export async function listEventsByDate(workId: string, date: string, userId?: string): Promise<CalendarEvent[]> {
@@ -398,11 +415,34 @@ export async function listAllParticipatedWorkEvents(
     .lte('event_date', to)
     .order('event_date', { ascending: true });
   if (error) throw error;
-  return (data ?? []).map(e => ({
+  const events = (data ?? []).map(e => ({
     ...rowToEvent(e as Record<string, unknown>),
     workId: e.work_id as string,
     workName: workMap[e.work_id as string] ?? '',
   }));
+  return resolveAuthorNames(events);
+}
+
+// ─── イベント編集 ─────────────────────────────────────────────────
+
+export async function updateEvent(
+  eventId: string,
+  data: Partial<Pick<CalendarEvent, 'title' | 'date' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink'>>,
+): Promise<void> {
+  const row: Record<string, unknown> = {};
+  if (data.title !== undefined) row.title = data.title;
+  if (data.date !== undefined) row.event_date = data.date;
+  if ('time' in data) row.event_time = data.time || null;
+  if ('endDate' in data) row.end_date = data.endDate || null;
+  if ('endTime' in data) row.end_time = data.endTime || null;
+  if ('category' in data) row.category = data.category || null;
+  if ('link' in data) row.link_url = data.link || null;
+  if ('memo' in data) row.memo = data.memo || null;
+  if ('prefecture' in data) row.prefecture = data.prefecture || null;
+  if ('locationDetail' in data) row.location_detail = data.locationDetail || null;
+  if ('locationMapLink' in data) row.location_map_link = data.locationMapLink || null;
+  const { error } = await supabase.from('events').update(row).eq('id', eventId);
+  if (error) throw error;
 }
 
 // ─── イベント削除 ─────────────────────────────────────────────────
