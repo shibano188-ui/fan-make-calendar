@@ -1129,7 +1129,7 @@ export default function Calendar() {
   // 予定一覧ビュー用: 作品イベント+個人予定を日付順にまとめたリスト
   type ListItem = {
     id: string; date: string; title: string; time?: string; endDate?: string; endTime?: string;
-    category?: string; prefecture?: string; memo?: string;
+    category?: string; prefecture?: string; memo?: string; link?: string;
     tag: string; isPersonal: boolean; workId?: string;
     likes?: number; likedByMe?: boolean;
     authorId?: string; authorName?: string;
@@ -1138,7 +1138,7 @@ export default function Calendar() {
     if (workId) return [];
     const workItems: ListItem[] = visibleEvents.map(e => ({
       id: e.id, date: e.date, title: e.title, time: e.time, endDate: e.endDate, endTime: e.endTime,
-      category: e.category, prefecture: e.prefecture,
+      category: e.category, prefecture: e.prefecture, link: e.link,
       tag: e.workName ?? '', isPersonal: false, workId: e.workId,
       likes: e.likes, likedByMe: e.likedByMe,
       authorId: e.authorId, authorName: e.authorName,
@@ -1448,25 +1448,24 @@ export default function Calendar() {
                       >
                         <ChevronLeft size={14} />一覧に戻る
                       </button>
-                      {/* タイトル + 日時（横並び） */}
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="text-label-primary font-bold text-[15px] leading-snug flex-1">{sheetDetailEvent.title}</p>
-                        {(formatDateRange(sheetDetailEvent.date, sheetDetailEvent.endDate) || formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime)) && (
-                          <div className="text-right flex-shrink-0 pt-0.5">
-                            {formatDateRange(sheetDetailEvent.date, sheetDetailEvent.endDate) && (
-                              <p className="text-label-secondary text-xs">{formatDateRange(sheetDetailEvent.date, sheetDetailEvent.endDate)}</p>
-                            )}
-                            {formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime) && (
-                              <p className="text-label-secondary text-sm font-medium">{formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime)}</p>
-                            )}
-                          </div>
-                        )}
-                      </div>
                       {/* バッジ */}
                       {(sheetDetailEvent.workName || sheetDetailEvent.category) && (
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {sheetDetailEvent.workName && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{sheetDetailEvent.workName}</span>}
                           {sheetDetailEvent.category && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{sheetDetailEvent.category}</span>}
+                        </div>
+                      )}
+                      {/* タイトル */}
+                      <p className="text-label-primary font-bold text-[15px] leading-snug line-clamp-1">{sheetDetailEvent.title}</p>
+                      {/* 日付・時間 */}
+                      {(formatDateRange(sheetDetailEvent.date, sheetDetailEvent.endDate) || formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime)) && (
+                        <div className="flex items-center gap-2 -mt-1">
+                          {formatDateRange(sheetDetailEvent.date, sheetDetailEvent.endDate) && (
+                            <span className="text-label-secondary text-xs">{formatDateRange(sheetDetailEvent.date, sheetDetailEvent.endDate)}</span>
+                          )}
+                          {formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime) && (
+                            <span className="text-label-secondary text-sm font-medium">{formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime)}</span>
+                          )}
                         </div>
                       )}
                       {/* 都道府県・場所 */}
@@ -1490,23 +1489,6 @@ export default function Calendar() {
                           className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-default text-label-secondary text-xs w-fit active:opacity-60">
                           <ExternalLink size={11} /><span>{getDomain(sheetDetailEvent.link)}</span>
                         </a>
-                      )}
-                      {/* by + 編集 */}
-                      {(sheetDetailEvent.authorName || (sheetDetailEvent.authorId && user && sheetDetailEvent.authorId === user.id)) && (
-                        <div className="flex items-center justify-between">
-                          {sheetDetailEvent.authorName && (
-                            <p className="text-label-tertiary text-xs">by {sheetDetailEvent.authorName}</p>
-                          )}
-                          {sheetDetailEvent.authorId && user && sheetDetailEvent.authorId === user.id && (
-                            <button
-                              onClick={() => openEditEvent(sheetDetailEvent)}
-                              className="flex items-center gap-1 text-xs active:opacity-60 ml-auto"
-                              style={{ color: 'var(--accent-color)' }}
-                            >
-                              <Pencil size={12} />編集
-                            </button>
-                          )}
-                        </div>
                       )}
                       {/* ❤️いいね + 😊リアクション */}
                       <div className="flex items-center gap-2">
@@ -1548,6 +1530,23 @@ export default function Calendar() {
                           ))}
                         </div>
                       )}
+                      {/* by + 編集（最下行） */}
+                      {(sheetDetailEvent.authorName || (sheetDetailEvent.authorId && user && sheetDetailEvent.authorId === user.id)) && (
+                        <div className="flex items-center justify-between">
+                          {sheetDetailEvent.authorName && (
+                            <p className="text-label-tertiary text-xs">by {sheetDetailEvent.authorName}</p>
+                          )}
+                          {sheetDetailEvent.authorId && user && sheetDetailEvent.authorId === user.id && (
+                            <button
+                              onClick={() => openEditEvent(sheetDetailEvent)}
+                              className="flex items-center gap-1 text-xs active:opacity-60 ml-auto"
+                              style={{ color: 'var(--accent-color)' }}
+                            >
+                              <Pencil size={12} />編集
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ) : loading ? (
                     <div className="flex flex-col gap-2">{[1, 2].map(i => <div key={i} className="h-14 bg-bg-secondary rounded-xl animate-pulse" />)}</div>
@@ -1571,7 +1570,7 @@ export default function Calendar() {
                                 className="w-full px-3 pt-3 pb-1 text-left active:opacity-70 transition-opacity">
                                 <p className="text-label-primary text-sm font-medium">{event.title}</p>
                               </button>
-                              {/* 2行目: カテゴリ → ♥ → 😊 → > → × */}
+                              {/* 2行目: カテゴリ → ♥ → 😊 → 🔗 → > → × */}
                               <div className="flex items-center px-3 pb-2 gap-1">
                                 {event.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.category}</span>}
                                 <div className="flex-1" />
@@ -1594,6 +1593,12 @@ export default function Calendar() {
                                     : <Smile size={14} />
                                   }
                                 </button>
+                                {event.link && (
+                                  <a href={event.link} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                                    className="px-1 h-7 flex items-center active:opacity-60 text-label-tertiary">
+                                    <ExternalLink size={12} />
+                                  </a>
+                                )}
                                 {event.authorId && user && event.authorId === user.id && (
                                   <button
                                     onClick={e => { e.stopPropagation(); openEditEvent(event); }}
@@ -1644,7 +1649,7 @@ export default function Calendar() {
                                 className="w-full px-3 pt-3 pb-1 text-left active:opacity-70 transition-opacity">
                                 <p className="text-label-primary text-sm font-medium">{event.title}</p>
                               </button>
-                              {/* 2行目: 作品名 → カテゴリ → ♥ → 😊 → > → × */}
+                              {/* 2行目: 作品名 → カテゴリ → ♥ → 😊 → 🔗 → > → × */}
                               <div className="flex items-center px-3 pb-2 gap-1">
                                 {event.workName && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5 max-w-[72px] truncate">{event.workName}</span>}
                                 {event.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.category}</span>}
@@ -1668,6 +1673,12 @@ export default function Calendar() {
                                     : <Smile size={14} />
                                   }
                                 </button>
+                                {event.link && (
+                                  <a href={event.link} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                                    className="px-1 h-7 flex items-center active:opacity-60 text-label-tertiary">
+                                    <ExternalLink size={12} />
+                                  </a>
+                                )}
                                 {event.authorId && user && event.authorId === user.id && (
                                   <button
                                     onClick={e => { e.stopPropagation(); openEditEvent(event); }}
@@ -1749,25 +1760,24 @@ export default function Calendar() {
               >
                 <ChevronLeft size={14} />一覧に戻る
               </button>
-              {/* タイトル + 日時（横並び） */}
-              <div className="flex items-start justify-between gap-3">
-                <p className="text-label-primary font-bold text-[15px] leading-snug flex-1">{listDetailEvent.title}</p>
-                {(formatDateRange(listDetailEvent.date, listDetailEvent.endDate) || formatTimeRange(listDetailEvent.time, listDetailEvent.endTime)) && (
-                  <div className="text-right flex-shrink-0 pt-0.5">
-                    {formatDateRange(listDetailEvent.date, listDetailEvent.endDate) && (
-                      <p className="text-label-secondary text-xs">{formatDateRange(listDetailEvent.date, listDetailEvent.endDate)}</p>
-                    )}
-                    {formatTimeRange(listDetailEvent.time, listDetailEvent.endTime) && (
-                      <p className="text-label-secondary text-sm font-medium">{formatTimeRange(listDetailEvent.time, listDetailEvent.endTime)}</p>
-                    )}
-                  </div>
-                )}
-              </div>
               {/* バッジ */}
               {(listDetailEvent.workName || listDetailEvent.category) && (
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {listDetailEvent.workName && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{listDetailEvent.workName}</span>}
                   {listDetailEvent.category && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{listDetailEvent.category}</span>}
+                </div>
+              )}
+              {/* タイトル */}
+              <p className="text-label-primary font-bold text-[15px] leading-snug line-clamp-1">{listDetailEvent.title}</p>
+              {/* 日付・時間 */}
+              {(formatDateRange(listDetailEvent.date, listDetailEvent.endDate) || formatTimeRange(listDetailEvent.time, listDetailEvent.endTime)) && (
+                <div className="flex items-center gap-2 -mt-1">
+                  {formatDateRange(listDetailEvent.date, listDetailEvent.endDate) && (
+                    <span className="text-label-secondary text-xs">{formatDateRange(listDetailEvent.date, listDetailEvent.endDate)}</span>
+                  )}
+                  {formatTimeRange(listDetailEvent.time, listDetailEvent.endTime) && (
+                    <span className="text-label-secondary text-sm font-medium">{formatTimeRange(listDetailEvent.time, listDetailEvent.endTime)}</span>
+                  )}
                 </div>
               )}
               {/* 都道府県・場所 */}
@@ -1791,23 +1801,6 @@ export default function Calendar() {
                   className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-default text-label-secondary text-xs w-fit active:opacity-60">
                   <ExternalLink size={11} /><span>{getDomain(listDetailEvent.link)}</span>
                 </a>
-              )}
-              {/* by + 編集 */}
-              {(listDetailEvent.authorName || (listDetailEvent.authorId && user && listDetailEvent.authorId === user.id)) && (
-                <div className="flex items-center justify-between">
-                  {listDetailEvent.authorName && (
-                    <p className="text-label-tertiary text-xs">by {listDetailEvent.authorName}</p>
-                  )}
-                  {listDetailEvent.authorId && user && listDetailEvent.authorId === user.id && (
-                    <button
-                      onClick={() => openEditEvent(listDetailEvent)}
-                      className="flex items-center gap-1 text-xs active:opacity-60 ml-auto"
-                      style={{ color: 'var(--accent-color)' }}
-                    >
-                      <Pencil size={12} />編集
-                    </button>
-                  )}
-                </div>
               )}
               {/* ❤️いいね + 😊リアクション */}
               <div className="flex items-center gap-2">
@@ -1847,6 +1840,23 @@ export default function Calendar() {
                       <span className="text-xs">{sheetDetailReactionData.counts[r.type]}</span>
                     </span>
                   ))}
+                </div>
+              )}
+              {/* by + 編集（最下行） */}
+              {(listDetailEvent.authorName || (listDetailEvent.authorId && user && listDetailEvent.authorId === user.id)) && (
+                <div className="flex items-center justify-between">
+                  {listDetailEvent.authorName && (
+                    <p className="text-label-tertiary text-xs">by {listDetailEvent.authorName}</p>
+                  )}
+                  {listDetailEvent.authorId && user && listDetailEvent.authorId === user.id && (
+                    <button
+                      onClick={() => openEditEvent(listDetailEvent)}
+                      className="flex items-center gap-1 text-xs active:opacity-60 ml-auto"
+                      style={{ color: 'var(--accent-color)' }}
+                    >
+                      <Pencil size={12} />編集
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -1913,6 +1923,12 @@ export default function Calendar() {
                             : <Smile size={14} />
                           }
                         </button>
+                        {event.link && (
+                          <a href={event.link} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                            className="w-8 self-stretch flex items-center justify-center text-label-tertiary active:opacity-60 flex-shrink-0">
+                            <ExternalLink size={13} />
+                          </a>
+                        )}
                         {event.authorId && user && event.authorId === user.id && (
                           <button
                             onClick={e => { e.stopPropagation(); openEditEvent(event); }}
@@ -2005,6 +2021,12 @@ export default function Calendar() {
                               : <Smile size={14} />
                             }
                           </button>
+                        )}
+                        {item.link && (
+                          <a href={item.link} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                            className="w-8 self-stretch flex items-center justify-center text-label-tertiary active:opacity-60 flex-shrink-0">
+                            <ExternalLink size={13} />
+                          </a>
                         )}
                         {!item.isPersonal && item.authorId && user && item.authorId === user.id && (
                           <button

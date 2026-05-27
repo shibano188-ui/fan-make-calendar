@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
-  Heart, Smile, Pencil, SlidersHorizontal, ExternalLink, ChevronLeft,
+  Heart, Smile, Pencil, SlidersHorizontal, ExternalLink, ChevronLeft, Plus,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
@@ -15,7 +15,7 @@ import {
   POST_CATEGORIES, type PostCategory,
   loadCategoryFilters, saveCategoryFilters,
   loadLikedEventIds, addLikedEventId,
-  loadCalendarEventIds, addCalendarEventId,
+  loadCalendarEventIds, addCalendarEventId, saveCalendarEventIds,
 } from '../lib/constants';
 import { useAuth } from '../contexts/AuthContext';
 import { WORK_COLORS } from './Calendar';
@@ -23,6 +23,22 @@ import { WORK_COLORS } from './Calendar';
 // ─── 定数 ──────────────────────────────────────────────────────────
 
 const BOTTOM_TAB_H = 56;
+
+const LIKE_MAX_TAPS = 10;
+const LIKE_COOLDOWN_MS = 60_000;
+interface LikeSession { tapsUsed: number; resetAt: number; }
+function loadLikeSession(id: string): LikeSession {
+  try {
+    const raw = localStorage.getItem(`like_session:${id}`);
+    if (!raw) return { tapsUsed: 0, resetAt: 0 };
+    const s = JSON.parse(raw) as LikeSession;
+    if (s.resetAt > 0 && Date.now() >= s.resetAt) return { tapsUsed: 0, resetAt: 0 };
+    return s;
+  } catch { return { tapsUsed: 0, resetAt: 0 }; }
+}
+function saveLikeSession(id: string, s: LikeSession) {
+  localStorage.setItem(`like_session:${id}`, JSON.stringify(s));
+}
 
 const REACTIONS_KEY = 'fan_reactions';
 function loadMyReactions(): Record<string, ReactionType> {
@@ -35,10 +51,6 @@ const inputCls =
 function fmtDate(dateStr: string): string {
   const [, m, d] = dateStr.split('-');
   return `${parseInt(m)}月${parseInt(d)}日`;
-}
-function formatDateRange(startDate: string, endDate?: string): string {
-  if (!endDate || endDate === startDate) return fmtDate(startDate);
-  return `${fmtDate(startDate)}〜${fmtDate(endDate)}`;
 }
 function formatTimeRange(startTime?: string, endTime?: string): string | null {
   if (!startTime) return null;
@@ -70,6 +82,21 @@ export default function Discover() {
   const [likedEventIds, setLikedEventIds] = useState<Set<string>>(loadLikedEventIds);
   // カレンダー追加済み（マイカレンダーから削除すると除かれる）
   const [calendarEventIds, setCalendarEventIds] = useState<Set<string>>(loadCalendarEventIds);
+
+  // いいねクールダウン
+  const [lockedLikeIds, setLockedLikeIds] = useState<Set<string>>(() => {
+    const set = new Set<string>();
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith('like_session:')) {
+        const s = JSON.parse(localStorage.getItem(key) ?? '{}') as LikeSession;
+        if (s.tapsUsed >= LIKE_MAX_TAPS && (s.resetAt === 0 || Date.now() < s.resetAt)) {
+          set.add(key.slice('like_session:'.length));
+        }
+      }
+    }
+    return set;
+  });
 
   // リアクション
   const [myReactions, setMyReactions] = useState<Record<string, ReactionType>>(loadMyReactions);
@@ -142,15 +169,24 @@ export default function Discover() {
       return next;
     });
 
-  // ❤️ いいね（何度でも押せる）＋初回のみカレンダーに追加
+  // ❤️ いいね（クールダウン付き）＋初回のみカレンダーに追加
   const handleHeartPress = async (event: CalendarEvent) => {
-    // DB いいね数インクリメント
-    if (user) {
-      try {
-        const newCount = await addLikeTap(event.id, user.id);
-        setEvents(prev => prev.map(e => e.id === event.id ? { ...e, likes: newCount } : e));
-      } catch {}
+    if (!user) return;
+    const session = loadLikeSession(event.id);
+    if (session.tapsUsed >= LIKE_MAX_TAPS) return;
+    const newTaps = session.tapsUsed + 1;
+    const resetAt = newTaps >= LIKE_MAX_TAPS ? Date.now() + LIKE_COOLDOWN_MS : 0;
+    saveLikeSession(event.id, { tapsUsed: newTaps, resetAt });
+    if (newTaps >= LIKE_MAX_TAPS) {
+      setLockedLikeIds(prev => { const next = new Set(prev); next.add(event.id); return next; });
+      setTimeout(() => {
+        setLockedLikeIds(prev => { const next = new Set(prev); next.delete(event.id); return next; });
+      }, LIKE_COOLDOWN_MS);
     }
+    try {
+      const newCount = await addLikeTap(event.id, user.id);
+      setEvents(prev => prev.map(e => e.id === event.id ? { ...e, likes: newCount } : e));
+    } catch {}
     // ソーシャルいいね記録
     const nextLiked = addLikedEventId(event.id);
     setLikedEventIds(nextLiked);
@@ -165,6 +201,24 @@ export default function Discover() {
   const handleReAddToCalendar = (eventId: string) => {
     const nextCal = addCalendarEventId(eventId);
     setCalendarEventIds(nextCal);
+  };
+
+  // 指定作品の表示中カテゴリ予定を一括追加
+  const handleBatchAdd = (workId: string) => {
+    const excludedCats = categoryFilters[workId] ?? [];
+    const toAdd = events.filter(e => {
+      if (e.workId !== workId) return false;
+      if (excludedCats.length > 0 && excludedCats.includes(e.category ?? '')) return false;
+      return true;
+    });
+    if (toAdd.length === 0) return;
+    const cal = loadCalendarEventIds();
+    toAdd.forEach(e => cal.add(e.id));
+    saveCalendarEventIds(cal);
+    setCalendarEventIds(new Set(cal));
+    // ソーシャルいいねも記録
+    toAdd.forEach(e => addLikedEventId(e.id));
+    setLikedEventIds(loadLikedEventIds());
   };
 
   // リアクション
@@ -276,7 +330,7 @@ export default function Discover() {
         <div className="flex-1 overflow-y-auto px-4 pt-3 pb-6">
           {loading ? (
             <div className="flex flex-col gap-3">
-              {[1, 2, 3].map(i => <div key={i} className="h-28 bg-bg-secondary rounded-2xl animate-pulse" />)}
+              {[1, 2, 3].map(i => <div key={i} className="h-24 bg-bg-secondary rounded-2xl animate-pulse" />)}
             </div>
           ) : error ? (
             <p className="text-center text-red-400 text-sm py-10">{error}</p>
@@ -291,66 +345,70 @@ export default function Discover() {
               </p>
             </div>
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
               {visibleEvents.map(event => {
                 const color = event.workId ? (workColorMap.get(event.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
                 const isLiked = likedEventIds.has(event.id);
                 const isInCalendar = calendarEventIds.has(event.id);
                 const showReAdd = isLiked && !isInCalendar;
+                const isLocked = lockedLikeIds.has(event.id);
                 const timeLabel = formatTimeRange(event.time, event.endTime);
+                const [, em, ed] = event.date.split('-').map(Number);
                 return (
-                  <div key={event.id} className="bg-bg-secondary rounded-2xl overflow-hidden px-4 pt-4 pb-3 flex flex-col gap-2">
-                    {/* バッジ行 */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {event.workName && (
-                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
-                          style={{ color, backgroundColor: `${color}20` }}>
-                          {event.workName}
-                        </span>
-                      )}
-                      {event.category && (
-                        <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">
-                          {event.category}
-                        </span>
-                      )}
+                  <div key={event.id} className="bg-bg-secondary rounded-2xl overflow-hidden">
+                    {/* メインコンテンツ行 */}
+                    <div className="flex items-stretch px-3 pt-3 pb-2 gap-3">
+                      {/* 日付（左） */}
+                      <div className="flex-shrink-0 w-10 flex flex-col items-center pt-0.5">
+                        <span className="text-[10px] text-label-tertiary leading-none">{em}月</span>
+                        <span className="text-xl font-bold text-label-primary leading-snug">{ed}</span>
+                      </div>
+                      <div className="w-px self-stretch bg-white/10 flex-shrink-0" />
+                      {/* コンテンツ（右） */}
+                      <div className="flex-1 min-w-0 flex flex-col gap-1">
+                        {/* バッジ */}
+                        {(event.workName || event.category) && (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {event.workName && (
+                              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+                                style={{ color, backgroundColor: `${color}20` }}>
+                                {event.workName}
+                              </span>
+                            )}
+                            {event.category && (
+                              <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">
+                                {event.category}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {/* タイトル */}
+                        <p className="text-label-primary text-sm font-semibold leading-snug line-clamp-1">{event.title}</p>
+                        {/* 終了日（複数日イベント） */}
+                        {event.endDate && event.endDate !== event.date && (
+                          <span className="text-label-tertiary text-xs">〜{fmtDate(event.endDate)}</span>
+                        )}
+                        {/* 時間・場所 */}
+                        {(timeLabel || event.prefecture) && (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {timeLabel && <span className="text-label-tertiary text-xs">{timeLabel}</span>}
+                            {event.prefecture && (
+                              <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>
+                            )}
+                          </div>
+                        )}
+                        {/* メモ */}
+                        {event.memo && <p className="text-label-tertiary text-xs leading-relaxed line-clamp-2">{event.memo}</p>}
+                        {/* by */}
+                        {event.authorName && <p className="text-[10px] text-label-tertiary">by {event.authorName}</p>}
+                      </div>
                     </div>
-
-                    {/* タイトル */}
-                    <p className="text-label-primary font-bold text-base leading-snug">{event.title}</p>
-
-                    {/* 日付・時間 */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-label-secondary text-sm">{formatDateRange(event.date, event.endDate)}</span>
-                      {timeLabel && <span className="text-label-secondary text-sm">{timeLabel}</span>}
-                      {event.prefecture && (
-                        <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">
-                          {event.prefecture}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* メモ */}
-                    {event.memo && <p className="text-label-secondary text-sm leading-relaxed">{event.memo}</p>}
-
-                    {/* リンク */}
-                    {event.link && (
-                      <a href={event.link} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-1 px-3 py-1 rounded-full border border-default text-label-secondary text-xs w-fit active:opacity-60">
-                        <ExternalLink size={10} />{getDomain(event.link)}
-                      </a>
-                    )}
-
-                    {/* 投稿者 */}
-                    {event.authorName && (
-                      <p className="text-label-tertiary text-xs">by {event.authorName}</p>
-                    )}
-
                     {/* アクション行 */}
-                    <div className="flex items-center gap-2 pt-1 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
-                      {/* ❤️ いいね数（複数回OK） */}
+                    <div className="flex items-center gap-2 px-3 pb-3 pt-2 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
+                      {/* ❤️ いいね（クールダウン付き） */}
                       <button
                         onClick={() => handleHeartPress(event)}
-                        disabled={!user}
+                        disabled={!user || isLocked}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm disabled:opacity-40 active:opacity-70"
                         style={{
                           borderColor: isLiked ? 'rgb(248,113,113)' : 'var(--border-default)',
@@ -363,7 +421,6 @@ export default function Discover() {
 
                       {/* カレンダー状態ボタン */}
                       {isInCalendar ? (
-                        /* 追加済み（タップ無効） */
                         <span
                           className="flex items-center gap-1 px-3 py-1.5 rounded-xl border text-xs text-label-tertiary"
                           style={{ borderColor: 'var(--border-subtle)' }}
@@ -371,7 +428,6 @@ export default function Discover() {
                           追加済み
                         </span>
                       ) : showReAdd ? (
-                        /* 再追加ボタン（いいね済みだがカレンダーから削除された） */
                         <button
                           onClick={() => handleReAddToCalendar(event.id)}
                           disabled={!user}
@@ -386,10 +442,19 @@ export default function Discover() {
                         </button>
                       ) : null}
 
+                      {/* リンク（あれば） */}
+                      {event.link && (
+                        <a href={event.link} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-default text-label-secondary text-xs active:opacity-60 max-w-[100px]">
+                          <ExternalLink size={11} className="flex-shrink-0" />
+                          <span className="truncate">{getDomain(event.link)}</span>
+                        </a>
+                      )}
+
                       {/* 😊 リアクション */}
                       <button
                         onClick={() => setOpenReactionPickerId(prev => prev === event.id ? null : event.id)}
-                        className="px-3 py-1.5 rounded-xl border text-sm active:opacity-60 flex items-center justify-center"
+                        className="ml-auto px-3 py-1.5 rounded-xl border text-sm active:opacity-60 flex items-center justify-center"
                         style={{
                           borderColor: myReactions[event.id] ? 'var(--accent-color)' : 'var(--border-default)',
                           color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-secondary)',
@@ -455,6 +520,11 @@ export default function Discover() {
           setCategoryFilters(updated);
           saveCategoryFilters(updated);
         };
+        const batchAddCount = events.filter(e => {
+          if (e.workId !== filterPickerWorkId) return false;
+          if (current.length > 0 && current.includes(e.category ?? '')) return false;
+          return !calendarEventIds.has(e.id);
+        }).length;
         return (
           <>
             <div className="fixed inset-0 z-[180]" onClick={() => setFilterPickerWorkId(null)} />
@@ -465,7 +535,7 @@ export default function Discover() {
                   <button onClick={() => { const u = { ...categoryFilters, [filterPickerWorkId]: [] }; setCategoryFilters(u); saveCategoryFilters(u); }} className="text-xs text-label-tertiary underline active:opacity-60">すべて表示</button>
                 </div>
                 <p className="px-4 text-[11px] text-label-tertiary mb-3">色ありが表示中。タップしたカテゴリを非表示にします</p>
-                <div className="flex flex-wrap gap-2 px-4 pb-4">
+                <div className="flex flex-wrap gap-2 px-4 pb-3">
                   {POST_CATEGORIES.map(cat => {
                     const hidden = current.includes(cat);
                     return (
@@ -478,6 +548,20 @@ export default function Discover() {
                       </button>
                     );
                   })}
+                </div>
+                {/* 一括追加ボタン */}
+                <div className="px-4 pb-4 border-t pt-3" style={{ borderColor: 'var(--border-subtle)' }}>
+                  <button
+                    onClick={() => { handleBatchAdd(filterPickerWorkId); setFilterPickerWorkId(null); }}
+                    disabled={batchAddCount === 0}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold active:opacity-70 disabled:opacity-40"
+                    style={{ backgroundColor: `${color}20`, color }}
+                  >
+                    <Plus size={14} />
+                    {batchAddCount > 0
+                      ? `表示中の予定を一括追加（${batchAddCount}件）`
+                      : 'すべて追加済み'}
+                  </button>
                 </div>
               </div>
             </div>
