@@ -1525,6 +1525,15 @@ export default function Calendar() {
                                     : <Smile size={14} />
                                   }
                                 </button>
+                                {event.authorId && user && event.authorId === user.id && (
+                                  <button
+                                    onClick={e => { e.stopPropagation(); openEditEvent(event); }}
+                                    className="px-1 h-7 flex items-center active:opacity-60"
+                                    style={{ color: 'var(--accent-color)' }}
+                                  >
+                                    <Pencil size={13} />
+                                  </button>
+                                )}
                                 <button onClick={() => setSheetDetailEvent(event)} className="px-1 h-7 flex items-center text-label-tertiary">
                                   <ChevronRight size={14} />
                                 </button>
@@ -1588,6 +1597,15 @@ export default function Calendar() {
                                     : <Smile size={14} />
                                   }
                                 </button>
+                                {event.authorId && user && event.authorId === user.id && (
+                                  <button
+                                    onClick={e => { e.stopPropagation(); openEditEvent(event); }}
+                                    className="px-1 h-7 flex items-center active:opacity-60"
+                                    style={{ color: 'var(--accent-color)' }}
+                                  >
+                                    <Pencil size={13} />
+                                  </button>
+                                )}
                                 <button onClick={() => event.workId && setSheetDetailEvent(event)} className="px-1 h-7 flex items-center text-label-tertiary">
                                   <ChevronRight size={14} />
                                 </button>
@@ -1809,6 +1827,15 @@ export default function Calendar() {
                             : <Smile size={14} />
                           }
                         </button>
+                        {event.authorId && user && event.authorId === user.id && (
+                          <button
+                            onClick={e => { e.stopPropagation(); openEditEvent(event); }}
+                            className="w-9 self-stretch flex items-center justify-center active:opacity-60 flex-shrink-0"
+                            style={{ color: 'var(--accent-color)' }}
+                          >
+                            <Pencil size={13} />
+                          </button>
+                        )}
                         <button onClick={() => handleHideEvent(event.id)} className="w-9 self-stretch flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
                           <X size={14} />
                         </button>
@@ -1878,6 +1905,15 @@ export default function Calendar() {
                             }
                           </button>
                         )}
+                        {!item.isPersonal && item.authorId && user && item.authorId === user.id && (
+                          <button
+                            onClick={e => { e.stopPropagation(); const ev = visibleEvents.find(x => x.id === item.id); if (ev) openEditEvent(ev); }}
+                            className="w-9 self-stretch flex items-center justify-center active:opacity-60 flex-shrink-0"
+                            style={{ color: 'var(--accent-color)' }}
+                          >
+                            <Pencil size={13} />
+                          </button>
+                        )}
                         <button
                           onClick={e => { e.stopPropagation(); item.isPersonal ? deletePersonalEvent(item.id) : handleHideEvent(item.id); }}
                           className="w-9 self-stretch flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0"
@@ -1898,19 +1934,21 @@ export default function Calendar() {
         </div>{/* コンテンツエリア（背景画像ラッパー）閉じ */}
       </div>
 
-      {/* FAB（workId有無に関わらず常に表示） */}
-      <button
-        onClick={() => {
-          if (postPanelOpen) { closePostForm(); }
-          else { openPostForm(selectedDate); }
-        }}
-        className="fixed bottom-[72px] right-4 w-[52px] h-[52px] bg-label-primary text-bg-primary rounded-full flex items-center justify-center shadow-xl z-40 active:opacity-80"
-        aria-label={postPanelOpen ? '閉じる' : '予定を追加'}
-      >
-        <div style={{ transition: 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)', transform: postPanelOpen ? 'rotate(45deg)' : 'rotate(0deg)' }}>
-          <Plus size={22} strokeWidth={2.5} />
-        </div>
-      </button>
+      {/* FAB（詳細ビュー表示中は非表示） */}
+      {!sheetDetailEvent && !listDetailEvent && (
+        <button
+          onClick={() => {
+            if (postPanelOpen) { closePostForm(); }
+            else { openPostForm(selectedDate); }
+          }}
+          className="fixed bottom-[72px] right-4 w-[52px] h-[52px] bg-label-primary text-bg-primary rounded-full flex items-center justify-center shadow-xl z-40 active:opacity-80"
+          aria-label={postPanelOpen ? '閉じる' : '予定を追加'}
+        >
+          <div style={{ transition: 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)', transform: postPanelOpen ? 'rotate(45deg)' : 'rotate(0deg)' }}>
+            <Plus size={22} strokeWidth={2.5} />
+          </div>
+        </button>
+      )}
 
       {/* リアクションピッカー */}
       {openReactionPickerId && (
