@@ -1448,28 +1448,67 @@ export default function Calendar() {
                       >
                         <ChevronLeft size={14} />一覧に戻る
                       </button>
-                      {/* 1行目: タイトル + 作品名 + カテゴリ */}
-                      <div>
-                        <p className="text-label-primary font-bold text-[15px] leading-snug">{sheetDetailEvent.title}</p>
-                        {(sheetDetailEvent.workName || sheetDetailEvent.category) && (
-                          <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
-                            {sheetDetailEvent.workName && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{sheetDetailEvent.workName}</span>}
-                            {sheetDetailEvent.category && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{sheetDetailEvent.category}</span>}
+                      {/* タイトル + 日時（横並び） */}
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-label-primary font-bold text-[15px] leading-snug flex-1">{sheetDetailEvent.title}</p>
+                        {(formatDateRange(sheetDetailEvent.date, sheetDetailEvent.endDate) || formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime)) && (
+                          <div className="text-right flex-shrink-0 pt-0.5">
+                            {formatDateRange(sheetDetailEvent.date, sheetDetailEvent.endDate) && (
+                              <p className="text-label-secondary text-xs">{formatDateRange(sheetDetailEvent.date, sheetDetailEvent.endDate)}</p>
+                            )}
+                            {formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime) && (
+                              <p className="text-label-secondary text-sm font-medium">{formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime)}</p>
+                            )}
                           </div>
                         )}
                       </div>
-                      {/* 2行目: 日付範囲 + 時間 */}
-                      {(formatDateRange(sheetDetailEvent.date, sheetDetailEvent.endDate) || formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime)) && (
-                        <div className="flex items-center gap-3 flex-wrap">
-                          {formatDateRange(sheetDetailEvent.date, sheetDetailEvent.endDate) && (
-                            <span className="text-label-secondary text-sm">{formatDateRange(sheetDetailEvent.date, sheetDetailEvent.endDate)}</span>
-                          )}
-                          {formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime) && (
-                            <span className="text-label-secondary text-sm">{formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime)}</span>
+                      {/* バッジ */}
+                      {(sheetDetailEvent.workName || sheetDetailEvent.category) && (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {sheetDetailEvent.workName && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{sheetDetailEvent.workName}</span>}
+                          {sheetDetailEvent.category && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{sheetDetailEvent.category}</span>}
+                        </div>
+                      )}
+                      {/* 都道府県・場所 */}
+                      {sheetDetailEvent.prefecture && (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5 w-fit">{sheetDetailEvent.prefecture}</span>
+                          {sheetDetailEvent.locationDetail && <p className="text-xs text-label-secondary">{sheetDetailEvent.locationDetail}</p>}
+                          {sheetDetailEvent.locationMapLink && (
+                            <a href={sheetDetailEvent.locationMapLink} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-xs active:opacity-60 w-fit" style={{ color: 'var(--accent-color)' }}>
+                              <ExternalLink size={11} />地図を開く
+                            </a>
                           )}
                         </div>
                       )}
-                      {/* 3行目: いいね + リアクション */}
+                      {/* メモ（❤️の前） */}
+                      {sheetDetailEvent.memo && <p className="text-label-secondary text-sm leading-relaxed">{sheetDetailEvent.memo}</p>}
+                      {/* リンク */}
+                      {sheetDetailEvent.link && (
+                        <a href={sheetDetailEvent.link} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-default text-label-secondary text-xs w-fit active:opacity-60">
+                          <ExternalLink size={11} /><span>{getDomain(sheetDetailEvent.link)}</span>
+                        </a>
+                      )}
+                      {/* by + 編集 */}
+                      {(sheetDetailEvent.authorName || (sheetDetailEvent.authorId && user && sheetDetailEvent.authorId === user.id)) && (
+                        <div className="flex items-center justify-between">
+                          {sheetDetailEvent.authorName && (
+                            <p className="text-label-tertiary text-xs">by {sheetDetailEvent.authorName}</p>
+                          )}
+                          {sheetDetailEvent.authorId && user && sheetDetailEvent.authorId === user.id && (
+                            <button
+                              onClick={() => openEditEvent(sheetDetailEvent)}
+                              className="flex items-center gap-1 text-xs active:opacity-60 ml-auto"
+                              style={{ color: 'var(--accent-color)' }}
+                            >
+                              <Pencil size={12} />編集
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      {/* ❤️いいね + 😊リアクション */}
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleSheetEventLike(sheetDetailEvent.id)}
@@ -1498,7 +1537,7 @@ export default function Calendar() {
                           }
                         </button>
                       </div>
-                      {/* 4行目: リアクション集計 */}
+                      {/* リアクション集計 */}
                       {sheetDetailReactionData && Object.values(sheetDetailReactionData.counts).some(c => c > 0) && (
                         <div className="flex items-center gap-3 flex-wrap">
                           {REACTIONS.filter(r => (sheetDetailReactionData.counts[r.type] ?? 0) > 0).map(r => (
@@ -1507,41 +1546,6 @@ export default function Calendar() {
                               <span className="text-xs">{sheetDetailReactionData.counts[r.type]}</span>
                             </span>
                           ))}
-                        </div>
-                      )}
-                      {sheetDetailEvent.prefecture && (
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5 w-fit">{sheetDetailEvent.prefecture}</span>
-                          {sheetDetailEvent.locationDetail && <p className="text-xs text-label-secondary">{sheetDetailEvent.locationDetail}</p>}
-                          {sheetDetailEvent.locationMapLink && (
-                            <a href={sheetDetailEvent.locationMapLink} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-1 text-xs active:opacity-60 w-fit" style={{ color: 'var(--accent-color)' }}>
-                              <ExternalLink size={11} />地図を開く
-                            </a>
-                          )}
-                        </div>
-                      )}
-                      {sheetDetailEvent.memo && <p className="text-label-secondary text-sm leading-relaxed">{sheetDetailEvent.memo}</p>}
-                      {sheetDetailEvent.link && (
-                        <a href={sheetDetailEvent.link} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-default text-label-secondary text-xs w-fit active:opacity-60">
-                          <ExternalLink size={11} /><span>{getDomain(sheetDetailEvent.link)}</span>
-                        </a>
-                      )}
-                      {(sheetDetailEvent.authorName || (sheetDetailEvent.authorId && user && sheetDetailEvent.authorId === user.id)) && (
-                        <div className="flex items-center justify-between">
-                          {sheetDetailEvent.authorName && (
-                            <p className="text-label-tertiary text-xs">by {sheetDetailEvent.authorName}</p>
-                          )}
-                          {sheetDetailEvent.authorId && user && sheetDetailEvent.authorId === user.id && (
-                            <button
-                              onClick={() => openEditEvent(sheetDetailEvent)}
-                              className="flex items-center gap-1 text-xs active:opacity-60 ml-auto"
-                              style={{ color: 'var(--accent-color)' }}
-                            >
-                              <Pencil size={12} />編集
-                            </button>
-                          )}
                         </div>
                       )}
                     </div>
@@ -1745,25 +1749,67 @@ export default function Calendar() {
               >
                 <ChevronLeft size={14} />一覧に戻る
               </button>
-              <div>
-                <p className="text-label-primary font-bold text-[15px] leading-snug">{listDetailEvent.title}</p>
-                {(listDetailEvent.workName || listDetailEvent.category) && (
-                  <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
-                    {listDetailEvent.workName && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{listDetailEvent.workName}</span>}
-                    {listDetailEvent.category && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{listDetailEvent.category}</span>}
+              {/* タイトル + 日時（横並び） */}
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-label-primary font-bold text-[15px] leading-snug flex-1">{listDetailEvent.title}</p>
+                {(formatDateRange(listDetailEvent.date, listDetailEvent.endDate) || formatTimeRange(listDetailEvent.time, listDetailEvent.endTime)) && (
+                  <div className="text-right flex-shrink-0 pt-0.5">
+                    {formatDateRange(listDetailEvent.date, listDetailEvent.endDate) && (
+                      <p className="text-label-secondary text-xs">{formatDateRange(listDetailEvent.date, listDetailEvent.endDate)}</p>
+                    )}
+                    {formatTimeRange(listDetailEvent.time, listDetailEvent.endTime) && (
+                      <p className="text-label-secondary text-sm font-medium">{formatTimeRange(listDetailEvent.time, listDetailEvent.endTime)}</p>
+                    )}
                   </div>
                 )}
               </div>
-              {(formatDateRange(listDetailEvent.date, listDetailEvent.endDate) || formatTimeRange(listDetailEvent.time, listDetailEvent.endTime)) && (
-                <div className="flex items-center gap-3 flex-wrap">
-                  {formatDateRange(listDetailEvent.date, listDetailEvent.endDate) && (
-                    <span className="text-label-secondary text-sm">{formatDateRange(listDetailEvent.date, listDetailEvent.endDate)}</span>
-                  )}
-                  {formatTimeRange(listDetailEvent.time, listDetailEvent.endTime) && (
-                    <span className="text-label-secondary text-sm">{formatTimeRange(listDetailEvent.time, listDetailEvent.endTime)}</span>
+              {/* バッジ */}
+              {(listDetailEvent.workName || listDetailEvent.category) && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {listDetailEvent.workName && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{listDetailEvent.workName}</span>}
+                  {listDetailEvent.category && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{listDetailEvent.category}</span>}
+                </div>
+              )}
+              {/* 都道府県・場所 */}
+              {listDetailEvent.prefecture && (
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5 w-fit">{listDetailEvent.prefecture}</span>
+                  {listDetailEvent.locationDetail && <p className="text-xs text-label-secondary">{listDetailEvent.locationDetail}</p>}
+                  {listDetailEvent.locationMapLink && (
+                    <a href={listDetailEvent.locationMapLink} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-xs active:opacity-60 w-fit" style={{ color: 'var(--accent-color)' }}>
+                      <ExternalLink size={11} />地図を開く
+                    </a>
                   )}
                 </div>
               )}
+              {/* メモ（❤️の前） */}
+              {listDetailEvent.memo && <p className="text-label-secondary text-sm leading-relaxed">{listDetailEvent.memo}</p>}
+              {/* リンク */}
+              {listDetailEvent.link && (
+                <a href={listDetailEvent.link} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-default text-label-secondary text-xs w-fit active:opacity-60">
+                  <ExternalLink size={11} /><span>{getDomain(listDetailEvent.link)}</span>
+                </a>
+              )}
+              {/* by + 編集 */}
+              {(listDetailEvent.authorName || (listDetailEvent.authorId && user && listDetailEvent.authorId === user.id)) && (
+                <div className="flex items-center justify-between">
+                  {listDetailEvent.authorName && (
+                    <p className="text-label-tertiary text-xs">by {listDetailEvent.authorName}</p>
+                  )}
+                  {listDetailEvent.authorId && user && listDetailEvent.authorId === user.id && (
+                    <button
+                      onClick={() => openEditEvent(listDetailEvent)}
+                      className="flex items-center gap-1 text-xs active:opacity-60 ml-auto"
+                      style={{ color: 'var(--accent-color)' }}
+                    >
+                      <Pencil size={12} />編集
+                    </button>
+                  )}
+                </div>
+              )}
+              {/* ❤️いいね + 😊リアクション */}
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => handleSheetEventLike(listDetailEvent.id)}
@@ -1792,6 +1838,7 @@ export default function Calendar() {
                   }
                 </button>
               </div>
+              {/* リアクション集計 */}
               {sheetDetailReactionData && Object.values(sheetDetailReactionData.counts).some(c => c > 0) && (
                 <div className="flex items-center gap-3 flex-wrap">
                   {REACTIONS.filter(r => (sheetDetailReactionData.counts[r.type] ?? 0) > 0).map(r => (
@@ -1800,41 +1847,6 @@ export default function Calendar() {
                       <span className="text-xs">{sheetDetailReactionData.counts[r.type]}</span>
                     </span>
                   ))}
-                </div>
-              )}
-              {listDetailEvent.prefecture && (
-                <div className="flex flex-col gap-1">
-                  <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5 w-fit">{listDetailEvent.prefecture}</span>
-                  {listDetailEvent.locationDetail && <p className="text-xs text-label-secondary">{listDetailEvent.locationDetail}</p>}
-                  {listDetailEvent.locationMapLink && (
-                    <a href={listDetailEvent.locationMapLink} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-xs active:opacity-60 w-fit" style={{ color: 'var(--accent-color)' }}>
-                      <ExternalLink size={11} />地図を開く
-                    </a>
-                  )}
-                </div>
-              )}
-              {listDetailEvent.memo && <p className="text-label-secondary text-sm leading-relaxed">{listDetailEvent.memo}</p>}
-              {listDetailEvent.link && (
-                <a href={listDetailEvent.link} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-default text-label-secondary text-xs w-fit active:opacity-60">
-                  <ExternalLink size={11} /><span>{getDomain(listDetailEvent.link)}</span>
-                </a>
-              )}
-              {(listDetailEvent.authorName || (listDetailEvent.authorId && user && listDetailEvent.authorId === user.id)) && (
-                <div className="flex items-center justify-between">
-                  {listDetailEvent.authorName && (
-                    <p className="text-label-tertiary text-xs">by {listDetailEvent.authorName}</p>
-                  )}
-                  {listDetailEvent.authorId && user && listDetailEvent.authorId === user.id && (
-                    <button
-                      onClick={() => openEditEvent(listDetailEvent)}
-                      className="flex items-center gap-1 text-xs active:opacity-60 ml-auto"
-                      style={{ color: 'var(--accent-color)' }}
-                    >
-                      <Pencil size={12} />編集
-                    </button>
-                  )}
                 </div>
               )}
             </div>
@@ -1952,13 +1964,21 @@ export default function Calendar() {
                           <div className="w-px h-8 bg-white/10 flex-shrink-0" />
                           <div className="flex-1 min-w-0">
                             <p className="text-label-primary text-sm font-medium truncate">{item.title}</p>
-                            <div className="flex items-center gap-2 mt-1 flex-wrap">
-                              {item.tag && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.tag}</span>}
-                              {formatDateRange(item.date, item.endDate) && <span className="text-label-tertiary text-xs">{formatDateRange(item.date, item.endDate)}</span>}
-                              {formatTimeRange(item.time, item.endTime) && <span className="text-label-tertiary text-xs">{formatTimeRange(item.time, item.endTime)}</span>}
-                              {item.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.category}</span>}
-                              {item.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.prefecture}</span>}
-                            </div>
+                            {/* バッジ行: タグ・カテゴリ・都道府県 */}
+                            {(item.tag || item.category || item.prefecture) && (
+                              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                {item.tag && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.tag}</span>}
+                                {item.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.category}</span>}
+                                {item.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.prefecture}</span>}
+                              </div>
+                            )}
+                            {/* 日付・時間 */}
+                            {(formatDateRange(item.date, item.endDate) || formatTimeRange(item.time, item.endTime)) && (
+                              <div className="flex items-center gap-2 mt-0.5">
+                                {formatDateRange(item.date, item.endDate) && <span className="text-label-tertiary text-xs">{formatDateRange(item.date, item.endDate)}</span>}
+                                {formatTimeRange(item.time, item.endTime) && <span className="text-label-tertiary text-xs">{formatTimeRange(item.time, item.endTime)}</span>}
+                              </div>
+                            )}
                             {item.authorName && <p className="text-[10px] text-label-tertiary mt-0.5">by {item.authorName}</p>}
                             {item.memo && <p className="text-label-secondary text-xs mt-0.5 truncate">{item.memo}</p>}
                           </div>

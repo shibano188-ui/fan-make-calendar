@@ -6,7 +6,7 @@ import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
 import {
   listUpcomingParticipatedEvents, listRecentWorks,
-  setReaction, getMyReactionsBatch, updateEvent,
+  setReaction, getMyReactionsBatch, updateEvent, addLikeTap,
 } from '../lib/api';
 import type { Work } from '../lib/api';
 import type { CalendarEvent } from '../types';
@@ -142,13 +142,21 @@ export default function Discover() {
       return next;
     });
 
-  // ❤️ いいね＋初回のみカレンダーに追加
-  const handleHeartPress = (eventId: string) => {
-    const nextLiked = addLikedEventId(eventId);
+  // ❤️ いいね（何度でも押せる）＋初回のみカレンダーに追加
+  const handleHeartPress = async (event: CalendarEvent) => {
+    // DB いいね数インクリメント
+    if (user) {
+      try {
+        const newCount = await addLikeTap(event.id, user.id);
+        setEvents(prev => prev.map(e => e.id === event.id ? { ...e, likes: newCount } : e));
+      } catch {}
+    }
+    // ソーシャルいいね記録
+    const nextLiked = addLikedEventId(event.id);
     setLikedEventIds(nextLiked);
     // カレンダーに未追加の場合のみ追加
-    if (!calendarEventIds.has(eventId)) {
-      const nextCal = addCalendarEventId(eventId);
+    if (!calendarEventIds.has(event.id)) {
+      const nextCal = addCalendarEventId(event.id);
       setCalendarEventIds(nextCal);
     }
   };
@@ -339,29 +347,35 @@ export default function Discover() {
 
                     {/* アクション行 */}
                     <div className="flex items-center gap-2 pt-1 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
-                      {/* ❤️ いいね（複数回OK）＋カレンダー追加 */}
+                      {/* ❤️ いいね数（複数回OK） */}
                       <button
-                        onClick={() => handleHeartPress(event.id)}
+                        onClick={() => handleHeartPress(event)}
                         disabled={!user}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm transition-colors disabled:opacity-40 active:scale-95"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm disabled:opacity-40 active:opacity-70"
                         style={{
                           borderColor: isLiked ? 'rgb(248,113,113)' : 'var(--border-default)',
                           color: isLiked ? 'rgb(248,113,113)' : 'var(--label-secondary)',
-                          backgroundColor: isLiked ? 'rgba(248,113,113,0.08)' : 'transparent',
-                          flex: showReAdd ? '0 0 auto' : '1 1 auto',
-                          justifyContent: 'center',
                         }}
                       >
                         <Heart size={14} style={{ fill: isLiked ? 'rgb(248,113,113)' : 'none' }} />
-                        <span className="text-xs">{isInCalendar ? '追加済み' : isLiked ? '追加済み' : 'カレンダーに追加'}</span>
+                        <span className="text-xs">{event.likes.toLocaleString('ja-JP')}</span>
                       </button>
 
-                      {/* 再追加ボタン（いいね済みだがカレンダーから削除された場合） */}
-                      {showReAdd && (
+                      {/* カレンダー状態ボタン */}
+                      {isInCalendar ? (
+                        /* 追加済み（タップ無効） */
+                        <span
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl border text-xs text-label-tertiary"
+                          style={{ borderColor: 'var(--border-subtle)' }}
+                        >
+                          追加済み
+                        </span>
+                      ) : showReAdd ? (
+                        /* 再追加ボタン（いいね済みだがカレンダーから削除された） */
                         <button
                           onClick={() => handleReAddToCalendar(event.id)}
                           disabled={!user}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl border text-xs font-semibold flex-1 justify-center active:opacity-70 disabled:opacity-40"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl border text-xs font-semibold active:opacity-70 disabled:opacity-40"
                           style={{
                             borderColor: 'var(--accent-color)',
                             color: 'var(--accent-color)',
@@ -370,7 +384,7 @@ export default function Discover() {
                         >
                           ＋ 再追加
                         </button>
-                      )}
+                      ) : null}
 
                       {/* 😊 リアクション */}
                       <button
