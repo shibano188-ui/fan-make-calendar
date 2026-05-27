@@ -52,6 +52,10 @@ function fmtDate(dateStr: string): string {
   const [, m, d] = dateStr.split('-');
   return `${parseInt(m)}月${parseInt(d)}日`;
 }
+function formatDateRange(startDate: string, endDate?: string): string {
+  if (!endDate || endDate === startDate) return fmtDate(startDate);
+  return `${fmtDate(startDate)}〜${fmtDate(endDate)}`;
+}
 function formatTimeRange(startTime?: string, endTime?: string): string | null {
   if (!startTime) return null;
   return endTime ? `${startTime}〜${endTime}` : startTime;
@@ -345,7 +349,7 @@ export default function Discover() {
               </p>
             </div>
           ) : (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
               {visibleEvents.map(event => {
                 const color = event.workId ? (workColorMap.get(event.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
                 const isLiked = likedEventIds.has(event.id);
@@ -356,17 +360,17 @@ export default function Discover() {
                 const [, em, ed] = event.date.split('-').map(Number);
                 return (
                   <div key={event.id} className="bg-bg-secondary rounded-2xl overflow-hidden">
-                    {/* メインコンテンツ行 */}
-                    <div className="flex items-stretch px-3 pt-3 pb-2 gap-3">
+                    {/* コンテンツ部分（左に日付列） */}
+                    <div className="flex items-stretch px-4 pt-4 gap-3">
                       {/* 日付（左） */}
                       <div className="flex-shrink-0 w-10 flex flex-col items-center pt-0.5">
                         <span className="text-[10px] text-label-tertiary leading-none">{em}月</span>
                         <span className="text-xl font-bold text-label-primary leading-snug">{ed}</span>
                       </div>
                       <div className="w-px self-stretch bg-white/10 flex-shrink-0" />
-                      {/* コンテンツ（右） */}
-                      <div className="flex-1 min-w-0 flex flex-col gap-1">
-                        {/* バッジ */}
+                      {/* 元のコンテンツ（右） */}
+                      <div className="flex-1 min-w-0 flex flex-col gap-2 pb-3">
+                        {/* バッジ行 */}
                         {(event.workName || event.category) && (
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {event.workName && (
@@ -383,28 +387,34 @@ export default function Discover() {
                           </div>
                         )}
                         {/* タイトル */}
-                        <p className="text-label-primary text-sm font-semibold leading-snug line-clamp-1">{event.title}</p>
-                        {/* 終了日（複数日イベント） */}
-                        {event.endDate && event.endDate !== event.date && (
-                          <span className="text-label-tertiary text-xs">〜{fmtDate(event.endDate)}</span>
-                        )}
-                        {/* 時間・場所 */}
-                        {(timeLabel || event.prefecture) && (
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {timeLabel && <span className="text-label-tertiary text-xs">{timeLabel}</span>}
-                            {event.prefecture && (
-                              <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>
-                            )}
-                          </div>
-                        )}
+                        <p className="text-label-primary font-bold text-base leading-snug">{event.title}</p>
+                        {/* 日付・時間 */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-label-secondary text-sm">{formatDateRange(event.date, event.endDate)}</span>
+                          {timeLabel && <span className="text-label-secondary text-sm">{timeLabel}</span>}
+                          {event.prefecture && (
+                            <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">
+                              {event.prefecture}
+                            </span>
+                          )}
+                        </div>
                         {/* メモ */}
-                        {event.memo && <p className="text-label-tertiary text-xs leading-relaxed line-clamp-2">{event.memo}</p>}
-                        {/* by */}
-                        {event.authorName && <p className="text-[10px] text-label-tertiary">by {event.authorName}</p>}
+                        {event.memo && <p className="text-label-secondary text-sm leading-relaxed">{event.memo}</p>}
+                        {/* リンク */}
+                        {event.link && (
+                          <a href={event.link} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1 px-3 py-1 rounded-full border border-default text-label-secondary text-xs w-fit active:opacity-60">
+                            <ExternalLink size={10} />{getDomain(event.link)}
+                          </a>
+                        )}
+                        {/* 投稿者 */}
+                        {event.authorName && (
+                          <p className="text-label-tertiary text-xs">by {event.authorName}</p>
+                        )}
                       </div>
                     </div>
                     {/* アクション行 */}
-                    <div className="flex items-center gap-2 px-3 pb-3 pt-2 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
+                    <div className="flex items-center gap-2 pt-1 border-t px-4 pb-3" style={{ borderColor: 'var(--border-subtle)' }}>
                       {/* ❤️ いいね（クールダウン付き） */}
                       <button
                         onClick={() => handleHeartPress(event)}
@@ -441,15 +451,6 @@ export default function Discover() {
                           ＋ 再追加
                         </button>
                       ) : null}
-
-                      {/* リンク（あれば） */}
-                      {event.link && (
-                        <a href={event.link} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-default text-label-secondary text-xs active:opacity-60 max-w-[100px]">
-                          <ExternalLink size={11} className="flex-shrink-0" />
-                          <span className="truncate">{getDomain(event.link)}</span>
-                        </a>
-                      )}
 
                       {/* 😊 リアクション */}
                       <button
