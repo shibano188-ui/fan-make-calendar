@@ -6,6 +6,7 @@ import PhoneFrame from './components/PhoneFrame';
 
 const WorkSelect      = lazy(() => import('./pages/WorkSelect'));
 const Calendar        = lazy(() => import('./pages/Calendar'));
+const Discover        = lazy(() => import('./pages/Discover'));
 const DateDetail      = lazy(() => import('./pages/DateDetail'));
 const PostCreate      = lazy(() => import('./pages/PostCreate'));
 const Customize       = lazy(() => import('./pages/Customize'));
@@ -45,6 +46,7 @@ export default function App() {
                   <Routes>
                     <Route path="/"                               element={<Calendar />} />
                     <Route path="/select"                          element={<WorkSelect />} />
+                    <Route path="/discover"                        element={<Discover />} />
                     <Route path="/calendar"                       element={<Calendar />} />
                     <Route path="/calendar/:workId"               element={<Calendar />} />
                     <Route path="/calendar/:workId/date/:date"    element={<DateDetail />} />

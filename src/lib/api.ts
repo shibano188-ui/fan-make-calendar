@@ -465,6 +465,86 @@ export async function getMyReactionsBatch(eventIds: string[], userId: string): P
   return Object.fromEntries((data ?? []).map(r => [r.event_id as string, r.reaction_type as string]));
 }
 
+// ─── 発見タブ用 ────────────────────────────────────────────────────
+
+/** 参加中の全作品の直近イベント（今日以降）をまとめて取得（投稿者名解決済み） */
+export async function listUpcomingParticipatedEvents(
+  userId: string,
+  limit = 60,
+): Promise<CalendarEvent[]> {
+  const works = await listRecentWorks(userId);
+  if (works.length === 0) return [];
+  const today = new Date().toISOString().slice(0, 10);
+  const workMap = Object.fromEntries(works.map(w => [w.id, w.name]));
+
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .in('work_id', works.map(w => w.id))
+    .eq('pool', 0)
+    .gte('event_date', today)
+    .order('event_date', { ascending: true })
+    .limit(limit);
+
+  if (error) throw error;
+
+  let events = (data ?? []).map(e => ({
+    ...rowToEvent(e as Record<string, unknown>),
+    workId: e.work_id as string,
+    workName: workMap[e.work_id as string] ?? '',
+  }));
+
+  // 投稿者名を一括取得
+  const authorIds = [...new Set(events.map(e => e.authorId).filter((id): id is string => !!id))];
+  if (authorIds.length > 0) {
+    const { data: nameData } = await supabase
+      .from('user_settings')
+      .select('user_id, display_name')
+      .in('user_id', authorIds);
+    const nameMap = Object.fromEntries(
+      (nameData ?? []).map(d => [d.user_id as string, d.display_name as string | null]),
+    );
+    events = events.map(e => ({
+      ...e,
+      authorName: e.authorId ? (nameMap[e.authorId] ?? undefined) : undefined,
+    }));
+  }
+
+  return events;
+}
+
+/** 指定ユーザーがいいね済みのeventIdセットを返す */
+export async function getLikedEventIds(userId: string, eventIds: string[]): Promise<Set<string>> {
+  if (!eventIds.length) return new Set();
+  const { data } = await supabase
+    .from('likes')
+    .select('event_id')
+    .in('event_id', eventIds)
+    .eq('user_id', userId);
+  return new Set((data ?? []).map(l => l.event_id as string));
+}
+
+/** イベントを編集する（投稿者本人のみ） */
+export async function updateEvent(
+  eventId: string,
+  data: Partial<Pick<CalendarEvent, 'title' | 'date' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink'>>,
+): Promise<void> {
+  const row: Record<string, unknown> = {};
+  if (data.title !== undefined) row.title = data.title;
+  if (data.date !== undefined) row.event_date = data.date;
+  if ('time' in data) row.event_time = data.time || null;
+  if ('endDate' in data) row.end_date = data.endDate || null;
+  if ('endTime' in data) row.end_time = data.endTime || null;
+  if ('category' in data) row.category = data.category || null;
+  if ('link' in data) row.link_url = data.link || null;
+  if ('memo' in data) row.memo = data.memo || null;
+  if ('prefecture' in data) row.prefecture = data.prefecture || null;
+  if ('locationDetail' in data) row.location_detail = data.locationDetail || null;
+  if ('locationMapLink' in data) row.location_map_link = data.locationMapLink || null;
+  const { error } = await supabase.from('events').update(row).eq('id', eventId);
+  if (error) throw error;
+}
+
 // ─── 参加履歴 ──────────────────────────────────────────────────────
 
 async function syncParticipantCount(workId: string): Promise<void> {
