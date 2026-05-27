@@ -24,7 +24,10 @@ import type { CalendarEvent } from '../types';
 
 export type { CalendarEvent };
 
-import { POST_CATEGORIES, type PostCategory, loadCategoryFilters, saveCategoryFilters, loadLikedEventIds, removeLikedEventId } from '../lib/constants';
+import {
+  POST_CATEGORIES, type PostCategory, loadCategoryFilters, saveCategoryFilters,
+  loadCalendarEventIds, saveCalendarEventIds, removeCalendarEventId,
+} from '../lib/constants';
 
 // ─── 定数 ──────────────────────────────────────────────────────────
 
@@ -498,7 +501,7 @@ export default function Calendar() {
   const [myReactions, setMyReactions] = useState<Record<string, ReactionType>>(() => loadMyReactions());
   const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
   const [hiddenEventIds, setHiddenEventIds] = useState<Set<string>>(loadHiddenEventIds);
-  const [likedEventIds, setLikedEventIds] = useState<Set<string>>(loadLikedEventIds);
+  const [calendarEventIds, setCalendarEventIds] = useState<Set<string>>(loadCalendarEventIds);
 
   const [lockedLikeIds, setLockedLikeIds] = useState<Set<string>>(() => {
     const set = new Set<string>();
@@ -609,9 +612,9 @@ export default function Calendar() {
     setPersonalEvents(loadPersonalEvents());
   }, [workId]);
 
-  // 発見タブから戻ったときにいいね済みIDを再読み込み
+  // 発見タブから戻ったときにカレンダー追加済みIDを再読み込み
   useEffect(() => {
-    if (!workId) setLikedEventIds(loadLikedEventIds());
+    if (!workId) setCalendarEventIds(loadCalendarEventIds());
   }, [workId, location.key]);
 
   // MyCalendar: 参加中の作品リストを取得
@@ -669,8 +672,8 @@ export default function Calendar() {
   // categoryFilters[wId] = 非表示にするカテゴリのリスト（空 = 全表示）
   const visibleEvents = useMemo(() => {
     let evts = workId ? filteredEvents : filteredEvents.filter(e => !e.workId || !hiddenWorkIds.has(e.workId));
-    // MyCalendarモード: いいね済みのイベントのみ
-    if (!workId) evts = evts.filter(e => likedEventIds.has(e.id));
+    // MyCalendarモード: カレンダーに追加済みのイベントのみ（自分の投稿 or ❤️追加済み）
+    if (!workId) evts = evts.filter(e => calendarEventIds.has(e.id));
     evts = evts.filter(e => !hiddenEventIds.has(e.id));
     evts = evts.filter(e => {
       const wId = e.workId ?? (workId || '');
@@ -680,7 +683,7 @@ export default function Calendar() {
       return !cats.includes(e.category ?? '');
     });
     return evts;
-  }, [workId, filteredEvents, hiddenWorkIds, likedEventIds, hiddenEventIds, categoryFilters]);
+  }, [workId, filteredEvents, hiddenWorkIds, calendarEventIds, hiddenEventIds, categoryFilters]);
 
   const prevMonth = () => {
     if (month === 0) { setYear(y => y - 1); setMonth(11); }
@@ -768,12 +771,12 @@ export default function Calendar() {
   };
 
   // イベントを非表示にする
-  // - MyCalendar（!workId）: likedEventIdsから削除 → 発見タブで再追加可能
+  // - MyCalendar（!workId）: calendarEventIdsから削除 → 発見タブで再追加可能
   // - 作品別カレンダー（workId）: hiddenEventIdsに追加
   const handleHideEvent = (eventId: string) => {
     if (!workId) {
-      const next = removeLikedEventId(eventId);
-      setLikedEventIds(next);
+      const next = removeCalendarEventId(eventId);
+      setCalendarEventIds(next);
     } else {
       const next = addHiddenEventId(eventId);
       setHiddenEventIds(new Set(next));
@@ -989,7 +992,17 @@ export default function Calendar() {
           setPersonalEvents(loadPersonalEvents());
         }
         if (workGroups.size > 0) {
-          listAllParticipatedWorkEvents(user.id, year, month).then(setEvents).catch(() => {});
+          listAllParticipatedWorkEvents(user.id, year, month).then(evts => {
+            setEvents(evts);
+            // 自分が投稿したイベントをカレンダーに自動追加
+            const myIds = evts.filter(e => e.authorId === user.id).map(e => e.id);
+            if (myIds.length > 0) {
+              const cal = loadCalendarEventIds();
+              myIds.forEach(id => cal.add(id));
+              saveCalendarEventIds(cal);
+              setCalendarEventIds(new Set(cal));
+            }
+          }).catch(() => {});
         }
       } else {
         const existing = loadPersonalEvents();

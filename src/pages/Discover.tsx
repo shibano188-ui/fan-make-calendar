@@ -15,6 +15,7 @@ import {
   POST_CATEGORIES, type PostCategory,
   loadCategoryFilters, saveCategoryFilters,
   loadLikedEventIds, addLikedEventId,
+  loadCalendarEventIds, addCalendarEventId,
 } from '../lib/constants';
 import { useAuth } from '../contexts/AuthContext';
 import { WORK_COLORS } from './Calendar';
@@ -65,8 +66,10 @@ export default function Discover() {
   const [categoryFilters, setCategoryFilters] = useState<Record<string, string[]>>(loadCategoryFilters);
   const [filterPickerWorkId, setFilterPickerWorkId] = useState<string | null>(null);
 
-  // いいね（マイカレンダーに追加済み）
+  // ❤️ ソーシャルいいね（削除後も残る）
   const [likedEventIds, setLikedEventIds] = useState<Set<string>>(loadLikedEventIds);
+  // カレンダー追加済み（マイカレンダーから削除すると除かれる）
+  const [calendarEventIds, setCalendarEventIds] = useState<Set<string>>(loadCalendarEventIds);
 
   // リアクション
   const [myReactions, setMyReactions] = useState<Record<string, ReactionType>>(loadMyReactions);
@@ -117,9 +120,11 @@ export default function Discover() {
       }).catch(() => {});
   }, [user?.id, events]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 表示イベント（作品・カテゴリフィルター適用）
+  // 表示イベント（作品・カテゴリフィルター・自分の投稿除外）
   const visibleEvents = useMemo(() => {
     let evts = events.filter(e => !e.workId || !hiddenWorkIds.has(e.workId));
+    // 自分の投稿は発見タブに表示しない（自分でカレンダーに直接追加済みのため）
+    if (user) evts = evts.filter(e => e.authorId !== user.id);
     evts = evts.filter(e => {
       const wId = e.workId ?? '';
       if (!wId) return true;
@@ -128,7 +133,7 @@ export default function Discover() {
       return !cats.includes(e.category ?? '');
     });
     return evts;
-  }, [events, hiddenWorkIds, categoryFilters]);
+  }, [events, hiddenWorkIds, categoryFilters, user]);
 
   const toggleWork = (wId: string) =>
     setHiddenWorkIds(prev => {
@@ -137,10 +142,21 @@ export default function Discover() {
       return next;
     });
 
-  // ❤️ マイカレンダーに追加（削除はカレンダータブから行う）
-  const handleAddToCalendar = (eventId: string) => {
-    const next = addLikedEventId(eventId);
-    setLikedEventIds(next);
+  // ❤️ いいね＋初回のみカレンダーに追加
+  const handleHeartPress = (eventId: string) => {
+    const nextLiked = addLikedEventId(eventId);
+    setLikedEventIds(nextLiked);
+    // カレンダーに未追加の場合のみ追加
+    if (!calendarEventIds.has(eventId)) {
+      const nextCal = addCalendarEventId(eventId);
+      setCalendarEventIds(nextCal);
+    }
+  };
+
+  // カレンダーに再追加（削除後の再追加ボタン用）
+  const handleReAddToCalendar = (eventId: string) => {
+    const nextCal = addCalendarEventId(eventId);
+    setCalendarEventIds(nextCal);
   };
 
   // リアクション
@@ -271,6 +287,8 @@ export default function Discover() {
               {visibleEvents.map(event => {
                 const color = event.workId ? (workColorMap.get(event.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
                 const isLiked = likedEventIds.has(event.id);
+                const isInCalendar = calendarEventIds.has(event.id);
+                const showReAdd = isLiked && !isInCalendar;
                 const timeLabel = formatTimeRange(event.time, event.endTime);
                 return (
                   <div key={event.id} className="bg-bg-secondary rounded-2xl overflow-hidden px-4 pt-4 pb-3 flex flex-col gap-2">
@@ -321,20 +339,38 @@ export default function Discover() {
 
                     {/* アクション行 */}
                     <div className="flex items-center gap-2 pt-1 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
-                      {/* ❤️ マイカレンダーに追加（複数回OK・削除はカレンダータブから） */}
+                      {/* ❤️ いいね（複数回OK）＋カレンダー追加 */}
                       <button
-                        onClick={() => handleAddToCalendar(event.id)}
+                        onClick={() => handleHeartPress(event.id)}
                         disabled={!user}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm transition-colors disabled:opacity-40 flex-1 justify-center active:opacity-70"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm transition-colors disabled:opacity-40 active:scale-95"
                         style={{
                           borderColor: isLiked ? 'rgb(248,113,113)' : 'var(--border-default)',
                           color: isLiked ? 'rgb(248,113,113)' : 'var(--label-secondary)',
                           backgroundColor: isLiked ? 'rgba(248,113,113,0.08)' : 'transparent',
+                          flex: showReAdd ? '0 0 auto' : '1 1 auto',
+                          justifyContent: 'center',
                         }}
                       >
                         <Heart size={14} style={{ fill: isLiked ? 'rgb(248,113,113)' : 'none' }} />
-                        <span className="text-xs">{isLiked ? '追加済み' : 'カレンダーに追加'}</span>
+                        <span className="text-xs">{isInCalendar ? '追加済み' : isLiked ? '追加済み' : 'カレンダーに追加'}</span>
                       </button>
+
+                      {/* 再追加ボタン（いいね済みだがカレンダーから削除された場合） */}
+                      {showReAdd && (
+                        <button
+                          onClick={() => handleReAddToCalendar(event.id)}
+                          disabled={!user}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl border text-xs font-semibold flex-1 justify-center active:opacity-70 disabled:opacity-40"
+                          style={{
+                            borderColor: 'var(--accent-color)',
+                            color: 'var(--accent-color)',
+                            backgroundColor: 'color-mix(in srgb, var(--accent-color) 10%, transparent)',
+                          }}
+                        >
+                          ＋ 再追加
+                        </button>
+                      )}
 
                       {/* 😊 リアクション */}
                       <button

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import {} from 'react-router-dom';
 import { Search, ChevronRight, MoreVertical, LogOut, Trash2 } from 'lucide-react';
 import Layout from '../components/Layout';
 import SettingsMenuButton from '../components/SettingsMenuButton';
@@ -89,7 +89,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export default function WorkSelect() {
-  const navigate = useNavigate();
+
   const { user } = useAuth();
   const [query, setQuery] = useState('');
   const [popularWorks, setPopularWorks] = useState<Work[]>([]);
@@ -269,12 +269,15 @@ export default function WorkSelect() {
 
       {pendingWork && (
         <>
-          <div className="fixed inset-0 z-[150] bg-black/40" onClick={() => { navigate('/calendar'); }} />
+          <div className="fixed inset-0 z-[150] bg-black/40" onClick={() => setPendingWork(null)} />
           <div className="fixed bottom-0 left-0 right-0 z-[160] max-w-app mx-auto rounded-t-2xl overflow-hidden" style={{ backgroundColor: 'var(--bg-primary)' }}>
             <div className="px-5 pt-5 pb-4">
-              <p className="text-label-primary font-semibold text-[15px] mb-1">「{pendingWork.name}」に参加しました</p>
-              <p className="text-label-secondary text-xs mb-4">表示するカテゴリを絞り込めます（後からでも変更できます）</p>
-              <div className="flex flex-wrap gap-2 mb-5">
+              {/* タイトル */}
+              <p className="text-label-primary font-semibold text-[15px] mb-1">みたいカテゴリだけを事前に絞り込み</p>
+              <p className="text-label-secondary text-xs mb-3">タップで選択。未選択は全カテゴリ表示（後からでも変更できます）</p>
+
+              {/* カテゴリ選択 + 全て選択ボタン */}
+              <div className="flex flex-wrap gap-2 mb-2">
                 {POST_CATEGORIES.map(cat => {
                   const active = pendingCats.includes(cat);
                   return (
@@ -295,27 +298,42 @@ export default function WorkSelect() {
                     </button>
                   );
                 })}
+                <button
+                  onClick={() => setPendingCats([...POST_CATEGORIES])}
+                  className="px-3 py-1.5 rounded-full text-xs border transition-colors active:opacity-70"
+                  style={{
+                    borderColor: 'var(--border-default)',
+                    color: 'var(--label-tertiary)',
+                  }}
+                >
+                  全て選択
+                </button>
               </div>
-              {pendingCats.length > 0 && (
+
+              {pendingCats.length > 0 && pendingCats.length < POST_CATEGORIES.length && (
                 <p className="text-[11px] text-label-tertiary mb-3">
-                  {pendingCats.join('・')} を表示（それ以外は非表示）
+                  {pendingCats.join('・')} のみ表示
                 </p>
               )}
+              {pendingCats.length === POST_CATEGORIES.length && (
+                <p className="text-[11px] text-label-tertiary mb-3">全カテゴリを表示</p>
+              )}
+              {pendingCats.length === 0 && <div className="mb-3" />}
+
+              {/* 参加ボタン（カレンダーへ移動しない） */}
               <button
                 onClick={() => {
-                  // pendingCats = 表示したいカテゴリ（include）
-                  // categoryFilters = 非表示リスト（exclude）なので反転して保存
-                  const excludeCats = pendingCats.length === 0
+                  const excludeCats = pendingCats.length === 0 || pendingCats.length === POST_CATEGORIES.length
                     ? []
                     : POST_CATEGORIES.filter(c => !pendingCats.includes(c));
                   const updated = { ...loadCategoryFilters(), [pendingWork.id]: excludeCats };
                   saveCategoryFilters(updated);
-                  navigate('/calendar');
+                  setPendingWork(null);
                 }}
                 className="w-full py-3 rounded-xl text-sm font-semibold active:opacity-70"
                 style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' }}
               >
-                {pendingCats.length === 0 ? 'すべて表示してカレンダーへ' : '設定してカレンダーへ'}
+                「{pendingWork.name}」に参加する
               </button>
             </div>
           </div>

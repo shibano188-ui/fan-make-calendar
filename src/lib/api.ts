@@ -560,7 +560,11 @@ export async function listUpcomingParticipatedEvents(
     .limit(limit);
   if (error) throw error;
 
-  const events = (data ?? []).map(rowToEvent);
+  const events = (data ?? []).map(e => {
+    const ev = rowToEvent(e as Record<string, unknown>);
+    const works = (e as Record<string, unknown>).works as { name: string } | null;
+    return { ...ev, workId: (e as Record<string, unknown>).work_id as string, workName: works?.name ?? undefined };
+  });
   return resolveAuthorNames(events);
 }
 
