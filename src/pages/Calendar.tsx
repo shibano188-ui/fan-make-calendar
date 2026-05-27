@@ -88,6 +88,18 @@ const BOTTOM_TAB_H = 56;
 const SHEET_COLLAPSED_H = 76;
 const SHEET_FULL_H = 280;
 
+// 複数日イベントを単日イベントより先頭に並べるソート比較関数
+function multiDayFirst(
+  a: { date: string; endDate?: string },
+  b: { date: string; endDate?: string },
+): number {
+  const aMulti = !!(a.endDate && a.endDate > a.date);
+  const bMulti = !!(b.endDate && b.endDate > b.date);
+  if (aMulti && !bMulti) return -1;
+  if (!aMulti && bMulti) return 1;
+  return 0;
+}
+
 // ─── カレンダーグリッドのユーティリティ ───────────────────────────
 
 function getCalendarDays(year: number, month: number) {
@@ -469,6 +481,7 @@ export default function Calendar() {
   );
   const [sheetDetailEvent, setSheetDetailEvent] = useState<CalendarEvent | null>(null);
   const [sheetDetailReactionData, setSheetDetailReactionData] = useState<{ counts: Record<string, number>; myReaction: string | null } | null>(null);
+  const [listDetailEvent, setListDetailEvent] = useState<CalendarEvent | null>(null);
   const [myReactions, setMyReactions] = useState<Record<string, ReactionType>>(() => loadMyReactions());
   const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
   const [lockedLikeIds, setLockedLikeIds] = useState<Set<string>>(() => {
@@ -667,11 +680,12 @@ export default function Calendar() {
 
   // sheetDetailEvent が変わったらリアクションデータをSupabaseから取得
   useEffect(() => {
-    if (!sheetDetailEvent) { setSheetDetailReactionData(null); return; }
-    getReactionData(sheetDetailEvent.id, user?.id)
+    const evt = sheetDetailEvent ?? listDetailEvent;
+    if (!evt) { setSheetDetailReactionData(null); return; }
+    getReactionData(evt.id, user?.id)
       .then(setSheetDetailReactionData)
       .catch(() => setSheetDetailReactionData({ counts: {}, myReaction: null }));
-  }, [sheetDetailEvent?.id, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sheetDetailEvent?.id, listDetailEvent?.id, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSheetEventLike = async (eventId: string) => {
     if (!user) return;
@@ -689,6 +703,7 @@ export default function Calendar() {
     try {
       const newCount = await addLikeTap(eventId, user.id);
       setSheetDetailEvent(prev => prev?.id === eventId ? { ...prev, likes: newCount, likedByMe: true } : prev);
+      setListDetailEvent(prev => prev?.id === eventId ? { ...prev, likes: newCount, likedByMe: true } : prev);
       setEvents(prev => prev.map(e => e.id === eventId ? { ...e, likes: newCount, likedByMe: true } : e));
     } catch (e) { console.error(e); }
   };
@@ -702,7 +717,7 @@ export default function Calendar() {
       return next;
     });
     // sheetDetailReactionData の楽観的更新
-    if (eventId === sheetDetailEvent?.id) {
+    if (eventId === sheetDetailEvent?.id || eventId === listDetailEvent?.id) {
       setSheetDetailReactionData(prev => {
         if (!prev) return prev;
         const counts = { ...prev.counts };
@@ -957,22 +972,36 @@ export default function Calendar() {
         }
       }
     }
+    // 複数日イベント（position あり）を各日付の先頭に並べ直す
+    for (const [, items] of map) {
+      items.sort((a, b) => {
+        const aMulti = !!a.position;
+        const bMulti = !!b.position;
+        if (aMulti && !bMulti) return -1;
+        if (!aMulti && bMulti) return 1;
+        return 0;
+      });
+    }
     return map;
   }, [workId, visibleEvents, monthPersonalEvents, workColorMap]);
 
   // ボトムシート用: 選択日の作品イベント（複数日イベント対応）
   const sheetWorkEvents = useMemo(
-    () => visibleEvents.filter(e => {
-      const end = e.endDate || e.date;
-      return e.date <= selectedDate && selectedDate <= end;
-    }),
+    () => visibleEvents
+      .filter(e => {
+        const end = e.endDate || e.date;
+        return e.date <= selectedDate && selectedDate <= end;
+      })
+      .sort(multiDayFirst),
     [visibleEvents, selectedDate],
   );
   const sheetPersonalEvents = useMemo(
-    () => personalEvents.filter(e => {
-      const end = e.endDate || e.date;
-      return e.date <= selectedDate && selectedDate <= end;
-    }),
+    () => personalEvents
+      .filter(e => {
+        const end = e.endDate || e.date;
+        return e.date <= selectedDate && selectedDate <= end;
+      })
+      .sort(multiDayFirst),
     [personalEvents, selectedDate],
   );
 
@@ -1177,7 +1206,7 @@ export default function Calendar() {
 
               {/* 日付グリッド */}
               <div
-                className="grid grid-cols-7 flex-1"
+                className="grid grid-cols-7 flex-1 overflow-hidden"
                 style={{
                   gridTemplateRows: 'repeat(6, 1fr)',
                   borderTop: '1px solid var(--cal-grid-color)',
@@ -1194,7 +1223,7 @@ export default function Calendar() {
                     <button
                       key={dateStr + idx}
                       onClick={() => handleDayClick(dateStr, isCurrentMonth)}
-                      className="flex flex-col items-center justify-start pt-0.5 active:opacity-50 transition-opacity overflow-hidden"
+                      className="flex flex-col items-center justify-start pt-0.5 active:opacity-50 transition-opacity"
                       style={{
                         cursor: isCurrentMonth ? 'pointer' : 'default',
                         borderRight: '1px solid var(--cal-grid-color)',
@@ -1216,14 +1245,14 @@ export default function Calendar() {
                           {cellItems.slice(0, 2).map((item, ti) => {
                             const pos = item.position;
                             const barCls = !pos
-                              ? 'rounded-[2px] px-[2px]'
+                              ? 'w-full rounded-[2px] px-[2px]'
                               : pos === 'start' ? 'rounded-l-[2px] rounded-r-none px-[2px] mr-[-3px]'
                               : pos === 'end'   ? 'rounded-r-[2px] rounded-l-none px-[2px] ml-[-3px]'
                               :                  'rounded-none px-[2px] mx-[-3px]';
                             return (
                               <div
                                 key={`${item.eventId}-${ti}`}
-                                className={`w-full text-[8px] leading-none truncate py-[1px] ${barCls}`}
+                                className={`text-[8px] leading-none truncate py-[1px] ${barCls}`}
                                 style={{
                                   background: item.color.startsWith('#') ? item.color + '28' : 'rgba(128,128,128,0.18)',
                                   color: item.color,
@@ -1287,40 +1316,28 @@ export default function Calendar() {
                       >
                         <ChevronLeft size={14} />一覧に戻る
                       </button>
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-label-primary font-bold text-[15px] leading-snug flex-1">{sheetDetailEvent.title}</p>
-                        {formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime) && (
-                          <span className="text-label-secondary text-sm flex-shrink-0">{formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime)}</span>
+                      {/* 1行目: タイトル + 作品名 + カテゴリ */}
+                      <div>
+                        <p className="text-label-primary font-bold text-[15px] leading-snug">{sheetDetailEvent.title}</p>
+                        {(sheetDetailEvent.workName || sheetDetailEvent.category) && (
+                          <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                            {sheetDetailEvent.workName && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{sheetDetailEvent.workName}</span>}
+                            {sheetDetailEvent.category && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{sheetDetailEvent.category}</span>}
+                          </div>
                         )}
                       </div>
-                      {formatDateRange(sheetDetailEvent.date, sheetDetailEvent.endDate) && (
-                        <p className="text-label-secondary text-xs">{formatDateRange(sheetDetailEvent.date, sheetDetailEvent.endDate)}</p>
-                      )}
-                      {(sheetDetailEvent.workName || sheetDetailEvent.category) && (
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {sheetDetailEvent.workName && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{sheetDetailEvent.workName}</span>}
-                          {sheetDetailEvent.category && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{sheetDetailEvent.category}</span>}
-                        </div>
-                      )}
-                      {sheetDetailEvent.prefecture && (
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5 w-fit">{sheetDetailEvent.prefecture}</span>
-                          {sheetDetailEvent.locationDetail && <p className="text-xs text-label-secondary">{sheetDetailEvent.locationDetail}</p>}
-                          {sheetDetailEvent.locationMapLink && (
-                            <a href={sheetDetailEvent.locationMapLink} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-1 text-xs active:opacity-60 w-fit" style={{ color: 'var(--accent-color)' }}>
-                              <ExternalLink size={11} />地図を開く
-                            </a>
+                      {/* 2行目: 日付範囲 + 時間 */}
+                      {(formatDateRange(sheetDetailEvent.date, sheetDetailEvent.endDate) || formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime)) && (
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {formatDateRange(sheetDetailEvent.date, sheetDetailEvent.endDate) && (
+                            <span className="text-label-secondary text-sm">{formatDateRange(sheetDetailEvent.date, sheetDetailEvent.endDate)}</span>
+                          )}
+                          {formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime) && (
+                            <span className="text-label-secondary text-sm">{formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime)}</span>
                           )}
                         </div>
                       )}
-                      {sheetDetailEvent.memo && <p className="text-label-secondary text-sm leading-relaxed">{sheetDetailEvent.memo}</p>}
-                      {sheetDetailEvent.link && (
-                        <a href={sheetDetailEvent.link} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-default text-label-secondary text-xs w-fit active:opacity-60">
-                          <ExternalLink size={11} /><span>{getDomain(sheetDetailEvent.link)}</span>
-                        </a>
-                      )}
+                      {/* 3行目: いいね + リアクション */}
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleSheetEventLike(sheetDetailEvent.id)}
@@ -1349,7 +1366,7 @@ export default function Calendar() {
                           }
                         </button>
                       </div>
-                      {/* リアクション集計 */}
+                      {/* 4行目: リアクション集計 */}
                       {sheetDetailReactionData && Object.values(sheetDetailReactionData.counts).some(c => c > 0) && (
                         <div className="flex items-center gap-3 flex-wrap">
                           {REACTIONS.filter(r => (sheetDetailReactionData.counts[r.type] ?? 0) > 0).map(r => (
@@ -1359,6 +1376,25 @@ export default function Calendar() {
                             </span>
                           ))}
                         </div>
+                      )}
+                      {sheetDetailEvent.prefecture && (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5 w-fit">{sheetDetailEvent.prefecture}</span>
+                          {sheetDetailEvent.locationDetail && <p className="text-xs text-label-secondary">{sheetDetailEvent.locationDetail}</p>}
+                          {sheetDetailEvent.locationMapLink && (
+                            <a href={sheetDetailEvent.locationMapLink} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-xs active:opacity-60 w-fit" style={{ color: 'var(--accent-color)' }}>
+                              <ExternalLink size={11} />地図を開く
+                            </a>
+                          )}
+                        </div>
+                      )}
+                      {sheetDetailEvent.memo && <p className="text-label-secondary text-sm leading-relaxed">{sheetDetailEvent.memo}</p>}
+                      {sheetDetailEvent.link && (
+                        <a href={sheetDetailEvent.link} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-default text-label-secondary text-xs w-fit active:opacity-60">
+                          <ExternalLink size={11} /><span>{getDomain(sheetDetailEvent.link)}</span>
+                        </a>
                       )}
                       {sheetDetailEvent.authorName && (
                         <p className="text-label-tertiary text-xs">{sheetDetailEvent.authorName}</p>
@@ -1371,46 +1407,56 @@ export default function Calendar() {
                       <p className="text-center text-label-tertiary text-sm py-6">この日の予定はありません</p>
                     ) : (
                       <div className="flex flex-col gap-2">
-                        {sheetWorkEvents.map(event => (
-                          <div key={event.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden">
-                            <button onClick={() => setSheetDetailEvent(event)}
-                              className="flex-1 pl-3 py-3 pr-2 text-left active:opacity-70 transition-opacity min-w-0">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
-                                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                  {formatDateRange(event.date, event.endDate) && <span className="text-label-tertiary text-xs">{formatDateRange(event.date, event.endDate)}</span>}
-                                  {formatTimeRange(event.time, event.endTime) && <span className="text-label-tertiary text-xs">{formatTimeRange(event.time, event.endTime)}</span>}
-                                  {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>}
-                                </div>
+                        {sheetWorkEvents.map(event => {
+                          const dateLabel = formatDateRange(event.date, event.endDate);
+                          const timeLabel = formatTimeRange(event.time, event.endTime);
+                          return (
+                            <div key={event.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden">
+                              {/* 1行目: タイトル */}
+                              <button onClick={() => setSheetDetailEvent(event)}
+                                className="w-full px-3 pt-3 pb-1 text-left active:opacity-70 transition-opacity">
+                                <p className="text-label-primary text-sm font-medium">{event.title}</p>
+                              </button>
+                              {/* 2行目: カテゴリ → ♥ → 😊 → > → × */}
+                              <div className="flex items-center px-3 pb-2 gap-1">
+                                {event.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.category}</span>}
+                                <div className="flex-1" />
+                                <button
+                                  onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); }}
+                                  disabled={!user || lockedLikeIds.has(event.id)}
+                                  className="flex items-center gap-0.5 px-2 h-7 text-xs disabled:opacity-30"
+                                  style={{ color: event.likedByMe ? 'rgb(248,113,113)' : 'var(--label-tertiary)' }}
+                                >
+                                  <Heart size={12} style={{ fill: event.likedByMe ? 'rgb(248,113,113)' : 'none' }} />
+                                  <span>{event.likes}</span>
+                                </button>
+                                <button
+                                  onClick={e => { e.stopPropagation(); setOpenReactionPickerId(prev => prev === event.id ? null : event.id); }}
+                                  className="px-1.5 h-7 flex items-center active:opacity-60"
+                                  style={{ color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[event.id] ? 1 : 0.5 }}
+                                >
+                                  {myReactions[event.id]
+                                    ? <span className="text-sm leading-none">{REACTIONS.find(r => r.type === myReactions[event.id])?.emoji}</span>
+                                    : <Smile size={14} />
+                                  }
+                                </button>
+                                <button onClick={() => setSheetDetailEvent(event)} className="px-1 h-7 flex items-center text-label-tertiary">
+                                  <ChevronRight size={14} />
+                                </button>
+                                <button onClick={() => handleDeleteEvent(event.id)} className="w-8 h-7 flex items-center justify-center text-label-tertiary active:text-red-400">
+                                  <X size={14} />
+                                </button>
                               </div>
-                            </button>
-                            <button
-                              onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); }}
-                              disabled={!user || lockedLikeIds.has(event.id)}
-                              className="flex items-center gap-0.5 px-2 self-stretch text-xs disabled:opacity-30"
-                              style={{ color: event.likedByMe ? 'rgb(248,113,113)' : 'var(--label-tertiary)' }}
-                            >
-                              <Heart size={12} style={{ fill: event.likedByMe ? 'rgb(248,113,113)' : 'none' }} />
-                              <span>{event.likes}</span>
-                            </button>
-                            <button
-                              onClick={e => { e.stopPropagation(); setOpenReactionPickerId(prev => prev === event.id ? null : event.id); }}
-                              className="px-1.5 self-stretch flex items-center active:opacity-60"
-                              style={{ color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[event.id] ? 1 : 0.5 }}
-                            >
-                              {myReactions[event.id]
-                                ? <span className="text-sm leading-none">{REACTIONS.find(r => r.type === myReactions[event.id])?.emoji}</span>
-                                : <Smile size={14} />
-                              }
-                            </button>
-                            <div className="px-1 self-stretch flex items-center text-label-tertiary flex-shrink-0">
-                              <ChevronRight size={14} />
+                              {/* 3行目: 日付範囲・時間（どちらかあれば表示） */}
+                              {(dateLabel || timeLabel) && (
+                                <div className="flex items-center gap-2 px-3 pb-2 -mt-1">
+                                  {dateLabel && <span className="text-label-tertiary text-xs">{dateLabel}</span>}
+                                  {timeLabel && <span className="text-label-tertiary text-xs">{timeLabel}</span>}
+                                </div>
+                              )}
                             </div>
-                            <button onClick={() => handleDeleteEvent(event.id)} className="w-9 self-stretch flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
-                              <X size={14} />
-                            </button>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )
                   ) : (
@@ -1418,66 +1464,86 @@ export default function Calendar() {
                       <p className="text-center text-label-tertiary text-sm py-6">この日の予定はありません</p>
                     ) : (
                       <div className="flex flex-col gap-2">
-                        {sheetWorkEvents.map(event => (
-                          <div key={event.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden">
-                            <button
-                              onClick={() => event.workId && setSheetDetailEvent(event)}
-                              className="flex-1 pl-3 py-3 pr-2 text-left active:opacity-70 transition-opacity min-w-0">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
-                                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                  {event.workName && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.workName}</span>}
-                                  {formatDateRange(event.date, event.endDate) && <span className="text-label-tertiary text-xs">{formatDateRange(event.date, event.endDate)}</span>}
-                                  {formatTimeRange(event.time, event.endTime) && <span className="text-label-tertiary text-xs">{formatTimeRange(event.time, event.endTime)}</span>}
-                                  {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>}
+                        {sheetWorkEvents.map(event => {
+                          const dateLabel = formatDateRange(event.date, event.endDate);
+                          const timeLabel = formatTimeRange(event.time, event.endTime);
+                          return (
+                            <div key={event.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden">
+                              {/* 1行目: タイトル */}
+                              <button onClick={() => event.workId && setSheetDetailEvent(event)}
+                                className="w-full px-3 pt-3 pb-1 text-left active:opacity-70 transition-opacity">
+                                <p className="text-label-primary text-sm font-medium">{event.title}</p>
+                              </button>
+                              {/* 2行目: 作品名 → カテゴリ → ♥ → 😊 → > → × */}
+                              <div className="flex items-center px-3 pb-2 gap-1">
+                                {event.workName && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5 max-w-[72px] truncate">{event.workName}</span>}
+                                {event.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.category}</span>}
+                                <div className="flex-1" />
+                                <button
+                                  onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); }}
+                                  disabled={!user || lockedLikeIds.has(event.id)}
+                                  className="flex items-center gap-0.5 px-2 h-7 text-xs disabled:opacity-30"
+                                  style={{ color: event.likedByMe ? 'rgb(248,113,113)' : 'var(--label-tertiary)' }}
+                                >
+                                  <Heart size={12} style={{ fill: event.likedByMe ? 'rgb(248,113,113)' : 'none' }} />
+                                  <span>{event.likes}</span>
+                                </button>
+                                <button
+                                  onClick={e => { e.stopPropagation(); setOpenReactionPickerId(prev => prev === event.id ? null : event.id); }}
+                                  className="px-1.5 h-7 flex items-center active:opacity-60"
+                                  style={{ color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[event.id] ? 1 : 0.5 }}
+                                >
+                                  {myReactions[event.id]
+                                    ? <span className="text-sm leading-none">{REACTIONS.find(r => r.type === myReactions[event.id])?.emoji}</span>
+                                    : <Smile size={14} />
+                                  }
+                                </button>
+                                <button onClick={() => event.workId && setSheetDetailEvent(event)} className="px-1 h-7 flex items-center text-label-tertiary">
+                                  <ChevronRight size={14} />
+                                </button>
+                                <button onClick={() => handleDeleteEvent(event.id)} className="w-8 h-7 flex items-center justify-center text-label-tertiary active:text-red-400">
+                                  <X size={14} />
+                                </button>
+                              </div>
+                              {/* 3行目: 日付範囲・時間（どちらかあれば表示） */}
+                              {(dateLabel || timeLabel) && (
+                                <div className="flex items-center gap-2 px-3 pb-2 -mt-1">
+                                  {dateLabel && <span className="text-label-tertiary text-xs">{dateLabel}</span>}
+                                  {timeLabel && <span className="text-label-tertiary text-xs">{timeLabel}</span>}
                                 </div>
-                              </div>
-                            </button>
-                            <button
-                              onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); }}
-                              disabled={!user || lockedLikeIds.has(event.id)}
-                              className="flex items-center gap-0.5 px-2 self-stretch text-xs disabled:opacity-30"
-                              style={{ color: event.likedByMe ? 'rgb(248,113,113)' : 'var(--label-tertiary)' }}
-                            >
-                              <Heart size={12} style={{ fill: event.likedByMe ? 'rgb(248,113,113)' : 'none' }} />
-                              <span>{event.likes}</span>
-                            </button>
-                            <button
-                              onClick={e => { e.stopPropagation(); setOpenReactionPickerId(prev => prev === event.id ? null : event.id); }}
-                              className="px-1.5 self-stretch flex items-center active:opacity-60"
-                              style={{ color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[event.id] ? 1 : 0.5 }}
-                            >
-                              {myReactions[event.id]
-                                ? <span className="text-sm leading-none">{REACTIONS.find(r => r.type === myReactions[event.id])?.emoji}</span>
-                                : <Smile size={14} />
-                              }
-                            </button>
-                            <div className="px-1 self-stretch flex items-center text-label-tertiary flex-shrink-0">
-                              <ChevronRight size={14} />
+                              )}
                             </div>
-                            <button onClick={() => handleDeleteEvent(event.id)} className="w-9 self-stretch flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
-                              <X size={14} />
-                            </button>
-                          </div>
-                        ))}
-                        {sheetPersonalEvents.map(pe => (
-                          <div key={pe.id} className="flex items-center gap-3 bg-bg-secondary rounded-xl px-3 py-3">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-label-primary text-sm font-medium truncate">{pe.title}</p>
-                              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          );
+                        })}
+                        {sheetPersonalEvents.map(pe => {
+                          const dateLabel = formatDateRange(pe.date, pe.endDate);
+                          const timeLabel = formatTimeRange(pe.time, pe.endTime);
+                          return (
+                            <div key={pe.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden">
+                              {/* 1行目: タイトル */}
+                              <div className="px-3 pt-3 pb-1">
+                                <p className="text-label-primary text-sm font-medium">{pe.title}</p>
+                              </div>
+                              {/* 2行目: 個人 → カテゴリ → × */}
+                              <div className="flex items-center px-3 pb-2 gap-1">
                                 <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">個人</span>
-                                {formatDateRange(pe.date, pe.endDate) && <span className="text-label-tertiary text-xs">{formatDateRange(pe.date, pe.endDate)}</span>}
-                                {formatTimeRange(pe.time, pe.endTime) && <span className="text-label-tertiary text-xs">{formatTimeRange(pe.time, pe.endTime)}</span>}
                                 {pe.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.category}</span>}
-                                {pe.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.prefecture}</span>}
+                                <div className="flex-1" />
+                                <button onClick={() => deletePersonalEvent(pe.id)} className="w-8 h-7 flex items-center justify-center text-label-tertiary active:text-red-400">
+                                  <X size={14} />
+                                </button>
                               </div>
-                              {pe.memo && <p className="text-label-secondary text-xs mt-0.5 truncate">{pe.memo}</p>}
+                              {/* 3行目: 日付範囲・時間 */}
+                              {(dateLabel || timeLabel) && (
+                                <div className="flex items-center gap-2 px-3 pb-2 -mt-1">
+                                  {dateLabel && <span className="text-label-tertiary text-xs">{dateLabel}</span>}
+                                  {timeLabel && <span className="text-label-tertiary text-xs">{timeLabel}</span>}
+                                </div>
+                              )}
+                              {pe.memo && <p className="text-label-secondary text-xs px-3 pb-2 truncate">{pe.memo}</p>}
                             </div>
-                            <button onClick={() => deletePersonalEvent(pe.id)} className="w-6 h-6 flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
-                              <X size={14} />
-                            </button>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )
                   )}
@@ -1487,8 +1553,98 @@ export default function Calendar() {
           </div>
         ) : (
           /* ─── 予定一覧ビュー ─── */
-          <div className="flex-1 overflow-y-auto px-4 pt-3 pb-4">
-            <p className="text-label-secondary text-xs px-1" style={{ marginBottom: filterActive ? 4 : 12 }}>今月の予定</p>
+          <div className="flex-1 overflow-y-auto px-4 pt-3 pb-24">
+          {listDetailEvent ? (
+            /* 予定詳細 */
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => setListDetailEvent(null)}
+                className="flex items-center gap-1 text-xs text-label-secondary active:opacity-60 -ml-1"
+              >
+                <ChevronLeft size={14} />一覧に戻る
+              </button>
+              <div>
+                <p className="text-label-primary font-bold text-[15px] leading-snug">{listDetailEvent.title}</p>
+                {(listDetailEvent.workName || listDetailEvent.category) && (
+                  <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                    {listDetailEvent.workName && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{listDetailEvent.workName}</span>}
+                    {listDetailEvent.category && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{listDetailEvent.category}</span>}
+                  </div>
+                )}
+              </div>
+              {(formatDateRange(listDetailEvent.date, listDetailEvent.endDate) || formatTimeRange(listDetailEvent.time, listDetailEvent.endTime)) && (
+                <div className="flex items-center gap-3 flex-wrap">
+                  {formatDateRange(listDetailEvent.date, listDetailEvent.endDate) && (
+                    <span className="text-label-secondary text-sm">{formatDateRange(listDetailEvent.date, listDetailEvent.endDate)}</span>
+                  )}
+                  {formatTimeRange(listDetailEvent.time, listDetailEvent.endTime) && (
+                    <span className="text-label-secondary text-sm">{formatTimeRange(listDetailEvent.time, listDetailEvent.endTime)}</span>
+                  )}
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleSheetEventLike(listDetailEvent.id)}
+                  disabled={!user || lockedLikeIds.has(listDetailEvent.id)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm disabled:opacity-40"
+                  style={{
+                    borderColor: listDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'var(--border-default)',
+                    color: listDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'var(--label-secondary)',
+                  }}
+                >
+                  <Heart size={14} style={{ fill: listDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'none', color: listDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'var(--label-secondary)' }} />
+                  <span>{listDetailEvent.likes.toLocaleString('ja-JP')}</span>
+                </button>
+                <button
+                  onClick={() => setOpenReactionPickerId(prev => prev === listDetailEvent.id ? null : listDetailEvent.id)}
+                  className="flex items-center justify-center px-3 py-1.5 rounded-xl border text-sm active:opacity-60"
+                  style={{
+                    borderColor: (sheetDetailReactionData?.myReaction ?? myReactions[listDetailEvent.id]) ? 'var(--accent-color)' : 'var(--border-default)',
+                    color: (sheetDetailReactionData?.myReaction ?? myReactions[listDetailEvent.id]) ? 'var(--accent-color)' : 'var(--label-secondary)',
+                    minWidth: '2.5rem',
+                  }}
+                >
+                  {(sheetDetailReactionData?.myReaction ?? myReactions[listDetailEvent.id])
+                    ? <span className="text-base leading-none">{REACTIONS.find(r => r.type === (sheetDetailReactionData?.myReaction ?? myReactions[listDetailEvent.id]))?.emoji}</span>
+                    : <Smile size={14} />
+                  }
+                </button>
+              </div>
+              {sheetDetailReactionData && Object.values(sheetDetailReactionData.counts).some(c => c > 0) && (
+                <div className="flex items-center gap-3 flex-wrap">
+                  {REACTIONS.filter(r => (sheetDetailReactionData.counts[r.type] ?? 0) > 0).map(r => (
+                    <span key={r.type} className="flex items-center gap-0.5 text-label-secondary">
+                      <span className="text-base leading-none">{r.emoji}</span>
+                      <span className="text-xs">{sheetDetailReactionData.counts[r.type]}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {listDetailEvent.prefecture && (
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5 w-fit">{listDetailEvent.prefecture}</span>
+                  {listDetailEvent.locationDetail && <p className="text-xs text-label-secondary">{listDetailEvent.locationDetail}</p>}
+                  {listDetailEvent.locationMapLink && (
+                    <a href={listDetailEvent.locationMapLink} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-xs active:opacity-60 w-fit" style={{ color: 'var(--accent-color)' }}>
+                      <ExternalLink size={11} />地図を開く
+                    </a>
+                  )}
+                </div>
+              )}
+              {listDetailEvent.memo && <p className="text-label-secondary text-sm leading-relaxed">{listDetailEvent.memo}</p>}
+              {listDetailEvent.link && (
+                <a href={listDetailEvent.link} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-default text-label-secondary text-xs w-fit active:opacity-60">
+                  <ExternalLink size={11} /><span>{getDomain(listDetailEvent.link)}</span>
+                </a>
+              )}
+              {listDetailEvent.authorName && (
+                <p className="text-label-tertiary text-xs">{listDetailEvent.authorName}</p>
+              )}
+            </div>
+          ) : (
+            <><p className="text-label-secondary text-xs px-1" style={{ marginBottom: filterActive ? 4 : 12 }}>今月の予定</p>
             {filterActive && (
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-[11px] text-label-tertiary">絞り込み：</span>
@@ -1509,7 +1665,7 @@ export default function Calendar() {
                     const [, em, ed] = event.date.split('-').map(Number);
                     return (
                       <div key={event.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden">
-                        <button onClick={() => navigate(`/calendar/${workId}/date/${event.date}`)}
+                        <button onClick={() => setListDetailEvent(event)}
                           className="flex-1 flex items-center gap-3 pl-3 py-3 pr-1 text-left active:opacity-70 transition-opacity min-w-0">
                           <div className="flex-shrink-0 w-10 flex flex-col items-center">
                             <span className="text-[10px] text-label-tertiary leading-none">{em}月</span>
@@ -1564,7 +1720,12 @@ export default function Calendar() {
                     return (
                       <div key={item.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden">
                         <button
-                          onClick={() => { if (!item.isPersonal && item.workId) navigate(`/calendar/${item.workId}/date/${item.date}`); }}
+                          onClick={() => {
+                            if (!item.isPersonal && item.workId) {
+                              const evt = visibleEvents.find(e => e.id === item.id);
+                              if (evt) setListDetailEvent(evt);
+                            }
+                          }}
                           className={`flex-1 flex items-center gap-3 pl-3 py-3 pr-1 text-left min-w-0 ${!item.isPersonal ? 'active:opacity-70 transition-opacity' : 'cursor-default'}`}
                         >
                           <div className="flex-shrink-0 w-10 flex flex-col items-center">
@@ -1619,6 +1780,8 @@ export default function Calendar() {
                 </div>
               )
             )}
+            </>
+          )}
           </div>
         )}
 
