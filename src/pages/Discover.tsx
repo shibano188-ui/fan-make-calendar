@@ -5,7 +5,7 @@ import {
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
 import {
-  listUpcomingParticipatedEvents, getLikedEventIds, toggleLike,
+  listUpcomingParticipatedEvents, getLikedEventIds, addLikeTap,
   setReaction, getMyReactionsBatch, updateEvent, listRecentWorks,
 } from '../lib/api';
 import { REACTIONS, type ReactionType } from '../lib/reactions';
@@ -26,6 +26,24 @@ function loadMyReactions(): Record<string, ReactionType> {
 }
 function saveMyReactions(r: Record<string, ReactionType>) {
   localStorage.setItem(REACTIONS_KEY, JSON.stringify(r));
+}
+
+// ─── いいねセッション（Calendar.tsxと同じ実装） ──────────────────
+
+const LIKE_MAX_TAPS = 10;
+const LIKE_COOLDOWN_MS = 60_000;
+interface LikeSession { tapsUsed: number; resetAt: number; }
+function loadLikeSession(id: string): LikeSession {
+  try {
+    const raw = localStorage.getItem(`like_session:${id}`);
+    if (!raw) return { tapsUsed: 0, resetAt: 0 };
+    const s = JSON.parse(raw) as LikeSession;
+    if (s.resetAt > 0 && Date.now() >= s.resetAt) return { tapsUsed: 0, resetAt: 0 };
+    return s;
+  } catch { return { tapsUsed: 0, resetAt: 0 }; }
+}
+function saveLikeSession(id: string, s: LikeSession) {
+  localStorage.setItem(`like_session:${id}`, JSON.stringify(s));
 }
 
 // ─── 作品カラーマップ ─────────────────────────────────────────────
@@ -109,6 +127,22 @@ export default function Discover() {
   const [myReactions, setMyReactions] = useState<Record<string, ReactionType>>(loadMyReactions);
   const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
 
+  // いいねロック（セッション上限）
+  const [lockedLikeIds, setLockedLikeIds] = useState<Set<string>>(() => {
+    const set = new Set<string>();
+    try {
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith('like_session:')) {
+          const s = JSON.parse(localStorage.getItem(key) ?? '{}') as LikeSession;
+          if (s.tapsUsed >= LIKE_MAX_TAPS && (s.resetAt === 0 || Date.now() < s.resetAt)) {
+            set.add(key.slice('like_session:'.length));
+          }
+        }
+      }
+    } catch {}
+    return set;
+  });
+
   // 編集パネル
   const [editEventId, setEditEventId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<EditForm | null>(null);
@@ -174,29 +208,27 @@ export default function Discover() {
     return evts;
   }, [events, hiddenWorkIds, categoryFilters]);
 
-  // ─── いいね（= カレンダーに追加/削除） ──────────────────────────
+  // ─── いいね（複数タップ可、Calendar.tsxと同じセッション管理） ──
 
   const handleLike = async (eventId: string) => {
     if (!user) return;
-    // 楽観的更新
-    const current = events.find(e => e.id === eventId);
-    const nowLiked = current?.likedByMe ?? false;
-    setEvents(prev => prev.map(e =>
-      e.id === eventId
-        ? { ...e, likedByMe: !nowLiked, likes: Math.max(0, e.likes + (nowLiked ? -1 : 1)) }
-        : e,
-    ));
-    try {
-      const { liked, count } = await toggleLike(eventId, user.id);
-      setEvents(prev => prev.map(e =>
-        e.id === eventId ? { ...e, likedByMe: liked, likes: count } : e,
-      ));
-    } catch {
-      // ロールバック
-      setEvents(prev => prev.map(e =>
-        e.id === eventId ? { ...e, likedByMe: nowLiked, likes: current?.likes ?? e.likes } : e,
-      ));
+    const session = loadLikeSession(eventId);
+    if (session.tapsUsed >= LIKE_MAX_TAPS) return;
+    const newTaps = session.tapsUsed + 1;
+    const resetAt = newTaps >= LIKE_MAX_TAPS ? Date.now() + LIKE_COOLDOWN_MS : 0;
+    saveLikeSession(eventId, { tapsUsed: newTaps, resetAt });
+    if (newTaps >= LIKE_MAX_TAPS) {
+      setLockedLikeIds(prev => { const next = new Set(prev); next.add(eventId); return next; });
+      setTimeout(() => {
+        setLockedLikeIds(prev => { const next = new Set(prev); next.delete(eventId); return next; });
+      }, LIKE_COOLDOWN_MS);
     }
+    try {
+      const newCount = await addLikeTap(eventId, user.id);
+      setEvents(prev => prev.map(e =>
+        e.id === eventId ? { ...e, likes: newCount, likedByMe: true } : e,
+      ));
+    } catch (err) { console.error(err); }
   };
 
   // ─── リアクション ───────────────────────────────────────────────
@@ -470,10 +502,10 @@ export default function Discover() {
                       className="flex items-center gap-2 px-4 pt-2 pb-3 border-t"
                       style={{ borderColor: 'var(--border-subtle)' }}
                     >
-                      {/* いいね = カレンダーに追加 */}
+                      {/* いいね（複数タップ可） */}
                       <button
                         onClick={() => handleLike(event.id)}
-                        disabled={!user}
+                        disabled={!user || lockedLikeIds.has(event.id)}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm disabled:opacity-40 transition-colors active:opacity-70"
                         style={{
                           borderColor: event.likedByMe ? 'rgb(248,113,113)' : 'var(--border-default)',

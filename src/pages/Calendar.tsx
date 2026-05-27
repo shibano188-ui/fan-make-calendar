@@ -8,7 +8,7 @@ import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
 import {
   listEvents, getWorkById, leaveCalendar, deleteWork,
-  createEvents, deleteEvent, getHomePrefecture, saveHomePrefecture,
+  createEvents, getHomePrefecture, saveHomePrefecture,
   getDisplayName, saveDisplayName, listRecentWorks,
   listAllParticipatedWorkEvents, addLikeTap, setReaction, getReactionData,
 } from '../lib/api';
@@ -427,6 +427,18 @@ function savePersonalEvents(evts: PersonalEvent[]) {
   localStorage.setItem(PERSONAL_EVENTS_KEY, JSON.stringify(evts));
 }
 
+// マイカレンダーから非表示にしたイベントID（localStorageに保存）
+const HIDDEN_EVENTS_KEY = 'fan_hidden_event_ids';
+function loadHiddenEventIds(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_EVENTS_KEY) ?? '[]') as string[]); } catch { return new Set(); }
+}
+function addHiddenEventId(id: string): Set<string> {
+  const set = loadHiddenEventIds();
+  set.add(id);
+  localStorage.setItem(HIDDEN_EVENTS_KEY, JSON.stringify([...set]));
+  return set;
+}
+
 // ─── メイン画面 ────────────────────────────────────────────────────
 
 export default function Calendar() {
@@ -484,6 +496,8 @@ export default function Calendar() {
   const [listDetailEvent, setListDetailEvent] = useState<CalendarEvent | null>(null);
   const [myReactions, setMyReactions] = useState<Record<string, ReactionType>>(() => loadMyReactions());
   const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
+  const [hiddenEventIds, setHiddenEventIds] = useState<Set<string>>(loadHiddenEventIds);
+
   const [lockedLikeIds, setLockedLikeIds] = useState<Set<string>>(() => {
     const set = new Set<string>();
     try {
@@ -643,10 +657,11 @@ export default function Calendar() {
     return monthEvents.filter(e => !e.prefecture || activeFilterPrefs.has(e.prefecture));
   }, [monthEvents, activeFilterPrefs]);
 
-  // 表示中のイベント（作品非表示・カテゴリフィルター適用済み）
+  // 表示中のイベント（作品非表示・カテゴリフィルター・個人非表示リスト適用済み）
   // categoryFilters[wId] = 非表示にするカテゴリのリスト（空 = 全表示）
   const visibleEvents = useMemo(() => {
     let evts = workId ? filteredEvents : filteredEvents.filter(e => !e.workId || !hiddenWorkIds.has(e.workId));
+    evts = evts.filter(e => !hiddenEventIds.has(e.id));
     evts = evts.filter(e => {
       const wId = e.workId ?? (workId || '');
       if (!wId) return true;
@@ -655,7 +670,7 @@ export default function Calendar() {
       return !cats.includes(e.category ?? '');
     });
     return evts;
-  }, [workId, filteredEvents, hiddenWorkIds, categoryFilters]);
+  }, [workId, filteredEvents, hiddenWorkIds, hiddenEventIds, categoryFilters]);
 
   const prevMonth = () => {
     if (month === 0) { setYear(y => y - 1); setMonth(11); }
@@ -742,14 +757,12 @@ export default function Calendar() {
     }
   };
 
-  const handleDeleteEvent = async (eventId: string) => {
-    if (!window.confirm('この予定を削除しますか？')) return;
-    try {
-      await deleteEvent(eventId);
-      setEvents(prev => prev.filter(e => e.id !== eventId));
-    } catch {
-      alert('削除に失敗しました');
-    }
+  // マイカレンダーから非表示にする（DBは変更しない）
+  const handleHideEvent = (eventId: string) => {
+    const next = addHiddenEventId(eventId);
+    setHiddenEventIds(new Set(next));
+    setSheetDetailEvent(prev => prev?.id === eventId ? null : prev);
+    setListDetailEvent(prev => prev?.id === eventId ? null : prev);
   };
 
   // フォームハンドラー
@@ -1444,7 +1457,7 @@ export default function Calendar() {
                                 <button onClick={() => setSheetDetailEvent(event)} className="px-1 h-7 flex items-center text-label-tertiary">
                                   <ChevronRight size={14} />
                                 </button>
-                                <button onClick={() => handleDeleteEvent(event.id)} className="w-8 h-7 flex items-center justify-center text-label-tertiary active:text-red-400">
+                                <button onClick={() => handleHideEvent(event.id)} className="w-8 h-7 flex items-center justify-center text-label-tertiary active:text-red-400">
                                   <X size={14} />
                                 </button>
                               </div>
@@ -1502,7 +1515,7 @@ export default function Calendar() {
                                 <button onClick={() => event.workId && setSheetDetailEvent(event)} className="px-1 h-7 flex items-center text-label-tertiary">
                                   <ChevronRight size={14} />
                                 </button>
-                                <button onClick={() => handleDeleteEvent(event.id)} className="w-8 h-7 flex items-center justify-center text-label-tertiary active:text-red-400">
+                                <button onClick={() => handleHideEvent(event.id)} className="w-8 h-7 flex items-center justify-center text-label-tertiary active:text-red-400">
                                   <X size={14} />
                                 </button>
                               </div>
@@ -1701,7 +1714,7 @@ export default function Calendar() {
                             : <Smile size={14} />
                           }
                         </button>
-                        <button onClick={() => handleDeleteEvent(event.id)} className="w-9 self-stretch flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
+                        <button onClick={() => handleHideEvent(event.id)} className="w-9 self-stretch flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
                           <X size={14} />
                         </button>
                       </div>
@@ -1770,7 +1783,7 @@ export default function Calendar() {
                           </button>
                         )}
                         <button
-                          onClick={e => { e.stopPropagation(); item.isPersonal ? deletePersonalEvent(item.id) : handleDeleteEvent(item.id); }}
+                          onClick={e => { e.stopPropagation(); item.isPersonal ? deletePersonalEvent(item.id) : handleHideEvent(item.id); }}
                           className="w-9 self-stretch flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0"
                         >
                           <X size={14} />

@@ -298,12 +298,17 @@ export default function WorkSelect() {
               </div>
               {pendingCats.length > 0 && (
                 <p className="text-[11px] text-label-tertiary mb-3">
-                  {pendingCats.join('・')} のみ表示
+                  {pendingCats.join('・')} を表示（それ以外は非表示）
                 </p>
               )}
               <button
                 onClick={() => {
-                  const updated = { ...loadCategoryFilters(), [pendingWork.id]: pendingCats };
+                  // pendingCats = 表示したいカテゴリ（include）
+                  // categoryFilters = 非表示リスト（exclude）なので反転して保存
+                  const excludeCats = pendingCats.length === 0
+                    ? []
+                    : POST_CATEGORIES.filter(c => !pendingCats.includes(c));
+                  const updated = { ...loadCategoryFilters(), [pendingWork.id]: excludeCats };
                   saveCategoryFilters(updated);
                   navigate('/calendar');
                 }}
