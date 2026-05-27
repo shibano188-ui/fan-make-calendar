@@ -24,7 +24,7 @@ import type { CalendarEvent } from '../types';
 
 export type { CalendarEvent };
 
-import { POST_CATEGORIES, type PostCategory, loadCategoryFilters, saveCategoryFilters, loadLikedEventIds } from '../lib/constants';
+import { POST_CATEGORIES, type PostCategory, loadCategoryFilters, saveCategoryFilters, loadLikedEventIds, removeLikedEventId } from '../lib/constants';
 
 // ─── 定数 ──────────────────────────────────────────────────────────
 
@@ -767,10 +767,17 @@ export default function Calendar() {
     }
   };
 
-  // マイカレンダーから非表示にする（DBは変更しない）
+  // イベントを非表示にする
+  // - MyCalendar（!workId）: likedEventIdsから削除 → 発見タブで再追加可能
+  // - 作品別カレンダー（workId）: hiddenEventIdsに追加
   const handleHideEvent = (eventId: string) => {
-    const next = addHiddenEventId(eventId);
-    setHiddenEventIds(new Set(next));
+    if (!workId) {
+      const next = removeLikedEventId(eventId);
+      setLikedEventIds(next);
+    } else {
+      const next = addHiddenEventId(eventId);
+      setHiddenEventIds(new Set(next));
+    }
     setSheetDetailEvent(prev => prev?.id === eventId ? null : prev);
     setListDetailEvent(prev => prev?.id === eventId ? null : prev);
   };

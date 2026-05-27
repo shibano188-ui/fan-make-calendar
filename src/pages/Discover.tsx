@@ -14,7 +14,7 @@ import { REACTIONS, type ReactionType } from '../lib/reactions';
 import {
   POST_CATEGORIES, type PostCategory,
   loadCategoryFilters, saveCategoryFilters,
-  loadLikedEventIds, toggleLikedEventId,
+  loadLikedEventIds, addLikedEventId,
 } from '../lib/constants';
 import { useAuth } from '../contexts/AuthContext';
 import { WORK_COLORS } from './Calendar';
@@ -137,9 +137,9 @@ export default function Discover() {
       return next;
     });
 
-  // ❤️ マイカレンダーに追加 / 解除
-  const handleToggleLike = (eventId: string) => {
-    const next = toggleLikedEventId(eventId);
+  // ❤️ マイカレンダーに追加（削除はカレンダータブから行う）
+  const handleAddToCalendar = (eventId: string) => {
+    const next = addLikedEventId(eventId);
     setLikedEventIds(next);
   };
 
@@ -321,11 +321,11 @@ export default function Discover() {
 
                     {/* アクション行 */}
                     <div className="flex items-center gap-2 pt-1 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
-                      {/* ❤️ マイカレンダーに追加 */}
+                      {/* ❤️ マイカレンダーに追加（複数回OK・削除はカレンダータブから） */}
                       <button
-                        onClick={() => handleToggleLike(event.id)}
+                        onClick={() => handleAddToCalendar(event.id)}
                         disabled={!user}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm transition-colors disabled:opacity-40 flex-1 justify-center"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm transition-colors disabled:opacity-40 flex-1 justify-center active:opacity-70"
                         style={{
                           borderColor: isLiked ? 'rgb(248,113,113)' : 'var(--border-default)',
                           color: isLiked ? 'rgb(248,113,113)' : 'var(--label-secondary)',
@@ -333,7 +333,7 @@ export default function Discover() {
                         }}
                       >
                         <Heart size={14} style={{ fill: isLiked ? 'rgb(248,113,113)' : 'none' }} />
-                        <span className="text-xs">{isLiked ? 'カレンダーに追加済み' : 'カレンダーに追加'}</span>
+                        <span className="text-xs">{isLiked ? '追加済み' : 'カレンダーに追加'}</span>
                       </button>
 
                       {/* 😊 リアクション */}

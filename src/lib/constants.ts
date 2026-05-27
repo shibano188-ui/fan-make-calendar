@@ -25,3 +25,15 @@ export function toggleLikedEventId(id: string): Set<string> {
   saveLikedEventIds(set);
   return new Set(set);
 }
+export function addLikedEventId(id: string): Set<string> {
+  const set = loadLikedEventIds();
+  set.add(id);
+  saveLikedEventIds(set);
+  return new Set(set);
+}
+export function removeLikedEventId(id: string): Set<string> {
+  const set = loadLikedEventIds();
+  set.delete(id);
+  saveLikedEventIds(set);
+  return new Set(set);
+}
