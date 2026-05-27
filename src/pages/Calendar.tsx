@@ -2,12 +2,12 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Palette, Plus, Heart, MoreVertical, Link2, LogOut, Trash2,
-  ChevronDown, ChevronUp, ChevronRight, ChevronLeft, X, Settings, Map as MapIcon, ExternalLink, Smile, SlidersHorizontal, Pencil,
+  ChevronDown, ChevronUp, ChevronLeft, X, Settings, Map as MapIcon, ExternalLink, Smile, SlidersHorizontal, Pencil,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
 import {
-  listEvents, getWorkById, leaveCalendar, deleteWork,
+  listEvents, getWorkById, leaveCalendar, deleteWork, deleteEvent,
   createEvents, getHomePrefecture, saveHomePrefecture,
   getDisplayName, saveDisplayName, listRecentWorks,
   listAllParticipatedWorkEvents, addLikeTap, setReaction, getReactionData, updateEvent,
@@ -461,6 +461,7 @@ export default function Calendar() {
   const [copyDone, setCopyDone] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [filterMode, setFilterMode] = useState<FilterMode>('none');
   const [filterValue, setFilterValue] = useState<string | null>(null);
@@ -763,6 +764,27 @@ export default function Calendar() {
     setHiddenEventIds(new Set(next));
     setSheetDetailEvent(prev => prev?.id === eventId ? null : prev);
     setListDetailEvent(prev => prev?.id === eventId ? null : prev);
+  };
+
+  // ─── 長押しで完全削除 ────────────────────────────────────────────
+  const startLongPress = (callback: () => void) => {
+    longPressTimer.current = setTimeout(callback, 700);
+  };
+  const cancelLongPress = () => {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+  };
+  const handleFullDelete = async (id: string, title: string) => {
+    if (!window.confirm(`「${title}」を完全に削除しますか？\nこの操作は元に戻せません。`)) return;
+    try {
+      await deleteEvent(id);
+      setEvents(prev => prev.filter(e => e.id !== id));
+      setSheetDetailEvent(prev => prev?.id === id ? null : prev);
+      setListDetailEvent(prev => prev?.id === id ? null : prev);
+    } catch { alert('削除に失敗しました'); }
+  };
+  const handleFullDeletePersonal = (id: string, title: string) => {
+    if (!window.confirm(`「${title}」を削除しますか？`)) return;
+    deletePersonalEvent(id);
   };
 
   // ─── イベント編集（投稿者本人のみ） ────────────────────────────
@@ -1374,6 +1396,15 @@ export default function Calendar() {
                     <p className="text-label-primary text-sm font-semibold">{selectedDateLabel}</p>
                     <div className="flex items-center gap-2">
                       {sheetEventCount > 0 && <span className="text-label-tertiary text-xs">{sheetEventCount}件</span>}
+                      {sheetOpen && !postPanelOpen && !sheetDetailEvent && (
+                        <button
+                          onClick={e => { e.stopPropagation(); openPostForm(selectedDate); }}
+                          className="w-7 h-7 flex items-center justify-center rounded-full bg-label-primary text-bg-primary active:opacity-70"
+                          aria-label="予定を追加"
+                        >
+                          <Plus size={15} strokeWidth={2.5} />
+                        </button>
+                      )}
                       <ChevronDown size={16} className="text-label-tertiary transition-transform duration-300" style={{ transform: sheetOpen ? 'rotate(180deg)' : 'none' }} />
                     </div>
                   </div>
@@ -1496,7 +1527,12 @@ export default function Calendar() {
                           const dateLabel = formatDateRange(event.date, event.endDate);
                           const timeLabel = formatTimeRange(event.time, event.endTime);
                           return (
-                            <div key={event.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden">
+                            <div key={event.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none"
+                              onTouchStart={() => startLongPress(() => handleFullDelete(event.id, event.title))}
+                              onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
+                              onMouseDown={() => startLongPress(() => handleFullDelete(event.id, event.title))}
+                              onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
+                            >
                               {/* 1行目: タイトル */}
                               <button onClick={() => setSheetDetailEvent(event)}
                                 className="w-full px-3 pt-3 pb-1 text-left active:opacity-70 transition-opacity">
@@ -1534,9 +1570,6 @@ export default function Calendar() {
                                     <Pencil size={13} />
                                   </button>
                                 )}
-                                <button onClick={() => setSheetDetailEvent(event)} className="px-1 h-7 flex items-center text-label-tertiary">
-                                  <ChevronRight size={14} />
-                                </button>
                                 <button onClick={() => handleHideEvent(event.id)} className="w-8 h-7 flex items-center justify-center text-label-tertiary active:text-red-400">
                                   <X size={14} />
                                 </button>
@@ -1567,7 +1600,12 @@ export default function Calendar() {
                           const dateLabel = formatDateRange(event.date, event.endDate);
                           const timeLabel = formatTimeRange(event.time, event.endTime);
                           return (
-                            <div key={event.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden">
+                            <div key={event.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none"
+                              onTouchStart={() => startLongPress(() => handleFullDelete(event.id, event.title))}
+                              onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
+                              onMouseDown={() => startLongPress(() => handleFullDelete(event.id, event.title))}
+                              onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
+                            >
                               {/* 1行目: タイトル */}
                               <button onClick={() => event.workId && setSheetDetailEvent(event)}
                                 className="w-full px-3 pt-3 pb-1 text-left active:opacity-70 transition-opacity">
@@ -1606,9 +1644,6 @@ export default function Calendar() {
                                     <Pencil size={13} />
                                   </button>
                                 )}
-                                <button onClick={() => event.workId && setSheetDetailEvent(event)} className="px-1 h-7 flex items-center text-label-tertiary">
-                                  <ChevronRight size={14} />
-                                </button>
                                 <button onClick={() => handleHideEvent(event.id)} className="w-8 h-7 flex items-center justify-center text-label-tertiary active:text-red-400">
                                   <X size={14} />
                                 </button>
@@ -1632,7 +1667,12 @@ export default function Calendar() {
                           const dateLabel = formatDateRange(pe.date, pe.endDate);
                           const timeLabel = formatTimeRange(pe.time, pe.endTime);
                           return (
-                            <div key={pe.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden">
+                            <div key={pe.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none"
+                              onTouchStart={() => startLongPress(() => handleFullDeletePersonal(pe.id, pe.title))}
+                              onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
+                              onMouseDown={() => startLongPress(() => handleFullDeletePersonal(pe.id, pe.title))}
+                              onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
+                            >
                               {/* 1行目: タイトル */}
                               <div className="px-3 pt-3 pb-1">
                                 <p className="text-label-primary text-sm font-medium">{pe.title}</p>
@@ -1790,7 +1830,12 @@ export default function Calendar() {
                   {filteredEvents.map(event => {
                     const [, em, ed] = event.date.split('-').map(Number);
                     return (
-                      <div key={event.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden">
+                      <div key={event.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden select-none"
+                        onTouchStart={() => startLongPress(() => handleFullDelete(event.id, event.title))}
+                        onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
+                        onMouseDown={() => startLongPress(() => handleFullDelete(event.id, event.title))}
+                        onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
+                      >
                         <button onClick={() => setListDetailEvent(event)}
                           className="flex-1 flex items-center gap-3 pl-3 py-3 pr-1 text-left active:opacity-70 transition-opacity min-w-0">
                           <div className="flex-shrink-0 w-10 flex flex-col items-center">
@@ -1854,7 +1899,12 @@ export default function Calendar() {
                   {myCalendarListItems.map(item => {
                     const [, im, id] = item.date.split('-').map(Number);
                     return (
-                      <div key={item.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden">
+                      <div key={item.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden select-none"
+                        onTouchStart={() => startLongPress(() => item.isPersonal ? handleFullDeletePersonal(item.id, item.title) : handleFullDelete(item.id, item.title))}
+                        onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
+                        onMouseDown={() => startLongPress(() => item.isPersonal ? handleFullDeletePersonal(item.id, item.title) : handleFullDelete(item.id, item.title))}
+                        onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
+                      >
                         <button
                           onClick={() => {
                             if (!item.isPersonal && item.workId) {
@@ -1934,8 +1984,8 @@ export default function Calendar() {
         </div>{/* コンテンツエリア（背景画像ラッパー）閉じ */}
       </div>
 
-      {/* FAB（詳細ビュー表示中は非表示） */}
-      {!sheetDetailEvent && !listDetailEvent && (
+      {/* FAB（シート展開中・詳細ビュー表示中は非表示。投稿フォームが開いているときは×ボタンとして表示） */}
+      {(!sheetOpen || postPanelOpen) && !sheetDetailEvent && !listDetailEvent && (
         <button
           onClick={() => {
             if (postPanelOpen) { closePostForm(); }
