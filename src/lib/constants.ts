@@ -1,5 +1,32 @@
 export const POST_CATEGORIES = ['単行本', 'グッズ', 'イベント', '誕生日', '配信'] as const;
 
+// ─── カテゴリカラー ───────────────────────────────────────────────────
+// 既知カテゴリの固定色
+export const CATEGORY_COLOR_MAP: Record<string, string> = {
+  '単行本': '#4a9eff',
+  'グッズ': '#a855f7',
+  'イベント': '#f97316',
+  '誕生日': '#ec4899',
+  '配信': '#22c55e',
+};
+// 未知・カスタムカテゴリへのフォールバックカラーパレット
+const CATEGORY_FALLBACK_PALETTE = [
+  '#4a9eff', '#a855f7', '#f97316', '#ec4899', '#22c55e',
+  '#f59e0b', '#06b6d4', '#84cc16', '#ef4444', '#8b5cf6',
+];
+/** カテゴリ文字列から左ボーダー用カラーを返す。カテゴリ未設定は null */
+export function getCategoryColor(category?: string): string | null {
+  if (!category) return null;
+  if (CATEGORY_COLOR_MAP[category]) return CATEGORY_COLOR_MAP[category];
+  // 未知カテゴリ: 文字列ハッシュで決定論的に色を割り当て（何が来ても同じ色が返る）
+  let hash = 0;
+  for (let i = 0; i < category.length; i++) {
+    hash = ((hash << 5) - hash) + category.charCodeAt(i);
+    hash |= 0;
+  }
+  return CATEGORY_FALLBACK_PALETTE[Math.abs(hash) % CATEGORY_FALLBACK_PALETTE.length];
+}
+
 // ─── 複数リンク: linkフィールドのパース/シリアライズ ─────────────────
 // 単一URLはそのまま文字列、複数URLはJSON配列文字列で保存
 export function parseLinks(link?: string): string[] {

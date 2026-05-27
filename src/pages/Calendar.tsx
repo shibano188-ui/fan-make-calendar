@@ -27,7 +27,7 @@ export type { CalendarEvent };
 import {
   POST_CATEGORIES, type PostCategory, loadCategoryFilters, saveCategoryFilters,
   loadCalendarEventIds, saveCalendarEventIds, removeCalendarEventId,
-  parseLinks, serializeLinks,
+  parseLinks, serializeLinks, getCategoryColor,
 } from '../lib/constants';
 
 // ─── 定数 ──────────────────────────────────────────────────────────
@@ -1589,8 +1589,10 @@ export default function Calendar() {
                         {sheetWorkEvents.map(event => {
                           const dateLabel = formatDateRange(event.date, event.endDate);
                           const timeLabel = formatTimeRange(event.time, event.endTime);
+                          const catColor = getCategoryColor(event.category);
                           return (
                             <div key={event.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none"
+                              style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined }}
                               onTouchStart={() => startLongPress(() => handleFullDelete(event.id, event.title))}
                               onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
                               onMouseDown={() => startLongPress(() => handleFullDelete(event.id, event.title))}
@@ -1673,8 +1675,10 @@ export default function Calendar() {
                         {sheetWorkEvents.map(event => {
                           const dateLabel = formatDateRange(event.date, event.endDate);
                           const timeLabel = formatTimeRange(event.time, event.endTime);
+                          const catColor = getCategoryColor(event.category);
                           return (
                             <div key={event.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none"
+                              style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined }}
                               onTouchStart={() => startLongPress(() => handleFullDelete(event.id, event.title))}
                               onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
                               onMouseDown={() => startLongPress(() => handleFullDelete(event.id, event.title))}
@@ -1751,8 +1755,10 @@ export default function Calendar() {
                         {sheetPersonalEvents.map(pe => {
                           const dateLabel = formatDateRange(pe.date, pe.endDate);
                           const timeLabel = formatTimeRange(pe.time, pe.endTime);
+                          const catColor = getCategoryColor(pe.category);
                           return (
                             <div key={pe.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none"
+                              style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined }}
                               onTouchStart={() => startLongPress(() => handleFullDeletePersonal(pe.id, pe.title))}
                               onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
                               onMouseDown={() => startLongPress(() => handleFullDeletePersonal(pe.id, pe.title))}
@@ -1921,8 +1927,10 @@ export default function Calendar() {
                 <div className="flex flex-col gap-2">
                   {filteredEvents.map(event => {
                     const [, em, ed] = event.date.split('-').map(Number);
+                    const catColor = getCategoryColor(event.category);
                     return (
                       <div key={event.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden select-none"
+                        style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined }}
                         onTouchStart={() => startLongPress(() => handleFullDelete(event.id, event.title))}
                         onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
                         onMouseDown={() => startLongPress(() => handleFullDelete(event.id, event.title))}
@@ -2003,8 +2011,10 @@ export default function Calendar() {
                 <div className="flex flex-col gap-2">
                   {myCalendarListItems.map(item => {
                     const [, im, id] = item.date.split('-').map(Number);
+                    const catColor = getCategoryColor(item.category);
                     return (
                       <div key={item.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden select-none"
+                        style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined }}
                         onTouchStart={() => startLongPress(() => item.isPersonal ? handleFullDeletePersonal(item.id, item.title) : handleFullDelete(item.id, item.title))}
                         onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
                         onMouseDown={() => startLongPress(() => item.isPersonal ? handleFullDeletePersonal(item.id, item.title) : handleFullDelete(item.id, item.title))}

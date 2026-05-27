@@ -16,7 +16,7 @@ import {
   loadCategoryFilters, saveCategoryFilters,
   loadLikedEventIds, addLikedEventId,
   loadCalendarEventIds, addCalendarEventId, saveCalendarEventIds,
-  parseLinks, serializeLinks,
+  parseLinks, serializeLinks, getCategoryColor,
 } from '../lib/constants';
 import { useAuth } from '../contexts/AuthContext';
 import { WORK_COLORS } from './Calendar';
@@ -363,8 +363,10 @@ export default function Discover() {
                 const isLocked = lockedLikeIds.has(event.id);
                 const timeLabel = formatTimeRange(event.time, event.endTime);
                 const [, em, ed] = event.date.split('-').map(Number);
+                const catColor = getCategoryColor(event.category);
                 return (
-                  <div key={event.id} className="bg-bg-secondary rounded-2xl overflow-hidden">
+                  <div key={event.id} className="bg-bg-secondary rounded-2xl overflow-hidden"
+                    style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined }}>
                     {/* コンテンツ部分（左に日付列） */}
                     <div className="flex items-stretch px-4 pt-4 gap-3">
                       {/* 日付（左） */}
