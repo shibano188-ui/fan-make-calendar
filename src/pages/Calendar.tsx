@@ -1298,6 +1298,23 @@ export default function Calendar() {
     }));
   }, [workId, visibleEvents, monthPersonalEvents, workColorMap, importantEventIds, calendarDays]);
 
+  // 各日付ごとにオーバーレイが占有するスロット数（= セル内プレースホルダー数に使用）
+  // slotIndexは週行全体の順番なので、その日に存在しないイベントのスロットも空きとして確保する必要がある
+  const overlaySlotCountByDate = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const seg of multiDayOverlaySegments) {
+      for (let col = seg.startCol; col <= seg.endCol; col++) {
+        const idx = seg.weekRow * 7 + col;
+        if (idx < calendarDays.length) {
+          const dateStr = toDateStr(calendarDays[idx].date);
+          const cur = map.get(dateStr) ?? 0;
+          map.set(dateStr, Math.max(cur, seg.slotIndex + 1));
+        }
+      }
+    }
+    return map;
+  }, [multiDayOverlaySegments, calendarDays]);
+
   // ボトムシート用: 選択日の作品イベント（複数日イベント対応）
   const sheetWorkEvents = useMemo(
     () => visibleEvents
@@ -1601,17 +1618,25 @@ export default function Calendar() {
                         >
                           {date.getDate()}
                         </div>
-                        {cellItems.length > 0 ? (
-                          <div className="w-full px-[2px] flex flex-col gap-[1px] mt-[1px]">
-                            {cellItems.slice(0, 3).map((item, ti) => {
-                              if (item.position) {
-                                // 複数日イベント: オーバーレイで描画するため透明プレースホルダーのみ（高さを確保）
-                                return <div key={`${item.eventId}-${ti}`} style={{ height: '10px' }} />;
-                              }
-                              // 単日イベント: ドット or ★ + タイトル（小タイル）
-                              return (
+                        {(() => {
+                          // オーバーレイが予約するスロット数（週行内のslotIndex順に確保）
+                          const oSlots = Math.min(overlaySlotCountByDate.get(dateStr) ?? 0, 3);
+                          const singleItems = cellItems.filter(i => !i.position);
+                          const maxSingle = 3 - oSlots;
+                          const visibleSingle = singleItems.slice(0, maxSingle);
+                          const hiddenCount = singleItems.length - visibleSingle.length;
+                          const hasAny = oSlots > 0 || singleItems.length > 0;
+                          if (!hasAny) return <div className="h-[6px]" />;
+                          return (
+                            <div className="w-full px-[2px] flex flex-col gap-[1px] mt-[1px]">
+                              {/* 複数日バー用プレースホルダー（オーバーレイのslotIndexと一致させる空白） */}
+                              {Array.from({ length: oSlots }, (_, i) => (
+                                <div key={`ph-${i}`} style={{ height: '10px' }} />
+                              ))}
+                              {/* 単日イベントタイル */}
+                              {visibleSingle.map(item => (
                                 <div
-                                  key={`${item.eventId}-${ti}`}
+                                  key={item.eventId}
                                   className="flex items-center gap-[2px] w-full rounded-[2px] px-[2px] py-[1px]"
                                   style={{ background: item.color.startsWith('#') ? item.color + '28' : 'rgba(128,128,128,0.18)' }}
                                 >
@@ -1622,17 +1647,15 @@ export default function Calendar() {
                                   )}
                                   <span className="text-[8px] leading-none truncate" style={{ color: item.color }}>{item.title}</span>
                                 </div>
-                              );
-                            })}
-                            {cellItems.length > 3 && (
-                              <div className="text-[8px] text-center leading-none py-[1px]" style={{ color: 'var(--label-tertiary)' }}>
-                                +{cellItems.length - 3}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="h-[6px]" />
-                        )}
+                              ))}
+                              {hiddenCount > 0 && (
+                                <div className="text-[8px] text-center leading-none py-[1px]" style={{ color: 'var(--label-tertiary)' }}>
+                                  +{hiddenCount}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </button>
                     );
                   })}
