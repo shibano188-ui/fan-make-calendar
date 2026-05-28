@@ -121,7 +121,7 @@ function LikeButton({
           onClick={handleTap}
           disabled={!userId || locked}
           aria-label={`いいね (${event.likes.toLocaleString('ja-JP')}件)`}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm select-none ${locked ? 'opacity-30' : ''}`}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm select-none ${locked ? 'opacity-30' : ''}`}
           style={{
             borderColor: flash ? 'rgb(248,113,113)' : hasLiked ? 'rgb(248,113,113)' : 'var(--border-default)',
             color: hasLiked ? 'rgb(248,113,113)' : 'var(--label-secondary)',
@@ -200,7 +200,7 @@ function EventCard({
     ? (() => { const fmt = (d: string) => { const [, m, day] = d.split('-'); return `${parseInt(m)}月${parseInt(day)}日`; }; return `${fmt(event.date)}〜${fmt(event.endDate)}`; })()
     : null;
   return (
-    <div className="bg-bg-secondary rounded-xl px-4 py-4 flex flex-col gap-3">
+    <div className="bg-bg-secondary rounded-xl px-4 py-4 flex flex-col gap-3 shadow-card">
       {/* タイトル + 時間 */}
       <div className="flex items-start justify-between gap-2">
         <p className="text-label-primary font-bold text-[15px] leading-snug flex-1">{event.title}</p>
@@ -238,7 +238,7 @@ function EventCard({
         {onOpenReactionPicker && (
           <button
             onClick={onOpenReactionPicker}
-            className="flex items-center justify-center px-3 py-1.5 rounded-xl border text-sm active:opacity-60"
+            className="flex items-center justify-center px-3 py-1.5 rounded-full border text-sm active:opacity-60"
             style={{
               borderColor: reactionData?.myReaction ? 'var(--accent-color)' : 'var(--border-default)',
               color: reactionData?.myReaction ? 'var(--accent-color)' : 'var(--label-secondary)',

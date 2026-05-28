@@ -482,7 +482,7 @@ export default function Discover() {
                 const [, em, ed] = event.date.split('-').map(Number);
                 const catColor = getCategoryColor(event.category);
                 return (
-                  <div key={event.id} className="bg-bg-secondary rounded-2xl overflow-hidden select-none"
+                  <div key={event.id} className="bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
                     style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined }}
                     onTouchStart={() => startLongPress(() => handleFullDelete(event.id, event.title))}
                     onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
@@ -548,7 +548,7 @@ export default function Discover() {
                       <button
                         onClick={() => handleHeartPress(event)}
                         disabled={!user || isLocked}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm disabled:opacity-40 active:opacity-70"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm disabled:opacity-40 active:opacity-70"
                         style={{
                           borderColor: isLiked ? 'rgb(248,113,113)' : 'var(--border-default)',
                           color: isLiked ? 'rgb(248,113,113)' : 'var(--label-secondary)',
@@ -561,7 +561,7 @@ export default function Discover() {
                       {/* カレンダー状態ボタン */}
                       {isInCalendar ? (
                         <span
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl border text-xs text-label-tertiary"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-full border text-xs text-label-tertiary"
                           style={{ borderColor: 'var(--border-subtle)' }}
                         >
                           追加済み
@@ -570,7 +570,7 @@ export default function Discover() {
                         <button
                           onClick={() => handleReAddToCalendar(event.id)}
                           disabled={!user}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl border text-xs font-semibold active:opacity-70 disabled:opacity-40"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-full border text-xs font-semibold active:opacity-70 disabled:opacity-40"
                           style={{
                             borderColor: 'var(--accent-color)',
                             color: 'var(--accent-color)',
@@ -584,7 +584,7 @@ export default function Discover() {
                       {/* 😊 リアクション */}
                       <button
                         onClick={() => setOpenReactionPickerId(prev => prev === event.id ? null : event.id)}
-                        className="ml-auto px-3 py-1.5 rounded-xl border text-sm active:opacity-60 flex items-center justify-center"
+                        className="ml-auto px-3 py-1.5 rounded-full border text-sm active:opacity-60 flex items-center justify-center"
                         style={{
                           borderColor: myReactions[event.id] ? 'var(--accent-color)' : 'var(--border-default)',
                           color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-secondary)',
@@ -601,7 +601,7 @@ export default function Discover() {
                       {event.authorId && user && event.authorId === user.id && (
                         <button
                           onClick={() => openEdit(event)}
-                          className="px-3 py-1.5 rounded-xl border border-default text-sm active:opacity-60 flex items-center justify-center"
+                          className="px-3 py-1.5 rounded-full border border-default text-sm active:opacity-60 flex items-center justify-center"
                           style={{ color: 'var(--accent-color)', minWidth: '2.5rem' }}
                         >
                           <Pencil size={14} />
@@ -658,7 +658,7 @@ export default function Discover() {
           <>
             <div className="fixed inset-0 z-[180]" onClick={() => setFilterPickerWorkId(null)} />
             <div className="fixed bottom-14 left-0 right-0 z-[190] max-w-app mx-auto px-4 pb-2">
-              <div className="bg-bg-secondary rounded-2xl shadow-lg overflow-hidden border border-subtle">
+              <div className="bg-bg-secondary rounded-xl shadow-card overflow-hidden">
                 <div className="flex items-center justify-between px-4 pt-4 pb-2">
                   <span className="text-label-primary text-sm font-semibold">{work.name} の表示カテゴリ</span>
                   <button onClick={() => { const u = { ...categoryFilters, [filterPickerWorkId]: [] }; setCategoryFilters(u); saveCategoryFilters(u); }} className="text-xs text-label-tertiary underline active:opacity-60">すべて表示</button>

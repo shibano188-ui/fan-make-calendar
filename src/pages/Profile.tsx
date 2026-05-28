@@ -209,7 +209,7 @@ export default function Profile() {
               )}
             </div>
 
-            <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+            <div className="rounded-xl overflow-hidden shadow-card" style={{ backgroundColor: 'var(--bg-secondary)' }}>
               {/* アバター＋名前エリア */}
               <div className="flex items-center gap-4 px-5 pt-5 pb-4">
                 <div
@@ -288,50 +288,39 @@ export default function Profile() {
           {/* ── 統計 ──────────────────────────────── */}
           <section>
             <p className="text-label-tertiary text-xs mb-3">アクティビティ</p>
-            <div className="rounded-2xl overflow-hidden divide-y" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-faint)' }}>
+            {/* 参加作品（タップで遷移） */}
+            <button
+              onClick={() => navigate('/select')}
+              className="w-full flex items-center justify-between px-5 py-4 rounded-xl shadow-card active:opacity-70"
+              style={{ backgroundColor: 'var(--bg-secondary)' }}
+            >
+              <span className="text-label-primary text-sm">参加している作品</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-label-primary text-base font-bold">
+                  {worksCount === null ? '…' : worksCount}
+                  <span className="text-label-tertiary text-xs font-normal ml-0.5">件</span>
+                </span>
+                <ChevronRight size={14} className="text-label-tertiary" />
+              </div>
+            </button>
 
-              {/* 参加作品 */}
-              <button
-                onClick={() => navigate('/select')}
-                className="w-full flex items-center justify-between px-5 py-4 active:opacity-70"
-              >
-                <span className="text-label-primary text-sm">参加している作品</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-label-secondary text-sm font-semibold">
-                    {worksCount === null ? '…' : `${worksCount}件`}
+            {/* 数値グリッド */}
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: '投稿した予定', value: postedCount, unit: '件' },
+                { label: '追加した予定', value: addedCount, unit: '件' },
+                { label: 'もらったいいね', value: receivedLikes, unit: '' },
+                { label: 'いいねした', value: likedCount, unit: '' },
+              ].map(({ label, value, unit }) => (
+                <div key={label} className="rounded-xl px-4 py-4 shadow-card flex flex-col gap-1"
+                  style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                  <span className="text-label-tertiary text-[11px] leading-none">{label}</span>
+                  <span className="text-label-primary text-2xl font-bold leading-tight">
+                    {value === null ? '…' : value}
+                    {value !== null && unit && <span className="text-label-tertiary text-xs font-normal ml-0.5">{unit}</span>}
                   </span>
-                  <ChevronRight size={14} className="text-label-tertiary" />
                 </div>
-              </button>
-
-              {/* 投稿した予定 */}
-              <div className="flex items-center justify-between px-5 py-4">
-                <span className="text-label-primary text-sm">投稿した予定</span>
-                <span className="text-label-secondary text-sm font-semibold">
-                  {postedCount === null ? '…' : `${postedCount}件`}
-                </span>
-              </div>
-
-              {/* 追加した予定 */}
-              <div className="flex items-center justify-between px-5 py-4">
-                <span className="text-label-primary text-sm">追加した予定</span>
-                <span className="text-label-secondary text-sm font-semibold">{addedCount}件</span>
-              </div>
-
-              {/* もらったいいね */}
-              <div className="flex items-center justify-between px-5 py-4">
-                <span className="text-label-primary text-sm">もらったいいね</span>
-                <span className="text-label-secondary text-sm font-semibold">
-                  {receivedLikes === null ? '…' : `${receivedLikes}`}
-                </span>
-              </div>
-
-              {/* いいねした数 */}
-              <div className="flex items-center justify-between px-5 py-4">
-                <span className="text-label-primary text-sm">いいねした</span>
-                <span className="text-label-secondary text-sm font-semibold">{likedCount}</span>
-              </div>
-
+              ))}
             </div>
           </section>
         </div>
