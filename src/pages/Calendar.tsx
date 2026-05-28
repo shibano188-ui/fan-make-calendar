@@ -682,6 +682,14 @@ export default function Calendar() {
     if (!workId) setCalendarEventIds(loadCalendarEventIds());
   }, [workId, location.key]);
 
+  // 発見タブで変更された地域フィルターを再読み込み
+  useEffect(() => {
+    const saved = loadRegionFilter();
+    setFilterMode(saved.filterMode);
+    setFilterValue(saved.filterValue);
+    setIncludeAdjacent(saved.includeAdjacent);
+  }, [location.key]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // MyCalendar: 参加中の作品リストを取得
   useEffect(() => {
     if (workId || !user) return;
@@ -1728,9 +1736,10 @@ export default function Calendar() {
                                   <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
                                 </div>
                               </button>
-                              {/* 2行目: カテゴリ → ♥ → 😊 → 🔗 → > → × */}
+                              {/* 2行目: カテゴリ → 地域 → ♥ → 😊 → 🔗 → > → × */}
                               <div className="flex items-center px-3 pb-2 gap-1">
                                 {event.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.category}</span>}
+                                {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>}
                                 <div className="flex-1" />
                                 <button
                                   onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); }}
@@ -1817,13 +1826,14 @@ export default function Calendar() {
                                   <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
                                 </div>
                               </button>
-                              {/* 2行目: 作品名 → カテゴリ → ♥ → 😊 → 🔗 → > → × */}
+                              {/* 2行目: 作品名 → カテゴリ → 地域 → ♥ → 😊 → 🔗 → > → × */}
                               <div className="flex items-center px-3 pb-2 gap-1">
                                 {event.workName && <span className="text-[10px] font-medium px-2 py-0.5 rounded-full max-w-[72px] truncate"
                                   style={{ color: workColorMap.get(event.workId ?? '') ?? 'var(--label-tertiary)', backgroundColor: `${workColorMap.get(event.workId ?? '') ?? '#888888'}20` }}>
                                   {event.workName}
                                 </span>}
                                 {event.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.category}</span>}
+                                {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>}
                                 <div className="flex-1" />
                                 <button
                                   onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); }}
@@ -1902,10 +1912,11 @@ export default function Calendar() {
                                   <p className="text-label-primary text-sm font-medium truncate">{pe.title}</p>
                                 </div>
                               </div>
-                              {/* 2行目: 個人 → カテゴリ → × */}
+                              {/* 2行目: 個人 → カテゴリ → 地域 → × */}
                               <div className="flex items-center px-3 pb-2 gap-1">
                                 <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">個人</span>
                                 {pe.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.category}</span>}
+                                {pe.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.prefecture}</span>}
                                 <div className="flex-1" />
                                 <button onClick={() => deletePersonalEvent(pe.id)} className="w-8 h-7 flex items-center justify-center text-label-tertiary active:text-red-400">
                                   <X size={14} />

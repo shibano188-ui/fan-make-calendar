@@ -8,7 +8,9 @@ import Header from '../components/Header';
 import {
   listUpcomingParticipatedEvents, listRecentWorks,
   setReaction, getMyReactionsBatch, updateEvent, addLikeTap,
+  getHomePrefecture, getDisplayName, saveHomePrefecture, saveDisplayName,
 } from '../lib/api';
+import UserSettingsSheet from '../components/UserSettingsSheet';
 import type { Work } from '../lib/api';
 import type { CalendarEvent } from '../types';
 import { REACTIONS, type ReactionType } from '../lib/reactions';
@@ -93,6 +95,11 @@ export default function Discover() {
   const [includeAdjacent, setIncludeAdjacent] = useState(() => loadRegionFilter().includeAdjacent);
   const [showRegionPanel, setShowRegionPanel] = useState(false);
 
+  // ホーム県・ユーザー設定
+  const [homePref, setHomePref] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState<string | null>(null);
+  const [showUserSettings, setShowUserSettings] = useState(false);
+
   // ❤️ ソーシャルいいね（削除後も残る）
   const [likedEventIds, setLikedEventIds] = useState<Set<string>>(loadLikedEventIds);
   // カレンダー追加済み（マイカレンダーから削除すると除かれる）
@@ -163,6 +170,26 @@ export default function Discover() {
         setMyReactions(prev => ({ ...prev, ...(batch as Record<string, ReactionType>) }));
       }).catch(() => {});
   }, [user?.id, events]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ホーム県・表示名を取得
+  useEffect(() => {
+    if (!user) return;
+    Promise.all([getHomePrefecture(user.id), getDisplayName(user.id)])
+      .then(([pref, name]) => { setHomePref(pref); setDisplayName(name); })
+      .catch(() => {});
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ユーザー設定保存
+  const handleSaveUserSettings = async (newPref: string | null, newName: string) => {
+    if (!user) return;
+    setHomePref(newPref);
+    setDisplayName(newName || null);
+    if (newPref && filterMode === 'none') {
+      setFilterMode('pref'); setFilterValue(newPref); setIncludeAdjacent(false);
+      saveRegionFilter({ filterMode: 'pref', filterValue: newPref, includeAdjacent: false });
+    }
+    await Promise.all([saveHomePrefecture(user.id, newPref), saveDisplayName(user.id, newName)]);
+  };
 
   // 地域フィルターの適用対象都道府県Set
   const activeFilterPrefs = useMemo((): Set<string> | null => {
@@ -450,7 +477,7 @@ export default function Discover() {
                             )}
                             {event.prefecture && (
                               <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">
-                                📍 {event.prefecture}
+                                {event.prefecture}
                               </span>
                             )}
                           </div>
@@ -795,12 +822,48 @@ export default function Discover() {
                   </div>
                 </button>
               )}
+              {/* ホーム県設定を促すボックス（未設定のとき） */}
+              {!homePref && (
+                <div className="mb-5 px-4 py-3 bg-bg-secondary rounded-xl border border-faint">
+                  <p className="text-label-primary text-sm font-medium mb-1">ホーム県を設定する</p>
+                  <p className="text-label-tertiary text-xs mb-3 leading-relaxed">設定しておくと次回から自動で絞り込まれます。</p>
+                  <button
+                    onClick={() => { setShowRegionPanel(false); setShowUserSettings(true); }}
+                    className="text-xs font-semibold active:opacity-60"
+                    style={{ color: 'var(--accent-color)' }}
+                  >ユーザー設定で登録する →</button>
+                </div>
+              )}
+              {/* ホーム県に戻すボタン（設定済みかつ現在ホーム県でない場合） */}
+              {homePref && !(filterMode === 'pref' && filterValue === homePref) && (
+                <button
+                  onClick={() => {
+                    setFilterMode('pref'); setFilterValue(homePref); setIncludeAdjacent(false);
+                    saveRegionFilter({ filterMode: 'pref', filterValue: homePref, includeAdjacent: false });
+                    setShowRegionPanel(false);
+                  }}
+                  className="w-full text-center py-3 rounded-xl text-sm font-medium active:opacity-70 mb-3"
+                  style={{ background: 'var(--accent-color)', color: 'var(--bg-primary)' }}
+                >
+                  ホーム県（{homePref}）に戻す
+                </button>
+              )}
               {filterActive ? (
                 <button onClick={() => { setFilterMode('none'); setFilterValue(null); setIncludeAdjacent(false); saveRegionFilter({ filterMode: 'none', filterValue: null, includeAdjacent: false }); setShowRegionPanel(false); }} className="w-full text-center py-3 rounded-xl border border-subtle text-sm text-label-secondary active:opacity-60">全国表示（絞り込みなし）</button>
               ) : null}
             </div>
           </div>
         </div>
+      )}
+
+      {/* ユーザー設定シート */}
+      {showUserSettings && (
+        <UserSettingsSheet
+          homePref={homePref}
+          displayName={displayName}
+          onSave={handleSaveUserSettings}
+          onClose={() => setShowUserSettings(false)}
+        />
       )}
 
       <BottomTab />
