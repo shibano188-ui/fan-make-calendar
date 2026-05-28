@@ -1906,11 +1906,11 @@ export default function Calendar() {
                                   className="flex-1 min-w-0 text-left active:opacity-70 transition-opacity">
                                   <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
                                 </button>
-                                <button onClick={e => { e.stopPropagation(); toggleBell(event.id); }} className="w-7 h-7 flex items-center justify-center flex-shrink-0 active:opacity-60">
-                                  <Bell size={13} style={{ fill: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'none', color: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'var(--label-tertiary)' }} />
+                                <button onClick={e => { e.stopPropagation(); toggleBell(event.id); }} className="w-9 h-9 flex items-center justify-center flex-shrink-0 active:opacity-60">
+                                  <Bell size={16} style={{ fill: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'none', color: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'var(--label-tertiary)' }} />
                                 </button>
-                                <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(event.id)); }} className="w-7 h-7 flex items-center justify-center flex-shrink-0 active:opacity-60">
-                                  <Star size={13} style={{ fill: importantEventIds.has(event.id) ? '#f59e0b' : 'none', color: importantEventIds.has(event.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
+                                <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(event.id)); }} className="w-9 h-9 flex items-center justify-center flex-shrink-0 active:opacity-60">
+                                  <Star size={16} style={{ fill: importantEventIds.has(event.id) ? '#f59e0b' : 'none', color: importantEventIds.has(event.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
                                 </button>
                               </div>
                               {/* 2行目: カテゴリ → 地域 → ♥ → 😊 → 🔗 → > → × */}
@@ -1921,29 +1921,29 @@ export default function Calendar() {
                                 <button
                                   onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); triggerLike(e.currentTarget); }}
                                   disabled={!user || lockedLikeIds.has(event.id)}
-                                  className="flex items-center gap-0.5 px-2 h-7 text-xs disabled:opacity-30"
+                                  className="flex items-center gap-0.5 px-2 h-9 text-xs disabled:opacity-30"
                                   style={{ color: event.likedByMe ? 'rgb(248,113,113)' : 'var(--label-tertiary)' }}
                                 >
-                                  <Heart size={12} style={{ fill: event.likedByMe ? 'rgb(248,113,113)' : 'none' }} />
+                                  <Heart size={14} style={{ fill: event.likedByMe ? 'rgb(248,113,113)' : 'none' }} />
                                   <span>{event.likes}</span>
                                 </button>
                                 <button
                                   onClick={e => { e.stopPropagation(); setOpenReactionPickerId(prev => prev === event.id ? null : event.id); }}
-                                  className="px-1.5 h-7 flex items-center active:opacity-60"
+                                  className="px-2 h-9 flex items-center active:opacity-60"
                                   style={{ color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[event.id] ? 1 : 0.5 }}
                                 >
                                   {myReactions[event.id]
                                     ? <span className="text-sm leading-none">{REACTIONS.find(r => r.type === myReactions[event.id])?.emoji}</span>
-                                    : <Smile size={14} />
+                                    : <Smile size={16} />
                                   }
                                 </button>
                                 {event.authorId && user && event.authorId === user.id && (
-                                  <button onClick={e => { e.stopPropagation(); openEditEvent(event); }} className="px-1 h-7 flex items-center active:opacity-60" style={{ color: 'var(--accent-color)' }}>
-                                    <Pencil size={13} />
+                                  <button onClick={e => { e.stopPropagation(); openEditEvent(event); }} className="px-2 h-9 flex items-center active:opacity-60" style={{ color: 'var(--accent-color)' }}>
+                                    <Pencil size={15} />
                                   </button>
                                 )}
-                                <button onClick={() => handleHideEvent(event.id)} className="w-8 h-7 flex items-center justify-center text-label-tertiary active:text-red-400">
-                                  <X size={14} />
+                                <button onClick={() => handleHideEvent(event.id)} className="w-9 h-9 flex items-center justify-center text-label-tertiary active:text-red-400">
+                                  <X size={16} />
                                 </button>
                               </div>
                               {/* 3行目: 日付範囲・時間 */}
@@ -2003,11 +2003,11 @@ export default function Calendar() {
                                   className="flex-1 min-w-0 text-left active:opacity-70 transition-opacity">
                                   <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
                                 </button>
-                                <button onClick={e => { e.stopPropagation(); toggleBell(event.id); }} className="w-7 h-7 flex items-center justify-center flex-shrink-0 active:opacity-60">
-                                  <Bell size={13} style={{ fill: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'none', color: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'var(--label-tertiary)' }} />
+                                <button onClick={e => { e.stopPropagation(); toggleBell(event.id); }} className="w-9 h-9 flex items-center justify-center flex-shrink-0 active:opacity-60">
+                                  <Bell size={16} style={{ fill: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'none', color: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'var(--label-tertiary)' }} />
                                 </button>
-                                <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(event.id)); }} className="w-7 h-7 flex items-center justify-center flex-shrink-0 active:opacity-60">
-                                  <Star size={13} style={{ fill: importantEventIds.has(event.id) ? '#f59e0b' : 'none', color: importantEventIds.has(event.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
+                                <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(event.id)); }} className="w-9 h-9 flex items-center justify-center flex-shrink-0 active:opacity-60">
+                                  <Star size={16} style={{ fill: importantEventIds.has(event.id) ? '#f59e0b' : 'none', color: importantEventIds.has(event.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
                                 </button>
                               </div>
                               {/* 2行目: 作品名 → カテゴリ → 地域 → ♥ → 😊 → 🔗 → > → × */}
@@ -2022,29 +2022,29 @@ export default function Calendar() {
                                 <button
                                   onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); triggerLike(e.currentTarget); }}
                                   disabled={!user || lockedLikeIds.has(event.id)}
-                                  className="flex items-center gap-0.5 px-2 h-7 text-xs disabled:opacity-30"
+                                  className="flex items-center gap-0.5 px-2 h-9 text-xs disabled:opacity-30"
                                   style={{ color: event.likedByMe ? 'rgb(248,113,113)' : 'var(--label-tertiary)' }}
                                 >
-                                  <Heart size={12} style={{ fill: event.likedByMe ? 'rgb(248,113,113)' : 'none' }} />
+                                  <Heart size={14} style={{ fill: event.likedByMe ? 'rgb(248,113,113)' : 'none' }} />
                                   <span>{event.likes}</span>
                                 </button>
                                 <button
                                   onClick={e => { e.stopPropagation(); setOpenReactionPickerId(prev => prev === event.id ? null : event.id); }}
-                                  className="px-1.5 h-7 flex items-center active:opacity-60"
+                                  className="px-2 h-9 flex items-center active:opacity-60"
                                   style={{ color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[event.id] ? 1 : 0.5 }}
                                 >
                                   {myReactions[event.id]
                                     ? <span className="text-sm leading-none">{REACTIONS.find(r => r.type === myReactions[event.id])?.emoji}</span>
-                                    : <Smile size={14} />
+                                    : <Smile size={16} />
                                   }
                                 </button>
                                 {event.authorId && user && event.authorId === user.id && (
-                                  <button onClick={e => { e.stopPropagation(); openEditEvent(event); }} className="px-1 h-7 flex items-center active:opacity-60" style={{ color: 'var(--accent-color)' }}>
-                                    <Pencil size={13} />
+                                  <button onClick={e => { e.stopPropagation(); openEditEvent(event); }} className="px-2 h-9 flex items-center active:opacity-60" style={{ color: 'var(--accent-color)' }}>
+                                    <Pencil size={15} />
                                   </button>
                                 )}
-                                <button onClick={() => handleHideEvent(event.id)} className="w-8 h-7 flex items-center justify-center text-label-tertiary active:text-red-400">
-                                  <X size={14} />
+                                <button onClick={() => handleHideEvent(event.id)} className="w-9 h-9 flex items-center justify-center text-label-tertiary active:text-red-400">
+                                  <X size={16} />
                                 </button>
                               </div>
                               {(dateLabel || timeLabel) && (
@@ -2092,11 +2092,11 @@ export default function Calendar() {
                               {/* 1行目: タイトル + 🔔⭐ */}
                               <div className="flex items-center px-3 pt-3 pb-1 gap-1">
                                 <p className="flex-1 min-w-0 text-label-primary text-sm font-medium truncate">{pe.title}</p>
-                                <button onClick={e => { e.stopPropagation(); toggleBell(pe.id); }} className="w-7 h-7 flex items-center justify-center flex-shrink-0 active:opacity-60">
-                                  <Bell size={13} style={{ fill: bellEventIds.has(pe.id) ? 'var(--accent-color)' : 'none', color: bellEventIds.has(pe.id) ? 'var(--accent-color)' : 'var(--label-tertiary)' }} />
+                                <button onClick={e => { e.stopPropagation(); toggleBell(pe.id); }} className="w-9 h-9 flex items-center justify-center flex-shrink-0 active:opacity-60">
+                                  <Bell size={16} style={{ fill: bellEventIds.has(pe.id) ? 'var(--accent-color)' : 'none', color: bellEventIds.has(pe.id) ? 'var(--accent-color)' : 'var(--label-tertiary)' }} />
                                 </button>
-                                <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(pe.id)); }} className="w-7 h-7 flex items-center justify-center flex-shrink-0 active:opacity-60">
-                                  <Star size={13} style={{ fill: importantEventIds.has(pe.id) ? '#f59e0b' : 'none', color: importantEventIds.has(pe.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
+                                <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(pe.id)); }} className="w-9 h-9 flex items-center justify-center flex-shrink-0 active:opacity-60">
+                                  <Star size={16} style={{ fill: importantEventIds.has(pe.id) ? '#f59e0b' : 'none', color: importantEventIds.has(pe.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
                                 </button>
                               </div>
                               {/* 2行目: 個人 → カテゴリ → 地域 → × */}
@@ -2105,8 +2105,8 @@ export default function Calendar() {
                                 {pe.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.category}</span>}
                                 {pe.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.prefecture}</span>}
                                 <div className="flex-1" />
-                                <button onClick={() => deletePersonalEvent(pe.id)} className="w-8 h-7 flex items-center justify-center text-label-tertiary active:text-red-400">
-                                  <X size={14} />
+                                <button onClick={() => deletePersonalEvent(pe.id)} className="w-9 h-9 flex items-center justify-center text-label-tertiary active:text-red-400">
+                                  <X size={16} />
                                 </button>
                               </div>
                               {/* 3行目: 日付範囲・時間 */}
@@ -2341,29 +2341,29 @@ export default function Calendar() {
                               })()}
                             </div>
                           </button>
-                          <button onClick={e => { e.stopPropagation(); toggleBell(event.id); }} className="w-7 h-7 flex items-center justify-center flex-shrink-0 active:opacity-60">
-                            <Bell size={13} style={{ fill: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'none', color: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'var(--label-tertiary)' }} />
+                          <button onClick={e => { e.stopPropagation(); toggleBell(event.id); }} className="w-9 h-9 flex items-center justify-center flex-shrink-0 active:opacity-60">
+                            <Bell size={16} style={{ fill: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'none', color: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'var(--label-tertiary)' }} />
                           </button>
-                          <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(event.id)); }} className="w-7 h-7 flex items-center justify-center flex-shrink-0 active:opacity-60">
-                            <Star size={13} style={{ fill: importantEventIds.has(event.id) ? '#f59e0b' : 'none', color: importantEventIds.has(event.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
+                          <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(event.id)); }} className="w-9 h-9 flex items-center justify-center flex-shrink-0 active:opacity-60">
+                            <Star size={16} style={{ fill: importantEventIds.has(event.id) ? '#f59e0b' : 'none', color: importantEventIds.has(event.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
                           </button>
                         </div>
                         {/* 下段: アクションボタン */}
                         <div className="flex items-center px-4 pt-1 pb-3 gap-1 justify-end border-t" style={{ borderColor: 'var(--border-faint)' }}>
                           <button onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); triggerLike(e.currentTarget); }} disabled={!user || lockedLikeIds.has(event.id)}
-                            className="flex items-center gap-0.5 px-2 h-7 text-xs disabled:opacity-30"
+                            className="flex items-center gap-0.5 px-2 h-9 text-xs disabled:opacity-30"
                             style={{ color: event.likedByMe ? 'rgb(248,113,113)' : 'var(--label-tertiary)' }}>
-                            <Heart size={12} style={{ fill: event.likedByMe ? 'rgb(248,113,113)' : 'none' }} /><span>{event.likes}</span>
+                            <Heart size={14} style={{ fill: event.likedByMe ? 'rgb(248,113,113)' : 'none' }} /><span>{event.likes}</span>
                           </button>
                           <button onClick={e => { e.stopPropagation(); setOpenReactionPickerId(prev => prev === event.id ? null : event.id); }}
-                            className="px-1.5 h-7 flex items-center active:opacity-60"
+                            className="px-2 h-9 flex items-center active:opacity-60"
                             style={{ color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[event.id] ? 1 : 0.5 }}>
-                            {myReactions[event.id] ? <span className="text-sm leading-none">{REACTIONS.find(r => r.type === myReactions[event.id])?.emoji}</span> : <Smile size={14} />}
+                            {myReactions[event.id] ? <span className="text-sm leading-none">{REACTIONS.find(r => r.type === myReactions[event.id])?.emoji}</span> : <Smile size={16} />}
                           </button>
                           {event.authorId && user && event.authorId === user.id && (
-                            <button onClick={e => { e.stopPropagation(); openEditEvent(event); }} className="w-7 h-7 flex items-center justify-center active:opacity-60" style={{ color: 'var(--accent-color)' }}><Pencil size={13} /></button>
+                            <button onClick={e => { e.stopPropagation(); openEditEvent(event); }} className="w-9 h-9 flex items-center justify-center active:opacity-60" style={{ color: 'var(--accent-color)' }}><Pencil size={15} /></button>
                           )}
-                          <button onClick={() => handleHideEvent(event.id)} className="w-7 h-7 flex items-center justify-center text-label-tertiary active:text-red-400"><X size={14} /></button>
+                          <button onClick={() => handleHideEvent(event.id)} className="w-9 h-9 flex items-center justify-center text-label-tertiary active:text-red-400"><X size={16} /></button>
                         </div>
                       </div>
                     );
@@ -2453,38 +2453,38 @@ export default function Calendar() {
                               {item.memo && <p className="text-label-secondary text-xs mt-1.5 truncate">{item.memo}</p>}
                             </div>
                           </button>
-                          <button onClick={e => { e.stopPropagation(); toggleBell(item.id); }} className="w-7 h-7 flex items-center justify-center flex-shrink-0 active:opacity-60">
-                            <Bell size={13} style={{ fill: bellEventIds.has(item.id) ? 'var(--accent-color)' : 'none', color: bellEventIds.has(item.id) ? 'var(--accent-color)' : 'var(--label-tertiary)' }} />
+                          <button onClick={e => { e.stopPropagation(); toggleBell(item.id); }} className="w-9 h-9 flex items-center justify-center flex-shrink-0 active:opacity-60">
+                            <Bell size={16} style={{ fill: bellEventIds.has(item.id) ? 'var(--accent-color)' : 'none', color: bellEventIds.has(item.id) ? 'var(--accent-color)' : 'var(--label-tertiary)' }} />
                           </button>
-                          <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(item.id)); }} className="w-7 h-7 flex items-center justify-center flex-shrink-0 active:opacity-60">
-                            <Star size={13} style={{ fill: importantEventIds.has(item.id) ? '#f59e0b' : 'none', color: importantEventIds.has(item.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
+                          <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(item.id)); }} className="w-9 h-9 flex items-center justify-center flex-shrink-0 active:opacity-60">
+                            <Star size={16} style={{ fill: importantEventIds.has(item.id) ? '#f59e0b' : 'none', color: importantEventIds.has(item.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
                           </button>
                         </div>
                         {/* 下段: アクションボタン */}
                         <div className="flex items-center px-4 pt-1 pb-3 gap-1 justify-end border-t" style={{ borderColor: 'var(--border-faint)' }}>
                           {!item.isPersonal && (
                             <button onClick={e => { e.stopPropagation(); handleSheetEventLike(item.id); triggerLike(e.currentTarget); }} disabled={!user || lockedLikeIds.has(item.id)}
-                              className="flex items-center gap-0.5 px-2 h-7 text-xs disabled:opacity-30"
+                              className="flex items-center gap-0.5 px-2 h-9 text-xs disabled:opacity-30"
                               style={{ color: item.likedByMe ? 'rgb(248,113,113)' : 'var(--label-tertiary)' }}>
-                              <Heart size={12} style={{ fill: item.likedByMe ? 'rgb(248,113,113)' : 'none' }} /><span>{item.likes ?? 0}</span>
+                              <Heart size={14} style={{ fill: item.likedByMe ? 'rgb(248,113,113)' : 'none' }} /><span>{item.likes ?? 0}</span>
                             </button>
                           )}
                           {!item.isPersonal && (
                             <button onClick={e => { e.stopPropagation(); setOpenReactionPickerId(prev => prev === item.id ? null : item.id); }}
-                              className="px-1.5 h-7 flex items-center active:opacity-60"
+                              className="px-2 h-9 flex items-center active:opacity-60"
                               style={{ color: myReactions[item.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[item.id] ? 1 : 0.5 }}>
-                              {myReactions[item.id] ? <span className="text-sm leading-none">{REACTIONS.find(r => r.type === myReactions[item.id])?.emoji}</span> : <Smile size={14} />}
+                              {myReactions[item.id] ? <span className="text-sm leading-none">{REACTIONS.find(r => r.type === myReactions[item.id])?.emoji}</span> : <Smile size={16} />}
                             </button>
                           )}
                           {!item.isPersonal && item.authorId && user && item.authorId === user.id && (
                             <button onClick={e => { e.stopPropagation(); const ev = visibleEvents.find(x => x.id === item.id); if (ev) openEditEvent(ev); }}
-                              className="w-7 h-7 flex items-center justify-center active:opacity-60" style={{ color: 'var(--accent-color)' }}>
-                              <Pencil size={13} />
+                              className="w-9 h-9 flex items-center justify-center active:opacity-60" style={{ color: 'var(--accent-color)' }}>
+                              <Pencil size={15} />
                             </button>
                           )}
                           <button onClick={e => { e.stopPropagation(); item.isPersonal ? deletePersonalEvent(item.id) : handleHideEvent(item.id); }}
-                            className="w-7 h-7 flex items-center justify-center text-label-tertiary active:text-red-400">
-                            <X size={14} />
+                            className="w-9 h-9 flex items-center justify-center text-label-tertiary active:text-red-400">
+                            <X size={16} />
                           </button>
                         </div>
                       </div>
