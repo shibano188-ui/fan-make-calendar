@@ -140,12 +140,23 @@ export default function WorkSelect() {
     return () => clearTimeout(timer);
   }, [query]);
 
+  // 既存フィルター(除外リスト)から「表示するカテゴリ」に変換してポップアップ初期値を設定
+  const initPendingCats = (workId: string) => {
+    const existing = loadCategoryFilters();
+    const excludes = existing[workId];
+    // 初回参加(excludes=undefined)はデフォルト全表示 = 全選択
+    // 再参加時は除外されていないカテゴリを選択済みにする
+    const includes = excludes !== undefined
+      ? POST_CATEGORIES.filter(c => !excludes.includes(c))
+      : [...POST_CATEGORIES];
+    setPendingCats(includes);
+  };
+
   const handleSelect = async (work: Work) => {
     if (!user) return;
     try {
       await upsertParticipation(work.id, user.id);
-      const existing = loadCategoryFilters();
-      setPendingCats(existing[work.id] ?? []);
+      initPendingCats(work.id);
       setPendingWork(work);
     } catch {
       setError('参加に失敗しました');
@@ -158,8 +169,7 @@ export default function WorkSelect() {
     try {
       const work = await getOrCreateWork(name);
       await upsertParticipation(work.id, user.id);
-      const existing = loadCategoryFilters();
-      setPendingCats(existing[work.id] ?? []);
+      initPendingCats(work.id);
       setPendingWork(work);
     } catch {
       setError('作品の作成に失敗しました');
@@ -310,10 +320,10 @@ export default function WorkSelect() {
           <div className="fixed bottom-0 left-0 right-0 z-[160] max-w-app mx-auto rounded-t-2xl overflow-hidden" style={{ backgroundColor: 'var(--bg-primary)' }}>
             <div className="px-5 pt-5 pb-4">
               {/* タイトル */}
-              <p className="text-label-primary font-semibold text-[15px] mb-1">見たいカテゴリを事前に絞り込み</p>
-              <p className="text-label-secondary text-xs mb-3">タップで選択。未選択は全カテゴリ表示（後からでも変更できます）</p>
+              <p className="text-label-primary font-semibold text-[15px] mb-1">表示するカテゴリを選択</p>
+              <p className="text-label-secondary text-xs mb-3">非表示にしたいカテゴリをタップして解除（後からでも変更できます）</p>
 
-              {/* カテゴリ選択 + 全て選択ボタン */}
+              {/* カテゴリ選択 + 全て表示ボタン */}
               <div className="flex flex-wrap gap-2 mb-2">
                 {POST_CATEGORIES.map(cat => {
                   const active = pendingCats.includes(cat);
@@ -343,7 +353,7 @@ export default function WorkSelect() {
                     color: 'var(--label-tertiary)',
                   }}
                 >
-                  全て選択
+                  全て表示
                 </button>
               </div>
 
@@ -355,13 +365,16 @@ export default function WorkSelect() {
               {pendingCats.length === POST_CATEGORIES.length && (
                 <p className="text-[11px] text-label-tertiary mb-3">全カテゴリを表示</p>
               )}
-              {pendingCats.length === 0 && <div className="mb-3" />}
+              {pendingCats.length === 0 && (
+                <p className="text-[11px] text-yellow-500 mb-3">全カテゴリが非表示になります</p>
+              )}
 
               {/* 参加ボタン（カレンダーへ移動しない） */}
               <button
                 onClick={() => {
-                  const excludeCats = pendingCats.length === 0 || pendingCats.length === POST_CATEGORIES.length
-                    ? []
+                  // pendingCats = 表示したいカテゴリ → excludeCats = 非表示にするカテゴリ
+                  const excludeCats = pendingCats.length === POST_CATEGORIES.length
+                    ? []  // 全選択 = 除外なし
                     : POST_CATEGORIES.filter(c => !pendingCats.includes(c));
                   const updated = { ...loadCategoryFilters(), [pendingWork.id]: excludeCats };
                   saveCategoryFilters(updated);

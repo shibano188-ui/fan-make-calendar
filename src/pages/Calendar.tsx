@@ -1582,13 +1582,14 @@ export default function Calendar() {
                   ))}
                 </div>
 
-                {/* グリッドセル（relative を付けて positioned にし、DOM順でoverlayの上に来るようにする） */}
+                {/* グリッドセル: zIndex:1 で stacking context を生成し overlay より上に描画 */}
                 <div
                   className="relative grid grid-cols-7 h-full"
                   style={{
                     gridTemplateRows: 'repeat(6, 1fr)',
                     borderTop: '1px solid var(--cal-grid-color)',
                     borderLeft: '1px solid var(--cal-grid-color)',
+                    zIndex: 1,
                   }}
                 >
                   {calendarDays.map(({ date, isCurrentMonth }, idx) => {
