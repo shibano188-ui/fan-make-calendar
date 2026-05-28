@@ -1490,25 +1490,40 @@ export default function Calendar() {
                           {cellItems.slice(0, 3).map((item, ti) => {
                             const pos = item.position;
                             if (pos) {
-                              // 複数日イベント: カラーバー（固定高さで統一）
+                              // 複数日イベント: カラーバー（固定高さ＋週境界対応）
                               const isStart = pos === 'start';
                               const isEnd = pos === 'end';
+                              // 週の折り返し点でも見た目の端（角丸）を付ける
+                              const visualStart = isStart || col === 0;
+                              const visualEnd   = isEnd   || col === 6;
                               return (
                                 <div
                                   key={`${item.eventId}-${ti}`}
-                                  className="text-[8px] leading-none truncate px-[2px] overflow-hidden"
+                                  className="flex items-center gap-[2px] px-[2px] overflow-hidden"
                                   style={{
                                     background: item.color.startsWith('#') ? item.color + '28' : 'rgba(128,128,128,0.18)',
-                                    color: item.color,
                                     height: '10px',
-                                    lineHeight: '10px',
-                                    borderTopLeftRadius: isStart ? '2px' : '0',
-                                    borderBottomLeftRadius: isStart ? '2px' : '0',
-                                    borderTopRightRadius: isEnd ? '2px' : '0',
-                                    borderBottomRightRadius: isEnd ? '2px' : '0',
+                                    borderTopLeftRadius:    visualStart ? '2px' : '0',
+                                    borderBottomLeftRadius: visualStart ? '2px' : '0',
+                                    borderTopRightRadius:    visualEnd ? '2px' : '0',
+                                    borderBottomRightRadius: visualEnd ? '2px' : '0',
                                   }}
                                 >
-                                  {isStart ? (item.important ? `★${item.title}` : item.title) : ''}
+                                  {isStart && (
+                                    item.important ? (
+                                      <span className="text-[8px] leading-none flex-shrink-0" style={{ color: '#f59e0b' }}>★</span>
+                                    ) : (
+                                      <div
+                                        className="w-[4px] h-[4px] rounded-full flex-shrink-0"
+                                        style={{ backgroundColor: item.dotColor.startsWith('#') ? item.dotColor : '#888' }}
+                                      />
+                                    )
+                                  )}
+                                  {isStart && (
+                                    <span className="text-[8px] leading-none truncate" style={{ color: item.color }}>
+                                      {item.title}
+                                    </span>
+                                  )}
                                 </div>
                               );
                             } else {

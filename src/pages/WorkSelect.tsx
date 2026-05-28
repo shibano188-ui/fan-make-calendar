@@ -365,6 +365,10 @@ export default function WorkSelect() {
                     : POST_CATEGORIES.filter(c => !pendingCats.includes(c));
                   const updated = { ...loadCategoryFilters(), [pendingWork.id]: excludeCats };
                   saveCategoryFilters(updated);
+                  // 参加済みリストを即時更新（チェックマークを即座に反映）
+                  if (!recentWorks.some(w => w.id === pendingWork.id)) {
+                    setRecentWorks(prev => [pendingWork, ...prev]);
+                  }
                   setPendingWork(null);
                 }}
                 className="w-full py-3 rounded-xl text-sm font-semibold active:opacity-70"
