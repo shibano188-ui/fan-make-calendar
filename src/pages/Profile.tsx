@@ -10,7 +10,7 @@ import {
   getDisplayName, saveDisplayName,
   listRecentWorks, countUserPostedEvents, getTotalReceivedLikes,
 } from '../lib/api';
-import { loadCalendarEventIds, loadLikedEventIds } from '../lib/constants';
+import { loadCalendarEventIds, loadTotalLikesGiven } from '../lib/constants';
 import { PrefectureSearch } from '../components/UserSettingsSheet';
 
 const BOTTOM_TAB_H = 56;
@@ -103,7 +103,7 @@ export default function Profile() {
   const [receivedLikes, setReceivedLikes] = useState<number | null>(null);
   const [worksCount, setWorksCount] = useState<number | null>(null);
   const addedCount = loadCalendarEventIds().size;
-  const likedCount = loadLikedEventIds().size;
+  const totalLikesGiven = loadTotalLikesGiven();
 
   useEffect(() => {
     if (!user) return;
@@ -305,12 +305,12 @@ export default function Profile() {
             </button>
 
             {/* 数値グリッド */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 mt-3">
               {[
                 { label: '投稿した予定', value: postedCount, unit: '件' },
                 { label: '追加した予定', value: addedCount, unit: '件' },
                 { label: 'もらったいいね', value: receivedLikes, unit: '' },
-                { label: 'いいねした', value: likedCount, unit: '' },
+                { label: 'あげたいいね', value: totalLikesGiven, unit: '' },
               ].map(({ label, value, unit }) => (
                 <div key={label} className="rounded-xl px-4 py-4 shadow-card flex flex-col gap-1"
                   style={{ backgroundColor: 'var(--bg-secondary)' }}>

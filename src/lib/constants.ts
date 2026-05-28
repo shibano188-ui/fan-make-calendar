@@ -70,6 +70,16 @@ export function addLikedEventId(id: string): Set<string> {
   return new Set(set);
 }
 
+// ─── いいねタップ総数カウンター ────────────────────────────────────
+const TOTAL_LIKES_GIVEN_KEY = 'fan_total_likes_given';
+export function loadTotalLikesGiven(): number {
+  try { return parseInt(localStorage.getItem(TOTAL_LIKES_GIVEN_KEY) ?? '0', 10) || 0; }
+  catch { return 0; }
+}
+export function incrementTotalLikesGiven(): void {
+  localStorage.setItem(TOTAL_LIKES_GIVEN_KEY, String(loadTotalLikesGiven() + 1));
+}
+
 // ─── マイカレンダー管理: カレンダーに追加済みのイベントID ──────────
 // likedEventIdsとは独立。削除するとここから除かれる。
 const CALENDAR_EVENTS_KEY = 'fan_calendar_event_ids';

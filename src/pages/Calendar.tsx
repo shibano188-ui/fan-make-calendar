@@ -30,6 +30,7 @@ import {
   parseLinks, serializeLinks, getCategoryColor,
   loadImportantEventIds, saveImportantEventIds, toggleImportantEventId,
   type FilterMode, saveRegionFilter, loadRegionFilter,
+  incrementTotalLikesGiven,
 } from '../lib/constants';
 
 // ─── 定数 ──────────────────────────────────────────────────────────
@@ -798,6 +799,7 @@ export default function Calendar() {
     const newTaps = session.tapsUsed + 1;
     const resetAt = newTaps >= LIKE_MAX_TAPS ? Date.now() + LIKE_COOLDOWN_MS : 0;
     saveLikeSession(eventId, { tapsUsed: newTaps, resetAt });
+    incrementTotalLikesGiven();
     if (newTaps >= LIKE_MAX_TAPS) {
       setLockedLikeIds(prev => { const next = new Set(prev); next.add(eventId); return next; });
       setTimeout(() => {

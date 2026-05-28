@@ -23,6 +23,7 @@ import {
   loadCalendarEventIds, addCalendarEventId, saveCalendarEventIds,
   parseLinks, serializeLinks, getCategoryColor,
   loadRegionFilter, saveRegionFilter, type FilterMode,
+  incrementTotalLikesGiven,
 } from '../lib/constants';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { PrefectureSearch } from '../components/UserSettingsSheet';
@@ -277,6 +278,7 @@ export default function Discover() {
     const newTaps = session.tapsUsed + 1;
     const resetAt = newTaps >= LIKE_MAX_TAPS ? Date.now() + LIKE_COOLDOWN_MS : 0;
     saveLikeSession(event.id, { tapsUsed: newTaps, resetAt });
+    incrementTotalLikesGiven();
     if (newTaps >= LIKE_MAX_TAPS) {
       setLockedLikeIds(prev => { const next = new Set(prev); next.add(event.id); return next; });
       setTimeout(() => {

@@ -8,6 +8,7 @@ import { listEventsByDate, addLikeTap, getReactionData, setReaction } from '../l
 import { useAuth } from '../contexts/AuthContext';
 import type { CalendarEvent } from '../types';
 import { REACTIONS, type ReactionType } from '../lib/reactions';
+import { incrementTotalLikesGiven } from '../lib/constants';
 
 // ─── いいねセッション（localStorage）────────────────────────────────
 
@@ -74,6 +75,7 @@ function LikeButton({
     const next = { tapsUsed: newTaps, resetAt };
     setSession(next);
     saveSession(event.id, next);
+    incrementTotalLikesGiven();
 
     // アニメーション
     setBumped(true);
