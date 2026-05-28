@@ -1582,9 +1582,9 @@ export default function Calendar() {
                   ))}
                 </div>
 
-                {/* グリッドセル（セル自体は透明なのでオーバーレイバーが透けて見える） */}
+                {/* グリッドセル（relative を付けて positioned にし、DOM順でoverlayの上に来るようにする） */}
                 <div
-                  className="grid grid-cols-7 h-full"
+                  className="relative grid grid-cols-7 h-full"
                   style={{
                     gridTemplateRows: 'repeat(6, 1fr)',
                     borderTop: '1px solid var(--cal-grid-color)',
