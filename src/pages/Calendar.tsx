@@ -2391,10 +2391,7 @@ export default function Calendar() {
                           </div>
                           <div className="w-px h-8 bg-white/10 flex-shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-start gap-1">
-                              {importantEventIds.has(item.id) && <span className="text-[11px] leading-none flex-shrink-0 mt-[2px]" style={{ color: '#f59e0b' }}>★</span>}
-                              <p className="text-label-primary text-sm font-medium leading-snug">{item.title}</p>
-                            </div>
+                            <p className="text-label-primary text-sm font-medium leading-snug truncate">{item.title}</p>
                             {/* バッジ行: タグ・カテゴリ・都道府県 */}
                             {(item.tag || item.category || item.prefecture) && (
                               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
@@ -2419,6 +2416,12 @@ export default function Calendar() {
                             {item.authorName && <p className="text-[10px] text-label-tertiary mt-0.5">by {item.authorName}</p>}
                             {item.memo && <p className="text-label-secondary text-xs mt-0.5 truncate">{item.memo}</p>}
                           </div>
+                        </button>
+                        <button onClick={e => { e.stopPropagation(); toggleBell(item.id); }} className="w-8 self-stretch flex items-center justify-center active:opacity-60 flex-shrink-0">
+                          <Bell size={13} style={{ fill: bellEventIds.has(item.id) ? 'var(--accent-color)' : 'none', color: bellEventIds.has(item.id) ? 'var(--accent-color)' : 'var(--label-tertiary)' }} />
+                        </button>
+                        <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(item.id)); }} className="w-8 self-stretch flex items-center justify-center active:opacity-60 flex-shrink-0">
+                          <Star size={13} style={{ fill: importantEventIds.has(item.id) ? '#f59e0b' : 'none', color: importantEventIds.has(item.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
                         </button>
                         {!item.isPersonal && (
                           <button
