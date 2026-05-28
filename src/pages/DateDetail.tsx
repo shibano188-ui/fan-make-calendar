@@ -10,6 +10,7 @@ import type { CalendarEvent } from '../types';
 import { REACTIONS, type ReactionType } from '../lib/reactions';
 import { incrementTotalLikesGiven } from '../lib/constants';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
+import UserProfileModal from '../components/UserProfileModal';
 
 // ─── いいねセッション（localStorage）────────────────────────────────
 
@@ -163,12 +164,14 @@ function EventCard({
   onTapped,
   reactionData,
   onOpenReactionPicker,
+  onAuthorClick,
 }: {
   event: CalendarEvent;
   userId: string | undefined;
   onTapped: (id: string, newCount: number) => void;
   reactionData?: ReactionData;
   onOpenReactionPicker?: () => void;
+  onAuthorClick?: (authorId: string) => void;
 }) {
   const hasReactions = reactionData && Object.values(reactionData.counts).some(c => c > 0);
 
@@ -244,7 +247,12 @@ function EventCard({
 
       {/* 投稿者 */}
       <p className="text-label-tertiary text-xs">
-        {event.authorName ? event.authorName : '匿名'} ・ {timeAgo(event.createdAt)}
+        {event.authorId && onAuthorClick ? (
+          <button onClick={() => onAuthorClick(event.authorId!)} className="underline underline-offset-2 active:opacity-60">
+            {event.authorName ?? '匿名'}
+          </button>
+        ) : (event.authorName ?? '匿名')}
+        {' '}・ {timeAgo(event.createdAt)}
       </p>
     </div>
   );
@@ -260,6 +268,7 @@ export default function DateDetail() {
   const [loading, setLoading] = useState(true);
   const [eventReactions, setEventReactions] = useState<Record<string, ReactionData>>({});
   const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
+  const [viewingUserId, setViewingUserId] = useState<string | null>(null);
 
   // イベント取得
   useEffect(() => {
@@ -350,6 +359,7 @@ export default function DateDetail() {
                 onTapped={handleTapped}
                 reactionData={eventReactions[event.id]}
                 onOpenReactionPicker={() => setOpenReactionPickerId(prev => prev === event.id ? null : event.id)}
+                onAuthorClick={id => setViewingUserId(id)}
               />
             ))}
           </div>
@@ -390,6 +400,10 @@ export default function DateDetail() {
       >
         <Plus size={22} strokeWidth={2.5} />
       </button>
+
+      {viewingUserId && (
+        <UserProfileModal userId={viewingUserId} onClose={() => setViewingUserId(null)} />
+      )}
     </Layout>
   );
 }

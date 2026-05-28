@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
+import UserProfileModal from '../components/UserProfileModal';
 import {
   Heart, Smile, Pencil, SlidersHorizontal, ExternalLink, ChevronLeft, Plus, X,
   Map as MapIcon,
@@ -133,6 +134,7 @@ export default function Discover() {
   // 長押し削除
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { trigger: triggerLike, renderOverlay: renderLikeOverlay } = useLikeAnimation();
+  const [viewingUserId, setViewingUserId] = useState<string | null>(null);
   const startLongPress = (callback: () => void) => {
     longPressTimer.current = setTimeout(callback, 700);
   };
@@ -542,7 +544,11 @@ export default function Discover() {
                         )}
                         {/* 投稿者 */}
                         {event.authorName && (
-                          <p className="text-label-tertiary text-xs">by {event.authorName}</p>
+                          <p className="text-label-tertiary text-xs">
+                            {event.authorId ? (
+                              <button onClick={() => setViewingUserId(event.authorId!)} className="underline underline-offset-2 active:opacity-60">by {event.authorName}</button>
+                            ) : `by ${event.authorName}`}
+                          </p>
                         )}
                       </div>
                     </div>
@@ -911,6 +917,10 @@ export default function Discover() {
       <BottomTab />
 
       {renderLikeOverlay()}
+
+      {viewingUserId && (
+        <UserProfileModal userId={viewingUserId} onClose={() => setViewingUserId(null)} />
+      )}
     </>
   );
 }

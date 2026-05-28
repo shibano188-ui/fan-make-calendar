@@ -314,6 +314,43 @@ export async function saveHomePrefecture(userId: string, prefecture: string | nu
     );
 }
 
+export async function getXUrl(userId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from('user_settings')
+    .select('x_url')
+    .eq('user_id', userId)
+    .maybeSingle();
+  return (data?.x_url as string | null) ?? null;
+}
+
+export async function saveXUrl(userId: string, xUrl: string | null): Promise<void> {
+  await supabase
+    .from('user_settings')
+    .upsert(
+      { user_id: userId, x_url: xUrl || null, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' },
+    );
+}
+
+export async function getUserPublicProfile(userId: string): Promise<{
+  displayName: string | null;
+  xUrl: string | null;
+  postedCount: number;
+  receivedLikes: number;
+}> {
+  const [settingsRes, posted, likes] = await Promise.all([
+    supabase.from('user_settings').select('display_name, x_url').eq('user_id', userId).maybeSingle(),
+    countUserPostedEvents(userId),
+    getTotalReceivedLikes(userId),
+  ]);
+  return {
+    displayName: (settingsRes.data?.display_name as string | null) ?? null,
+    xUrl: (settingsRes.data?.x_url as string | null) ?? null,
+    postedCount: posted,
+    receivedLikes: likes,
+  };
+}
+
 // ─── 共有テーマ ────────────────────────────────────────────────────
 
 export type SharedThemeData = {

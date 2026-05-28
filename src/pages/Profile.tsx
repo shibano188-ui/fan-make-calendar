@@ -8,8 +8,10 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   getHomePrefecture, saveHomePrefecture,
   getDisplayName, saveDisplayName,
+  getXUrl, saveXUrl,
   listRecentWorks, countUserPostedEvents, getTotalReceivedLikes,
 } from '../lib/api';
+import { ExternalLink } from 'lucide-react';
 import { loadCalendarEventIds, loadTotalLikesGiven } from '../lib/constants';
 import { PrefectureSearch } from '../components/UserSettingsSheet';
 
@@ -93,9 +95,11 @@ export default function Profile() {
   // プロフィール編集
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [homePref, setHomePref] = useState<string | null>(null);
+  const [xUrl, setXUrl] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editPref, setEditPref] = useState<string | null>(null);
+  const [editXUrl, setEditXUrl] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
 
   // 統計
@@ -110,12 +114,14 @@ export default function Profile() {
     Promise.all([
       getDisplayName(user.id),
       getHomePrefecture(user.id),
+      getXUrl(user.id),
       countUserPostedEvents(user.id),
       getTotalReceivedLikes(user.id),
       listRecentWorks(user.id),
-    ]).then(([name, pref, posted, likes, works]) => {
+    ]).then(([name, pref, x, posted, likes, works]) => {
       setDisplayName(name);
       setHomePref(pref);
+      setXUrl(x);
       setPostedCount(posted);
       setReceivedLikes(likes);
       setWorksCount(works.length);
@@ -127,6 +133,7 @@ export default function Profile() {
   const startEdit = () => {
     setEditName(displayName ?? '');
     setEditPref(homePref);
+    setEditXUrl(xUrl ?? '');
     setEditing(true);
   };
 
@@ -139,9 +146,11 @@ export default function Profile() {
       await Promise.all([
         saveDisplayName(user.id, editName.trim()),
         saveHomePrefecture(user.id, editPref),
+        saveXUrl(user.id, editXUrl.trim() || null),
       ]);
       setDisplayName(editName.trim() || null);
       setHomePref(editPref);
+      setXUrl(editXUrl.trim() || null);
       setEditing(false);
     } catch { /* ignore */ }
     finally { setSavingProfile(false); }
@@ -238,7 +247,7 @@ export default function Profile() {
 
               {/* ホーム県（編集中） */}
               {editing && (
-                <div className="px-5 pb-4 flex flex-col gap-2 border-t" style={{ borderColor: 'var(--border-faint)' }}>
+                <div className="px-5 pb-3 flex flex-col gap-2 border-t" style={{ borderColor: 'var(--border-faint)' }}>
                   <p className="text-label-tertiary text-xs pt-3">ホーム県</p>
                   <PrefectureSearch
                     value={editPref ?? ''}
@@ -247,17 +256,42 @@ export default function Profile() {
                 </div>
               )}
 
-              {/* ホーム県（表示中） */}
-              {!editing && homePref && (
-                <div className="px-5 pb-4 border-t flex items-center gap-2" style={{ borderColor: 'var(--border-faint)' }}>
-                  <span className="text-label-tertiary text-xs pt-3">ホーム県</span>
-                  <span className="text-label-secondary text-xs pt-3">{homePref}</span>
+              {/* X URL（編集中） */}
+              {editing && (
+                <div className="px-5 pb-3 flex flex-col gap-2 border-t" style={{ borderColor: 'var(--border-faint)' }}>
+                  <p className="text-label-tertiary text-xs pt-3">X (Twitter) URL</p>
+                  <input
+                    type="url"
+                    value={editXUrl}
+                    onChange={e => setEditXUrl(e.target.value)}
+                    placeholder="https://x.com/username"
+                    className="w-full bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong"
+                  />
                 </div>
               )}
-              {!editing && !homePref && (
+
+              {/* ホーム県・X（表示中） */}
+              {!editing && (homePref || xUrl) && (
+                <div className="px-5 pb-4 border-t flex flex-col gap-1.5" style={{ borderColor: 'var(--border-faint)' }}>
+                  {homePref && (
+                    <div className="flex items-center gap-2 pt-3">
+                      <span className="text-label-tertiary text-xs">ホーム県</span>
+                      <span className="text-label-secondary text-xs">{homePref}</span>
+                    </div>
+                  )}
+                  {xUrl && (
+                    <a href={xUrl} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-xs active:opacity-60 w-fit"
+                      style={{ color: 'var(--accent-color)', marginTop: homePref ? 0 : 12 }}>
+                      <ExternalLink size={11} />X を見る
+                    </a>
+                  )}
+                </div>
+              )}
+              {!editing && !homePref && !xUrl && (
                 <div className="px-5 pb-4 border-t" style={{ borderColor: 'var(--border-faint)' }}>
                   <button onClick={startEdit} className="text-xs pt-3 active:opacity-60" style={{ color: 'var(--accent-color)' }}>
-                    + ホーム県を設定する
+                    + ホーム県・X を設定する
                   </button>
                 </div>
               )}

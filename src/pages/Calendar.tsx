@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
+import UserProfileModal from '../components/UserProfileModal';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Palette, Plus, Heart, MoreVertical, Link2, LogOut, Trash2,
@@ -529,6 +530,7 @@ export default function Calendar() {
   const menuRef = useRef<HTMLDivElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { trigger: triggerLike, renderOverlay: renderLikeOverlay } = useLikeAnimation();
+  const [viewingUserId, setViewingUserId] = useState<string | null>(null);
   const swipeStartX = useRef<number | null>(null);
   const swipeStartY = useRef<number | null>(null);
 
@@ -1957,7 +1959,11 @@ export default function Calendar() {
                                 if (!event.authorName && links.length === 0) return null;
                                 return (
                                   <div className="flex items-center gap-1.5 px-3 pb-2 -mt-1 flex-wrap">
-                                    {event.authorName && <span className="text-[10px] text-label-tertiary">by {event.authorName}</span>}
+                                    {event.authorName && (
+                                      <button onClick={e => { e.stopPropagation(); if (event.authorId) setViewingUserId(event.authorId); }} className="text-[10px] text-label-tertiary active:opacity-60" style={{ textDecoration: event.authorId ? 'underline' : 'none', textUnderlineOffset: 2 }}>
+                                        by {event.authorName}
+                                      </button>
+                                    )}
                                     {links.length > 0 && (
                                       <a href={links[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
                                         className="flex items-center gap-0.5 px-2 py-0.5 rounded-full border text-[10px] text-label-secondary active:opacity-60"
@@ -2052,7 +2058,11 @@ export default function Calendar() {
                                 if (!event.authorName && links.length === 0) return null;
                                 return (
                                   <div className="flex items-center gap-1.5 px-3 pb-2 -mt-1 flex-wrap">
-                                    {event.authorName && <span className="text-[10px] text-label-tertiary">by {event.authorName}</span>}
+                                    {event.authorName && (
+                                      <button onClick={e => { e.stopPropagation(); if (event.authorId) setViewingUserId(event.authorId); }} className="text-[10px] text-label-tertiary active:opacity-60" style={{ textDecoration: event.authorId ? 'underline' : 'none', textUnderlineOffset: 2 }}>
+                                        by {event.authorName}
+                                      </button>
+                                    )}
                                     {links.length > 0 && (
                                       <a href={links[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
                                         className="flex items-center gap-0.5 px-2 py-0.5 rounded-full border text-[10px] text-label-secondary active:opacity-60"
@@ -2313,7 +2323,11 @@ export default function Calendar() {
                                 if (!hasAuthor && !hasLink) return null;
                                 return (
                                   <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                    {hasAuthor && <span className="text-[10px] text-label-tertiary">by {event.authorName}</span>}
+                                    {hasAuthor && (
+                                      <button onClick={e => { e.stopPropagation(); if (event.authorId) setViewingUserId(event.authorId); }} className="text-[10px] text-label-tertiary active:opacity-60" style={{ textDecoration: event.authorId ? 'underline' : 'none', textUnderlineOffset: 2 }}>
+                                        by {event.authorName}
+                                      </button>
+                                    )}
                                     {hasLink && (
                                       <a href={links[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
                                         className="flex items-center gap-0.5 px-2 py-0.5 rounded-full border text-[10px] text-label-secondary active:opacity-60"
@@ -2420,7 +2434,11 @@ export default function Calendar() {
                                 if (!hasAuthor && !hasLink) return null;
                                 return (
                                   <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                    {hasAuthor && <span className="text-[10px] text-label-tertiary">by {item.authorName}</span>}
+                                    {hasAuthor && (
+                                      <button onClick={e => { e.stopPropagation(); if (item.authorId) setViewingUserId(item.authorId); }} className="text-[10px] text-label-tertiary active:opacity-60" style={{ textDecoration: item.authorId ? 'underline' : 'none', textUnderlineOffset: 2 }}>
+                                        by {item.authorName}
+                                      </button>
+                                    )}
                                     {hasLink && (
                                       <a href={links[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
                                         className="flex items-center gap-0.5 px-2 py-0.5 rounded-full border text-[10px] text-label-secondary active:opacity-60"
@@ -2842,6 +2860,10 @@ export default function Calendar() {
       <BottomTab />
 
       {renderLikeOverlay()}
+
+      {viewingUserId && (
+        <UserProfileModal userId={viewingUserId} onClose={() => setViewingUserId(null)} />
+      )}
     </>
   );
 }
