@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { ExternalLink, Heart, Plus, Smile } from 'lucide-react';
 import Layout from '../components/Layout';
@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { CalendarEvent } from '../types';
 import { REACTIONS, type ReactionType } from '../lib/reactions';
 import { incrementTotalLikesGiven } from '../lib/constants';
+import { useLikeAnimation } from '../hooks/useLikeAnimation';
 
 // ─── いいねセッション（localStorage）────────────────────────────────
 
@@ -33,8 +34,6 @@ function saveSession(eventId: string, s: LikeSession) {
 
 // ─── いいねボタン ──────────────────────────────────────────────────
 
-interface Floater { id: number; x: number; }
-
 function LikeButton({
   event,
   userId,
@@ -47,8 +46,8 @@ function LikeButton({
   const [session, setSession] = useState<LikeSession>(() => loadSession(event.id));
   const [bumped, setBumped] = useState(false);
   const [flash, setFlash] = useState(false);
-  const [floaters, setFloaters] = useState<Floater[]>([]);
   const [, forceRender] = useState(0);
+  const { trigger: triggerAnim, particles, ripples, floaters } = useLikeAnimation();
 
   const locked = session.tapsUsed >= MAX_TAPS;
   const hasLiked = event.likedByMe || session.tapsUsed > 0;
@@ -83,16 +82,6 @@ function LikeButton({
     setTimeout(() => setBumped(false), 280);
     setTimeout(() => setFlash(false), 180);
 
-    // フローティングハート（1〜2個、ランダムx）
-    const count = Math.random() > 0.5 ? 2 : 1;
-    const newFloaters: Floater[] = Array.from({ length: count }, (_, i) => ({
-      id: Date.now() + i,
-      x: Math.floor(Math.random() * 28),
-    }));
-    setFloaters(prev => [...prev, ...newFloaters]);
-    setTimeout(() => {
-      setFloaters(prev => prev.filter(f => !newFloaters.find(nf => nf.id === f.id)));
-    }, 900);
 
     try {
       const newCount = await addLikeTap(event.id, userId);
@@ -102,25 +91,20 @@ function LikeButton({
 
   return (
     <div className="flex items-center gap-2">
-      <div className="relative">
-        {/* フローティングハート（赤） */}
-        {floaters.map(f => (
-          <div
-            key={f.id}
-            className="absolute pointer-events-none"
-            style={{
-              bottom: '100%',
-              left: `${8 + f.x}px`,
-              animation: 'floatHeart 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards',
-              color: 'rgb(248,113,113)',
-            }}
-          >
-            <Heart size={11} style={{ fill: 'rgb(248,113,113)' }} />
-          </div>
-        ))}
+      {/* パーティクル・リップル・フローターオーバーレイ */}
+      {particles.map(p => (
+        <div key={p.id} style={{ position: 'fixed', left: p.x, top: p.y, '--ptx': `${p.tx}px`, '--pty': `${p.ty}px`, '--pspin': `${p.spin}deg`, fontSize: p.size, lineHeight: 1, animation: 'particleBurst 0.72s cubic-bezier(0.25,0.46,0.45,0.94) forwards', pointerEvents: 'none', zIndex: 10000, userSelect: 'none' } as React.CSSProperties}>{p.emoji}</div>
+      ))}
+      {ripples.map(r => (
+        <div key={r.id} style={{ position: 'fixed', left: r.x - 20, top: r.y - 20, width: 40, height: 40, borderRadius: '50%', border: '1.5px solid rgba(248,113,113,0.8)', animation: 'rippleOut 0.45s ease-out forwards', pointerEvents: 'none', zIndex: 10000 }} />
+      ))}
+      {floaters.map(f => (
+        <span key={f.id} style={{ position: 'fixed', left: f.x, top: f.y, fontSize: 18, lineHeight: 1, animation: 'floatHeart 0.9s cubic-bezier(0.22,1,0.36,1) forwards', pointerEvents: 'none', zIndex: 10000, userSelect: 'none' }}>❤️</span>
+      ))}
 
+      <div className="relative">
         <button
-          onClick={handleTap}
+          onClick={e => { handleTap(); triggerAnim(e.currentTarget); }}
           disabled={!userId || locked}
           aria-label={`いいね (${event.likes.toLocaleString('ja-JP')}件)`}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm select-none ${locked ? 'opacity-30' : ''}`}
@@ -155,7 +139,7 @@ function LikeButton({
   );
 }
 
-// ─── ユーティリティ ────────────────────────────────────────────────
+// ─── ユーティリティ ───────────────────────────────────────────────
 
 function getDomain(url: string): string {
   try {

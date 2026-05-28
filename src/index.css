@@ -55,6 +55,17 @@
   100% { transform: scale(1); }
 }
 
+@keyframes particleBurst {
+  0%   { transform: translate(-50%, -50%) scale(1.1) rotate(var(--pspin, 0deg)); opacity: 1; }
+  60%  { opacity: 0.85; }
+  100% { transform: translate(calc(-50% + var(--ptx, 0px)), calc(-50% + var(--pty, 0px))) scale(0.15) rotate(calc(var(--pspin, 0deg) + 200deg)); opacity: 0; }
+}
+
+@keyframes rippleOut {
+  0%   { transform: scale(0.2); opacity: 0.75; }
+  100% { transform: scale(3.5); opacity: 0; }
+}
+
 body {
   margin: 0;
   background-color: var(--bg-primary);
