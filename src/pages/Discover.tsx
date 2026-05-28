@@ -380,6 +380,18 @@ export default function Discover() {
           </div>
         )}
 
+        {/* 地域フィルターインジケーター */}
+        {filterActive && (
+          <div className="flex-shrink-0 flex items-center gap-2 px-4 py-1.5 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
+            <span className="text-[11px] text-label-tertiary">絞り込み：</span>
+            <span className="text-[11px] px-2 py-0.5 rounded-full border" style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-color)' }}>{filterLabel}</span>
+            <button
+              onClick={() => { setFilterMode('none'); setFilterValue(null); setIncludeAdjacent(false); saveRegionFilter({ filterMode: 'none', filterValue: null, includeAdjacent: false }); }}
+              className="text-[11px] text-label-tertiary underline active:opacity-60"
+            >解除</button>
+          </div>
+        )}
+
         {/* フィード */}
         <div className="flex-1 overflow-y-auto px-4 pt-3 pb-6">
           {loading ? (
@@ -423,7 +435,7 @@ export default function Discover() {
                       {/* 元のコンテンツ（右） */}
                       <div className="flex-1 min-w-0 flex flex-col gap-2 pb-3">
                         {/* バッジ行 */}
-                        {(event.workName || event.category) && (
+                        {(event.workName || event.category || event.prefecture) && (
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {event.workName && (
                               <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
@@ -436,6 +448,11 @@ export default function Discover() {
                                 {event.category}
                               </span>
                             )}
+                            {event.prefecture && (
+                              <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">
+                                📍 {event.prefecture}
+                              </span>
+                            )}
                           </div>
                         )}
                         {/* タイトル */}
@@ -444,11 +461,6 @@ export default function Discover() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-label-secondary text-sm">{formatDateRange(event.date, event.endDate)}</span>
                           {timeLabel && <span className="text-label-secondary text-sm">{timeLabel}</span>}
-                          {event.prefecture && (
-                            <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">
-                              {event.prefecture}
-                            </span>
-                          )}
                         </div>
                         {/* メモ */}
                         {event.memo && <p className="text-label-secondary text-sm leading-relaxed">{event.memo}</p>}

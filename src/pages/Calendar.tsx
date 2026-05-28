@@ -29,7 +29,7 @@ import {
   loadCalendarEventIds, saveCalendarEventIds, removeCalendarEventId,
   parseLinks, serializeLinks, getCategoryColor,
   loadImportantEventIds, saveImportantEventIds, toggleImportantEventId,
-  type FilterMode, saveRegionFilter,
+  type FilterMode, saveRegionFilter, loadRegionFilter,
 } from '../lib/constants';
 
 // ─── 定数 ──────────────────────────────────────────────────────────
@@ -221,18 +221,15 @@ function InlineCardItem({
               <button
                 type="button"
                 onClick={e => { e.stopPropagation(); onChange({ important: !card.important }); }}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-medium transition-colors active:opacity-70"
+                className="w-8 h-8 flex items-center justify-center rounded-full border transition-colors active:opacity-70"
                 style={card.important ? {
                   borderColor: '#f59e0b',
-                  color: '#f59e0b',
                   backgroundColor: 'rgba(245,158,11,0.12)',
                 } : {
                   borderColor: 'var(--border-default)',
-                  color: 'var(--label-secondary)',
                 }}
               >
-                <Star size={11} style={{ fill: card.important ? '#f59e0b' : 'none' }} />
-                重要
+                <Star size={16} style={{ fill: card.important ? '#f59e0b' : 'none', color: card.important ? '#f59e0b' : 'var(--label-secondary)' }} />
               </button>
             </div>
             {participatedWorks && participatedWorks.length > 0 && (
@@ -524,9 +521,9 @@ export default function Calendar() {
   const swipeStartX = useRef<number | null>(null);
   const swipeStartY = useRef<number | null>(null);
 
-  const [filterMode, setFilterMode] = useState<FilterMode>('none');
-  const [filterValue, setFilterValue] = useState<string | null>(null);
-  const [includeAdjacent, setIncludeAdjacent] = useState(false);
+  const [filterMode, setFilterMode] = useState<FilterMode>(() => loadRegionFilter().filterMode);
+  const [filterValue, setFilterValue] = useState<string | null>(() => loadRegionFilter().filterValue);
+  const [includeAdjacent, setIncludeAdjacent] = useState(() => loadRegionFilter().includeAdjacent);
   const [showRegionPanel, setShowRegionPanel] = useState(false);
 
   const [homePref, setHomePref] = useState<string | null>(null);
@@ -606,7 +603,10 @@ export default function Calendar() {
       .then(([pref, name]) => {
         setHomePref(pref);
         setDisplayName(name);
-        if (pref) { setFilterMode('pref'); setFilterValue(pref); }
+        // 既にlocalStorageにフィルターが設定済みの場合は上書きしない
+        if (pref && loadRegionFilter().filterMode === 'none') {
+          setFilterMode('pref'); setFilterValue(pref);
+        }
       });
   }, [user?.id]);
 
@@ -1419,6 +1419,14 @@ export default function Calendar() {
           /* ─── カレンダービュー ─── */
           <div className="flex-1 flex flex-col overflow-hidden"
             onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}>
+            {/* 地域フィルターインジケーター */}
+            {filterActive && (
+              <div className="flex-shrink-0 flex items-center gap-2 px-4 py-1.5 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
+                <span className="text-[11px] text-label-tertiary">絞り込み：</span>
+                <span className="text-[11px] px-2 py-0.5 rounded-full border" style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-color)' }}>{filterLabel}</span>
+                <button onClick={() => { setFilterMode('none'); setFilterValue(null); setIncludeAdjacent(false); }} className="text-[11px] text-label-tertiary underline active:opacity-60">解除</button>
+              </div>
+            )}
             {/* カレンダーグリッドエリア */}
             <div className="flex-1 overflow-hidden flex flex-col px-3 pt-1" style={{ fontFamily: calFontFamily }}>
               {/* 曜日ラベル */}
@@ -2088,7 +2096,7 @@ export default function Calendar() {
                           </div>
                           <div className="w-px h-8 bg-white/10 flex-shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
+                            <p className="text-label-primary text-sm font-medium leading-snug">{event.title}</p>
                             {event.prefecture && (
                               <div className="flex items-center mt-1">
                                 <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>
@@ -2179,9 +2187,9 @@ export default function Calendar() {
                           </div>
                           <div className="w-px h-8 bg-white/10 flex-shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1">
-                              {importantEventIds.has(item.id) && <span className="text-[11px] leading-none flex-shrink-0" style={{ color: '#f59e0b' }}>★</span>}
-                              <p className="text-label-primary text-sm font-medium truncate">{item.title}</p>
+                            <div className="flex items-start gap-1">
+                              {importantEventIds.has(item.id) && <span className="text-[11px] leading-none flex-shrink-0 mt-[2px]" style={{ color: '#f59e0b' }}>★</span>}
+                              <p className="text-label-primary text-sm font-medium leading-snug">{item.title}</p>
                             </div>
                             {/* バッジ行: タグ・カテゴリ・都道府県 */}
                             {(item.tag || item.category || item.prefecture) && (
