@@ -2292,7 +2292,7 @@ export default function Calendar() {
               filteredEvents.length === 0 ? (
                 <p className="text-center text-label-tertiary text-sm py-10">{filterActive ? 'この地域の予定はありません' : 'この月の予定はまだありません'}</p>
               ) : (
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-3">
                   {filteredEvents.map(event => {
                     const [, em, ed] = event.date.split('-').map(Number);
                     const catColor = getCategoryColor(event.category);
@@ -2305,7 +2305,7 @@ export default function Calendar() {
                         onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
                       >
                         {/* 上段: 日付＋タイトル＋🔔⭐ */}
-                        <div className="flex items-start gap-1 px-3 pt-3 pb-1">
+                        <div className="flex items-start gap-1 px-4 pt-4 pb-3">
                           <button onClick={() => setListDetailEvent(event)}
                             className="flex-1 flex items-center gap-3 min-w-0 text-left active:opacity-70 transition-opacity">
                             <div className="flex-shrink-0 w-10 flex flex-col items-center">
@@ -2315,14 +2315,14 @@ export default function Calendar() {
                             <div className="w-px h-8 bg-white/10 flex-shrink-0" />
                             <div className="flex-1 min-w-0">
                               <p className="text-label-primary text-sm font-medium leading-snug truncate">{event.title}</p>
-                              {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5 mt-1 inline-block">{event.prefecture}</span>}
+                              {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5 mt-2 inline-block">{event.prefecture}</span>}
                               {(() => {
                                 const links = parseLinks(event.link);
                                 const hasLink = links.length > 0;
                                 const hasAuthor = !!event.authorName;
                                 if (!hasAuthor && !hasLink) return null;
                                 return (
-                                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                  <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                                     {hasAuthor && (
                                       <button onClick={e => { e.stopPropagation(); if (event.authorId) setViewingUserId(event.authorId); }} className="text-[10px] text-label-tertiary active:opacity-60" style={{ textDecoration: event.authorId ? 'underline' : 'none', textUnderlineOffset: 2 }}>
                                         by {event.authorName}
@@ -2349,7 +2349,7 @@ export default function Calendar() {
                           </button>
                         </div>
                         {/* 下段: アクションボタン */}
-                        <div className="flex items-center px-3 pb-2 gap-1 justify-end">
+                        <div className="flex items-center px-4 pt-1 pb-3 gap-1 justify-end border-t" style={{ borderColor: 'var(--border-faint)' }}>
                           <button onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); triggerLike(e.currentTarget); }} disabled={!user || lockedLikeIds.has(event.id)}
                             className="flex items-center gap-0.5 px-2 h-7 text-xs disabled:opacity-30"
                             style={{ color: event.likedByMe ? 'rgb(248,113,113)' : 'var(--label-tertiary)' }}>
@@ -2378,7 +2378,7 @@ export default function Calendar() {
                     : '発見タブで❤️した予定がここに表示されます'}
                 </p>
               ) : (
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-3">
                   {myCalendarListItems.map(item => {
                     const [, im, id] = item.date.split('-').map(Number);
                     const catColor = getCategoryColor(item.category);
@@ -2391,7 +2391,7 @@ export default function Calendar() {
                         onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
                       >
                         {/* 上段: 日付＋タイトル＋🔔⭐ */}
-                        <div className="flex items-start gap-1 px-3 pt-3 pb-1">
+                        <div className="flex items-start gap-1 px-4 pt-4 pb-3">
                           <button
                             onClick={() => {
                               if (!item.isPersonal && item.workId) {
@@ -2409,7 +2409,7 @@ export default function Calendar() {
                             <div className="flex-1 min-w-0">
                               <p className="text-label-primary text-sm font-medium leading-snug truncate">{item.title}</p>
                               {(item.tag || item.category || item.prefecture) && (
-                                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                                   {item.tag && !item.isPersonal && (
                                     <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
                                       style={{ color: item.workId ? (workColorMap.get(item.workId) ?? 'var(--label-tertiary)') : 'var(--label-tertiary)', backgroundColor: `${item.workId ? (workColorMap.get(item.workId) ?? '#888888') : '#888888'}20` }}>
@@ -2422,7 +2422,7 @@ export default function Calendar() {
                                 </div>
                               )}
                               {(formatDateRange(item.date, item.endDate) || formatTimeRange(item.time, item.endTime)) && (
-                                <div className="flex items-center gap-2 mt-0.5">
+                                <div className="flex items-center gap-2 mt-1.5">
                                   {formatDateRange(item.date, item.endDate) && <span className="text-label-tertiary text-xs">{formatDateRange(item.date, item.endDate)}</span>}
                                   {formatTimeRange(item.time, item.endTime) && <span className="text-label-tertiary text-xs">{formatTimeRange(item.time, item.endTime)}</span>}
                                 </div>
@@ -2433,7 +2433,7 @@ export default function Calendar() {
                                 const hasAuthor = !!item.authorName;
                                 if (!hasAuthor && !hasLink) return null;
                                 return (
-                                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                  <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                                     {hasAuthor && (
                                       <button onClick={e => { e.stopPropagation(); if (item.authorId) setViewingUserId(item.authorId); }} className="text-[10px] text-label-tertiary active:opacity-60" style={{ textDecoration: item.authorId ? 'underline' : 'none', textUnderlineOffset: 2 }}>
                                         by {item.authorName}
@@ -2450,7 +2450,7 @@ export default function Calendar() {
                                   </div>
                                 );
                               })()}
-                              {item.memo && <p className="text-label-secondary text-xs mt-0.5 truncate">{item.memo}</p>}
+                              {item.memo && <p className="text-label-secondary text-xs mt-1.5 truncate">{item.memo}</p>}
                             </div>
                           </button>
                           <button onClick={e => { e.stopPropagation(); toggleBell(item.id); }} className="w-7 h-7 flex items-center justify-center flex-shrink-0 active:opacity-60">
@@ -2461,7 +2461,7 @@ export default function Calendar() {
                           </button>
                         </div>
                         {/* 下段: アクションボタン */}
-                        <div className="flex items-center px-3 pb-2 gap-1 justify-end">
+                        <div className="flex items-center px-4 pt-1 pb-3 gap-1 justify-end border-t" style={{ borderColor: 'var(--border-faint)' }}>
                           {!item.isPersonal && (
                             <button onClick={e => { e.stopPropagation(); handleSheetEventLike(item.id); triggerLike(e.currentTarget); }} disabled={!user || lockedLikeIds.has(item.id)}
                               className="flex items-center gap-0.5 px-2 h-7 text-xs disabled:opacity-30"
