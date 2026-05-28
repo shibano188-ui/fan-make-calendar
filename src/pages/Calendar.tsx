@@ -1935,23 +1935,8 @@ export default function Calendar() {
                                     : <Smile size={14} />
                                   }
                                 </button>
-                                {parseLinks(event.link).length === 1 ? (
-                                  <a href={parseLinks(event.link)[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                                    className="px-1 h-7 flex items-center active:opacity-60 text-label-tertiary">
-                                    <ExternalLink size={12} />
-                                  </a>
-                                ) : parseLinks(event.link).length > 1 ? (
-                                  <button onClick={e => { e.stopPropagation(); setLinkPickerLinks(parseLinks(event.link)); }}
-                                    className="px-1 h-7 flex items-center active:opacity-60 text-label-tertiary">
-                                    <ExternalLink size={12} />
-                                  </button>
-                                ) : null}
                                 {event.authorId && user && event.authorId === user.id && (
-                                  <button
-                                    onClick={e => { e.stopPropagation(); openEditEvent(event); }}
-                                    className="px-1 h-7 flex items-center active:opacity-60"
-                                    style={{ color: 'var(--accent-color)' }}
-                                  >
+                                  <button onClick={e => { e.stopPropagation(); openEditEvent(event); }} className="px-1 h-7 flex items-center active:opacity-60" style={{ color: 'var(--accent-color)' }}>
                                     <Pencil size={13} />
                                   </button>
                                 )}
@@ -1959,18 +1944,31 @@ export default function Calendar() {
                                   <X size={14} />
                                 </button>
                               </div>
-                              {/* 3行目: 日付範囲・時間（どちらかあれば表示） */}
+                              {/* 3行目: 日付範囲・時間 */}
                               {(dateLabel || timeLabel) && (
                                 <div className="flex items-center gap-2 px-3 pb-2 -mt-1">
                                   {dateLabel && <span className="text-label-tertiary text-xs">{dateLabel}</span>}
                                   {timeLabel && <span className="text-label-tertiary text-xs">{timeLabel}</span>}
                                 </div>
                               )}
-                              {event.authorName && (
-                                <div className="px-3 pb-2 -mt-1">
-                                  <span className="text-[10px] text-label-tertiary">by {event.authorName}</span>
-                                </div>
-                              )}
+                              {/* 4行目: by author + リンクピル */}
+                              {(() => {
+                                const links = parseLinks(event.link);
+                                if (!event.authorName && links.length === 0) return null;
+                                return (
+                                  <div className="flex items-center gap-1.5 px-3 pb-2 -mt-1 flex-wrap">
+                                    {event.authorName && <span className="text-[10px] text-label-tertiary">by {event.authorName}</span>}
+                                    {links.length > 0 && (
+                                      <a href={links[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                                        className="flex items-center gap-0.5 px-2 py-0.5 rounded-full border text-[10px] text-label-secondary active:opacity-60"
+                                        style={{ borderColor: 'var(--border-default)' }}>
+                                        <ExternalLink size={9} />{getDomain(links[0])}
+                                      </a>
+                                    )}
+                                    {links.length > 1 && <span className="text-[10px] text-label-tertiary">+{links.length - 1}</span>}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           );
                         })}
@@ -2034,23 +2032,8 @@ export default function Calendar() {
                                     : <Smile size={14} />
                                   }
                                 </button>
-                                {parseLinks(event.link).length === 1 ? (
-                                  <a href={parseLinks(event.link)[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                                    className="px-1 h-7 flex items-center active:opacity-60 text-label-tertiary">
-                                    <ExternalLink size={12} />
-                                  </a>
-                                ) : parseLinks(event.link).length > 1 ? (
-                                  <button onClick={e => { e.stopPropagation(); setLinkPickerLinks(parseLinks(event.link)); }}
-                                    className="px-1 h-7 flex items-center active:opacity-60 text-label-tertiary">
-                                    <ExternalLink size={12} />
-                                  </button>
-                                ) : null}
                                 {event.authorId && user && event.authorId === user.id && (
-                                  <button
-                                    onClick={e => { e.stopPropagation(); openEditEvent(event); }}
-                                    className="px-1 h-7 flex items-center active:opacity-60"
-                                    style={{ color: 'var(--accent-color)' }}
-                                  >
+                                  <button onClick={e => { e.stopPropagation(); openEditEvent(event); }} className="px-1 h-7 flex items-center active:opacity-60" style={{ color: 'var(--accent-color)' }}>
                                     <Pencil size={13} />
                                   </button>
                                 )}
@@ -2058,18 +2041,29 @@ export default function Calendar() {
                                   <X size={14} />
                                 </button>
                               </div>
-                              {/* 3行目: 日付範囲・時間（どちらかあれば表示） */}
                               {(dateLabel || timeLabel) && (
                                 <div className="flex items-center gap-2 px-3 pb-2 -mt-1">
                                   {dateLabel && <span className="text-label-tertiary text-xs">{dateLabel}</span>}
                                   {timeLabel && <span className="text-label-tertiary text-xs">{timeLabel}</span>}
                                 </div>
                               )}
-                              {event.authorName && (
-                                <div className="px-3 pb-2 -mt-1">
-                                  <span className="text-[10px] text-label-tertiary">by {event.authorName}</span>
-                                </div>
-                              )}
+                              {(() => {
+                                const links = parseLinks(event.link);
+                                if (!event.authorName && links.length === 0) return null;
+                                return (
+                                  <div className="flex items-center gap-1.5 px-3 pb-2 -mt-1 flex-wrap">
+                                    {event.authorName && <span className="text-[10px] text-label-tertiary">by {event.authorName}</span>}
+                                    {links.length > 0 && (
+                                      <a href={links[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                                        className="flex items-center gap-0.5 px-2 py-0.5 rounded-full border text-[10px] text-label-secondary active:opacity-60"
+                                        style={{ borderColor: 'var(--border-default)' }}>
+                                        <ExternalLink size={9} />{getDomain(links[0])}
+                                      </a>
+                                    )}
+                                    {links.length > 1 && <span className="text-[10px] text-label-tertiary">+{links.length - 1}</span>}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           );
                         })}
@@ -2112,6 +2106,20 @@ export default function Calendar() {
                                   {timeLabel && <span className="text-label-tertiary text-xs">{timeLabel}</span>}
                                 </div>
                               )}
+                              {(() => {
+                                const links = parseLinks(pe.link);
+                                if (links.length === 0) return null;
+                                return (
+                                  <div className="flex items-center gap-1.5 px-3 pb-2 -mt-1 flex-wrap">
+                                    <a href={links[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                                      className="flex items-center gap-0.5 px-2 py-0.5 rounded-full border text-[10px] text-label-secondary active:opacity-60"
+                                      style={{ borderColor: 'var(--border-default)' }}>
+                                      <ExternalLink size={9} />{getDomain(links[0])}
+                                    </a>
+                                    {links.length > 1 && <span className="text-[10px] text-label-tertiary">+{links.length - 1}</span>}
+                                  </div>
+                                );
+                              })()}
                               {pe.memo && <p className="text-label-secondary text-xs px-3 pb-2 truncate">{pe.memo}</p>}
                             </div>
                           );
