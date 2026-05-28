@@ -314,6 +314,24 @@ export async function saveHomePrefecture(userId: string, prefecture: string | nu
     );
 }
 
+export async function getAvatarEmoji(userId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from('user_settings')
+    .select('avatar_emoji')
+    .eq('user_id', userId)
+    .maybeSingle();
+  return (data?.avatar_emoji as string | null) ?? null;
+}
+
+export async function saveAvatarEmoji(userId: string, emoji: string | null): Promise<void> {
+  await supabase
+    .from('user_settings')
+    .upsert(
+      { user_id: userId, avatar_emoji: emoji, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' },
+    );
+}
+
 export async function getXUrl(userId: string): Promise<string | null> {
   const { data } = await supabase
     .from('user_settings')
@@ -335,17 +353,19 @@ export async function saveXUrl(userId: string, xUrl: string | null): Promise<voi
 export async function getUserPublicProfile(userId: string): Promise<{
   displayName: string | null;
   xUrl: string | null;
+  avatarEmoji: string | null;
   postedCount: number;
   receivedLikes: number;
 }> {
   const [settingsRes, posted, likes] = await Promise.all([
-    supabase.from('user_settings').select('display_name, x_url').eq('user_id', userId).maybeSingle(),
+    supabase.from('user_settings').select('display_name, x_url, avatar_emoji').eq('user_id', userId).maybeSingle(),
     countUserPostedEvents(userId),
     getTotalReceivedLikes(userId),
   ]);
   return {
     displayName: (settingsRes.data?.display_name as string | null) ?? null,
     xUrl: (settingsRes.data?.x_url as string | null) ?? null,
+    avatarEmoji: (settingsRes.data?.avatar_emoji as string | null) ?? null,
     postedCount: posted,
     receivedLikes: likes,
   };

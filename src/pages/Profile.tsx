@@ -9,8 +9,15 @@ import {
   getHomePrefecture, saveHomePrefecture,
   getDisplayName, saveDisplayName,
   getXUrl, saveXUrl,
+  getAvatarEmoji, saveAvatarEmoji,
   listRecentWorks, countUserPostedEvents, getTotalReceivedLikes,
 } from '../lib/api';
+
+const ANIMAL_AVATARS = [
+  '🦊','🐱','🐼','🐻','🐰','🐨','🐯','🐶',
+  '🦁','🐮','🐷','🐸','🦋','🐝','🐬','🐧',
+  '🦄','🐙','🦜','🦅','🦖','🐳','🦓','🐢',
+];
 import { ExternalLink } from 'lucide-react';
 import { loadCalendarEventIds, loadTotalLikesGiven } from '../lib/constants';
 import { PrefectureSearch } from '../components/UserSettingsSheet';
@@ -96,10 +103,12 @@ export default function Profile() {
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [homePref, setHomePref] = useState<string | null>(null);
   const [xUrl, setXUrl] = useState<string | null>(null);
+  const [avatarEmoji, setAvatarEmoji] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editPref, setEditPref] = useState<string | null>(null);
   const [editXUrl, setEditXUrl] = useState('');
+  const [editAvatarEmoji, setEditAvatarEmoji] = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
 
   // 統計
@@ -115,13 +124,15 @@ export default function Profile() {
       getDisplayName(user.id),
       getHomePrefecture(user.id),
       getXUrl(user.id),
+      getAvatarEmoji(user.id),
       countUserPostedEvents(user.id),
       getTotalReceivedLikes(user.id),
       listRecentWorks(user.id),
-    ]).then(([name, pref, x, posted, likes, works]) => {
+    ]).then(([name, pref, x, emoji, posted, likes, works]) => {
       setDisplayName(name);
       setHomePref(pref);
       setXUrl(x);
+      setAvatarEmoji(emoji);
       setPostedCount(posted);
       setReceivedLikes(likes);
       setWorksCount(works.length);
@@ -134,6 +145,7 @@ export default function Profile() {
     setEditName(displayName ?? '');
     setEditPref(homePref);
     setEditXUrl(xUrl ?? '');
+    setEditAvatarEmoji(avatarEmoji);
     setEditing(true);
   };
 
@@ -147,10 +159,12 @@ export default function Profile() {
         saveDisplayName(user.id, editName.trim()),
         saveHomePrefecture(user.id, editPref),
         saveXUrl(user.id, editXUrl.trim() || null),
+        saveAvatarEmoji(user.id, editAvatarEmoji),
       ]);
       setDisplayName(editName.trim() || null);
       setHomePref(editPref);
       setXUrl(editXUrl.trim() || null);
+      setAvatarEmoji(editAvatarEmoji);
       setEditing(false);
     } catch { /* ignore */ }
     finally { setSavingProfile(false); }
@@ -221,12 +235,25 @@ export default function Profile() {
             <div className="rounded-xl overflow-hidden shadow-card" style={{ backgroundColor: 'var(--bg-secondary)' }}>
               {/* アバター＋名前エリア */}
               <div className="flex items-center gap-4 px-5 pt-5 pb-4">
-                <div
-                  className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0 text-xl font-bold"
-                  style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' }}
+                <button
+                  onClick={editing ? undefined : startEdit}
+                  className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0 relative"
+                  style={{ backgroundColor: 'var(--accent-color)' }}
                 >
-                  {initials}
-                </div>
+                  {avatarEmoji && !editing ? (
+                    <span className="text-3xl leading-none">{avatarEmoji}</span>
+                  ) : editing && editAvatarEmoji ? (
+                    <span className="text-3xl leading-none">{editAvatarEmoji}</span>
+                  ) : (
+                    <span className="text-xl font-bold" style={{ color: 'var(--bg-primary)' }}>{initials}</span>
+                  )}
+                  {!editing && (
+                    <span className="absolute bottom-0 right-0 w-5 h-5 rounded-full flex items-center justify-center"
+                      style={{ backgroundColor: 'var(--bg-primary)' }}>
+                      <Pencil size={10} style={{ color: 'var(--label-secondary)' }} />
+                    </span>
+                  )}
+                </button>
                 {editing ? (
                   <div className="flex-1 min-w-0 flex flex-col gap-2">
                     <input
@@ -267,6 +294,38 @@ export default function Profile() {
                     placeholder="https://x.com/username"
                     className="w-full bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong"
                   />
+                </div>
+              )}
+
+              {/* アバター選択（編集中） */}
+              {editing && (
+                <div className="px-5 pb-4 border-t" style={{ borderColor: 'var(--border-faint)' }}>
+                  <p className="text-label-tertiary text-xs pt-3 mb-2">アバター</p>
+                  <div className="grid grid-cols-8 gap-1.5">
+                    {ANIMAL_AVATARS.map(emoji => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => setEditAvatarEmoji(editAvatarEmoji === emoji ? null : emoji)}
+                        className="w-full aspect-square rounded-xl flex items-center justify-center text-xl active:opacity-70 transition-all"
+                        style={{
+                          backgroundColor: editAvatarEmoji === emoji
+                            ? 'color-mix(in srgb, var(--accent-color) 20%, transparent)'
+                            : 'var(--bg-primary)',
+                          border: editAvatarEmoji === emoji
+                            ? '2px solid var(--accent-color)'
+                            : '2px solid transparent',
+                        }}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                  {editAvatarEmoji && (
+                    <button onClick={() => setEditAvatarEmoji(null)} className="text-[11px] text-label-tertiary mt-2 active:opacity-60 underline">
+                      選択を解除（イニシャル表示に戻す）
+                    </button>
+                  )}
                 </div>
               )}
 

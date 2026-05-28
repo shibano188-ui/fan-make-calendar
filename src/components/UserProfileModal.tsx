@@ -5,6 +5,7 @@ import { getUserPublicProfile } from '../lib/api';
 interface Profile {
   displayName: string | null;
   xUrl: string | null;
+  avatarEmoji: string | null;
   postedCount: number;
   receivedLikes: number;
 }
@@ -59,10 +60,14 @@ export default function UserProfileModal({
             {/* アバター＋名前 */}
             <div className="flex flex-col items-center gap-3 mb-5">
               <div
-                className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold"
-                style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' }}
+                className="w-16 h-16 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: 'var(--accent-color)' }}
               >
-                {initials}
+                {profile?.avatarEmoji ? (
+                  <span className="text-3xl leading-none">{profile.avatarEmoji}</span>
+                ) : (
+                  <span className="text-xl font-bold" style={{ color: 'var(--bg-primary)' }}>{initials}</span>
+                )}
               </div>
               <p className="text-label-primary font-semibold text-lg leading-tight">{name}</p>
               {profile?.xUrl && (
