@@ -1219,6 +1219,85 @@ export default function Calendar() {
     return map;
   }, [workId, visibleEvents, monthPersonalEvents, workColorMap, importantEventIds]);
 
+  // 複数日イベント用オーバーレイセグメント（週行をまたいでバーをつなげるための絶対配置データ）
+  type MultiDayOverlaySegment = {
+    key: string;
+    eventId: string;
+    weekRow: number;    // 0〜5
+    startCol: number;   // 0〜6
+    endCol: number;     // 0〜6
+    color: string;
+    dotColor: string;
+    title: string;
+    important: boolean;
+    isFirstSegment: boolean;  // イベント全体の先頭セグメント（ドット＋タイトル表示）
+    isLastSegment: boolean;   // イベント全体の末尾セグメント（右角丸）
+    slotIndex: number;        // 同一週行内での縦スタック順
+  };
+  const multiDayOverlaySegments = useMemo((): MultiDayOverlaySegment[] => {
+    type RawEvt = { eventId: string; startDate: string; endDate: string; title: string; color: string; dotColor: string; important: boolean };
+    const rawEvts: RawEvt[] = [];
+    for (const e of visibleEvents) {
+      if (e.endDate && e.endDate > e.date) {
+        const workColor = e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
+        rawEvts.push({ eventId: e.id, startDate: e.date, endDate: e.endDate, title: e.title, color: workColor, dotColor: getCategoryColor(e.category) ?? workColor, important: importantEventIds.has(e.id) });
+      }
+    }
+    if (!workId) {
+      for (const pe of monthPersonalEvents) {
+        if (pe.endDate && pe.endDate > pe.date) {
+          rawEvts.push({ eventId: pe.id, startDate: pe.date, endDate: pe.endDate, title: pe.title, color: '#888888', dotColor: getCategoryColor(pe.category) ?? '#888888', important: importantEventIds.has(pe.id) });
+        }
+      }
+    }
+
+    type TempSeg = RawEvt & { weekRow: number; startCol: number; endCol: number; isFirstSegment: boolean; isLastSegment: boolean };
+    const tempSegs: TempSeg[] = [];
+    const rowEventOrder = new Map<number, string[]>(); // weekRow → eventId[]（出現順）
+
+    for (const evt of rawEvts) {
+      const segs: { weekRow: number; startCol: number; endCol: number }[] = [];
+      let curRow: number | null = null;
+      let segStartCol = 0;
+      let segEndCol = 0;
+
+      for (let idx = 0; idx < calendarDays.length; idx++) {
+        const { date, isCurrentMonth } = calendarDays[idx];
+        const dateStr = toDateStr(date);
+        const weekRow = Math.floor(idx / 7);
+        const col = idx % 7;
+        const inEvent = isCurrentMonth && dateStr >= evt.startDate && dateStr <= evt.endDate;
+
+        if (inEvent) {
+          if (curRow === null) { curRow = weekRow; segStartCol = col; segEndCol = col; }
+          else if (weekRow !== curRow) {
+            segs.push({ weekRow: curRow, startCol: segStartCol, endCol: segEndCol });
+            curRow = weekRow; segStartCol = col; segEndCol = col;
+          } else { segEndCol = col; }
+        }
+      }
+      if (curRow !== null) segs.push({ weekRow: curRow, startCol: segStartCol, endCol: segEndCol });
+
+      for (const seg of segs) {
+        const order = rowEventOrder.get(seg.weekRow) ?? [];
+        if (!order.includes(evt.eventId)) order.push(evt.eventId);
+        rowEventOrder.set(seg.weekRow, order);
+      }
+      segs.forEach((seg, i) => {
+        tempSegs.push({ ...evt, weekRow: seg.weekRow, startCol: seg.startCol, endCol: seg.endCol, isFirstSegment: i === 0, isLastSegment: i === segs.length - 1 });
+      });
+    }
+
+    return tempSegs.map(seg => ({
+      key: `${seg.eventId}-${seg.weekRow}`,
+      eventId: seg.eventId,
+      weekRow: seg.weekRow, startCol: seg.startCol, endCol: seg.endCol,
+      color: seg.color, dotColor: seg.dotColor, title: seg.title, important: seg.important,
+      isFirstSegment: seg.isFirstSegment, isLastSegment: seg.isLastSegment,
+      slotIndex: rowEventOrder.get(seg.weekRow)?.indexOf(seg.eventId) ?? 0,
+    }));
+  }, [workId, visibleEvents, monthPersonalEvents, workColorMap, importantEventIds, calendarDays]);
+
   // ボトムシート用: 選択日の作品イベント（複数日イベント対応）
   const sheetWorkEvents = useMemo(
     () => visibleEvents
@@ -1449,123 +1528,115 @@ export default function Calendar() {
                 ))}
               </div>
 
-              {/* 日付グリッド */}
-              <div
-                className="grid grid-cols-7 flex-1 overflow-hidden"
-                style={{
-                  gridTemplateRows: 'repeat(6, 1fr)',
-                  borderTop: '1px solid var(--cal-grid-color)',
-                  borderLeft: '1px solid var(--cal-grid-color)',
-                }}
-              >
-                {calendarDays.map(({ date, isCurrentMonth }, idx) => {
-                  const dateStr = toDateStr(date);
-                  const isToday = dateStr === todayStr;
-                  const isSelected = dateStr === selectedDate && isCurrentMonth && sheetOpen;
-                  const col = idx % 7;
-                  const cellItems = isCurrentMonth ? (cellEventsByDate.get(dateStr) ?? []) : [];
-                  return (
-                    <button
-                      key={dateStr + idx}
-                      onClick={() => handleDayClick(dateStr, isCurrentMonth)}
-                      className="flex flex-col items-center justify-start pt-0.5 active:opacity-50 transition-opacity"
+              {/* 日付グリッド（複数日バーはオーバーレイで描画） */}
+              <div className="relative flex-1 overflow-hidden">
+                {/* 複数日イベントオーバーレイ: グリッドより先に描画してz-orderを下にする。
+                    セルが透明なのでバーが透けて見え、日付数字・単日タイルはセル側でその上に重なる。 */}
+                <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                  {multiDayOverlaySegments.map(seg => (
+                    <div
+                      key={seg.key}
+                      className="absolute flex items-center overflow-hidden"
                       style={{
-                        cursor: isCurrentMonth ? 'pointer' : 'default',
-                        borderRight: '1px solid var(--cal-grid-color)',
-                        borderBottom: '1px solid var(--cal-grid-color)',
+                        top: `calc(${seg.weekRow} / 6 * 100% + 31px + ${seg.slotIndex} * 11px)`,
+                        left: `calc(${seg.startCol} / 7 * 100%)`,
+                        width: `calc(${seg.endCol - seg.startCol + 1} / 7 * 100%)`,
+                        height: '10px',
+                        background: seg.color.startsWith('#') ? seg.color + '28' : 'rgba(128,128,128,0.18)',
+                        borderTopLeftRadius:    seg.isFirstSegment ? '3px' : '0',
+                        borderBottomLeftRadius: seg.isFirstSegment ? '3px' : '0',
+                        borderTopRightRadius:    seg.isLastSegment  ? '3px' : '0',
+                        borderBottomRightRadius: seg.isLastSegment  ? '3px' : '0',
                       }}
                     >
-                      <div
-                        className="w-7 h-7 flex items-center justify-center rounded-full text-[13px] select-none transition-all flex-shrink-0"
+                      {seg.isFirstSegment && (
+                        seg.important ? (
+                          <span className="text-[8px] leading-none flex-shrink-0 ml-[2px]" style={{ color: '#f59e0b' }}>★</span>
+                        ) : (
+                          <div className="w-[4px] h-[4px] rounded-full flex-shrink-0 ml-[2px]" style={{ backgroundColor: seg.dotColor.startsWith('#') ? seg.dotColor : '#888' }} />
+                        )
+                      )}
+                      {seg.isFirstSegment && (
+                        <span className="text-[8px] leading-none truncate ml-[2px]" style={{ color: seg.color }}>
+                          {seg.title}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* グリッドセル（セル自体は透明なのでオーバーレイバーが透けて見える） */}
+                <div
+                  className="grid grid-cols-7 h-full"
+                  style={{
+                    gridTemplateRows: 'repeat(6, 1fr)',
+                    borderTop: '1px solid var(--cal-grid-color)',
+                    borderLeft: '1px solid var(--cal-grid-color)',
+                  }}
+                >
+                  {calendarDays.map(({ date, isCurrentMonth }, idx) => {
+                    const dateStr = toDateStr(date);
+                    const isToday = dateStr === todayStr;
+                    const isSelected = dateStr === selectedDate && isCurrentMonth && sheetOpen;
+                    const col = idx % 7;
+                    const cellItems = isCurrentMonth ? (cellEventsByDate.get(dateStr) ?? []) : [];
+                    return (
+                      <button
+                        key={dateStr + idx}
+                        onClick={() => handleDayClick(dateStr, isCurrentMonth)}
+                        className="flex flex-col items-center justify-start pt-0.5 active:opacity-50 transition-opacity"
                         style={{
-                          background: isSelected ? 'var(--accent-color)' : isToday ? 'var(--label-primary)' : undefined,
-                          color: isSelected || isToday ? 'var(--bg-primary)' : !isCurrentMonth ? 'var(--cal-other-month-color)' : col === 0 ? 'var(--cal-sunday-color)' : col === 6 ? 'var(--cal-saturday-color)' : 'var(--cal-weekday-color)',
-                          fontWeight: isToday || isSelected ? 700 : undefined,
+                          cursor: isCurrentMonth ? 'pointer' : 'default',
+                          borderRight: '1px solid var(--cal-grid-color)',
+                          borderBottom: '1px solid var(--cal-grid-color)',
                         }}
                       >
-                        {date.getDate()}
-                      </div>
-                      {cellItems.length > 0 ? (
-                        <div className="w-full px-[2px] flex flex-col gap-[1px] mt-[1px]">
-                          {cellItems.slice(0, 3).map((item, ti) => {
-                            const pos = item.position;
-                            if (pos) {
-                              // 複数日イベント: カラーバー（固定高さ＋週境界対応）
-                              const isStart = pos === 'start';
-                              const isEnd = pos === 'end';
-                              // 週の折り返し点でも見た目の端（角丸）を付ける
-                              const visualStart = isStart || col === 0;
-                              const visualEnd   = isEnd   || col === 6;
-                              return (
-                                <div
-                                  key={`${item.eventId}-${ti}`}
-                                  className="flex items-center gap-[2px] px-[2px] overflow-hidden"
-                                  style={{
-                                    background: item.color.startsWith('#') ? item.color + '28' : 'rgba(128,128,128,0.18)',
-                                    height: '10px',
-                                    borderTopLeftRadius:    visualStart ? '2px' : '0',
-                                    borderBottomLeftRadius: visualStart ? '2px' : '0',
-                                    borderTopRightRadius:    visualEnd ? '2px' : '0',
-                                    borderBottomRightRadius: visualEnd ? '2px' : '0',
-                                  }}
-                                >
-                                  {isStart && (
-                                    item.important ? (
-                                      <span className="text-[8px] leading-none flex-shrink-0" style={{ color: '#f59e0b' }}>★</span>
-                                    ) : (
-                                      <div
-                                        className="w-[4px] h-[4px] rounded-full flex-shrink-0"
-                                        style={{ backgroundColor: item.dotColor.startsWith('#') ? item.dotColor : '#888' }}
-                                      />
-                                    )
-                                  )}
-                                  {isStart && (
-                                    <span className="text-[8px] leading-none truncate" style={{ color: item.color }}>
-                                      {item.title}
-                                    </span>
-                                  )}
-                                </div>
-                              );
-                            } else {
+                        <div
+                          className="w-7 h-7 flex items-center justify-center rounded-full text-[13px] select-none transition-all flex-shrink-0"
+                          style={{
+                            background: isSelected ? 'var(--accent-color)' : isToday ? 'var(--label-primary)' : undefined,
+                            color: isSelected || isToday ? 'var(--bg-primary)' : !isCurrentMonth ? 'var(--cal-other-month-color)' : col === 0 ? 'var(--cal-sunday-color)' : col === 6 ? 'var(--cal-saturday-color)' : 'var(--cal-weekday-color)',
+                            fontWeight: isToday || isSelected ? 700 : undefined,
+                          }}
+                        >
+                          {date.getDate()}
+                        </div>
+                        {cellItems.length > 0 ? (
+                          <div className="w-full px-[2px] flex flex-col gap-[1px] mt-[1px]">
+                            {cellItems.slice(0, 3).map((item, ti) => {
+                              if (item.position) {
+                                // 複数日イベント: オーバーレイで描画するため透明プレースホルダーのみ（高さを確保）
+                                return <div key={`${item.eventId}-${ti}`} style={{ height: '10px' }} />;
+                              }
                               // 単日イベント: ドット or ★ + タイトル（小タイル）
                               return (
                                 <div
                                   key={`${item.eventId}-${ti}`}
                                   className="flex items-center gap-[2px] w-full rounded-[2px] px-[2px] py-[1px]"
-                                  style={{
-                                    background: item.color.startsWith('#') ? item.color + '28' : 'rgba(128,128,128,0.18)',
-                                  }}
+                                  style={{ background: item.color.startsWith('#') ? item.color + '28' : 'rgba(128,128,128,0.18)' }}
                                 >
                                   {item.important ? (
                                     <span className="text-[8px] leading-none flex-shrink-0" style={{ color: '#f59e0b' }}>★</span>
                                   ) : (
-                                    <div
-                                      className="w-[4px] h-[4px] rounded-full flex-shrink-0"
-                                      style={{ backgroundColor: item.dotColor.startsWith('#') ? item.dotColor : '#888' }}
-                                    />
+                                    <div className="w-[4px] h-[4px] rounded-full flex-shrink-0" style={{ backgroundColor: item.dotColor.startsWith('#') ? item.dotColor : '#888' }} />
                                   )}
-                                  <span className="text-[8px] leading-none truncate" style={{ color: item.color }}>
-                                    {item.title}
-                                  </span>
+                                  <span className="text-[8px] leading-none truncate" style={{ color: item.color }}>{item.title}</span>
                                 </div>
                               );
-                            }
-                          })}
-                          {cellItems.length > 3 && (
-                            <div
-                              className="text-[8px] text-center leading-none py-[1px]"
-                              style={{ color: 'var(--label-tertiary)' }}
-                            >
-                              +{cellItems.length - 3}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="h-[6px]" />
-                      )}
-                    </button>
-                  );
-                })}
+                            })}
+                            {cellItems.length > 3 && (
+                              <div className="text-[8px] text-center leading-none py-[1px]" style={{ color: 'var(--label-tertiary)' }}>
+                                +{cellItems.length - 3}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="h-[6px]" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
