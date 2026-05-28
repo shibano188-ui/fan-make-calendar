@@ -2279,78 +2279,57 @@ export default function Calendar() {
                     const [, em, ed] = event.date.split('-').map(Number);
                     const catColor = getCategoryColor(event.category);
                     return (
-                      <div key={event.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
+                      <div key={event.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
                         style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(event.id) ? '3px solid #f59e0b' : undefined }}
                         onTouchStart={() => startLongPress(() => handleFullDelete(event.id, event.title))}
                         onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
                         onMouseDown={() => startLongPress(() => handleFullDelete(event.id, event.title))}
                         onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
                       >
-                        <button onClick={() => setListDetailEvent(event)}
-                          className="flex-1 flex items-center gap-3 pl-3 py-3 pr-1 text-left active:opacity-70 transition-opacity min-w-0">
-                          <div className="flex-shrink-0 w-10 flex flex-col items-center">
-                            <span className="text-[10px] text-label-tertiary leading-none">{em}月</span>
-                            <span className="text-xl font-bold text-label-primary leading-snug">{ed}</span>
-                          </div>
-                          <div className="w-px h-8 bg-white/10 flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-label-primary text-sm font-medium leading-snug truncate">{event.title}</p>
-                            {event.prefecture && (
-                              <div className="flex items-center mt-1">
-                                <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>
-                              </div>
-                            )}
-                            {event.authorName && <p className="text-[10px] text-label-tertiary mt-0.5">by {event.authorName}</p>}
-                          </div>
-                        </button>
-                        <button onClick={e => { e.stopPropagation(); toggleBell(event.id); }} className="w-8 self-stretch flex items-center justify-center active:opacity-60 flex-shrink-0">
-                          <Bell size={13} style={{ fill: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'none', color: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'var(--label-tertiary)' }} />
-                        </button>
-                        <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(event.id)); }} className="w-8 self-stretch flex items-center justify-center active:opacity-60 flex-shrink-0">
-                          <Star size={13} style={{ fill: importantEventIds.has(event.id) ? '#f59e0b' : 'none', color: importantEventIds.has(event.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
-                        </button>
-                        <button
-                          onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); triggerLike(e.currentTarget); }}
-                          disabled={!user || lockedLikeIds.has(event.id)}
-                          className="flex items-center gap-0.5 px-2 self-stretch text-xs disabled:opacity-30"
-                          style={{ color: event.likedByMe ? 'rgb(248,113,113)' : 'var(--label-tertiary)' }}
-                        >
-                          <Heart size={12} style={{ fill: event.likedByMe ? 'rgb(248,113,113)' : 'none' }} />
-                          <span>{event.likes}</span>
-                        </button>
-                        <button
-                          onClick={e => { e.stopPropagation(); setOpenReactionPickerId(prev => prev === event.id ? null : event.id); }}
-                          className="px-1.5 self-stretch flex items-center text-base leading-none active:opacity-60"
-                          style={{ color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[event.id] ? 1 : 0.5 }}
-                        >
-                          {myReactions[event.id]
-                            ? <span className="text-sm leading-none">{REACTIONS.find(r => r.type === myReactions[event.id])?.emoji}</span>
-                            : <Smile size={14} />
-                          }
-                        </button>
-                        {parseLinks(event.link).length === 1 ? (
-                          <a href={parseLinks(event.link)[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                            className="w-8 self-stretch flex items-center justify-center text-label-tertiary active:opacity-60 flex-shrink-0">
-                            <ExternalLink size={13} />
-                          </a>
-                        ) : parseLinks(event.link).length > 1 ? (
-                          <button onClick={e => { e.stopPropagation(); setLinkPickerLinks(parseLinks(event.link)); }}
-                            className="w-8 self-stretch flex items-center justify-center text-label-tertiary active:opacity-60 flex-shrink-0">
-                            <ExternalLink size={13} />
+                        {/* 上段: 日付＋タイトル＋🔔⭐ */}
+                        <div className="flex items-start gap-1 px-3 pt-3 pb-1">
+                          <button onClick={() => setListDetailEvent(event)}
+                            className="flex-1 flex items-center gap-3 min-w-0 text-left active:opacity-70 transition-opacity">
+                            <div className="flex-shrink-0 w-10 flex flex-col items-center">
+                              <span className="text-[10px] text-label-tertiary leading-none">{em}月</span>
+                              <span className="text-xl font-bold text-label-primary leading-snug">{ed}</span>
+                            </div>
+                            <div className="w-px h-8 bg-white/10 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-label-primary text-sm font-medium leading-snug truncate">{event.title}</p>
+                              {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5 mt-1 inline-block">{event.prefecture}</span>}
+                              {event.authorName && <p className="text-[10px] text-label-tertiary mt-0.5">by {event.authorName}</p>}
+                            </div>
                           </button>
-                        ) : null}
-                        {event.authorId && user && event.authorId === user.id && (
-                          <button
-                            onClick={e => { e.stopPropagation(); openEditEvent(event); }}
-                            className="w-9 self-stretch flex items-center justify-center active:opacity-60 flex-shrink-0"
-                            style={{ color: 'var(--accent-color)' }}
-                          >
-                            <Pencil size={13} />
+                          <button onClick={e => { e.stopPropagation(); toggleBell(event.id); }} className="w-7 h-7 flex items-center justify-center flex-shrink-0 active:opacity-60">
+                            <Bell size={13} style={{ fill: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'none', color: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'var(--label-tertiary)' }} />
                           </button>
-                        )}
-                        <button onClick={() => handleHideEvent(event.id)} className="w-9 self-stretch flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0">
-                          <X size={14} />
-                        </button>
+                          <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(event.id)); }} className="w-7 h-7 flex items-center justify-center flex-shrink-0 active:opacity-60">
+                            <Star size={13} style={{ fill: importantEventIds.has(event.id) ? '#f59e0b' : 'none', color: importantEventIds.has(event.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
+                          </button>
+                        </div>
+                        {/* 下段: アクションボタン */}
+                        <div className="flex items-center px-3 pb-2 gap-1 justify-end">
+                          <button onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); triggerLike(e.currentTarget); }} disabled={!user || lockedLikeIds.has(event.id)}
+                            className="flex items-center gap-0.5 px-2 h-7 text-xs disabled:opacity-30"
+                            style={{ color: event.likedByMe ? 'rgb(248,113,113)' : 'var(--label-tertiary)' }}>
+                            <Heart size={12} style={{ fill: event.likedByMe ? 'rgb(248,113,113)' : 'none' }} /><span>{event.likes}</span>
+                          </button>
+                          <button onClick={e => { e.stopPropagation(); setOpenReactionPickerId(prev => prev === event.id ? null : event.id); }}
+                            className="px-1.5 h-7 flex items-center active:opacity-60"
+                            style={{ color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[event.id] ? 1 : 0.5 }}>
+                            {myReactions[event.id] ? <span className="text-sm leading-none">{REACTIONS.find(r => r.type === myReactions[event.id])?.emoji}</span> : <Smile size={14} />}
+                          </button>
+                          {parseLinks(event.link).length === 1 ? (
+                            <a href={parseLinks(event.link)[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="w-7 h-7 flex items-center justify-center text-label-tertiary active:opacity-60"><ExternalLink size={13} /></a>
+                          ) : parseLinks(event.link).length > 1 ? (
+                            <button onClick={e => { e.stopPropagation(); setLinkPickerLinks(parseLinks(event.link)); }} className="w-7 h-7 flex items-center justify-center text-label-tertiary active:opacity-60"><ExternalLink size={13} /></button>
+                          ) : null}
+                          {event.authorId && user && event.authorId === user.id && (
+                            <button onClick={e => { e.stopPropagation(); openEditEvent(event); }} className="w-7 h-7 flex items-center justify-center active:opacity-60" style={{ color: 'var(--accent-color)' }}><Pencil size={13} /></button>
+                          )}
+                          <button onClick={() => handleHideEvent(event.id)} className="w-7 h-7 flex items-center justify-center text-label-tertiary active:text-red-400"><X size={14} /></button>
+                        </div>
                       </div>
                     );
                   })}
@@ -2369,109 +2348,93 @@ export default function Calendar() {
                     const [, im, id] = item.date.split('-').map(Number);
                     const catColor = getCategoryColor(item.category);
                     return (
-                      <div key={item.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
+                      <div key={item.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
                         style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(item.id) ? '3px solid #f59e0b' : undefined }}
                         onTouchStart={() => startLongPress(() => item.isPersonal ? handleFullDeletePersonal(item.id, item.title) : handleFullDelete(item.id, item.title))}
                         onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
                         onMouseDown={() => startLongPress(() => item.isPersonal ? handleFullDeletePersonal(item.id, item.title) : handleFullDelete(item.id, item.title))}
                         onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
                       >
-                        <button
-                          onClick={() => {
-                            if (!item.isPersonal && item.workId) {
-                              const evt = visibleEvents.find(e => e.id === item.id);
-                              if (evt) setListDetailEvent(evt);
-                            }
-                          }}
-                          className={`flex-1 flex items-center gap-3 pl-3 py-3 pr-1 text-left min-w-0 ${!item.isPersonal ? 'active:opacity-70 transition-opacity' : 'cursor-default'}`}
-                        >
-                          <div className="flex-shrink-0 w-10 flex flex-col items-center">
-                            <span className="text-[10px] text-label-tertiary leading-none">{im}月</span>
-                            <span className="text-xl font-bold text-label-primary leading-snug">{id}</span>
-                          </div>
-                          <div className="w-px h-8 bg-white/10 flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-label-primary text-sm font-medium leading-snug truncate">{item.title}</p>
-                            {/* バッジ行: タグ・カテゴリ・都道府県 */}
-                            {(item.tag || item.category || item.prefecture) && (
-                              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                                {item.tag && !item.isPersonal && (
-                                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
-                                    style={{ color: item.workId ? (workColorMap.get(item.workId) ?? 'var(--label-tertiary)') : 'var(--label-tertiary)', backgroundColor: `${item.workId ? (workColorMap.get(item.workId) ?? '#888888') : '#888888'}20` }}>
-                                    {item.tag}
-                                  </span>
-                                )}
-                                {item.isPersonal && item.tag && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.tag}</span>}
-                                {item.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.category}</span>}
-                                {item.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.prefecture}</span>}
-                              </div>
-                            )}
-                            {/* 日付・時間 */}
-                            {(formatDateRange(item.date, item.endDate) || formatTimeRange(item.time, item.endTime)) && (
-                              <div className="flex items-center gap-2 mt-0.5">
-                                {formatDateRange(item.date, item.endDate) && <span className="text-label-tertiary text-xs">{formatDateRange(item.date, item.endDate)}</span>}
-                                {formatTimeRange(item.time, item.endTime) && <span className="text-label-tertiary text-xs">{formatTimeRange(item.time, item.endTime)}</span>}
-                              </div>
-                            )}
-                            {item.authorName && <p className="text-[10px] text-label-tertiary mt-0.5">by {item.authorName}</p>}
-                            {item.memo && <p className="text-label-secondary text-xs mt-0.5 truncate">{item.memo}</p>}
-                          </div>
-                        </button>
-                        <button onClick={e => { e.stopPropagation(); toggleBell(item.id); }} className="w-8 self-stretch flex items-center justify-center active:opacity-60 flex-shrink-0">
-                          <Bell size={13} style={{ fill: bellEventIds.has(item.id) ? 'var(--accent-color)' : 'none', color: bellEventIds.has(item.id) ? 'var(--accent-color)' : 'var(--label-tertiary)' }} />
-                        </button>
-                        <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(item.id)); }} className="w-8 self-stretch flex items-center justify-center active:opacity-60 flex-shrink-0">
-                          <Star size={13} style={{ fill: importantEventIds.has(item.id) ? '#f59e0b' : 'none', color: importantEventIds.has(item.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
-                        </button>
-                        {!item.isPersonal && (
+                        {/* 上段: 日付＋タイトル＋🔔⭐ */}
+                        <div className="flex items-start gap-1 px-3 pt-3 pb-1">
                           <button
-                            onClick={e => { e.stopPropagation(); handleSheetEventLike(item.id); triggerLike(e.currentTarget); }}
-                            disabled={!user || lockedLikeIds.has(item.id)}
-                            className="flex items-center gap-0.5 px-2 self-stretch text-xs disabled:opacity-30"
-                            style={{ color: item.likedByMe ? 'rgb(248,113,113)' : 'var(--label-tertiary)' }}
+                            onClick={() => {
+                              if (!item.isPersonal && item.workId) {
+                                const evt = visibleEvents.find(e => e.id === item.id);
+                                if (evt) setListDetailEvent(evt);
+                              }
+                            }}
+                            className={`flex-1 flex items-center gap-3 min-w-0 text-left ${!item.isPersonal ? 'active:opacity-70 transition-opacity' : 'cursor-default'}`}
                           >
-                            <Heart size={12} style={{ fill: item.likedByMe ? 'rgb(248,113,113)' : 'none' }} />
-                            <span>{item.likes ?? 0}</span>
+                            <div className="flex-shrink-0 w-10 flex flex-col items-center">
+                              <span className="text-[10px] text-label-tertiary leading-none">{im}月</span>
+                              <span className="text-xl font-bold text-label-primary leading-snug">{id}</span>
+                            </div>
+                            <div className="w-px h-8 bg-white/10 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-label-primary text-sm font-medium leading-snug truncate">{item.title}</p>
+                              {(item.tag || item.category || item.prefecture) && (
+                                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                  {item.tag && !item.isPersonal && (
+                                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+                                      style={{ color: item.workId ? (workColorMap.get(item.workId) ?? 'var(--label-tertiary)') : 'var(--label-tertiary)', backgroundColor: `${item.workId ? (workColorMap.get(item.workId) ?? '#888888') : '#888888'}20` }}>
+                                      {item.tag}
+                                    </span>
+                                  )}
+                                  {item.isPersonal && item.tag && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.tag}</span>}
+                                  {item.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.category}</span>}
+                                  {item.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.prefecture}</span>}
+                                </div>
+                              )}
+                              {(formatDateRange(item.date, item.endDate) || formatTimeRange(item.time, item.endTime)) && (
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  {formatDateRange(item.date, item.endDate) && <span className="text-label-tertiary text-xs">{formatDateRange(item.date, item.endDate)}</span>}
+                                  {formatTimeRange(item.time, item.endTime) && <span className="text-label-tertiary text-xs">{formatTimeRange(item.time, item.endTime)}</span>}
+                                </div>
+                              )}
+                              {item.authorName && <p className="text-[10px] text-label-tertiary mt-0.5">by {item.authorName}</p>}
+                              {item.memo && <p className="text-label-secondary text-xs mt-0.5 truncate">{item.memo}</p>}
+                            </div>
                           </button>
-                        )}
-                        {!item.isPersonal && (
-                          <button
-                            onClick={e => { e.stopPropagation(); setOpenReactionPickerId(prev => prev === item.id ? null : item.id); }}
-                            className="px-1.5 self-stretch flex items-center text-base leading-none active:opacity-60"
-                            style={{ color: myReactions[item.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[item.id] ? 1 : 0.5 }}
-                          >
-                            {myReactions[item.id]
-                              ? <span className="text-sm leading-none">{REACTIONS.find(r => r.type === myReactions[item.id])?.emoji}</span>
-                              : <Smile size={14} />
-                            }
+                          <button onClick={e => { e.stopPropagation(); toggleBell(item.id); }} className="w-7 h-7 flex items-center justify-center flex-shrink-0 active:opacity-60">
+                            <Bell size={13} style={{ fill: bellEventIds.has(item.id) ? 'var(--accent-color)' : 'none', color: bellEventIds.has(item.id) ? 'var(--accent-color)' : 'var(--label-tertiary)' }} />
                           </button>
-                        )}
-                        {parseLinks(item.link).length === 1 ? (
-                          <a href={parseLinks(item.link)[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                            className="w-8 self-stretch flex items-center justify-center text-label-tertiary active:opacity-60 flex-shrink-0">
-                            <ExternalLink size={13} />
-                          </a>
-                        ) : parseLinks(item.link).length > 1 ? (
-                          <button onClick={e => { e.stopPropagation(); setLinkPickerLinks(parseLinks(item.link)); }}
-                            className="w-8 self-stretch flex items-center justify-center text-label-tertiary active:opacity-60 flex-shrink-0">
-                            <ExternalLink size={13} />
+                          <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(item.id)); }} className="w-7 h-7 flex items-center justify-center flex-shrink-0 active:opacity-60">
+                            <Star size={13} style={{ fill: importantEventIds.has(item.id) ? '#f59e0b' : 'none', color: importantEventIds.has(item.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
                           </button>
-                        ) : null}
-                        {!item.isPersonal && item.authorId && user && item.authorId === user.id && (
-                          <button
-                            onClick={e => { e.stopPropagation(); const ev = visibleEvents.find(x => x.id === item.id); if (ev) openEditEvent(ev); }}
-                            className="w-9 self-stretch flex items-center justify-center active:opacity-60 flex-shrink-0"
-                            style={{ color: 'var(--accent-color)' }}
-                          >
-                            <Pencil size={13} />
+                        </div>
+                        {/* 下段: アクションボタン */}
+                        <div className="flex items-center px-3 pb-2 gap-1 justify-end">
+                          {!item.isPersonal && (
+                            <button onClick={e => { e.stopPropagation(); handleSheetEventLike(item.id); triggerLike(e.currentTarget); }} disabled={!user || lockedLikeIds.has(item.id)}
+                              className="flex items-center gap-0.5 px-2 h-7 text-xs disabled:opacity-30"
+                              style={{ color: item.likedByMe ? 'rgb(248,113,113)' : 'var(--label-tertiary)' }}>
+                              <Heart size={12} style={{ fill: item.likedByMe ? 'rgb(248,113,113)' : 'none' }} /><span>{item.likes ?? 0}</span>
+                            </button>
+                          )}
+                          {!item.isPersonal && (
+                            <button onClick={e => { e.stopPropagation(); setOpenReactionPickerId(prev => prev === item.id ? null : item.id); }}
+                              className="px-1.5 h-7 flex items-center active:opacity-60"
+                              style={{ color: myReactions[item.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[item.id] ? 1 : 0.5 }}>
+                              {myReactions[item.id] ? <span className="text-sm leading-none">{REACTIONS.find(r => r.type === myReactions[item.id])?.emoji}</span> : <Smile size={14} />}
+                            </button>
+                          )}
+                          {parseLinks(item.link).length === 1 ? (
+                            <a href={parseLinks(item.link)[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="w-7 h-7 flex items-center justify-center text-label-tertiary active:opacity-60"><ExternalLink size={13} /></a>
+                          ) : parseLinks(item.link).length > 1 ? (
+                            <button onClick={e => { e.stopPropagation(); setLinkPickerLinks(parseLinks(item.link)); }} className="w-7 h-7 flex items-center justify-center text-label-tertiary active:opacity-60"><ExternalLink size={13} /></button>
+                          ) : null}
+                          {!item.isPersonal && item.authorId && user && item.authorId === user.id && (
+                            <button onClick={e => { e.stopPropagation(); const ev = visibleEvents.find(x => x.id === item.id); if (ev) openEditEvent(ev); }}
+                              className="w-7 h-7 flex items-center justify-center active:opacity-60" style={{ color: 'var(--accent-color)' }}>
+                              <Pencil size={13} />
+                            </button>
+                          )}
+                          <button onClick={e => { e.stopPropagation(); item.isPersonal ? deletePersonalEvent(item.id) : handleHideEvent(item.id); }}
+                            className="w-7 h-7 flex items-center justify-center text-label-tertiary active:text-red-400">
+                            <X size={14} />
                           </button>
-                        )}
-                        <button
-                          onClick={e => { e.stopPropagation(); item.isPersonal ? deletePersonalEvent(item.id) : handleHideEvent(item.id); }}
-                          className="w-9 self-stretch flex items-center justify-center text-label-tertiary active:text-red-400 flex-shrink-0"
-                        >
-                          <X size={14} />
-                        </button>
+                        </div>
                       </div>
                     );
                   })}
