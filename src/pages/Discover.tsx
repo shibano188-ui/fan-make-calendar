@@ -9,6 +9,7 @@ import {
   listUpcomingParticipatedEvents, listRecentWorks,
   setReaction, getMyReactionsBatch, updateEvent, addLikeTap,
   getHomePrefecture, getDisplayName, saveHomePrefecture, saveDisplayName,
+  deleteEvent,
 } from '../lib/api';
 import UserSettingsSheet from '../components/UserSettingsSheet';
 import type { Work } from '../lib/api';
@@ -125,6 +126,22 @@ export default function Discover() {
   // リアクション
   const [myReactions, setMyReactions] = useState<Record<string, ReactionType>>(loadMyReactions);
   const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
+
+  // 長押し削除
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startLongPress = (callback: () => void) => {
+    longPressTimer.current = setTimeout(callback, 700);
+  };
+  const cancelLongPress = () => {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+  };
+  const handleFullDelete = async (id: string, title: string) => {
+    if (!window.confirm(`「${title}」を完全に削除しますか？\nこの操作は元に戻せません。`)) return;
+    try {
+      await deleteEvent(id);
+      setEvents(prev => prev.filter(e => e.id !== id));
+    } catch { alert('削除に失敗しました'); }
+  };
 
   // 編集パネル
   const [editEventId, setEditEventId] = useState<string | null>(null);
@@ -461,8 +478,13 @@ export default function Discover() {
                 const [, em, ed] = event.date.split('-').map(Number);
                 const catColor = getCategoryColor(event.category);
                 return (
-                  <div key={event.id} className="bg-bg-secondary rounded-2xl overflow-hidden"
-                    style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined }}>
+                  <div key={event.id} className="bg-bg-secondary rounded-2xl overflow-hidden select-none"
+                    style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined }}
+                    onTouchStart={() => startLongPress(() => handleFullDelete(event.id, event.title))}
+                    onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
+                    onMouseDown={() => startLongPress(() => handleFullDelete(event.id, event.title))}
+                    onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
+                  >
                     {/* コンテンツ部分（左に日付列） */}
                     <div className="flex items-stretch px-4 pt-4 gap-3">
                       {/* 日付（左） */}
