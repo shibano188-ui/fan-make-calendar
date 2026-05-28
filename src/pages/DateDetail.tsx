@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { ExternalLink, Heart, Plus, Smile } from 'lucide-react';
 import Layout from '../components/Layout';
@@ -47,7 +47,7 @@ function LikeButton({
   const [bumped, setBumped] = useState(false);
   const [flash, setFlash] = useState(false);
   const [, forceRender] = useState(0);
-  const { trigger: triggerAnim, particles, ripples, floaters } = useLikeAnimation();
+  const { trigger: triggerAnim, renderOverlay } = useLikeAnimation();
 
   const locked = session.tapsUsed >= MAX_TAPS;
   const hasLiked = event.likedByMe || session.tapsUsed > 0;
@@ -91,16 +91,7 @@ function LikeButton({
 
   return (
     <div className="flex items-center gap-2">
-      {/* パーティクル・リップル・フローターオーバーレイ */}
-      {particles.map(p => (
-        <div key={p.id} style={{ position: 'fixed', left: p.x, top: p.y, '--ptx': `${p.tx}px`, '--pty': `${p.ty}px`, '--pspin': `${p.spin}deg`, fontSize: p.size, lineHeight: 1, animation: 'particleBurst 0.72s cubic-bezier(0.25,0.46,0.45,0.94) forwards', pointerEvents: 'none', zIndex: 10000, userSelect: 'none' } as React.CSSProperties}>{p.emoji}</div>
-      ))}
-      {ripples.map(r => (
-        <div key={r.id} style={{ position: 'fixed', left: r.x - 20, top: r.y - 20, width: 40, height: 40, borderRadius: '50%', border: '1.5px solid rgba(248,113,113,0.8)', animation: 'rippleOut 0.45s ease-out forwards', pointerEvents: 'none', zIndex: 10000 }} />
-      ))}
-      {floaters.map(f => (
-        <span key={f.id} style={{ position: 'fixed', left: f.x, top: f.y, fontSize: 18, lineHeight: 1, animation: 'floatHeart 0.9s cubic-bezier(0.22,1,0.36,1) forwards', pointerEvents: 'none', zIndex: 10000, userSelect: 'none' }}>❤️</span>
-      ))}
+      {renderOverlay()}
 
       <div className="relative">
         <button

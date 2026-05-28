@@ -520,7 +520,7 @@ export default function Calendar() {
   const [deleting, setDeleting] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { trigger: triggerLike, particles: likeParticles, ripples: likeRipples, floaters: likeFloaters } = useLikeAnimation();
+  const { trigger: triggerLike, renderOverlay: renderLikeOverlay } = useLikeAnimation();
   const swipeStartX = useRef<number | null>(null);
   const swipeStartY = useRef<number | null>(null);
 
@@ -2786,16 +2786,7 @@ export default function Calendar() {
 
       <BottomTab />
 
-      {/* いいねパーティクルオーバーレイ */}
-      {likeParticles.map(p => (
-        <div key={p.id} style={{ position: 'fixed', left: p.x, top: p.y, '--ptx': `${p.tx}px`, '--pty': `${p.ty}px`, '--pspin': `${p.spin}deg`, fontSize: p.size, lineHeight: 1, animation: 'particleBurst 0.72s cubic-bezier(0.25,0.46,0.45,0.94) forwards', pointerEvents: 'none', zIndex: 10000, userSelect: 'none' } as React.CSSProperties}>{p.emoji}</div>
-      ))}
-      {likeRipples.map(r => (
-        <div key={r.id} style={{ position: 'fixed', left: r.x - 20, top: r.y - 20, width: 40, height: 40, borderRadius: '50%', border: '1.5px solid rgba(248,113,113,0.8)', animation: 'rippleOut 0.45s ease-out forwards', pointerEvents: 'none', zIndex: 10000 }} />
-      ))}
-      {likeFloaters.map(f => (
-        <span key={f.id} style={{ position: 'fixed', left: f.x, top: f.y, fontSize: 18, lineHeight: 1, animation: 'floatHeart 0.9s cubic-bezier(0.22,1,0.36,1) forwards', pointerEvents: 'none', zIndex: 10000, userSelect: 'none' }}>❤️</span>
-      ))}
+      {renderLikeOverlay()}
     </>
   );
 }
