@@ -103,13 +103,6 @@ function PostCardItem({
         </span>
         <div className="flex items-center gap-1">
           <button
-            onClick={e => { e.stopPropagation(); onChange({ important: !card.important }); }}
-            className="w-6 h-6 flex items-center justify-center active:opacity-50"
-            aria-label="重要に設定"
-          >
-            <Star size={13} style={{ fill: card.important ? '#f59e0b' : 'none', color: card.important ? '#f59e0b' : 'var(--label-tertiary)' }} />
-          </button>
-          <button
             onClick={e => { e.stopPropagation(); onRemove(); }}
             disabled={total <= 1}
             className="w-6 h-6 flex items-center justify-center text-label-tertiary disabled:opacity-20 active:opacity-50"
@@ -293,6 +286,7 @@ export default function PostCreate() {
   const [searchParams] = useSearchParams();
   const initialDate = searchParams.get('date') ?? '';
   const [cards, setCards] = useState<PostCard[]>([{ ...newCard(), date: initialDate }]);
+  const [isImportant, setIsImportant] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -348,9 +342,11 @@ export default function PostCreate() {
     try {
       const createdIds = await createEvents(workId, cards.map(toEventInput), user.id);
       // 重要フラグをlocalStorageに保存
-      const importantIds = loadImportantEventIds();
-      createdIds.forEach((id, i) => { if (cards[i]?.important) importantIds.add(id); });
-      saveImportantEventIds(importantIds);
+      if (isImportant) {
+        const importantIds = loadImportantEventIds();
+        createdIds.forEach(id => importantIds.add(id));
+        saveImportantEventIds(importantIds);
+      }
       navigate(`/calendar/${workId}`);
     } catch {
       setError('投稿に失敗しました。もう一度お試しください');
@@ -365,13 +361,30 @@ export default function PostCreate() {
         title="予定を追加"
         closeMode
         rightAction={
-          <button
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="text-sm font-medium text-label-primary px-3 py-1 rounded-lg bg-bg-secondary whitespace-nowrap active:opacity-70 disabled:opacity-40"
-          >
-            {submitting ? '投稿中…' : '投稿'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsImportant(v => !v)}
+              className="flex items-center gap-1 text-sm px-2.5 py-1 rounded-lg border whitespace-nowrap active:opacity-70"
+              style={isImportant ? {
+                borderColor: '#f59e0b',
+                color: '#f59e0b',
+                backgroundColor: 'rgba(245,158,11,0.12)',
+              } : {
+                borderColor: 'var(--border-default)',
+                color: 'var(--label-secondary)',
+              }}
+            >
+              <Star size={13} style={{ fill: isImportant ? '#f59e0b' : 'none' }} />
+              重要
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="text-sm font-medium text-label-primary px-3 py-1 rounded-lg bg-bg-secondary whitespace-nowrap active:opacity-70 disabled:opacity-40"
+            >
+              {submitting ? '投稿中…' : '投稿'}
+            </button>
+          </div>
         }
       />
 

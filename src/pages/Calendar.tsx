@@ -1533,7 +1533,12 @@ export default function Calendar() {
                       {/* バッジ */}
                       {(sheetDetailEvent.workName || sheetDetailEvent.category) && (
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          {sheetDetailEvent.workName && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{sheetDetailEvent.workName}</span>}
+                          {sheetDetailEvent.workName && (
+                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+                            style={{ color: workColorMap.get(sheetDetailEvent.workId ?? '') ?? 'var(--label-tertiary)', backgroundColor: `${workColorMap.get(sheetDetailEvent.workId ?? '') ?? '#888888'}20` }}>
+                            {sheetDetailEvent.workName}
+                          </span>
+                        )}
                           {sheetDetailEvent.category && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{sheetDetailEvent.category}</span>}
                         </div>
                       )}
@@ -1653,10 +1658,9 @@ export default function Calendar() {
                           const dateLabel = formatDateRange(event.date, event.endDate);
                           const timeLabel = formatTimeRange(event.time, event.endTime);
                           const catColor = getCategoryColor(event.category);
-                          const tileWorkColor = workColorMap.get(event.workId ?? '');
                           return (
                             <div key={event.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none"
-                              style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(event.id) ? '3px solid #f59e0b' : undefined, backgroundColor: tileWorkColor ? `${tileWorkColor}14` : undefined }}
+                              style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(event.id) ? '3px solid #f59e0b' : undefined }}
                               onTouchStart={() => startLongPress(() => handleFullDelete(event.id, event.title))}
                               onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
                               onMouseDown={() => startLongPress(() => handleFullDelete(event.id, event.title))}
@@ -1761,7 +1765,10 @@ export default function Calendar() {
                               </button>
                               {/* 2行目: 作品名 → カテゴリ → ♥ → 😊 → 🔗 → > → × */}
                               <div className="flex items-center px-3 pb-2 gap-1">
-                                {event.workName && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5 max-w-[72px] truncate">{event.workName}</span>}
+                                {event.workName && <span className="text-[10px] font-medium px-2 py-0.5 rounded-full max-w-[72px] truncate"
+                                  style={{ color: workColorMap.get(event.workId ?? '') ?? 'var(--label-tertiary)', backgroundColor: `${workColorMap.get(event.workId ?? '') ?? '#888888'}20` }}>
+                                  {event.workName}
+                                </span>}
                                 {event.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.category}</span>}
                                 <div className="flex-1" />
                                 <button
@@ -1884,7 +1891,12 @@ export default function Calendar() {
               {/* バッジ */}
               {(listDetailEvent.workName || listDetailEvent.category) && (
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  {listDetailEvent.workName && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{listDetailEvent.workName}</span>}
+                  {listDetailEvent.workName && (
+              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+                style={{ color: workColorMap.get(listDetailEvent.workId ?? '') ?? 'var(--label-tertiary)', backgroundColor: `${workColorMap.get(listDetailEvent.workId ?? '') ?? '#888888'}20` }}>
+                {listDetailEvent.workName}
+              </span>
+            )}
                   {listDetailEvent.category && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{listDetailEvent.category}</span>}
                 </div>
               )}
@@ -2014,10 +2026,9 @@ export default function Calendar() {
                   {filteredEvents.map(event => {
                     const [, em, ed] = event.date.split('-').map(Number);
                     const catColor = getCategoryColor(event.category);
-                    const tileWorkColor = workColorMap.get(event.workId ?? '');
                     return (
                       <div key={event.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden select-none"
-                        style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(event.id) ? '3px solid #f59e0b' : undefined, backgroundColor: tileWorkColor ? `${tileWorkColor}14` : undefined }}
+                        style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(event.id) ? '3px solid #f59e0b' : undefined }}
                         onTouchStart={() => startLongPress(() => handleFullDelete(event.id, event.title))}
                         onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
                         onMouseDown={() => startLongPress(() => handleFullDelete(event.id, event.title))}
@@ -2099,10 +2110,9 @@ export default function Calendar() {
                   {myCalendarListItems.map(item => {
                     const [, im, id] = item.date.split('-').map(Number);
                     const catColor = getCategoryColor(item.category);
-                    const tileWorkColor = item.workId ? workColorMap.get(item.workId) : undefined;
                     return (
                       <div key={item.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden select-none"
-                        style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(item.id) ? '3px solid #f59e0b' : undefined, backgroundColor: tileWorkColor ? `${tileWorkColor}14` : undefined }}
+                        style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(item.id) ? '3px solid #f59e0b' : undefined }}
                         onTouchStart={() => startLongPress(() => item.isPersonal ? handleFullDeletePersonal(item.id, item.title) : handleFullDelete(item.id, item.title))}
                         onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
                         onMouseDown={() => startLongPress(() => item.isPersonal ? handleFullDeletePersonal(item.id, item.title) : handleFullDelete(item.id, item.title))}
@@ -2130,7 +2140,13 @@ export default function Calendar() {
                             {/* バッジ行: タグ・カテゴリ・都道府県 */}
                             {(item.tag || item.category || item.prefecture) && (
                               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                                {item.tag && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.tag}</span>}
+                                {item.tag && !item.isPersonal && (
+                                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+                                    style={{ color: item.workId ? (workColorMap.get(item.workId) ?? 'var(--label-tertiary)') : 'var(--label-tertiary)', backgroundColor: `${item.workId ? (workColorMap.get(item.workId) ?? '#888888') : '#888888'}20` }}>
+                                    {item.tag}
+                                  </span>
+                                )}
+                                {item.isPersonal && item.tag && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.tag}</span>}
                                 {item.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.category}</span>}
                                 {item.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.prefecture}</span>}
                               </div>
