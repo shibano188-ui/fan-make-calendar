@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Palette, Plus, Heart, MoreVertical, Link2, LogOut, Trash2,
-  ChevronDown, ChevronUp, ChevronLeft, X, Settings, Map as MapIcon, ExternalLink, Smile, SlidersHorizontal, Pencil,
+  ChevronDown, ChevronUp, ChevronLeft, X, Settings, Map as MapIcon, ExternalLink, Smile, SlidersHorizontal, Pencil, Star,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
@@ -28,6 +28,7 @@ import {
   POST_CATEGORIES, type PostCategory, loadCategoryFilters, saveCategoryFilters,
   loadCalendarEventIds, saveCalendarEventIds, removeCalendarEventId,
   parseLinks, serializeLinks, getCategoryColor,
+  loadImportantEventIds, toggleImportantEventId,
 } from '../lib/constants';
 
 // ─── 定数 ──────────────────────────────────────────────────────────
@@ -531,6 +532,7 @@ export default function Calendar() {
   const [linkPickerLinks, setLinkPickerLinks] = useState<string[] | null>(null);
   const [hiddenEventIds, setHiddenEventIds] = useState<Set<string>>(loadHiddenEventIds);
   const [calendarEventIds, setCalendarEventIds] = useState<Set<string>>(loadCalendarEventIds);
+  const [importantEventIds, setImportantEventIds] = useState<Set<string>>(loadImportantEventIds);
 
   const [lockedLikeIds, setLockedLikeIds] = useState<Set<string>>(() => {
     const set = new Set<string>();
@@ -1083,7 +1085,7 @@ export default function Calendar() {
   }, [participatedWorks]);
 
   // カレンダーセル用: 日付→{title, color, position?, eventId}[]
-  type CellItem = { title: string; color: string; position?: 'start' | 'middle' | 'end'; eventId: string };
+  type CellItem = { title: string; color: string; position?: 'start' | 'middle' | 'end'; eventId: string; important?: boolean };
   const cellEventsByDate = useMemo(() => {
     const map = new Map<string, CellItem[]>();
     const add = (d: string, item: CellItem) => {
@@ -1092,35 +1094,37 @@ export default function Calendar() {
       map.set(d, arr);
     };
     for (const e of visibleEvents) {
-      const color = e.workId
-        ? (workColorMap.get(e.workId) ?? 'var(--accent-color)')
-        : 'var(--accent-color)';
+      const color = getCategoryColor(e.category)
+        ?? (e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)');
+      const important = importantEventIds.has(e.id);
       if (e.endDate && e.endDate > e.date) {
         let cur = e.date;
         while (cur <= e.endDate) {
           const pos: CellItem['position'] = cur === e.date ? 'start' : cur === e.endDate ? 'end' : 'middle';
-          add(cur, { title: e.title, color, position: pos, eventId: e.id });
+          add(cur, { title: e.title, color, position: pos, eventId: e.id, important });
           const next = new Date(cur + 'T00:00:00');
           next.setDate(next.getDate() + 1);
           cur = toDateStr(next);
         }
       } else {
-        add(e.date, { title: e.title, color, eventId: e.id });
+        add(e.date, { title: e.title, color, eventId: e.id, important });
       }
     }
     if (!workId) {
       for (const pe of monthPersonalEvents) {
+        const color = getCategoryColor(pe.category) ?? '#888888';
+        const important = importantEventIds.has(pe.id);
         if (pe.endDate && pe.endDate > pe.date) {
           let cur = pe.date;
           while (cur <= pe.endDate) {
             const pos: CellItem['position'] = cur === pe.date ? 'start' : cur === pe.endDate ? 'end' : 'middle';
-            add(cur, { title: pe.title, color: '#888888', position: pos, eventId: pe.id });
+            add(cur, { title: pe.title, color, position: pos, eventId: pe.id, important });
             const next = new Date(cur + 'T00:00:00');
             next.setDate(next.getDate() + 1);
             cur = toDateStr(next);
           }
         } else {
-          add(pe.date, { title: pe.title, color: '#888888', eventId: pe.id });
+          add(pe.date, { title: pe.title, color, eventId: pe.id, important });
         }
       }
     }
@@ -1135,7 +1139,7 @@ export default function Calendar() {
       });
     }
     return map;
-  }, [workId, visibleEvents, monthPersonalEvents, workColorMap]);
+  }, [workId, visibleEvents, monthPersonalEvents, workColorMap, importantEventIds]);
 
   // ボトムシート用: 選択日の作品イベント（複数日イベント対応）
   const sheetWorkEvents = useMemo(
@@ -1396,32 +1400,47 @@ export default function Calendar() {
                       </div>
                       {cellItems.length > 0 ? (
                         <div className="w-full px-[2px] flex flex-col gap-[1px] mt-[1px]">
-                          {cellItems.slice(0, 2).map((item, ti) => {
+                          {cellItems.slice(0, 3).map((item, ti) => {
                             const pos = item.position;
-                            const barCls = !pos
-                              ? 'w-full rounded-[2px] px-[2px]'
-                              : pos === 'start' ? 'rounded-l-[2px] rounded-r-none px-[2px] mr-[-3px]'
-                              : pos === 'end'   ? 'rounded-r-[2px] rounded-l-none px-[2px] ml-[-3px]'
-                              :                  'rounded-none px-[2px] mx-[-3px]';
-                            return (
-                              <div
-                                key={`${item.eventId}-${ti}`}
-                                className={`text-[8px] leading-none truncate py-[1px] ${barCls}`}
-                                style={{
-                                  background: item.color.startsWith('#') ? item.color + '28' : 'rgba(128,128,128,0.18)',
-                                  color: item.color,
-                                }}
-                              >
-                                {pos === 'middle' || pos === 'end' ? ' ' : item.title}
-                              </div>
-                            );
+                            if (pos) {
+                              // 複数日イベント: カテゴリ色バー
+                              const barCls = pos === 'start' ? 'rounded-l-[2px] rounded-r-none px-[2px] mr-[-3px]'
+                                : pos === 'end'   ? 'rounded-r-[2px] rounded-l-none px-[2px] ml-[-3px]'
+                                :                  'rounded-none px-[2px] mx-[-3px]';
+                              return (
+                                <div
+                                  key={`${item.eventId}-${ti}`}
+                                  className={`text-[8px] leading-none truncate py-[1px] ${barCls}`}
+                                  style={{
+                                    background: item.color.startsWith('#') ? item.color + '28' : 'rgba(128,128,128,0.18)',
+                                    color: item.color,
+                                  }}
+                                >
+                                  {pos === 'middle' || pos === 'end' ? ' ' : item.title}
+                                </div>
+                              );
+                            } else {
+                              // 単日イベント: カテゴリ色ドット or 重要★
+                              return (
+                                <div key={`${item.eventId}-${ti}`} className="flex items-center gap-[2px] py-[1px] px-[1px]">
+                                  {item.important ? (
+                                    <span className="text-[9px] leading-none" style={{ color: '#f59e0b' }}>★</span>
+                                  ) : (
+                                    <div
+                                      className="w-[5px] h-[5px] rounded-full flex-shrink-0"
+                                      style={{ backgroundColor: item.color.startsWith('#') ? item.color : '#888888' }}
+                                    />
+                                  )}
+                                </div>
+                              );
+                            }
                           })}
-                          {cellItems.length > 2 && (
+                          {cellItems.length > 3 && (
                             <div
                               className="text-[8px] text-center leading-none py-[1px]"
                               style={{ color: 'var(--label-tertiary)' }}
                             >
-                              +{cellItems.length - 2}
+                              +{cellItems.length - 3}
                             </div>
                           )}
                         </div>
@@ -1521,8 +1540,8 @@ export default function Calendar() {
                           <ExternalLink size={11} /><span>{getDomain(url)}</span>
                         </a>
                       ))}
-                      {/* ❤️いいね + 😊リアクション */}
-                      <div className="flex items-center gap-2">
+                      {/* ❤️いいね + 😊リアクション + ★重要 */}
+                      <div className="flex items-center gap-2 flex-wrap">
                         <button
                           onClick={() => handleSheetEventLike(sheetDetailEvent.id)}
                           disabled={!user || lockedLikeIds.has(sheetDetailEvent.id)}
@@ -1548,6 +1567,18 @@ export default function Calendar() {
                             ? <span className="text-base leading-none">{REACTIONS.find(r => r.type === (sheetDetailReactionData?.myReaction ?? myReactions[sheetDetailEvent.id]))?.emoji}</span>
                             : <Smile size={14} />
                           }
+                        </button>
+                        {/* ★ 重要トグル */}
+                        <button
+                          onClick={() => setImportantEventIds(toggleImportantEventId(sheetDetailEvent.id))}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm active:opacity-60"
+                          style={{
+                            borderColor: importantEventIds.has(sheetDetailEvent.id) ? '#f59e0b' : 'var(--border-default)',
+                            color: importantEventIds.has(sheetDetailEvent.id) ? '#f59e0b' : 'var(--label-secondary)',
+                          }}
+                        >
+                          <Star size={14} style={{ fill: importantEventIds.has(sheetDetailEvent.id) ? '#f59e0b' : 'none' }} />
+                          {importantEventIds.has(sheetDetailEvent.id) ? '重要' : '重要に設定'}
                         </button>
                       </div>
                       {/* リアクション集計 */}
@@ -1592,7 +1623,7 @@ export default function Calendar() {
                           const catColor = getCategoryColor(event.category);
                           return (
                             <div key={event.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none"
-                              style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined }}
+                              style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(event.id) ? '3px solid #f59e0b' : undefined }}
                               onTouchStart={() => startLongPress(() => handleFullDelete(event.id, event.title))}
                               onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
                               onMouseDown={() => startLongPress(() => handleFullDelete(event.id, event.title))}
@@ -1601,7 +1632,10 @@ export default function Calendar() {
                               {/* 1行目: タイトル */}
                               <button onClick={() => setSheetDetailEvent(event)}
                                 className="w-full px-3 pt-3 pb-1 text-left active:opacity-70 transition-opacity">
-                                <p className="text-label-primary text-sm font-medium">{event.title}</p>
+                                <div className="flex items-center gap-1">
+                                  {importantEventIds.has(event.id) && <span className="text-[11px] leading-none flex-shrink-0" style={{ color: '#f59e0b' }}>★</span>}
+                                  <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
+                                </div>
                               </button>
                               {/* 2行目: カテゴリ → ♥ → 😊 → 🔗 → > → × */}
                               <div className="flex items-center px-3 pb-2 gap-1">
@@ -1678,7 +1712,7 @@ export default function Calendar() {
                           const catColor = getCategoryColor(event.category);
                           return (
                             <div key={event.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none"
-                              style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined }}
+                              style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(event.id) ? '3px solid #f59e0b' : undefined }}
                               onTouchStart={() => startLongPress(() => handleFullDelete(event.id, event.title))}
                               onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
                               onMouseDown={() => startLongPress(() => handleFullDelete(event.id, event.title))}
@@ -1687,7 +1721,10 @@ export default function Calendar() {
                               {/* 1行目: タイトル */}
                               <button onClick={() => event.workId && setSheetDetailEvent(event)}
                                 className="w-full px-3 pt-3 pb-1 text-left active:opacity-70 transition-opacity">
-                                <p className="text-label-primary text-sm font-medium">{event.title}</p>
+                                <div className="flex items-center gap-1">
+                                  {importantEventIds.has(event.id) && <span className="text-[11px] leading-none flex-shrink-0" style={{ color: '#f59e0b' }}>★</span>}
+                                  <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
+                                </div>
                               </button>
                               {/* 2行目: 作品名 → カテゴリ → ♥ → 😊 → 🔗 → > → × */}
                               <div className="flex items-center px-3 pb-2 gap-1">
@@ -1758,7 +1795,7 @@ export default function Calendar() {
                           const catColor = getCategoryColor(pe.category);
                           return (
                             <div key={pe.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none"
-                              style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined }}
+                              style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(pe.id) ? '3px solid #f59e0b' : undefined }}
                               onTouchStart={() => startLongPress(() => handleFullDeletePersonal(pe.id, pe.title))}
                               onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
                               onMouseDown={() => startLongPress(() => handleFullDeletePersonal(pe.id, pe.title))}
@@ -1766,7 +1803,10 @@ export default function Calendar() {
                             >
                               {/* 1行目: タイトル */}
                               <div className="px-3 pt-3 pb-1">
-                                <p className="text-label-primary text-sm font-medium">{pe.title}</p>
+                                <div className="flex items-center gap-1">
+                                  {importantEventIds.has(pe.id) && <span className="text-[11px] leading-none flex-shrink-0" style={{ color: '#f59e0b' }}>★</span>}
+                                  <p className="text-label-primary text-sm font-medium truncate">{pe.title}</p>
+                                </div>
                               </div>
                               {/* 2行目: 個人 → カテゴリ → × */}
                               <div className="flex items-center px-3 pb-2 gap-1">
@@ -1849,8 +1889,8 @@ export default function Calendar() {
                   <ExternalLink size={11} /><span>{getDomain(url)}</span>
                 </a>
               ))}
-              {/* ❤️いいね + 😊リアクション */}
-              <div className="flex items-center gap-2">
+              {/* ❤️いいね + 😊リアクション + ★重要 */}
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={() => handleSheetEventLike(listDetailEvent.id)}
                   disabled={!user || lockedLikeIds.has(listDetailEvent.id)}
@@ -1877,6 +1917,18 @@ export default function Calendar() {
                     : <Smile size={14} />
                   }
                 </button>
+              {/* ★ 重要トグル */}
+              <button
+                onClick={() => setImportantEventIds(toggleImportantEventId(listDetailEvent.id))}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm active:opacity-60"
+                style={{
+                  borderColor: importantEventIds.has(listDetailEvent.id) ? '#f59e0b' : 'var(--border-default)',
+                  color: importantEventIds.has(listDetailEvent.id) ? '#f59e0b' : 'var(--label-secondary)',
+                }}
+              >
+                <Star size={14} style={{ fill: importantEventIds.has(listDetailEvent.id) ? '#f59e0b' : 'none' }} />
+                {importantEventIds.has(listDetailEvent.id) ? '重要' : '重要に設定'}
+              </button>
               </div>
               {/* リアクション集計 */}
               {sheetDetailReactionData && Object.values(sheetDetailReactionData.counts).some(c => c > 0) && (
@@ -1930,7 +1982,7 @@ export default function Calendar() {
                     const catColor = getCategoryColor(event.category);
                     return (
                       <div key={event.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden select-none"
-                        style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined }}
+                        style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(event.id) ? '3px solid #f59e0b' : undefined }}
                         onTouchStart={() => startLongPress(() => handleFullDelete(event.id, event.title))}
                         onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
                         onMouseDown={() => startLongPress(() => handleFullDelete(event.id, event.title))}
@@ -2014,7 +2066,7 @@ export default function Calendar() {
                     const catColor = getCategoryColor(item.category);
                     return (
                       <div key={item.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden select-none"
-                        style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined }}
+                        style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(item.id) ? '3px solid #f59e0b' : undefined }}
                         onTouchStart={() => startLongPress(() => item.isPersonal ? handleFullDeletePersonal(item.id, item.title) : handleFullDelete(item.id, item.title))}
                         onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
                         onMouseDown={() => startLongPress(() => item.isPersonal ? handleFullDeletePersonal(item.id, item.title) : handleFullDelete(item.id, item.title))}
@@ -2035,7 +2087,10 @@ export default function Calendar() {
                           </div>
                           <div className="w-px h-8 bg-white/10 flex-shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <p className="text-label-primary text-sm font-medium truncate">{item.title}</p>
+                            <div className="flex items-center gap-1">
+                              {importantEventIds.has(item.id) && <span className="text-[11px] leading-none flex-shrink-0" style={{ color: '#f59e0b' }}>★</span>}
+                              <p className="text-label-primary text-sm font-medium truncate">{item.title}</p>
+                            </div>
                             {/* バッジ行: タグ・カテゴリ・都道府県 */}
                             {(item.tag || item.category || item.prefecture) && (
                               <div className="flex items-center gap-1.5 mt-1 flex-wrap">

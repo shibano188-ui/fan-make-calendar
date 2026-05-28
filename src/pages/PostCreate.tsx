@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ChevronDown, ChevronUp, X, Plus } from 'lucide-react';
+import { ChevronDown, ChevronUp, X, Plus, Star } from 'lucide-react';
 import Layout from '../components/Layout';
 import Header from '../components/Header';
 import SmartInputPanel, { type ParsedEvent } from '../components/SmartInputPanel';
 import { createEvents } from '../lib/api';
 import { PREFECTURES } from '../lib/prefectures';
-import { parseLinks, serializeLinks } from '../lib/constants';
+import { parseLinks, serializeLinks, loadImportantEventIds, saveImportantEventIds } from '../lib/constants';
 import { useAuth } from '../contexts/AuthContext';
 import type { CalendarEvent } from '../types';
 
@@ -27,6 +27,7 @@ interface PostCard {
   locationMapLink: string;
   links: string[];
   memo: string;
+  important: boolean;
   collapsed: boolean;
 }
 
@@ -45,6 +46,7 @@ function newCard(): PostCard {
     locationMapLink: '',
     links: [''],
     memo: '',
+    important: false,
     collapsed: false,
   };
 }
@@ -268,6 +270,24 @@ function PostCardItem({
               className={`${inputCls} resize-none`}
             />
           </div>
+
+          {/* 重要フラグ */}
+          <button
+            type="button"
+            onClick={() => onChange({ important: !card.important })}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs transition-colors w-fit active:opacity-70"
+            style={card.important ? {
+              borderColor: '#f59e0b',
+              color: '#f59e0b',
+              backgroundColor: 'rgba(245,158,11,0.1)',
+            } : {
+              borderColor: 'var(--border-faint)',
+              color: 'var(--label-tertiary)',
+            }}
+          >
+            <Star size={12} style={{ fill: card.important ? '#f59e0b' : 'none', color: card.important ? '#f59e0b' : 'currentColor' }} />
+            重要な予定として設定
+          </button>
         </div>
       )}
     </div>
@@ -336,7 +356,11 @@ export default function PostCreate() {
     setError('');
     setSubmitting(true);
     try {
-      await createEvents(workId, cards.map(toEventInput), user.id);
+      const createdIds = await createEvents(workId, cards.map(toEventInput), user.id);
+      // 重要フラグをlocalStorageに保存
+      const importantIds = loadImportantEventIds();
+      createdIds.forEach((id, i) => { if (cards[i]?.important) importantIds.add(id); });
+      saveImportantEventIds(importantIds);
       navigate(`/calendar/${workId}`);
     } catch {
       setError('投稿に失敗しました。もう一度お試しください');

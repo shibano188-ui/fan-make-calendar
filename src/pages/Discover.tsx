@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Heart, Smile, Pencil, SlidersHorizontal, ExternalLink, ChevronLeft, Plus, X,
 } from 'lucide-react';
@@ -87,6 +87,8 @@ export default function Discover() {
   const [likedEventIds, setLikedEventIds] = useState<Set<string>>(loadLikedEventIds);
   // カレンダー追加済み（マイカレンダーから削除すると除かれる）
   const [calendarEventIds, setCalendarEventIds] = useState<Set<string>>(loadCalendarEventIds);
+  // セッション開始時点の追加済みID（タブ内で追加してもすぐ消えないよう初期値を固定）
+  const initialCalendarIds = useRef(loadCalendarEventIds());
 
   // いいねクールダウン
   const [lockedLikeIds, setLockedLikeIds] = useState<Set<string>>(() => {
@@ -165,10 +167,10 @@ export default function Discover() {
       if (!cats || cats.length === 0) return true;
       return !cats.includes(e.category ?? '');
     });
-    // 追加済みの予定は非表示（マイカレンダーで削除すると再表示）
-    evts = evts.filter(e => !calendarEventIds.has(e.id));
+    // 追加済みの予定は非表示（セッション開始前に追加済みのもののみ。タブ内で追加しても即消えない）
+    evts = evts.filter(e => !initialCalendarIds.current.has(e.id));
     return evts;
-  }, [events, hiddenWorkIds, categoryFilters, user, calendarEventIds]);
+  }, [events, hiddenWorkIds, categoryFilters, user]);
 
   const toggleWork = (wId: string) =>
     setHiddenWorkIds(prev => {

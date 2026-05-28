@@ -175,7 +175,7 @@ export async function createEvents(
   workId: string,
   events: Pick<CalendarEvent, 'title' | 'date' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink'>[],
   authorId: string,
-): Promise<void> {
+): Promise<string[]> {
   const rows = await Promise.all(events.map(async e => {
     let pool = 0;
     const { data: dups } = await supabase
@@ -205,8 +205,9 @@ export async function createEvents(
     };
   }));
 
-  const { error } = await supabase.from('events').insert(rows);
+  const { data, error } = await supabase.from('events').insert(rows).select('id');
   if (error) throw error;
+  return (data ?? []).map(r => r.id as string);
 }
 
 // ─── いいね ────────────────────────────────────────────────────────

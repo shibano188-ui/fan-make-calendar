@@ -98,3 +98,19 @@ export function removeCalendarEventId(id: string): Set<string> {
   saveCalendarEventIds(set);
   return new Set(set);
 }
+
+// ─── 重要フラグ: 自分だけに見える優先度マーク ──────────────────────
+const IMPORTANT_EVENTS_KEY = 'fan_important_event_ids';
+export function loadImportantEventIds(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(IMPORTANT_EVENTS_KEY) ?? '[]') as string[]); }
+  catch { return new Set(); }
+}
+export function saveImportantEventIds(ids: Set<string>): void {
+  localStorage.setItem(IMPORTANT_EVENTS_KEY, JSON.stringify([...ids]));
+}
+export function toggleImportantEventId(id: string): Set<string> {
+  const set = loadImportantEventIds();
+  if (set.has(id)) set.delete(id); else set.add(id);
+  saveImportantEventIds(set);
+  return new Set(set);
+}
