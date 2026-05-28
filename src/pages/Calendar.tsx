@@ -1547,39 +1547,56 @@ export default function Calendar() {
 
               {/* 日付グリッド（複数日バーはオーバーレイで描画） */}
               <div className="relative flex-1 overflow-hidden">
-                {/* 複数日イベントオーバーレイ: グリッドより先に描画してz-orderを下にする。
-                    セルが透明なのでバーが透けて見え、日付数字・単日タイルはセル側でその上に重なる。 */}
-                <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                  {multiDayOverlaySegments.map(seg => (
-                    <div
-                      key={seg.key}
-                      className="absolute flex items-center overflow-hidden"
-                      style={{
-                        top: `calc(${seg.weekRow} / 6 * 100% + 31px + ${seg.slotIndex} * 11px)`,
-                        left: `calc(${seg.startCol} / 7 * 100%)`,
-                        width: `calc(${seg.endCol - seg.startCol + 1} / 7 * 100%)`,
-                        height: '10px',
-                        background: seg.color.startsWith('#') ? seg.color + '28' : 'rgba(128,128,128,0.18)',
-                        borderTopLeftRadius:    seg.isFirstSegment ? '3px' : '0',
-                        borderBottomLeftRadius: seg.isFirstSegment ? '3px' : '0',
-                        borderTopRightRadius:    seg.isLastSegment  ? '3px' : '0',
-                        borderBottomRightRadius: seg.isLastSegment  ? '3px' : '0',
-                      }}
-                    >
-                      {seg.isFirstSegment && (
-                        seg.important ? (
-                          <span className="text-[8px] leading-none flex-shrink-0 ml-[2px]" style={{ color: '#f59e0b' }}>★</span>
-                        ) : (
-                          <div className="w-[4px] h-[4px] rounded-full flex-shrink-0 ml-[2px]" style={{ backgroundColor: seg.dotColor.startsWith('#') ? seg.dotColor : '#888' }} />
-                        )
-                      )}
-                      {seg.isFirstSegment && (
-                        <span className="text-[8px] leading-none truncate ml-[2px]" style={{ color: seg.color }}>
-                          {seg.title}
-                        </span>
-                      )}
-                    </div>
-                  ))}
+                {/* 複数日イベントオーバーレイ: 週行ごとにコンテナを分けて overflow:hidden で行境界内にクリップ。
+                    グリッドが縮んでも固定px値のバーが隣行にはみ出さない。 */}
+                <div className="absolute inset-0 pointer-events-none">
+                  {[0, 1, 2, 3, 4, 5].map(weekRow => {
+                    const rowSegs = multiDayOverlaySegments.filter(s => s.weekRow === weekRow);
+                    if (rowSegs.length === 0) return null;
+                    return (
+                      <div
+                        key={weekRow}
+                        className="absolute overflow-hidden"
+                        style={{
+                          top: `calc(${weekRow} / 6 * 100%)`,
+                          height: `calc(100% / 6)`,
+                          left: 0,
+                          right: 0,
+                        }}
+                      >
+                        {rowSegs.map(seg => (
+                          <div
+                            key={seg.key}
+                            className="absolute flex items-center overflow-hidden"
+                            style={{
+                              top: `calc(31px + ${seg.slotIndex} * 11px)`,
+                              left: `calc(${seg.startCol} / 7 * 100%)`,
+                              width: `calc(${seg.endCol - seg.startCol + 1} / 7 * 100%)`,
+                              height: '10px',
+                              background: seg.color.startsWith('#') ? seg.color + '28' : 'rgba(128,128,128,0.18)',
+                              borderTopLeftRadius:    seg.isFirstSegment ? '3px' : '0',
+                              borderBottomLeftRadius: seg.isFirstSegment ? '3px' : '0',
+                              borderTopRightRadius:    seg.isLastSegment  ? '3px' : '0',
+                              borderBottomRightRadius: seg.isLastSegment  ? '3px' : '0',
+                            }}
+                          >
+                            {seg.isFirstSegment && (
+                              seg.important ? (
+                                <span className="text-[8px] leading-none flex-shrink-0 ml-[2px]" style={{ color: '#f59e0b' }}>★</span>
+                              ) : (
+                                <div className="w-[4px] h-[4px] rounded-full flex-shrink-0 ml-[2px]" style={{ backgroundColor: seg.dotColor.startsWith('#') ? seg.dotColor : '#888' }} />
+                              )
+                            )}
+                            {seg.isFirstSegment && (
+                              <span className="text-[8px] leading-none truncate ml-[2px]" style={{ color: seg.color }}>
+                                {seg.title}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* グリッドセル: zIndex:1 で stacking context を生成し overlay より上に描画 */}
@@ -1602,7 +1619,7 @@ export default function Calendar() {
                       <button
                         key={dateStr + idx}
                         onClick={() => handleDayClick(dateStr, isCurrentMonth)}
-                        className="flex flex-col items-center justify-start pt-0.5 active:opacity-50 transition-opacity"
+                        className="flex flex-col items-center justify-start pt-0.5 active:opacity-50 transition-opacity overflow-hidden"
                         style={{
                           cursor: isCurrentMonth ? 'pointer' : 'default',
                           borderRight: '1px solid var(--cal-grid-color)',
