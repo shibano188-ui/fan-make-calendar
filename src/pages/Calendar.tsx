@@ -1016,8 +1016,11 @@ export default function Calendar() {
             personalCards.push(c);
           }
         }
+        // 新規作成IDを収集（削除済みイベントを復活させないため全ユーザーIDは使わない）
+        const allNewIds: string[] = [];
         for (const [wId, cards] of workGroups) {
-          await createEvents(wId, cards.map(toEventPayload), user.id);
+          const newIds = await createEvents(wId, cards.map(toEventPayload), user.id);
+          allNewIds.push(...newIds);
         }
         if (personalCards.length > 0) {
           const existing = loadPersonalEvents();
@@ -1027,11 +1030,10 @@ export default function Calendar() {
         if (workGroups.size > 0) {
           listAllParticipatedWorkEvents(user.id, year, month).then(evts => {
             setEvents(evts);
-            // 自分が投稿したイベントをカレンダーに自動追加
-            const myIds = evts.filter(e => e.authorId === user.id).map(e => e.id);
-            if (myIds.length > 0) {
+            // 新規作成したイベントのみカレンダーに追加
+            if (allNewIds.length > 0) {
               const cal = loadCalendarEventIds();
-              myIds.forEach(id => cal.add(id));
+              allNewIds.forEach(id => cal.add(id));
               saveCalendarEventIds(cal);
               setCalendarEventIds(new Set(cal));
             }
@@ -1420,17 +1422,26 @@ export default function Calendar() {
                                 </div>
                               );
                             } else {
-                              // 単日イベント: カテゴリ色ドット or 重要★
+                              // 単日イベント: ドット or ★ + タイトル（小タイル）
                               return (
-                                <div key={`${item.eventId}-${ti}`} className="flex items-center gap-[2px] py-[1px] px-[1px]">
+                                <div
+                                  key={`${item.eventId}-${ti}`}
+                                  className="flex items-center gap-[2px] w-full rounded-[2px] px-[2px] py-[1px]"
+                                  style={{
+                                    background: item.color.startsWith('#') ? item.color + '28' : 'rgba(128,128,128,0.18)',
+                                  }}
+                                >
                                   {item.important ? (
-                                    <span className="text-[9px] leading-none" style={{ color: '#f59e0b' }}>★</span>
+                                    <span className="text-[8px] leading-none flex-shrink-0" style={{ color: '#f59e0b' }}>★</span>
                                   ) : (
                                     <div
-                                      className="w-[5px] h-[5px] rounded-full flex-shrink-0"
-                                      style={{ backgroundColor: item.color.startsWith('#') ? item.color : '#888888' }}
+                                      className="w-[4px] h-[4px] rounded-full flex-shrink-0"
+                                      style={{ backgroundColor: item.color.startsWith('#') ? item.color : '#888' }}
                                     />
                                   )}
+                                  <span className="text-[8px] leading-none truncate" style={{ color: item.color }}>
+                                    {item.title}
+                                  </span>
                                 </div>
                               );
                             }
