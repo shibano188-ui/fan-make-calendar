@@ -586,3 +586,19 @@ export async function listRecentWorks(userId: string): Promise<Work[]> {
       return { id: w.id, name: w.name, participantCount: w.participant_count };
     });
 }
+
+export async function countUserPostedEvents(userId: string): Promise<number> {
+  const { count } = await supabase
+    .from('events')
+    .select('id', { count: 'exact', head: true })
+    .eq('author_id', userId);
+  return count ?? 0;
+}
+
+export async function getTotalReceivedLikes(userId: string): Promise<number> {
+  const { data } = await supabase
+    .from('events')
+    .select('like_count')
+    .eq('author_id', userId);
+  return (data ?? []).reduce((sum, e) => sum + ((e.like_count as number) ?? 0), 0);
+}

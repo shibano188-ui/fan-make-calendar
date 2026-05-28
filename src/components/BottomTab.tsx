@@ -1,25 +1,25 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Search, CalendarDays, Palette, Compass } from 'lucide-react';
+import { Search, CalendarDays, Compass, User } from 'lucide-react';
 
 const tabs = [
   { label: '作品',       icon: Search,      index: 0 },
   { label: '発見',       icon: Compass,     index: 1 },
   { label: 'カレンダー', icon: CalendarDays, index: 2 },
-  { label: '設定',       icon: Palette,     index: 3 },
+  { label: 'プロフィール', icon: User,      index: 3 },
 ];
 
 function getTabPath(index: number): string {
   if (index === 0) return '/select';
   if (index === 1) return '/discover';
   if (index === 2) return '/calendar';
-  return '/customize';
+  return '/profile';
 }
 
 function isTabActive(index: number, pathname: string): boolean {
   if (index === 0) return pathname === '/select';
   if (index === 1) return pathname === '/discover';
   if (index === 2) return pathname === '/' || pathname.startsWith('/calendar');
-  return pathname === '/customize';
+  return pathname === '/profile';
 }
 
 export default function BottomTab() {

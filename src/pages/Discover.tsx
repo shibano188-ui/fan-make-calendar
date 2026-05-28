@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
+import SettingsMenuButton from '../components/SettingsMenuButton';
 import {
   listUpcomingParticipatedEvents, listRecentWorks,
   setReaction, getMyReactionsBatch, updateEvent, addLikeTap,
@@ -385,14 +386,17 @@ export default function Discover() {
         <Header
           title="発見"
           rightAction={
-            <button
-              onClick={() => setShowRegionPanel(true)}
-              aria-label="地域で絞り込む"
-              className="relative w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary active:opacity-60"
-            >
-              <MapIcon size={16} style={filterActive ? { color: 'var(--accent-color)' } : {}} />
-              {filterActive && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent-color)' }} />}
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setShowRegionPanel(true)}
+                aria-label="地域で絞り込む"
+                className="relative w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary active:opacity-60"
+              >
+                <MapIcon size={16} style={filterActive ? { color: 'var(--accent-color)' } : {}} />
+                {filterActive && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent-color)' }} />}
+              </button>
+              <SettingsMenuButton />
+            </div>
           }
         />
 

@@ -474,10 +474,6 @@ export default function Customize() {
               <div className="h-12 bg-[#1a1a1a]" />
               <div className="bg-bg-secondary py-1.5"><p className="text-xs text-label-primary text-center">ダーク</p></div>
             </button>
-            <button className="rounded-xl overflow-hidden border-2 border-subtle opacity-40" disabled>
-              <div className="h-12" style={{ backgroundImage: 'repeating-linear-gradient(45deg,#333 0,#333 4px,#444 4px,#444 8px)' }} />
-              <div className="bg-bg-secondary py-1.5"><p className="text-xs text-label-tertiary text-center">作品公式</p></div>
-            </button>
             <button onClick={() => setShowCommunityModal(true)} className={themeButtonClass(isCommunityActive)}>
               <div className="h-12 bg-bg-secondary flex items-center justify-center"><Users size={20} className="text-label-tertiary" /></div>
               <div className="bg-bg-secondary py-1.5 border-t border-subtle"><p className="text-xs text-label-secondary text-center">みんなのテーマ</p></div>
