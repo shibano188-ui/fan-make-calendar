@@ -494,6 +494,8 @@ export default function Calendar() {
   const [deleting, setDeleting] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const swipeStartX = useRef<number | null>(null);
+  const swipeStartY = useRef<number | null>(null);
 
   const [filterMode, setFilterMode] = useState<FilterMode>('none');
   const [filterValue, setFilterValue] = useState<string | null>(null);
@@ -823,6 +825,23 @@ export default function Calendar() {
   const cancelLongPress = () => {
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
   };
+
+  // ─── 左右スワイプで月移動 ───────────────────────────────────────────
+  const handleSwipeStart = (e: React.TouchEvent) => {
+    swipeStartX.current = e.touches[0].clientX;
+    swipeStartY.current = e.touches[0].clientY;
+  };
+  const handleSwipeEnd = (e: React.TouchEvent) => {
+    if (swipeStartX.current === null || swipeStartY.current === null) return;
+    const dx = e.changedTouches[0].clientX - swipeStartX.current;
+    const dy = e.changedTouches[0].clientY - swipeStartY.current;
+    swipeStartX.current = null;
+    swipeStartY.current = null;
+    // 水平方向が支配的かつ60px以上で月移動（縦スクロールと競合しない）
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    cancelLongPress();
+    if (dx < 0) nextMonth(); else prevMonth();
+  };
   const handleFullDelete = async (id: string, title: string) => {
     if (!window.confirm(`「${title}」を完全に削除しますか？\nこの操作は元に戻せません。`)) return;
     try {
@@ -1087,7 +1106,7 @@ export default function Calendar() {
   }, [participatedWorks]);
 
   // カレンダーセル用: 日付→{title, color, position?, eventId}[]
-  type CellItem = { title: string; color: string; position?: 'start' | 'middle' | 'end'; eventId: string; important?: boolean };
+  type CellItem = { title: string; color: string; dotColor: string; position?: 'start' | 'middle' | 'end'; eventId: string; important?: boolean };
   const cellEventsByDate = useMemo(() => {
     const map = new Map<string, CellItem[]>();
     const add = (d: string, item: CellItem) => {
@@ -1096,37 +1115,38 @@ export default function Calendar() {
       map.set(d, arr);
     };
     for (const e of visibleEvents) {
-      const color = getCategoryColor(e.category)
-        ?? (e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)');
+      // タイル色: 作品色、ドット色: カテゴリ色（なければ作品色）
+      const workColor = e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
+      const dotColor = getCategoryColor(e.category) ?? workColor;
       const important = importantEventIds.has(e.id);
       if (e.endDate && e.endDate > e.date) {
         let cur = e.date;
         while (cur <= e.endDate) {
           const pos: CellItem['position'] = cur === e.date ? 'start' : cur === e.endDate ? 'end' : 'middle';
-          add(cur, { title: e.title, color, position: pos, eventId: e.id, important });
+          add(cur, { title: e.title, color: workColor, dotColor, position: pos, eventId: e.id, important });
           const next = new Date(cur + 'T00:00:00');
           next.setDate(next.getDate() + 1);
           cur = toDateStr(next);
         }
       } else {
-        add(e.date, { title: e.title, color, eventId: e.id, important });
+        add(e.date, { title: e.title, color: workColor, dotColor, eventId: e.id, important });
       }
     }
     if (!workId) {
       for (const pe of monthPersonalEvents) {
-        const color = getCategoryColor(pe.category) ?? '#888888';
+        const dotColor = getCategoryColor(pe.category) ?? '#888888';
         const important = importantEventIds.has(pe.id);
         if (pe.endDate && pe.endDate > pe.date) {
           let cur = pe.date;
           while (cur <= pe.endDate) {
             const pos: CellItem['position'] = cur === pe.date ? 'start' : cur === pe.endDate ? 'end' : 'middle';
-            add(cur, { title: pe.title, color, position: pos, eventId: pe.id, important });
+            add(cur, { title: pe.title, color: '#888888', dotColor, position: pos, eventId: pe.id, important });
             const next = new Date(cur + 'T00:00:00');
             next.setDate(next.getDate() + 1);
             cur = toDateStr(next);
           }
         } else {
-          add(pe.date, { title: pe.title, color, eventId: pe.id, important });
+          add(pe.date, { title: pe.title, color: '#888888', dotColor, eventId: pe.id, important });
         }
       }
     }
@@ -1351,7 +1371,8 @@ export default function Calendar() {
 
         {topView === 'calendar' ? (
           /* ─── カレンダービュー ─── */
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden"
+            onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}>
             {/* カレンダーグリッドエリア */}
             <div className="flex-1 overflow-hidden flex flex-col px-3 pt-1" style={{ fontFamily: calFontFamily }}>
               {/* 曜日ラベル */}
@@ -1436,7 +1457,7 @@ export default function Calendar() {
                                   ) : (
                                     <div
                                       className="w-[4px] h-[4px] rounded-full flex-shrink-0"
-                                      style={{ backgroundColor: item.color.startsWith('#') ? item.color : '#888' }}
+                                      style={{ backgroundColor: item.dotColor.startsWith('#') ? item.dotColor : '#888' }}
                                     />
                                   )}
                                   <span className="text-[8px] leading-none truncate" style={{ color: item.color }}>
@@ -1848,7 +1869,8 @@ export default function Calendar() {
           </div>
         ) : (
           /* ─── 予定一覧ビュー ─── */
-          <div className="flex-1 overflow-y-auto px-4 pt-3 pb-24">
+          <div className="flex-1 overflow-y-auto px-4 pt-3 pb-24"
+            onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}>
           {listDetailEvent ? (
             /* 予定詳細 */
             <div className="flex flex-col gap-3">

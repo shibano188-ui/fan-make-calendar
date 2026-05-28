@@ -281,8 +281,8 @@ function PostCardItem({
               color: '#f59e0b',
               backgroundColor: 'rgba(245,158,11,0.1)',
             } : {
-              borderColor: 'var(--border-faint)',
-              color: 'var(--label-tertiary)',
+              borderColor: 'var(--border-default)',
+              color: 'var(--label-secondary)',
             }}
           >
             <Star size={12} style={{ fill: card.important ? '#f59e0b' : 'none', color: card.important ? '#f59e0b' : 'currentColor' }} />
