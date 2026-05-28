@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import {} from 'react-router-dom';
-import { Search, ChevronRight, MoreVertical, LogOut, Trash2 } from 'lucide-react';
+import { Search, ChevronRight, MoreVertical, LogOut, Trash2, Check } from 'lucide-react';
 import Layout from '../components/Layout';
 import SettingsMenuButton from '../components/SettingsMenuButton';
 import { listWorks, searchWorks, getOrCreateWork, upsertParticipation, listRecentWorks, leaveCalendar, deleteWork } from '../lib/api';
@@ -12,17 +12,36 @@ function formatCount(n: number): string {
   return n.toLocaleString('ja-JP');
 }
 
-function WorkItem({ name, count, onClick }: { name: string; count: number; onClick: () => void }) {
+function WorkItem({
+  name,
+  count,
+  onClick,
+  participated = false,
+}: {
+  name: string;
+  count: number;
+  onClick: () => void;
+  participated?: boolean;
+}) {
   return (
     <button
-      onClick={onClick}
-      className="w-full flex items-center justify-between px-4 py-3.5 bg-bg-secondary rounded-xl text-left active:opacity-70 transition-opacity"
+      onClick={participated ? undefined : onClick}
+      disabled={participated}
+      className="w-full flex items-center justify-between px-4 py-3.5 bg-bg-secondary rounded-xl text-left transition-opacity disabled:opacity-100"
+      style={participated ? { cursor: 'default' } : undefined}
     >
       <div>
-        <p className="text-label-primary font-semibold text-[15px]">{name}</p>
+        <p className={`font-semibold text-[15px] ${participated ? 'text-label-secondary' : 'text-label-primary'}`}>{name}</p>
         <p className="text-label-secondary text-xs mt-0.5">参加者 {formatCount(count)}人</p>
       </div>
-      <ChevronRight size={16} className="text-label-tertiary flex-shrink-0 ml-2" />
+      {participated ? (
+        <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+          <Check size={14} style={{ color: 'var(--accent-color)' }} />
+          <span className="text-xs" style={{ color: 'var(--accent-color)' }}>参加済み</span>
+        </div>
+      ) : (
+        <ChevronRight size={16} className="text-label-tertiary flex-shrink-0 ml-2" />
+      )}
     </button>
   );
 }
@@ -208,9 +227,18 @@ export default function WorkSelect() {
           <>
             {searchResults.length > 0 && (
               <Section title="検索結果">
-                {searchResults.map(w => (
-                  <WorkItem key={w.id} name={w.name} count={w.participantCount} onClick={() => handleSelect(w)} />
-                ))}
+                {searchResults.map(w => {
+                  const already = recentWorks.some(r => r.id === w.id);
+                  return (
+                    <WorkItem
+                      key={w.id}
+                      name={w.name}
+                      count={w.participantCount}
+                      onClick={() => handleSelect(w)}
+                      participated={already}
+                    />
+                  );
+                })}
               </Section>
             )}
 
@@ -254,9 +282,18 @@ export default function WorkSelect() {
               </div>
             ) : popularWorks.length > 0 ? (
               <Section title="人気のカレンダー">
-                {popularWorks.map(w => (
-                  <WorkItem key={w.id} name={w.name} count={w.participantCount} onClick={() => handleSelect(w)} />
-                ))}
+                {popularWorks.map(w => {
+                  const already = recentWorks.some(r => r.id === w.id);
+                  return (
+                    <WorkItem
+                      key={w.id}
+                      name={w.name}
+                      count={w.participantCount}
+                      onClick={() => handleSelect(w)}
+                      participated={already}
+                    />
+                  );
+                })}
               </Section>
             ) : (
               <p className="text-center text-label-tertiary text-sm py-10">

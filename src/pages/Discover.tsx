@@ -136,15 +136,27 @@ export default function Discover() {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState('');
 
-  // 作品カラーMap
+  // 作品カラーMap（CalendarタブのworkColorMapと同じロジック）
   const workColorMap = useMemo(() => {
     const saved: Record<string, string> = (() => {
       try { return JSON.parse(localStorage.getItem('fan_work_colors') ?? '{}'); } catch { return {}; }
     })();
+    const usedColors = new Set<string>(
+      participatedWorks.filter(w => saved[w.id]).map(w => saved[w.id]),
+    );
+    const updated = { ...saved };
+    let hasNew = false;
     const m = new Map<string, string>();
     participatedWorks.forEach(w => {
-      m.set(w.id, saved[w.id] ?? WORK_COLORS[0]);
+      if (!updated[w.id]) {
+        const color = WORK_COLORS.find(c => !usedColors.has(c)) ?? WORK_COLORS[0];
+        updated[w.id] = color;
+        usedColors.add(color);
+        hasNew = true;
+      }
+      m.set(w.id, updated[w.id]);
     });
+    if (hasNew) localStorage.setItem('fan_work_colors', JSON.stringify(updated));
     return m;
   }, [participatedWorks]);
 

@@ -599,12 +599,14 @@ export default function Calendar() {
 
   useEffect(() => {
     if (!user) return;
+    // セッション内で既にホーム県フィルターを自動適用済みの場合はスキップ（発見タブで解除した設定を上書きしない）
+    const alreadyApplied = sessionStorage.getItem('fan_home_pref_applied') === '1';
     Promise.all([getHomePrefecture(user.id), getDisplayName(user.id)])
       .then(([pref, name]) => {
         setHomePref(pref);
         setDisplayName(name);
-        // 既にlocalStorageにフィルターが設定済みの場合は上書きしない
-        if (pref && loadRegionFilter().filterMode === 'none') {
+        sessionStorage.setItem('fan_home_pref_applied', '1');
+        if (!alreadyApplied && pref && loadRegionFilter().filterMode === 'none') {
           setFilterMode('pref'); setFilterValue(pref);
         }
       });
@@ -1488,20 +1490,25 @@ export default function Calendar() {
                           {cellItems.slice(0, 3).map((item, ti) => {
                             const pos = item.position;
                             if (pos) {
-                              // 複数日イベント: カテゴリ色バー
-                              const barCls = pos === 'start' ? 'rounded-l-[2px] rounded-r-none px-[2px] mr-[-3px]'
-                                : pos === 'end'   ? 'rounded-r-[2px] rounded-l-none px-[2px] ml-[-3px]'
-                                :                  'rounded-none px-[2px] mx-[-3px]';
+                              // 複数日イベント: カラーバー（固定高さで統一）
+                              const isStart = pos === 'start';
+                              const isEnd = pos === 'end';
                               return (
                                 <div
                                   key={`${item.eventId}-${ti}`}
-                                  className={`text-[8px] leading-none truncate py-[1px] ${barCls}`}
+                                  className="text-[8px] leading-none truncate px-[2px] overflow-hidden"
                                   style={{
                                     background: item.color.startsWith('#') ? item.color + '28' : 'rgba(128,128,128,0.18)',
                                     color: item.color,
+                                    height: '10px',
+                                    lineHeight: '10px',
+                                    borderTopLeftRadius: isStart ? '2px' : '0',
+                                    borderBottomLeftRadius: isStart ? '2px' : '0',
+                                    borderTopRightRadius: isEnd ? '2px' : '0',
+                                    borderBottomRightRadius: isEnd ? '2px' : '0',
                                   }}
                                 >
-                                  {pos === 'middle' || pos === 'end' ? ' ' : item.title}
+                                  {isStart ? (item.important ? `★${item.title}` : item.title) : ''}
                                 </div>
                               );
                             } else {
