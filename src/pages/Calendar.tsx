@@ -2490,7 +2490,7 @@ export default function Calendar() {
           className="fixed inset-x-0 max-w-app mx-auto z-[160] rounded-t-2xl overflow-hidden"
           style={{
             bottom: BOTTOM_TAB_H,
-            height: '72vh',
+            height: '45vh',
             backgroundColor: 'var(--bg-primary)',
             animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both',
             position: 'fixed',
