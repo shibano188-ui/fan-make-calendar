@@ -28,7 +28,8 @@ import {
   POST_CATEGORIES, type PostCategory, loadCategoryFilters, saveCategoryFilters,
   loadCalendarEventIds, saveCalendarEventIds, removeCalendarEventId,
   parseLinks, serializeLinks, getCategoryColor,
-  loadImportantEventIds, toggleImportantEventId,
+  loadImportantEventIds, saveImportantEventIds, toggleImportantEventId,
+  type FilterMode, saveRegionFilter,
 } from '../lib/constants';
 
 // ─── 定数 ──────────────────────────────────────────────────────────
@@ -144,6 +145,7 @@ interface InlineCard {
   locationMapLink: string;
   links: string[];
   memo: string;
+  important: boolean;
   collapsed: boolean;
 }
 
@@ -163,6 +165,7 @@ function newInlineCard(date: string): InlineCard {
     locationMapLink: '',
     links: [''],
     memo: '',
+    important: false,
     collapsed: false,
   };
 }
@@ -191,6 +194,9 @@ function InlineCardItem({
           予定 {index + 1}{card.title.trim() ? `：${card.title.trim()}` : ''}
         </span>
         <div className="flex items-center gap-1">
+          {card.important && (
+            <Star size={13} style={{ fill: '#f59e0b', color: '#f59e0b' }} className="flex-shrink-0" />
+          )}
           <button
             onClick={e => { e.stopPropagation(); onRemove(); }}
             disabled={total <= 1}
@@ -204,9 +210,32 @@ function InlineCardItem({
 
       {!card.collapsed && (
         <div className="px-4 pb-4 flex flex-col gap-4 border-t border-faint">
-          {participatedWorks && participatedWorks.length > 0 && (
-            <div className="pt-3">
-              <label className="text-label-tertiary text-xs mb-1.5 block">保存先</label>
+          {/* 保存先 + ★ 重要ボタン（常に表示） */}
+          <div className="pt-3">
+            <div className="flex items-center justify-between mb-2">
+              {participatedWorks && participatedWorks.length > 0 ? (
+                <label className="text-label-tertiary text-xs">保存先</label>
+              ) : (
+                <span />
+              )}
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); onChange({ important: !card.important }); }}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-medium transition-colors active:opacity-70"
+                style={card.important ? {
+                  borderColor: '#f59e0b',
+                  color: '#f59e0b',
+                  backgroundColor: 'rgba(245,158,11,0.12)',
+                } : {
+                  borderColor: 'var(--border-default)',
+                  color: 'var(--label-secondary)',
+                }}
+              >
+                <Star size={11} style={{ fill: card.important ? '#f59e0b' : 'none' }} />
+                重要
+              </button>
+            </div>
+            {participatedWorks && participatedWorks.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -226,9 +255,9 @@ function InlineCardItem({
                   </button>
                 ))}
               </div>
-            </div>
-          )}
-          <div className={participatedWorks && participatedWorks.length > 0 ? '' : 'pt-3'}>
+            )}
+          </div>
+          <div>
             <label className="text-label-tertiary text-xs mb-1.5 block">タイトル <span className="text-red-400">*</span></label>
             <input type="text" value={card.title} onChange={e => onChange({ title: e.target.value })} placeholder="例：単行本 第15巻 発売" className={inputCls} />
           </div>
@@ -345,8 +374,6 @@ function InlineCardItem({
 }
 
 // ─── 地域フィルターパネル ─────────────────────────────────────────
-
-type FilterMode = 'none' | 'pref' | 'region';
 
 function RegionFilterPanel({
   filterMode, filterValue, includeAdjacent, homePref,
@@ -582,6 +609,11 @@ export default function Calendar() {
         if (pref) { setFilterMode('pref'); setFilterValue(pref); }
       });
   }, [user?.id]);
+
+  // 地域フィルターをlocalStorageに保存 → Discoverタブと共有
+  useEffect(() => {
+    saveRegionFilter({ filterMode, filterValue, includeAdjacent });
+  }, [filterMode, filterValue, includeAdjacent]);
 
   const handleCopyUrl = async () => {
     const url = `${window.location.origin}/calendar/${workId}`;
@@ -1018,9 +1050,11 @@ export default function Calendar() {
       ...(serializedLinks(c) && { link: serializedLinks(c) }),
       ...(c.memo.trim() && { memo: c.memo.trim() }),
     });
+    const newImportantIds: string[] = [];
     try {
       if (workId && user) {
-        await createEvents(workId, postCards.map(toEventPayload), user.id);
+        const newIds = await createEvents(workId, postCards.map(toEventPayload), user.id);
+        postCards.forEach((c, i) => { if (c.important && newIds[i]) newImportantIds.push(newIds[i]); });
         listEvents(workId, year, month).then(setEvents).catch(() => {});
       } else if (user) {
         // MyCalendar: 作品ごとにグループ化して投稿
@@ -1040,11 +1074,14 @@ export default function Calendar() {
         for (const [wId, cards] of workGroups) {
           const newIds = await createEvents(wId, cards.map(toEventPayload), user.id);
           allNewIds.push(...newIds);
+          newIds.forEach((id, i) => { if (cards[i].important) newImportantIds.push(id); });
         }
         if (personalCards.length > 0) {
+          const newPersonalEvts = personalCards.map(toPersonalEvent);
           const existing = loadPersonalEvents();
-          savePersonalEvents([...existing, ...personalCards.map(toPersonalEvent)]);
+          savePersonalEvents([...existing, ...newPersonalEvts]);
           setPersonalEvents(loadPersonalEvents());
+          newPersonalEvts.forEach((pe, i) => { if (personalCards[i].important) newImportantIds.push(pe.id); });
         }
         if (workGroups.size > 0) {
           listAllParticipatedWorkEvents(user.id, year, month).then(evts => {
@@ -1059,9 +1096,18 @@ export default function Calendar() {
           }).catch(() => {});
         }
       } else {
+        const newPersonalEvts = postCards.map(toPersonalEvent);
         const existing = loadPersonalEvents();
-        savePersonalEvents([...existing, ...postCards.map(toPersonalEvent)]);
+        savePersonalEvents([...existing, ...newPersonalEvts]);
         setPersonalEvents(loadPersonalEvents());
+        newPersonalEvts.forEach((pe, i) => { if (postCards[i].important) newImportantIds.push(pe.id); });
+      }
+      // 重要フラグを保存
+      if (newImportantIds.length > 0) {
+        const important = loadImportantEventIds();
+        newImportantIds.forEach(id => important.add(id));
+        saveImportantEventIds(important);
+        setImportantEventIds(new Set(important));
       }
       closePostForm();
     } catch {

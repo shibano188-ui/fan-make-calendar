@@ -114,3 +114,22 @@ export function toggleImportantEventId(id: string): Set<string> {
   saveImportantEventIds(set);
   return new Set(set);
 }
+
+// ─── 地域フィルター: Calendar ↔ Discover 間で共有 ─────────────────────
+const REGION_FILTER_KEY = 'fan_region_filter';
+export type FilterMode = 'none' | 'pref' | 'region';
+export interface RegionFilter {
+  filterMode: FilterMode;
+  filterValue: string | null;
+  includeAdjacent: boolean;
+}
+export function loadRegionFilter(): RegionFilter {
+  try {
+    const raw = localStorage.getItem(REGION_FILTER_KEY);
+    if (!raw) return { filterMode: 'none', filterValue: null, includeAdjacent: false };
+    return JSON.parse(raw) as RegionFilter;
+  } catch { return { filterMode: 'none', filterValue: null, includeAdjacent: false }; }
+}
+export function saveRegionFilter(filter: RegionFilter): void {
+  localStorage.setItem(REGION_FILTER_KEY, JSON.stringify(filter));
+}
