@@ -23,27 +23,44 @@ export default function Header({ title, subtitle, subtitleNode, onBack, closeMod
   };
 
   return (
-    <header className="flex items-center px-4 py-3 bg-bg-primary border-b border-subtle">
-      {/* 左: 戻る / 閉じる（flex-1で右側と対称） */}
+    <header
+      className="flex items-center px-4 py-2.5"
+      style={{
+        backgroundColor: 'var(--bg-primary)',
+        borderBottom: '1px solid rgba(0,200,255,0.18)',
+        boxShadow: '0 1px 12px rgba(0,200,255,0.06)',
+      }}
+    >
+      {/* 左: 戻る / 閉じる */}
       <div className="flex-1 flex items-center">
         <button
           onClick={handleBack}
-          className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-primary"
+          className="w-8 h-8 flex items-center justify-center text-label-secondary active:opacity-60 transition-opacity"
+          style={{
+            border: '1px solid rgba(0,200,255,0.22)',
+            borderRadius: 4,
+            backgroundColor: 'rgba(0,200,255,0.06)',
+          }}
           aria-label={closeMode ? '閉じる' : '戻る'}
         >
-          {closeMode ? <X size={16} /> : <ChevronLeft size={18} />}
+          {closeMode ? <X size={15} /> : <ChevronLeft size={17} />}
         </button>
       </div>
 
-      {/* 中央: タイトル（常に真ん中） */}
+      {/* 中央: タイトル */}
       <div className="flex-1 text-center px-1">
-        <p className="text-sm font-semibold text-label-primary leading-tight">{title}</p>
+        <p
+          className="text-sm font-semibold leading-tight tracking-wider uppercase"
+          style={{ fontFamily: "'Rajdhani', sans-serif", color: 'var(--label-primary)', letterSpacing: '0.1em' }}
+        >
+          {title}
+        </p>
         {subtitleNode ?? (subtitle && (
-          <p className="text-xs text-label-secondary leading-tight">{subtitle}</p>
+          <p className="text-[10px] leading-tight" style={{ color: 'var(--label-tertiary)' }}>{subtitle}</p>
         ))}
       </div>
 
-      {/* 右: アクション（flex-1で左側と対称） */}
+      {/* 右: アクション */}
       <div className="flex-1 flex justify-end items-center">
         {rightAction ?? null}
       </div>

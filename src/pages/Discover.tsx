@@ -484,8 +484,8 @@ export default function Discover() {
                 const [, em, ed] = event.date.split('-').map(Number);
                 const catColor = getCategoryColor(event.category);
                 return (
-                  <div key={event.id} className="bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
-                    style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined }}
+                  <div key={event.id} className="select-none ds-panel ds-corners"
+                    style={{ backgroundColor: 'var(--bg-secondary)', borderRadius: 2, borderLeft: catColor ? `3px solid ${catColor}` : undefined }}
                     onTouchStart={() => startLongPress(() => handleFullDelete(event.id, event.title))}
                     onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
                     onMouseDown={() => startLongPress(() => handleFullDelete(event.id, event.title))}
@@ -495,18 +495,20 @@ export default function Discover() {
                     <div className="flex items-stretch px-4 pt-4 gap-3">
                       {/* 日付（左） */}
                       <div className="flex-shrink-0 w-10 flex flex-col items-center pt-0.5">
-                        <span className="text-[10px] text-label-tertiary leading-none">{em}月</span>
-                        <span className="text-xl font-bold text-label-primary leading-snug">{ed}</span>
+                        <span className="text-[9px] leading-none" style={{ color: 'var(--label-tertiary)', fontFamily: "'Rajdhani', sans-serif", letterSpacing: '0.05em' }}>{em}月</span>
+                        <span className="text-2xl font-bold leading-snug ds-number">{ed}</span>
                       </div>
-                      <div className="w-px self-stretch bg-white/10 flex-shrink-0" />
+                      <div className="w-px self-stretch flex-shrink-0" style={{ background: 'rgba(0,200,255,0.15)' }} />
                       {/* 元のコンテンツ（右） */}
                       <div className="flex-1 min-w-0 flex flex-col gap-2 pb-3">
                         {/* バッジ行 */}
                         {(event.workName || event.category || event.prefecture) && (
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {event.workName && (
-                              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
-                                style={{ color, backgroundColor: `${color}20` }}>
+                              <span
+                                className="text-[10px] font-medium px-2 py-0.5 ds-label"
+                                style={{ color, border: `1px solid ${color}40`, borderRadius: 2, backgroundColor: `${color}12` }}
+                              >
                                 {event.workName}
                               </span>
                             )}

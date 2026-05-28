@@ -3,34 +3,117 @@
 @tailwind utilities;
 
 @layer utilities {
+  /* ── カード影（DS版：シアン発光ボーダーに上書き） ── */
   .shadow-card {
-    box-shadow: 0 2px 8px rgba(0,0,0,0.14), 0 0 1px rgba(0,0,0,0.08);
+    box-shadow: none;
+    border: 1px solid rgba(0, 200, 255, 0.18);
+  }
+
+  /* ── DSセクションラベル ── */
+  .ds-label {
+    font-family: 'Rajdhani', 'Helvetica Neue', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 600;
+  }
+
+  /* ── DS数字（シアン発光） ── */
+  .ds-number {
+    font-family: 'Rajdhani', 'Helvetica Neue', sans-serif;
+    font-weight: 700;
+    color: var(--accent-color);
+    text-shadow: 0 0 10px rgba(0, 200, 255, 0.55);
+  }
+
+  /* ── DSパネル（発光ボーダー） ── */
+  .ds-panel {
+    border: 1px solid rgba(0, 200, 255, 0.28);
+    box-shadow: 0 0 12px rgba(0, 200, 255, 0.08), inset 0 0 24px rgba(0, 0, 0, 0.4);
+  }
+
+  /* ── DS強調ボーダー（アクティブ・選択状態） ── */
+  .ds-glow-border {
+    border: 1px solid rgba(0, 200, 255, 0.7);
+    box-shadow: 0 0 10px rgba(0, 200, 255, 0.35), inset 0 0 8px rgba(0, 200, 255, 0.06);
+  }
+
+  /* ── DSコーナーブラケット装飾 ── */
+  .ds-corners {
+    position: relative;
+  }
+  .ds-corners::before,
+  .ds-corners::after {
+    content: '';
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-color: rgba(0, 200, 255, 0.55);
+    border-style: solid;
+    pointer-events: none;
+  }
+  .ds-corners::before {
+    top: 0;
+    left: 0;
+    border-width: 1px 0 0 1px;
+  }
+  .ds-corners::after {
+    bottom: 0;
+    right: 0;
+    border-width: 0 1px 1px 0;
+  }
+
+  /* ── アクセントライン（ヘッダー下など） ── */
+  .ds-accent-line::after {
+    content: '';
+    display: block;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(0,200,255,0.6) 30%, rgba(0,200,255,0.6) 70%, transparent 100%);
+    margin-top: 2px;
   }
 }
 
 :root {
-  --bg-primary:        #1a1a1a;
-  --bg-secondary:      #2a2a2a;
-  --label-primary:     #ffffff;
-  --label-secondary:   #aaaaaa;
-  --label-tertiary:    #666666;
-  --border-faint:      rgba(255,255,255,0.05);
-  --border-subtle:     rgba(255,255,255,0.08);
-  --border-default:    rgba(255,255,255,0.15);
-  --border-strong:     rgba(255,255,255,0.30);
-  --border-selected:   rgba(255,255,255,0.60);
-  --input-text:        #ffffff;
-  --input-placeholder: rgba(255,255,255,0.25);
-  --input-caret:       #ffffff;
-  --accent-color:      #888780;
-  --cal-weekday-color:    var(--label-primary);
-  --cal-saturday-color:   rgba(96,165,250,0.8);
-  --cal-sunday-color:     rgba(239,68,68,0.8);
-  --cal-other-month-color: rgba(128,128,128,0.35);
+  /* ── Death Stranding カラーパレット ── */
+  --bg-primary:        #070b10;
+  --bg-secondary:      #0c1622;
+  --label-primary:     #d0e8f5;
+  --label-secondary:   #5a8fb0;
+  --label-tertiary:    #2a5068;
+  --border-faint:      rgba(0,200,255,0.04);
+  --border-subtle:     rgba(0,200,255,0.12);
+  --border-default:    rgba(0,200,255,0.26);
+  --border-strong:     rgba(0,200,255,0.55);
+  --border-selected:   rgba(0,200,255,0.88);
+  --input-text:        #c8e4f0;
+  --input-placeholder: rgba(90,143,176,0.4);
+  --input-caret:       #00c8ff;
+  --accent-color:      #00c8ff;
+  --ds-yellow:         #e8b800;
+  --ds-glow:           rgba(0,200,255,0.35);
+  --cal-weekday-color:    #8ab8cc;
+  --cal-saturday-color:   rgba(0,200,255,0.7);
+  --cal-sunday-color:     rgba(220,80,80,0.8);
+  --cal-other-month-color: rgba(42,80,104,0.6);
 }
 
 * {
   box-sizing: border-box;
+}
+
+/* ── スキャンライン（微細なテクスチャ） ── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0, 0, 0, 0.04) 3px,
+    rgba(0, 0, 0, 0.04) 4px
+  );
+  pointer-events: none;
+  z-index: 9998;
 }
 
 @keyframes floatHeart {
@@ -53,6 +136,11 @@
   0%   { transform: scale(1); }
   40%  { transform: scale(1.35); }
   100% { transform: scale(1); }
+}
+
+@keyframes dsPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
 }
 
 body {

@@ -159,7 +159,7 @@ export default function Profile() {
 
           {/* ── テーマ ────────────────────────────── */}
           <section>
-            <p className="text-label-tertiary text-xs mb-3">テーマ</p>
+            <p className="ds-label text-[11px] mb-3" style={{ color: 'var(--label-tertiary)' }}>Theme</p>
             <div className="flex gap-2">
               <button
                 onClick={() => updateSettings({ theme: 'simple', communityThemeId: '' })}
@@ -201,7 +201,7 @@ export default function Profile() {
           {/* ── プロフィール ───────────────────────── */}
           <section>
             <div className="flex items-center justify-between mb-3">
-              <p className="text-label-tertiary text-xs">プロフィール</p>
+              <p className="ds-label text-[11px]" style={{ color: 'var(--label-tertiary)' }}>Courier ID</p>
               {!editing && (
                 <button onClick={startEdit} className="flex items-center gap-1 text-xs active:opacity-60" style={{ color: 'var(--accent-color)' }}>
                   <Pencil size={12} />編集
@@ -209,12 +209,21 @@ export default function Profile() {
               )}
             </div>
 
-            <div className="rounded-xl overflow-hidden shadow-card" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+            <div className="rounded-sm overflow-hidden ds-panel ds-corners" style={{ backgroundColor: 'var(--bg-secondary)' }}>
               {/* アバター＋名前エリア */}
               <div className="flex items-center gap-4 px-5 pt-5 pb-4">
                 <div
-                  className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0 text-xl font-bold"
-                  style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' }}
+                  className="w-16 h-16 flex items-center justify-center flex-shrink-0 ds-glow-border ds-corners"
+                  style={{
+                    backgroundColor: 'rgba(0,200,255,0.08)',
+                    borderRadius: 4,
+                    fontFamily: "'Rajdhani', sans-serif",
+                    fontSize: '1.5rem',
+                    fontWeight: 700,
+                    color: 'var(--accent-color)',
+                    textShadow: '0 0 12px rgba(0,200,255,0.7)',
+                    letterSpacing: '0.05em',
+                  }}
                 >
                   {initials}
                 </div>
@@ -230,7 +239,7 @@ export default function Profile() {
                   </div>
                 ) : (
                   <div className="flex-1 min-w-0">
-                    <p className="text-label-primary font-semibold text-base truncate">{displayName ?? '匿名'}</p>
+                    <p className="font-semibold text-base truncate" style={{ fontFamily: "'Rajdhani', sans-serif", letterSpacing: '0.05em', color: 'var(--label-primary)' }}>{displayName ?? '匿名'}</p>
                     {homePref && <p className="text-label-tertiary text-xs mt-0.5">{homePref}</p>}
                   </div>
                 )}
@@ -287,38 +296,39 @@ export default function Profile() {
 
           {/* ── 統計 ──────────────────────────────── */}
           <section>
-            <p className="text-label-tertiary text-xs mb-3">アクティビティ</p>
+            <p className="ds-label text-[11px] mb-3" style={{ color: 'var(--label-tertiary)' }}>Activity Log</p>
             {/* 参加作品（タップで遷移） */}
             <button
               onClick={() => navigate('/select')}
-              className="w-full flex items-center justify-between px-5 py-4 rounded-xl shadow-card active:opacity-70"
+              className="w-full flex items-center justify-between px-5 py-4 rounded-sm ds-panel active:opacity-70 ds-corners"
               style={{ backgroundColor: 'var(--bg-secondary)' }}
             >
-              <span className="text-label-primary text-sm">参加している作品</span>
+              <span className="ds-label text-xs" style={{ color: 'var(--label-secondary)' }}>Participated Works</span>
               <div className="flex items-center gap-1.5">
-                <span className="text-label-primary text-base font-bold">
+                <span className="ds-number text-xl">
                   {worksCount === null ? '…' : worksCount}
-                  <span className="text-label-tertiary text-xs font-normal ml-0.5">件</span>
+                  <span className="text-[11px] font-normal ml-0.5" style={{ color: 'var(--label-tertiary)' }}>件</span>
                 </span>
-                <ChevronRight size={14} className="text-label-tertiary" />
+                <ChevronRight size={14} style={{ color: 'var(--accent-color)' }} />
               </div>
             </button>
 
             {/* 数値グリッド */}
             <div className="grid grid-cols-2 gap-3 mt-3">
               {[
-                { label: '投稿した予定', value: postedCount, unit: '件' },
-                { label: '追加した予定', value: addedCount, unit: '件' },
-                { label: 'もらったいいね', value: receivedLikes, unit: '' },
-                { label: 'あげたいいね', value: totalLikesGiven, unit: '' },
-              ].map(({ label, value, unit }) => (
-                <div key={label} className="rounded-xl px-4 py-4 shadow-card flex flex-col gap-1"
+                { label: 'Posted', sub: '投稿した予定', value: postedCount, unit: '件' },
+                { label: 'Added',  sub: '追加した予定', value: addedCount,  unit: '件' },
+                { label: 'Likes Received', sub: 'もらったいいね', value: receivedLikes, unit: '' },
+                { label: 'Likes Given',    sub: 'あげたいいね',   value: totalLikesGiven, unit: '' },
+              ].map(({ label, sub, value, unit }) => (
+                <div key={label} className="rounded-sm px-4 py-4 ds-panel ds-corners flex flex-col gap-1"
                   style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                  <span className="text-label-tertiary text-[11px] leading-none">{label}</span>
-                  <span className="text-label-primary text-2xl font-bold leading-tight">
+                  <span className="ds-label text-[10px]" style={{ color: 'var(--label-tertiary)' }}>{label}</span>
+                  <span className="ds-number text-2xl leading-tight">
                     {value === null ? '…' : value}
-                    {value !== null && unit && <span className="text-label-tertiary text-xs font-normal ml-0.5">{unit}</span>}
+                    {value !== null && unit && <span className="text-[11px] font-normal ml-0.5" style={{ color: 'var(--label-tertiary)' }}>{unit}</span>}
                   </span>
+                  <span className="text-[10px]" style={{ color: 'var(--label-tertiary)' }}>{sub}</span>
                 </div>
               ))}
             </div>
