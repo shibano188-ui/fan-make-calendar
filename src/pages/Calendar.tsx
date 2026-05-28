@@ -1653,9 +1653,10 @@ export default function Calendar() {
                           const dateLabel = formatDateRange(event.date, event.endDate);
                           const timeLabel = formatTimeRange(event.time, event.endTime);
                           const catColor = getCategoryColor(event.category);
+                          const tileWorkColor = workColorMap.get(event.workId ?? '');
                           return (
                             <div key={event.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none"
-                              style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(event.id) ? '3px solid #f59e0b' : undefined }}
+                              style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(event.id) ? '3px solid #f59e0b' : undefined, backgroundColor: tileWorkColor ? `${tileWorkColor}14` : undefined }}
                               onTouchStart={() => startLongPress(() => handleFullDelete(event.id, event.title))}
                               onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
                               onMouseDown={() => startLongPress(() => handleFullDelete(event.id, event.title))}
@@ -2013,9 +2014,10 @@ export default function Calendar() {
                   {filteredEvents.map(event => {
                     const [, em, ed] = event.date.split('-').map(Number);
                     const catColor = getCategoryColor(event.category);
+                    const tileWorkColor = workColorMap.get(event.workId ?? '');
                     return (
                       <div key={event.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden select-none"
-                        style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(event.id) ? '3px solid #f59e0b' : undefined }}
+                        style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(event.id) ? '3px solid #f59e0b' : undefined, backgroundColor: tileWorkColor ? `${tileWorkColor}14` : undefined }}
                         onTouchStart={() => startLongPress(() => handleFullDelete(event.id, event.title))}
                         onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
                         onMouseDown={() => startLongPress(() => handleFullDelete(event.id, event.title))}
@@ -2097,9 +2099,10 @@ export default function Calendar() {
                   {myCalendarListItems.map(item => {
                     const [, im, id] = item.date.split('-').map(Number);
                     const catColor = getCategoryColor(item.category);
+                    const tileWorkColor = item.workId ? workColorMap.get(item.workId) : undefined;
                     return (
                       <div key={item.id} className="w-full flex items-center bg-bg-secondary rounded-xl overflow-hidden select-none"
-                        style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(item.id) ? '3px solid #f59e0b' : undefined }}
+                        style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(item.id) ? '3px solid #f59e0b' : undefined, backgroundColor: tileWorkColor ? `${tileWorkColor}14` : undefined }}
                         onTouchStart={() => startLongPress(() => item.isPersonal ? handleFullDeletePersonal(item.id, item.title) : handleFullDelete(item.id, item.title))}
                         onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
                         onMouseDown={() => startLongPress(() => item.isPersonal ? handleFullDeletePersonal(item.id, item.title) : handleFullDelete(item.id, item.title))}

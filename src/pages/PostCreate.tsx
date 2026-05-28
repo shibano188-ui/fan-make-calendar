@@ -103,6 +103,13 @@ function PostCardItem({
         </span>
         <div className="flex items-center gap-1">
           <button
+            onClick={e => { e.stopPropagation(); onChange({ important: !card.important }); }}
+            className="w-6 h-6 flex items-center justify-center active:opacity-50"
+            aria-label="重要に設定"
+          >
+            <Star size={13} style={{ fill: card.important ? '#f59e0b' : 'none', color: card.important ? '#f59e0b' : 'var(--label-tertiary)' }} />
+          </button>
+          <button
             onClick={e => { e.stopPropagation(); onRemove(); }}
             disabled={total <= 1}
             className="w-6 h-6 flex items-center justify-center text-label-tertiary disabled:opacity-20 active:opacity-50"
@@ -271,23 +278,6 @@ function PostCardItem({
             />
           </div>
 
-          {/* 重要フラグ */}
-          <button
-            type="button"
-            onClick={() => onChange({ important: !card.important })}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs transition-colors w-fit active:opacity-70"
-            style={card.important ? {
-              borderColor: '#f59e0b',
-              color: '#f59e0b',
-              backgroundColor: 'rgba(245,158,11,0.1)',
-            } : {
-              borderColor: 'var(--border-default)',
-              color: 'var(--label-secondary)',
-            }}
-          >
-            <Star size={12} style={{ fill: card.important ? '#f59e0b' : 'none', color: card.important ? '#f59e0b' : 'currentColor' }} />
-            重要な予定として設定
-          </button>
         </div>
       )}
     </div>
