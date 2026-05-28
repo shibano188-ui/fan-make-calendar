@@ -110,6 +110,22 @@ export function removeCalendarEventId(id: string): Set<string> {
 }
 
 // ─── 重要フラグ: 自分だけに見える優先度マーク ──────────────────────
+// ─── 通知ベル ──────────────────────────────────────────────────────────
+const BELL_EVENTS_KEY = 'fan_bell_event_ids';
+export function loadBellEventIds(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(BELL_EVENTS_KEY) ?? '[]') as string[]); }
+  catch { return new Set(); }
+}
+export function saveBellEventIds(ids: Set<string>): void {
+  localStorage.setItem(BELL_EVENTS_KEY, JSON.stringify([...ids]));
+}
+export function toggleBellEventId(id: string): Set<string> {
+  const set = loadBellEventIds();
+  if (set.has(id)) set.delete(id); else set.add(id);
+  saveBellEventIds(set);
+  return new Set(set);
+}
+
 const IMPORTANT_EVENTS_KEY = 'fan_important_event_ids';
 export function loadImportantEventIds(): Set<string> {
   try { return new Set(JSON.parse(localStorage.getItem(IMPORTANT_EVENTS_KEY) ?? '[]') as string[]); }

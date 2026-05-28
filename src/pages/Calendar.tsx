@@ -3,7 +3,7 @@ import { useLikeAnimation } from '../hooks/useLikeAnimation';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Palette, Plus, Heart, MoreVertical, Link2, LogOut, Trash2,
-  ChevronDown, ChevronUp, ChevronLeft, X, Settings, Map as MapIcon, ExternalLink, Smile, SlidersHorizontal, Pencil, Star,
+  ChevronDown, ChevronUp, ChevronLeft, X, Settings, Map as MapIcon, ExternalLink, Smile, SlidersHorizontal, Pencil, Star, Bell,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
@@ -30,6 +30,7 @@ import {
   loadCalendarEventIds, saveCalendarEventIds, removeCalendarEventId,
   parseLinks, serializeLinks, getCategoryColor,
   loadImportantEventIds, saveImportantEventIds, toggleImportantEventId,
+  loadBellEventIds, saveBellEventIds, toggleBellEventId,
   type FilterMode, saveRegionFilter, loadRegionFilter,
   incrementTotalLikesGiven,
 } from '../lib/constants';
@@ -148,6 +149,7 @@ interface InlineCard {
   links: string[];
   memo: string;
   important: boolean;
+  bell: boolean;
   collapsed: boolean;
 }
 
@@ -168,6 +170,7 @@ function newInlineCard(date: string): InlineCard {
     links: [''],
     memo: '',
     important: false,
+    bell: false,
     collapsed: false,
   };
 }
@@ -220,19 +223,24 @@ function InlineCardItem({
               ) : (
                 <span />
               )}
-              <button
-                type="button"
-                onClick={e => { e.stopPropagation(); onChange({ important: !card.important }); }}
-                className="w-8 h-8 flex items-center justify-center rounded-full border transition-colors active:opacity-70"
-                style={card.important ? {
-                  borderColor: '#f59e0b',
-                  backgroundColor: 'rgba(245,158,11,0.12)',
-                } : {
-                  borderColor: 'var(--border-default)',
-                }}
-              >
-                <Star size={16} style={{ fill: card.important ? '#f59e0b' : 'none', color: card.important ? '#f59e0b' : 'var(--label-secondary)' }} />
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); onChange({ important: !card.important }); }}
+                  className="w-8 h-8 flex items-center justify-center rounded-full border transition-colors active:opacity-70"
+                  style={card.important ? { borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.12)' } : { borderColor: 'var(--border-default)' }}
+                >
+                  <Star size={16} style={{ fill: card.important ? '#f59e0b' : 'none', color: card.important ? '#f59e0b' : 'var(--label-secondary)' }} />
+                </button>
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); onChange({ bell: !card.bell }); }}
+                  className="w-8 h-8 flex items-center justify-center rounded-full border transition-colors active:opacity-70"
+                  style={card.bell ? { borderColor: 'var(--accent-color)', backgroundColor: 'rgba(var(--accent-rgb,136,135,128),0.12)' } : { borderColor: 'var(--border-default)' }}
+                >
+                  <Bell size={16} style={{ fill: card.bell ? 'var(--accent-color)' : 'none', color: card.bell ? 'var(--accent-color)' : 'var(--label-secondary)' }} />
+                </button>
+              </div>
             </div>
             {participatedWorks && participatedWorks.length > 0 && (
               <div className="flex flex-wrap gap-2">
@@ -562,6 +570,7 @@ export default function Calendar() {
   const [hiddenEventIds, setHiddenEventIds] = useState<Set<string>>(loadHiddenEventIds);
   const [calendarEventIds, setCalendarEventIds] = useState<Set<string>>(loadCalendarEventIds);
   const [importantEventIds, setImportantEventIds] = useState<Set<string>>(loadImportantEventIds);
+  const [bellEventIds, setBellEventIds] = useState<Set<string>>(loadBellEventIds);
 
   const [lockedLikeIds, setLockedLikeIds] = useState<Set<string>>(() => {
     const set = new Set<string>();
@@ -888,6 +897,8 @@ export default function Calendar() {
     cancelLongPress();
     if (dx < 0) nextMonth(); else prevMonth();
   };
+  const toggleBell = (id: string) => setBellEventIds(toggleBellEventId(id));
+
   const handleFullDelete = async (id: string, title: string) => {
     if (!window.confirm(`「${title}」を完全に削除しますか？\nこの操作は元に戻せません。`)) return;
     try {
@@ -1065,10 +1076,14 @@ export default function Calendar() {
       ...(c.memo.trim() && { memo: c.memo.trim() }),
     });
     const newImportantIds: string[] = [];
+    const newBellIds: string[] = [];
     try {
       if (workId && user) {
         const newIds = await createEvents(workId, postCards.map(toEventPayload), user.id);
-        postCards.forEach((c, i) => { if (c.important && newIds[i]) newImportantIds.push(newIds[i]); });
+        postCards.forEach((c, i) => {
+          if (c.important && newIds[i]) newImportantIds.push(newIds[i]);
+          if (c.bell && newIds[i]) newBellIds.push(newIds[i]);
+        });
         listEvents(workId, year, month).then(setEvents).catch(() => {});
       } else if (user) {
         // MyCalendar: 作品ごとにグループ化して投稿
@@ -1088,14 +1103,20 @@ export default function Calendar() {
         for (const [wId, cards] of workGroups) {
           const newIds = await createEvents(wId, cards.map(toEventPayload), user.id);
           allNewIds.push(...newIds);
-          newIds.forEach((id, i) => { if (cards[i].important) newImportantIds.push(id); });
+          newIds.forEach((id, i) => {
+            if (cards[i].important) newImportantIds.push(id);
+            if (cards[i].bell) newBellIds.push(id);
+          });
         }
         if (personalCards.length > 0) {
           const newPersonalEvts = personalCards.map(toPersonalEvent);
           const existing = loadPersonalEvents();
           savePersonalEvents([...existing, ...newPersonalEvts]);
           setPersonalEvents(loadPersonalEvents());
-          newPersonalEvts.forEach((pe, i) => { if (personalCards[i].important) newImportantIds.push(pe.id); });
+          newPersonalEvts.forEach((pe, i) => {
+            if (personalCards[i].important) newImportantIds.push(pe.id);
+            if (personalCards[i].bell) newBellIds.push(pe.id);
+          });
         }
         if (workGroups.size > 0) {
           listAllParticipatedWorkEvents(user.id, year, month).then(evts => {
@@ -1122,6 +1143,13 @@ export default function Calendar() {
         newImportantIds.forEach(id => important.add(id));
         saveImportantEventIds(important);
         setImportantEventIds(new Set(important));
+      }
+      // ベルフラグを保存
+      if (newBellIds.length > 0) {
+        const bells = loadBellEventIds();
+        newBellIds.forEach(id => bells.add(id));
+        saveBellEventIds(bells);
+        setBellEventIds(new Set(bells));
       }
       closePostForm();
     } catch {
@@ -1805,17 +1833,21 @@ export default function Calendar() {
                             : <Smile size={14} />
                           }
                         </button>
-                        {/* ★ 重要トグル */}
+                        {/* 🔔 通知トグル */}
+                        <button
+                          onClick={() => toggleBell(sheetDetailEvent.id)}
+                          className="px-3 py-1.5 rounded-full border text-sm active:opacity-60 flex items-center justify-center"
+                          style={{ borderColor: bellEventIds.has(sheetDetailEvent.id) ? 'var(--accent-color)' : 'var(--border-default)', color: bellEventIds.has(sheetDetailEvent.id) ? 'var(--accent-color)' : 'var(--label-secondary)', minWidth: '2.5rem' }}
+                        >
+                          <Bell size={14} style={{ fill: bellEventIds.has(sheetDetailEvent.id) ? 'var(--accent-color)' : 'none' }} />
+                        </button>
+                        {/* ⭐ 重要トグル（アイコンのみ） */}
                         <button
                           onClick={() => setImportantEventIds(toggleImportantEventId(sheetDetailEvent.id))}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm active:opacity-60"
-                          style={{
-                            borderColor: importantEventIds.has(sheetDetailEvent.id) ? '#f59e0b' : 'var(--border-default)',
-                            color: importantEventIds.has(sheetDetailEvent.id) ? '#f59e0b' : 'var(--label-secondary)',
-                          }}
+                          className="px-3 py-1.5 rounded-full border text-sm active:opacity-60 flex items-center justify-center"
+                          style={{ borderColor: importantEventIds.has(sheetDetailEvent.id) ? '#f59e0b' : 'var(--border-default)', color: importantEventIds.has(sheetDetailEvent.id) ? '#f59e0b' : 'var(--label-secondary)', minWidth: '2.5rem' }}
                         >
                           <Star size={14} style={{ fill: importantEventIds.has(sheetDetailEvent.id) ? '#f59e0b' : 'none' }} />
-                          {importantEventIds.has(sheetDetailEvent.id) ? '重要' : '重要に設定'}
                         </button>
                       </div>
                       {/* リアクション集計 */}
@@ -1866,14 +1898,19 @@ export default function Calendar() {
                               onMouseDown={() => startLongPress(() => handleFullDelete(event.id, event.title))}
                               onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
                             >
-                              {/* 1行目: タイトル */}
-                              <button onClick={() => setSheetDetailEvent(event)}
-                                className="w-full px-3 pt-3 pb-1 text-left active:opacity-70 transition-opacity">
-                                <div className="flex items-center gap-1">
-                                  {importantEventIds.has(event.id) && <span className="text-[11px] leading-none flex-shrink-0" style={{ color: '#f59e0b' }}>★</span>}
+                              {/* 1行目: タイトル + 🔔⭐ */}
+                              <div className="flex items-center px-3 pt-3 pb-1 gap-1">
+                                <button onClick={() => setSheetDetailEvent(event)}
+                                  className="flex-1 min-w-0 text-left active:opacity-70 transition-opacity">
                                   <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
-                                </div>
-                              </button>
+                                </button>
+                                <button onClick={e => { e.stopPropagation(); toggleBell(event.id); }} className="w-7 h-7 flex items-center justify-center flex-shrink-0 active:opacity-60">
+                                  <Bell size={13} style={{ fill: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'none', color: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'var(--label-tertiary)' }} />
+                                </button>
+                                <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(event.id)); }} className="w-7 h-7 flex items-center justify-center flex-shrink-0 active:opacity-60">
+                                  <Star size={13} style={{ fill: importantEventIds.has(event.id) ? '#f59e0b' : 'none', color: importantEventIds.has(event.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
+                                </button>
+                              </div>
                               {/* 2行目: カテゴリ → 地域 → ♥ → 😊 → 🔗 → > → × */}
                               <div className="flex items-center px-3 pb-2 gap-1">
                                 {event.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.category}</span>}
@@ -1956,14 +1993,19 @@ export default function Calendar() {
                               onMouseDown={() => startLongPress(() => handleFullDelete(event.id, event.title))}
                               onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
                             >
-                              {/* 1行目: タイトル */}
-                              <button onClick={() => event.workId && setSheetDetailEvent(event)}
-                                className="w-full px-3 pt-3 pb-1 text-left active:opacity-70 transition-opacity">
-                                <div className="flex items-center gap-1">
-                                  {importantEventIds.has(event.id) && <span className="text-[11px] leading-none flex-shrink-0" style={{ color: '#f59e0b' }}>★</span>}
+                              {/* 1行目: タイトル + 🔔⭐ */}
+                              <div className="flex items-center px-3 pt-3 pb-1 gap-1">
+                                <button onClick={() => event.workId && setSheetDetailEvent(event)}
+                                  className="flex-1 min-w-0 text-left active:opacity-70 transition-opacity">
                                   <p className="text-label-primary text-sm font-medium truncate">{event.title}</p>
-                                </div>
-                              </button>
+                                </button>
+                                <button onClick={e => { e.stopPropagation(); toggleBell(event.id); }} className="w-7 h-7 flex items-center justify-center flex-shrink-0 active:opacity-60">
+                                  <Bell size={13} style={{ fill: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'none', color: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'var(--label-tertiary)' }} />
+                                </button>
+                                <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(event.id)); }} className="w-7 h-7 flex items-center justify-center flex-shrink-0 active:opacity-60">
+                                  <Star size={13} style={{ fill: importantEventIds.has(event.id) ? '#f59e0b' : 'none', color: importantEventIds.has(event.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
+                                </button>
+                              </div>
                               {/* 2行目: 作品名 → カテゴリ → 地域 → ♥ → 😊 → 🔗 → > → × */}
                               <div className="flex items-center px-3 pb-2 gap-1">
                                 {event.workName && <span className="text-[10px] font-medium px-2 py-0.5 rounded-full max-w-[72px] truncate"
@@ -2043,12 +2085,15 @@ export default function Calendar() {
                               onMouseDown={() => startLongPress(() => handleFullDeletePersonal(pe.id, pe.title))}
                               onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
                             >
-                              {/* 1行目: タイトル */}
-                              <div className="px-3 pt-3 pb-1">
-                                <div className="flex items-center gap-1">
-                                  {importantEventIds.has(pe.id) && <span className="text-[11px] leading-none flex-shrink-0" style={{ color: '#f59e0b' }}>★</span>}
-                                  <p className="text-label-primary text-sm font-medium truncate">{pe.title}</p>
-                                </div>
+                              {/* 1行目: タイトル + 🔔⭐ */}
+                              <div className="flex items-center px-3 pt-3 pb-1 gap-1">
+                                <p className="flex-1 min-w-0 text-label-primary text-sm font-medium truncate">{pe.title}</p>
+                                <button onClick={e => { e.stopPropagation(); toggleBell(pe.id); }} className="w-7 h-7 flex items-center justify-center flex-shrink-0 active:opacity-60">
+                                  <Bell size={13} style={{ fill: bellEventIds.has(pe.id) ? 'var(--accent-color)' : 'none', color: bellEventIds.has(pe.id) ? 'var(--accent-color)' : 'var(--label-tertiary)' }} />
+                                </button>
+                                <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(pe.id)); }} className="w-7 h-7 flex items-center justify-center flex-shrink-0 active:opacity-60">
+                                  <Star size={13} style={{ fill: importantEventIds.has(pe.id) ? '#f59e0b' : 'none', color: importantEventIds.has(pe.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
+                                </button>
                               </div>
                               {/* 2行目: 個人 → カテゴリ → 地域 → × */}
                               <div className="flex items-center px-3 pb-2 gap-1">
@@ -2166,17 +2211,21 @@ export default function Calendar() {
                     : <Smile size={14} />
                   }
                 </button>
-              {/* ★ 重要トグル */}
+              {/* 🔔 通知トグル */}
+              <button
+                onClick={() => toggleBell(listDetailEvent.id)}
+                className="px-3 py-1.5 rounded-full border text-sm active:opacity-60 flex items-center justify-center"
+                style={{ borderColor: bellEventIds.has(listDetailEvent.id) ? 'var(--accent-color)' : 'var(--border-default)', color: bellEventIds.has(listDetailEvent.id) ? 'var(--accent-color)' : 'var(--label-secondary)', minWidth: '2.5rem' }}
+              >
+                <Bell size={14} style={{ fill: bellEventIds.has(listDetailEvent.id) ? 'var(--accent-color)' : 'none' }} />
+              </button>
+              {/* ⭐ 重要トグル（アイコンのみ） */}
               <button
                 onClick={() => setImportantEventIds(toggleImportantEventId(listDetailEvent.id))}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm active:opacity-60"
-                style={{
-                  borderColor: importantEventIds.has(listDetailEvent.id) ? '#f59e0b' : 'var(--border-default)',
-                  color: importantEventIds.has(listDetailEvent.id) ? '#f59e0b' : 'var(--label-secondary)',
-                }}
+                className="px-3 py-1.5 rounded-full border text-sm active:opacity-60 flex items-center justify-center"
+                style={{ borderColor: importantEventIds.has(listDetailEvent.id) ? '#f59e0b' : 'var(--border-default)', color: importantEventIds.has(listDetailEvent.id) ? '#f59e0b' : 'var(--label-secondary)', minWidth: '2.5rem' }}
               >
                 <Star size={14} style={{ fill: importantEventIds.has(listDetailEvent.id) ? '#f59e0b' : 'none' }} />
-                {importantEventIds.has(listDetailEvent.id) ? '重要' : '重要に設定'}
               </button>
               </div>
               {/* リアクション集計 */}
@@ -2245,7 +2294,7 @@ export default function Calendar() {
                           </div>
                           <div className="w-px h-8 bg-white/10 flex-shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <p className="text-label-primary text-sm font-medium leading-snug">{event.title}</p>
+                            <p className="text-label-primary text-sm font-medium leading-snug truncate">{event.title}</p>
                             {event.prefecture && (
                               <div className="flex items-center mt-1">
                                 <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>
@@ -2253,6 +2302,12 @@ export default function Calendar() {
                             )}
                             {event.authorName && <p className="text-[10px] text-label-tertiary mt-0.5">by {event.authorName}</p>}
                           </div>
+                        </button>
+                        <button onClick={e => { e.stopPropagation(); toggleBell(event.id); }} className="w-8 self-stretch flex items-center justify-center active:opacity-60 flex-shrink-0">
+                          <Bell size={13} style={{ fill: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'none', color: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'var(--label-tertiary)' }} />
+                        </button>
+                        <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(event.id)); }} className="w-8 self-stretch flex items-center justify-center active:opacity-60 flex-shrink-0">
+                          <Star size={13} style={{ fill: importantEventIds.has(event.id) ? '#f59e0b' : 'none', color: importantEventIds.has(event.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
                         </button>
                         <button
                           onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); triggerLike(e.currentTarget); }}
