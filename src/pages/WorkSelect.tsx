@@ -3,7 +3,7 @@ import {} from 'react-router-dom';
 import { Search, ChevronRight, MoreVertical, LogOut, Trash2, Check } from 'lucide-react';
 import Layout from '../components/Layout';
 import SettingsMenuButton from '../components/SettingsMenuButton';
-import { listWorks, searchWorks, getOrCreateWork, upsertParticipation, listRecentWorks, leaveCalendar, deleteWork } from '../lib/api';
+import { listWorks, searchWorks, getOrCreateWork, getWorkById, upsertParticipation, listRecentWorks, leaveCalendar, deleteWork } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import type { Work } from '../lib/api';
 import { POST_CATEGORIES, loadCategoryFilters, saveCategoryFilters } from '../lib/constants';
@@ -157,7 +157,10 @@ export default function WorkSelect() {
     try {
       await upsertParticipation(work.id, user.id);
       initPendingCats(work.id);
-      setPendingWork(work);
+      const updated = await getWorkById(work.id) ?? work;
+      setPendingWork(updated);
+      setPopularWorks(prev => prev.map(w => w.id === updated.id ? updated : w));
+      setSearchResults(prev => prev.map(w => w.id === updated.id ? updated : w));
     } catch {
       setError('参加に失敗しました');
     }
@@ -170,7 +173,8 @@ export default function WorkSelect() {
       const work = await getOrCreateWork(name);
       await upsertParticipation(work.id, user.id);
       initPendingCats(work.id);
-      setPendingWork(work);
+      const updated = await getWorkById(work.id) ?? work;
+      setPendingWork(updated);
     } catch {
       setError('作品の作成に失敗しました');
     }
