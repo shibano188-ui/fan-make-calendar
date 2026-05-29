@@ -2355,8 +2355,8 @@ export default function Calendar() {
                             <div className="flex-shrink-0 w-10 flex flex-col items-center">
                               {hasPeriod ? (
                                 <>
-                                  <span className="text-[11px] font-bold text-label-primary leading-snug">{em}/{ed}</span>
-                                  <span className="text-[10px] text-label-tertiary leading-snug">〜{endM}/{endD}</span>
+                                  <span className="text-[13px] font-bold text-label-primary leading-snug">{em}/{ed}</span>
+                                  <span className="text-[12px] font-bold text-label-secondary leading-snug">〜{endM}/{endD}</span>
                                 </>
                               ) : (
                                 <>
@@ -2469,8 +2469,8 @@ export default function Calendar() {
                             <div className="flex-shrink-0 w-10 flex flex-col items-center">
                               {hasPeriod ? (
                                 <>
-                                  <span className="text-[11px] font-bold text-label-primary leading-snug">{im}/{id}</span>
-                                  <span className="text-[10px] text-label-tertiary leading-snug">〜{endM}/{endD}</span>
+                                  <span className="text-[13px] font-bold text-label-primary leading-snug">{im}/{id}</span>
+                                  <span className="text-[12px] font-bold text-label-secondary leading-snug">〜{endM}/{endD}</span>
                                 </>
                               ) : (
                                 <>
@@ -2495,9 +2495,9 @@ export default function Calendar() {
                                   {item.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.prefecture}</span>}
                                 </div>
                               )}
-                              {(formatDateRange(item.date, item.endDate) || formatTimeRange(item.time, item.endTime)) && (
+                              {(!hasPeriod && formatDateRange(item.date, item.endDate) || formatTimeRange(item.time, item.endTime)) && (
                                 <div className="flex items-center gap-2 mt-1.5">
-                                  {formatDateRange(item.date, item.endDate) && <span className="text-label-tertiary text-xs">{formatDateRange(item.date, item.endDate)}</span>}
+                                  {!hasPeriod && formatDateRange(item.date, item.endDate) && <span className="text-label-tertiary text-xs">{formatDateRange(item.date, item.endDate)}</span>}
                                   {formatTimeRange(item.time, item.endTime) && <span className="text-label-tertiary text-xs">{formatTimeRange(item.time, item.endTime)}</span>}
                                 </div>
                               )}
