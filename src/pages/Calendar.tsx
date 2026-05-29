@@ -2348,11 +2348,11 @@ export default function Calendar() {
                         onMouseDown={() => startLongPress(() => handleFullDelete(event.id, event.title))}
                         onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
                       >
-                        {/* 上段: 日付＋タイトル＋🔔⭐ */}
+                        {/* 上段: 日付＋タイトル */}
                         <div className="flex items-start gap-1 px-4 pt-4 pb-3">
                           <button onClick={() => setListDetailEvent(event)}
-                            className="flex-1 flex items-center gap-3 min-w-0 text-left active:opacity-70 transition-opacity">
-                            <div className="flex-shrink-0 w-10 flex flex-col items-center">
+                            className="flex-1 flex items-start gap-3 min-w-0 text-left active:opacity-70 transition-opacity">
+                            <div className="flex-shrink-0 w-10 flex flex-col items-center pt-0.5">
                               {hasPeriod ? (
                                 <>
                                   <span className="text-[13px] font-bold text-label-primary leading-snug">{em}/{ed}</span>
@@ -2365,9 +2365,9 @@ export default function Calendar() {
                                 </>
                               )}
                             </div>
-                            <div className="w-px h-8 bg-white/10 flex-shrink-0" />
+                            <div className="w-px self-stretch bg-white/10 flex-shrink-0" />
                             <div className="flex-1 min-w-0">
-                              <p className="text-label-primary text-sm font-medium leading-snug truncate">{event.title}</p>
+                              <p className="text-label-primary text-sm font-medium leading-snug">{event.title}</p>
                               {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5 mt-2 inline-block">{event.prefecture}</span>}
                               {(() => {
                                 const links = parseLinks(event.link);
@@ -2394,23 +2394,25 @@ export default function Calendar() {
                               })()}
                             </div>
                           </button>
-                          <button onClick={e => { e.stopPropagation(); toggleBell(event.id); }} className="w-9 h-9 flex items-center justify-center flex-shrink-0 active:opacity-60">
-                            <Bell size={16} style={{ fill: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'none', color: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'var(--label-tertiary)' }} />
-                          </button>
-                          <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(event.id)); }} className="w-9 h-9 flex items-center justify-center flex-shrink-0 active:opacity-60">
-                            <Star size={16} style={{ fill: importantEventIds.has(event.id) ? '#f59e0b' : 'none', color: importantEventIds.has(event.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
-                          </button>
                         </div>
                         {/* 下段: アクションボタン */}
                         <div className="flex items-center px-4 pt-1 pb-3 gap-1 justify-between border-t" style={{ borderColor: 'var(--border-faint)' }}>
-                          <a
-                            href={buildTweetUrl(event.title, workName, displayName)}
-                            target="_blank" rel="noopener noreferrer"
-                            onClick={e => e.stopPropagation()}
-                            className="w-9 h-9 flex items-center justify-center text-label-tertiary active:opacity-60"
-                          >
-                            <Share2 size={14} />
-                          </a>
+                          <div className="flex items-center">
+                            <a
+                              href={buildTweetUrl(event.title, workName, displayName)}
+                              target="_blank" rel="noopener noreferrer"
+                              onClick={e => e.stopPropagation()}
+                              className="w-9 h-9 flex items-center justify-center text-label-tertiary active:opacity-60"
+                            >
+                              <Share2 size={14} />
+                            </a>
+                            <button onClick={e => { e.stopPropagation(); toggleBell(event.id); }} className="w-9 h-9 flex items-center justify-center active:opacity-60">
+                              <Bell size={16} style={{ fill: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'none', color: bellEventIds.has(event.id) ? 'var(--accent-color)' : 'var(--label-tertiary)' }} />
+                            </button>
+                            <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(event.id)); }} className="w-9 h-9 flex items-center justify-center active:opacity-60">
+                              <Star size={16} style={{ fill: importantEventIds.has(event.id) ? '#f59e0b' : 'none', color: importantEventIds.has(event.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
+                            </button>
+                          </div>
                           <div className="flex items-center gap-1">
                             <button onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); triggerLike(e.currentTarget); }} disabled={!user || lockedLikeIds.has(event.id)}
                               className="flex items-center gap-0.5 px-2 h-9 text-xs disabled:opacity-30"
@@ -2455,7 +2457,7 @@ export default function Calendar() {
                         onMouseDown={() => startLongPress(() => item.isPersonal ? handleFullDeletePersonal(item.id, item.title) : handleFullDelete(item.id, item.title))}
                         onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
                       >
-                        {/* 上段: 日付＋タイトル＋🔔⭐ */}
+                        {/* 上段: 日付＋タイトル */}
                         <div className="flex items-start gap-1 px-4 pt-4 pb-3">
                           <button
                             onClick={() => {
@@ -2464,9 +2466,9 @@ export default function Calendar() {
                                 if (evt) setListDetailEvent(evt);
                               }
                             }}
-                            className={`flex-1 flex items-center gap-3 min-w-0 text-left ${!item.isPersonal ? 'active:opacity-70 transition-opacity' : 'cursor-default'}`}
+                            className={`flex-1 flex items-start gap-3 min-w-0 text-left ${!item.isPersonal ? 'active:opacity-70 transition-opacity' : 'cursor-default'}`}
                           >
-                            <div className="flex-shrink-0 w-10 flex flex-col items-center">
+                            <div className="flex-shrink-0 w-10 flex flex-col items-center pt-0.5">
                               {hasPeriod ? (
                                 <>
                                   <span className="text-[13px] font-bold text-label-primary leading-snug">{im}/{id}</span>
@@ -2479,9 +2481,9 @@ export default function Calendar() {
                                 </>
                               )}
                             </div>
-                            <div className="w-px h-8 bg-white/10 flex-shrink-0" />
+                            <div className="w-px self-stretch bg-white/10 flex-shrink-0" />
                             <div className="flex-1 min-w-0">
-                              <p className="text-label-primary text-sm font-medium leading-snug truncate">{item.title}</p>
+                              <p className="text-label-primary text-sm font-medium leading-snug">{item.title}</p>
                               {(item.tag || item.category || item.prefecture) && (
                                 <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                                   {item.tag && !item.isPersonal && (
@@ -2527,25 +2529,27 @@ export default function Calendar() {
                               {item.memo && <p className="text-label-secondary text-xs mt-1.5 truncate">{item.memo}</p>}
                             </div>
                           </button>
-                          <button onClick={e => { e.stopPropagation(); toggleBell(item.id); }} className="w-9 h-9 flex items-center justify-center flex-shrink-0 active:opacity-60">
-                            <Bell size={16} style={{ fill: bellEventIds.has(item.id) ? 'var(--accent-color)' : 'none', color: bellEventIds.has(item.id) ? 'var(--accent-color)' : 'var(--label-tertiary)' }} />
-                          </button>
-                          <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(item.id)); }} className="w-9 h-9 flex items-center justify-center flex-shrink-0 active:opacity-60">
-                            <Star size={16} style={{ fill: importantEventIds.has(item.id) ? '#f59e0b' : 'none', color: importantEventIds.has(item.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
-                          </button>
                         </div>
                         {/* 下段: アクションボタン */}
                         <div className="flex items-center px-4 pt-1 pb-3 gap-1 justify-between border-t" style={{ borderColor: 'var(--border-faint)' }}>
-                          {!item.isPersonal ? (
-                            <a
-                              href={buildTweetUrl(item.title, item.tag || null, displayName)}
-                              target="_blank" rel="noopener noreferrer"
-                              onClick={e => e.stopPropagation()}
-                              className="w-9 h-9 flex items-center justify-center text-label-tertiary active:opacity-60"
-                            >
-                              <Share2 size={14} />
-                            </a>
-                          ) : <div className="w-9 h-9" />}
+                          <div className="flex items-center">
+                            {!item.isPersonal ? (
+                              <a
+                                href={buildTweetUrl(item.title, item.tag || null, displayName)}
+                                target="_blank" rel="noopener noreferrer"
+                                onClick={e => e.stopPropagation()}
+                                className="w-9 h-9 flex items-center justify-center text-label-tertiary active:opacity-60"
+                              >
+                                <Share2 size={14} />
+                              </a>
+                            ) : <div className="w-9 h-9" />}
+                            <button onClick={e => { e.stopPropagation(); toggleBell(item.id); }} className="w-9 h-9 flex items-center justify-center active:opacity-60">
+                              <Bell size={16} style={{ fill: bellEventIds.has(item.id) ? 'var(--accent-color)' : 'none', color: bellEventIds.has(item.id) ? 'var(--accent-color)' : 'var(--label-tertiary)' }} />
+                            </button>
+                            <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(item.id)); }} className="w-9 h-9 flex items-center justify-center active:opacity-60">
+                              <Star size={16} style={{ fill: importantEventIds.has(item.id) ? '#f59e0b' : 'none', color: importantEventIds.has(item.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
+                            </button>
+                          </div>
                           <div className="flex items-center gap-1">
                             {!item.isPersonal && (
                               <button onClick={e => { e.stopPropagation(); handleSheetEventLike(item.id); triggerLike(e.currentTarget); }} disabled={!user || lockedLikeIds.has(item.id)}
