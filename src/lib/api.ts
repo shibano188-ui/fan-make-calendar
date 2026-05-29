@@ -613,8 +613,8 @@ export async function listUpcomingParticipatedEvents(
     .from('events')
     .select('*, works(name)')
     .in('work_id', workIds)
-    .gte('event_date', today)
-    .order('event_date', { ascending: true })
+    .eq('pool', 0)
+    .or(`end_date.gte.${today},and(end_date.is.null,event_date.gte.${today})`)
     .limit(limit);
   if (error) throw error;
 
@@ -623,7 +623,16 @@ export async function listUpcomingParticipatedEvents(
     const works = (e as Record<string, unknown>).works as { name: string } | null;
     return { ...ev, workId: (e as Record<string, unknown>).work_id as string, workName: works?.name ?? undefined };
   });
-  return resolveAuthorNames(events);
+
+  // 開催中（開始日が今日より前）を先頭に終了日昇順、それ以降は開始日昇順
+  const ongoing = events
+    .filter(e => e.date < today)
+    .sort((a, b) => (a.endDate ?? '').localeCompare(b.endDate ?? ''));
+  const upcoming = events
+    .filter(e => e.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  return resolveAuthorNames([...ongoing, ...upcoming]);
 }
 
 export async function listRecentWorks(userId: string): Promise<Work[]> {

@@ -486,6 +486,9 @@ export default function Discover() {
                 const isLocked = lockedLikeIds.has(event.id);
                 const timeLabel = formatTimeRange(event.time, event.endTime);
                 const [, em, ed] = event.date.split('-').map(Number);
+                const todayStr = new Date().toISOString().slice(0, 10);
+                const isOngoing = event.date < todayStr && !!event.endDate && event.endDate >= todayStr;
+                const [, endM, endD] = isOngoing ? event.endDate!.split('-').map(Number) : [0, 0, 0];
                 const catColor = getCategoryColor(event.category);
                 return (
                   <div key={event.id} className="bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
@@ -499,8 +502,17 @@ export default function Discover() {
                     <div className="flex items-stretch px-4 pt-4 gap-3">
                       {/* 日付（左） */}
                       <div className="flex-shrink-0 w-10 flex flex-col items-center pt-0.5">
-                        <span className="text-[10px] text-label-tertiary leading-none">{em}月</span>
-                        <span className="text-xl font-bold text-label-primary leading-snug">{ed}</span>
+                        {isOngoing ? (
+                          <>
+                            <span className="text-[9px] font-bold leading-none" style={{ color: 'var(--accent-color)' }}>開催中</span>
+                            <span className="text-[11px] font-bold text-label-secondary leading-snug mt-1">〜{endM}/{endD}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-[10px] text-label-tertiary leading-none">{em}月</span>
+                            <span className="text-xl font-bold text-label-primary leading-snug">{ed}</span>
+                          </>
+                        )}
                       </div>
                       <div className="w-px self-stretch bg-white/10 flex-shrink-0" />
                       {/* 元のコンテンツ（右） */}
