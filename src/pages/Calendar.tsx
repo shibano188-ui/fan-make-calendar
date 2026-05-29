@@ -1725,11 +1725,11 @@ export default function Calendar() {
 
             {/* ボトムシート（日付タップ） */}
             <div
-              className="flex-shrink-0 overflow-hidden border-t"
+              className="flex-shrink-0 overflow-hidden"
               style={{
-                height: sheetOpen ? SHEET_FULL_H : SHEET_COLLAPSED_H,
+                height: sheetOpen ? SHEET_FULL_H : 0,
                 transition: 'height 0.3s cubic-bezier(0.32, 0.72, 0, 1)',
-                borderColor: 'var(--border-subtle)',
+                borderTop: sheetOpen ? '1px solid var(--border-subtle)' : 'none',
                 backgroundColor: 'var(--bg-primary)',
               }}
             >
