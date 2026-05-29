@@ -118,6 +118,7 @@ export default function WorkSelect() {
   const [error, setError] = useState('');
   const [pendingWork, setPendingWork] = useState<Work | null>(null);
   const [pendingCats, setPendingCats] = useState<string[]>([]);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     listWorks()
@@ -376,17 +377,19 @@ export default function WorkSelect() {
               {/* 参加ボタン（カレンダーへ移動しない） */}
               <button
                 onClick={() => {
-                  // pendingCats = 表示したいカテゴリ → excludeCats = 非表示にするカテゴリ
                   const excludeCats = pendingCats.length === POST_CATEGORIES.length
-                    ? []  // 全選択 = 除外なし
+                    ? []
                     : POST_CATEGORIES.filter(c => !pendingCats.includes(c));
                   const updated = { ...loadCategoryFilters(), [pendingWork.id]: excludeCats };
                   saveCategoryFilters(updated);
-                  // 参加済みリストを即時更新（チェックマークを即座に反映）
                   if (!recentWorks.some(w => w.id === pendingWork.id)) {
                     setRecentWorks(prev => [pendingWork, ...prev]);
                   }
+                  const name = pendingWork.name;
                   setPendingWork(null);
+                  setQuery('');
+                  setToast(`「${name}」に参加しました`);
+                  setTimeout(() => setToast(null), 2500);
                 }}
                 className="w-full py-3 rounded-xl text-sm font-semibold active:opacity-70"
                 style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' }}
@@ -396,6 +399,12 @@ export default function WorkSelect() {
             </div>
           </div>
         </>
+      )}
+      {toast && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[300] px-4 py-2.5 rounded-full text-sm font-medium text-white shadow-lg"
+          style={{ backgroundColor: 'var(--accent-color)', whiteSpace: 'nowrap' }}>
+          {toast}
+        </div>
       )}
     </Layout>
   );
