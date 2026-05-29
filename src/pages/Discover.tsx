@@ -390,7 +390,7 @@ export default function Discover() {
         style={{ backgroundColor: 'var(--bg-primary)', paddingTop: 44, paddingBottom: BOTTOM_TAB_H }}
       >
         <Header
-          title="発見"
+          leftNode={<span className="text-base font-bold text-label-primary">みんなの投稿した予定</span>}
           rightAction={
             <div className="flex items-center gap-1">
               <button

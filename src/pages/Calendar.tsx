@@ -1426,15 +1426,11 @@ export default function Calendar() {
         }}
       >
         <Header
-          title={workId ? (workName || '…') : 'マイカレンダー'}
-          subtitleNode={
-            <div className="flex flex-col items-center">
-              <span className="text-[10px] text-label-tertiary leading-none">{year}年</span>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <button onClick={prevMonth} aria-label="前の月" className="text-label-tertiary text-lg leading-none px-1 active:text-label-primary">‹</button>
-                <span className="text-sm font-semibold text-label-primary">{month + 1}月</span>
-                <button onClick={nextMonth} aria-label="次の月" className="text-label-tertiary text-lg leading-none px-1 active:text-label-primary">›</button>
-              </div>
+          leftNode={
+            <div className="flex items-center gap-1">
+              <button onClick={prevMonth} aria-label="前の月" className="text-label-tertiary text-xl leading-none px-1 active:text-label-primary">‹</button>
+              <span className="text-base font-bold text-label-primary">{year}年{month + 1}月</span>
+              <button onClick={nextMonth} aria-label="次の月" className="text-label-tertiary text-xl leading-none px-1 active:text-label-primary">›</button>
             </div>
           }
           rightAction={

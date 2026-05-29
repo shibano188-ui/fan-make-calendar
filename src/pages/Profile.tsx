@@ -176,7 +176,7 @@ export default function Profile() {
         className="fixed inset-0 max-w-app mx-auto flex flex-col overflow-hidden"
         style={{ backgroundColor: 'var(--bg-primary)', paddingTop: 44, paddingBottom: BOTTOM_TAB_H }}
       >
-        <Header title="プロフィール" />
+        <Header leftNode={<span className="text-base font-bold text-label-primary">プロフィール</span>} />
 
         <div className="flex-1 overflow-y-auto px-4 pt-4 pb-8 flex flex-col gap-6">
 
