@@ -18,7 +18,6 @@ const ANIMAL_AVATARS = [
   '🦁','🐮','🐷','🐸','🦋','🐝','🐬','🐧',
   '🦄','🐙','🦜','🦅','🦖','🐳','🦓','🐢',
 ];
-import { ExternalLink } from 'lucide-react';
 import { loadCalendarEventIds, loadTotalLikesGiven } from '../lib/constants';
 import { PrefectureSearch } from '../components/UserSettingsSheet';
 
@@ -104,7 +103,8 @@ export default function Profile() {
   const [homePref, setHomePref] = useState<string | null>(null);
   const [xUrl, setXUrl] = useState<string | null>(null);
   const [avatarEmoji, setAvatarEmoji] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
+  type EditingField = 'avatar' | 'name' | 'pref' | 'x' | null;
+  const [editingField, setEditingField] = useState<EditingField>(null);
   const [editName, setEditName] = useState('');
   const [editPref, setEditPref] = useState<string | null>(null);
   const [editXUrl, setEditXUrl] = useState('');
@@ -141,31 +141,34 @@ export default function Profile() {
 
   const initials = (displayName ?? '匿名').slice(0, 2).toUpperCase();
 
-  const startEdit = () => {
+  const startFieldEdit = (field: NonNullable<EditingField>) => {
     setEditName(displayName ?? '');
     setEditPref(homePref);
     setEditXUrl(xUrl ?? '');
     setEditAvatarEmoji(avatarEmoji);
-    setEditing(true);
+    setEditingField(field);
   };
 
-  const cancelEdit = () => setEditing(false);
+  const cancelFieldEdit = () => setEditingField(null);
 
-  const saveProfile = async () => {
+  const saveSingleField = async (field: NonNullable<EditingField>) => {
     if (!user) return;
     setSavingProfile(true);
     try {
-      await Promise.all([
-        saveDisplayName(user.id, editName.trim()),
-        saveHomePrefecture(user.id, editPref),
-        saveXUrl(user.id, editXUrl.trim() || null),
-        saveAvatarEmoji(user.id, editAvatarEmoji),
-      ]);
-      setDisplayName(editName.trim() || null);
-      setHomePref(editPref);
-      setXUrl(editXUrl.trim() || null);
-      setAvatarEmoji(editAvatarEmoji);
-      setEditing(false);
+      if (field === 'name') {
+        await saveDisplayName(user.id, editName.trim());
+        setDisplayName(editName.trim() || null);
+      } else if (field === 'pref') {
+        await saveHomePrefecture(user.id, editPref);
+        setHomePref(editPref);
+      } else if (field === 'x') {
+        await saveXUrl(user.id, editXUrl.trim() || null);
+        setXUrl(editXUrl.trim() || null);
+      } else if (field === 'avatar') {
+        await saveAvatarEmoji(user.id, editAvatarEmoji);
+        setAvatarEmoji(editAvatarEmoji);
+      }
+      setEditingField(null);
     } catch { /* ignore */ }
     finally { setSavingProfile(false); }
   };
@@ -223,84 +226,71 @@ export default function Profile() {
 
           {/* ── プロフィール ───────────────────────── */}
           <section>
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-label-tertiary text-xs">プロフィール</p>
-              {!editing && (
-                <button onClick={startEdit} className="flex items-center gap-1 text-xs active:opacity-60" style={{ color: 'var(--accent-color)' }}>
-                  <Pencil size={12} />編集
-                </button>
-              )}
-            </div>
+            <p className="text-label-tertiary text-xs mb-3">プロフィール</p>
 
             <div className="rounded-xl overflow-hidden shadow-card" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-              {/* アバター＋名前エリア */}
+
+              {/* ── アバター＋名前行 ── */}
               <div className="flex items-center gap-4 px-5 pt-5 pb-4">
+                {/* アバター（タップでアバター編集） */}
                 <button
-                  onClick={editing ? undefined : startEdit}
-                  className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0 relative"
+                  onClick={() => editingField === 'avatar' ? undefined : startFieldEdit('avatar')}
+                  className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0 relative active:opacity-80"
                   style={{ backgroundColor: 'var(--accent-color)' }}
                 >
-                  {avatarEmoji && !editing ? (
-                    <span className="text-3xl leading-none">{avatarEmoji}</span>
-                  ) : editing && editAvatarEmoji ? (
-                    <span className="text-3xl leading-none">{editAvatarEmoji}</span>
+                  {(editingField === 'avatar' ? editAvatarEmoji : avatarEmoji) ? (
+                    <span className="text-3xl leading-none">{editingField === 'avatar' ? editAvatarEmoji : avatarEmoji}</span>
                   ) : (
                     <span className="text-xl font-bold" style={{ color: 'var(--bg-primary)' }}>{initials}</span>
                   )}
-                  {!editing && (
+                  {editingField !== 'avatar' && (
                     <span className="absolute bottom-0 right-0 w-5 h-5 rounded-full flex items-center justify-center"
                       style={{ backgroundColor: 'var(--bg-primary)' }}>
                       <Pencil size={10} style={{ color: 'var(--label-secondary)' }} />
                     </span>
                   )}
                 </button>
-                {editing ? (
-                  <div className="flex-1 min-w-0 flex flex-col gap-2">
+
+                {/* 名前 */}
+                {editingField === 'name' ? (
+                  <div className="flex-1 flex items-center gap-2 min-w-0">
                     <input
                       type="text"
                       value={editName}
                       onChange={e => setEditName(e.target.value)}
                       placeholder="表示名"
-                      className="w-full bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong"
+                      autoFocus
+                      className="flex-1 min-w-0 bg-bg-primary rounded-lg px-3 py-1.5 text-sm text-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong"
                     />
+                    <button onClick={cancelFieldEdit} className="w-7 h-7 flex items-center justify-center rounded-full active:opacity-60" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                      <X size={13} className="text-label-secondary" />
+                    </button>
+                    <button onClick={() => saveSingleField('name')} disabled={savingProfile} className="w-7 h-7 flex items-center justify-center rounded-full active:opacity-70 disabled:opacity-40" style={{ backgroundColor: 'var(--accent-color)' }}>
+                      <Check size={13} style={{ color: 'var(--bg-primary)' }} />
+                    </button>
                   </div>
                 ) : (
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 flex items-center justify-between min-w-0">
                     <p className="text-label-primary font-semibold text-base truncate">{displayName ?? '匿名'}</p>
-                    {homePref && <p className="text-label-tertiary text-xs mt-0.5">{homePref}</p>}
+                    <button onClick={() => startFieldEdit('name')} className="ml-2 flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full active:opacity-60" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                      <Pencil size={12} className="text-label-secondary" />
+                    </button>
                   </div>
                 )}
               </div>
 
-              {/* ホーム県（編集中） */}
-              {editing && (
-                <div className="px-5 pb-3 flex flex-col gap-2 border-t" style={{ borderColor: 'var(--border-faint)' }}>
-                  <p className="text-label-tertiary text-xs pt-3">ホーム県</p>
-                  <PrefectureSearch
-                    value={editPref ?? ''}
-                    onChange={pref => setEditPref(pref || null)}
-                  />
-                </div>
-              )}
-
-              {/* X URL（編集中） */}
-              {editing && (
-                <div className="px-5 pb-3 flex flex-col gap-2 border-t" style={{ borderColor: 'var(--border-faint)' }}>
-                  <p className="text-label-tertiary text-xs pt-3">X (Twitter) URL</p>
-                  <input
-                    type="url"
-                    value={editXUrl}
-                    onChange={e => setEditXUrl(e.target.value)}
-                    placeholder="https://x.com/username"
-                    className="w-full bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong"
-                  />
-                </div>
-              )}
-
-              {/* アバター選択（編集中） */}
-              {editing && (
+              {/* アバターピッカー（アバター編集中） */}
+              {editingField === 'avatar' && (
                 <div className="px-5 pb-4 border-t" style={{ borderColor: 'var(--border-faint)' }}>
-                  <p className="text-label-tertiary text-xs pt-3 mb-2">アバター</p>
+                  <div className="flex items-center justify-between pt-3 mb-2">
+                    <p className="text-label-tertiary text-xs">アバター</p>
+                    <div className="flex items-center gap-2">
+                      <button onClick={cancelFieldEdit} className="text-xs text-label-secondary active:opacity-60">キャンセル</button>
+                      <button onClick={() => saveSingleField('avatar')} disabled={savingProfile} className="text-xs font-semibold active:opacity-70 disabled:opacity-40" style={{ color: 'var(--accent-color)' }}>
+                        {savingProfile ? '保存中…' : '保存'}
+                      </button>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-8 gap-1.5">
                     {ANIMAL_AVATARS.map(emoji => (
                       <button
@@ -309,12 +299,8 @@ export default function Profile() {
                         onClick={() => setEditAvatarEmoji(editAvatarEmoji === emoji ? null : emoji)}
                         className="w-full aspect-square rounded-xl flex items-center justify-center text-xl active:opacity-70 transition-all"
                         style={{
-                          backgroundColor: editAvatarEmoji === emoji
-                            ? 'color-mix(in srgb, var(--accent-color) 20%, transparent)'
-                            : 'var(--bg-primary)',
-                          border: editAvatarEmoji === emoji
-                            ? '2px solid var(--accent-color)'
-                            : '2px solid transparent',
+                          backgroundColor: editAvatarEmoji === emoji ? 'color-mix(in srgb, var(--accent-color) 20%, transparent)' : 'var(--bg-primary)',
+                          border: editAvatarEmoji === emoji ? '2px solid var(--accent-color)' : '2px solid transparent',
                         }}
                       >
                         {emoji}
@@ -329,52 +315,77 @@ export default function Profile() {
                 </div>
               )}
 
-              {/* ホーム県・X（表示中） */}
-              {!editing && (homePref || xUrl) && (
-                <div className="px-5 pb-4 border-t flex flex-col gap-1.5" style={{ borderColor: 'var(--border-faint)' }}>
-                  {homePref && (
-                    <div className="flex items-center gap-2 pt-3">
-                      <span className="text-label-tertiary text-xs">ホーム県</span>
-                      <span className="text-label-secondary text-xs">{homePref}</span>
+              {/* ── ホーム県行 ── */}
+              <div className="px-5 py-3 border-t" style={{ borderColor: 'var(--border-faint)' }}>
+                {editingField === 'pref' ? (
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-label-tertiary text-xs">ホーム県</p>
+                      <div className="flex items-center gap-2">
+                        <button onClick={cancelFieldEdit} className="text-xs text-label-secondary active:opacity-60">キャンセル</button>
+                        <button onClick={() => saveSingleField('pref')} disabled={savingProfile} className="text-xs font-semibold active:opacity-70 disabled:opacity-40" style={{ color: 'var(--accent-color)' }}>
+                          {savingProfile ? '保存中…' : '保存'}
+                        </button>
+                      </div>
                     </div>
-                  )}
-                  {xUrl && (
-                    <a href={xUrl} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-xs active:opacity-60 w-fit"
-                      style={{ color: 'var(--accent-color)', marginTop: homePref ? 0 : 12 }}>
-                      <ExternalLink size={11} />X を見る
-                    </a>
-                  )}
-                </div>
-              )}
-              {!editing && !homePref && !xUrl && (
-                <div className="px-5 pb-4 border-t" style={{ borderColor: 'var(--border-faint)' }}>
-                  <button onClick={startEdit} className="text-xs pt-3 active:opacity-60" style={{ color: 'var(--accent-color)' }}>
-                    + ホーム県・X を設定する
-                  </button>
-                </div>
-              )}
+                    <PrefectureSearch value={editPref ?? ''} onChange={pref => setEditPref(pref || null)} />
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-label-tertiary text-xs">ホーム県:</span>
+                      <span className="text-label-primary text-sm">{homePref ?? '未設定'}</span>
+                    </div>
+                    <button onClick={() => startFieldEdit('pref')} className="w-7 h-7 flex items-center justify-center rounded-full active:opacity-60" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                      <Pencil size={12} className="text-label-secondary" />
+                    </button>
+                  </div>
+                )}
+              </div>
 
-              {/* 編集ボタン行 */}
-              {editing && (
-                <div className="px-5 pb-4 flex gap-2 border-t" style={{ borderColor: 'var(--border-faint)' }}>
-                  <button
-                    onClick={cancelEdit}
-                    className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl border text-xs text-label-secondary active:opacity-60"
-                    style={{ borderColor: 'var(--border-default)' }}
-                  >
-                    <X size={13} />キャンセル
-                  </button>
-                  <button
-                    onClick={saveProfile}
-                    disabled={savingProfile}
-                    className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-semibold active:opacity-70 disabled:opacity-40"
-                    style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' }}
-                  >
-                    <Check size={13} />{savingProfile ? '保存中…' : '保存'}
-                  </button>
-                </div>
-              )}
+              {/* ── X行 ── */}
+              <div className="px-5 py-3 border-t" style={{ borderColor: 'var(--border-faint)' }}>
+                {editingField === 'x' ? (
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-label-tertiary text-xs">X (Twitter) URL</p>
+                      <div className="flex items-center gap-2">
+                        <button onClick={cancelFieldEdit} className="text-xs text-label-secondary active:opacity-60">キャンセル</button>
+                        <button onClick={() => saveSingleField('x')} disabled={savingProfile} className="text-xs font-semibold active:opacity-70 disabled:opacity-40" style={{ color: 'var(--accent-color)' }}>
+                          {savingProfile ? '保存中…' : '保存'}
+                        </button>
+                      </div>
+                    </div>
+                    <input
+                      type="url"
+                      value={editXUrl}
+                      onChange={e => setEditXUrl(e.target.value)}
+                      placeholder="https://x.com/username"
+                      autoFocus
+                      className="w-full bg-bg-primary rounded-lg px-3 py-1.5 text-sm text-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-baseline gap-1.5 min-w-0">
+                      <span className="text-label-tertiary text-xs flex-shrink-0">X:</span>
+                      {xUrl ? (
+                        <a href={xUrl} target="_blank" rel="noopener noreferrer"
+                          className="text-sm truncate active:opacity-60"
+                          style={{ color: 'var(--accent-color)' }}>
+                          {xUrl.replace(/^https?:\/\/(www\.)?(x\.com|twitter\.com)\//, '@')}
+                        </a>
+                      ) : (
+                        <span className="text-label-tertiary text-sm">未設定</span>
+                      )}
+                    </div>
+                    <button onClick={() => startFieldEdit('x')} className="ml-2 flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full active:opacity-60" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                      <Pencil size={12} className="text-label-secondary" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
             </div>
           </section>
 
