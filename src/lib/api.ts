@@ -124,8 +124,8 @@ export async function listEvents(workId: string, year: number, month: number): P
     .select('*')
     .eq('work_id', workId)
     .eq('pool', 0)
-    .gte('event_date', from)
     .lte('event_date', to)
+    .or(`end_date.gte.${from},and(end_date.is.null,event_date.gte.${from})`)
     .order('event_date', { ascending: true });
 
   if (error) throw error;
@@ -469,8 +469,8 @@ export async function listAllParticipatedWorkEvents(
     .select('*')
     .in('work_id', works.map(w => w.id))
     .eq('pool', 0)
-    .gte('event_date', from)
     .lte('event_date', to)
+    .or(`end_date.gte.${from},and(end_date.is.null,event_date.gte.${from})`)
     .order('event_date', { ascending: true });
   if (error) throw error;
   const events = (data ?? []).map(e => ({
