@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { ExternalLink, Heart, Plus, Smile } from 'lucide-react';
+import { ExternalLink, Heart, Plus, Smile, Share2 } from 'lucide-react';
 import Layout from '../components/Layout';
 import Header from '../components/Header';
 import { useNavigate } from 'react-router-dom';
-import { listEventsByDate, addLikeTap, getReactionData, setReaction } from '../lib/api';
+import { listEventsByDate, addLikeTap, getReactionData, setReaction, getWorkById, getDisplayName } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import type { CalendarEvent } from '../types';
 import { REACTIONS, type ReactionType } from '../lib/reactions';
@@ -165,6 +165,8 @@ function EventCard({
   reactionData,
   onOpenReactionPicker,
   onAuthorClick,
+  workName,
+  displayName,
 }: {
   event: CalendarEvent;
   userId: string | undefined;
@@ -172,6 +174,8 @@ function EventCard({
   reactionData?: ReactionData;
   onOpenReactionPicker?: () => void;
   onAuthorClick?: (authorId: string) => void;
+  workName?: string | null;
+  displayName?: string | null;
 }) {
   const hasReactions = reactionData && Object.values(reactionData.counts).some(c => c > 0);
 
@@ -212,7 +216,7 @@ function EventCard({
         </div>
       )}
 
-      {/* いいね + リアクションボタン */}
+      {/* いいね + リアクションボタン + Xシェア */}
       <div className="flex items-center gap-2">
         <LikeButton event={event} userId={userId} onTapped={count => onTapped(event.id, count)} />
         {onOpenReactionPicker && (
@@ -231,6 +235,20 @@ function EventCard({
             }
           </button>
         )}
+        <a
+          href={(() => {
+            const parts = [`「${event.title}」をカレンダーに登録しました！`];
+            if (workName) parts.push(`#${workName.replace(/\s/g, '_')}`);
+            if (displayName) parts.push(`by ${displayName}`);
+            parts.push(window.location.origin);
+            return `https://twitter.com/intent/tweet?text=${encodeURIComponent(parts.join('\n'))}`;
+          })()}
+          target="_blank" rel="noopener noreferrer"
+          className="ml-auto flex items-center justify-center px-3 py-1.5 rounded-full border text-sm active:opacity-60"
+          style={{ borderColor: 'var(--border-default)', color: 'var(--label-secondary)', minWidth: '2.5rem' }}
+        >
+          <Share2 size={14} />
+        </a>
       </div>
 
       {/* リアクション集計 */}
@@ -269,6 +287,16 @@ export default function DateDetail() {
   const [eventReactions, setEventReactions] = useState<Record<string, ReactionData>>({});
   const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
   const [viewingUserId, setViewingUserId] = useState<string | null>(null);
+  const [workName, setWorkName] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (workId) getWorkById(workId).then(w => setWorkName(w?.name ?? null));
+  }, [workId]);
+
+  useEffect(() => {
+    if (user?.id) getDisplayName(user.id).then(setDisplayName);
+  }, [user?.id]);
 
   // イベント取得
   useEffect(() => {
@@ -360,6 +388,8 @@ export default function DateDetail() {
                 reactionData={eventReactions[event.id]}
                 onOpenReactionPicker={() => setOpenReactionPickerId(prev => prev === event.id ? null : event.id)}
                 onAuthorClick={id => setViewingUserId(id)}
+                workName={workName}
+                displayName={displayName}
               />
             ))}
           </div>
