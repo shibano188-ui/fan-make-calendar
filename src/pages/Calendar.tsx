@@ -2337,6 +2337,8 @@ export default function Calendar() {
                 <div className="flex flex-col gap-3">
                   {filteredEvents.map(event => {
                     const [, em, ed] = event.date.split('-').map(Number);
+                    const hasPeriod = !!event.endDate && event.endDate !== event.date;
+                    const [, endM, endD] = hasPeriod ? event.endDate!.split('-').map(Number) : [0, 0, 0];
                     const catColor = getCategoryColor(event.category);
                     return (
                       <div key={event.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
@@ -2351,8 +2353,17 @@ export default function Calendar() {
                           <button onClick={() => setListDetailEvent(event)}
                             className="flex-1 flex items-center gap-3 min-w-0 text-left active:opacity-70 transition-opacity">
                             <div className="flex-shrink-0 w-10 flex flex-col items-center">
-                              <span className="text-[10px] text-label-tertiary leading-none">{em}月</span>
-                              <span className="text-xl font-bold text-label-primary leading-snug">{ed}</span>
+                              {hasPeriod ? (
+                                <>
+                                  <span className="text-[11px] font-bold text-label-primary leading-snug">{em}/{ed}</span>
+                                  <span className="text-[10px] text-label-tertiary leading-snug">〜{endM}/{endD}</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="text-[10px] text-label-tertiary leading-none">{em}月</span>
+                                  <span className="text-xl font-bold text-label-primary leading-snug">{ed}</span>
+                                </>
+                              )}
                             </div>
                             <div className="w-px h-8 bg-white/10 flex-shrink-0" />
                             <div className="flex-1 min-w-0">
@@ -2433,6 +2444,8 @@ export default function Calendar() {
                 <div className="flex flex-col gap-3">
                   {myCalendarListItems.map(item => {
                     const [, im, id] = item.date.split('-').map(Number);
+                    const hasPeriod = !!item.endDate && item.endDate !== item.date;
+                    const [, endM, endD] = hasPeriod ? item.endDate!.split('-').map(Number) : [0, 0, 0];
                     const catColor = getCategoryColor(item.category);
                     return (
                       <div key={item.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
@@ -2454,8 +2467,17 @@ export default function Calendar() {
                             className={`flex-1 flex items-center gap-3 min-w-0 text-left ${!item.isPersonal ? 'active:opacity-70 transition-opacity' : 'cursor-default'}`}
                           >
                             <div className="flex-shrink-0 w-10 flex flex-col items-center">
-                              <span className="text-[10px] text-label-tertiary leading-none">{im}月</span>
-                              <span className="text-xl font-bold text-label-primary leading-snug">{id}</span>
+                              {hasPeriod ? (
+                                <>
+                                  <span className="text-[11px] font-bold text-label-primary leading-snug">{im}/{id}</span>
+                                  <span className="text-[10px] text-label-tertiary leading-snug">〜{endM}/{endD}</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="text-[10px] text-label-tertiary leading-none">{im}月</span>
+                                  <span className="text-xl font-bold text-label-primary leading-snug">{id}</span>
+                                </>
+                              )}
                             </div>
                             <div className="w-px h-8 bg-white/10 flex-shrink-0" />
                             <div className="flex-1 min-w-0">
