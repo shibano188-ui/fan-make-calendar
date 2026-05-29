@@ -1261,6 +1261,101 @@ export default function Calendar() {
     return map;
   }, [workId, visibleEvents, monthPersonalEvents, workColorMap, importantEventIds]);
 
+  // 複数日イベント用オーバーレイセグメント（週行をまたいでバーをつなげるための絶対配置データ）
+  type MultiDayOverlaySegment = {
+    key: string;
+    eventId: string;
+    weekRow: number;    // 0〜5
+    startCol: number;   // 0〜6
+    endCol: number;     // 0〜6
+    color: string;
+    dotColor: string;
+    title: string;
+    important: boolean;
+    isFirstSegment: boolean;  // イベント全体の先頭セグメント（ドット＋タイトル表示）
+    isLastSegment: boolean;   // イベント全体の末尾セグメント（右角丸）
+    slotIndex: number;        // 同一週行内での縦スタック順
+  };
+  const multiDayOverlaySegments = useMemo((): MultiDayOverlaySegment[] => {
+    type RawEvt = { eventId: string; startDate: string; endDate: string; title: string; color: string; dotColor: string; important: boolean };
+    const rawEvts: RawEvt[] = [];
+    for (const e of visibleEvents) {
+      if (e.endDate && e.endDate > e.date) {
+        const workColor = e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
+        rawEvts.push({ eventId: e.id, startDate: e.date, endDate: e.endDate, title: e.title, color: workColor, dotColor: getCategoryColor(e.category) ?? workColor, important: importantEventIds.has(e.id) });
+      }
+    }
+    if (!workId) {
+      for (const pe of monthPersonalEvents) {
+        if (pe.endDate && pe.endDate > pe.date) {
+          rawEvts.push({ eventId: pe.id, startDate: pe.date, endDate: pe.endDate, title: pe.title, color: '#888888', dotColor: getCategoryColor(pe.category) ?? '#888888', important: importantEventIds.has(pe.id) });
+        }
+      }
+    }
+
+    type TempSeg = RawEvt & { weekRow: number; startCol: number; endCol: number; isFirstSegment: boolean; isLastSegment: boolean };
+    const tempSegs: TempSeg[] = [];
+    const rowEventOrder = new Map<number, string[]>(); // weekRow → eventId[]（出現順）
+
+    for (const evt of rawEvts) {
+      const segs: { weekRow: number; startCol: number; endCol: number }[] = [];
+      let curRow: number | null = null;
+      let segStartCol = 0;
+      let segEndCol = 0;
+
+      for (let idx = 0; idx < calendarDays.length; idx++) {
+        const { date, isCurrentMonth } = calendarDays[idx];
+        const dateStr = toDateStr(date);
+        const weekRow = Math.floor(idx / 7);
+        const col = idx % 7;
+        const inEvent = isCurrentMonth && dateStr >= evt.startDate && dateStr <= evt.endDate;
+
+        if (inEvent) {
+          if (curRow === null) { curRow = weekRow; segStartCol = col; segEndCol = col; }
+          else if (weekRow !== curRow) {
+            segs.push({ weekRow: curRow, startCol: segStartCol, endCol: segEndCol });
+            curRow = weekRow; segStartCol = col; segEndCol = col;
+          } else { segEndCol = col; }
+        }
+      }
+      if (curRow !== null) segs.push({ weekRow: curRow, startCol: segStartCol, endCol: segEndCol });
+
+      for (const seg of segs) {
+        const order = rowEventOrder.get(seg.weekRow) ?? [];
+        if (!order.includes(evt.eventId)) order.push(evt.eventId);
+        rowEventOrder.set(seg.weekRow, order);
+      }
+      segs.forEach((seg, i) => {
+        tempSegs.push({ ...evt, weekRow: seg.weekRow, startCol: seg.startCol, endCol: seg.endCol, isFirstSegment: i === 0, isLastSegment: i === segs.length - 1 });
+      });
+    }
+
+    return tempSegs.map(seg => ({
+      key: `${seg.eventId}-${seg.weekRow}`,
+      eventId: seg.eventId,
+      weekRow: seg.weekRow, startCol: seg.startCol, endCol: seg.endCol,
+      color: seg.color, dotColor: seg.dotColor, title: seg.title, important: seg.important,
+      isFirstSegment: seg.isFirstSegment, isLastSegment: seg.isLastSegment,
+      slotIndex: rowEventOrder.get(seg.weekRow)?.indexOf(seg.eventId) ?? 0,
+    }));
+  }, [workId, visibleEvents, monthPersonalEvents, workColorMap, importantEventIds, calendarDays]);
+
+  // 各日付ごとにオーバーレイが占有するスロット数（= セル内プレースホルダー数に使用）
+  // slotIndexは週行全体の順番なので、その日に存在しないイベントのスロットも空きとして確保する必要がある
+  const overlaySlotCountByDate = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const seg of multiDayOverlaySegments) {
+      for (let col = seg.startCol; col <= seg.endCol; col++) {
+        const idx = seg.weekRow * 7 + col;
+        if (idx < calendarDays.length) {
+          const dateStr = toDateStr(calendarDays[idx].date);
+          const cur = map.get(dateStr) ?? 0;
+          map.set(dateStr, Math.max(cur, seg.slotIndex + 1));
+        }
+      }
+    }
+    return map;
+  }, [multiDayOverlaySegments, calendarDays]);
 
   // ボトムシート用: 選択日の作品イベント（複数日イベント対応）
   const sheetWorkEvents = useMemo(
@@ -1488,14 +1583,68 @@ export default function Calendar() {
                 ))}
               </div>
 
-              {/* 日付グリッド */}
-              <div className="flex-1 overflow-hidden">
+              {/* 日付グリッド（複数日バーはオーバーレイで描画） */}
+              <div className="relative flex-1 overflow-hidden">
+                {/* 複数日イベントオーバーレイ: 週行ごとにコンテナを分けて overflow:hidden で行境界内にクリップ。
+                    グリッドが縮んでも固定px値のバーが隣行にはみ出さない。 */}
+                <div className="absolute inset-0 pointer-events-none">
+                  {[0, 1, 2, 3, 4, 5].map(weekRow => {
+                    const rowSegs = multiDayOverlaySegments.filter(s => s.weekRow === weekRow);
+                    if (rowSegs.length === 0) return null;
+                    return (
+                      <div
+                        key={weekRow}
+                        className="absolute overflow-hidden"
+                        style={{
+                          top: `calc(${weekRow} / 6 * 100%)`,
+                          height: `calc(100% / 6)`,
+                          left: 0,
+                          right: 0,
+                        }}
+                      >
+                        {rowSegs.map(seg => (
+                          <div
+                            key={seg.key}
+                            className="absolute flex items-center overflow-hidden"
+                            style={{
+                              top: `calc(31px + ${seg.slotIndex} * 11px)`,
+                              left: `calc(${seg.startCol} / 7 * 100%)`,
+                              width: `calc(${seg.endCol - seg.startCol + 1} / 7 * 100%)`,
+                              height: '10px',
+                              background: seg.color.startsWith('#') ? seg.color + '28' : 'rgba(128,128,128,0.18)',
+                              borderTopLeftRadius:    seg.isFirstSegment ? '3px' : '0',
+                              borderBottomLeftRadius: seg.isFirstSegment ? '3px' : '0',
+                              borderTopRightRadius:    seg.isLastSegment  ? '3px' : '0',
+                              borderBottomRightRadius: seg.isLastSegment  ? '3px' : '0',
+                            }}
+                          >
+                            {seg.isFirstSegment && (
+                              seg.important ? (
+                                <span className="text-[8px] leading-none flex-shrink-0 ml-[2px]" style={{ color: '#f59e0b' }}>★</span>
+                              ) : (
+                                <div className="w-[4px] h-[4px] rounded-full flex-shrink-0 ml-[2px]" style={{ backgroundColor: seg.dotColor.startsWith('#') ? seg.dotColor : '#888' }} />
+                              )
+                            )}
+                            {seg.isFirstSegment && (
+                              <span className="text-[8px] leading-none truncate ml-[2px]" style={{ color: seg.color }}>
+                                {seg.title}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* グリッドセル: zIndex:1 で stacking context を生成し overlay より上に描画 */}
                 <div
-                  className="grid grid-cols-7 h-full"
+                  className="relative grid grid-cols-7 h-full"
                   style={{
                     gridTemplateRows: 'repeat(6, 1fr)',
                     borderTop: '1px solid var(--cal-grid-color)',
                     borderLeft: '1px solid var(--cal-grid-color)',
+                    zIndex: 1,
                   }}
                 >
                   {calendarDays.map(({ date, isCurrentMonth }, idx) => {
@@ -1526,30 +1675,22 @@ export default function Calendar() {
                           {date.getDate()}
                         </div>
                         {(() => {
-                          if (cellItems.length === 0) return <div className="h-[6px]" />;
-
-                          const middleDots = cellItems.filter(i => i.position === 'middle');
-                          const pillItems  = cellItems.filter(i => i.position !== 'middle');
-                          const visiblePills = pillItems.slice(0, 2);
-                          const hiddenCount  = pillItems.length - visiblePills.length;
-
+                          // オーバーレイが予約するスロット数（週行内のslotIndex順に確保）
+                          const oSlots = Math.min(overlaySlotCountByDate.get(dateStr) ?? 0, 3);
+                          const singleItems = cellItems.filter(i => !i.position);
+                          const maxSingle = 3 - oSlots;
+                          const visibleSingle = singleItems.slice(0, maxSingle);
+                          const hiddenCount = singleItems.length - visibleSingle.length;
+                          const hasAny = oSlots > 0 || singleItems.length > 0;
+                          if (!hasAny) return <div className="h-[6px]" />;
                           return (
                             <div className="w-full px-[2px] flex flex-col gap-[1px] mt-[1px]">
-                              {/* 期間中間日: ドット横並び */}
-                              {middleDots.length > 0 && (
-                                <div className="flex items-center gap-[3px] px-[2px] h-[10px]">
-                                  {middleDots.map(item => (
-                                    item.important ? (
-                                      <span key={item.eventId} className="text-[8px] leading-none flex-shrink-0" style={{ color: '#f59e0b' }}>★</span>
-                                    ) : (
-                                      <div key={item.eventId} className="w-[5px] h-[5px] rounded-full flex-shrink-0"
-                                        style={{ backgroundColor: item.dotColor.startsWith('#') ? item.dotColor : '#888' }} />
-                                    )
-                                  ))}
-                                </div>
-                              )}
-                              {/* 開始日・終了日・単日: テキストピル */}
-                              {visiblePills.map(item => (
+                              {/* 複数日バー用プレースホルダー（オーバーレイのslotIndexと一致させる空白） */}
+                              {Array.from({ length: oSlots }, (_, i) => (
+                                <div key={`ph-${i}`} style={{ height: '10px' }} />
+                              ))}
+                              {/* 単日イベントタイル */}
+                              {visibleSingle.map(item => (
                                 <div
                                   key={item.eventId}
                                   className="flex items-center gap-[2px] w-full rounded-[2px] px-[2px] py-[1px]"
