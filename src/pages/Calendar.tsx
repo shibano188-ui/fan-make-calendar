@@ -106,16 +106,17 @@ const BOTTOM_TAB_H = 56;
 const SHEET_COLLAPSED_H = 76;
 const SHEET_FULL_H = 280;
 
-// 複数日イベントを単日イベントより先頭に並べるソート比較関数
-function multiDayFirst(
-  a: { date: string; endDate?: string },
-  b: { date: string; endDate?: string },
-): number {
-  const aMulti = !!(a.endDate && a.endDate > a.date);
-  const bMulti = !!(b.endDate && b.endDate > b.date);
-  if (aMulti && !bMulti) return -1;
-  if (!aMulti && bMulti) return 1;
-  return 0;
+// ソート: 重要 > 複数日 > 通常
+function makePriorityComparator(importantIds: Set<string>) {
+  return (a: { id: string; date: string; endDate?: string }, b: { id: string; date: string; endDate?: string }) => {
+    const aImp = importantIds.has(a.id);
+    const bImp = importantIds.has(b.id);
+    if (aImp !== bImp) return aImp ? -1 : 1;
+    const aMulti = !!(a.endDate && a.endDate > a.date);
+    const bMulti = !!(b.endDate && b.endDate > b.date);
+    if (aMulti !== bMulti) return aMulti ? -1 : 1;
+    return 0;
+  };
 }
 
 // ─── カレンダーグリッドのユーティリティ ───────────────────────────
@@ -1248,13 +1249,13 @@ export default function Calendar() {
         }
       }
     }
-    // 複数日イベント（position あり）を各日付の先頭に並べ直す
+    // 重要 > 複数日 > 通常 の順に並べ直す
     for (const [, items] of map) {
       items.sort((a, b) => {
+        if (a.important !== b.important) return a.important ? -1 : 1;
         const aMulti = !!a.position;
         const bMulti = !!b.position;
-        if (aMulti && !bMulti) return -1;
-        if (!aMulti && bMulti) return 1;
+        if (aMulti !== bMulti) return aMulti ? -1 : 1;
         return 0;
       });
     }
@@ -1364,8 +1365,8 @@ export default function Calendar() {
         const end = e.endDate || e.date;
         return e.date <= selectedDate && selectedDate <= end;
       })
-      .sort(multiDayFirst),
-    [visibleEvents, selectedDate],
+      .sort(makePriorityComparator(importantEventIds)),
+    [visibleEvents, selectedDate, importantEventIds],
   );
   const sheetPersonalEvents = useMemo(
     () => personalEvents
@@ -1373,8 +1374,8 @@ export default function Calendar() {
         const end = e.endDate || e.date;
         return e.date <= selectedDate && selectedDate <= end;
       })
-      .sort(multiDayFirst),
-    [personalEvents, selectedDate],
+      .sort(makePriorityComparator(importantEventIds)),
+    [personalEvents, selectedDate, importantEventIds],
   );
 
   // 予定一覧ビュー用: 作品イベント+個人予定を日付順にまとめたリスト
@@ -1399,8 +1400,24 @@ export default function Calendar() {
       category: pe.category, prefecture: pe.prefecture, memo: pe.memo,
       tag: '個人', isPersonal: true,
     }));
-    return [...workItems, ...personalItems].sort((a, b) => a.date.localeCompare(b.date));
-  }, [workId, visibleEvents, monthPersonalEvents]);
+    return [...workItems, ...personalItems].sort((a, b) => {
+      const aImp = importantEventIds.has(a.id);
+      const bImp = importantEventIds.has(b.id);
+      if (aImp !== bImp) return aImp ? -1 : 1;
+      return a.date.localeCompare(b.date);
+    });
+  }, [workId, visibleEvents, monthPersonalEvents, importantEventIds]);
+
+  // workIdモード一覧用: 重要優先 → 日付順
+  const sortedListEvents = useMemo(
+    () => [...filteredEvents].sort((a, b) => {
+      const aImp = importantEventIds.has(a.id);
+      const bImp = importantEventIds.has(b.id);
+      if (aImp !== bImp) return aImp ? -1 : 1;
+      return a.date.localeCompare(b.date);
+    }),
+    [filteredEvents, importantEventIds],
+  );
 
   const selectedDateLabel = useMemo(() => {
     const d = new Date(selectedDate + 'T00:00:00');
@@ -2331,11 +2348,11 @@ export default function Calendar() {
             ) : error ? (
               <p className="text-center text-red-400 text-sm py-10">{error}</p>
             ) : workId ? (
-              filteredEvents.length === 0 ? (
+              sortedListEvents.length === 0 ? (
                 <p className="text-center text-label-tertiary text-sm py-10">{filterActive ? 'この地域の予定はありません' : 'この月の予定はまだありません'}</p>
               ) : (
                 <div className="flex flex-col gap-3">
-                  {filteredEvents.map(event => {
+                  {sortedListEvents.map(event => {
                     const [, em, ed] = event.date.split('-').map(Number);
                     const hasPeriod = !!event.endDate && event.endDate !== event.date;
                     const [, endM, endD] = hasPeriod ? event.endDate!.split('-').map(Number) : [0, 0, 0];
