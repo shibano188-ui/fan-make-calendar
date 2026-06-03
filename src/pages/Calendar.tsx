@@ -1676,7 +1676,7 @@ export default function Calendar() {
                   {calendarDays.map(({ date, isCurrentMonth }, idx) => {
                     const dateStr = toDateStr(date);
                     const isToday = dateStr === todayStr;
-                    const isSelected = dateStr === selectedDate && isCurrentMonth && sheetOpen;
+                    const isSelected = dateStr === selectedDate && isCurrentMonth && (sheetOpen || postPanelOpen);
                     const col = idx % 7;
                     const cellItems = isCurrentMonth ? (cellEventsByDate.get(dateStr) ?? []) : [];
                     return (
