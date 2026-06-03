@@ -1448,7 +1448,8 @@ export default function Calendar() {
         style={{
           backgroundColor: 'var(--bg-primary)',
           paddingTop: 44,
-          paddingBottom: BOTTOM_TAB_H,
+          paddingBottom: postPanelOpen ? BOTTOM_TAB_H + 380 : BOTTOM_TAB_H,
+          transition: 'padding-bottom 0.28s cubic-bezier(0.32, 0.72, 0, 1)',
         }}
       >
         <Header
