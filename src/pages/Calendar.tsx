@@ -1053,7 +1053,6 @@ export default function Calendar() {
     setPostDate(date);
     setPostCards([{ ...newInlineCard(date), workId: defaultWorkId }]);
     setPostError('');
-    setSheetOpen(true);
     setPostPanelOpen(true);
   };
   const closePostForm = () => setPostPanelOpen(false);
