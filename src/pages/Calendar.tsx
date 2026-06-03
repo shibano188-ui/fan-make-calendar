@@ -798,6 +798,11 @@ export default function Calendar() {
 
   const handleDayClick = (dateStr: string, isCurrentMonth: boolean) => {
     if (!isCurrentMonth) return;
+    if (postPanelOpen) {
+      setPostCards(prev => prev.map((c, i) => i === 0 ? { ...c, date: dateStr } : c));
+      setSelectedDate(dateStr);
+      return;
+    }
     setSelectedDate(dateStr);
     setSheetOpen(true);
     setSheetDetailEvent(null);
@@ -2677,7 +2682,7 @@ export default function Calendar() {
           className="fixed inset-x-0 max-w-app mx-auto z-[160] rounded-t-2xl overflow-hidden"
           style={{
             bottom: BOTTOM_TAB_H,
-            height: 280,
+            height: 380,
             backgroundColor: 'var(--bg-primary)',
             animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both',
             position: 'fixed',
