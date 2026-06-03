@@ -92,6 +92,12 @@ async function resolveAuthorNames(events: CalendarEvent[]): Promise<CalendarEven
   }));
 }
 
+// 「東京都」→「東京」「大阪府」→「大阪」「神奈川県」→「神奈川」に正規化（北海道はそのまま）
+function normalizePrefecture(p: string | null | undefined): string | undefined {
+  if (!p) return undefined;
+  return p.replace(/[都府県]$/, '') || undefined;
+}
+
 function rowToEvent(e: Record<string, unknown>): CalendarEvent {
   return {
     id: e.id as string,
@@ -103,7 +109,7 @@ function rowToEvent(e: Record<string, unknown>): CalendarEvent {
     category: (e.category as string | null) ?? undefined,
     link: (e.link_url as string | null) ?? undefined,
     memo: (e.memo as string | null) ?? undefined,
-    prefecture: (e.prefecture as string | null) ?? undefined,
+    prefecture: normalizePrefecture(e.prefecture as string | null),
     locationDetail: (e.location_detail as string | null) ?? undefined,
     locationMapLink: (e.location_map_link as string | null) ?? undefined,
     authorId: (e.author_id as string | null) ?? undefined,
@@ -197,7 +203,7 @@ export async function createEvents(
       category: e.category ?? null,
       link_url: e.link ?? null,
       memo: e.memo ?? null,
-      prefecture: e.prefecture ?? null,
+      prefecture: normalizePrefecture(e.prefecture) ?? null,
       location_detail: e.locationDetail ?? null,
       location_map_link: e.locationMapLink ?? null,
       author_id: authorId,
@@ -496,7 +502,7 @@ export async function updateEvent(
   if ('category' in data) row.category = data.category || null;
   if ('link' in data) row.link_url = data.link || null;
   if ('memo' in data) row.memo = data.memo || null;
-  if ('prefecture' in data) row.prefecture = data.prefecture || null;
+  if ('prefecture' in data) row.prefecture = normalizePrefecture(data.prefecture) ?? null;
   if ('locationDetail' in data) row.location_detail = data.locationDetail || null;
   if ('locationMapLink' in data) row.location_map_link = data.locationMapLink || null;
   const { error } = await supabase.from('events').update(row).eq('id', eventId);

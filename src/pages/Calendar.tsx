@@ -762,7 +762,11 @@ export default function Calendar() {
 
   const filteredEvents = useMemo(() => {
     if (!activeFilterPrefs) return monthEvents;
-    return monthEvents.filter(e => !e.prefecture || activeFilterPrefs.has(e.prefecture));
+    return monthEvents.filter(e => {
+      if (!e.prefecture) return true;
+      const pref = e.prefecture.replace(/[都府県]$/, '');
+      return activeFilterPrefs.has(pref);
+    });
   }, [monthEvents, activeFilterPrefs]);
 
   // 表示中のイベント（作品非表示・カテゴリフィルター・個人非表示リスト適用済み）

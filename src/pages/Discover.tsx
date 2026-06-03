@@ -262,7 +262,11 @@ export default function Discover() {
     evts = evts.filter(e => !initialCalendarIds.current.has(e.id));
     // 地域フィルター
     if (activeFilterPrefs) {
-      evts = evts.filter(e => !e.prefecture || activeFilterPrefs.has(e.prefecture));
+      evts = evts.filter(e => {
+        if (!e.prefecture) return true;
+        const pref = e.prefecture.replace(/[都府県]$/, '');
+        return activeFilterPrefs.has(pref);
+      });
     }
     return evts;
   }, [events, hiddenWorkIds, categoryFilters, user, activeFilterPrefs]);
