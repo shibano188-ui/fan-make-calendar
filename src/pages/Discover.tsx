@@ -614,7 +614,7 @@ export default function Discover() {
                         }}
                       >
                         {myReactions[event.id]
-                          ? <span className="text-base leading-none">{REACTIONS.find(r => r.type === myReactions[event.id])?.emoji}</span>
+                          ? <img src={REACTIONS.find(r => r.type === myReactions[event.id])?.image} alt="" className="h-4 w-auto" />
                           : <Smile size={14} />
                         }
                       </button>
@@ -643,16 +643,15 @@ export default function Discover() {
         <>
           <div className="fixed inset-0 z-[310]" onClick={() => setOpenReactionPickerId(null)} />
           <div className="fixed inset-x-0 max-w-app mx-auto z-[320]" style={{ bottom: BOTTOM_TAB_H + 8 }}>
-            <div className="mx-4 bg-bg-primary rounded-2xl border border-subtle shadow-xl p-3 flex justify-around">
+            <div className="mx-4 bg-bg-primary rounded-2xl border border-subtle shadow-xl p-3 grid grid-cols-3 gap-1">
               {REACTIONS.map(r => (
                 <button
                   key={r.type}
                   onClick={() => handleReaction(openReactionPickerId, r.type)}
-                  className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl active:opacity-60"
+                  className="flex flex-col items-center gap-1 px-2 py-2 rounded-xl active:opacity-60"
                   style={{ background: myReactions[openReactionPickerId] === r.type ? 'var(--bg-secondary)' : 'transparent' }}
                 >
-                  <span className="text-2xl">{r.emoji}</span>
-                  <span className="text-[10px] text-label-secondary">{r.label}</span>
+                  <img src={r.image} alt={r.label} className="h-8 w-auto" />
                 </button>
               ))}
             </div>
