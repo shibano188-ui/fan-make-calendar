@@ -9,8 +9,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg'],
       manifest: {
-        name: 'Fan Make Calendar',
-        short_name: 'ファンカレ',
+        name: 'FanHive',
+        short_name: 'FanHive',
         description: 'ファン同士で作る共有カレンダー',
         theme_color: '#1a1a1a',
         background_color: '#1a1a1a',
