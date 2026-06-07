@@ -1,4 +1,4 @@
-export const POST_CATEGORIES = ['単行本', 'グッズ', 'イベント', '誕生日', '配信'] as const;
+export const POST_CATEGORIES = ['単行本', 'グッズ', 'イベント', '誕生日', '配信', 'コラボ'] as const;
 
 // ─── カテゴリカラー ───────────────────────────────────────────────────
 // 既知カテゴリの固定色
@@ -8,6 +8,7 @@ export const CATEGORY_COLOR_MAP: Record<string, string> = {
   'イベント': '#f97316',
   '誕生日': '#ec4899',
   '配信': '#22c55e',
+  'コラボ': '#f59e0b',
 };
 // 未知・カスタムカテゴリへのフォールバックカラーパレット
 const CATEGORY_FALLBACK_PALETTE = [
