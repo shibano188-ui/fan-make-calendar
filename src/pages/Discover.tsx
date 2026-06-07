@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
 import UserProfileModal from '../components/UserProfileModal';
 import {
-  Heart, Smile, Pencil, Trash2, SlidersHorizontal, ExternalLink, ChevronLeft, Plus, X,
+  Heart, Smile, Trash2, SlidersHorizontal, ExternalLink, ChevronLeft, Plus, X,
   Map as MapIcon, Palette,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
@@ -629,24 +629,15 @@ export default function Discover() {
                         }
                       </button>
 
-                      {/* ✏️ 編集・🗑️ 削除（自分の投稿のみ） */}
+                      {/* 🗑️ 削除（自分の投稿のみ） */}
                       {event.authorId && user && event.authorId === user.id && (
-                        <>
-                          <button
-                            onClick={() => openEdit(event)}
-                            className="px-3 py-1.5 rounded-full border border-default text-sm active:opacity-60 flex items-center justify-center"
-                            style={{ color: 'var(--accent-color)', minWidth: '2.5rem' }}
-                          >
-                            <Pencil size={14} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteEvent(event.id, event.title)}
-                            className="px-3 py-1.5 rounded-full border border-default text-sm active:opacity-60 flex items-center justify-center"
-                            style={{ color: 'var(--label-tertiary)', minWidth: '2.5rem' }}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </>
+                        <button
+                          onClick={() => handleDeleteEvent(event.id, event.title)}
+                          className="px-3 py-1.5 rounded-full border border-default text-sm active:opacity-60 flex items-center justify-center"
+                          style={{ color: 'var(--label-tertiary)', minWidth: '2.5rem' }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       )}
                     </div>
                   </div>

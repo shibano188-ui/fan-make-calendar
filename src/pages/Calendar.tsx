@@ -1968,11 +1968,6 @@ export default function Calendar() {
                                     : <Smile size={16} />
                                   }
                                 </button>
-                                {event.authorId && user && event.authorId === user.id && (
-                                  <button onClick={e => { e.stopPropagation(); openEditEvent(event); }} className="px-2 h-9 flex items-center active:opacity-60" style={{ color: 'var(--accent-color)' }}>
-                                    <Pencil size={15} />
-                                  </button>
-                                )}
                                 <button onClick={() => handleHideEvent(event.id)} className="w-9 h-9 flex items-center justify-center text-label-tertiary active:text-red-400">
                                   <X size={16} />
                                 </button>
@@ -2074,11 +2069,6 @@ export default function Calendar() {
                                     : <Smile size={16} />
                                   }
                                 </button>
-                                {event.authorId && user && event.authorId === user.id && (
-                                  <button onClick={e => { e.stopPropagation(); openEditEvent(event); }} className="px-2 h-9 flex items-center active:opacity-60" style={{ color: 'var(--accent-color)' }}>
-                                    <Pencil size={15} />
-                                  </button>
-                                )}
                                 <button onClick={() => handleHideEvent(event.id)} className="w-9 h-9 flex items-center justify-center text-label-tertiary active:text-red-400">
                                   <X size={16} />
                                 </button>
@@ -2444,9 +2434,6 @@ export default function Calendar() {
                               style={{ color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[event.id] ? 1 : 0.5 }}>
                               {myReactions[event.id] ? <img src={REACTIONS.find(r => r.type === myReactions[event.id])?.image} alt="" className="h-4 w-auto" /> : <Smile size={16} />}
                             </button>
-                            {event.authorId && user && event.authorId === user.id && (
-                              <button onClick={e => { e.stopPropagation(); openEditEvent(event); }} className="w-9 h-9 flex items-center justify-center active:opacity-60" style={{ color: 'var(--accent-color)' }}><Pencil size={15} /></button>
-                            )}
                             <button onClick={() => handleHideEvent(event.id)} className="w-9 h-9 flex items-center justify-center text-label-tertiary active:text-red-400"><X size={16} /></button>
                           </div>
                         </div>
@@ -2579,12 +2566,6 @@ export default function Calendar() {
                                 className="px-2 h-9 flex items-center active:opacity-60"
                                 style={{ color: myReactions[item.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[item.id] ? 1 : 0.5 }}>
                                 {myReactions[item.id] ? <img src={REACTIONS.find(r => r.type === myReactions[item.id])?.image} alt="" className="h-4 w-auto" /> : <Smile size={16} />}
-                              </button>
-                            )}
-                            {!item.isPersonal && item.authorId && user && item.authorId === user.id && (
-                              <button onClick={e => { e.stopPropagation(); const ev = visibleEvents.find(x => x.id === item.id); if (ev) openEditEvent(ev); }}
-                                className="w-9 h-9 flex items-center justify-center active:opacity-60" style={{ color: 'var(--accent-color)' }}>
-                                <Pencil size={15} />
                               </button>
                             )}
                             <button onClick={e => { e.stopPropagation(); item.isPersonal ? deletePersonalEvent(item.id) : handleHideEvent(item.id); }}
