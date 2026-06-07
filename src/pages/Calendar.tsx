@@ -462,7 +462,7 @@ function RegionFilterPanel({
           {!homePref && (
             <div className="mb-4 px-4 py-3 bg-bg-secondary rounded-xl border border-faint">
               <p className="text-label-primary text-sm font-medium mb-1">ホーム県を設定する</p>
-              <p className="text-label-tertiary text-xs mb-3 leading-relaxed">設定しておくとカレンダーを開いたとき自動で絞り込まれ、毎回選ばずに済みます。</p>
+              <p className="text-label-tertiary text-xs mb-3 leading-relaxed">設定しておくと、ワンタップでホーム県に絞り込めます。</p>
               <button onClick={onSetHome} className="text-xs font-semibold active:opacity-60" style={{ color: 'var(--accent-color)' }}>ユーザー設定で登録する →</button>
             </div>
           )}
@@ -622,16 +622,10 @@ export default function Calendar() {
 
   useEffect(() => {
     if (!user) return;
-    // セッション内で既にホーム県フィルターを自動適用済みの場合はスキップ（発見タブで解除した設定を上書きしない）
-    const alreadyApplied = sessionStorage.getItem('fan_home_pref_applied') === '1';
     Promise.all([getHomePrefecture(user.id), getDisplayName(user.id)])
       .then(([pref, name]) => {
         setHomePref(pref);
         setDisplayName(name);
-        sessionStorage.setItem('fan_home_pref_applied', '1');
-        if (!alreadyApplied && pref && loadRegionFilter().filterMode === 'none') {
-          setFilterMode('pref'); setFilterValue(pref);
-        }
       });
   }, [user?.id]);
 
@@ -1461,10 +1455,6 @@ export default function Calendar() {
           }
           rightAction={
             <div className="flex items-center gap-1">
-              <button onClick={() => navigate('/customize')} className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary">
-                <Palette size={16} />
-              </button>
-
               {/* 地域フィルター: workId有無に関わらず表示 */}
               <button
                 onClick={() => setShowRegionPanel(true)}
@@ -1473,6 +1463,10 @@ export default function Calendar() {
               >
                 <MapIcon size={16} style={filterActive ? { color: 'var(--accent-color)' } : {}} />
                 {filterActive && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent-color)' }} />}
+              </button>
+
+              <button onClick={() => navigate('/customize')} className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary">
+                <Palette size={16} />
               </button>
 
               <div className="relative" ref={menuRef}>
