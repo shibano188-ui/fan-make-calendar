@@ -128,6 +128,14 @@ export default function ShareTarget() {
           <p className="text-label-tertiary text-xs text-center break-all line-clamp-2">{sharedUrl}</p>
         </>
       )}
+      {/* デバッグ: 受信パラメータ確認用（確認後に削除） */}
+      <div className="w-full mt-4 p-3 rounded-lg text-left" style={{ backgroundColor: 'var(--bg-secondary)', fontSize: 10 }}>
+        <p className="text-label-tertiary font-mono break-all"><b>url:</b> {urlParam || '(空)'}</p>
+        <p className="text-label-tertiary font-mono break-all mt-1"><b>text:</b> {textParam || '(空)'}</p>
+        <p className="text-label-tertiary font-mono break-all mt-1"><b>title:</b> {sharedTitle || '(空)'}</p>
+        <p className="font-mono break-all mt-1" style={{ color: 'var(--accent-color)', fontSize: 10 }}><b>→sharedUrl:</b> {sharedUrl || '(空)'}</p>
+        <p className="font-mono break-all mt-1" style={{ color: 'var(--accent-color)', fontSize: 10 }}><b>→sharedText:</b> {sharedText || '(空)'}</p>
+      </div>
       {status === 'stocked' && (
         <>
           <Inbox size={36} style={{ color: 'var(--accent-color)' }} />
