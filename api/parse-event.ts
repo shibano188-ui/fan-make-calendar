@@ -275,10 +275,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    const isTweet = /twitter\.com|x\.com/.test(url!);
+    // ── URL前処理 ──────────────────────────────────────────────
+    // 1. mixed content（"ツイート本文 https://t.co/xxx"）からURLだけ取り出す
+    let processUrl = url!.trim();
+    if (!/^https?:\/\//.test(processUrl)) {
+      processUrl = processUrl.match(/https?:\/\/\S+/)?.[0] ?? processUrl;
+    }
+    // 2. t.co 短縮URLをリダイレクト先へ解決（X アプリが t.co を送ってくる場合）
+    if (/^https?:\/\/t\.co\//.test(processUrl)) {
+      try {
+        const r = await fetch(processUrl, {
+          method: 'GET', redirect: 'follow',
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+          signal: AbortSignal.timeout(4000),
+        });
+        if (r.url && r.url !== processUrl) processUrl = r.url;
+      } catch {}
+    }
+    // ────────────────────────────────────────────────────────────
+
+    const isTweet = /twitter\.com|x\.com/.test(processUrl);
 
     if (isTweet) {
-      const { text: pageText, imageUrl: tweetImageUrl } = await fetchTweetContent(url!);
+      const { text: pageText, imageUrl: tweetImageUrl } = await fetchTweetContent(processUrl);
       // sharedText（X アプリが Web Share で送ってきたツイート本文）があれば先頭に追加
       const tweetContext = sharedText
         ? `ポスト本文（X アプリより直接）: ${sharedText}\n\n${pageText}`
@@ -302,7 +321,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // 通常URL
-    const pageText = await fetchPageText(url!);
+    const pageText = await fetchPageText(processUrl);
     const completion = await groq.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
       max_tokens: 768,

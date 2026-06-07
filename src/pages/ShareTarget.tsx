@@ -10,20 +10,29 @@ const clean = (v: unknown): string | null => {
   return String(v);
 };
 
-const isUrlOnly = (s: string) => /^https?:\/\/\S+$/.test(s.trim());
-
 export default function ShareTarget() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [status, setStatus] = useState<Status>('parsing');
 
-  // X アプリは url=ツイートURL, text=ツイート本文 を別々に送ってくる
-  const sharedUrl = searchParams.get('url') || searchParams.get('text') || '';
+  const urlParam   = searchParams.get('url')   || '';
+  const textParam  = searchParams.get('text')  || '';
   const sharedTitle = searchParams.get('title') || '';
-  // url パラムが存在する場合、text パラムはツイート本文なので API に渡す
-  const rawText = searchParams.get('url') ? (searchParams.get('text') || '') : '';
-  // URL だけの場合は本文ではないので除外
-  const sharedText = rawText && !isUrlOnly(rawText) ? rawText : '';
+
+  // X アプリは url=ツイートURL, text=ツイート本文 を送る場合と
+  // url=空, text="本文 https://t.co/xxx" を送る場合がある。
+  // いずれでも正しい URL を取り出す。
+  const extractFirstUrl = (s: string) => s.match(/https?:\/\/\S+/)?.[0] ?? '';
+  const sharedUrl = urlParam.startsWith('http') ? urlParam
+    : textParam.startsWith('http') ? textParam
+    : extractFirstUrl(textParam) || extractFirstUrl(urlParam) || urlParam || textParam;
+
+  // ツイート本文（URL以外のテキスト）— url パラムに正規 URL がある場合のみ text がコンテンツ
+  const sharedText = (() => {
+    if (!urlParam.startsWith('http')) return '';
+    const stripped = textParam.replace(/https?:\/\/\S+/g, '').trim();
+    return stripped.length > 5 ? stripped : '';
+  })();
 
   useEffect(() => {
     if (!sharedUrl) {
