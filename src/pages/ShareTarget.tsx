@@ -97,9 +97,18 @@ export default function ShareTarget() {
           <Inbox size={36} style={{ color: 'var(--accent-color)' }} />
           <p className="text-label-primary font-medium text-sm">ストックしました</p>
           <p className="text-label-tertiary text-xs text-center">
-            アプリを開くとカレンダーから確認できます
+            続けてXを見るか、カレンダーで確認できます
           </p>
-          <p className="text-label-tertiary text-[11px] mt-2">← スワイプでXに戻れます</p>
+          <div className="flex flex-col gap-2 w-full mt-2">
+            <button
+              onClick={() => navigate('/calendar?openQueue=1', { replace: true })}
+              className="w-full py-3 rounded-xl text-sm font-semibold text-white active:opacity-70"
+              style={{ backgroundColor: 'var(--accent-color)' }}
+            >
+              カレンダーでまとめて確認する
+            </button>
+            <p className="text-label-tertiary text-[11px] text-center">← スワイプでXに戻れます</p>
+          </div>
         </>
       )}
       {status === 'done' && (

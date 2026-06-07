@@ -564,9 +564,14 @@ export default function Calendar() {
     try { return JSON.parse(raw) as Record<string, string | null>; } catch { return null; }
   });
 
-  const [eventQueue, setEventQueue]       = useState<QueuedEvent[]>(() => loadEventQueue());
-  const [queueSheetOpen, setQueueSheetOpen] = useState(false);
-  const [queueSelected, setQueueSelected] = useState<Set<number>>(new Set());
+  const [eventQueue, setEventQueue]         = useState<QueuedEvent[]>(() => loadEventQueue());
+  const [queueSheetOpen, setQueueSheetOpen] = useState(() => new URLSearchParams(location.search).get('openQueue') === '1');
+  const [queueSelected, setQueueSelected]   = useState<Set<number>>(() => {
+    const q = loadEventQueue();
+    return new URLSearchParams(location.search).get('openQueue') === '1'
+      ? new Set(q.map((_, i) => i))
+      : new Set();
+  });
 
   const shareInitDate = shareData?.date ?? todayStr;
   const [postPanelOpen, setPostPanelOpen] = useState(!!shareData);
