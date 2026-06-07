@@ -85,104 +85,106 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
   const tweetId = tweetUrl.match(/\/status\/(\d+)/)?.[1];
   if (!tweetId) return { text: `URL: ${tweetUrl}`, imageUrl: null };
 
-  // ── 1. fxtwitter を最優先（URLフォーマット非依存・テキスト/リンク/画像が揃う）
-  try {
-    const fxRes = await fetch(
-      `https://api.fxtwitter.com/status/${tweetId}`,
-      { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(6000) },
-    );
-    console.log(`FX status=${fxRes.status} id=${tweetId}`);
-    if (fxRes.ok) {
-      const fxData = await fxRes.json() as {
-        tweet?: {
-          text?: string;
-          author?: { name?: string };
-          media?: { photos?: Array<{ url: string }> };
-          links?: Array<{ url?: string; display_url?: string; short_url?: string }>;
-        };
-      };
-      const tweet = fxData.tweet;
-      console.log(`FX tweet.text=${tweet?.text?.slice(0,50)} photos=${tweet?.media?.photos?.length ?? 0} links=${tweet?.links?.length ?? 0}`);
-      if (tweet?.text) {
-        // 画像
-        let imageUrl: string | null = null;
-        const photos = tweet.media?.photos;
-        if (photos?.length) {
-          const urls = photos.map(p => p.url);
-          imageUrl = urls.length === 1 ? urls[0] : JSON.stringify(urls);
-        }
+  // x.com/i/status/{id} 等 URL形式に依存しないよう、全ソースを並行取得
+  const twitterCanonical = `https://twitter.com/i/web/status/${tweetId}`;
 
-        // 外部リンク（fxtwitter が展開済みURLを links[] で提供）
-        const extLinks = (tweet.links ?? [])
-          .map(l => l.url || l.short_url)
-          .filter((u): u is string => !!u && !/twitter\.com|x\.com|t\.co/.test(u));
+  type FxData = {
+    tweet?: {
+      text?: string;
+      author?: { name?: string };
+      media?: { photos?: Array<{ url: string }> };
+      links?: Array<{ url?: string; short_url?: string }>;
+    };
+  };
+  type SynData = Record<string, unknown>;
+  type OeData = { html?: string; author_name?: string };
 
-        let text = `投稿者: ${tweet.author?.name ?? ''}\n内容: ${tweet.text}`;
-        if (extLinks.length > 0) text += `\n【ポスト内の外部リンク】${extLinks.join(' / ')}`;
+  const [fxResult, synResult, oeResult] = await Promise.allSettled([
+    fetch(`https://api.fxtwitter.com/status/${tweetId}`, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(5000),
+    }).then(r => r.ok ? (r.json() as Promise<FxData>) : null).catch(() => null),
 
-        return { text, imageUrl };
-      }
-    }
-  } catch {}
+    fetch(`https://cdn.syndication.twimg.com/tweet-result?id=${tweetId}&lang=ja`, {
+      signal: AbortSignal.timeout(4000),
+    }).then(r => r.ok ? (r.json() as Promise<SynData>) : null).catch(() => null),
 
-  // ── 2. フォールバック: oEmbed（x.com/{username}/status/ 形式なら有効）
+    fetch(`https://publish.twitter.com/oembed?url=${encodeURIComponent(twitterCanonical)}&omit_script=true`, {
+      signal: AbortSignal.timeout(5000),
+    }).then(r => r.ok ? (r.json() as Promise<OeData>) : null).catch(() => null),
+  ]);
+
+  const fx  = fxResult.status  === 'fulfilled' ? fxResult.value  : null;
+  const syn = synResult.status  === 'fulfilled' ? synResult.value  : null;
+  const oe  = oeResult.status  === 'fulfilled' ? oeResult.value  : null;
+
+  console.log(`SOURCES fx=${!!fx?.tweet?.text} syn=${!!syn} oe=${!!oe?.html} id=${tweetId}`);
+
+  // ── 画像（fxtwitter → syndication の順）
   let imageUrl: string | null = null;
+  if (fx?.tweet?.media?.photos?.length) {
+    const urls = fx.tweet.media.photos.map(p => p.url);
+    imageUrl = urls.length === 1 ? urls[0] : JSON.stringify(urls);
+  } else if (syn) {
+    const photos = syn.photos as Array<{ url: string }> | undefined;
+    const mediaDetails = syn.mediaDetails as Array<{ media_url_https: string; type?: string }> | undefined;
+    let imgUrls: string[] = [];
+    if (photos?.length) imgUrls = photos.map(p => p.url);
+    else if (mediaDetails?.length) imgUrls = mediaDetails.filter(m => !m.type || m.type === 'photo').map(m => m.media_url_https);
+    if (imgUrls.length === 1) imageUrl = imgUrls[0];
+    else if (imgUrls.length > 1) imageUrl = JSON.stringify(imgUrls);
+  }
 
-  const oembedRes = await fetch(
-    `https://publish.twitter.com/oembed?url=${encodeURIComponent(tweetUrl)}&omit_script=true`,
-  ).catch(() => null);
+  // ── テキスト優先順: fxtwitter → syndication → oEmbed
+  if (fx?.tweet?.text) {
+    const extLinks = (fx.tweet.links ?? [])
+      .map(l => l.url || l.short_url)
+      .filter((u): u is string => !!u && !/twitter\.com|x\.com|t\.co/.test(u));
+    let text = `投稿者: ${fx.tweet.author?.name ?? ''}\n内容: ${fx.tweet.text}`;
+    if (extLinks.length > 0) text += `\n【ポスト内の外部リンク】${extLinks.join(' / ')}`;
+    return { text, imageUrl };
+  }
 
-  if (!oembedRes?.ok) return { text: `URL: ${tweetUrl}`, imageUrl };
+  if (syn) {
+    const tweetText = (syn.text ?? syn.full_text ?? '') as string;
+    const authorName = (syn as { user?: { name?: string } }).user?.name ?? '';
+    const urlEntities = ((syn as { entities?: { urls?: Array<{ expanded_url?: string; display_url?: string }> } }).entities?.urls ?? []);
+    const extLinks = urlEntities
+      .map(u => u.expanded_url)
+      .filter((u): u is string => !!u && !/twitter\.com|x\.com|t\.co/.test(u));
+    let text = `投稿者: ${authorName}\n内容: ${tweetText}`;
+    if (extLinks.length > 0) text += `\n【ポスト内の外部リンク】${extLinks.join(' / ')}`;
+    return { text, imageUrl };
+  }
 
-  const data = await oembedRes.json() as { html?: string; author_name?: string };
-  const html = data.html ?? '';
-
-  // oEmbed HTML から href + visible text を抽出
-  const linkRe = /<a\s[^>]*href="(https?:\/\/[^"]+)"[^>]*>([^<]*)<\/a>/gi;
-  const rawLinks: { href: string; text: string }[] = [];
-  let lm: RegExpExecArray | null;
-  while ((lm = linkRe.exec(html)) !== null) {
-    const [, href, linkText] = lm;
-    if (!href.includes('twitter.com') && !href.includes('x.com')) {
-      rawLinks.push({ href, text: linkText.trim() });
+  if (oe?.html) {
+    const html = oe.html;
+    const linkRe = /<a\s[^>]*href="(https?:\/\/[^"]+)"[^>]*>([^<]*)<\/a>/gi;
+    const rawLinks: { href: string; text: string }[] = [];
+    let lm: RegExpExecArray | null;
+    while ((lm = linkRe.exec(html)) !== null) {
+      const [, href, linkText] = lm;
+      if (!href.includes('twitter.com') && !href.includes('x.com')) rawLinks.push({ href, text: linkText.trim() });
     }
+    const resolved = await Promise.all(rawLinks.map(async ({ href, text }) => ({ text, final: await resolveUrl(href) })));
+    const externalLinks: string[] = [];
+    for (const { text, final } of resolved) {
+      if (/pbs\.twimg\.com|twimg\.com/.test(final)) continue;
+      if (!final || /twitter\.com|x\.com/.test(final)) continue;
+      const visibleClean = (text && !text.includes('t.co')) ? text.replace(/….*$/, '') : '';
+      const resolvedFinal = final.includes('t.co/')
+        ? visibleClean ? `https://${visibleClean.replace(/^https?:\/\//, '')}` : ''
+        : final;
+      if (!resolvedFinal || externalLinks.some(l => l.includes(resolvedFinal.split('?')[0]))) continue;
+      externalLinks.push(visibleClean && visibleClean !== resolvedFinal ? `${visibleClean}（${resolvedFinal}）` : resolvedFinal);
+    }
+    const textContent = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    let text = `投稿者: ${oe.author_name ?? ''}\n内容: ${textContent}`;
+    if (externalLinks.length > 0) text += `\n【ポスト内の外部リンク】${externalLinks.join(' / ')}`;
+    return { text, imageUrl };
   }
 
-  const resolved = await Promise.all(
-    rawLinks.map(async ({ href, text }) => ({
-      href, text, final: await resolveUrl(href),
-    })),
-  );
-
-  const externalLinks: string[] = [];
-  const imgFromLinks: string[] = [];
-
-  for (const { text, final } of resolved) {
-    if (/pbs\.twimg\.com|twimg\.com/.test(final)) { imgFromLinks.push(final); continue; }
-    if (!final || /twitter\.com|x\.com/.test(final)) continue;
-
-    const isVisibleUrl = text && !text.includes('t.co');
-    const visibleClean = isVisibleUrl ? text.replace(/….*$/, '') : '';
-    const resolvedFinal = final.includes('t.co/')
-      ? visibleClean ? `https://${visibleClean.replace(/^https?:\/\//, '')}` : ''
-      : final;
-
-    if (!resolvedFinal) continue;
-    if (externalLinks.some(l => l.includes(resolvedFinal.split('?')[0]))) continue;
-    externalLinks.push(
-      visibleClean && visibleClean !== resolvedFinal
-        ? `${visibleClean}（${resolvedFinal}）` : resolvedFinal,
-    );
-  }
-
-  if (!imageUrl && imgFromLinks.length > 0) {
-    imageUrl = imgFromLinks.length === 1 ? imgFromLinks[0] : JSON.stringify(imgFromLinks);
-  }
-
-  const textContent = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-  let text = `投稿者: ${data.author_name ?? ''}\n内容: ${textContent}`;
-  if (externalLinks.length > 0) text += `\n【ポスト内の外部リンク】${externalLinks.join(' / ')}`;
-  return { text, imageUrl };
+  return { text: `URL: ${tweetUrl}`, imageUrl };
 }
 
 async function fetchPageText(url: string): Promise<string> {
