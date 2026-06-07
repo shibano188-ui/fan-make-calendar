@@ -3,19 +3,15 @@ import Groq from 'groq-sdk';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const EXTRACT_PROMPT = `以下の情報から、含まれるイベント・予定をすべて抽出してください。
-1件のみの場合も必ず配列で返してください。
-日本語で回答し、情報がない・不明な場合はnullを設定してください。
-必ずJSON配列のみを返してください（余計な説明不要）。
-
+const BASE_RULES = `
 【終了日・終了時刻の抽出ルール】
-- 「〜」「-」「まで」「through」などで期間が示されている場合は必ずendDateを設定する
+- 「〜」「-」「まで」などで期間が示されている場合は必ずendDateを設定する
 - 例: 「7/15〜7/20」→ date: "2025-07-15", endDate: "2025-07-20"
 - 例: 「14:00〜17:00」→ time: "14:00", endTime: "17:00"
 - 例: 「〜8月31日」→ endDate: "2025-08-31"
-- 開始日のみ明記で終了日が不明な場合はendDate: null
+- 開始日のみ明記で終了日が不明な場合はendDate: null`;
 
-[
+const SCHEMA = (memoDesc: string) => `[
   {
     "title": "イベントのタイトル（必須、簡潔に）",
     "date": "開始日をYYYY-MM-DD形式で or null",
@@ -26,9 +22,25 @@ const EXTRACT_PROMPT = `以下の情報から、含まれるイベント・予�
     "prefecture": "都道府県名（「都」「府」「県」を除いた形。例: 東京・大阪・神奈川・北海道）or null",
     "locationDetail": "詳細な会場名・住所 or null",
     "link": "公式URL or null",
-    "memo": "補足情報・注意事項 or null"
+    "memo": "${memoDesc}"
   }
 ]`;
+
+const EXTRACT_PROMPT = `以下の情報から、含まれるイベント・予定をすべて抽出してください。
+1件のみの場合も必ず配列で返してください。
+日本語で回答し、情報がない・不明な場合はnullを設定してください。
+必ずJSON配列のみを返してください（余計な説明不要）。
+${BASE_RULES}
+
+${SCHEMA('補足情報・注意事項 or null')}`;
+
+const EXTRACT_PROMPT_TWEET = `以下のXポストから、含まれるイベント・予定をすべて抽出してください。
+1件のみの場合も必ず配列で返してください。
+日本語で回答し、情報がない・不明な場合はnullを設定してください。
+必ずJSON配列のみを返してください（余計な説明不要）。
+${BASE_RULES}
+
+${SCHEMA('ポスト内容の要約を2〜3文で（重要な情報・注意事項を含める）or null')}`;
 
 async function fetchPageText(url: string): Promise<string> {
   try {
@@ -95,13 +107,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
       rawText = completion.choices[0]?.message?.content ?? '';
     } else {
+      const isTweet = /twitter\.com|x\.com/.test(url!);
       const pageText = await fetchPageText(url!);
+      const prompt = isTweet ? EXTRACT_PROMPT_TWEET : EXTRACT_PROMPT;
       const completion = await groq.chat.completions.create({
         model: 'llama-3.3-70b-versatile',
-        max_tokens: 512,
+        max_tokens: 768,
         messages: [{
           role: 'user',
-          content: `${pageText}\n\n---\n${EXTRACT_PROMPT}`,
+          content: `${pageText}\n\n---\n${prompt}`,
         }],
       });
       rawText = completion.choices[0]?.message?.content ?? '';

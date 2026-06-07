@@ -1868,7 +1868,7 @@ export default function Calendar() {
                         </div>
                       )}
                       {/* メモ（❤️の前） */}
-                      {sheetDetailEvent.memo && <p className="text-label-secondary text-sm leading-relaxed">{sheetDetailEvent.memo}</p>}
+                      {sheetDetailEvent.memo && <p className="text-label-secondary text-sm leading-relaxed whitespace-pre-wrap">{sheetDetailEvent.memo}</p>}
                       {/* リンク */}
                       {parseLinks(sheetDetailEvent.link).map((url, i) => (
                         <a key={i} href={url} target="_blank" rel="noopener noreferrer"
@@ -2278,7 +2278,7 @@ export default function Calendar() {
                 </div>
               )}
               {/* メモ（❤️の前） */}
-              {listDetailEvent.memo && <p className="text-label-secondary text-sm leading-relaxed">{listDetailEvent.memo}</p>}
+              {listDetailEvent.memo && <p className="text-label-secondary text-sm leading-relaxed whitespace-pre-wrap">{listDetailEvent.memo}</p>}
               {/* リンク */}
               {parseLinks(listDetailEvent.link).map((url, i) => (
                 <a key={i} href={url} target="_blank" rel="noopener noreferrer"

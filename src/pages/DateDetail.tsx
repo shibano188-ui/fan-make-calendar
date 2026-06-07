@@ -200,7 +200,7 @@ function EventCard({
 
       {/* メモ */}
       {event.memo && (
-        <p className="text-label-secondary text-sm leading-relaxed">{event.memo}</p>
+        <p className="text-label-secondary text-sm leading-relaxed whitespace-pre-wrap">{event.memo}</p>
       )}
 
       {/* リンクチップ */}
