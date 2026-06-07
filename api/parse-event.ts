@@ -100,16 +100,25 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
       : Promise.resolve(null),
   ]);
 
-  // syndication API から画像URLを取得
+  // syndication API から画像URLを取得（photos / mediaDetails 両方に対応）
   let imageUrl: string | null = null;
   let photoCount = 0;
+  let imgSrc = '-';
   if (syndicationData) {
     const photos = syndicationData.photos as Array<{ url: string }> | undefined;
-    photoCount = photos?.length ?? 0;
+    const mediaDetails = syndicationData.mediaDetails as Array<{ media_url_https: string; type?: string }> | undefined;
+
+    let imgUrls: string[] = [];
     if (photos?.length) {
-      const urls = photos.map(p => p.url);
-      imageUrl = urls.length === 1 ? urls[0] : JSON.stringify(urls);
+      imgUrls = photos.map(p => p.url);
+      imgSrc = 'P';
+    } else if (mediaDetails?.length) {
+      imgUrls = mediaDetails.filter(m => !m.type || m.type === 'photo').map(m => m.media_url_https);
+      imgSrc = 'M';
     }
+    photoCount = imgUrls.length;
+    if (imgUrls.length === 1) imageUrl = imgUrls[0];
+    else if (imgUrls.length > 1) imageUrl = JSON.stringify(imgUrls);
   }
 
   if (!oembedRes?.ok) return { text: `URL: ${tweetUrl}`, imageUrl };
@@ -197,8 +206,8 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
       }
     } catch {}
   }
-  // 最重要情報を先頭に（MESSAGE列が短くても読める形式）
-  console.log(`ph:${photoCount} og:${ogStatus} ${imageUrl??'NO_URL'}`);
+  // src(P=photos/M=mediaDetails/-=none) + count + og status
+  console.log(`${imgSrc}${photoCount} og:${ogStatus} ${imageUrl?.slice(0,30)??'NO_URL'}`);
 
   const textContent = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   let text = `投稿者: ${data.author_name ?? ''}\n内容: ${textContent}`;
