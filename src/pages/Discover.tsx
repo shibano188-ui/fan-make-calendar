@@ -495,6 +495,16 @@ export default function Discover() {
                         )}
                         {/* タイトル */}
                         <p className="text-label-primary font-bold text-base leading-snug">{event.title}</p>
+                        {/* 画像（X取得時） */}
+                        {event.imageUrl && (
+                          <img
+                            src={event.imageUrl}
+                            alt=""
+                            className="w-full rounded-lg object-cover"
+                            style={{ maxHeight: 280 }}
+                            loading="lazy"
+                          />
+                        )}
                         {/* 日付・時間 */}
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-label-secondary text-sm">{formatDateRange(event.date, event.endDate)}</span>

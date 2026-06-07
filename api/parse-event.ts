@@ -54,6 +54,22 @@ ${TWEET_MEMO_RULES}
 
 ${SCHEMA('上記ルールに従ったメモ文字列（改行は\\nで表現）or null')}`;
 
+async function fetchTweetImage(url: string): Promise<string | null> {
+  const m = url.match(/\/status\/(\d+)/);
+  if (!m) return null;
+  try {
+    const res = await fetch(
+      `https://cdn.syndication.twimg.com/tweet-result?id=${m[1]}&lang=ja`,
+      { signal: AbortSignal.timeout(4000) },
+    );
+    if (!res.ok) return null;
+    const data = await res.json() as Record<string, unknown>;
+    const photos = data.photos as Array<{ url: string }> | undefined;
+    if (photos && photos.length > 0) return photos[0].url;
+  } catch {}
+  return null;
+}
+
 async function fetchPageText(url: string): Promise<string> {
   try {
     const isTwitter = /twitter\.com|x\.com/.test(url);
@@ -136,7 +152,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       rawText = completion.choices[0]?.message?.content ?? '';
     } else {
       const isTweet = /twitter\.com|x\.com/.test(url!);
-      const pageText = await fetchPageText(url!);
+      const [pageText, tweetImageUrl] = await Promise.all([
+        fetchPageText(url!),
+        isTweet ? fetchTweetImage(url!) : Promise.resolve(null),
+      ]);
       const prompt = isTweet ? EXTRACT_PROMPT_TWEET : EXTRACT_PROMPT;
       const completion = await groq.chat.completions.create({
         model: 'llama-3.3-70b-versatile',
@@ -147,6 +166,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }],
       });
       rawText = completion.choices[0]?.message?.content ?? '';
+
+      const arrayMatch = rawText.match(/\[[\s\S]*\]/);
+      const objectMatch = rawText.match(/\{[\s\S]*\}/);
+      if (!arrayMatch && !objectMatch) return res.status(422).json({ error: 'Could not parse response' });
+
+      let parsed: unknown[];
+      if (arrayMatch) {
+        const arr = JSON.parse(arrayMatch[0]);
+        parsed = Array.isArray(arr) ? arr : [arr];
+      } else {
+        parsed = [JSON.parse(objectMatch![0])];
+      }
+      if (tweetImageUrl) {
+        parsed.forEach(e => { (e as Record<string, unknown>).imageUrl = tweetImageUrl; });
+      }
+      return res.status(200).json(parsed);
     }
 
     const arrayMatch = rawText.match(/\[[\s\S]*\]/);

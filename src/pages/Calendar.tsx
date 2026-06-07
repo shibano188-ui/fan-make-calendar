@@ -160,6 +160,7 @@ interface InlineCard {
   locationMapLink: string;
   links: string[];
   memo: string;
+  imageUrl: string;
   important: boolean;
   bell: boolean;
   collapsed: boolean;
@@ -181,6 +182,7 @@ function newInlineCard(date: string): InlineCard {
     locationMapLink: '',
     links: [''],
     memo: '',
+    imageUrl: '',
     important: false,
     bell: false,
     collapsed: false,
@@ -1018,6 +1020,7 @@ export default function Calendar() {
       locationDetail: parsed.locationDetail ?? base.locationDetail,
       links:          parsed.link ? (parseLinks(parsed.link).length > 0 ? parseLinks(parsed.link) : base.links) : base.links,
       memo:           parsed.memo           ?? base.memo,
+      imageUrl:       parsed.imageUrl       ?? base.imageUrl,
     });
     const defaultWorkId = !workId && participatedWorks.length > 0 ? participatedWorks[0].id : '';
     setPostCards(prev => {
@@ -1099,6 +1102,7 @@ export default function Calendar() {
       prefecture: c.prefecture || undefined,
       locationDetail: c.locationDetail || undefined,
       locationMapLink: c.locationMapLink || undefined,
+      imageUrl: c.imageUrl || undefined,
     });
     const serializedLinks = (c: InlineCard) => serializeLinks(c.links);
     const toPersonalEvent = (c: InlineCard): PersonalEvent => ({

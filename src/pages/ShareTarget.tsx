@@ -49,6 +49,7 @@ export default function ShareTarget() {
           locationDetail: clean(first.locationDetail),
           link:           sharedUrl,
           memo:           clean(first.memo),
+          imageUrl:       clean(first.imageUrl),
         };
 
         if (mode === 'stock') {
@@ -65,7 +66,7 @@ export default function ShareTarget() {
           title: sharedTitle || null,
           date: null, time: null, endDate: null, endTime: null,
           category: null, prefecture: null, locationDetail: null,
-          link: sharedUrl, memo: null,
+          link: sharedUrl, memo: null, imageUrl: null,
         };
 
         if (mode === 'stock') {

@@ -12,6 +12,7 @@ export type ParsedEvent = {
   locationDetail: string | null;
   link: string | null;
   memo: string | null;
+  imageUrl: string | null;
 };
 
 type Tab = 'url' | 'image';
@@ -60,6 +61,7 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
     locationDetail: clean(raw.locationDetail),
     link:           linkOverride ?? clean(raw.link),
     memo:           clean(raw.memo),
+    imageUrl:       clean(raw.imageUrl),
   });
 
   const parseAndApply = async (body: object, isUrl = false) => {

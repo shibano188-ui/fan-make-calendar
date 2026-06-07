@@ -179,6 +179,7 @@ export interface QueuedEvent {
   locationDetail: string | null;
   link: string | null;
   memo: string | null;
+  imageUrl: string | null;
   queuedAt: string;
 }
 
