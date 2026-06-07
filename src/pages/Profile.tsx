@@ -110,11 +110,6 @@ function StarRadarChart({ data }: { data: { axis: string; value: number }[] }) {
       })}
       {/* データポリゴン */}
       <path d={`M ${dataPath} Z`} fill="#F59E0B" fillOpacity={0.5} stroke="#FCD34D" strokeWidth={2} strokeLinejoin="round" />
-      {/* データ点 */}
-      {data.map((d, i) => {
-        const p = axisXY(i, d.value / 100);
-
-      })}
       {/* 軸ラベル（スコア + 軸名） */}
       {data.map((d, i) => {
         const angle = axisAngle(i);
