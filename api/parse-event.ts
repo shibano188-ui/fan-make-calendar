@@ -54,7 +54,7 @@ ${TWEET_MEMO_RULES}
 
 ${SCHEMA('上記ルールに従ったメモ文字列（改行は\\nで表現）or null')}`;
 
-async function fetchTweetImage(url: string): Promise<string | null> {
+async function fetchTweetImages(url: string): Promise<string | null> {
   const m = url.match(/\/status\/(\d+)/);
   if (!m) return null;
   try {
@@ -65,7 +65,9 @@ async function fetchTweetImage(url: string): Promise<string | null> {
     if (!res.ok) return null;
     const data = await res.json() as Record<string, unknown>;
     const photos = data.photos as Array<{ url: string }> | undefined;
-    if (photos && photos.length > 0) return photos[0].url;
+    if (!photos || photos.length === 0) return null;
+    const urls = photos.map(p => p.url);
+    return urls.length === 1 ? urls[0] : JSON.stringify(urls);
   } catch {}
   return null;
 }
@@ -154,7 +156,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const isTweet = /twitter\.com|x\.com/.test(url!);
       const [pageText, tweetImageUrl] = await Promise.all([
         fetchPageText(url!),
-        isTweet ? fetchTweetImage(url!) : Promise.resolve(null),
+        isTweet ? fetchTweetImages(url!) : Promise.resolve(null),
       ]);
       const prompt = isTweet ? EXTRACT_PROMPT_TWEET : EXTRACT_PROMPT;
       const completion = await groq.chat.completions.create({

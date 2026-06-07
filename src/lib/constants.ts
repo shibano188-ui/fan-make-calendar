@@ -46,6 +46,21 @@ export function serializeLinks(links: string[]): string | undefined {
   if (filtered.length === 1) return filtered[0];
   return JSON.stringify(filtered);
 }
+
+export function parseImageUrls(raw?: string): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return (parsed as unknown[]).filter(s => typeof s === 'string' && s) as string[];
+    return [raw];
+  } catch { return [raw]; }
+}
+export function serializeImageUrls(urls: string[]): string | undefined {
+  const filtered = urls.filter(Boolean);
+  if (filtered.length === 0) return undefined;
+  if (filtered.length === 1) return filtered[0];
+  return JSON.stringify(filtered);
+}
 export type PostCategory = (typeof POST_CATEGORIES)[number];
 
 const CATEGORY_FILTERS_KEY = 'fan_category_filters';

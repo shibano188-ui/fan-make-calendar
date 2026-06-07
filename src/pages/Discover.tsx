@@ -27,6 +27,7 @@ import {
   getCategoryColor,
   loadRegionFilter, saveRegionFilter, type FilterMode,
   incrementTotalLikesGiven,
+  parseImageUrls,
 } from '../lib/constants';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { PrefectureSearch } from '../components/UserSettingsSheet';
@@ -496,15 +497,33 @@ export default function Discover() {
                         {/* タイトル */}
                         <p className="text-label-primary font-bold text-base leading-snug">{event.title}</p>
                         {/* 画像（X取得時） */}
-                        {event.imageUrl && (
-                          <img
-                            src={event.imageUrl}
-                            alt=""
-                            className="w-full rounded-lg object-cover"
-                            style={{ maxHeight: 280 }}
-                            loading="lazy"
-                          />
-                        )}
+                        {(() => {
+                          const imgs = parseImageUrls(event.imageUrl);
+                          if (imgs.length === 0) return null;
+                          if (imgs.length === 1) return (
+                            <img src={imgs[0]} alt="" loading="lazy"
+                              className="w-full rounded-lg object-cover"
+                              style={{ maxHeight: 280 }} />
+                          );
+                          if (imgs.length === 2) return (
+                            <div className="grid grid-cols-2 gap-1.5">
+                              {imgs.map((src, i) => (
+                                <img key={i} src={src} alt="" loading="lazy"
+                                  className="w-full rounded-lg object-cover"
+                                  style={{ height: 160 }} />
+                              ))}
+                            </div>
+                          );
+                          return (
+                            <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollSnapType: 'x mandatory' }}>
+                              {imgs.map((src, i) => (
+                                <img key={i} src={src} alt="" loading="lazy"
+                                  className="rounded-lg object-cover flex-shrink-0"
+                                  style={{ height: 180, width: 180, scrollSnapAlign: 'start' }} />
+                              ))}
+                            </div>
+                          );
+                        })()}
                         {/* 日付・時間 */}
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-label-secondary text-sm">{formatDateRange(event.date, event.endDate)}</span>
