@@ -13,7 +13,7 @@ import {
   createEvents, getHomePrefecture, saveHomePrefecture,
   getDisplayName, saveDisplayName, listRecentWorks,
   listAllParticipatedWorkEvents, addLikeTap, setReaction, getReactionData, updateEvent,
-  findDuplicateEvents, type DuplicateMatch,
+  findDuplicateEvents, demoteEvent, type DuplicateMatch,
 } from '../lib/api';
 import { REACTIONS, type ReactionType } from '../lib/reactions';
 import type { Work } from '../lib/api';
@@ -633,7 +633,8 @@ export default function Calendar() {
   const [postSubmitting, setPostSubmitting] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<{ cardId: string; existingEvent: DuplicateMatch } | null>(null);
   const [locationSuffixMsg, setLocationSuffixMsg] = useState<string | null>(null);
-  const [forceSubmitCards, setForceSubmitCards] = useState<string[]>([]);
+  // cardId → 退けるべき既存イベントID
+  const [forceSubmitMap, setForceSubmitMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -1088,10 +1089,11 @@ export default function Calendar() {
   const closePostForm = () => {
     setPostPanelOpen(false);
     setDuplicateWarning(null);
-    setForceSubmitCards([]);
+    setForceSubmitMap({});
   };
 
-  const handlePostSubmit = async (skipDupCheckCardIds?: string[]) => {
+  const handlePostSubmit = async (activeForceMap?: Record<string, string>) => {
+    const effectiveForceMap = activeForceMap ?? forceSubmitMap;
     const invalid = postCards.find(c => !c.title.trim() || !c.date);
     if (invalid) {
       setPostError('すべてのカードにタイトルと日付を入力してください');
@@ -1111,9 +1113,14 @@ export default function Calendar() {
     // ─── 重複検知（作品カレンダー + sourceUrl あり のカードのみ） ───
     const titleSuffixes = new Map<string, string>();
     if (workId && user) {
-      const skipSet = new Set(skipDupCheckCardIds ?? []);
+      // force submit カードの既存イベントを先に退ける
+      for (const [cardId, existingId] of Object.entries(effectiveForceMap)) {
+        if (postCards.some(c => c.id === cardId)) {
+          try { await demoteEvent(existingId); } catch { /* 無視 */ }
+        }
+      }
       for (const card of postCards) {
-        if (!card.sourceUrl || skipSet.has(card.id)) continue;
+        if (!card.sourceUrl || effectiveForceMap[card.id] !== undefined) continue;
         try {
           const { byUrl, byTitle } = await findDuplicateEvents(workId, card.title.trim(), card.date, card.endDate || null, card.sourceUrl);
           if (byUrl.length > 0) {
@@ -1144,6 +1151,7 @@ export default function Calendar() {
 
     const toEventPayload = (c: InlineCard) => ({
       title: c.title.trim() + (titleSuffixes.get(c.id) ?? ''), date: c.date, time: c.time || undefined,
+      ...(effectiveForceMap[c.id] !== undefined ? { forcePool0: true as const } : {}),
       endDate: c.endDate || undefined, endTime: c.endTime || undefined,
       category: c.category || c.customCategory.trim() || undefined,
       link: serializeLinks(c.links), memo: c.memo || undefined,
@@ -2798,10 +2806,10 @@ export default function Calendar() {
                     </button>
                     <button
                       onClick={() => {
-                        const skipIds = [...forceSubmitCards, duplicateWarning.cardId];
-                        setForceSubmitCards(skipIds);
+                        const newMap = { ...forceSubmitMap, [duplicateWarning.cardId]: duplicateWarning.existingEvent.id };
+                        setForceSubmitMap(newMap);
                         setDuplicateWarning(null);
-                        void handlePostSubmit(skipIds);
+                        void handlePostSubmit(newMap);
                       }}
                       className="flex-1 py-1.5 text-xs rounded-lg font-semibold active:opacity-70"
                       style={{ backgroundColor: 'var(--label-primary)', color: 'var(--bg-primary)' }}

@@ -179,21 +179,28 @@ export async function listEventsByDate(workId: string, date: string, userId?: st
   return events;
 }
 
+// 既存のpool=0イベントをpool=1に退ける（「このまま投稿」時に使用）
+export async function demoteEvent(eventId: string): Promise<void> {
+  await supabase.from('events').update({ pool: 1 }).eq('id', eventId).eq('pool', 0);
+}
+
 export async function createEvents(
   workId: string,
-  events: Pick<CalendarEvent, 'title' | 'date' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'imageUrl' | 'sourceUrl'>[],
+  events: (Pick<CalendarEvent, 'title' | 'date' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'imageUrl' | 'sourceUrl'> & { forcePool0?: boolean })[],
   authorId: string,
 ): Promise<string[]> {
   const rows = await Promise.all(events.map(async e => {
     let pool = 0;
-    const { data: dups } = await supabase
-      .from('events')
-      .select('pool')
-      .eq('work_id', workId)
-      .eq('event_date', e.date)
-      .eq('title', e.title);
-    if (dups && dups.length > 0) {
-      pool = Math.max(...dups.map(d => d.pool as number)) + 1;
+    if (!e.forcePool0) {
+      const { data: dups } = await supabase
+        .from('events')
+        .select('pool')
+        .eq('work_id', workId)
+        .eq('event_date', e.date)
+        .eq('title', e.title);
+      if (dups && dups.length > 0) {
+        pool = Math.max(...dups.map(d => d.pool as number)) + 1;
+      }
     }
     return {
       work_id: workId,
