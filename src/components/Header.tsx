@@ -10,9 +10,10 @@ interface Props {
   closeMode?: boolean;
   rightAction?: ReactNode;
   leftNode?: ReactNode;
+  compact?: boolean;
 }
 
-export default function Header({ title, subtitle, subtitleNode, onBack, closeMode = false, rightAction, leftNode }: Props) {
+export default function Header({ title, subtitle, subtitleNode, onBack, closeMode = false, rightAction, leftNode, compact = false }: Props) {
   const navigate = useNavigate();
 
   const handleBack = () => {
@@ -20,9 +21,11 @@ export default function Header({ title, subtitle, subtitleNode, onBack, closeMod
     else navigate(-1);
   };
 
+  const py = compact ? 'py-2' : 'py-3';
+
   if (leftNode !== undefined) {
     return (
-      <header className="flex items-center justify-between px-4 py-3 bg-bg-primary border-b border-subtle">
+      <header className={`flex items-center justify-between px-4 ${py} bg-bg-primary border-b border-subtle`}>
         <div className="flex-1 flex items-center min-w-0">
           {leftNode}
         </div>
@@ -36,7 +39,7 @@ export default function Header({ title, subtitle, subtitleNode, onBack, closeMod
   }
 
   return (
-    <header className="flex items-center px-4 py-3 bg-bg-primary border-b border-subtle">
+    <header className={`flex items-center px-4 ${py} bg-bg-primary border-b border-subtle`}>
       <div className="flex-1 flex items-center">
         <button
           onClick={handleBack}

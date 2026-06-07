@@ -1440,12 +1440,13 @@ export default function Calendar() {
         className="fixed inset-0 max-w-app mx-auto flex flex-col overflow-hidden"
         style={{
           backgroundColor: 'var(--bg-primary)',
-          paddingTop: 44,
+          paddingTop: 36,
           paddingBottom: postPanelOpen ? BOTTOM_TAB_H + 380 : BOTTOM_TAB_H,
           transition: 'padding-bottom 0.28s cubic-bezier(0.32, 0.72, 0, 1)',
         }}
       >
         <Header
+          compact
           leftNode={
             <div className="flex items-center gap-1">
               <button onClick={prevMonth} aria-label="前の月" className="text-label-tertiary text-xl leading-none px-1 active:text-label-primary">‹</button>
@@ -1510,12 +1511,14 @@ export default function Calendar() {
         />
 
         {/* 広告バナースロット（React Nativeでは AdMob コンポーネントに置き換える） */}
-        <div
-          className="flex-shrink-0 flex items-center justify-center border-b"
-          style={{ height: 50, borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-secondary)' }}
-        >
-          <span className="text-label-tertiary text-xs">広告</span>
-        </div>
+        {!postPanelOpen && (
+          <div
+            className="flex-shrink-0 flex items-center justify-center border-b"
+            style={{ height: 50, borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-secondary)' }}
+          >
+            <span className="text-label-tertiary text-xs">広告</span>
+          </div>
+        )}
 
         {/* 参加中の作品チップ（MyCalendarのみ） */}
         {!workId && participatedWorks.length > 0 && (

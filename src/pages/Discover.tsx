@@ -393,9 +393,10 @@ export default function Discover() {
     <>
       <div
         className="fixed inset-0 max-w-app mx-auto flex flex-col overflow-hidden"
-        style={{ backgroundColor: 'var(--bg-primary)', paddingTop: 44, paddingBottom: BOTTOM_TAB_H }}
+        style={{ backgroundColor: 'var(--bg-primary)', paddingTop: 36, paddingBottom: BOTTOM_TAB_H }}
       >
         <Header
+          compact
           leftNode={<span className="text-base font-bold text-label-primary">みんなの投稿した予定</span>}
           rightAction={
             <div className="flex items-center gap-1">

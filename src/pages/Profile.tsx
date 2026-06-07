@@ -71,11 +71,24 @@ function calcRadarData(s: AchievementStats) {
   ];
 }
 
-const CustomTick = ({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) => (
-  <text x={x} y={y} textAnchor="middle" dominantBaseline="central" style={{ fill: 'var(--label-secondary)', fontSize: 10 }}>
-    {payload?.value}
-  </text>
-);
+function makeCustomTick(radarData: { axis: string; value: number }[]) {
+  return function CustomTick({ x = 0, y = 0, payload }: { x?: number; y?: number; payload?: { value: string } }) {
+    const score = radarData.find(d => d.axis === payload?.value)?.value ?? 0;
+    // 中心からの位置でテキスト揃えを決定
+    const anchor = x < 145 ? 'end' : x > 185 ? 'start' : 'middle';
+    const dy = y < 100 ? -4 : 4;
+    return (
+      <g>
+        <text x={x} y={y - 8 + dy} textAnchor={anchor} style={{ fill: '#FCD34D', fontSize: 15, fontWeight: 'bold', fontFamily: 'monospace' }}>
+          {score}
+        </text>
+        <text x={x} y={y + 8 + dy} textAnchor={anchor} style={{ fill: '#F59E0B', fontSize: 9 }}>
+          {payload?.value}
+        </text>
+      </g>
+    );
+  };
+}
 
 // ─── メイン ────────────────────────────────────────────────────────
 export default function Profile() {
@@ -380,18 +393,18 @@ export default function Profile() {
           {/* ── ファンスター ───────────────────────── */}
           <section>
             <p className="text-label-tertiary text-xs mb-3">ファンスター</p>
-            <div className="rounded-xl shadow-card px-2 py-4" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+            <div className="rounded-xl shadow-card px-2 py-6" style={{ backgroundColor: '#111118' }}>
               {radarData ? (
-                <ResponsiveContainer width="100%" height={200}>
-                  <RadarChart data={radarData} margin={{ top: 10, right: 30, bottom: 10, left: 30 }}>
-                    <PolarGrid stroke="var(--border-subtle)" />
-                    <PolarAngleAxis dataKey="axis" tick={CustomTick as React.FC} />
-                    <Radar dataKey="value" stroke="var(--accent-color)" fill="var(--accent-color)" fillOpacity={0.35} strokeWidth={2} />
+                <ResponsiveContainer width="100%" height={240}>
+                  <RadarChart data={radarData} margin={{ top: 20, right: 40, bottom: 20, left: 40 }}>
+                    <PolarGrid stroke="rgba(255,255,255,0.12)" />
+                    <PolarAngleAxis dataKey="axis" tick={makeCustomTick(radarData) as React.FC} />
+                    <Radar dataKey="value" stroke="#FCD34D" fill="#F59E0B" fillOpacity={0.55} strokeWidth={2} />
                   </RadarChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-[200px] flex items-center justify-center">
-                  <p className="text-label-tertiary text-sm">読み込み中…</p>
+                <div className="h-[240px] flex items-center justify-center">
+                  <p className="text-sm" style={{ color: '#F59E0B' }}>読み込み中…</p>
                 </div>
               )}
             </div>
