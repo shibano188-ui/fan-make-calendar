@@ -674,3 +674,28 @@ export async function getTotalReceivedLikes(userId: string): Promise<number> {
     .eq('author_id', userId);
   return (data ?? []).reduce((sum, e) => sum + ((e.like_count as number) ?? 0), 0);
 }
+
+export async function countUserLikesGiven(userId: string): Promise<number> {
+  const { count } = await supabase
+    .from('likes')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId);
+  return count ?? 0;
+}
+
+export async function countUserReactionsGiven(userId: string): Promise<number> {
+  const { count } = await supabase
+    .from('reactions')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId);
+  return count ?? 0;
+}
+
+export async function countUserEventsByCategory(userId: string, category: string): Promise<number> {
+  const { count } = await supabase
+    .from('events')
+    .select('id', { count: 'exact', head: true })
+    .eq('author_id', userId)
+    .eq('category', category);
+  return count ?? 0;
+}
