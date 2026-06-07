@@ -362,11 +362,21 @@ export async function getUserPublicProfile(userId: string): Promise<{
   avatarEmoji: string | null;
   postedCount: number;
   receivedLikes: number;
+  likesGiven: number;
+  reactionsGiven: number;
+  works: number;
+  birthdayPosts: number;
+  collabPosts: number;
 }> {
-  const [settingsRes, posted, likes] = await Promise.all([
+  const [settingsRes, posted, likes, likesGv, reactionsGv, worksArr, birthday, collab] = await Promise.all([
     supabase.from('user_settings').select('display_name, x_url, avatar_emoji').eq('user_id', userId).maybeSingle(),
     countUserPostedEvents(userId),
     getTotalReceivedLikes(userId),
+    countUserLikesGiven(userId),
+    countUserReactionsGiven(userId),
+    listRecentWorks(userId),
+    countUserEventsByCategory(userId, '誕生日'),
+    countUserEventsByCategory(userId, 'コラボ'),
   ]);
   return {
     displayName: (settingsRes.data?.display_name as string | null) ?? null,
@@ -374,6 +384,11 @@ export async function getUserPublicProfile(userId: string): Promise<{
     avatarEmoji: (settingsRes.data?.avatar_emoji as string | null) ?? null,
     postedCount: posted,
     receivedLikes: likes,
+    likesGiven: likesGv,
+    reactionsGiven: reactionsGv,
+    works: worksArr.length,
+    birthdayPosts: birthday,
+    collabPosts: collab,
   };
 }
 

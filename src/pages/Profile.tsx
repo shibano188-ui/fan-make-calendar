@@ -24,51 +24,35 @@ import { REGIONS, ADJACENT } from '../lib/prefectures';
 
 const BOTTOM_TAB_H = 56;
 
-// ─── 称号・実績ロジック ────────────────────────────────────────────
-
-type AchievementStats = {
-  posted: number;
-  received: number;
-  likesGiven: number;
-  reactionsGiven: number;
-  works: number;
-  birthdayPosts: number;
-  collabPosts: number;
-};
-
-const TITLE_TIERS = [
-  { label: '推し活レジェンド', check: (s: AchievementStats) => s.posted >= 200 && s.received >= 1000 },
-  { label: 'カリスマファン',   check: (s: AchievementStats) => s.posted >= 100 && s.received >= 500 },
-  { label: 'ファン記者',       check: (s: AchievementStats) => s.posted >= 50  && s.received >= 200 },
-  { label: '現地勢',           check: (s: AchievementStats) => s.posted >= 30  || s.received >= 100 },
-  { label: '情報屋',           check: (s: AchievementStats) => s.posted >= 10 },
-  { label: '見習いファン',     check: (s: AchievementStats) => s.posted >= 1 },
-];
-function calcTitle(s: AchievementStats) {
-  return TITLE_TIERS.find(t => t.check(s))?.label ?? 'ルーキー';
-}
+import { type AchievementStats, calcTitle, calcRadarData, calcGrade } from '../lib/achievements';
 
 const BADGES = [
-  { emoji: '🌱', label: 'はじめの一歩', desc: '初投稿',         check: (s: AchievementStats) => s.posted >= 1 },
-  { emoji: '📅', label: '百投の達人',   desc: '投稿100件',       check: (s: AchievementStats) => s.posted >= 100 },
-  { emoji: '❤️', label: 'いいね職人',   desc: 'いいね100回',     check: (s: AchievementStats) => s.likesGiven >= 100 },
-  { emoji: '🌟', label: '愛されファン', desc: 'いいね100もらう', check: (s: AchievementStats) => s.received >= 100 },
-  { emoji: '🎭', label: '多推し勢',     desc: '3作品以上参加',   check: (s: AchievementStats) => s.works >= 3 },
+  // 投稿系
+  { emoji: '🌱', label: 'はじめの一歩',   desc: '初投稿',           check: (s: AchievementStats) => s.posted >= 1 },
+  { emoji: '📝', label: 'じゅうまい',     desc: '投稿10件',         check: (s: AchievementStats) => s.posted >= 10 },
+  { emoji: '📅', label: '百投の達人',     desc: '投稿100件',        check: (s: AchievementStats) => s.posted >= 100 },
+  { emoji: '💯', label: 'センタイ',       desc: '投稿200件',        check: (s: AchievementStats) => s.posted >= 200 },
+  // いいね（した）系
+  { emoji: '❤️', label: 'いいね職人',     desc: 'いいね50回',       check: (s: AchievementStats) => s.likesGiven >= 50 },
+  { emoji: '💝', label: 'いいね狂い',     desc: 'いいね200回',      check: (s: AchievementStats) => s.likesGiven >= 200 },
+  { emoji: '🫶', label: 'いいね魔人',     desc: 'いいね500回',      check: (s: AchievementStats) => s.likesGiven >= 500 },
+  { emoji: '💖', label: 'いいね神',       desc: 'いいね1000回',     check: (s: AchievementStats) => s.likesGiven >= 1000 },
+  // いいね（もらった）系
+  { emoji: '🌟', label: '愛されファン',   desc: 'いいね50もらう',   check: (s: AchievementStats) => s.received >= 50 },
+  { emoji: '⭐', label: 'スター',         desc: 'いいね200もらう',  check: (s: AchievementStats) => s.received >= 200 },
+  { emoji: '👑', label: 'カリスマ',       desc: 'いいね500もらう',  check: (s: AchievementStats) => s.received >= 500 },
+  { emoji: '🏆', label: 'レジェンド',     desc: 'いいね1000もらう', check: (s: AchievementStats) => s.received >= 1000 },
+  // リアクション + 作品系
   { emoji: '😊', label: 'リアクション王', desc: 'リアクション50回', check: (s: AchievementStats) => s.reactionsGiven >= 50 },
-  { emoji: '🎂', label: '誕生日マスター', desc: '誕生日投稿5件', check: (s: AchievementStats) => s.birthdayPosts >= 5 },
-  { emoji: '🤝', label: 'コラボハンター', desc: 'コラボ投稿3件', check: (s: AchievementStats) => s.collabPosts >= 3 },
+  { emoji: '🎊', label: 'リアクション神', desc: 'リアクション200回', check: (s: AchievementStats) => s.reactionsGiven >= 200 },
+  { emoji: '🎭', label: '多推し勢',       desc: '3作品以上参加',    check: (s: AchievementStats) => s.works >= 3 },
+  { emoji: '🌐', label: '全方位ファン',   desc: '10作品以上参加',   check: (s: AchievementStats) => s.works >= 10 },
+  // 特殊カテゴリ
+  { emoji: '🎂', label: '誕生日マスター', desc: '誕生日投稿5件',   check: (s: AchievementStats) => s.birthdayPosts >= 5 },
+  { emoji: '🎉', label: '誕生日神',       desc: '誕生日投稿20件',  check: (s: AchievementStats) => s.birthdayPosts >= 20 },
+  { emoji: '🤝', label: 'コラボハンター', desc: 'コラボ投稿3件',   check: (s: AchievementStats) => s.collabPosts >= 3 },
+  { emoji: '🔗', label: 'コラボマスター', desc: 'コラボ投稿10件',  check: (s: AchievementStats) => s.collabPosts >= 10 },
 ];
-
-function calcRadarData(s: AchievementStats) {
-  const sc = (val: number, max: number) => Math.max(5, Math.min(100, Math.round((val / max) * 100)));
-  return [
-    { axis: '投稿力', value: sc(s.posted, 100) },
-    { axis: '影響力', value: sc(s.received, 500) },
-    { axis: '応援力', value: sc(s.likesGiven, 200) },
-    { axis: '収集力', value: sc(s.reactionsGiven, 50) },
-    { axis: '開拓力', value: sc(s.works, 10) },
-  ];
-}
 
 // ─── カスタムSVGスターレーダーチャート ─────────────────────────────
 const STAR_CX = 150;
@@ -96,12 +80,22 @@ function starPath(frac: number) {
   return `M ${pts.join(' L ')} Z`;
 }
 
+const STAR_MIN_FRAC = 0.15;
+
 function StarRadarChart({ data }: { data: { axis: string; value: number }[] }) {
-  const dataPath = data.map((d, i) => {
-    const frac = d.value / 100;
-    const p = axisXY(i, frac);
-    return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
-  }).join(' L ');
+  // 偏りがあっても常に星形を保つため、データポリゴンも軸点+谷点で構成する
+  const fracs = data.map(d => Math.max(STAR_MIN_FRAC, d.value / 100));
+  const n = fracs.length;
+  const dataStarPts: string[] = [];
+  for (let i = 0; i < n; i++) {
+    const outer = axisXY(i, fracs[i]);
+    dataStarPts.push(`${outer.x.toFixed(1)},${outer.y.toFixed(1)}`);
+    const avgFrac = (fracs[i] + fracs[(i + 1) % n]) / 2;
+    const ir = STAR_MAX_R * STAR_INNER_RATIO * avgFrac;
+    const angle = innerAngle(i);
+    dataStarPts.push(`${(STAR_CX + Math.cos(angle) * ir).toFixed(1)},${(STAR_CY + Math.sin(angle) * ir).toFixed(1)}`);
+  }
+  const dataPath = dataStarPts.join(' L ');
 
   return (
     <svg viewBox="0 0 300 300" width="100%" style={{ display: 'block' }}>
@@ -257,6 +251,7 @@ export default function Profile() {
   };
   const title = statsReady ? calcTitle(achStats) : null;
   const radarData = statsReady ? calcRadarData(achStats) : null;
+  const grade = statsReady ? calcGrade(achStats) : null;
 
   return (
     <>
@@ -334,13 +329,6 @@ export default function Profile() {
                       <button onClick={() => startFieldEdit('name')} className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full active:opacity-60" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                         <Pencil size={12} className="text-label-secondary" />
                       </button>
-                    </div>
-                  )}
-                  {/* 称号バッジ */}
-                  {title && (
-                    <div className="mt-1.5 inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold"
-                      style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)', color: 'var(--accent-color)' }}>
-                      ⭐ {title}
                     </div>
                   )}
                 </div>
@@ -443,8 +431,30 @@ export default function Profile() {
 
           {/* ── ファンスター & 実績バッジ ──────────── */}
           <section>
-            <p className="text-label-tertiary text-xs mb-3">ファンスター & 実績</p>
-            <div className="rounded-xl shadow-card px-3 pt-5 pb-4" style={{ backgroundColor: '#111118' }}>
+            <div className="rounded-xl shadow-card px-3 pt-4 pb-4" style={{ backgroundColor: '#111118' }}>
+
+              {/* 称号行 */}
+              <div className="flex items-center gap-3 px-1 mb-4">
+                <span className="text-3xl leading-none">{avatarEmoji ?? '👤'}</span>
+                <p className="flex-1 font-bold text-sm truncate" style={{ color: '#FCD34D' }}>
+                  {title ?? '…'}
+                </p>
+                {grade !== null && (
+                  <div className="text-right flex-shrink-0">
+                    <p style={{ color: '#F59E0B', fontSize: 10 }}>グレード</p>
+                    <p style={{ color: '#FCD34D', fontWeight: 'bold', fontSize: 18, lineHeight: 1.1 }}>
+                      {grade}<span style={{ color: '#D97706', fontSize: 11, fontWeight: 'normal' }}>/500</span>
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* 区切り */}
+              <div className="border-t mb-3" style={{ borderColor: 'rgba(255,255,255,0.08)' }} />
+
+              {/* ファンスター見出し */}
+              <p className="text-xs px-1 mb-2" style={{ color: '#F59E0B' }}>ファンスター</p>
+
               {/* スターレーダー */}
               {radarData ? (
                 <StarRadarChart data={radarData} />
@@ -457,7 +467,10 @@ export default function Profile() {
               {/* 区切り */}
               <div className="my-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }} />
 
-              {/* バッジグリッド */}
+              {/* 実績見出し */}
+              <p className="text-xs px-1 mb-3" style={{ color: '#F59E0B' }}>実績</p>
+
+              {/* バッジグリッド（20個・5行4列） */}
               <div className="grid grid-cols-4 gap-3 px-1">
                 {BADGES.map((badge, i) => {
                   const unlocked = statsReady && badge.check(achStats);
