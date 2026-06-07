@@ -83,37 +83,52 @@ type TweetContent = { text: string; imageUrl: string | null };
 // ツイートのテキスト・外部リンク・画像をまとめて取得
 async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
   const tweetId = tweetUrl.match(/\/status\/(\d+)/)?.[1];
+  if (!tweetId) return { text: `URL: ${tweetUrl}`, imageUrl: null };
 
-  // oEmbed と syndication API を並行取得
-  const [oembedRes, syndicationData] = await Promise.all([
-    fetch(
-      `https://publish.twitter.com/oembed?url=${encodeURIComponent(tweetUrl)}&omit_script=true`,
-    ).catch(() => null),
-    tweetId
-      ? fetch(
-          `https://cdn.syndication.twimg.com/tweet-result?id=${tweetId}&lang=ja`,
-          { signal: AbortSignal.timeout(4000) },
-        )
-          .then(r => (r.ok ? (r.json() as Promise<Record<string, unknown>>) : null))
-          .catch(() => null)
-      : Promise.resolve(null),
-  ]);
+  // ── 1. fxtwitter を最優先（URLフォーマット非依存・テキスト/リンク/画像が揃う）
+  try {
+    const fxRes = await fetch(
+      `https://api.fxtwitter.com/status/${tweetId}`,
+      { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(6000) },
+    );
+    if (fxRes.ok) {
+      const fxData = await fxRes.json() as {
+        tweet?: {
+          text?: string;
+          author?: { name?: string };
+          media?: { photos?: Array<{ url: string }> };
+          links?: Array<{ url?: string; display_url?: string; short_url?: string }>;
+        };
+      };
+      const tweet = fxData.tweet;
+      if (tweet?.text) {
+        // 画像
+        let imageUrl: string | null = null;
+        const photos = tweet.media?.photos;
+        if (photos?.length) {
+          const urls = photos.map(p => p.url);
+          imageUrl = urls.length === 1 ? urls[0] : JSON.stringify(urls);
+        }
 
-  // syndication API から画像URLを取得（photos / mediaDetails 両方に対応）
-  let imageUrl: string | null = null;
-  if (syndicationData) {
-    const photos = syndicationData.photos as Array<{ url: string }> | undefined;
-    const mediaDetails = syndicationData.mediaDetails as Array<{ media_url_https: string; type?: string }> | undefined;
+        // 外部リンク（fxtwitter が展開済みURLを links[] で提供）
+        const extLinks = (tweet.links ?? [])
+          .map(l => l.url || l.short_url)
+          .filter((u): u is string => !!u && !/twitter\.com|x\.com|t\.co/.test(u));
 
-    let imgUrls: string[] = [];
-    if (photos?.length) {
-      imgUrls = photos.map(p => p.url);
-    } else if (mediaDetails?.length) {
-      imgUrls = mediaDetails.filter(m => !m.type || m.type === 'photo').map(m => m.media_url_https);
+        let text = `投稿者: ${tweet.author?.name ?? ''}\n内容: ${tweet.text}`;
+        if (extLinks.length > 0) text += `\n【ポスト内の外部リンク】${extLinks.join(' / ')}`;
+
+        return { text, imageUrl };
+      }
     }
-    if (imgUrls.length === 1) imageUrl = imgUrls[0];
-    else if (imgUrls.length > 1) imageUrl = JSON.stringify(imgUrls);
-  }
+  } catch {}
+
+  // ── 2. フォールバック: oEmbed（x.com/{username}/status/ 形式なら有効）
+  let imageUrl: string | null = null;
+
+  const oembedRes = await fetch(
+    `https://publish.twitter.com/oembed?url=${encodeURIComponent(tweetUrl)}&omit_script=true`,
+  ).catch(() => null);
 
   if (!oembedRes?.ok) return { text: `URL: ${tweetUrl}`, imageUrl };
 
@@ -131,80 +146,40 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
     }
   }
 
-  // t.co を並行解決
   const resolved = await Promise.all(
     rawLinks.map(async ({ href, text }) => ({
-      href,
-      text,
-      final: await resolveUrl(href),
+      href, text, final: await resolveUrl(href),
     })),
   );
 
   const externalLinks: string[] = [];
   const imgFromLinks: string[] = [];
 
-  for (const { href, text, final } of resolved) {
-    // pbs.twimg.com = 画像
-    if (/pbs\.twimg\.com|twimg\.com/.test(final)) {
-      imgFromLinks.push(final);
-      continue;
-    }
-    // twitter/x 系は除外
+  for (const { text, final } of resolved) {
+    if (/pbs\.twimg\.com|twimg\.com/.test(final)) { imgFromLinks.push(final); continue; }
     if (!final || /twitter\.com|x\.com/.test(final)) continue;
 
-    // visible text（例: "heart-ltd.jp/product/110688/"）を利用
-    const isVisibleUrl = text && !text.includes('t.co') && text !== href;
+    const isVisibleUrl = text && !text.includes('t.co');
     const visibleClean = isVisibleUrl ? text.replace(/….*$/, '') : '';
-
-    // t.co 解決失敗時は visible text から https:// で補完
     const resolvedFinal = final.includes('t.co/')
-      ? visibleClean
-        ? `https://${visibleClean.replace(/^https?:\/\//, '')}`
-        : ''
+      ? visibleClean ? `https://${visibleClean.replace(/^https?:\/\//, '')}` : ''
       : final;
 
     if (!resolvedFinal) continue;
-    // 重複除外
     if (externalLinks.some(l => l.includes(resolvedFinal.split('?')[0]))) continue;
-
     externalLinks.push(
       visibleClean && visibleClean !== resolvedFinal
-        ? `${visibleClean}（${resolvedFinal}）`
-        : resolvedFinal,
+        ? `${visibleClean}（${resolvedFinal}）` : resolvedFinal,
     );
   }
 
-  // フォールバック①: link 解決で pbs.twimg.com が得られた場合
   if (!imageUrl && imgFromLinks.length > 0) {
     imageUrl = imgFromLinks.length === 1 ? imgFromLinks[0] : JSON.stringify(imgFromLinks);
   }
 
-  // フォールバック②: fxtwitter API（syndication が使えない場合の代替）
-  if (!imageUrl && tweetId) {
-    try {
-      const fxRes = await fetch(
-        `https://api.fxtwitter.com/status/${tweetId}`,
-        { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(5000) },
-      );
-      if (fxRes.ok) {
-        const fxData = await fxRes.json() as {
-          tweet?: { media?: { photos?: Array<{ url: string }> } };
-        };
-        const fxPhotos = fxData.tweet?.media?.photos;
-        if (fxPhotos?.length) {
-          const urls = fxPhotos.map(p => p.url);
-          imageUrl = urls.length === 1 ? urls[0] : JSON.stringify(urls);
-        }
-      }
-    } catch {}
-  }
-
-
   const textContent = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   let text = `投稿者: ${data.author_name ?? ''}\n内容: ${textContent}`;
-  if (externalLinks.length > 0) {
-    text += `\n【ポスト内の外部リンク】${externalLinks.join(' / ')}`;
-  }
+  if (externalLinks.length > 0) text += `\n【ポスト内の外部リンク】${externalLinks.join(' / ')}`;
   return { text, imageUrl };
 }
 
