@@ -272,11 +272,12 @@ export async function findDuplicateEvents(
   }
 
   const norm = normalizeTitleForDup(title);
+  // ilike には元のタイトルを使う（正規化済み文字列だと全角スペース等がマッチしない）
   const { data: titleData } = await supabase
     .from('events')
     .select('id, title, event_date, end_date, prefecture, source_url')
     .eq('work_id', workId)
-    .ilike('title', norm);
+    .ilike('title', title);
   for (const row of titleData ?? []) {
     if (
       !seen.has(row.id as string) &&
