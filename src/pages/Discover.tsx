@@ -35,7 +35,7 @@ import { WORK_COLORS } from './Calendar';
 
 // ─── 定数 ──────────────────────────────────────────────────────────
 
-import { BOTTOM_TOTAL_H as BOTTOM_TAB_H } from '../components/BottomTab';
+const BOTTOM_TAB_H = 56;
 
 const LIKE_MAX_TAPS = 10;
 const LIKE_COOLDOWN_MS = 60_000;
@@ -418,6 +418,14 @@ export default function Discover() {
             </div>
           }
         />
+
+        {/* 広告バナースロット（React Nativeでは AdMob コンポーネントに置き換える） */}
+        <div
+          className="flex-shrink-0 flex items-center justify-center border-b"
+          style={{ height: 50, borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-secondary)' }}
+        >
+          <span className="text-label-tertiary text-xs">広告</span>
+        </div>
 
         {/* 作品チップ */}
         {participatedWorks.length > 0 && (

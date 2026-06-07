@@ -21,7 +21,7 @@ import { loadCalendarEventIds, loadTotalLikesGiven, loadRegionFilter, saveRegion
 import { PrefectureSearch } from '../components/UserSettingsSheet';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 
-import { BOTTOM_TOTAL_H as BOTTOM_TAB_H } from '../components/BottomTab';
+const BOTTOM_TAB_H = 56;
 
 // ─── メイン ────────────────────────────────────────────────────────
 export default function Profile() {

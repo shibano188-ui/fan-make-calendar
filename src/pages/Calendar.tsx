@@ -102,7 +102,7 @@ function formatTimeRange(startTime?: string, endTime?: string): string | null {
 const inputCls =
   'w-full bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong';
 
-import { BOTTOM_TOTAL_H as BOTTOM_TAB_H } from '../components/BottomTab';
+const BOTTOM_TAB_H = 56;
 const SHEET_COLLAPSED_H = 76;
 const SHEET_FULL_H = 280;
 
@@ -1508,6 +1508,14 @@ export default function Calendar() {
             </div>
           }
         />
+
+        {/* 広告バナースロット（React Nativeでは AdMob コンポーネントに置き換える） */}
+        <div
+          className="flex-shrink-0 flex items-center justify-center border-b"
+          style={{ height: 50, borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-secondary)' }}
+        >
+          <span className="text-label-tertiary text-xs">広告</span>
+        </div>
 
         {/* 参加中の作品チップ（MyCalendarのみ） */}
         {!workId && participatedWorks.length > 0 && (
