@@ -102,8 +102,6 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
 
   // syndication API から画像URLを取得（photos / mediaDetails 両方に対応）
   let imageUrl: string | null = null;
-  let photoCount = 0;
-  let imgSrc = '-';
   if (syndicationData) {
     const photos = syndicationData.photos as Array<{ url: string }> | undefined;
     const mediaDetails = syndicationData.mediaDetails as Array<{ media_url_https: string; type?: string }> | undefined;
@@ -111,12 +109,9 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
     let imgUrls: string[] = [];
     if (photos?.length) {
       imgUrls = photos.map(p => p.url);
-      imgSrc = 'P';
     } else if (mediaDetails?.length) {
       imgUrls = mediaDetails.filter(m => !m.type || m.type === 'photo').map(m => m.media_url_https);
-      imgSrc = 'M';
     }
-    photoCount = imgUrls.length;
     if (imgUrls.length === 1) imageUrl = imgUrls[0];
     else if (imgUrls.length > 1) imageUrl = JSON.stringify(imgUrls);
   }
@@ -183,7 +178,6 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
   // フォールバック①: link 解決で pbs.twimg.com が得られた場合
   if (!imageUrl && imgFromLinks.length > 0) {
     imageUrl = imgFromLinks.length === 1 ? imgFromLinks[0] : JSON.stringify(imgFromLinks);
-    if (imageUrl) { imgSrc = 'L'; photoCount = imgFromLinks.length; }
   }
 
   // フォールバック②: fxtwitter API（syndication が使えない場合の代替）
@@ -208,8 +202,6 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
     } catch {}
   }
 
-  // src: P=photos / M=mediaDetails / L=t.co link / F=fxtwitter / -=none
-  console.log(`${imgSrc}${photoCount} ${imageUrl?.slice(0,30)??'NO_URL'}`);
 
   const textContent = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   let text = `投稿者: ${data.author_name ?? ''}\n内容: ${textContent}`;

@@ -502,25 +502,29 @@ export default function Discover() {
                           const imgs = parseImageUrls(event.imageUrl);
                           if (imgs.length === 0) return null;
                           if (imgs.length === 1) return (
-                            <img src={imgs[0]} alt="" loading="lazy"
-                              className="w-full rounded-lg object-cover"
-                              style={{ maxHeight: 280 }} />
+                            <div className="w-full rounded-lg overflow-hidden" style={{ height: 200 }}>
+                              <img src={imgs[0]} alt="" loading="lazy"
+                                className="w-full h-full object-cover" />
+                            </div>
                           );
                           if (imgs.length === 2) return (
                             <div className="grid grid-cols-2 gap-1.5">
                               {imgs.map((src, i) => (
-                                <img key={i} src={src} alt="" loading="lazy"
-                                  className="w-full rounded-lg object-cover"
-                                  style={{ height: 160 }} />
+                                <div key={i} className="rounded-lg overflow-hidden" style={{ height: 130 }}>
+                                  <img src={src} alt="" loading="lazy"
+                                    className="w-full h-full object-cover" />
+                                </div>
                               ))}
                             </div>
                           );
                           return (
                             <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollSnapType: 'x mandatory' }}>
                               {imgs.map((src, i) => (
-                                <img key={i} src={src} alt="" loading="lazy"
-                                  className="rounded-lg object-cover flex-shrink-0"
-                                  style={{ height: 180, width: 180, scrollSnapAlign: 'start' }} />
+                                <div key={i} className="rounded-lg overflow-hidden flex-shrink-0"
+                                  style={{ height: 160, width: 160, scrollSnapAlign: 'start' }}>
+                                  <img src={src} alt="" loading="lazy"
+                                    className="w-full h-full object-cover" />
+                                </div>
                               ))}
                             </div>
                           );
