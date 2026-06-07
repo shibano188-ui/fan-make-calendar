@@ -91,8 +91,10 @@ export default function ShareTarget() {
           addToEventQueue(parsed);
           setStatus('stocked');
         } else {
-          // sessionStorage はウィンドウをまたぐと消えるため localStorage を使用
-          localStorage.setItem('pendingParsedEvent', JSON.stringify(parsed));
+          // localStorage（クロスウィンドウ対応）と sessionStorage（旧キャッシュ対応）両方に書く
+          const _ppeJson = JSON.stringify(parsed);
+          localStorage.setItem('pendingParsedEvent', _ppeJson);
+          sessionStorage.setItem('pendingParsedEvent', _ppeJson);
           setStatus('done');
           setTimeout(() => navigate('/calendar', { replace: true }), 800);
         }
@@ -109,7 +111,9 @@ export default function ShareTarget() {
           addToEventQueue(fallback);
           setStatus('stocked');
         } else {
-          localStorage.setItem('pendingParsedEvent', JSON.stringify(fallback));
+          const _fbJson = JSON.stringify(fallback);
+          localStorage.setItem('pendingParsedEvent', _fbJson);
+          sessionStorage.setItem('pendingParsedEvent', _fbJson);
           setStatus('error');
           setTimeout(() => navigate('/calendar', { replace: true }), 1500);
         }
