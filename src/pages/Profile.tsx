@@ -101,19 +101,19 @@ function StarRadarChart({ data }: { data: { axis: string; value: number }[] }) {
     <svg viewBox="0 0 300 300" width="100%" style={{ display: 'block' }}>
       {/* グリッドスター */}
       {[0.25, 0.5, 0.75, 1].map(f => (
-        <path key={f} d={starPath(f)} fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth={1} />
+        <path key={f} d={starPath(f)} fill="none" style={{ stroke: 'var(--border-subtle)' }} strokeWidth={1} />
       ))}
       {/* 軸線 */}
       {data.map((_, i) => {
         const tip = axisXY(i, 1);
-        return <line key={i} x1={STAR_CX} y1={STAR_CY} x2={tip.x} y2={tip.y} stroke="rgba(255,255,255,0.18)" strokeWidth={1} />;
+        return <line key={i} x1={STAR_CX} y1={STAR_CY} x2={tip.x} y2={tip.y} style={{ stroke: 'var(--border-subtle)' }} strokeWidth={1} />;
       })}
       {/* データポリゴン */}
       <path d={`M ${dataPath} Z`} fill="#F59E0B" fillOpacity={0.5} stroke="#FCD34D" strokeWidth={2} strokeLinejoin="round" />
       {/* データ点 */}
       {data.map((d, i) => {
         const p = axisXY(i, d.value / 100);
-        return <circle key={i} cx={p.x} cy={p.y} r={3.5} fill="#FCD34D" />;
+
       })}
       {/* 軸ラベル（スコア + 軸名） */}
       {data.map((d, i) => {
@@ -123,7 +123,7 @@ function StarRadarChart({ data }: { data: { axis: string; value: number }[] }) {
         const anchor = lx < STAR_CX - 10 ? 'end' : lx > STAR_CX + 10 ? 'start' : 'middle';
         return (
           <g key={i}>
-            <text x={lx} y={ly - 7} textAnchor={anchor} fill="#FCD34D" fontSize={13} fontWeight="bold" fontFamily="monospace">{d.value}</text>
+            <text x={lx} y={ly - 7} textAnchor={anchor} fill="#FCD34D" fontSize={13} fontWeight="bold">{d.value}</text>
             <text x={lx} y={ly + 8} textAnchor={anchor} fill="#F59E0B" fontSize={10}>{d.axis}</text>
           </g>
         );
@@ -431,7 +431,7 @@ export default function Profile() {
 
           {/* ── ファンスター & 実績バッジ ──────────── */}
           <section>
-            <div className="rounded-xl shadow-card px-3 pt-4 pb-4" style={{ backgroundColor: '#111118' }}>
+            <div className="rounded-xl shadow-card px-3 pt-4 pb-4" style={{ backgroundColor: 'var(--bg-secondary)' }}>
 
               {/* 称号行 */}
               <div className="flex items-center gap-3 px-1 mb-4">
@@ -450,7 +450,7 @@ export default function Profile() {
               </div>
 
               {/* 区切り */}
-              <div className="border-t mb-3" style={{ borderColor: 'rgba(255,255,255,0.08)' }} />
+              <div className="border-t mb-3" style={{ borderColor: 'var(--border-subtle)' }} />
 
               {/* ファンスター見出し */}
               <p className="text-xs px-1 mb-2" style={{ color: '#F59E0B' }}>ファンスター</p>
@@ -465,7 +465,7 @@ export default function Profile() {
               )}
 
               {/* 区切り */}
-              <div className="my-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }} />
+              <div className="my-4 border-t" style={{ borderColor: 'var(--border-subtle)' }} />
 
               {/* 実績見出し */}
               <p className="text-xs px-1 mb-3" style={{ color: '#F59E0B' }}>実績</p>
@@ -486,7 +486,7 @@ export default function Profile() {
                         style={{
                           opacity: unlocked ? 1 : 0.25,
                           filter: unlocked ? 'none' : 'grayscale(1)',
-                          backgroundColor: active ? 'rgba(245,158,11,0.22)' : 'rgba(255,255,255,0.06)',
+                          backgroundColor: active ? 'rgba(245,158,11,0.22)' : 'var(--bg-primary)',
                           border: active ? '1.5px solid #F59E0B' : '1.5px solid transparent',
                         }}
                       >
@@ -502,11 +502,11 @@ export default function Profile() {
                 const b = BADGES[selectedBadge];
                 const unlocked = statsReady && b.check(achStats);
                 return (
-                  <div className="mt-4 px-3 py-3 rounded-xl flex items-center gap-3" style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}>
+                  <div className="mt-4 px-3 py-3 rounded-xl flex items-center gap-3" style={{ backgroundColor: 'var(--bg-primary)' }}>
                     <span className="text-2xl">{b.emoji}</span>
                     <div>
-                      <p className="text-sm font-semibold" style={{ color: unlocked ? '#FCD34D' : 'rgba(255,255,255,0.4)' }}>{b.label}</p>
-                      <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>{b.desc}{!unlocked && ' （未解除）'}</p>
+                      <p className="text-sm font-semibold" style={{ color: unlocked ? '#F59E0B' : 'var(--label-tertiary)' }}>{b.label}</p>
+                      <p className="text-xs mt-0.5 text-label-tertiary">{b.desc}{!unlocked && ' （未解除）'}</p>
                     </div>
                   </div>
                 );

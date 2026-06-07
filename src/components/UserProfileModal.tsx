@@ -94,7 +94,7 @@ export default function UserProfileModal({
 
               {/* 称号・グレード */}
               {title && (
-                <div className="flex items-center gap-3 px-4 py-2 rounded-xl w-full" style={{ backgroundColor: '#111118' }}>
+                <div className="flex items-center gap-3 px-4 py-2 rounded-xl w-full" style={{ backgroundColor: 'var(--bg-secondary)' }}>
                   <p className="flex-1 text-sm font-bold" style={{ color: '#FCD34D' }}>⭐ {title}</p>
                   {grade !== null && (
                     <div className="text-right flex-shrink-0">
