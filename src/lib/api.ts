@@ -220,6 +220,69 @@ export async function createEvents(
   return (data ?? []).map(r => r.id as string);
 }
 
+// ─── 重複検知 ──────────────────────────────────────────────────────
+
+export type DuplicateMatch = {
+  id: string;
+  title: string;
+  date: string;
+  prefecture: string | null;
+  sourceUrl: string | null;
+};
+
+function normalizeTitleForDup(t: string): string {
+  return t.replace(/　/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+export async function findDuplicateEvents(
+  workId: string,
+  title: string,
+  sourceUrl?: string | null,
+): Promise<{ byUrl: DuplicateMatch[]; byTitle: DuplicateMatch[] }> {
+  const seen = new Set<string>();
+  const byUrl: DuplicateMatch[] = [];
+  const byTitle: DuplicateMatch[] = [];
+
+  if (sourceUrl) {
+    const { data } = await supabase
+      .from('events')
+      .select('id, title, event_date, prefecture, source_url')
+      .eq('work_id', workId)
+      .eq('source_url', sourceUrl);
+    for (const row of data ?? []) {
+      seen.add(row.id as string);
+      byUrl.push({
+        id: row.id as string,
+        title: row.title as string,
+        date: row.event_date as string,
+        prefecture: normalizePrefecture(row.prefecture as string | null) ?? null,
+        sourceUrl: row.source_url as string | null,
+      });
+    }
+  }
+
+  const norm = normalizeTitleForDup(title);
+  const { data: titleData } = await supabase
+    .from('events')
+    .select('id, title, event_date, prefecture, source_url')
+    .eq('work_id', workId)
+    .ilike('title', norm);
+  for (const row of titleData ?? []) {
+    if (!seen.has(row.id as string) && normalizeTitleForDup(row.title as string) === norm) {
+      seen.add(row.id as string);
+      byTitle.push({
+        id: row.id as string,
+        title: row.title as string,
+        date: row.event_date as string,
+        prefecture: normalizePrefecture(row.prefecture as string | null) ?? null,
+        sourceUrl: row.source_url as string | null,
+      });
+    }
+  }
+
+  return { byUrl, byTitle };
+}
+
 // ─── いいね ────────────────────────────────────────────────────────
 
 // 1タップ = +1（10回連打対応）
