@@ -95,12 +95,12 @@ export default function UserProfileModal({
               {/* 称号・グレード */}
               {title && (
                 <div className="flex items-center gap-3 px-4 py-2 rounded-xl w-full" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                  <p className="flex-1 text-sm font-bold" style={{ color: '#FCD34D' }}>⭐ {title}</p>
+                  <p className="flex-1 text-sm font-bold text-label-primary">⭐ {title}</p>
                   {grade !== null && (
                     <div className="text-right flex-shrink-0">
-                      <p style={{ color: '#F59E0B', fontSize: 9 }}>グレード</p>
-                      <p style={{ color: '#FCD34D', fontWeight: 'bold', fontSize: 15, lineHeight: 1.1 }}>
-                        {grade}<span style={{ color: '#D97706', fontSize: 10, fontWeight: 'normal' }}>/500</span>
+                      <p className="text-label-tertiary" style={{ fontSize: 9 }}>グレード</p>
+                      <p className="text-label-primary font-bold" style={{ fontSize: 15, lineHeight: 1.1 }}>
+                        {grade}<span className="text-label-tertiary font-normal" style={{ fontSize: 10 }}>/500</span>
                       </p>
                     </div>
                   )}

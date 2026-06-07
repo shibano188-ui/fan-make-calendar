@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { ExternalLink, Heart, Plus, Smile, Share2 } from 'lucide-react';
+import { ExternalLink, Heart, Plus, Smile, Share2, Trash2 } from 'lucide-react';
 import Layout from '../components/Layout';
 import Header from '../components/Header';
 import { useNavigate } from 'react-router-dom';
-import { listEventsByDate, addLikeTap, getReactionData, setReaction, getWorkById, getDisplayName } from '../lib/api';
+import { listEventsByDate, addLikeTap, getReactionData, setReaction, getWorkById, getDisplayName, deleteEvent } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import type { CalendarEvent } from '../types';
 import { REACTIONS, type ReactionType } from '../lib/reactions';
@@ -165,6 +165,7 @@ function EventCard({
   reactionData,
   onOpenReactionPicker,
   onAuthorClick,
+  onDelete,
   workName,
   displayName,
 }: {
@@ -174,6 +175,7 @@ function EventCard({
   reactionData?: ReactionData;
   onOpenReactionPicker?: () => void;
   onAuthorClick?: (authorId: string) => void;
+  onDelete?: (id: string) => void;
   workName?: string | null;
   displayName?: string | null;
 }) {
@@ -249,6 +251,16 @@ function EventCard({
         >
           <Share2 size={14} />
         </a>
+        {/* 🗑️ 削除（投稿者本人のみ） */}
+        {onDelete && userId && event.authorId === userId && (
+          <button
+            onClick={() => onDelete(event.id)}
+            className="flex items-center justify-center px-3 py-1.5 rounded-full border text-sm active:opacity-60"
+            style={{ borderColor: 'var(--border-default)', color: 'var(--label-tertiary)', minWidth: '2.5rem' }}
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
       </div>
 
       {/* リアクション集計 */}
@@ -325,6 +337,16 @@ export default function DateDetail() {
     );
   };
 
+  const handleDelete = async (eventId: string) => {
+    const event = events.find(e => e.id === eventId);
+    if (!event) return;
+    if (!window.confirm(`「${event.title}」を削除しますか？\nこの操作は元に戻せません。`)) return;
+    try {
+      await deleteEvent(eventId);
+      setEvents(prev => prev.filter(e => e.id !== eventId));
+    } catch { alert('削除に失敗しました'); }
+  };
+
   const handleReaction = async (eventId: string, type: ReactionType) => {
     if (!user) return;
     const current = eventReactions[eventId];
@@ -388,6 +410,7 @@ export default function DateDetail() {
                 reactionData={eventReactions[event.id]}
                 onOpenReactionPicker={() => setOpenReactionPickerId(prev => prev === event.id ? null : event.id)}
                 onAuthorClick={id => setViewingUserId(id)}
+                onDelete={handleDelete}
                 workName={workName}
                 displayName={displayName}
               />

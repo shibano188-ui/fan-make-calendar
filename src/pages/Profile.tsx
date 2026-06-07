@@ -118,8 +118,8 @@ function StarRadarChart({ data }: { data: { axis: string; value: number }[] }) {
         const anchor = lx < STAR_CX - 10 ? 'end' : lx > STAR_CX + 10 ? 'start' : 'middle';
         return (
           <g key={i}>
-            <text x={lx} y={ly - 7} textAnchor={anchor} fill="#FCD34D" fontSize={13} fontWeight="bold">{d.value}</text>
-            <text x={lx} y={ly + 8} textAnchor={anchor} fill="#F59E0B" fontSize={10}>{d.axis}</text>
+            <text x={lx} y={ly - 7} textAnchor={anchor} fontSize={13} fontWeight="bold" style={{ fill: 'var(--accent-color)' }}>{d.value}</text>
+            <text x={lx} y={ly + 8} textAnchor={anchor} fontSize={10} style={{ fill: 'var(--label-secondary)' }}>{d.axis}</text>
           </g>
         );
       })}
@@ -158,6 +158,7 @@ export default function Profile() {
 
   // バッジタップ表示
   const [selectedBadge, setSelectedBadge] = useState<number | null>(null);
+  const [showAllBadges, setShowAllBadges] = useState(false);
 
   // 地域フィルター（Calendar/Discoverと共有）
   const [filterMode, setFilterMode] = useState<FilterMode>(() => loadRegionFilter().filterMode);
@@ -431,14 +432,14 @@ export default function Profile() {
               {/* 称号行 */}
               <div className="flex items-center gap-3 px-1 mb-4">
                 <span className="text-3xl leading-none">{avatarEmoji ?? '👤'}</span>
-                <p className="flex-1 font-bold text-sm truncate" style={{ color: '#FCD34D' }}>
+                <p className="flex-1 font-bold text-sm truncate text-label-primary">
                   {title ?? '…'}
                 </p>
                 {grade !== null && (
                   <div className="text-right flex-shrink-0">
-                    <p style={{ color: '#F59E0B', fontSize: 10 }}>グレード</p>
-                    <p style={{ color: '#FCD34D', fontWeight: 'bold', fontSize: 18, lineHeight: 1.1 }}>
-                      {grade}<span style={{ color: '#D97706', fontSize: 11, fontWeight: 'normal' }}>/500</span>
+                    <p className="text-label-tertiary" style={{ fontSize: 10 }}>グレード</p>
+                    <p className="text-label-primary font-bold" style={{ fontSize: 18, lineHeight: 1.1 }}>
+                      {grade}<span className="text-label-tertiary font-normal" style={{ fontSize: 11 }}>/500</span>
                     </p>
                   </div>
                 )}
@@ -448,14 +449,14 @@ export default function Profile() {
               <div className="border-t mb-3" style={{ borderColor: 'var(--border-subtle)' }} />
 
               {/* ファンスター見出し */}
-              <p className="text-xs px-1 mb-2" style={{ color: '#F59E0B' }}>ファンスター</p>
+              <p className="text-label-tertiary text-xs px-1 mb-2">ファンスター</p>
 
               {/* スターレーダー */}
               {radarData ? (
                 <StarRadarChart data={radarData} />
               ) : (
                 <div className="h-[240px] flex items-center justify-center">
-                  <p className="text-sm" style={{ color: '#F59E0B' }}>読み込み中…</p>
+                  <p className="text-label-tertiary text-sm">読み込み中…</p>
                 </div>
               )}
 
@@ -463,44 +464,69 @@ export default function Profile() {
               <div className="my-4 border-t" style={{ borderColor: 'var(--border-subtle)' }} />
 
               {/* 実績見出し */}
-              <p className="text-xs px-1 mb-3" style={{ color: '#F59E0B' }}>実績</p>
+              <p className="text-label-tertiary text-xs px-1 mb-3">実績</p>
 
-              {/* バッジグリッド（20個・4行5列） */}
-              <div className="grid grid-cols-5 gap-2 px-1">
-                {BADGES.map((badge, i) => {
-                  const unlocked = statsReady && badge.check(achStats);
-                  const active = selectedBadge === i;
-                  return (
-                    <button
-                      key={badge.label}
-                      onClick={() => setSelectedBadge(active ? null : i)}
-                      className="flex flex-col items-center active:scale-90 transition-transform"
-                    >
-                      <div
-                        className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl"
-                        style={{
-                          opacity: unlocked ? 1 : 0.25,
-                          filter: unlocked ? 'none' : 'grayscale(1)',
-                          backgroundColor: active ? 'rgba(245,158,11,0.22)' : 'var(--bg-primary)',
-                          border: active ? '1.5px solid #F59E0B' : '1.5px solid transparent',
-                        }}
-                      >
-                        {badge.emoji}
+              {/* バッジグリッド（解除済みのみ / 全表示切替） */}
+              {(() => {
+                const unlockedCount = statsReady ? BADGES.filter(b => b.check(achStats)).length : 0;
+                const displayBadges = showAllBadges
+                  ? BADGES.map((b, i) => ({ badge: b, idx: i }))
+                  : BADGES.map((b, i) => ({ badge: b, idx: i })).filter(({ badge }) => statsReady && badge.check(achStats));
+                return (
+                  <>
+                    {displayBadges.length === 0 && !showAllBadges ? (
+                      <p className="text-label-tertiary text-xs text-center py-4">まだ実績はありません</p>
+                    ) : (
+                      <div className="grid grid-cols-5 gap-2 px-1">
+                        {displayBadges.map(({ badge, idx }) => {
+                          const unlocked = statsReady && badge.check(achStats);
+                          const active = selectedBadge === idx;
+                          return (
+                            <button
+                              key={badge.label}
+                              onClick={() => setSelectedBadge(active ? null : idx)}
+                              className="flex flex-col items-center active:scale-90 transition-transform"
+                            >
+                              <div
+                                className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl"
+                                style={{
+                                  opacity: unlocked ? 1 : 0.25,
+                                  filter: unlocked ? 'none' : 'grayscale(1)',
+                                  backgroundColor: active ? 'color-mix(in srgb, var(--accent-color) 18%, transparent)' : 'var(--bg-primary)',
+                                  border: active ? '1.5px solid var(--accent-color)' : '1.5px solid transparent',
+                                }}
+                              >
+                                {badge.emoji}
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
+                    )}
+
+                    {/* 展開ボタン */}
+                    <button
+                      onClick={() => { setShowAllBadges(v => !v); setSelectedBadge(null); }}
+                      className="mt-3 w-full text-xs text-label-tertiary py-2 rounded-xl active:opacity-60"
+                      style={{ backgroundColor: 'var(--bg-primary)' }}
+                    >
+                      {showAllBadges
+                        ? '閉じる ▲'
+                        : `すべての実績を見る (${unlockedCount}/20) ▼`}
                     </button>
-                  );
-                })}
-              </div>
+                  </>
+                );
+              })()}
 
               {/* バッジ詳細（タップで表示） */}
               {selectedBadge !== null && (() => {
                 const b = BADGES[selectedBadge];
                 const unlocked = statsReady && b.check(achStats);
                 return (
-                  <div className="mt-4 px-3 py-3 rounded-xl flex items-center gap-3" style={{ backgroundColor: 'var(--bg-primary)' }}>
+                  <div className="mt-3 px-3 py-3 rounded-xl flex items-center gap-3" style={{ backgroundColor: 'var(--bg-primary)' }}>
                     <span className="text-2xl">{b.emoji}</span>
                     <div>
-                      <p className="text-sm font-semibold" style={{ color: unlocked ? '#F59E0B' : 'var(--label-tertiary)' }}>{b.label}</p>
+                      <p className="text-sm font-semibold" style={{ color: unlocked ? 'var(--accent-color)' : 'var(--label-tertiary)' }}>{b.label}</p>
                       <p className="text-xs mt-0.5 text-label-tertiary">{b.desc}{!unlocked && ' （未解除）'}</p>
                     </div>
                   </div>

@@ -9,7 +9,7 @@ import {
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
 import {
-  listEvents, getWorkById, leaveCalendar, deleteWork, deleteEvent,
+  listEvents, getWorkById, leaveCalendar, deleteWork,
   createEvents, getHomePrefecture, saveHomePrefecture,
   getDisplayName, saveDisplayName, listRecentWorks,
   listAllParticipatedWorkEvents, addLikeTap, setReaction, getReactionData, updateEvent,
@@ -537,7 +537,7 @@ export default function Calendar() {
   const [copyDone, setCopyDone] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const { trigger: triggerLike, renderOverlay: renderLikeOverlay } = useLikeAnimation();
   const [viewingUserId, setViewingUserId] = useState<string | null>(null);
   const swipeStartX = useRef<number | null>(null);
@@ -887,14 +887,6 @@ export default function Calendar() {
     setListDetailEvent(prev => prev?.id === eventId ? null : prev);
   };
 
-  // ─── 長押しで完全削除 ────────────────────────────────────────────
-  const startLongPress = (callback: () => void) => {
-    longPressTimer.current = setTimeout(callback, 700);
-  };
-  const cancelLongPress = () => {
-    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
-  };
-
   // ─── 左右スワイプで月移動 ───────────────────────────────────────────
   const handleSwipeStart = (e: React.TouchEvent) => {
     swipeStartX.current = e.touches[0].clientX;
@@ -908,24 +900,9 @@ export default function Calendar() {
     swipeStartY.current = null;
     // 水平方向が支配的かつ60px以上で月移動（縦スクロールと競合しない）
     if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-    cancelLongPress();
     if (dx < 0) nextMonth(); else prevMonth();
   };
   const toggleBell = (id: string) => setBellEventIds(toggleBellEventId(id));
-
-  const handleFullDelete = async (id: string, title: string) => {
-    if (!window.confirm(`「${title}」を完全に削除しますか？\nこの操作は元に戻せません。`)) return;
-    try {
-      await deleteEvent(id);
-      setEvents(prev => prev.filter(e => e.id !== id));
-      setSheetDetailEvent(prev => prev?.id === id ? null : prev);
-      setListDetailEvent(prev => prev?.id === id ? null : prev);
-    } catch { alert('削除に失敗しました'); }
-  };
-  const handleFullDeletePersonal = (id: string, title: string) => {
-    if (!window.confirm(`「${title}」を削除しますか？`)) return;
-    deletePersonalEvent(id);
-  };
 
   // ─── イベント編集（投稿者本人のみ） ────────────────────────────
   const [editEventId, setEditEventId] = useState<string | null>(null);
@@ -1940,10 +1917,6 @@ export default function Calendar() {
                           return (
                             <div key={event.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
                               style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(event.id) ? '3px solid #f59e0b' : undefined }}
-                              onTouchStart={() => startLongPress(() => handleFullDelete(event.id, event.title))}
-                              onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
-                              onMouseDown={() => startLongPress(() => handleFullDelete(event.id, event.title))}
-                              onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
                             >
                               {/* 1行目: タイトル */}
                               <div className="flex items-center px-3 pt-3 pb-1 gap-1">
@@ -2046,10 +2019,6 @@ export default function Calendar() {
                           return (
                             <div key={event.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
                               style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(event.id) ? '3px solid #f59e0b' : undefined }}
-                              onTouchStart={() => startLongPress(() => handleFullDelete(event.id, event.title))}
-                              onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
-                              onMouseDown={() => startLongPress(() => handleFullDelete(event.id, event.title))}
-                              onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
                             >
                               {/* 1行目: タイトル */}
                               <div className="flex items-center px-3 pt-3 pb-1 gap-1">
@@ -2148,10 +2117,6 @@ export default function Calendar() {
                           return (
                             <div key={pe.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
                               style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(pe.id) ? '3px solid #f59e0b' : undefined }}
-                              onTouchStart={() => startLongPress(() => handleFullDeletePersonal(pe.id, pe.title))}
-                              onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
-                              onMouseDown={() => startLongPress(() => handleFullDeletePersonal(pe.id, pe.title))}
-                              onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
                             >
                               {/* 1行目: タイトル + 🔔⭐ */}
                               <div className="flex items-center px-3 pt-3 pb-1 gap-1">

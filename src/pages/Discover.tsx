@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
 import UserProfileModal from '../components/UserProfileModal';
 import {
-  Heart, Smile, Pencil, SlidersHorizontal, ExternalLink, ChevronLeft, Plus, X,
+  Heart, Smile, Pencil, Trash2, SlidersHorizontal, ExternalLink, ChevronLeft, Plus, X,
   Map as MapIcon, Palette,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
@@ -133,18 +133,10 @@ export default function Discover() {
   const [myReactions, setMyReactions] = useState<Record<string, ReactionType>>(loadMyReactions);
   const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
 
-  // 長押し削除
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { trigger: triggerLike, renderOverlay: renderLikeOverlay } = useLikeAnimation();
   const [viewingUserId, setViewingUserId] = useState<string | null>(null);
-  const startLongPress = (callback: () => void) => {
-    longPressTimer.current = setTimeout(callback, 700);
-  };
-  const cancelLongPress = () => {
-    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
-  };
-  const handleFullDelete = async (id: string, title: string) => {
-    if (!window.confirm(`「${title}」を完全に削除しますか？\nこの操作は元に戻せません。`)) return;
+  const handleDeleteEvent = async (id: string, title: string) => {
+    if (!window.confirm(`「${title}」を削除しますか？\nこの操作は元に戻せません。`)) return;
     try {
       await deleteEvent(id);
       setEvents(prev => prev.filter(e => e.id !== id));
@@ -515,10 +507,6 @@ export default function Discover() {
                 return (
                   <div key={event.id} className="bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
                     style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined }}
-                    onTouchStart={() => startLongPress(() => handleFullDelete(event.id, event.title))}
-                    onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
-                    onMouseDown={() => startLongPress(() => handleFullDelete(event.id, event.title))}
-                    onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
                   >
                     {/* コンテンツ部分（左に日付列） */}
                     <div className="flex items-stretch px-4 pt-4 gap-3">
@@ -641,15 +629,24 @@ export default function Discover() {
                         }
                       </button>
 
-                      {/* ✏️ 編集（自分の投稿のみ） */}
+                      {/* ✏️ 編集・🗑️ 削除（自分の投稿のみ） */}
                       {event.authorId && user && event.authorId === user.id && (
-                        <button
-                          onClick={() => openEdit(event)}
-                          className="px-3 py-1.5 rounded-full border border-default text-sm active:opacity-60 flex items-center justify-center"
-                          style={{ color: 'var(--accent-color)', minWidth: '2.5rem' }}
-                        >
-                          <Pencil size={14} />
-                        </button>
+                        <>
+                          <button
+                            onClick={() => openEdit(event)}
+                            className="px-3 py-1.5 rounded-full border border-default text-sm active:opacity-60 flex items-center justify-center"
+                            style={{ color: 'var(--accent-color)', minWidth: '2.5rem' }}
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteEvent(event.id, event.title)}
+                            className="px-3 py-1.5 rounded-full border border-default text-sm active:opacity-60 flex items-center justify-center"
+                            style={{ color: 'var(--label-tertiary)', minWidth: '2.5rem' }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
