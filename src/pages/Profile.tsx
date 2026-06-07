@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pencil, Check, X, ChevronRight, Palette, Map as MapIcon } from 'lucide-react';
-import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer } from 'recharts';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
@@ -71,23 +70,72 @@ function calcRadarData(s: AchievementStats) {
   ];
 }
 
-function makeCustomTick(radarData: { axis: string; value: number }[]) {
-  return function CustomTick({ x = 0, y = 0, payload }: { x?: number; y?: number; payload?: { value: string } }) {
-    const score = radarData.find(d => d.axis === payload?.value)?.value ?? 0;
-    // 中心からの位置でテキスト揃えを決定
-    const anchor = x < 145 ? 'end' : x > 185 ? 'start' : 'middle';
-    const dy = y < 100 ? -4 : 4;
-    return (
-      <g>
-        <text x={x} y={y - 8 + dy} textAnchor={anchor} style={{ fill: '#FCD34D', fontSize: 15, fontWeight: 'bold', fontFamily: 'monospace' }}>
-          {score}
-        </text>
-        <text x={x} y={y + 8 + dy} textAnchor={anchor} style={{ fill: '#F59E0B', fontSize: 9 }}>
-          {payload?.value}
-        </text>
-      </g>
-    );
-  };
+// ─── カスタムSVGスターレーダーチャート ─────────────────────────────
+const STAR_CX = 150;
+const STAR_CY = 150;
+const STAR_MAX_R = 85;
+const STAR_INNER_RATIO = 0.42;
+const STAR_LABEL_R = STAR_MAX_R * 1.42;
+const N_AXES = 5;
+
+function toRad(deg: number) { return (deg * Math.PI) / 180; }
+function axisAngle(i: number) { return toRad(-90 + (360 / N_AXES) * i); }
+function innerAngle(i: number) { return toRad(-90 + (360 / N_AXES) * i + 180 / N_AXES); }
+function axisXY(i: number, frac: number) {
+  return { x: STAR_CX + Math.cos(axisAngle(i)) * STAR_MAX_R * frac, y: STAR_CY + Math.sin(axisAngle(i)) * STAR_MAX_R * frac };
+}
+function innerXY(i: number, frac: number) {
+  return { x: STAR_CX + Math.cos(innerAngle(i)) * STAR_MAX_R * STAR_INNER_RATIO * frac, y: STAR_CY + Math.sin(innerAngle(i)) * STAR_MAX_R * STAR_INNER_RATIO * frac };
+}
+function starPath(frac: number) {
+  const pts: string[] = [];
+  for (let i = 0; i < N_AXES; i++) {
+    const a = axisXY(i, frac); pts.push(`${a.x.toFixed(1)},${a.y.toFixed(1)}`);
+    const b = innerXY(i, frac); pts.push(`${b.x.toFixed(1)},${b.y.toFixed(1)}`);
+  }
+  return `M ${pts.join(' L ')} Z`;
+}
+
+function StarRadarChart({ data }: { data: { axis: string; value: number }[] }) {
+  const dataPath = data.map((d, i) => {
+    const frac = d.value / 100;
+    const p = axisXY(i, frac);
+    return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+  }).join(' L ');
+
+  return (
+    <svg viewBox="0 0 300 300" width="100%" style={{ display: 'block' }}>
+      {/* グリッドスター */}
+      {[0.25, 0.5, 0.75, 1].map(f => (
+        <path key={f} d={starPath(f)} fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth={1} />
+      ))}
+      {/* 軸線 */}
+      {data.map((_, i) => {
+        const tip = axisXY(i, 1);
+        return <line key={i} x1={STAR_CX} y1={STAR_CY} x2={tip.x} y2={tip.y} stroke="rgba(255,255,255,0.18)" strokeWidth={1} />;
+      })}
+      {/* データポリゴン */}
+      <path d={`M ${dataPath} Z`} fill="#F59E0B" fillOpacity={0.5} stroke="#FCD34D" strokeWidth={2} strokeLinejoin="round" />
+      {/* データ点 */}
+      {data.map((d, i) => {
+        const p = axisXY(i, d.value / 100);
+        return <circle key={i} cx={p.x} cy={p.y} r={3.5} fill="#FCD34D" />;
+      })}
+      {/* 軸ラベル（スコア + 軸名） */}
+      {data.map((d, i) => {
+        const angle = axisAngle(i);
+        const lx = STAR_CX + Math.cos(angle) * STAR_LABEL_R;
+        const ly = STAR_CY + Math.sin(angle) * STAR_LABEL_R;
+        const anchor = lx < STAR_CX - 10 ? 'end' : lx > STAR_CX + 10 ? 'start' : 'middle';
+        return (
+          <g key={i}>
+            <text x={lx} y={ly - 7} textAnchor={anchor} fill="#FCD34D" fontSize={13} fontWeight="bold" fontFamily="monospace">{d.value}</text>
+            <text x={lx} y={ly + 8} textAnchor={anchor} fill="#F59E0B" fontSize={10}>{d.axis}</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
 }
 
 // ─── メイン ────────────────────────────────────────────────────────
@@ -118,6 +166,9 @@ export default function Profile() {
   const [reactionsGiven, setReactionsGiven] = useState<number | null>(null);
   const [birthdayPosts, setBirthdayPosts] = useState<number | null>(null);
   const [collabPosts, setCollabPosts] = useState<number | null>(null);
+
+  // バッジタップ表示
+  const [selectedBadge, setSelectedBadge] = useState<number | null>(null);
 
   // 地域フィルター（Calendar/Discoverと共有）
   const [filterMode, setFilterMode] = useState<FilterMode>(() => loadRegionFilter().filterMode);
@@ -390,45 +441,63 @@ export default function Profile() {
             </div>
           </section>
 
-          {/* ── ファンスター ───────────────────────── */}
+          {/* ── ファンスター & 実績バッジ ──────────── */}
           <section>
-            <p className="text-label-tertiary text-xs mb-3">ファンスター</p>
-            <div className="rounded-xl shadow-card px-2 py-6" style={{ backgroundColor: '#111118' }}>
+            <p className="text-label-tertiary text-xs mb-3">ファンスター & 実績</p>
+            <div className="rounded-xl shadow-card px-3 pt-5 pb-4" style={{ backgroundColor: '#111118' }}>
+              {/* スターレーダー */}
               {radarData ? (
-                <ResponsiveContainer width="100%" height={240}>
-                  <RadarChart data={radarData} margin={{ top: 20, right: 40, bottom: 20, left: 40 }}>
-                    <PolarGrid stroke="rgba(255,255,255,0.12)" />
-                    <PolarAngleAxis dataKey="axis" tick={makeCustomTick(radarData) as React.FC} />
-                    <Radar dataKey="value" stroke="#FCD34D" fill="#F59E0B" fillOpacity={0.55} strokeWidth={2} />
-                  </RadarChart>
-                </ResponsiveContainer>
+                <StarRadarChart data={radarData} />
               ) : (
                 <div className="h-[240px] flex items-center justify-center">
                   <p className="text-sm" style={{ color: '#F59E0B' }}>読み込み中…</p>
                 </div>
               )}
-            </div>
-          </section>
 
-          {/* ── 実績バッジ ─────────────────────────── */}
-          <section>
-            <p className="text-label-tertiary text-xs mb-3">実績</p>
-            <div className="rounded-xl shadow-card px-4 py-4" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-              <div className="grid grid-cols-4 gap-3">
-                {BADGES.map(badge => {
+              {/* 区切り */}
+              <div className="my-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }} />
+
+              {/* バッジグリッド */}
+              <div className="grid grid-cols-4 gap-3 px-1">
+                {BADGES.map((badge, i) => {
                   const unlocked = statsReady && badge.check(achStats);
+                  const active = selectedBadge === i;
                   return (
-                    <div key={badge.label} className="flex flex-col items-center gap-1" style={{ opacity: unlocked ? 1 : 0.3, filter: unlocked ? 'none' : 'grayscale(1)' }}>
-                      <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl"
-                        style={{ backgroundColor: unlocked ? 'color-mix(in srgb, var(--accent-color) 12%, transparent)' : 'var(--bg-primary)' }}>
+                    <button
+                      key={badge.label}
+                      onClick={() => setSelectedBadge(active ? null : i)}
+                      className="flex flex-col items-center active:scale-90 transition-transform"
+                    >
+                      <div
+                        className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl"
+                        style={{
+                          opacity: unlocked ? 1 : 0.25,
+                          filter: unlocked ? 'none' : 'grayscale(1)',
+                          backgroundColor: active ? 'rgba(245,158,11,0.22)' : 'rgba(255,255,255,0.06)',
+                          border: active ? '1.5px solid #F59E0B' : '1.5px solid transparent',
+                        }}
+                      >
                         {badge.emoji}
                       </div>
-                      <p className="text-[10px] text-label-secondary text-center leading-tight">{badge.label}</p>
-                      <p className="text-[9px] text-label-tertiary text-center leading-tight">{badge.desc}</p>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
+
+              {/* バッジ詳細（タップで表示） */}
+              {selectedBadge !== null && (() => {
+                const b = BADGES[selectedBadge];
+                const unlocked = statsReady && b.check(achStats);
+                return (
+                  <div className="mt-4 px-3 py-3 rounded-xl flex items-center gap-3" style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}>
+                    <span className="text-2xl">{b.emoji}</span>
+                    <div>
+                      <p className="text-sm font-semibold" style={{ color: unlocked ? '#FCD34D' : 'rgba(255,255,255,0.4)' }}>{b.label}</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>{b.desc}{!unlocked && ' （未解除）'}</p>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </section>
 
