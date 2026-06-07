@@ -102,8 +102,10 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
 
   // syndication API から画像URLを取得
   let imageUrl: string | null = null;
+  console.log('[img] syndication:', syndicationData ? 'ok' : 'null');
   if (syndicationData) {
     const photos = syndicationData.photos as Array<{ url: string }> | undefined;
+    console.log('[img] photos:', photos?.length ?? 0);
     if (photos?.length) {
       const urls = photos.map(p => p.url);
       imageUrl = urls.length === 1 ? urls[0] : JSON.stringify(urls);
@@ -181,18 +183,23 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
         headers: { 'User-Agent': 'Twitterbot/1.0' },
         signal: AbortSignal.timeout(4000),
       });
+      console.log('[img] og:image fetch status:', pageRes.status);
       if (pageRes.ok) {
         const pageHtml = await pageRes.text();
         const ogMatch =
           pageHtml.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/i) ??
           pageHtml.match(/<meta[^>]+content="([^"]+)"[^>]+property="og:image"/i);
         const ogUrl = ogMatch?.[1];
+        console.log('[img] og:image url:', ogUrl ?? 'none');
         if (ogUrl && !ogUrl.includes('abs.twimg.com') && !ogUrl.includes('twitter.com/images')) {
           imageUrl = ogUrl;
         }
       }
-    } catch {}
+    } catch (e) {
+      console.log('[img] og:image error:', e);
+    }
   }
+  console.log('[img] final imageUrl:', imageUrl ?? 'null');
 
   const textContent = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   let text = `投稿者: ${data.author_name ?? ''}\n内容: ${textContent}`;
