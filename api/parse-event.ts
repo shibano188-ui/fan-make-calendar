@@ -91,6 +91,7 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
       `https://api.fxtwitter.com/status/${tweetId}`,
       { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(6000) },
     );
+    console.log(`FX status=${fxRes.status} id=${tweetId}`);
     if (fxRes.ok) {
       const fxData = await fxRes.json() as {
         tweet?: {
@@ -101,6 +102,7 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
         };
       };
       const tweet = fxData.tweet;
+      console.log(`FX tweet.text=${tweet?.text?.slice(0,50)} photos=${tweet?.media?.photos?.length ?? 0} links=${tweet?.links?.length ?? 0}`);
       if (tweet?.text) {
         // 画像
         let imageUrl: string | null = null;
@@ -270,9 +272,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // ────────────────────────────────────────────────────────────
 
     const isTweet = /twitter\.com|x\.com/.test(processUrl);
+    console.log(`URL_IN=${url} PROC=${processUrl} TWEET=${isTweet}`);
 
     if (isTweet) {
       const { text: pageText, imageUrl: tweetImageUrl } = await fetchTweetContent(processUrl);
+      console.log(`PAGE_TEXT_SNIPPET=${pageText.slice(0,80)} IMG=${tweetImageUrl?.slice(0,40)??'null'}`);
       // sharedText（X アプリが Web Share で送ってきたツイート本文）があれば先頭に追加
       const tweetContext = sharedText
         ? `ポスト本文（X アプリより直接）: ${sharedText}\n\n${pageText}`
