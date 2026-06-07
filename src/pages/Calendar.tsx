@@ -22,6 +22,7 @@ import UserSettingsSheet from '../components/UserSettingsSheet';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import SmartInputPanel, { type ParsedEvent } from '../components/SmartInputPanel';
+import MemoText from '../components/MemoText';
 import type { CalendarEvent } from '../types';
 
 export type { CalendarEvent };
@@ -1873,7 +1874,7 @@ export default function Calendar() {
                         </div>
                       )}
                       {/* メモ（❤️の前） */}
-                      {sheetDetailEvent.memo && <p className="text-label-secondary text-sm leading-relaxed whitespace-pre-wrap">{sheetDetailEvent.memo}</p>}
+                      {sheetDetailEvent.memo && <MemoText text={sheetDetailEvent.memo} className="text-label-secondary text-sm leading-relaxed" />}
                       {/* リンク */}
                       {parseLinks(sheetDetailEvent.link).map((url, i) => (
                         <a key={i} href={url} target="_blank" rel="noopener noreferrer"
@@ -2283,7 +2284,7 @@ export default function Calendar() {
                 </div>
               )}
               {/* メモ（❤️の前） */}
-              {listDetailEvent.memo && <p className="text-label-secondary text-sm leading-relaxed whitespace-pre-wrap">{listDetailEvent.memo}</p>}
+              {listDetailEvent.memo && <MemoText text={listDetailEvent.memo} className="text-label-secondary text-sm leading-relaxed" />}
               {/* リンク */}
               {parseLinks(listDetailEvent.link).map((url, i) => (
                 <a key={i} href={url} target="_blank" rel="noopener noreferrer"

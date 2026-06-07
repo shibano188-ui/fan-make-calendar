@@ -11,6 +11,7 @@ import { REACTIONS, type ReactionType } from '../lib/reactions';
 import { incrementTotalLikesGiven } from '../lib/constants';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
 import UserProfileModal from '../components/UserProfileModal';
+import MemoText from '../components/MemoText';
 
 // ─── いいねセッション（localStorage）────────────────────────────────
 
@@ -200,7 +201,7 @@ function EventCard({
 
       {/* メモ */}
       {event.memo && (
-        <p className="text-label-secondary text-sm leading-relaxed whitespace-pre-wrap">{event.memo}</p>
+        <MemoText text={event.memo} className="text-label-secondary text-sm leading-relaxed" />
       )}
 
       {/* リンクチップ */}

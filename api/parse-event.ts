@@ -34,13 +34,25 @@ ${BASE_RULES}
 
 ${SCHEMA('補足情報・注意事項 or null')}`;
 
+const TWEET_MEMO_RULES = `
+【memoフィールドのルール（Xポスト解析時）】
+ポスト内容から以下の項目が含まれる場合のみ、各項目を「項目名: 内容」の形式で改行区切りで記述すること。
+ない項目は完全に省略。全項目なければnull。推測・捏造厳禁。
+- 参加方法: 抽選/先着/自由入場など
+- 料金・コスト: 金額・購入条件
+- 特典・限定: 特典内容
+- 締切・重要日程: 申込締切など
+- 注意点: 本人確認の有無など
+- リンク: URL（アクセス先の簡単な説明）※ポストにURLや【ポスト内の外部リンク】があれば必ず記載`;
+
 const EXTRACT_PROMPT_TWEET = `以下のXポストから、含まれるイベント・予定をすべて抽出してください。
 1件のみの場合も必ず配列で返してください。
 日本語で回答し、情報がない・不明な場合はnullを設定してください。
 必ずJSON配列のみを返してください（余計な説明不要）。
 ${BASE_RULES}
+${TWEET_MEMO_RULES}
 
-${SCHEMA('ポスト内容の要約を2〜3文で（重要な情報・注意事項を含める）or null')}`;
+${SCHEMA('上記ルールに従ったメモ文字列（改行は\\nで表現）or null')}`;
 
 async function fetchPageText(url: string): Promise<string> {
   try {
@@ -52,7 +64,23 @@ async function fetchPageText(url: string): Promise<string> {
       if (oembed.ok) {
         const data = await oembed.json() as { html?: string; author_name?: string };
         const html = data.html ?? '';
-        return `投稿者: ${data.author_name ?? ''}\n内容: ${html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()}`;
+        // Extract external link (href + link text) before stripping HTML tags
+        const linkRe = /<a\s[^>]*href="(https?:\/\/[^"]+)"[^>]*>([^<]*)<\/a>/gi;
+        const externalLinks: string[] = [];
+        let m: RegExpExecArray | null;
+        while ((m = linkRe.exec(html)) !== null) {
+          const [, href, text] = m;
+          if (!href.includes('twitter.com') && !href.includes('x.com')) {
+            const t = text.trim();
+            externalLinks.push(t && t !== href ? `${t}（${href}）` : href);
+          }
+        }
+        const textContent = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        let result = `投稿者: ${data.author_name ?? ''}\n内容: ${textContent}`;
+        if (externalLinks.length > 0) {
+          result += `\n【ポスト内の外部リンク】${externalLinks.join(' / ')}`;
+        }
+        return result;
       }
     }
     const res = await fetch(url, {
