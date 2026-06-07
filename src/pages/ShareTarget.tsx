@@ -10,13 +10,20 @@ const clean = (v: unknown): string | null => {
   return String(v);
 };
 
+const isUrlOnly = (s: string) => /^https?:\/\/\S+$/.test(s.trim());
+
 export default function ShareTarget() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [status, setStatus] = useState<Status>('parsing');
 
+  // X アプリは url=ツイートURL, text=ツイート本文 を別々に送ってくる
   const sharedUrl = searchParams.get('url') || searchParams.get('text') || '';
   const sharedTitle = searchParams.get('title') || '';
+  // url パラムが存在する場合、text パラムはツイート本文なので API に渡す
+  const rawText = searchParams.get('url') ? (searchParams.get('text') || '') : '';
+  // URL だけの場合は本文ではないので除外
+  const sharedText = rawText && !isUrlOnly(rawText) ? rawText : '';
 
   useEffect(() => {
     if (!sharedUrl) {
@@ -26,18 +33,36 @@ export default function ShareTarget() {
 
     const mode = loadShareMode();
 
-    fetch('/api/parse-event', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: sharedUrl }),
-    })
-      .then(res => {
-        if (!res.ok) throw new Error('parse failed');
-        return res.json();
-      })
-      .then(raw => {
-        const arr = Array.isArray(raw) ? raw : [raw];
-        const first = arr[0] ?? {};
+    const MAX_RETRIES = 3;
+
+    const attemptParse = async (): Promise<unknown[]> => {
+      let lastError: string | null = null;
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        try {
+          const res = await fetch('/api/parse-event', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              url: sharedUrl,
+              ...(sharedText ? { sharedText } : {}),
+            }),
+          });
+          if (!res.ok) throw new Error(`${res.status}`);
+          const raw = await res.json();
+          const arr: unknown[] = Array.isArray(raw) ? raw : [raw];
+          const first = arr[0] as Record<string, unknown> | undefined;
+          if (clean(first?.title)) return arr;
+          throw new Error('no title');
+        } catch (e) {
+          lastError = e instanceof Error ? e.message : '不明';
+        }
+      }
+      throw new Error(lastError ?? '解析失敗');
+    };
+
+    attemptParse()
+      .then(arr => {
+        const first = (arr[0] ?? {}) as Record<string, unknown>;
         const parsed = {
           title:          clean(first.title) ?? (sharedTitle || null),
           date:           clean(first.date),
