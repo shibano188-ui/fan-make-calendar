@@ -3,21 +3,21 @@ import Groq from 'groq-sdk';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
+// t.co を実URLに解決（GET + redirect follow で確実に取得）
 async function resolveUrl(url: string): Promise<string> {
   if (!url.includes('t.co/')) return url;
   try {
     const res = await fetch(url, {
-      method: 'HEAD',
+      method: 'GET',
       redirect: 'follow',
-      headers: { 'User-Agent': 'Mozilla/5.0' },
-      signal: AbortSignal.timeout(3000),
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FanHive/1.0)' },
+      signal: AbortSignal.timeout(4000),
     });
     const final = res.url;
-    if (final.includes('twitter.com') || final.includes('x.com') || final.includes('t.co/')) return '';
+    if (/twitter\.com|x\.com|t\.co\//.test(final)) return '';
     return final;
   } catch { return url; }
 }
-
 
 const BASE_RULES = `
 【終了日・終了時刻の抽出ルール】
@@ -79,64 +79,113 @@ ${TWEET_MEMO_RULES}
 
 ${SCHEMA('上記ルールに従ったメモ文字列（改行は\\nで表現）or null')}`;
 
-async function fetchTweetImages(url: string): Promise<string | null> {
-  const m = url.match(/\/status\/(\d+)/);
-  if (!m) return null;
-  try {
-    const res = await fetch(
-      `https://cdn.syndication.twimg.com/tweet-result?id=${m[1]}&lang=ja`,
-      { signal: AbortSignal.timeout(4000) },
+type TweetContent = { text: string; imageUrl: string | null };
+
+// ツイートのテキスト・外部リンク・画像をまとめて取得
+async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
+  const tweetId = tweetUrl.match(/\/status\/(\d+)/)?.[1];
+
+  // oEmbed と syndication API を並行取得
+  const [oembedRes, syndicationData] = await Promise.all([
+    fetch(
+      `https://publish.twitter.com/oembed?url=${encodeURIComponent(tweetUrl)}&omit_script=true`,
+    ).catch(() => null),
+    tweetId
+      ? fetch(
+          `https://cdn.syndication.twimg.com/tweet-result?id=${tweetId}&lang=ja`,
+          { signal: AbortSignal.timeout(4000) },
+        )
+          .then(r => (r.ok ? (r.json() as Promise<Record<string, unknown>>) : null))
+          .catch(() => null)
+      : Promise.resolve(null),
+  ]);
+
+  // syndication API から画像URLを取得
+  let imageUrl: string | null = null;
+  if (syndicationData) {
+    const photos = syndicationData.photos as Array<{ url: string }> | undefined;
+    if (photos?.length) {
+      const urls = photos.map(p => p.url);
+      imageUrl = urls.length === 1 ? urls[0] : JSON.stringify(urls);
+    }
+  }
+
+  if (!oembedRes?.ok) return { text: `URL: ${tweetUrl}`, imageUrl };
+
+  const data = await oembedRes.json() as { html?: string; author_name?: string };
+  const html = data.html ?? '';
+
+  // oEmbed HTML から href + visible text を抽出
+  const linkRe = /<a\s[^>]*href="(https?:\/\/[^"]+)"[^>]*>([^<]*)<\/a>/gi;
+  const rawLinks: { href: string; text: string }[] = [];
+  let lm: RegExpExecArray | null;
+  while ((lm = linkRe.exec(html)) !== null) {
+    const [, href, linkText] = lm;
+    if (!href.includes('twitter.com') && !href.includes('x.com')) {
+      rawLinks.push({ href, text: linkText.trim() });
+    }
+  }
+
+  // t.co を並行解決
+  const resolved = await Promise.all(
+    rawLinks.map(async ({ href, text }) => ({
+      href,
+      text,
+      final: await resolveUrl(href),
+    })),
+  );
+
+  const externalLinks: string[] = [];
+  const imgFromLinks: string[] = [];
+
+  for (const { href, text, final } of resolved) {
+    // pbs.twimg.com = 画像
+    if (/pbs\.twimg\.com|twimg\.com/.test(final)) {
+      imgFromLinks.push(final);
+      continue;
+    }
+    // twitter/x 系は除外
+    if (!final || /twitter\.com|x\.com/.test(final)) continue;
+
+    // visible text（例: "heart-ltd.jp/product/110688/"）を利用
+    const isVisibleUrl = text && !text.includes('t.co') && text !== href;
+    const visibleClean = isVisibleUrl ? text.replace(/….*$/, '') : '';
+
+    // t.co 解決失敗時は visible text から https:// で補完
+    const resolvedFinal = final.includes('t.co/')
+      ? visibleClean
+        ? `https://${visibleClean.replace(/^https?:\/\//, '')}`
+        : ''
+      : final;
+
+    if (!resolvedFinal) continue;
+    // 重複除外
+    if (externalLinks.some(l => l.includes(resolvedFinal.split('?')[0]))) continue;
+
+    externalLinks.push(
+      visibleClean && visibleClean !== resolvedFinal
+        ? `${visibleClean}（${resolvedFinal}）`
+        : resolvedFinal,
     );
-    if (!res.ok) return null;
-    const data = await res.json() as Record<string, unknown>;
-    const photos = data.photos as Array<{ url: string }> | undefined;
-    if (!photos || photos.length === 0) return null;
-    const urls = photos.map(p => p.url);
-    return urls.length === 1 ? urls[0] : JSON.stringify(urls);
-  } catch {}
-  return null;
+  }
+
+  // syndication で画像が取れなかった場合、link 解決結果をフォールバック
+  if (!imageUrl && imgFromLinks.length > 0) {
+    imageUrl = imgFromLinks.length === 1 ? imgFromLinks[0] : JSON.stringify(imgFromLinks);
+  }
+
+  const textContent = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  let text = `投稿者: ${data.author_name ?? ''}\n内容: ${textContent}`;
+  if (externalLinks.length > 0) {
+    text += `\n【ポスト内の外部リンク】${externalLinks.join(' / ')}`;
+  }
+  return { text, imageUrl };
 }
 
 async function fetchPageText(url: string): Promise<string> {
   try {
-    const isTwitter = /twitter\.com|x\.com/.test(url);
-    if (isTwitter) {
-      const oembed = await fetch(
-        `https://publish.twitter.com/oembed?url=${encodeURIComponent(url)}&omit_script=true`,
-      );
-      if (oembed.ok) {
-        const data = await oembed.json() as { html?: string; author_name?: string };
-        const html = data.html ?? '';
-        // href+text を抽出し、t.co を並行解決
-        const linkRe = /<a\s[^>]*href="(https?:\/\/[^"]+)"[^>]*>([^<]*)<\/a>/gi;
-        const rawLinks: { href: string; text: string }[] = [];
-        let lm: RegExpExecArray | null;
-        while ((lm = linkRe.exec(html)) !== null) {
-          const [, href, text] = lm;
-          if (!href.includes('twitter.com') && !href.includes('x.com')) {
-            rawLinks.push({ href, text: text.trim() });
-          }
-        }
-        const resolved = await Promise.all(
-          rawLinks.map(async ({ href, text }) => {
-            const final = await resolveUrl(href);
-            if (!final) return null;
-            return (text && !text.includes('t.co') && text !== href)
-              ? `${text}（${final}）`
-              : final;
-          }),
-        );
-        const externalLinks = resolved.filter((l): l is string => !!l);
-        const textContent = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        let result = `投稿者: ${data.author_name ?? ''}\n内容: ${textContent}`;
-        if (externalLinks.length > 0) {
-          result += `\n【ポスト内の外部リンク】${externalLinks.join(' / ')}`;
-        }
-        return result;
-      }
-    }
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FanMakeCalendar/1.0)' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FanHive/1.0)' },
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return `URL: ${url}`;
@@ -154,6 +203,17 @@ async function fetchPageText(url: string): Promise<string> {
   }
 }
 
+function parseRawText(rawText: string): unknown[] {
+  const arrayMatch = rawText.match(/\[[\s\S]*\]/);
+  const objectMatch = rawText.match(/\{[\s\S]*\}/);
+  if (arrayMatch) {
+    const arr = JSON.parse(arrayMatch[0]);
+    return Array.isArray(arr) ? arr : [arr];
+  }
+  if (objectMatch) return [JSON.parse(objectMatch[0])];
+  throw new Error('Could not parse AI response');
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).end();
 
@@ -168,8 +228,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    let rawText: string;
-
     if (imageBase64) {
       const completion = await groq.chat.completions.create({
         model: 'meta-llama/llama-4-scout-17b-16e-instruct',
@@ -177,42 +235,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         messages: [{
           role: 'user',
           content: [
-            {
-              type: 'image_url',
-              image_url: { url: `data:${mimeType ?? 'image/jpeg'};base64,${imageBase64}` },
-            },
+            { type: 'image_url', image_url: { url: `data:${mimeType ?? 'image/jpeg'};base64,${imageBase64}` } },
             { type: 'text', text: `この画像のイベント情報を抽出してください。\n\n${EXTRACT_PROMPT}` },
           ],
         }],
       });
-      rawText = completion.choices[0]?.message?.content ?? '';
-    } else {
-      const isTweet = /twitter\.com|x\.com/.test(url!);
-      const [pageText, tweetImageUrl] = await Promise.all([
-        fetchPageText(url!),
-        isTweet ? fetchTweetImages(url!) : Promise.resolve(null),
-      ]);
-      const prompt = isTweet ? EXTRACT_PROMPT_TWEET : EXTRACT_PROMPT;
+      const rawText = completion.choices[0]?.message?.content ?? '';
+      try {
+        return res.status(200).json(parseRawText(rawText));
+      } catch {
+        return res.status(422).json({ error: 'Could not parse response' });
+      }
+    }
+
+    const isTweet = /twitter\.com|x\.com/.test(url!);
+
+    if (isTweet) {
+      const { text: pageText, imageUrl: tweetImageUrl } = await fetchTweetContent(url!);
       const completion = await groq.chat.completions.create({
         model: 'llama-3.3-70b-versatile',
-        max_tokens: 768,
-        messages: [{
-          role: 'user',
-          content: `${pageText}\n\n---\n${prompt}`,
-        }],
+        max_tokens: 800,
+        messages: [{ role: 'user', content: `${pageText}\n\n---\n${EXTRACT_PROMPT_TWEET}` }],
       });
-      rawText = completion.choices[0]?.message?.content ?? '';
-
-      const arrayMatch = rawText.match(/\[[\s\S]*\]/);
-      const objectMatch = rawText.match(/\{[\s\S]*\}/);
-      if (!arrayMatch && !objectMatch) return res.status(422).json({ error: 'Could not parse response' });
-
+      const rawText = completion.choices[0]?.message?.content ?? '';
       let parsed: unknown[];
-      if (arrayMatch) {
-        const arr = JSON.parse(arrayMatch[0]);
-        parsed = Array.isArray(arr) ? arr : [arr];
-      } else {
-        parsed = [JSON.parse(objectMatch![0])];
+      try {
+        parsed = parseRawText(rawText);
+      } catch {
+        return res.status(422).json({ error: 'Could not parse response' });
       }
       if (tweetImageUrl) {
         parsed.forEach(e => { (e as Record<string, unknown>).imageUrl = tweetImageUrl; });
@@ -220,18 +270,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json(parsed);
     }
 
-    const arrayMatch = rawText.match(/\[[\s\S]*\]/);
-    const objectMatch = rawText.match(/\{[\s\S]*\}/);
-    if (!arrayMatch && !objectMatch) return res.status(422).json({ error: 'Could not parse response' });
-
-    let parsed: unknown[];
-    if (arrayMatch) {
-      const arr = JSON.parse(arrayMatch[0]);
-      parsed = Array.isArray(arr) ? arr : [arr];
-    } else {
-      parsed = [JSON.parse(objectMatch![0])];
+    // 通常URL
+    const pageText = await fetchPageText(url!);
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: 768,
+      messages: [{ role: 'user', content: `${pageText}\n\n---\n${EXTRACT_PROMPT}` }],
+    });
+    const rawText = completion.choices[0]?.message?.content ?? '';
+    try {
+      return res.status(200).json(parseRawText(rawText));
+    } catch {
+      return res.status(422).json({ error: 'Could not parse response' });
     }
-    return res.status(200).json(parsed);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(err);
