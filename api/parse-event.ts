@@ -118,7 +118,6 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
   const syn = synResult.status  === 'fulfilled' ? synResult.value  : null;
   const oe  = oeResult.status  === 'fulfilled' ? oeResult.value  : null;
 
-  console.log(`SOURCES fx=${!!fx?.tweet?.text} syn=${!!syn} oe=${!!oe?.html} id=${tweetId}`);
 
   // ── 画像（fxtwitter → syndication の順）
   let imageUrl: string | null = null;
@@ -274,11 +273,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // ────────────────────────────────────────────────────────────
 
     const isTweet = /twitter\.com|x\.com/.test(processUrl);
-    console.log(`URL_IN=${url} PROC=${processUrl} TWEET=${isTweet}`);
 
     if (isTweet) {
       const { text: pageText, imageUrl: tweetImageUrl } = await fetchTweetContent(processUrl);
-      console.log(`PAGE_TEXT_SNIPPET=${pageText.slice(0,80)} IMG=${tweetImageUrl?.slice(0,40)??'null'}`);
       // sharedText（X アプリが Web Share で送ってきたツイート本文）があれば先頭に追加
       const tweetContext = sharedText
         ? `ポスト本文（X アプリより直接）: ${sharedText}\n\n${pageText}`
