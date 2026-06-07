@@ -169,9 +169,29 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
     );
   }
 
-  // syndication で画像が取れなかった場合、link 解決結果をフォールバック
+  // フォールバック①: link 解決で pbs.twimg.com が得られた場合
   if (!imageUrl && imgFromLinks.length > 0) {
     imageUrl = imgFromLinks.length === 1 ? imgFromLinks[0] : JSON.stringify(imgFromLinks);
+  }
+
+  // フォールバック②: ツイートページの og:image（Twitterbot UA で取得）
+  if (!imageUrl) {
+    try {
+      const pageRes = await fetch(tweetUrl, {
+        headers: { 'User-Agent': 'Twitterbot/1.0' },
+        signal: AbortSignal.timeout(4000),
+      });
+      if (pageRes.ok) {
+        const pageHtml = await pageRes.text();
+        const ogMatch =
+          pageHtml.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/i) ??
+          pageHtml.match(/<meta[^>]+content="([^"]+)"[^>]+property="og:image"/i);
+        const ogUrl = ogMatch?.[1];
+        if (ogUrl && !ogUrl.includes('abs.twimg.com') && !ogUrl.includes('twitter.com/images')) {
+          imageUrl = ogUrl;
+        }
+      }
+    } catch {}
   }
 
   const textContent = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
