@@ -38,6 +38,8 @@ export default function ShareTarget() {
           title:          clean(raw.title) ?? (sharedTitle || null),
           date:           clean(raw.date),
           time:           clean(raw.time),
+          endDate:        clean(raw.endDate),
+          endTime:        clean(raw.endTime),
           category:       clean(raw.category),
           prefecture:     clean(raw.prefecture),
           locationDetail: clean(raw.locationDetail),
@@ -52,8 +54,8 @@ export default function ShareTarget() {
         // 解析失敗でもURLだけ持ってフォームに渡す
         const fallback = {
           title: sharedTitle || null,
-          date: null, time: null, category: null,
-          prefecture: null, locationDetail: null,
+          date: null, time: null, endDate: null, endTime: null,
+          category: null, prefecture: null, locationDetail: null,
           link: sharedUrl, memo: null,
         };
         sessionStorage.setItem('pendingParsedEvent', JSON.stringify(fallback));
