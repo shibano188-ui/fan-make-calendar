@@ -195,8 +195,6 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
         if (fxPhotos?.length) {
           const urls = fxPhotos.map(p => p.url);
           imageUrl = urls.length === 1 ? urls[0] : JSON.stringify(urls);
-          imgSrc = 'F';
-          photoCount = urls.length;
         }
       }
     } catch {}
