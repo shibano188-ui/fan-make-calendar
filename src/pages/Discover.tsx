@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
 import UserProfileModal from '../components/UserProfileModal';
 import {
-  Heart, Smile, Trash2, SlidersHorizontal, ExternalLink, ChevronLeft, Plus, X,
+  Heart, Smile, Trash2, SlidersHorizontal, ExternalLink, Plus,
   Map as MapIcon, Palette,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
@@ -11,7 +11,7 @@ import Header from '../components/Header';
 import SettingsMenuButton from '../components/SettingsMenuButton';
 import {
   listUpcomingParticipatedEvents, listRecentWorks,
-  setReaction, getMyReactionsBatch, updateEvent, addLikeTap,
+  setReaction, getMyReactionsBatch, addLikeTap,
   getHomePrefecture, getDisplayName, saveHomePrefecture, saveDisplayName,
   deleteEvent,
 } from '../lib/api';
@@ -20,11 +20,11 @@ import type { Work } from '../lib/api';
 import type { CalendarEvent } from '../types';
 import { REACTIONS, type ReactionType } from '../lib/reactions';
 import {
-  POST_CATEGORIES, type PostCategory,
+  POST_CATEGORIES,
   loadCategoryFilters, saveCategoryFilters,
   loadLikedEventIds, addLikedEventId,
   loadCalendarEventIds, addCalendarEventId, saveCalendarEventIds,
-  parseLinks, serializeLinks, getCategoryColor,
+  getCategoryColor,
   loadRegionFilter, saveRegionFilter, type FilterMode,
   incrementTotalLikesGiven,
 } from '../lib/constants';
@@ -58,8 +58,6 @@ function loadMyReactions(): Record<string, ReactionType> {
   try { return JSON.parse(localStorage.getItem(REACTIONS_KEY) ?? '{}'); } catch { return {}; }
 }
 
-const inputCls =
-  'w-full bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong';
 
 function fmtDate(dateStr: string): string {
   const [, m, d] = dateStr.split('-');
@@ -144,14 +142,6 @@ export default function Discover() {
   };
 
   // 編集パネル
-  const [editEventId, setEditEventId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<{
-    title: string; date: string; time: string; endDate: string; endTime: string;
-    category: PostCategory | ''; customCategory: string;
-    prefecture: string; locationDetail: string; locationMapLink: string; links: string[]; memo: string;
-  } | null>(null);
-  const [editSubmitting, setEditSubmitting] = useState(false);
-  const [editError, setEditError] = useState('');
 
   // 作品カラーMap（CalendarタブのworkColorMapと同じロジック）
   const workColorMap = useMemo(() => {
@@ -334,51 +324,6 @@ export default function Discover() {
     });
     setOpenReactionPickerId(null);
     if (user) setReaction(eventId, user.id, isToggleOff ? null : type).catch(() => {});
-  };
-
-  // 編集パネルを開く
-  const openEdit = (event: CalendarEvent) => {
-    const VALID = POST_CATEGORIES as unknown as string[];
-    setEditEventId(event.id);
-    setEditError('');
-    const existingLinks = parseLinks(event.link);
-    setEditForm({
-      title: event.title,
-      date: event.date,
-      time: event.time ?? '',
-      endDate: event.endDate ?? '',
-      endTime: event.endTime ?? '',
-      category: VALID.includes(event.category ?? '') ? event.category as PostCategory : '',
-      customCategory: !VALID.includes(event.category ?? '') && event.category ? event.category : '',
-      prefecture: event.prefecture ?? '',
-      locationDetail: event.locationDetail ?? '',
-      locationMapLink: event.locationMapLink ?? '',
-      links: existingLinks.length > 0 ? existingLinks : [''],
-      memo: event.memo ?? '',
-    });
-  };
-
-  const handleEditSubmit = async () => {
-    if (!editEventId || !editForm) return;
-    if (!editForm.title.trim() || !editForm.date) { setEditError('タイトルと日付は必須です'); return; }
-    setEditSubmitting(true);
-    setEditError('');
-    try {
-      const category = editForm.category || editForm.customCategory.trim() || undefined;
-      const patch = {
-        title: editForm.title.trim(), date: editForm.date,
-        time: editForm.time || undefined, endDate: editForm.endDate || undefined,
-        endTime: editForm.endTime || undefined, category,
-        prefecture: editForm.prefecture || undefined,
-        locationDetail: editForm.locationDetail || undefined,
-        locationMapLink: editForm.locationMapLink || undefined,
-        link: serializeLinks(editForm.links), memo: editForm.memo.trim() || undefined,
-      };
-      await updateEvent(editEventId, patch);
-      setEvents(prev => prev.map(e => e.id === editEventId ? { ...e, ...patch } : e));
-      setEditEventId(null); setEditForm(null);
-    } catch { setEditError('更新に失敗しました'); }
-    finally { setEditSubmitting(false); }
   };
 
   return (
@@ -728,106 +673,6 @@ export default function Discover() {
           </>
         );
       })()}
-
-      {/* 編集パネル */}
-      {editEventId && editForm && (
-        <>
-          <div className="fixed inset-0 z-[159] bg-black/40" onClick={() => { setEditEventId(null); setEditForm(null); }} />
-          <div
-            className="fixed inset-x-0 max-w-app mx-auto z-[160] rounded-t-2xl overflow-hidden"
-            style={{ bottom: BOTTOM_TAB_H, height: '80vh', backgroundColor: 'var(--bg-primary)', animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both' }}
-          >
-            <div className="absolute inset-x-0 top-0 z-10 rounded-t-2xl" style={{ backgroundColor: 'var(--bg-primary)' }}>
-              <div className="flex justify-center pt-3 pb-1">
-                <div className="w-10 h-1 rounded-full" style={{ backgroundColor: 'var(--border-subtle)' }} />
-              </div>
-              <div className="px-4 pb-2 flex items-center justify-between">
-                <button onClick={() => { setEditEventId(null); setEditForm(null); }} className="flex items-center gap-1 text-xs text-label-tertiary active:opacity-60">
-                  <ChevronLeft size={14} />キャンセル
-                </button>
-                <p className="text-label-primary text-sm font-semibold">予定を編集</p>
-                <button onClick={handleEditSubmit} disabled={editSubmitting} className="text-xs font-semibold px-3 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40" style={{ color: 'var(--accent-color)' }}>
-                  {editSubmitting ? '更新中…' : '保存'}
-                </button>
-              </div>
-              {editError && <p className="text-red-400 text-xs px-4 pb-1">{editError}</p>}
-            </div>
-            <div className="absolute inset-x-0 bottom-0" style={{ top: 60, overflowY: 'scroll', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
-              <div className="px-4 pt-2 pb-8 flex flex-col gap-4">
-                <div>
-                  <label className="text-label-tertiary text-xs mb-1.5 block">タイトル <span className="text-red-400">*</span></label>
-                  <input type="text" value={editForm.title} onChange={e => setEditForm(f => f && ({ ...f, title: e.target.value }))} className={inputCls} />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-label-tertiary text-xs mb-1.5 block">開始日 <span className="text-red-400">*</span></label>
-                    <input type="date" value={editForm.date} onChange={e => setEditForm(f => f && ({ ...f, date: e.target.value }))} className={inputCls} /></div>
-                  <div><label className="text-label-tertiary text-xs mb-1.5 block">開始時間</label>
-                    <input type="time" value={editForm.time} onChange={e => setEditForm(f => f && ({ ...f, time: e.target.value }))} className={inputCls} /></div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-label-tertiary text-xs mb-1.5 block">終了日</label>
-                    <input type="date" value={editForm.endDate} onChange={e => setEditForm(f => f && ({ ...f, endDate: e.target.value }))} className={inputCls} /></div>
-                  <div><label className="text-label-tertiary text-xs mb-1.5 block">終了時間</label>
-                    <input type="time" value={editForm.endTime} onChange={e => setEditForm(f => f && ({ ...f, endTime: e.target.value }))} className={inputCls} /></div>
-                </div>
-                <div>
-                  <label className="text-label-tertiary text-xs mb-1.5 block">カテゴリ</label>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {POST_CATEGORIES.map(cat => (
-                      <button key={cat} type="button"
-                        onClick={() => setEditForm(f => f && ({ ...f, category: f.category === cat ? '' : cat, customCategory: '' }))}
-                        className={`px-3 py-1 rounded-full text-xs border transition-colors ${editForm.category === cat ? 'border-selected text-label-primary bg-label-primary/10' : 'border-default text-label-secondary'}`}>
-                        {cat}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-label-tertiary text-xs flex-shrink-0">その他：</span>
-                    <input type="text" value={editForm.customCategory}
-                      onChange={e => setEditForm(f => f && ({ ...f, customCategory: e.target.value, category: '' }))}
-                      placeholder="自由に入力" className="flex-1 bg-bg-primary rounded-lg px-3 py-1.5 text-xs text-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong" />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-label-tertiary text-xs mb-1.5 block">メモ（任意）</label>
-                  <textarea value={editForm.memo} onChange={e => setEditForm(f => f && ({ ...f, memo: e.target.value }))} rows={3} className={`${inputCls} resize-none`} />
-                </div>
-                <div>
-                  <label className="text-label-tertiary text-xs mb-1.5 block">リンク（任意・複数可）</label>
-                  <div className="flex flex-col gap-2">
-                    {editForm.links.map((lnk, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <input type="url" value={lnk}
-                          onChange={e => {
-                            const next = [...editForm.links];
-                            next[i] = e.target.value;
-                            setEditForm(f => f && ({ ...f, links: next }));
-                          }}
-                          placeholder={i === 0 ? '購入先 / 公式ポストなど' : '追加リンク'}
-                          className={`${inputCls} flex-1`} />
-                        {editForm.links.length > 1 && (
-                          <button type="button"
-                            onClick={() => setEditForm(f => f && ({ ...f, links: f.links.filter((_, j) => j !== i) }))}
-                            className="w-7 h-7 flex items-center justify-center text-label-tertiary active:opacity-60 flex-shrink-0">
-                            <X size={14} />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                    {editForm.links.length < 5 && (
-                      <button type="button"
-                        onClick={() => setEditForm(f => f && ({ ...f, links: [...f.links, ''] }))}
-                        className="flex items-center gap-1 text-xs text-label-tertiary active:opacity-60 mt-0.5 w-fit">
-                        <Plus size={12} />リンクを追加
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
 
       {/* 地域フィルターパネル */}
       {showRegionPanel && (
