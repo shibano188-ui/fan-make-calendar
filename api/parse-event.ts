@@ -3,6 +3,22 @@ import Groq from 'groq-sdk';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
+async function resolveUrl(url: string): Promise<string> {
+  if (!url.includes('t.co/')) return url;
+  try {
+    const res = await fetch(url, {
+      method: 'HEAD',
+      redirect: 'follow',
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(3000),
+    });
+    const final = res.url;
+    if (final.includes('twitter.com') || final.includes('x.com') || final.includes('t.co/')) return '';
+    return final;
+  } catch { return url; }
+}
+
+
 const BASE_RULES = `
 【終了日・終了時刻の抽出ルール】
 - 「〜」「-」「まで」などで期間が示されている場合は必ずendDateを設定する
@@ -36,15 +52,23 @@ ${SCHEMA('補足情報・注意事項 or null')}`;
 
 const TWEET_MEMO_RULES = `
 【memoフィールドのルール（Xポスト解析時）】
-ポスト内容から以下の項目が含まれる場合のみ、各項目を「項目名: 内容」の形式で改行区切りで記述すること。
-情報が見つからない項目は行ごと省略すること（「不明」「なし」「未定」「-」等の記載禁止）。全項目なければnull。推測・捏造厳禁。
+ポスト内容から以下の項目が含まれる場合のみ記述する。
+ポストに記載がない項目はその行を一切出力しない（「不明」「なし」「-」「未定」等の記載禁止）。
+全項目なければnull。推測・捏造厳禁。
+各項目を「項目名: 内容」の形式で改行区切りで記述する。
 - 参加方法: 抽選/先着/自由入場など
 - 料金・コスト: 金額・購入条件
 - 付属品: 付属・同梱されるもの
 - 特典・限定: 特典内容
 - 締切・重要日程: 申込締切など
 - 注意点: 本人確認の有無など
-- リンク: URL（アクセス先の簡単な説明）※ポストにURLや【ポスト内の外部リンク】があれば必ず記載`;
+- リンク: URL（アクセス先の説明）※【ポスト内の外部リンク】があれば必ず記載
+
+【出力例】
+ポストに「抽選、価格3,800円、7/20締切、申込: https://example.com」がある場合:
+"参加方法: 抽選\n料金・コスト: 3,800円\n締切・重要日程: 7月20日\nリンク: https://example.com（申込フォーム）"
+
+ポストにこれらの情報が一切ない場合: null`;
 
 const EXTRACT_PROMPT_TWEET = `以下のXポストから、含まれるイベント・予定をすべて抽出してください。
 1件のみの場合も必ず配列で返してください。
@@ -83,17 +107,26 @@ async function fetchPageText(url: string): Promise<string> {
       if (oembed.ok) {
         const data = await oembed.json() as { html?: string; author_name?: string };
         const html = data.html ?? '';
-        // Extract external link (href + link text) before stripping HTML tags
+        // href+text を抽出し、t.co を並行解決
         const linkRe = /<a\s[^>]*href="(https?:\/\/[^"]+)"[^>]*>([^<]*)<\/a>/gi;
-        const externalLinks: string[] = [];
-        let m: RegExpExecArray | null;
-        while ((m = linkRe.exec(html)) !== null) {
-          const [, href, text] = m;
+        const rawLinks: { href: string; text: string }[] = [];
+        let lm: RegExpExecArray | null;
+        while ((lm = linkRe.exec(html)) !== null) {
+          const [, href, text] = lm;
           if (!href.includes('twitter.com') && !href.includes('x.com')) {
-            const t = text.trim();
-            externalLinks.push(t && t !== href ? `${t}（${href}）` : href);
+            rawLinks.push({ href, text: text.trim() });
           }
         }
+        const resolved = await Promise.all(
+          rawLinks.map(async ({ href, text }) => {
+            const final = await resolveUrl(href);
+            if (!final) return null;
+            return (text && !text.includes('t.co') && text !== href)
+              ? `${text}（${final}）`
+              : final;
+          }),
+        );
+        const externalLinks = resolved.filter((l): l is string => !!l);
         const textContent = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
         let result = `投稿者: ${data.author_name ?? ''}\n内容: ${textContent}`;
         if (externalLinks.length > 0) {
