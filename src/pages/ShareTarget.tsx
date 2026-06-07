@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Loader2, CheckCircle, AlertCircle, Inbox } from 'lucide-react';
+import { loadShareMode, addToEventQueue } from '../lib/constants';
 
-type Status = 'parsing' | 'done' | 'error';
+type Status = 'parsing' | 'done' | 'stocked' | 'error';
 
 const clean = (v: unknown): string | null => {
   if (v === null || v === undefined || v === 'null' || v === '') return null;
@@ -14,7 +15,6 @@ export default function ShareTarget() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<Status>('parsing');
 
-  // Web Share Target は url, text, title のいずれかでURLを渡してくる
   const sharedUrl = searchParams.get('url') || searchParams.get('text') || '';
   const sharedTitle = searchParams.get('title') || '';
 
@@ -23,6 +23,8 @@ export default function ShareTarget() {
       navigate('/calendar', { replace: true });
       return;
     }
+
+    const mode = loadShareMode();
 
     fetch('/api/parse-event', {
       method: 'POST',
@@ -48,21 +50,32 @@ export default function ShareTarget() {
           link:           sharedUrl,
           memo:           clean(first.memo),
         };
-        sessionStorage.setItem('pendingParsedEvent', JSON.stringify(parsed));
-        setStatus('done');
-        setTimeout(() => navigate('/calendar', { replace: true }), 800);
+
+        if (mode === 'stock') {
+          addToEventQueue(parsed);
+          setStatus('stocked');
+        } else {
+          sessionStorage.setItem('pendingParsedEvent', JSON.stringify(parsed));
+          setStatus('done');
+          setTimeout(() => navigate('/calendar', { replace: true }), 800);
+        }
       })
       .catch(() => {
-        // 解析失敗でもURLだけ持ってフォームに渡す
         const fallback = {
           title: sharedTitle || null,
           date: null, time: null, endDate: null, endTime: null,
           category: null, prefecture: null, locationDetail: null,
           link: sharedUrl, memo: null,
         };
-        sessionStorage.setItem('pendingParsedEvent', JSON.stringify(fallback));
-        setStatus('error');
-        setTimeout(() => navigate('/calendar', { replace: true }), 1500);
+
+        if (mode === 'stock') {
+          addToEventQueue(fallback);
+          setStatus('stocked');
+        } else {
+          sessionStorage.setItem('pendingParsedEvent', JSON.stringify(fallback));
+          setStatus('error');
+          setTimeout(() => navigate('/calendar', { replace: true }), 1500);
+        }
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -77,6 +90,16 @@ export default function ShareTarget() {
           <Loader2 size={36} className="animate-spin" style={{ color: 'var(--accent-color)' }} />
           <p className="text-label-primary font-medium text-sm">AIが解析中…</p>
           <p className="text-label-tertiary text-xs text-center break-all line-clamp-2">{sharedUrl}</p>
+        </>
+      )}
+      {status === 'stocked' && (
+        <>
+          <Inbox size={36} style={{ color: 'var(--accent-color)' }} />
+          <p className="text-label-primary font-medium text-sm">ストックしました</p>
+          <p className="text-label-tertiary text-xs text-center">
+            アプリを開くとカレンダーから確認できます
+          </p>
+          <p className="text-label-tertiary text-[11px] mt-2">← スワイプでXに戻れます</p>
         </>
       )}
       {status === 'done' && (

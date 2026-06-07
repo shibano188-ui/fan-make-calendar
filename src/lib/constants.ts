@@ -160,3 +160,45 @@ export function loadRegionFilter(): RegionFilter {
 export function saveRegionFilter(filter: RegionFilter): void {
   localStorage.setItem(REGION_FILTER_KEY, JSON.stringify(filter));
 }
+
+// ─── イベントキュー（Xから共有してストックする機能）──────────────────────
+export type ShareMode = 'stock' | 'immediate';
+const SHARE_MODE_KEY = 'fan_share_mode';
+const EVENT_QUEUE_KEY = 'fan_event_queue';
+
+export interface QueuedEvent {
+  title: string | null;
+  date: string | null;
+  time: string | null;
+  endDate: string | null;
+  endTime: string | null;
+  category: string | null;
+  prefecture: string | null;
+  locationDetail: string | null;
+  link: string | null;
+  memo: string | null;
+  queuedAt: string;
+}
+
+export function loadShareMode(): ShareMode {
+  return (localStorage.getItem(SHARE_MODE_KEY) as ShareMode) ?? 'stock';
+}
+export function saveShareMode(mode: ShareMode): void {
+  localStorage.setItem(SHARE_MODE_KEY, mode);
+}
+export function loadEventQueue(): QueuedEvent[] {
+  try { return JSON.parse(localStorage.getItem(EVENT_QUEUE_KEY) ?? '[]'); } catch { return []; }
+}
+export function addToEventQueue(event: Omit<QueuedEvent, 'queuedAt'>): void {
+  const queue = loadEventQueue();
+  queue.push({ ...event, queuedAt: new Date().toISOString() });
+  localStorage.setItem(EVENT_QUEUE_KEY, JSON.stringify(queue));
+}
+export function removeFromEventQueue(indices: number[]): void {
+  const queue = loadEventQueue();
+  const next = queue.filter((_, i) => !indices.includes(i));
+  localStorage.setItem(EVENT_QUEUE_KEY, JSON.stringify(next));
+}
+export function clearEventQueue(): void {
+  localStorage.removeItem(EVENT_QUEUE_KEY);
+}

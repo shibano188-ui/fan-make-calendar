@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { PREFECTURES } from '../lib/prefectures';
+import { loadShareMode, saveShareMode, type ShareMode } from '../lib/constants';
 
 const inputCls =
   'w-full bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong';
@@ -100,10 +101,16 @@ export default function UserSettingsSheet({
   onSave: (homePref: string | null, displayName: string) => Promise<void>;
   onClose: () => void;
 }) {
-  const [pref, setPref] = useState(homePref ?? '');
-  const [name, setName] = useState(displayName ?? '');
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [pref, setPref]         = useState(homePref ?? '');
+  const [name, setName]         = useState(displayName ?? '');
+  const [saving, setSaving]     = useState(false);
+  const [saved, setSaved]       = useState(false);
+  const [shareMode, setShareMode] = useState<ShareMode>(loadShareMode());
+
+  const handleShareModeChange = (mode: ShareMode) => {
+    setShareMode(mode);
+    saveShareMode(mode);
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -171,6 +178,31 @@ export default function UserSettingsSheet({
               onChange={setPref}
               placeholder="都道府県を検索"
             />
+          </div>
+
+          {/* X共有モード */}
+          <div className="mb-6">
+            <label className="text-label-tertiary text-xs mb-1.5 block">Xから共有したときの動作</label>
+            <div className="flex rounded-xl overflow-hidden" style={{ border: '1px solid var(--border-faint)' }}>
+              {(['stock', 'immediate'] as ShareMode[]).map(mode => (
+                <button
+                  key={mode}
+                  onClick={() => handleShareModeChange(mode)}
+                  className="flex-1 py-2.5 text-xs font-medium transition-colors"
+                  style={{
+                    backgroundColor: shareMode === mode ? 'var(--accent-color)' : 'var(--bg-secondary)',
+                    color: shareMode === mode ? '#fff' : 'var(--label-tertiary)',
+                  }}
+                >
+                  {mode === 'stock' ? '📥 ストック' : '⚡ すぐに追加'}
+                </button>
+              ))}
+            </div>
+            <p className="text-label-tertiary text-[10px] mt-1.5 px-1">
+              {shareMode === 'stock'
+                ? 'キューに貯めてあとでまとめて確認できます'
+                : 'すぐにカレンダーの入力フォームが開きます'}
+            </p>
           </div>
 
           {/* 保存ボタン */}

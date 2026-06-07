@@ -4,7 +4,7 @@ import UserProfileModal from '../components/UserProfileModal';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Palette, Plus, Heart, MoreVertical, Link2, LogOut, Trash2,
-  ChevronDown, ChevronUp, ChevronLeft, X, Settings, Map as MapIcon, ExternalLink, Smile, SlidersHorizontal, Pencil, Star, Bell, Share2,
+  ChevronDown, ChevronUp, ChevronLeft, X, Settings, Map as MapIcon, ExternalLink, Smile, SlidersHorizontal, Pencil, Star, Bell, Share2, Inbox, Check,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
@@ -34,6 +34,7 @@ import {
   loadBellEventIds, saveBellEventIds, toggleBellEventId,
   type FilterMode, saveRegionFilter, loadRegionFilter,
   incrementTotalLikesGiven,
+  loadEventQueue, removeFromEventQueue, type QueuedEvent,
 } from '../lib/constants';
 
 // ─── 定数 ──────────────────────────────────────────────────────────
@@ -563,6 +564,10 @@ export default function Calendar() {
     try { return JSON.parse(raw) as Record<string, string | null>; } catch { return null; }
   });
 
+  const [eventQueue, setEventQueue]       = useState<QueuedEvent[]>(() => loadEventQueue());
+  const [queueSheetOpen, setQueueSheetOpen] = useState(false);
+  const [queueSelected, setQueueSelected] = useState<Set<number>>(new Set());
+
   const shareInitDate = shareData?.date ?? todayStr;
   const [postPanelOpen, setPostPanelOpen] = useState(!!shareData);
   const [postDate, setPostDate] = useState(shareInitDate);
@@ -1019,6 +1024,31 @@ export default function Calendar() {
   useEffect(() => {
     sessionStorage.removeItem('pendingParsedEvent');
   }, []);
+
+  const applyQueueSelected = () => {
+    const indices = Array.from(queueSelected);
+    indices.forEach(i => {
+      if (eventQueue[i]) applyParsedToPost(eventQueue[i]);
+    });
+    removeFromEventQueue(indices);
+    const next = loadEventQueue();
+    setEventQueue(next);
+    setQueueSelected(new Set());
+    if (next.length === 0) setQueueSheetOpen(false);
+    if (!postPanelOpen) { setPostPanelOpen(true); setSheetOpen(true); }
+  };
+
+  const dismissQueue = (indices: number[]) => {
+    removeFromEventQueue(indices);
+    const next = loadEventQueue();
+    setEventQueue(next);
+    setQueueSelected(prev => {
+      const s = new Set(prev);
+      indices.forEach(i => s.delete(i));
+      return s;
+    });
+    if (next.length === 0) setQueueSheetOpen(false);
+  };
 
   // Web Share Target: participatedWorks読み込み後にタイトルから保存先を自動選択
   useEffect(() => {
@@ -1578,6 +1608,21 @@ export default function Calendar() {
             backgroundPosition: `${settings.bgImageOffsetX ?? 50}% ${settings.bgImageOffsetY ?? 50}%`,
           } : {}}
         >
+
+        {/* ─── キューバナー ─── */}
+        {eventQueue.length > 0 && !queueSheetOpen && (
+          <button
+            onClick={() => { setQueueSheetOpen(true); setQueueSelected(new Set(eventQueue.map((_, i) => i))); }}
+            className="mx-3 mt-2 flex items-center gap-2 px-3 py-2.5 rounded-xl active:opacity-70"
+            style={{ backgroundColor: 'var(--accent-color)' }}
+          >
+            <Inbox size={15} color="#fff" />
+            <span className="text-white text-xs font-semibold flex-1 text-left">
+              {eventQueue.length}件のストックがあります
+            </span>
+            <span className="text-white/70 text-[10px]">確認する →</span>
+          </button>
+        )}
 
         {topView === 'calendar' ? (
           /* ─── カレンダービュー ─── */
@@ -2946,6 +2991,76 @@ export default function Calendar() {
       })()}
 
       <BottomTab />
+
+      {/* ─── キューレビューシート ─── */}
+      {queueSheetOpen && (
+        <>
+          <div className="fixed inset-0 z-[180] bg-black/50" onClick={() => setQueueSheetOpen(false)} />
+          <div
+            className="fixed inset-x-0 max-w-app mx-auto z-[181] rounded-t-2xl overflow-hidden"
+            style={{ bottom: BOTTOM_TAB_H, maxHeight: '75vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-primary)', animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both' }}
+          >
+            <div style={{ flexShrink: 0, borderColor: 'var(--border-faint)' }} className="pt-3 px-4 pb-3 border-b">
+              <div className="flex justify-center mb-2">
+                <div className="w-10 h-1 rounded-full" style={{ backgroundColor: 'var(--border-subtle)' }} />
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-label-primary font-semibold text-sm">ストック済み予定</p>
+                <button onClick={() => setQueueSheetOpen(false)} className="text-xs text-label-tertiary active:opacity-60">閉じる</button>
+              </div>
+            </div>
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'scroll', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
+              <div className="px-4 pt-3 pb-4 flex flex-col gap-2">
+                {eventQueue.map((ev, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
+                    style={{ backgroundColor: 'var(--bg-secondary)' }}
+                  >
+                    <button
+                      onClick={() => setQueueSelected(prev => { const s = new Set(prev); s.has(i) ? s.delete(i) : s.add(i); return s; })}
+                      className="w-5 h-5 rounded flex-shrink-0 flex items-center justify-center"
+                      style={{
+                        backgroundColor: queueSelected.has(i) ? 'var(--accent-color)' : 'transparent',
+                        border: `1.5px solid ${queueSelected.has(i) ? 'var(--accent-color)' : 'var(--border-default)'}`,
+                      }}
+                    >
+                      {queueSelected.has(i) && <Check size={11} color="#fff" strokeWidth={3} />}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-label-primary truncate">{ev.title ?? '（タイトルなし）'}</p>
+                      <p className="text-[10px] text-label-tertiary mt-0.5">
+                        {[ev.date?.replace(/^\d{4}-/, '').replace('-', '/'), ev.time, ev.prefecture].filter(Boolean).join('  ')}
+                      </p>
+                    </div>
+                    <button onClick={() => dismissQueue([i])} className="text-label-tertiary active:opacity-60 flex-shrink-0">
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ flexShrink: 0, borderColor: 'var(--border-faint)' }} className="px-4 pb-5 pt-2 flex gap-2 border-t">
+              <button
+                onClick={() => dismissQueue(Array.from(queueSelected))}
+                disabled={queueSelected.size === 0}
+                className="flex-1 py-2.5 rounded-xl text-xs text-label-tertiary active:opacity-70 disabled:opacity-40"
+                style={{ backgroundColor: 'var(--bg-secondary)' }}
+              >
+                選択を削除
+              </button>
+              <button
+                onClick={applyQueueSelected}
+                disabled={queueSelected.size === 0}
+                className="flex-2 px-5 py-2.5 rounded-xl text-xs font-semibold text-white active:opacity-70 disabled:opacity-40"
+                style={{ backgroundColor: 'var(--accent-color)' }}
+              >
+                {queueSelected.size}件をカレンダーに追加
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {renderLikeOverlay()}
 
