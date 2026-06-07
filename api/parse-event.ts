@@ -102,10 +102,10 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
 
   // syndication API から画像URLを取得
   let imageUrl: string | null = null;
-  console.log('[img] syndication:', syndicationData ? 'ok' : 'null');
+  let photoCount = 0;
   if (syndicationData) {
     const photos = syndicationData.photos as Array<{ url: string }> | undefined;
-    console.log('[img] photos:', photos?.length ?? 0);
+    photoCount = photos?.length ?? 0;
     if (photos?.length) {
       const urls = photos.map(p => p.url);
       imageUrl = urls.length === 1 ? urls[0] : JSON.stringify(urls);
@@ -177,29 +177,29 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
   }
 
   // フォールバック②: ツイートページの og:image（Twitterbot UA で取得）
+  let ogStatus = 0;
   if (!imageUrl) {
     try {
       const pageRes = await fetch(tweetUrl, {
         headers: { 'User-Agent': 'Twitterbot/1.0' },
         signal: AbortSignal.timeout(4000),
       });
-      console.log('[img] og:image fetch status:', pageRes.status);
+      ogStatus = pageRes.status;
       if (pageRes.ok) {
         const pageHtml = await pageRes.text();
         const ogMatch =
           pageHtml.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/i) ??
           pageHtml.match(/<meta[^>]+content="([^"]+)"[^>]+property="og:image"/i);
         const ogUrl = ogMatch?.[1];
-        console.log('[img] og:image url:', ogUrl ?? 'none');
         if (ogUrl && !ogUrl.includes('abs.twimg.com') && !ogUrl.includes('twitter.com/images')) {
           imageUrl = ogUrl;
         }
       }
-    } catch (e) {
-      console.log('[img] og:image error:', e);
-    }
+    } catch {}
   }
-  console.log('[img] final imageUrl:', imageUrl ?? 'null');
+  // syndicationのキー一覧とデバッグ情報を1行にまとめて出力
+  const sdKeys = syndicationData ? Object.keys(syndicationData).join(',') : 'null';
+  console.log(`[IMG] s:${syndicationData?'ok':'null'} keys:${sdKeys} ph:${photoCount} ogSt:${ogStatus} url:${imageUrl?.slice(0,60)??'null'}`);
 
   const textContent = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   let text = `投稿者: ${data.author_name ?? ''}\n内容: ${textContent}`;
