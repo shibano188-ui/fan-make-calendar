@@ -221,3 +221,17 @@ export function removeFromEventQueue(indices: number[]): void {
 export function clearEventQueue(): void {
   localStorage.removeItem(EVENT_QUEUE_KEY);
 }
+
+// ─── 画像表示設定 ──────────────────────────────────────────────────────
+const IMAGE_VISIBILITY_KEY = 'image_visibility';
+export interface ImageVisibility { discover: boolean; list: boolean; }
+export function loadImageVisibility(): ImageVisibility {
+  try {
+    const raw = localStorage.getItem(IMAGE_VISIBILITY_KEY);
+    if (!raw) return { discover: true, list: true };
+    return { discover: true, list: true, ...JSON.parse(raw) as Partial<ImageVisibility> };
+  } catch { return { discover: true, list: true }; }
+}
+export function saveImageVisibility(v: ImageVisibility): void {
+  localStorage.setItem(IMAGE_VISIBILITY_KEY, JSON.stringify(v));
+}

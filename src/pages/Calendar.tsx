@@ -35,6 +35,7 @@ import {
   type FilterMode, saveRegionFilter, loadRegionFilter,
   incrementTotalLikesGiven,
   loadEventQueue, removeFromEventQueue, type QueuedEvent,
+  parseImageUrls, loadImageVisibility,
 } from '../lib/constants';
 
 // ─── 定数 ──────────────────────────────────────────────────────────
@@ -561,6 +562,8 @@ export default function Calendar() {
     if (!raw) return null;
     try { return JSON.parse(raw) as Record<string, string | null>; } catch { return null; }
   });
+
+  const [showImagesList] = useState(() => loadImageVisibility().list);
 
   const [eventQueue, setEventQueue]         = useState<QueuedEvent[]>(() => loadEventQueue());
   const [queueSheetOpen, setQueueSheetOpen] = useState(() => new URLSearchParams(location.search).get('openQueue') === '1');
@@ -1397,7 +1400,7 @@ export default function Calendar() {
   // 予定一覧ビュー用: 作品イベント+個人予定を日付順にまとめたリスト
   type ListItem = {
     id: string; date: string; title: string; time?: string; endDate?: string; endTime?: string;
-    category?: string; prefecture?: string; memo?: string; link?: string;
+    category?: string; prefecture?: string; memo?: string; link?: string; imageUrl?: string;
     tag: string; isPersonal: boolean; workId?: string;
     likes?: number; likedByMe?: boolean;
     authorId?: string; authorName?: string;
@@ -1406,7 +1409,7 @@ export default function Calendar() {
     if (workId) return [];
     const workItems: ListItem[] = visibleEvents.map(e => ({
       id: e.id, date: e.date, title: e.title, time: e.time, endDate: e.endDate, endTime: e.endTime,
-      category: e.category, prefecture: e.prefecture, link: e.link,
+      category: e.category, prefecture: e.prefecture, link: e.link, imageUrl: e.imageUrl,
       tag: e.workName ?? '', isPersonal: false, workId: e.workId,
       likes: e.likes, likedByMe: e.likedByMe,
       authorId: e.authorId, authorName: e.authorName,
@@ -1818,12 +1821,24 @@ export default function Calendar() {
                 <div className="flex-1 overflow-y-auto px-4 pb-4">
                   {sheetDetailEvent ? (
                     <div className="flex flex-col gap-3">
-                      <button
-                        onClick={() => setSheetDetailEvent(null)}
-                        className="flex items-center gap-1 text-xs text-label-secondary active:opacity-60 -ml-1"
-                      >
-                        <ChevronLeft size={14} />一覧に戻る
-                      </button>
+                      <div className="flex items-center justify-between">
+                        <button
+                          onClick={() => setSheetDetailEvent(null)}
+                          className="flex items-center gap-1 text-xs text-label-secondary active:opacity-60 -ml-1"
+                        >
+                          <ChevronLeft size={14} />一覧に戻る
+                        </button>
+                        {sheetDetailEvent.authorId && user && sheetDetailEvent.authorId === user.id && (
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => openEditEvent(sheetDetailEvent)} className="w-8 h-8 flex items-center justify-center active:opacity-60" style={{ color: 'var(--accent-color)' }}>
+                              <Pencil size={15} />
+                            </button>
+                            <button onClick={() => handleDeleteEvent(sheetDetailEvent.id, sheetDetailEvent.title)} className="w-8 h-8 flex items-center justify-center active:opacity-60 text-label-tertiary">
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
                       {/* バッジ */}
                       {(sheetDetailEvent.workName || sheetDetailEvent.category) && (
                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -1929,38 +1944,18 @@ export default function Calendar() {
                           ))}
                         </div>
                       )}
-                      {/* by + 編集・削除（最下行） */}
-                      {(sheetDetailEvent.authorName || sheetDetailEvent.sourceUrl || (sheetDetailEvent.authorId && user && sheetDetailEvent.authorId === user.id)) && (
+                      {/* by + 出典（最下行） */}
+                      {(sheetDetailEvent.authorName || sheetDetailEvent.sourceUrl) && (
                         <div className="flex items-center justify-between">
                           {sheetDetailEvent.authorName && (
                             <p className="text-label-tertiary text-xs">by {sheetDetailEvent.authorName}</p>
                           )}
-                          <div className="flex items-center gap-2 ml-auto">
-                            {sheetDetailEvent.sourceUrl && (
-                              <a href={sheetDetailEvent.sourceUrl} target="_blank" rel="noopener noreferrer"
-                                className="text-label-tertiary text-xs underline underline-offset-2 active:opacity-60 flex-shrink-0">
-                                出典
-                              </a>
-                            )}
-                            {sheetDetailEvent.authorId && user && sheetDetailEvent.authorId === user.id && (
-                              <>
-                                <button
-                                  onClick={() => openEditEvent(sheetDetailEvent)}
-                                  className="flex items-center gap-1 text-xs active:opacity-60"
-                                  style={{ color: 'var(--accent-color)' }}
-                                >
-                                  <Pencil size={12} />編集
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteEvent(sheetDetailEvent.id, sheetDetailEvent.title)}
-                                  className="flex items-center gap-1 text-xs active:opacity-60"
-                                  style={{ color: 'var(--label-tertiary)' }}
-                                >
-                                  <Trash2 size={12} />削除
-                                </button>
-                              </>
-                            )}
-                          </div>
+                          {sheetDetailEvent.sourceUrl && (
+                            <a href={sheetDetailEvent.sourceUrl} target="_blank" rel="noopener noreferrer"
+                              className="text-label-tertiary text-xs underline underline-offset-2 active:opacity-60 flex-shrink-0 ml-auto">
+                              出典
+                            </a>
+                          )}
                         </div>
                       )}
                     </div>
@@ -2219,12 +2214,24 @@ export default function Calendar() {
           {listDetailEvent ? (
             /* 予定詳細 */
             <div className="flex flex-col gap-3">
-              <button
-                onClick={() => setListDetailEvent(null)}
-                className="flex items-center gap-1 text-xs text-label-secondary active:opacity-60 -ml-1"
-              >
-                <ChevronLeft size={14} />一覧に戻る
-              </button>
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => setListDetailEvent(null)}
+                  className="flex items-center gap-1 text-xs text-label-secondary active:opacity-60 -ml-1"
+                >
+                  <ChevronLeft size={14} />一覧に戻る
+                </button>
+                {listDetailEvent.authorId && user && listDetailEvent.authorId === user.id && (
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => openEditEvent(listDetailEvent)} className="w-8 h-8 flex items-center justify-center active:opacity-60" style={{ color: 'var(--accent-color)' }}>
+                      <Pencil size={15} />
+                    </button>
+                    <button onClick={() => handleDeleteEvent(listDetailEvent.id, listDetailEvent.title)} className="w-8 h-8 flex items-center justify-center active:opacity-60 text-label-tertiary">
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                )}
+              </div>
               {/* バッジ */}
               {(listDetailEvent.workName || listDetailEvent.category) && (
                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -2329,38 +2336,18 @@ export default function Calendar() {
                   ))}
                 </div>
               )}
-              {/* by + 編集・削除（最下行） */}
-              {(listDetailEvent.authorName || listDetailEvent.sourceUrl || (listDetailEvent.authorId && user && listDetailEvent.authorId === user.id)) && (
+              {/* by + 出典（最下行） */}
+              {(listDetailEvent.authorName || listDetailEvent.sourceUrl) && (
                 <div className="flex items-center justify-between">
                   {listDetailEvent.authorName && (
                     <p className="text-label-tertiary text-xs">by {listDetailEvent.authorName}</p>
                   )}
-                  <div className="flex items-center gap-2 ml-auto">
-                    {listDetailEvent.sourceUrl && (
-                      <a href={listDetailEvent.sourceUrl} target="_blank" rel="noopener noreferrer"
-                        className="text-label-tertiary text-xs underline underline-offset-2 active:opacity-60 flex-shrink-0">
-                        出典
-                      </a>
-                    )}
-                    {listDetailEvent.authorId && user && listDetailEvent.authorId === user.id && (
-                      <>
-                        <button
-                          onClick={() => openEditEvent(listDetailEvent)}
-                          className="flex items-center gap-1 text-xs active:opacity-60"
-                          style={{ color: 'var(--accent-color)' }}
-                        >
-                          <Pencil size={12} />編集
-                        </button>
-                        <button
-                          onClick={() => handleDeleteEvent(listDetailEvent.id, listDetailEvent.title)}
-                          className="flex items-center gap-1 text-xs active:opacity-60"
-                          style={{ color: 'var(--label-tertiary)' }}
-                        >
-                          <Trash2 size={12} />削除
-                        </button>
-                      </>
-                    )}
-                  </div>
+                  {listDetailEvent.sourceUrl && (
+                    <a href={listDetailEvent.sourceUrl} target="_blank" rel="noopener noreferrer"
+                      className="text-label-tertiary text-xs underline underline-offset-2 active:opacity-60 flex-shrink-0 ml-auto">
+                      出典
+                    </a>
+                  )}
                 </div>
               )}
             </div>
@@ -2517,6 +2504,17 @@ export default function Calendar() {
                             <div className="w-px self-stretch bg-white/10 flex-shrink-0" />
                             <div className="flex-1 min-w-0">
                               <p className="text-label-primary text-sm font-medium leading-snug">{item.title}</p>
+                              {showImagesList && (() => {
+                                const imgs = parseImageUrls(item.imageUrl);
+                                if (imgs.length === 0) return null;
+                                return (
+                                  <div className="mt-2">
+                                    <img src={imgs[0]} alt="" loading="lazy"
+                                      className="rounded-lg block"
+                                      style={{ maxHeight: 160, maxWidth: '100%', height: 'auto', width: 'auto' }} />
+                                  </div>
+                                );
+                              })()}
                               {(item.tag || item.category || item.prefecture) && (
                                 <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                                   {item.tag && !item.isPersonal && (

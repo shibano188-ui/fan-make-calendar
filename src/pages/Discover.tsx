@@ -29,6 +29,7 @@ import {
   loadRegionFilter, saveRegionFilter, type FilterMode,
   incrementTotalLikesGiven,
   parseImageUrls,
+  loadImageVisibility,
 } from '../lib/constants';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { PrefectureSearch } from '../components/UserSettingsSheet';
@@ -89,6 +90,7 @@ export default function Discover() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
+  const [showImagesDiscover] = useState(() => loadImageVisibility().discover);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -499,7 +501,7 @@ export default function Discover() {
                         {/* タイトル */}
                         <p className="text-label-primary font-bold text-base leading-snug">{event.title}</p>
                         {/* 画像（X取得時） */}
-                        {(() => {
+                        {showImagesDiscover && (() => {
                           const imgs = parseImageUrls(event.imageUrl);
                           if (imgs.length === 0) return null;
                           if (imgs.length === 1) return (

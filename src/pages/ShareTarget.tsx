@@ -57,7 +57,7 @@ export default function ShareTarget() {
           lastError = e instanceof Error ? e.message : '不明';
         }
       }
-      throw new Error(lastError ?? '解析��敗');
+      throw new Error(lastError ?? '解析失敗');
     };
 
     attemptParse()
@@ -106,7 +106,7 @@ export default function ShareTarget() {
       {status === 'parsing' && (
         <>
           <Loader2 size={36} className="animate-spin" style={{ color: 'var(--accent-color)' }} />
-          <p className="text-label-primary font-medium text-sm">AI���解析中…</p>
+          <p className="text-label-primary font-medium text-sm">AIが解析中…</p>
           <p className="text-label-tertiary text-xs text-center break-all line-clamp-2">{sharedUrl}</p>
         </>
       )}
@@ -133,7 +133,7 @@ export default function ShareTarget() {
         <>
           <AlertCircle size={36} style={{ color: '#FBBF24' }} />
           <p className="text-label-secondary text-sm text-center">
-            解析できませんでしたが、URLを引き継いで追加で���ます
+            解析できませんでしたが、URLを引き継いで追加できます
           </p>
           <div className="flex flex-col gap-2 w-full mt-2">
             <button
