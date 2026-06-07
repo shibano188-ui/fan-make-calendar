@@ -91,12 +91,10 @@ export default function ShareTarget() {
           addToEventQueue(parsed);
           setStatus('stocked');
         } else {
-          // localStorage（クロスウィンドウ対応）と sessionStorage（旧キャッシュ対応）両方に書く
-          const _ppeJson = JSON.stringify(parsed);
-          localStorage.setItem('pendingParsedEvent', _ppeJson);
-          sessionStorage.setItem('pendingParsedEvent', _ppeJson);
           setStatus('done');
-          setTimeout(() => navigate('/calendar', { replace: true }), 800);
+          // router state で直接渡す（最優先）＋ localStorage をバックアップ
+          localStorage.setItem('pendingParsedEvent', JSON.stringify(parsed));
+          setTimeout(() => navigate('/calendar', { replace: true, state: { pendingParsedEvent: parsed } }), 800);
         }
       })
       .catch(() => {
@@ -111,11 +109,9 @@ export default function ShareTarget() {
           addToEventQueue(fallback);
           setStatus('stocked');
         } else {
-          const _fbJson = JSON.stringify(fallback);
-          localStorage.setItem('pendingParsedEvent', _fbJson);
-          sessionStorage.setItem('pendingParsedEvent', _fbJson);
+          localStorage.setItem('pendingParsedEvent', JSON.stringify(fallback));
           setStatus('error');
-          setTimeout(() => navigate('/calendar', { replace: true }), 1500);
+          setTimeout(() => navigate('/calendar', { replace: true, state: { pendingParsedEvent: fallback } }), 1500);
         }
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps

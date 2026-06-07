@@ -553,6 +553,10 @@ export default function Calendar() {
   const [filterPickerWorkId, setFilterPickerWorkId] = useState<string | null>(null);
 
   const [shareData] = useState<Record<string, string | null> | null>(() => {
+    // router state が最優先（ShareTarget から navigate の state で直接渡す）
+    const fromRouter = (location.state as { pendingParsedEvent?: Record<string, string | null> } | null)?.pendingParsedEvent;
+    if (fromRouter) return fromRouter;
+    // localStorage をバックアップとして確認
     const raw = localStorage.getItem('pendingParsedEvent') ?? sessionStorage.getItem('pendingParsedEvent');
     if (!raw) return null;
     try { return JSON.parse(raw) as Record<string, string | null>; } catch { return null; }
