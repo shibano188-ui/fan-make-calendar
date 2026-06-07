@@ -677,7 +677,6 @@ export default function Calendar() {
     if (!user) return;
     setHomePref(newPref);
     setDisplayName(newName || null);
-    if (newPref) { setFilterMode('pref'); setFilterValue(newPref); setIncludeAdjacent(false); }
     await Promise.all([saveHomePrefecture(user.id, newPref), saveDisplayName(user.id, newName)]);
   };
 

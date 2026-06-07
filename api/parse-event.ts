@@ -68,22 +68,26 @@ ${SCHEMA('補足情報・注意事項 or null')}`;
 
 const TWEET_MEMO_RULES = `
 【memoフィールドのルール（Xポスト解析時）】
-ポスト内容から以下の項目が含まれる場合のみ記述する。
-ポストに記載がない項目はその行を一切出力しない（「不明」「なし」「-」「未定」等の記載禁止）。
-全項目なければnull。推測・捏造厳禁。
-各項目を「項目名: 内容」の形式で改行区切りで記述する。
-- 参加方法: 抽選/先着/自由入場など
-- 料金・コスト: 金額・購入条件
-- 付属品: 付属・同梱されるもの
-- 特典・限定: 特典内容
-- 締切・重要日程: 申込締切など
-- 注意点: 本人確認の有無など
+ポスト内容に明記されている場合のみ、以下の項目を記述する。
+絶対に守ること:
+- ポストに書かれていない情報は一切書かない（推測・捏造禁止）
+- 「不明」「なし」「-」「未定」「null」等の文字列を値に書かない
+- 情報がない項目はその行ごと省略する
+- 全項目が該当しない場合は文字列ではなくJSONのnullを返す
+- 会場名・場所・期間はlocationDetail/prefecture/date/endDateフィールドに書くのでmemoには不要
+記述できる項目:
+- 参加方法: 抽選/先着/自由入場など（明記されている場合のみ）
+- 料金・コスト: 金額・購入条件（明記されている場合のみ）
+- 付属品: 付属・同梱されるもの（明記されている場合のみ）
+- 特典・限定: 特典内容（明記されている場合のみ）
+- 締切・重要日程: 申込締切など（明記されている場合のみ）
+- 注意点: 本人確認の有無など（明記されている場合のみ）
 
 【出力例】
 ポストに「抽選、価格3,800円、7/20締切」がある場合:
 "参加方法: 抽選\n料金・コスト: 3,800円\n締切・重要日程: 7月20日"
 
-ポストにこれらの情報が一切ない場合: null`;
+これらの情報がポストに一切ない場合: null（文字列ではなくJSONのnull）`;
 
 const EXTRACT_PROMPT_TWEET = `以下のXポストから、含まれるイベント・予定をすべて抽出してください。
 1件のみの場合も必ず配列で返してください。
@@ -228,15 +232,43 @@ async function fetchPageText(url: string): Promise<string> {
   }
 }
 
+// 小モデルが「null」「不明」等の文字列をmemoに書いてしまう問題を後処理で除去
+function cleanMemo(memo: unknown): string | null {
+  if (memo === null || memo === undefined) return null;
+  const s = String(memo).trim();
+  if (!s || /^(null|なし|不明|未定|[-—ー]+)$/i.test(s)) return null;
+  // 各行から「値が null/不明/なし/未定」の行を除去
+  const cleaned = s.split('\n')
+    .map(line => line.trim())
+    .filter(line => {
+      if (!line) return false;
+      const val = line.includes(':') ? line.split(':').slice(1).join(':').trim() : line;
+      return !/^(null|なし|不明|未定|[-—ー]+)$/i.test(val);
+    })
+    .join('\n');
+  return cleaned || null;
+}
+
 function parseRawText(rawText: string): unknown[] {
   const arrayMatch = rawText.match(/\[[\s\S]*\]/);
   const objectMatch = rawText.match(/\{[\s\S]*\}/);
+  let arr: unknown[];
   if (arrayMatch) {
-    const arr = JSON.parse(arrayMatch[0]);
-    return Array.isArray(arr) ? arr : [arr];
+    const parsed = JSON.parse(arrayMatch[0]);
+    arr = Array.isArray(parsed) ? parsed : [parsed];
+  } else if (objectMatch) {
+    arr = [JSON.parse(objectMatch[0])];
+  } else {
+    throw new Error('Could not parse AI response');
   }
-  if (objectMatch) return [JSON.parse(objectMatch[0])];
-  throw new Error('Could not parse AI response');
+  // memoフィールドのクリーニング
+  return arr.map(item => {
+    if (item && typeof item === 'object') {
+      const obj = item as Record<string, unknown>;
+      return { ...obj, memo: cleanMemo(obj.memo) };
+    }
+    return item;
+  });
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
