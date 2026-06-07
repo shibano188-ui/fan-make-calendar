@@ -98,13 +98,23 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      parseAndApply({ imageBase64: dataUrl.split(',')[1], mimeType: file.type });
-    };
-    reader.readAsDataURL(file);
     e.target.value = '';
+
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const MAX = 1280;
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      parseAndApply({ imageBase64: dataUrl.split(',')[1], mimeType: 'image/jpeg' });
+    };
+    img.src = objectUrl;
   };
 
   return (
