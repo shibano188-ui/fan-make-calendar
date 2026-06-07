@@ -165,7 +165,6 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
                 ref={fileRef}
                 type="file"
                 accept="image/*"
-                capture="environment"
                 className="hidden"
                 onChange={handleImageChange}
               />
