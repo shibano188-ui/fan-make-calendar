@@ -197,9 +197,8 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
       }
     } catch {}
   }
-  // syndicationのキー一覧とデバッグ情報を1行にまとめて出力
-  const sdKeys = syndicationData ? Object.keys(syndicationData).join(',') : 'null';
-  console.log(`[IMG] s:${syndicationData?'ok':'null'} keys:${sdKeys} ph:${photoCount} ogSt:${ogStatus} url:${imageUrl?.slice(0,60)??'null'}`);
+  // 最重要情報を先頭に（MESSAGE列が短くても読める形式）
+  console.log(`ph:${photoCount} og:${ogStatus} ${imageUrl??'NO_URL'}`);
 
   const textContent = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   let text = `投稿者: ${data.author_name ?? ''}\n内容: ${textContent}`;
