@@ -553,7 +553,7 @@ export default function Calendar() {
   const [filterPickerWorkId, setFilterPickerWorkId] = useState<string | null>(null);
 
   const [shareData] = useState<Record<string, string | null> | null>(() => {
-    const raw = sessionStorage.getItem('pendingParsedEvent');
+    const raw = localStorage.getItem('pendingParsedEvent');
     if (!raw) return null;
     try { return JSON.parse(raw) as Record<string, string | null>; } catch { return null; }
   });
@@ -1022,7 +1022,7 @@ export default function Calendar() {
   };
 
   useEffect(() => {
-    sessionStorage.removeItem('pendingParsedEvent');
+    localStorage.removeItem('pendingParsedEvent');
   }, []);
 
   const applyQueueSelected = () => {

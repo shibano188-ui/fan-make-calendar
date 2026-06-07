@@ -91,7 +91,8 @@ export default function ShareTarget() {
           addToEventQueue(parsed);
           setStatus('stocked');
         } else {
-          sessionStorage.setItem('pendingParsedEvent', JSON.stringify(parsed));
+          // sessionStorage はウィンドウをまたぐと消えるため localStorage を使用
+          localStorage.setItem('pendingParsedEvent', JSON.stringify(parsed));
           setStatus('done');
           setTimeout(() => navigate('/calendar', { replace: true }), 800);
         }
@@ -108,7 +109,7 @@ export default function ShareTarget() {
           addToEventQueue(fallback);
           setStatus('stocked');
         } else {
-          sessionStorage.setItem('pendingParsedEvent', JSON.stringify(fallback));
+          localStorage.setItem('pendingParsedEvent', JSON.stringify(fallback));
           setStatus('error');
           setTimeout(() => navigate('/calendar', { replace: true }), 1500);
         }
