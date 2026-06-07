@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { PREFECTURES } from '../lib/prefectures';
+import { loadImageVisibility, saveImageVisibility, type ImageVisibility } from '../lib/constants';
 
 const inputCls =
   'w-full bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong';
@@ -104,6 +105,7 @@ export default function UserSettingsSheet({
   const [name, setName]         = useState(displayName ?? '');
   const [saving, setSaving]     = useState(false);
   const [saved, setSaved]       = useState(false);
+  const [imgVis, setImgVis]     = useState<ImageVisibility>(() => loadImageVisibility());
   const handleSave = async () => {
     setSaving(true);
     await onSave(pref || null, name);
@@ -170,6 +172,33 @@ export default function UserSettingsSheet({
               onChange={setPref}
               placeholder="都道府県を検索"
             />
+          </div>
+
+          {/* 画像表示 */}
+          <div className="mb-6">
+            <label className="text-label-tertiary text-xs mb-2 block">画像表示</label>
+            <div className="flex flex-col gap-2">
+              {([
+                { key: 'discover' as const, label: '発見タブ' },
+                { key: 'list' as const, label: '予定一覧' },
+              ] as { key: keyof ImageVisibility; label: string }[]).map(({ key, label }) => {
+                const on = imgVis[key];
+                return (
+                  <button
+                    key={key}
+                    onClick={() => { const next = { ...imgVis, [key]: !on }; setImgVis(next); saveImageVisibility(next); }}
+                    className="flex items-center justify-between px-4 py-3 rounded-xl bg-bg-secondary active:opacity-70"
+                  >
+                    <span className="text-sm text-label-primary">{label}に画像を表示</span>
+                    <div className="relative w-10 h-6 rounded-full transition-colors flex-shrink-0"
+                      style={{ backgroundColor: on ? 'var(--accent-color)' : 'var(--border-default)' }}>
+                      <div className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform"
+                        style={{ transform: on ? 'translateX(18px)' : 'translateX(2px)' }} />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* 保存ボタン */}

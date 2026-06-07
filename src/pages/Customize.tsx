@@ -7,7 +7,6 @@ import { useTheme, COMMUNITY_THEMES, type FontFamily, type UserSettings } from '
 import { listSharedThemes, shareTheme, incrementThemeUseCount, deleteSharedTheme, listRecentWorks, type SharedTheme, type SharedThemeData, type Work } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { WORK_COLORS } from './Calendar';
-import { loadImageVisibility, saveImageVisibility, type ImageVisibility } from '../lib/constants';
 
 const SYSTEM_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 
@@ -334,7 +333,6 @@ export default function Customize() {
   const calCustomInputRef = useRef<HTMLInputElement>(null);
 
   const [showCommunityModal, setShowCommunityModal] = useState(false);
-  const [imgVis, setImgVis] = useState<ImageVisibility>(() => loadImageVisibility());
   const [calColorOpen, setCalColorOpen]   = useState(false);
   const [openCalKey, setOpenCalKey]       = useState<string | null>(null);
   const [paletteTop, setPaletteTop]       = useState(0);
@@ -803,33 +801,6 @@ export default function Customize() {
               <Upload size={14} />画像をアップロード
             </button>
           )}
-        </section>
-
-        {/* 画像表示 */}
-        <section>
-          <p className="text-label-tertiary text-xs mb-3">画像表示</p>
-          <div className="flex flex-col gap-2">
-            {([
-              { key: 'discover' as const, label: '発見タブ' },
-              { key: 'list' as const, label: '予定一覧' },
-            ] as { key: keyof ImageVisibility; label: string }[]).map(({ key, label }) => {
-              const on = imgVis[key];
-              return (
-                <button
-                  key={key}
-                  onClick={() => { const next = { ...imgVis, [key]: !on }; setImgVis(next); saveImageVisibility(next); }}
-                  className="flex items-center justify-between px-4 py-3 rounded-xl bg-bg-secondary active:opacity-70"
-                >
-                  <span className="text-sm text-label-primary">{label}に画像を表示</span>
-                  <div className="relative w-10 h-6 rounded-full transition-colors flex-shrink-0"
-                    style={{ backgroundColor: on ? 'var(--accent-color)' : 'var(--border-default)' }}>
-                    <div className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform"
-                      style={{ transform: on ? 'translateX(18px)' : 'translateX(2px)' }} />
-                  </div>
-                </button>
-              );
-            })}
-          </div>
         </section>
 
       </div>
