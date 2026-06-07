@@ -20,6 +20,8 @@ interface PostCard {
   title: string;
   date: string;
   time: string;
+  endDate: string;
+  endTime: string;
   category: Category | '';
   customCategory: string;
   prefecture: string;
@@ -39,6 +41,8 @@ function newCard(): PostCard {
     title: '',
     date: '',
     time: '',
+    endDate: '',
+    endTime: '',
     category: '',
     customCategory: '',
     prefecture: '',
@@ -312,6 +316,8 @@ export default function PostCreate() {
       title:          parsed.title          ?? base.title,
       date:           parsed.date           ?? base.date,
       time:           parsed.time           ?? base.time,
+      endDate:        parsed.endDate        ?? base.endDate,
+      endTime:        parsed.endTime        ?? base.endTime,
       category:       VALID_CATS.includes(parsed.category ?? '')
                         ? (parsed.category as typeof base.category)
                         : base.category,

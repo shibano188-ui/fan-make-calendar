@@ -5,6 +5,8 @@ export type ParsedEvent = {
   title: string | null;
   date: string | null;
   time: string | null;
+  endDate: string | null;
+  endTime: string | null;
   category: string | null;
   prefecture: string | null;
   locationDetail: string | null;

@@ -995,6 +995,8 @@ export default function Calendar() {
       title:          parsed.title          ?? base.title,
       date:           parsed.date           ?? base.date,
       time:           parsed.time           ?? base.time,
+      endDate:        parsed.endDate        ?? base.endDate,
+      endTime:        parsed.endTime        ?? base.endTime,
       category:       VALID_CATS.includes(parsed.category ?? '')
                         ? (parsed.category as typeof base.category)
                         : base.category,
