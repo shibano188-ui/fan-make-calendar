@@ -13,7 +13,7 @@ import {
   createEvents, getHomePrefecture, saveHomePrefecture,
   getDisplayName, saveDisplayName, listRecentWorks,
   listAllParticipatedWorkEvents, addLikeTap, setReaction, getReactionData, updateEvent,
-  findDuplicateEvents, demoteEvent, type DuplicateMatch,
+  findDuplicateEvents, type DuplicateMatch,
 } from '../lib/api';
 import { REACTIONS, type ReactionType } from '../lib/reactions';
 import type { Work } from '../lib/api';
@@ -633,8 +633,6 @@ export default function Calendar() {
   const [postSubmitting, setPostSubmitting] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<{ cardId: string; existingEvent: DuplicateMatch } | null>(null);
   const [locationSuffixMsg, setLocationSuffixMsg] = useState<string | null>(null);
-  // cardId → 退けるべき既存イベントID
-  const [forceSubmitMap, setForceSubmitMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -1089,11 +1087,9 @@ export default function Calendar() {
   const closePostForm = () => {
     setPostPanelOpen(false);
     setDuplicateWarning(null);
-    setForceSubmitMap({});
   };
 
-  const handlePostSubmit = async (activeForceMap?: Record<string, string>) => {
-    const effectiveForceMap = activeForceMap ?? forceSubmitMap;
+  const handlePostSubmit = async () => {
     const invalid = postCards.find(c => !c.title.trim() || !c.date);
     if (invalid) {
       setPostError('すべてのカードにタイトルと日付を入力してください');
@@ -1113,14 +1109,8 @@ export default function Calendar() {
     // ─── 重複検知（作品カレンダー + sourceUrl あり のカードのみ） ───
     const titleSuffixes = new Map<string, string>();
     if (workId && user) {
-      // force submit カードの既存イベントを先に退ける
-      for (const [cardId, existingId] of Object.entries(effectiveForceMap)) {
-        if (postCards.some(c => c.id === cardId)) {
-          try { await demoteEvent(existingId); } catch { /* 無視 */ }
-        }
-      }
       for (const card of postCards) {
-        if (!card.sourceUrl || effectiveForceMap[card.id] !== undefined) continue;
+        if (!card.sourceUrl) continue;
         try {
           const { byUrl, byTitle } = await findDuplicateEvents(workId, card.title.trim(), card.date, card.endDate || null, card.sourceUrl);
           if (byUrl.length > 0) {
@@ -1151,7 +1141,6 @@ export default function Calendar() {
 
     const toEventPayload = (c: InlineCard) => ({
       title: c.title.trim() + (titleSuffixes.get(c.id) ?? ''), date: c.date, time: c.time || undefined,
-      ...(effectiveForceMap[c.id] !== undefined ? { forcePool0: true as const } : {}),
       endDate: c.endDate || undefined, endTime: c.endTime || undefined,
       category: c.category || c.customCategory.trim() || undefined,
       link: serializeLinks(c.links), memo: c.memo || undefined,
@@ -2764,7 +2753,7 @@ export default function Calendar() {
               <p className="text-label-secondary text-xs">予定を追加</p>
               <div className="flex items-center gap-2">
                 <button onClick={closePostForm} className="text-xs text-label-tertiary px-3 py-1.5 rounded-lg active:opacity-60">キャンセル</button>
-                <button onClick={() => void handlePostSubmit()} disabled={postSubmitting} className="text-xs font-semibold text-bg-primary bg-label-primary px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40">
+                <button onClick={() => void handlePostSubmit()} disabled={postSubmitting || !!duplicateWarning} className="text-xs font-semibold text-bg-primary bg-label-primary px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40">
                   {postSubmitting ? '送信中…' : workId && user ? '投稿' : '保存'}
                 </button>
               </div>
@@ -2788,35 +2777,21 @@ export default function Calendar() {
                   <p className="text-label-secondary text-xs mb-2 line-clamp-1">
                     「{duplicateWarning.existingEvent.title}」{duplicateWarning.existingEvent.prefecture ? `（${duplicateWarning.existingEvent.prefecture}）` : ''} {duplicateWarning.existingEvent.date}
                   </p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => {
-                        const d = new Date(duplicateWarning.existingEvent.date);
-                        setDuplicateWarning(null);
-                        closePostForm();
-                        setYear(d.getFullYear());
-                        setMonth(d.getMonth());
-                        setSelectedDate(duplicateWarning.existingEvent.date);
-                        setSheetOpen(true);
-                      }}
-                      className="flex-1 py-1.5 text-xs rounded-lg border active:opacity-70"
-                      style={{ borderColor: 'var(--border-default)', color: 'var(--label-secondary)' }}
-                    >
-                      既存の予定を見る
-                    </button>
-                    <button
-                      onClick={() => {
-                        const newMap = { ...forceSubmitMap, [duplicateWarning.cardId]: duplicateWarning.existingEvent.id };
-                        setForceSubmitMap(newMap);
-                        setDuplicateWarning(null);
-                        void handlePostSubmit(newMap);
-                      }}
-                      className="flex-1 py-1.5 text-xs rounded-lg font-semibold active:opacity-70"
-                      style={{ backgroundColor: 'var(--label-primary)', color: 'var(--bg-primary)' }}
-                    >
-                      このまま投稿
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => {
+                      const d = new Date(duplicateWarning.existingEvent.date);
+                      setDuplicateWarning(null);
+                      closePostForm();
+                      setYear(d.getFullYear());
+                      setMonth(d.getMonth());
+                      setSelectedDate(duplicateWarning.existingEvent.date);
+                      setSheetOpen(true);
+                    }}
+                    className="w-full py-1.5 text-xs rounded-lg border active:opacity-70"
+                    style={{ borderColor: 'var(--border-default)', color: 'var(--label-secondary)' }}
+                  >
+                    既存の予定を見る
+                  </button>
                 </div>
               )}
               <SmartInputPanel onApply={applyParsedToPost} />
