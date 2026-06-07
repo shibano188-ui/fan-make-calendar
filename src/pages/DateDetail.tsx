@@ -277,14 +277,22 @@ function EventCard({
       )}
 
       {/* 投稿者 */}
-      <p className="text-label-tertiary text-xs">
-        {event.authorId && onAuthorClick ? (
-          <button onClick={() => onAuthorClick(event.authorId!)} className="underline underline-offset-2 active:opacity-60">
-            {event.authorName ?? '匿名'}
-          </button>
-        ) : (event.authorName ?? '匿名')}
-        {' '}・ {timeAgo(event.createdAt)}
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-label-tertiary text-xs">
+          {event.authorId && onAuthorClick ? (
+            <button onClick={() => onAuthorClick(event.authorId!)} className="underline underline-offset-2 active:opacity-60">
+              {event.authorName ?? '匿名'}
+            </button>
+          ) : (event.authorName ?? '匿名')}
+          {' '}・ {timeAgo(event.createdAt)}
+        </p>
+        {event.sourceUrl && (
+          <a href={event.sourceUrl} target="_blank" rel="noopener noreferrer"
+            className="text-label-tertiary text-xs underline underline-offset-2 active:opacity-60 flex-shrink-0">
+            出典
+          </a>
+        )}
+      </div>
     </div>
   );
 }

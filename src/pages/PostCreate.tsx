@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ChevronDown, ChevronUp, X, Plus, Star, Bell } from 'lucide-react';
+import { ChevronDown, ChevronUp, X, Plus, Star } from 'lucide-react';
 import Layout from '../components/Layout';
 import Header from '../components/Header';
 import SmartInputPanel, { type ParsedEvent } from '../components/SmartInputPanel';
 import { createEvents } from '../lib/api';
 import { PREFECTURES } from '../lib/prefectures';
-import { parseLinks, serializeLinks, loadImportantEventIds, saveImportantEventIds, loadBellEventIds, saveBellEventIds } from '../lib/constants';
+import { parseLinks, serializeLinks, loadImportantEventIds, saveImportantEventIds } from '../lib/constants';
 import { useAuth } from '../contexts/AuthContext';
 import type { CalendarEvent } from '../types';
 
@@ -291,7 +291,6 @@ export default function PostCreate() {
   const initialDate = searchParams.get('date') ?? '';
   const [cards, setCards] = useState<PostCard[]>([{ ...newCard(), date: initialDate }]);
   const [isImportant, setIsImportant] = useState(false);
-  const [isNotify, setIsNotify] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -354,12 +353,6 @@ export default function PostCreate() {
         createdIds.forEach(id => importantIds.add(id));
         saveImportantEventIds(importantIds);
       }
-      // ベルフラグをlocalStorageに保存
-      if (isNotify) {
-        const bellIds = loadBellEventIds();
-        createdIds.forEach(id => bellIds.add(id));
-        saveBellEventIds(bellIds);
-      }
       navigate(`/calendar/${workId}`);
     } catch {
       setError('投稿に失敗しました。もう一度お試しください');
@@ -381,13 +374,6 @@ export default function PostCreate() {
               style={isImportant ? { borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.12)' } : { borderColor: 'var(--border-default)' }}
             >
               <Star size={15} style={{ fill: isImportant ? '#f59e0b' : 'none', color: isImportant ? '#f59e0b' : 'var(--label-secondary)' }} />
-            </button>
-            <button
-              onClick={() => setIsNotify(v => !v)}
-              className="w-8 h-8 flex items-center justify-center rounded-full border active:opacity-70"
-              style={isNotify ? { borderColor: 'var(--accent-color)', backgroundColor: 'color-mix(in srgb, var(--accent-color) 12%, transparent)' } : { borderColor: 'var(--border-default)' }}
-            >
-              <Bell size={15} style={{ fill: isNotify ? 'var(--accent-color)' : 'none', color: isNotify ? 'var(--accent-color)' : 'var(--label-secondary)' }} />
             </button>
             <button
               onClick={handleSubmit}
