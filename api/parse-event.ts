@@ -3,6 +3,22 @@ import Groq from 'groq-sdk';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
+// 429 時は軽量モデルにフォールバック
+async function groqComplete(messages: { role: 'user'; content: string }[], maxTokens: number): Promise<string> {
+  const models = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
+  for (const model of models) {
+    try {
+      const res = await groq.chat.completions.create({ model, max_tokens: maxTokens, messages });
+      return res.choices[0]?.message?.content ?? '';
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes('429') && model !== models[models.length - 1]) continue;
+      throw e;
+    }
+  }
+  return '';
+}
+
 // t.co を実URLに解決（GET + redirect follow で確実に取得）
 async function resolveUrl(url: string): Promise<string> {
   if (!url.includes('t.co/')) return url;
@@ -285,12 +301,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const tweetContext = sharedText
         ? `ポスト本文（X アプリより直接）: ${sharedText}\n\n${pageText}`
         : pageText;
-      const completion = await groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        max_tokens: 800,
-        messages: [{ role: 'user', content: `${tweetContext}\n\n---\n${EXTRACT_PROMPT_TWEET}` }],
-      });
-      const rawText = completion.choices[0]?.message?.content ?? '';
+      const rawText = await groqComplete([{ role: 'user', content: `${tweetContext}\n\n---\n${EXTRACT_PROMPT_TWEET}` }], 800);
       let parsed: unknown[];
       try {
         parsed = parseRawText(rawText);
@@ -305,12 +316,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // 通常URL
     const pageText = await fetchPageText(processUrl);
-    const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      max_tokens: 768,
-      messages: [{ role: 'user', content: `${pageText}\n\n---\n${EXTRACT_PROMPT}` }],
-    });
-    const rawText = completion.choices[0]?.message?.content ?? '';
+    const rawText = await groqComplete([{ role: 'user', content: `${pageText}\n\n---\n${EXTRACT_PROMPT}` }], 768);
     try {
       return res.status(200).json(parseRawText(rawText));
     } catch {
