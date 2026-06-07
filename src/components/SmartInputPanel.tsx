@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Sparkles, Link2, Camera, Loader2, ChevronDown, ChevronUp, Image as ImageIcon } from 'lucide-react';
+import { Sparkles, Link2, Camera, Loader2, ChevronDown, ChevronUp, Image as ImageIcon, Check } from 'lucide-react';
 
 export type ParsedEvent = {
   title: string | null;
@@ -19,15 +19,25 @@ type Tab = 'url' | 'image';
 const inputCls =
   'w-full bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong';
 
+function fmtEventSummary(ev: ParsedEvent): string {
+  const parts: string[] = [];
+  if (ev.date) parts.push(ev.date.replace(/^\d{4}-/, '').replace('-', '/'));
+  if (ev.time) parts.push(ev.time);
+  if (ev.prefecture) parts.push(ev.prefecture);
+  return parts.join('  ');
+}
+
 export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedEvent) => void }) {
-  const [open, setOpen]         = useState(false);
-  const [tab, setTab]           = useState<Tab>('url');
-  const [urlValue, setUrlValue] = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [flashMsg, setFlashMsg] = useState<string | null>(null);
-  const [error, setError]       = useState<string | null>(null);
-  const fileRef                 = useRef<HTMLInputElement>(null);
-  const cameraRef               = useRef<HTMLInputElement>(null);
+  const [open, setOpen]                   = useState(false);
+  const [tab, setTab]                     = useState<Tab>('url');
+  const [urlValue, setUrlValue]           = useState('');
+  const [loading, setLoading]             = useState(false);
+  const [flashMsg, setFlashMsg]           = useState<string | null>(null);
+  const [error, setError]                 = useState<string | null>(null);
+  const [pendingEvents, setPendingEvents] = useState<ParsedEvent[] | null>(null);
+  const [selected, setSelected]           = useState<Set<number>>(new Set());
+  const fileRef                           = useRef<HTMLInputElement>(null);
+  const cameraRef                         = useRef<HTMLInputElement>(null);
 
   const showFlash = (msg: string) => {
     setFlashMsg(msg);
@@ -39,12 +49,26 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
     return String(v);
   };
 
+  const rawToEvent = (raw: Record<string, unknown>, linkOverride?: string): ParsedEvent => ({
+    title:          clean(raw.title),
+    date:           clean(raw.date),
+    time:           clean(raw.time),
+    endDate:        clean(raw.endDate),
+    endTime:        clean(raw.endTime),
+    category:       clean(raw.category),
+    prefecture:     clean(raw.prefecture),
+    locationDetail: clean(raw.locationDetail),
+    link:           linkOverride ?? clean(raw.link),
+    memo:           clean(raw.memo),
+  });
+
   const parseAndApply = async (body: object, isUrl = false) => {
     setLoading(true);
     setError(null);
+    setPendingEvents(null);
 
     const MAX_RETRIES = 3;
-    let lastRaw: Record<string, unknown> | null = null;
+    let lastEvents: Record<string, unknown>[] | null = null;
     let lastError: string | null = null;
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -58,36 +82,54 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
           const text = await res.text().catch(() => '');
           throw new Error(`${res.status}: ${text.slice(0, 400)}`);
         }
-        lastRaw = await res.json();
-        lastError = null;
-        if (clean(lastRaw?.title)) break;
+        const raw = await res.json();
+        const arr: Record<string, unknown>[] = Array.isArray(raw) ? raw : [raw];
+        if (arr.some(e => clean(e.title))) {
+          lastEvents = arr;
+          lastError = null;
+          break;
+        }
       } catch (e) {
         lastError = e instanceof Error ? e.message : '不明なエラー';
       }
     }
 
-    if (!lastRaw) {
+    if (!lastEvents) {
       setError(`解析に失敗しました（${lastError ?? '不明なエラー'}）`);
       setLoading(false);
       return;
     }
 
-    const parsed: ParsedEvent = {
-      title:          clean(lastRaw.title),
-      date:           clean(lastRaw.date),
-      time:           clean(lastRaw.time),
-      endDate:        clean(lastRaw.endDate),
-      endTime:        clean(lastRaw.endTime),
-      category:       clean(lastRaw.category),
-      prefecture:     clean(lastRaw.prefecture),
-      locationDetail: clean(lastRaw.locationDetail),
-      link:           isUrl ? urlValue.trim() : clean(lastRaw.link),
-      memo:           clean(lastRaw.memo),
-    };
-    onApply(parsed);
-    if (isUrl) setUrlValue('');
-    showFlash('フォームに反映しました');
+    const linkOverride = isUrl ? urlValue.trim() : undefined;
+    const events = lastEvents.map(e => rawToEvent(e, linkOverride));
+
+    if (events.length === 1) {
+      onApply(events[0]);
+      if (isUrl) setUrlValue('');
+      showFlash('フォームに反映しました');
+    } else {
+      setPendingEvents(events);
+      setSelected(new Set(events.map((_, i) => i)));
+      if (isUrl) setUrlValue('');
+    }
     setLoading(false);
+  };
+
+  const toggleSelect = (i: number) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(i) ? next.delete(i) : next.add(i);
+      return next;
+    });
+  };
+
+  const applySelected = () => {
+    if (!pendingEvents) return;
+    const toAdd = pendingEvents.filter((_, i) => selected.has(i));
+    toAdd.forEach(ev => onApply(ev));
+    setPendingEvents(null);
+    setSelected(new Set());
+    showFlash(`${toAdd.length}件をフォームに反映しました`);
   };
 
   const handleUrlParse = () => {
@@ -138,11 +180,12 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
           className="px-4 pb-4 flex flex-col gap-3 border-t"
           style={{ borderColor: 'var(--border-faint)', backgroundColor: 'var(--bg-secondary)' }}
         >
+          {/* タブ */}
           <div className="flex gap-1 mt-3">
             {(['url', 'image'] as Tab[]).map(t => (
               <button
                 key={t}
-                onClick={() => setTab(t)}
+                onClick={() => { setTab(t); setPendingEvents(null); }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
                 style={{
                   backgroundColor: tab === t ? 'rgba(255,255,255,0.08)' : 'transparent',
@@ -155,7 +198,8 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
             ))}
           </div>
 
-          {tab === 'url' ? (
+          {/* URL入力 */}
+          {tab === 'url' && !pendingEvents && (
             <div className="flex gap-2">
               <input
                 type="url"
@@ -174,23 +218,13 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
                 {loading ? <Loader2 size={14} className="animate-spin" /> : '解析'}
               </button>
             </div>
-          ) : (
+          )}
+
+          {/* 画像入力 */}
+          {tab === 'image' && !pendingEvents && (
             <div className="flex flex-col gap-2">
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleImageChange}
-              />
-              <input
-                ref={cameraRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={handleImageChange}
-              />
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+              <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImageChange} />
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => fileRef.current?.click()}
@@ -215,6 +249,58 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
               <p className="text-label-tertiary text-[10px] text-center">
                 イベントのフライヤーや告知画像を使えます
               </p>
+            </div>
+          )}
+
+          {/* 複数予定 選択UI */}
+          {pendingEvents && (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-medium text-label-secondary">
+                {pendingEvents.length}件の予定が見つかりました
+              </p>
+              {pendingEvents.map((ev, i) => (
+                <button
+                  key={i}
+                  onClick={() => toggleSelect(i)}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-left active:opacity-70"
+                  style={{ backgroundColor: 'var(--bg-primary)' }}
+                >
+                  <div
+                    className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
+                    style={{
+                      backgroundColor: selected.has(i) ? 'var(--accent-color)' : 'transparent',
+                      border: `1.5px solid ${selected.has(i) ? 'var(--accent-color)' : 'var(--border-default)'}`,
+                    }}
+                  >
+                    {selected.has(i) && <Check size={10} color="#fff" strokeWidth={3} />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-label-primary truncate">
+                      {ev.title ?? '（タイトルなし）'}
+                    </p>
+                    {fmtEventSummary(ev) && (
+                      <p className="text-[10px] text-label-tertiary mt-0.5">{fmtEventSummary(ev)}</p>
+                    )}
+                  </div>
+                </button>
+              ))}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setPendingEvents(null); setSelected(new Set()); }}
+                  className="flex-1 py-2 rounded-lg text-xs text-label-tertiary active:opacity-70"
+                  style={{ backgroundColor: 'var(--bg-primary)' }}
+                >
+                  キャンセル
+                </button>
+                <button
+                  onClick={applySelected}
+                  disabled={selected.size === 0}
+                  className="flex-2 px-4 py-2 rounded-lg text-xs font-semibold active:opacity-70 disabled:opacity-40"
+                  style={{ backgroundColor: 'var(--accent-color)', color: '#fff' }}
+                >
+                  {selected.size}件を追加
+                </button>
+              </div>
             </div>
           )}
 

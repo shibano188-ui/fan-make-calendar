@@ -34,17 +34,19 @@ export default function ShareTarget() {
         return res.json();
       })
       .then(raw => {
+        const arr = Array.isArray(raw) ? raw : [raw];
+        const first = arr[0] ?? {};
         const parsed = {
-          title:          clean(raw.title) ?? (sharedTitle || null),
-          date:           clean(raw.date),
-          time:           clean(raw.time),
-          endDate:        clean(raw.endDate),
-          endTime:        clean(raw.endTime),
-          category:       clean(raw.category),
-          prefecture:     clean(raw.prefecture),
-          locationDetail: clean(raw.locationDetail),
+          title:          clean(first.title) ?? (sharedTitle || null),
+          date:           clean(first.date),
+          time:           clean(first.time),
+          endDate:        clean(first.endDate),
+          endTime:        clean(first.endTime),
+          category:       clean(first.category),
+          prefecture:     clean(first.prefecture),
+          locationDetail: clean(first.locationDetail),
           link:           sharedUrl,
-          memo:           clean(raw.memo),
+          memo:           clean(first.memo),
         };
         sessionStorage.setItem('pendingParsedEvent', JSON.stringify(parsed));
         setStatus('done');

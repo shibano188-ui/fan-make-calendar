@@ -3,22 +3,25 @@ import Groq from 'groq-sdk';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const EXTRACT_PROMPT = `以下のイベント情報から、次のJSON形式でデータを抽出してください。
+const EXTRACT_PROMPT = `以下の情報から、含まれるイベント・予定をすべて抽出してください。
+1件のみの場合も必ず配列で返してください。
 日本語で回答し、情報がない・不明な場合はnullを設定してください。
-必ずJSONのみを返してください（余計な説明不要）。
+必ずJSON配列のみを返してください（余計な説明不要）。
 
-{
-  "title": "イベントのタイトル（必須、簡潔に）",
-  "date": "開始日をYYYY-MM-DD形式で or null",
-  "time": "開始時刻をHH:mm形式で or null",
-  "endDate": "終了日をYYYY-MM-DD形式で（開始日と同じ場合もnullではなく明記）or null",
-  "endTime": "終了時刻をHH:mm形式で or null",
-  "category": "単行本|グッズ|イベント|誕生日|配信 のいずれか or null",
-  "prefecture": "都道府県名（「都」「府」「県」を除いた形。例: 東京・大阪・神奈川・北海道）or null",
-  "locationDetail": "詳細な会場名・住所 or null",
-  "link": "公式URL or null",
-  "memo": "補足情報・注意事項 or null"
-}`;
+[
+  {
+    "title": "イベントのタイトル（必須、簡潔に）",
+    "date": "開始日をYYYY-MM-DD形式で or null",
+    "time": "開始時刻をHH:mm形式で or null",
+    "endDate": "終了日をYYYY-MM-DD形式で or null",
+    "endTime": "終了時刻をHH:mm形式で or null",
+    "category": "単行本|グッズ|イベント|誕生日|配信 のいずれか or null",
+    "prefecture": "都道府県名（「都」「府」「県」を除いた形。例: 東京・大阪・神奈川・北海道）or null",
+    "locationDetail": "詳細な会場名・住所 or null",
+    "link": "公式URL or null",
+    "memo": "補足情報・注意事項 or null"
+  }
+]`;
 
 async function fetchPageText(url: string): Promise<string> {
   try {
@@ -97,10 +100,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       rawText = completion.choices[0]?.message?.content ?? '';
     }
 
-    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return res.status(422).json({ error: 'Could not parse response' });
+    const arrayMatch = rawText.match(/\[[\s\S]*\]/);
+    const objectMatch = rawText.match(/\{[\s\S]*\}/);
+    if (!arrayMatch && !objectMatch) return res.status(422).json({ error: 'Could not parse response' });
 
-    const parsed = JSON.parse(jsonMatch[0]);
+    let parsed: unknown[];
+    if (arrayMatch) {
+      const arr = JSON.parse(arrayMatch[0]);
+      parsed = Array.isArray(arr) ? arr : [arr];
+    } else {
+      parsed = [JSON.parse(objectMatch![0])];
+    }
     return res.status(200).json(parsed);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
