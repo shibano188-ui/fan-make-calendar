@@ -9,7 +9,7 @@ import {
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
 import {
-  listEvents, getWorkById, leaveCalendar, deleteWork,
+  listEvents, getWorkById, leaveCalendar, deleteWork, deleteEvent,
   createEvents, getHomePrefecture, saveHomePrefecture,
   getDisplayName, saveDisplayName, listRecentWorks,
   listAllParticipatedWorkEvents, addLikeTap, setReaction, getReactionData, updateEvent,
@@ -903,6 +903,16 @@ export default function Calendar() {
     if (dx < 0) nextMonth(); else prevMonth();
   };
   const toggleBell = (id: string) => setBellEventIds(toggleBellEventId(id));
+
+  const handleDeleteEvent = async (id: string, title: string) => {
+    if (!window.confirm(`「${title}」を削除しますか？\nこの操作は元に戻せません。`)) return;
+    try {
+      await deleteEvent(id);
+      setEvents(prev => prev.filter(e => e.id !== id));
+      setSheetDetailEvent(prev => prev?.id === id ? null : prev);
+      setListDetailEvent(prev => prev?.id === id ? null : prev);
+    } catch { alert('削除に失敗しました'); }
+  };
 
   // ─── イベント編集（投稿者本人のみ） ────────────────────────────
   const [editEventId, setEditEventId] = useState<string | null>(null);
@@ -1885,20 +1895,29 @@ export default function Calendar() {
                           ))}
                         </div>
                       )}
-                      {/* by + 編集（最下行） */}
+                      {/* by + 編集・削除（最下行） */}
                       {(sheetDetailEvent.authorName || (sheetDetailEvent.authorId && user && sheetDetailEvent.authorId === user.id)) && (
                         <div className="flex items-center justify-between">
                           {sheetDetailEvent.authorName && (
                             <p className="text-label-tertiary text-xs">by {sheetDetailEvent.authorName}</p>
                           )}
                           {sheetDetailEvent.authorId && user && sheetDetailEvent.authorId === user.id && (
-                            <button
-                              onClick={() => openEditEvent(sheetDetailEvent)}
-                              className="flex items-center gap-1 text-xs active:opacity-60 ml-auto"
-                              style={{ color: 'var(--accent-color)' }}
-                            >
-                              <Pencil size={12} />編集
-                            </button>
+                            <div className="flex items-center gap-2 ml-auto">
+                              <button
+                                onClick={() => openEditEvent(sheetDetailEvent)}
+                                className="flex items-center gap-1 text-xs active:opacity-60"
+                                style={{ color: 'var(--accent-color)' }}
+                              >
+                                <Pencil size={12} />編集
+                              </button>
+                              <button
+                                onClick={() => handleDeleteEvent(sheetDetailEvent.id, sheetDetailEvent.title)}
+                                className="flex items-center gap-1 text-xs active:opacity-60"
+                                style={{ color: 'var(--label-tertiary)' }}
+                              >
+                                <Trash2 size={12} />削除
+                              </button>
+                            </div>
                           )}
                         </div>
                       )}
@@ -2295,20 +2314,29 @@ export default function Calendar() {
                   ))}
                 </div>
               )}
-              {/* by + 編集（最下行） */}
+              {/* by + 編集・削除（最下行） */}
               {(listDetailEvent.authorName || (listDetailEvent.authorId && user && listDetailEvent.authorId === user.id)) && (
                 <div className="flex items-center justify-between">
                   {listDetailEvent.authorName && (
                     <p className="text-label-tertiary text-xs">by {listDetailEvent.authorName}</p>
                   )}
                   {listDetailEvent.authorId && user && listDetailEvent.authorId === user.id && (
-                    <button
-                      onClick={() => openEditEvent(listDetailEvent)}
-                      className="flex items-center gap-1 text-xs active:opacity-60 ml-auto"
-                      style={{ color: 'var(--accent-color)' }}
-                    >
-                      <Pencil size={12} />編集
-                    </button>
+                    <div className="flex items-center gap-2 ml-auto">
+                      <button
+                        onClick={() => openEditEvent(listDetailEvent)}
+                        className="flex items-center gap-1 text-xs active:opacity-60"
+                        style={{ color: 'var(--accent-color)' }}
+                      >
+                        <Pencil size={12} />編集
+                      </button>
+                      <button
+                        onClick={() => handleDeleteEvent(listDetailEvent.id, listDetailEvent.title)}
+                        className="flex items-center gap-1 text-xs active:opacity-60"
+                        style={{ color: 'var(--label-tertiary)' }}
+                      >
+                        <Trash2 size={12} />削除
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
