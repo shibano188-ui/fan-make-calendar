@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, ChevronRight, MoreVertical, LogOut, Trash2, Check, Palette, Map as MapIcon } from 'lucide-react';
 import Layout from '../components/Layout';
 import SettingsMenuButton from '../components/SettingsMenuButton';
-import { listWorks, searchWorks, getOrCreateWork, getWorkById, upsertParticipation, listRecentWorks, leaveCalendar, deleteWork } from '../lib/api';
+import { listWorks, searchWorks, getOrCreateWork, getWorkById, upsertParticipation, listRecentWorks, leaveCalendar, deleteWork, getHomePrefecture } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import type { Work } from '../lib/api';
 import { POST_CATEGORIES, loadCategoryFilters, saveCategoryFilters, loadRegionFilter, saveRegionFilter, type FilterMode } from '../lib/constants';
@@ -119,7 +119,7 @@ export default function WorkSelect() {
   const [filterValue, setFilterValue] = useState<string | null>(() => loadRegionFilter().filterValue);
   const [includeAdjacent, setIncludeAdjacent] = useState(() => loadRegionFilter().includeAdjacent);
   const [showRegionPanel, setShowRegionPanel] = useState(false);
-  const [homePref] = useState<string | null>(null);
+  const [homePref, setHomePref] = useState<string | null>(null);
 
   const filterActive = filterMode !== 'none';
   const filterLabel = filterMode === 'pref' ? filterValue ?? '' : filterMode === 'region' ? `${filterValue}地方` : '';
@@ -143,6 +143,7 @@ export default function WorkSelect() {
   useEffect(() => {
     if (!user) return;
     listRecentWorks(user.id).then(setRecentWorks).catch(console.error);
+    getHomePrefecture(user.id).then(setHomePref).catch(() => {});
   }, [user?.id]);
 
   useEffect(() => {
