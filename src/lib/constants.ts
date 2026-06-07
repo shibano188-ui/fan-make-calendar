@@ -195,6 +195,7 @@ export interface QueuedEvent {
   link: string | null;
   memo: string | null;
   imageUrl: string | null;
+  sourceUrl: string | null;
   queuedAt: string;
 }
 

@@ -117,6 +117,7 @@ function rowToEvent(e: Record<string, unknown>): CalendarEvent {
     likedByMe: false,
     createdAt: e.created_at as string,
     imageUrl: (e.image_url as string | null) ?? undefined,
+    sourceUrl: (e.source_url as string | null) ?? undefined,
   };
 }
 
@@ -180,7 +181,7 @@ export async function listEventsByDate(workId: string, date: string, userId?: st
 
 export async function createEvents(
   workId: string,
-  events: Pick<CalendarEvent, 'title' | 'date' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'imageUrl'>[],
+  events: Pick<CalendarEvent, 'title' | 'date' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'imageUrl' | 'sourceUrl'>[],
   authorId: string,
 ): Promise<string[]> {
   const rows = await Promise.all(events.map(async e => {
@@ -208,6 +209,7 @@ export async function createEvents(
       location_detail: e.locationDetail ?? null,
       location_map_link: e.locationMapLink ?? null,
       ...(e.imageUrl ? { image_url: e.imageUrl } : {}),
+      ...(e.sourceUrl ? { source_url: e.sourceUrl } : {}),
       author_id: authorId,
       pool,
     };

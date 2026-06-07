@@ -13,6 +13,7 @@ export type ParsedEvent = {
   link: string | null;
   memo: string | null;
   imageUrl: string | null;
+  sourceUrl: string | null;
 };
 
 type Tab = 'url' | 'image';
@@ -60,8 +61,9 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
     prefecture:     clean(raw.prefecture),
     locationDetail: clean(raw.locationDetail),
     link:           linkOverride ?? clean(raw.link),
-    memo:           [clean(raw.memo), sourceUrl ? `出典: ${sourceUrl}` : null].filter(Boolean).join('\n') || null,
+    memo:           clean(raw.memo),
     imageUrl:       clean(raw.imageUrl),
+    sourceUrl:      sourceUrl ?? null,
   });
 
   const parseAndApply = async (body: object, isUrl = false) => {

@@ -48,7 +48,8 @@ export default function ShareTarget() {
           prefecture:     clean(first.prefecture),
           locationDetail: clean(first.locationDetail),
           link:           clean(first.link),
-          memo:           [clean(first.memo), `出典: ${sharedUrl}`].filter(Boolean).join('\n'),
+          memo:           clean(first.memo),
+          sourceUrl:      sharedUrl,
           imageUrl:       clean(first.imageUrl),
         };
 
@@ -66,7 +67,7 @@ export default function ShareTarget() {
           title: sharedTitle || null,
           date: null, time: null, endDate: null, endTime: null,
           category: null, prefecture: null, locationDetail: null,
-          link: sharedUrl, memo: null, imageUrl: null,
+          link: null, memo: null, imageUrl: null, sourceUrl: sharedUrl,
         };
 
         if (mode === 'stock') {

@@ -82,15 +82,6 @@ function getDomain(url: string): string {
   } catch { return url; }
 }
 
-function extractSource(memo?: string | null): { cleanMemo: string | null; sourceUrl: string | null } {
-  if (!memo) return { cleanMemo: null, sourceUrl: null };
-  const lines = memo.split('\n');
-  const idx = lines.findIndex(l => /^出典:\s*https?:\/\//.test(l));
-  if (idx === -1) return { cleanMemo: memo, sourceUrl: null };
-  const sourceUrl = lines[idx].replace(/^出典:\s*/, '').trim();
-  const cleaned = lines.filter((_, i) => i !== idx).join('\n').trim();
-  return { cleanMemo: cleaned || null, sourceUrl };
-}
 
 // ─── コンポーネント ────────────────────────────────────────────────
 
@@ -461,7 +452,6 @@ export default function Discover() {
                 const isOngoing = event.date < todayStr && !!event.endDate && event.endDate >= todayStr;
                 const [, endM, endD] = isOngoing ? event.endDate!.split('-').map(Number) : [0, 0, 0];
                 const catColor = getCategoryColor(event.category);
-                const { cleanMemo, sourceUrl } = extractSource(event.memo);
                 return (
                   <div key={event.id} className="bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
                     style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined }}
@@ -547,7 +537,7 @@ export default function Discover() {
                           {timeLabel && <span className="text-label-secondary text-sm">{timeLabel}</span>}
                         </div>
                         {/* メモ */}
-                        {cleanMemo && <MemoText text={cleanMemo} className="text-label-secondary text-sm leading-relaxed" />}
+                        {event.memo && <MemoText text={event.memo} className="text-label-secondary text-sm leading-relaxed" />}
                         {/* リンク */}
                         {event.link && (
                           <a href={event.link} target="_blank" rel="noopener noreferrer"
@@ -556,15 +546,15 @@ export default function Discover() {
                           </a>
                         )}
                         {/* 投稿者 / 出典 */}
-                        {(event.authorName || sourceUrl) && (
+                        {(event.authorName || event.sourceUrl) && (
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-label-tertiary text-xs">
                               {event.authorName && (event.authorId ? (
                                 <button onClick={() => setViewingUserId(event.authorId!)} className="underline underline-offset-2 active:opacity-60">by {event.authorName}</button>
                               ) : `by ${event.authorName}`)}
                             </p>
-                            {sourceUrl && (
-                              <a href={sourceUrl} target="_blank" rel="noopener noreferrer"
+                            {event.sourceUrl && (
+                              <a href={event.sourceUrl} target="_blank" rel="noopener noreferrer"
                                 className="text-label-tertiary text-xs underline underline-offset-2 active:opacity-60 flex-shrink-0"
                                 onClick={e => e.stopPropagation()}>
                                 出典

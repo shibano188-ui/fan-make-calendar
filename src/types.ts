@@ -19,4 +19,5 @@ export type CalendarEvent = {
   workId?: string;
   workName?: string;
   imageUrl?: string;
+  sourceUrl?: string;
 };
