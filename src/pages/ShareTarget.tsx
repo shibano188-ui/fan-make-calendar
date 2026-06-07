@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Loader2, CheckCircle, AlertCircle, Inbox } from 'lucide-react';
-import { loadShareMode, addToEventQueue } from '../lib/constants';
+import { Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 
-type Status = 'parsing' | 'done' | 'stocked' | 'error';
+type Status = 'parsing' | 'done' | 'error';
 
 const clean = (v: unknown): string | null => {
   if (v === null || v === undefined || v === 'null' || v === '') return null;
@@ -16,19 +15,15 @@ export default function ShareTarget() {
   const [status, setStatus] = useState<Status>('parsing');
   const pendingRef = useRef<Record<string, string | null> | null>(null);
 
-  const urlParam   = searchParams.get('url')   || '';
-  const textParam  = searchParams.get('text')  || '';
+  const urlParam    = searchParams.get('url')   || '';
+  const textParam   = searchParams.get('text')  || '';
   const sharedTitle = searchParams.get('title') || '';
 
-  // X アプリは url=ツイートURL, text=ツイート本文 を送る場合と
-  // url=空, text="本文 https://t.co/xxx" を送る場合がある。
-  // いずれでも正しい URL を取り出す。
   const extractFirstUrl = (s: string) => s.match(/https?:\/\/\S+/)?.[0] ?? '';
   const sharedUrl = urlParam.startsWith('http') ? urlParam
     : textParam.startsWith('http') ? textParam
     : extractFirstUrl(textParam) || extractFirstUrl(urlParam) || urlParam || textParam;
 
-  // ツイート本文（URL以外のテキスト）— url パラムに正規 URL がある場合のみ text がコンテンツ
   const sharedText = (() => {
     if (!urlParam.startsWith('http')) return '';
     const stripped = textParam.replace(/https?:\/\/\S+/g, '').trim();
@@ -41,8 +36,6 @@ export default function ShareTarget() {
       return;
     }
 
-    const mode = loadShareMode();
-
     const MAX_RETRIES = 3;
 
     const attemptParse = async (): Promise<unknown[]> => {
@@ -52,10 +45,7 @@ export default function ShareTarget() {
           const res = await fetch('/api/parse-event', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              url: sharedUrl,
-              ...(sharedText ? { sharedText } : {}),
-            }),
+            body: JSON.stringify({ url: sharedUrl, ...(sharedText ? { sharedText } : {}) }),
           });
           if (!res.ok) throw new Error(`${res.status}`);
           const raw = await res.json();
@@ -67,7 +57,7 @@ export default function ShareTarget() {
           lastError = e instanceof Error ? e.message : '不明';
         }
       }
-      throw new Error(lastError ?? '解析失敗');
+      throw new Error(lastError ?? '解析��敗');
     };
 
     attemptParse()
@@ -87,15 +77,9 @@ export default function ShareTarget() {
           sourceUrl:      sharedUrl,
           imageUrl:       clean(first.imageUrl),
         };
-
-        if (mode === 'stock') {
-          addToEventQueue(parsed);
-          setStatus('stocked');
-        } else {
-          pendingRef.current = parsed;
-          localStorage.setItem('pendingParsedEvent', JSON.stringify(parsed));
-          setStatus('done');
-        }
+        pendingRef.current = parsed;
+        localStorage.setItem('pendingParsedEvent', JSON.stringify(parsed));
+        setStatus('done');
       })
       .catch(() => {
         const fallback = {
@@ -104,18 +88,15 @@ export default function ShareTarget() {
           category: null, prefecture: null, locationDetail: null,
           link: null, memo: null, imageUrl: null, sourceUrl: sharedUrl,
         };
-
-        if (mode === 'stock') {
-          addToEventQueue(fallback);
-          setStatus('stocked');
-        } else {
-          pendingRef.current = fallback;
-          localStorage.setItem('pendingParsedEvent', JSON.stringify(fallback));
-          setStatus('error');
-        }
+        pendingRef.current = fallback;
+        localStorage.setItem('pendingParsedEvent', JSON.stringify(fallback));
+        setStatus('error');
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const goToCalendar = () =>
+    navigate('/calendar', { replace: true, state: { pendingParsedEvent: pendingRef.current } });
 
   return (
     <div
@@ -125,27 +106,8 @@ export default function ShareTarget() {
       {status === 'parsing' && (
         <>
           <Loader2 size={36} className="animate-spin" style={{ color: 'var(--accent-color)' }} />
-          <p className="text-label-primary font-medium text-sm">AIが解析中…</p>
+          <p className="text-label-primary font-medium text-sm">AI���解析中…</p>
           <p className="text-label-tertiary text-xs text-center break-all line-clamp-2">{sharedUrl}</p>
-        </>
-      )}
-      {status === 'stocked' && (
-        <>
-          <Inbox size={36} style={{ color: 'var(--accent-color)' }} />
-          <p className="text-label-primary font-medium text-sm">ストックしました</p>
-          <p className="text-label-tertiary text-xs text-center">
-            続けてXを見るか、カレンダーで確認できます
-          </p>
-          <div className="flex flex-col gap-2 w-full mt-2">
-            <button
-              onClick={() => navigate('/calendar?openQueue=1', { replace: true })}
-              className="w-full py-3 rounded-xl text-sm font-semibold text-white active:opacity-70"
-              style={{ backgroundColor: 'var(--accent-color)' }}
-            >
-              カレンダーでまとめて確認する
-            </button>
-            <p className="text-label-tertiary text-[11px] text-center">← スワイプでXに戻れます</p>
-          </div>
         </>
       )}
       {status === 'done' && (
@@ -153,15 +115,15 @@ export default function ShareTarget() {
           <CheckCircle size={36} style={{ color: '#34D399' }} />
           <p className="text-label-primary font-medium text-sm">解析完了！</p>
           <p className="text-label-tertiary text-xs text-center">
-            続けてXを見るか、カレンダーでフォームを開けます
+            続けてXを見るか、予定を追加できます
           </p>
           <div className="flex flex-col gap-2 w-full mt-2">
             <button
-              onClick={() => navigate('/calendar', { replace: true, state: { pendingParsedEvent: pendingRef.current } })}
+              onClick={goToCalendar}
               className="w-full py-3 rounded-xl text-sm font-semibold text-white active:opacity-70"
               style={{ backgroundColor: 'var(--accent-color)' }}
             >
-              カレンダーでフォームを開く
+              予定を追加する
             </button>
             <p className="text-label-tertiary text-[11px] text-center">← スワイプでXに戻れます</p>
           </div>
@@ -171,15 +133,15 @@ export default function ShareTarget() {
         <>
           <AlertCircle size={36} style={{ color: '#FBBF24' }} />
           <p className="text-label-secondary text-sm text-center">
-            解析できませんでしたが、URLを引き継いでフォームを開けます
+            解析できませんでしたが、URLを引き継いで追加で���ます
           </p>
           <div className="flex flex-col gap-2 w-full mt-2">
             <button
-              onClick={() => navigate('/calendar', { replace: true, state: { pendingParsedEvent: pendingRef.current } })}
+              onClick={goToCalendar}
               className="w-full py-3 rounded-xl text-sm font-semibold text-white active:opacity-70"
               style={{ backgroundColor: 'var(--accent-color)' }}
             >
-              カレンダーでフォームを開く
+              予定を追加する
             </button>
             <p className="text-label-tertiary text-[11px] text-center">← スワイプでXに戻れます</p>
           </div>
