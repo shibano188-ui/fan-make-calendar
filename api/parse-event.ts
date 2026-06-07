@@ -85,9 +85,6 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
   const tweetId = tweetUrl.match(/\/status\/(\d+)/)?.[1];
   if (!tweetId) return { text: `URL: ${tweetUrl}`, imageUrl: null };
 
-  // x.com/i/status/{id} 等 URL形式に依存しないよう、全ソースを並行取得
-  const twitterCanonical = `https://twitter.com/i/web/status/${tweetId}`;
-
   type FxData = {
     tweet?: {
       text?: string;
@@ -99,7 +96,14 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
   type SynData = Record<string, unknown>;
   type OeData = { html?: string; author_name?: string };
 
-  const [fxResult, synResult, oeResult] = await Promise.allSettled([
+  const fetchOe = (u: string) =>
+    fetch(`https://publish.twitter.com/oembed?url=${encodeURIComponent(u)}&omit_script=true`, {
+      signal: AbortSignal.timeout(5000),
+    }).then(r => r.ok ? (r.json() as Promise<OeData>) : null).catch(() => null);
+
+  // oEmbed は元のURLと twitter.com/i/web/status/ 形式の両方を試す
+  // （x.com/username/status/ は元URLで通り、x.com/i/status/ は twitter.com 形式で通る）
+  const [fxResult, synResult, oe1Result, oe2Result] = await Promise.allSettled([
     fetch(`https://api.fxtwitter.com/status/${tweetId}`, {
       headers: { 'User-Agent': 'Mozilla/5.0' },
       signal: AbortSignal.timeout(5000),
@@ -109,14 +113,15 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
       signal: AbortSignal.timeout(4000),
     }).then(r => r.ok ? (r.json() as Promise<SynData>) : null).catch(() => null),
 
-    fetch(`https://publish.twitter.com/oembed?url=${encodeURIComponent(twitterCanonical)}&omit_script=true`, {
-      signal: AbortSignal.timeout(5000),
-    }).then(r => r.ok ? (r.json() as Promise<OeData>) : null).catch(() => null),
+    fetchOe(tweetUrl),
+    fetchOe(`https://twitter.com/i/web/status/${tweetId}`),
   ]);
 
   const fx  = fxResult.status  === 'fulfilled' ? fxResult.value  : null;
   const syn = synResult.status  === 'fulfilled' ? synResult.value  : null;
-  const oe  = oeResult.status  === 'fulfilled' ? oeResult.value  : null;
+  const oe1 = oe1Result.status === 'fulfilled' ? oe1Result.value : null;
+  const oe2 = oe2Result.status === 'fulfilled' ? oe2Result.value : null;
+  const oe  = (oe1?.html ? oe1 : null) ?? (oe2?.html ? oe2 : null);
 
 
   // ── 画像（fxtwitter → syndication の順）
