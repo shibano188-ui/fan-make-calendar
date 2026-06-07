@@ -47,8 +47,8 @@ export default function ShareTarget() {
           category:       clean(first.category),
           prefecture:     clean(first.prefecture),
           locationDetail: clean(first.locationDetail),
-          link:           sharedUrl,
-          memo:           clean(first.memo),
+          link:           clean(first.link),
+          memo:           [clean(first.memo), `出典: ${sharedUrl}`].filter(Boolean).join('\n'),
           imageUrl:       clean(first.imageUrl),
         };
 

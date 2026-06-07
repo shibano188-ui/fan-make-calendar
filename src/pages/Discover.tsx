@@ -502,10 +502,9 @@ export default function Discover() {
                           const imgs = parseImageUrls(event.imageUrl);
                           if (imgs.length === 0) return null;
                           if (imgs.length === 1) return (
-                            <div className="w-full rounded-lg overflow-hidden" style={{ height: 200 }}>
-                              <img src={imgs[0]} alt="" loading="lazy"
-                                className="w-full h-full object-cover" />
-                            </div>
+                            <img src={imgs[0]} alt="" loading="lazy"
+                              className="w-full rounded-lg"
+                              style={{ maxHeight: 340, objectFit: 'contain' }} />
                           );
                           if (imgs.length === 2) return (
                             <div className="grid grid-cols-2 gap-1.5">

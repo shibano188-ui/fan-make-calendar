@@ -50,7 +50,7 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
     return String(v);
   };
 
-  const rawToEvent = (raw: Record<string, unknown>, linkOverride?: string): ParsedEvent => ({
+  const rawToEvent = (raw: Record<string, unknown>, linkOverride?: string, sourceUrl?: string): ParsedEvent => ({
     title:          clean(raw.title),
     date:           clean(raw.date),
     time:           clean(raw.time),
@@ -60,7 +60,7 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
     prefecture:     clean(raw.prefecture),
     locationDetail: clean(raw.locationDetail),
     link:           linkOverride ?? clean(raw.link),
-    memo:           clean(raw.memo),
+    memo:           [clean(raw.memo), sourceUrl ? `出典: ${sourceUrl}` : null].filter(Boolean).join('\n') || null,
     imageUrl:       clean(raw.imageUrl),
   });
 
@@ -102,8 +102,11 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
       return;
     }
 
-    const linkOverride = isUrl ? urlValue.trim() : undefined;
-    const events = lastEvents.map(e => rawToEvent(e, linkOverride));
+    const trimmedUrl = urlValue.trim();
+    const isTweet = isUrl && /twitter\.com|x\.com/.test(trimmedUrl);
+    const linkOverride = (isUrl && !isTweet) ? trimmedUrl : undefined;
+    const sourceUrl = isTweet ? trimmedUrl : undefined;
+    const events = lastEvents.map(e => rawToEvent(e, linkOverride, sourceUrl));
 
     if (events.length === 1) {
       onApply(events[0]);
