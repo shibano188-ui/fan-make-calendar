@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Pencil, Check, X, ChevronRight, Users } from 'lucide-react';
+import { Pencil, Check, X, ChevronRight, Palette, Map as MapIcon } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
-import { useTheme, COMMUNITY_THEMES } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import {
   getHomePrefecture, saveHomePrefecture,
@@ -18,85 +17,16 @@ const ANIMAL_AVATARS = [
   '🦁','🐮','🐷','🐸','🦋','🐝','🐬','🐧',
   '🦄','🐙','🦜','🦅','🦖','🐳','🦓','🐢',
 ];
-import { loadCalendarEventIds, loadTotalLikesGiven } from '../lib/constants';
+import { loadCalendarEventIds, loadTotalLikesGiven, loadRegionFilter, saveRegionFilter, type FilterMode } from '../lib/constants';
 import { PrefectureSearch } from '../components/UserSettingsSheet';
+import { REGIONS, ADJACENT } from '../lib/prefectures';
 
 const BOTTOM_TAB_H = 56;
-
-function themeButtonClass(active: boolean) {
-  return `flex-1 rounded-xl overflow-hidden border-2 transition-all ${active ? 'border-accent' : 'border-subtle'} active:opacity-70`;
-}
-
-// ─── コミュニティテーマモーダル（適用のみ、共有なし）─────────────────────
-function CommunityThemePicker({
-  currentId,
-  onSelect,
-  onClose,
-}: {
-  currentId: string;
-  onSelect: (id: string) => void;
-  onClose: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-[200] flex flex-col justify-end">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div
-        className="relative rounded-t-2xl"
-        style={{
-          backgroundColor: 'var(--bg-primary)',
-          maxHeight: '80vh',
-          display: 'flex',
-          flexDirection: 'column',
-          animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both',
-        }}
-      >
-        <div className="flex justify-center pt-3 pb-2">
-          <div className="w-10 h-1 rounded-full" style={{ backgroundColor: 'var(--border-subtle)' }} />
-        </div>
-        <div className="px-4 pb-3 flex items-center justify-between flex-shrink-0">
-          <p className="text-label-primary font-semibold text-base">みんなのテーマ</p>
-          <button onClick={onClose} className="text-xs text-label-secondary active:opacity-60">閉じる</button>
-        </div>
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'scroll', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
-          className="px-4 pb-8">
-          <div className="flex flex-col gap-2">
-            {COMMUNITY_THEMES.map(theme => {
-              const selected = currentId === theme.id;
-              return (
-                <button
-                  key={theme.id}
-                  onClick={() => { onSelect(theme.id); onClose(); }}
-                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl border transition-colors active:opacity-70"
-                  style={{
-                    borderColor: selected ? 'var(--accent-color)' : 'var(--border-subtle)',
-                    backgroundColor: selected ? 'color-mix(in srgb, var(--accent-color) 8%, transparent)' : 'var(--bg-secondary)',
-                  }}
-                >
-                  <div className="w-10 h-10 rounded-lg flex-shrink-0 overflow-hidden" style={{ backgroundColor: theme.vars['--bg-primary'] }}>
-                    <div className="w-full h-1/2" style={{ backgroundColor: theme.vars['--bg-secondary'] }} />
-                  </div>
-                  <div className="text-left flex-1 min-w-0">
-                    <p className="text-label-primary text-sm font-medium">{theme.name}</p>
-                  </div>
-                  {selected && <Check size={16} style={{ color: 'var(--accent-color)', flexShrink: 0 }} />}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ─── メイン ────────────────────────────────────────────────────────
 export default function Profile() {
   const navigate = useNavigate();
-  const { settings, updateSettings } = useTheme();
   const { user } = useAuth();
-
-  const isCommunityActive = !!settings.communityThemeId;
-  const [showCommunityPicker, setShowCommunityPicker] = useState(false);
 
   // プロフィール編集
   const [displayName, setDisplayName] = useState<string | null>(null);
@@ -117,6 +47,15 @@ export default function Profile() {
   const [worksCount, setWorksCount] = useState<number | null>(null);
   const addedCount = loadCalendarEventIds().size;
   const totalLikesGiven = loadTotalLikesGiven();
+
+  // 地域フィルター（Calendar/Discoverと共有）
+  const [filterMode, setFilterMode] = useState<FilterMode>(() => loadRegionFilter().filterMode);
+  const [filterValue, setFilterValue] = useState<string | null>(() => loadRegionFilter().filterValue);
+  const [includeAdjacent, setIncludeAdjacent] = useState(() => loadRegionFilter().includeAdjacent);
+  const [showRegionPanel, setShowRegionPanel] = useState(false);
+
+  const filterActive = filterMode !== 'none';
+  const filterLabel = filterMode === 'pref' ? filterValue ?? '' : filterMode === 'region' ? `${filterValue}地方` : '';
 
   useEffect(() => {
     if (!user) return;
@@ -179,50 +118,30 @@ export default function Profile() {
         className="fixed inset-0 max-w-app mx-auto flex flex-col overflow-hidden"
         style={{ backgroundColor: 'var(--bg-primary)', paddingTop: 44, paddingBottom: BOTTOM_TAB_H }}
       >
-        <Header leftNode={<span className="text-base font-bold text-label-primary">プロフィール</span>} />
-
-        <div className="flex-1 overflow-y-auto px-4 pt-4 pb-8 flex flex-col gap-6">
-
-          {/* ── テーマ ────────────────────────────── */}
-          <section>
-            <p className="text-label-tertiary text-xs mb-3">テーマ</p>
-            <div className="flex gap-2">
+        <Header
+          leftNode={<span className="text-base font-bold text-label-primary">プロフィール</span>}
+          rightAction={
+            <div className="flex items-center gap-1">
               <button
-                onClick={() => updateSettings({ theme: 'simple', communityThemeId: '' })}
-                className={themeButtonClass(settings.theme === 'simple' && !isCommunityActive)}
+                onClick={() => setShowRegionPanel(true)}
+                aria-label="地域で絞り込む"
+                className="relative w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary active:opacity-60"
               >
-                <div className="h-10 bg-[#f5f5f5]" />
-                <div className="py-1.5" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                  <p className="text-xs text-label-primary text-center">シンプル</p>
-                </div>
+                <MapIcon size={16} style={filterActive ? { color: 'var(--accent-color)' } : {}} />
+                {filterActive && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent-color)' }} />}
               </button>
               <button
-                onClick={() => updateSettings({ theme: 'dark', communityThemeId: '' })}
-                className={themeButtonClass(settings.theme === 'dark' && !isCommunityActive)}
+                onClick={() => navigate('/customize')}
+                aria-label="カスタマイズ"
+                className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary active:opacity-60"
               >
-                <div className="h-10 bg-[#1a1a1a]" />
-                <div className="py-1.5" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                  <p className="text-xs text-label-primary text-center">ダーク</p>
-                </div>
-              </button>
-              <button
-                onClick={() => setShowCommunityPicker(true)}
-                className={themeButtonClass(isCommunityActive)}
-              >
-                <div className="h-10 flex items-center justify-center" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                  <Users size={18} className="text-label-tertiary" />
-                </div>
-                <div className="py-1.5 border-t" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-subtle)' }}>
-                  <p className="text-xs text-label-secondary text-center">みんなのテーマ</p>
-                </div>
+                <Palette size={16} />
               </button>
             </div>
-            {isCommunityActive && (
-              <p className="text-label-tertiary text-xs mt-1.5 px-1">
-                適用中: {COMMUNITY_THEMES.find(t => t.id === settings.communityThemeId)?.name}
-              </p>
-            )}
-          </section>
+          }
+        />
+
+        <div className="flex-1 overflow-y-auto px-4 pt-4 pb-8 flex flex-col gap-6">
 
           {/* ── プロフィール ───────────────────────── */}
           <section>
@@ -430,13 +349,87 @@ export default function Profile() {
         </div>
       </div>
 
-      {/* みんなのテーマモーダル */}
-      {showCommunityPicker && (
-        <CommunityThemePicker
-          currentId={settings.communityThemeId}
-          onSelect={id => updateSettings({ communityThemeId: id })}
-          onClose={() => setShowCommunityPicker(false)}
-        />
+      {/* 地域フィルターパネル */}
+      {showRegionPanel && (
+        <div className="fixed inset-0 z-[200] flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowRegionPanel(false)} />
+          <div
+            className="relative bg-bg-primary rounded-t-2xl"
+            style={{ maxHeight: '85vh', display: 'flex', flexDirection: 'column', animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both' }}
+          >
+            <div style={{ flexShrink: 0 }} className="pt-3 px-4 pb-3 border-b border-faint">
+              <div className="flex justify-center mb-2">
+                <div className="w-10 h-1 rounded-full bg-label-tertiary/50" />
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-label-primary font-semibold text-sm">地域で絞り込む</p>
+                <button onClick={() => setShowRegionPanel(false)} className="text-xs text-label-secondary active:opacity-60">閉じる</button>
+              </div>
+              {filterActive && (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-xs rounded-full px-2.5 py-0.5 border" style={{ color: 'var(--accent-color)', borderColor: 'var(--accent-color)' }}>{filterLabel}</span>
+                  <button onClick={() => { setFilterMode('none'); setFilterValue(null); setIncludeAdjacent(false); saveRegionFilter({ filterMode: 'none', filterValue: null, includeAdjacent: false }); }} className="text-xs text-label-tertiary underline active:opacity-60">解除</button>
+                </div>
+              )}
+            </div>
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'scroll', WebkitOverflowScrolling: 'touch', padding: '16px 16px 40px' } as React.CSSProperties}>
+              <div className="mb-5">
+                <p className="text-label-tertiary text-xs mb-2">都道府県で選ぶ</p>
+                <PrefectureSearch
+                  value={filterMode === 'pref' ? filterValue ?? '' : ''}
+                  onChange={pref => {
+                    if (pref) { setFilterMode('pref'); setFilterValue(pref); setIncludeAdjacent(false); saveRegionFilter({ filterMode: 'pref', filterValue: pref, includeAdjacent: false }); setShowRegionPanel(false); }
+                    else { setFilterMode('none'); setFilterValue(null); setIncludeAdjacent(false); saveRegionFilter({ filterMode: 'none', filterValue: null, includeAdjacent: false }); }
+                  }}
+                />
+              </div>
+              <div className="mb-5">
+                <p className="text-label-tertiary text-xs mb-2">地域で選ぶ</p>
+                <select
+                  value={filterMode === 'region' ? filterValue ?? '' : ''}
+                  onChange={e => {
+                    if (e.target.value) { setFilterMode('region'); setFilterValue(e.target.value); setIncludeAdjacent(false); saveRegionFilter({ filterMode: 'region', filterValue: e.target.value, includeAdjacent: false }); setShowRegionPanel(false); }
+                    else { setFilterMode('none'); setFilterValue(null); saveRegionFilter({ filterMode: 'none', filterValue: null, includeAdjacent: false }); }
+                  }}
+                  className="w-full bg-bg-secondary rounded-xl px-3 py-3 text-sm text-label-primary outline-none border border-subtle appearance-none"
+                >
+                  <option value="">地域を選ぶ</option>
+                  {REGIONS.map(r => <option key={r.name} value={r.name}>{r.name}地方</option>)}
+                </select>
+              </div>
+              {filterMode === 'pref' && filterValue && (ADJACENT[filterValue]?.length ?? 0) > 0 && (
+                <button
+                  onClick={() => { setIncludeAdjacent(v => !v); saveRegionFilter({ filterMode, filterValue, includeAdjacent: !includeAdjacent }); }}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-bg-secondary rounded-xl mb-5"
+                >
+                  <div>
+                    <p className="text-sm text-label-primary text-left">隣接する県を含む</p>
+                    {includeAdjacent && <p className="text-[10px] text-label-tertiary text-left mt-0.5">{ADJACENT[filterValue].join('・')}</p>}
+                  </div>
+                  <div className="flex-shrink-0 w-11 h-6 rounded-full relative transition-colors ml-3" style={{ background: includeAdjacent ? 'var(--accent-color)' : 'rgba(128,128,128,0.4)' }}>
+                    <div className="absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm" style={{ left: includeAdjacent ? 'calc(100% - 20px)' : '4px' }} />
+                  </div>
+                </button>
+              )}
+              {homePref && !(filterMode === 'pref' && filterValue === homePref) && (
+                <button
+                  onClick={() => {
+                    setFilterMode('pref'); setFilterValue(homePref); setIncludeAdjacent(false);
+                    saveRegionFilter({ filterMode: 'pref', filterValue: homePref, includeAdjacent: false });
+                    setShowRegionPanel(false);
+                  }}
+                  className="w-full text-center py-3 rounded-xl text-sm font-medium active:opacity-70 mb-3"
+                  style={{ background: 'var(--accent-color)', color: 'var(--bg-primary)' }}
+                >
+                  ホーム県（{homePref}）に戻す
+                </button>
+              )}
+              {filterActive && (
+                <button onClick={() => { setFilterMode('none'); setFilterValue(null); setIncludeAdjacent(false); saveRegionFilter({ filterMode: 'none', filterValue: null, includeAdjacent: false }); setShowRegionPanel(false); }} className="w-full text-center py-3 rounded-xl border border-subtle text-sm text-label-secondary active:opacity-60">全国表示（絞り込みなし）</button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       <BottomTab />

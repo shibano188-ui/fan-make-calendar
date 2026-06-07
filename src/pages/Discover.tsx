@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
 import UserProfileModal from '../components/UserProfileModal';
 import {
   Heart, Smile, Pencil, SlidersHorizontal, ExternalLink, ChevronLeft, Plus, X,
-  Map as MapIcon,
+  Map as MapIcon, Palette,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
@@ -84,6 +85,7 @@ function getDomain(url: string): string {
 // ─── コンポーネント ────────────────────────────────────────────────
 
 export default function Discover() {
+  const navigate = useNavigate();
   const { user } = useAuth();
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -404,6 +406,13 @@ export default function Discover() {
               >
                 <MapIcon size={16} style={filterActive ? { color: 'var(--accent-color)' } : {}} />
                 {filterActive && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent-color)' }} />}
+              </button>
+              <button
+                onClick={() => navigate('/customize')}
+                aria-label="カスタマイズ"
+                className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary active:opacity-60"
+              >
+                <Palette size={16} />
               </button>
               <SettingsMenuButton />
             </div>
