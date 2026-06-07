@@ -74,6 +74,8 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
       title:          clean(lastRaw.title),
       date:           clean(lastRaw.date),
       time:           clean(lastRaw.time),
+      endDate:        clean(lastRaw.endDate),
+      endTime:        clean(lastRaw.endTime),
       category:       clean(lastRaw.category),
       prefecture:     clean(lastRaw.prefecture),
       locationDetail: clean(lastRaw.locationDetail),

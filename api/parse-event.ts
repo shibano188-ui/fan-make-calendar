@@ -9,8 +9,10 @@ const EXTRACT_PROMPT = `以下のイベント情報から、次のJSON形式で�
 
 {
   "title": "イベントのタイトル（必須、簡潔に）",
-  "date": "YYYY-MM-DD形式の日付 or null",
-  "time": "HH:mm形式の時刻 or null",
+  "date": "開始日をYYYY-MM-DD形式で or null",
+  "time": "開始時刻をHH:mm形式で or null",
+  "endDate": "終了日をYYYY-MM-DD形式で（開始日と同じ場合もnullではなく明記）or null",
+  "endTime": "終了時刻をHH:mm形式で or null",
   "category": "単行本|グッズ|イベント|誕生日|配信 のいずれか or null",
   "prefecture": "都道府県名（「都」「府」「県」を除いた形。例: 東京・大阪・神奈川・北海道）or null",
   "locationDetail": "詳細な会場名・住所 or null",
