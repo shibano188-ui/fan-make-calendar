@@ -207,7 +207,7 @@ export async function createEvents(
       prefecture: normalizePrefecture(e.prefecture) ?? null,
       location_detail: e.locationDetail ?? null,
       location_map_link: e.locationMapLink ?? null,
-      image_url: e.imageUrl ?? null,
+      ...(e.imageUrl ? { image_url: e.imageUrl } : {}),
       author_id: authorId,
       pool,
     };
