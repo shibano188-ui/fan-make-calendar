@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
 import UserProfileModal from '../components/UserProfileModal';
+import MemoText from '../components/MemoText';
 import {
   Heart, Smile, Trash2, SlidersHorizontal, ExternalLink, Plus,
   Map as MapIcon, Palette,
@@ -530,7 +531,7 @@ export default function Discover() {
                           {timeLabel && <span className="text-label-secondary text-sm">{timeLabel}</span>}
                         </div>
                         {/* メモ */}
-                        {event.memo && <p className="text-label-secondary text-sm leading-relaxed">{event.memo}</p>}
+                        {event.memo && <MemoText text={event.memo} className="text-label-secondary text-sm leading-relaxed" />}
                         {/* リンク */}
                         {event.link && (
                           <a href={event.link} target="_blank" rel="noopener noreferrer"
