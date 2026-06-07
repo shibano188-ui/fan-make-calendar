@@ -35,7 +35,7 @@ import { WORK_COLORS } from './Calendar';
 
 // ─── 定数 ──────────────────────────────────────────────────────────
 
-const BOTTOM_TAB_H = 56;
+import { BOTTOM_TOTAL_H as BOTTOM_TAB_H } from '../components/BottomTab';
 
 const LIKE_MAX_TAPS = 10;
 const LIKE_COOLDOWN_MS = 60_000;

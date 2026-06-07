@@ -13,7 +13,7 @@ export default function Layout({ children, hideBottomTab = false }: Props) {
       style={{ backgroundColor: 'var(--bg-primary)' }}
     >
       <div className="mx-auto w-full max-w-app min-h-screen flex flex-col">
-        <main className={`flex-1 ${hideBottomTab ? '' : 'pb-16'}`}>
+        <main className={`flex-1 ${hideBottomTab ? '' : 'pb-[106px]'}`}>
           {children}
         </main>
         {!hideBottomTab && <BottomTab />}

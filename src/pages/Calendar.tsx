@@ -102,7 +102,7 @@ function formatTimeRange(startTime?: string, endTime?: string): string | null {
 const inputCls =
   'w-full bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong';
 
-const BOTTOM_TAB_H = 56;
+import { BOTTOM_TOTAL_H as BOTTOM_TAB_H } from '../components/BottomTab';
 const SHEET_COLLAPSED_H = 76;
 const SHEET_FULL_H = 280;
 
