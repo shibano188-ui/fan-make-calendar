@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Sparkles, Link2, Camera, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Sparkles, Link2, Camera, Loader2, ChevronDown, ChevronUp, Image as ImageIcon } from 'lucide-react';
 
 export type ParsedEvent = {
   title: string | null;
@@ -25,6 +25,7 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
   const [flashMsg, setFlashMsg] = useState<string | null>(null);
   const [error, setError]       = useState<string | null>(null);
   const fileRef                 = useRef<HTMLInputElement>(null);
+  const cameraRef               = useRef<HTMLInputElement>(null);
 
   const showFlash = (msg: string) => {
     setFlashMsg(msg);
@@ -168,17 +169,35 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
                 className="hidden"
                 onChange={handleImageChange}
               />
-              <button
-                onClick={() => fileRef.current?.click()}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium border active:opacity-70 disabled:opacity-40"
-                style={{ borderColor: 'var(--border-default)', color: 'var(--label-secondary)' }}
-              >
-                {loading
-                  ? <><Loader2 size={15} className="animate-spin" /> 解析中…</>
-                  : <><Camera size={15} /> 写真を選ぶ / 撮影する</>
-                }
-              </button>
+              <input
+                ref={cameraRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handleImageChange}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  disabled={loading}
+                  className="flex items-center justify-center gap-1.5 py-3 rounded-xl text-sm font-medium border active:opacity-70 disabled:opacity-40"
+                  style={{ borderColor: 'var(--border-default)', color: 'var(--label-secondary)' }}
+                >
+                  {loading
+                    ? <><Loader2 size={15} className="animate-spin" /> 解析中…</>
+                    : <><ImageIcon size={15} /> 写真を選ぶ</>
+                  }
+                </button>
+                <button
+                  onClick={() => cameraRef.current?.click()}
+                  disabled={loading}
+                  className="flex items-center justify-center gap-1.5 py-3 rounded-xl text-sm font-medium border active:opacity-70 disabled:opacity-40"
+                  style={{ borderColor: 'var(--border-default)', color: 'var(--label-secondary)' }}
+                >
+                  <Camera size={15} /> 撮影する
+                </button>
+              </div>
               <p className="text-label-tertiary text-[10px] text-center">
                 イベントのフライヤーや告知画像を使えます
               </p>
