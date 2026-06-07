@@ -183,31 +183,33 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
   // フォールバック①: link 解決で pbs.twimg.com が得られた場合
   if (!imageUrl && imgFromLinks.length > 0) {
     imageUrl = imgFromLinks.length === 1 ? imgFromLinks[0] : JSON.stringify(imgFromLinks);
+    if (imageUrl) { imgSrc = 'L'; photoCount = imgFromLinks.length; }
   }
 
-  // フォールバック②: ツイートページの og:image（Twitterbot UA で取得）
-  let ogStatus = 0;
-  if (!imageUrl) {
+  // フォールバック②: fxtwitter API（syndication が使えない場合の代替）
+  if (!imageUrl && tweetId) {
     try {
-      const pageRes = await fetch(tweetUrl, {
-        headers: { 'User-Agent': 'Twitterbot/1.0' },
-        signal: AbortSignal.timeout(4000),
-      });
-      ogStatus = pageRes.status;
-      if (pageRes.ok) {
-        const pageHtml = await pageRes.text();
-        const ogMatch =
-          pageHtml.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/i) ??
-          pageHtml.match(/<meta[^>]+content="([^"]+)"[^>]+property="og:image"/i);
-        const ogUrl = ogMatch?.[1];
-        if (ogUrl && !ogUrl.includes('abs.twimg.com') && !ogUrl.includes('twitter.com/images')) {
-          imageUrl = ogUrl;
+      const fxRes = await fetch(
+        `https://api.fxtwitter.com/status/${tweetId}`,
+        { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(5000) },
+      );
+      if (fxRes.ok) {
+        const fxData = await fxRes.json() as {
+          tweet?: { media?: { photos?: Array<{ url: string }> } };
+        };
+        const fxPhotos = fxData.tweet?.media?.photos;
+        if (fxPhotos?.length) {
+          const urls = fxPhotos.map(p => p.url);
+          imageUrl = urls.length === 1 ? urls[0] : JSON.stringify(urls);
+          imgSrc = 'F';
+          photoCount = urls.length;
         }
       }
     } catch {}
   }
-  // src(P=photos/M=mediaDetails/-=none) + count + og status
-  console.log(`${imgSrc}${photoCount} og:${ogStatus} ${imageUrl?.slice(0,30)??'NO_URL'}`);
+
+  // src: P=photos / M=mediaDetails / L=t.co link / F=fxtwitter / -=none
+  console.log(`${imgSrc}${photoCount} ${imageUrl?.slice(0,30)??'NO_URL'}`);
 
   const textContent = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   let text = `投稿者: ${data.author_name ?? ''}\n内容: ${textContent}`;
