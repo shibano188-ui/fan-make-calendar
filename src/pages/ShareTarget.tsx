@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Loader2, CheckCircle, AlertCircle, Inbox } from 'lucide-react';
 import { loadShareMode, addToEventQueue } from '../lib/constants';
@@ -14,6 +14,7 @@ export default function ShareTarget() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [status, setStatus] = useState<Status>('parsing');
+  const pendingRef = useRef<Record<string, string | null> | null>(null);
 
   const urlParam   = searchParams.get('url')   || '';
   const textParam  = searchParams.get('text')  || '';
@@ -91,10 +92,9 @@ export default function ShareTarget() {
           addToEventQueue(parsed);
           setStatus('stocked');
         } else {
-          setStatus('done');
-          // router state で直接渡す（最優先）＋ localStorage をバックアップ
+          pendingRef.current = parsed;
           localStorage.setItem('pendingParsedEvent', JSON.stringify(parsed));
-          setTimeout(() => navigate('/calendar', { replace: true, state: { pendingParsedEvent: parsed } }), 800);
+          setStatus('done');
         }
       })
       .catch(() => {
@@ -109,9 +109,9 @@ export default function ShareTarget() {
           addToEventQueue(fallback);
           setStatus('stocked');
         } else {
+          pendingRef.current = fallback;
           localStorage.setItem('pendingParsedEvent', JSON.stringify(fallback));
           setStatus('error');
-          setTimeout(() => navigate('/calendar', { replace: true, state: { pendingParsedEvent: fallback } }), 1500);
         }
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -151,15 +151,38 @@ export default function ShareTarget() {
       {status === 'done' && (
         <>
           <CheckCircle size={36} style={{ color: '#34D399' }} />
-          <p className="text-label-primary font-medium text-sm">解析完了！カレンダーへ移動します</p>
+          <p className="text-label-primary font-medium text-sm">解析完了！</p>
+          <p className="text-label-tertiary text-xs text-center">
+            続けてXを見るか、カレンダーでフォームを開けます
+          </p>
+          <div className="flex flex-col gap-2 w-full mt-2">
+            <button
+              onClick={() => navigate('/calendar', { replace: true, state: { pendingParsedEvent: pendingRef.current } })}
+              className="w-full py-3 rounded-xl text-sm font-semibold text-white active:opacity-70"
+              style={{ backgroundColor: 'var(--accent-color)' }}
+            >
+              カレンダーでフォームを開く
+            </button>
+            <p className="text-label-tertiary text-[11px] text-center">← スワイプでXに戻れます</p>
+          </div>
         </>
       )}
       {status === 'error' && (
         <>
           <AlertCircle size={36} style={{ color: '#FBBF24' }} />
           <p className="text-label-secondary text-sm text-center">
-            解析できませんでしたが、URLを引き継いでフォームを開きます
+            解析できませんでしたが、URLを引き継いでフォームを開けます
           </p>
+          <div className="flex flex-col gap-2 w-full mt-2">
+            <button
+              onClick={() => navigate('/calendar', { replace: true, state: { pendingParsedEvent: pendingRef.current } })}
+              className="w-full py-3 rounded-xl text-sm font-semibold text-white active:opacity-70"
+              style={{ backgroundColor: 'var(--accent-color)' }}
+            >
+              カレンダーでフォームを開く
+            </button>
+            <p className="text-label-tertiary text-[11px] text-center">← スワイプでXに戻れます</p>
+          </div>
         </>
       )}
     </div>
