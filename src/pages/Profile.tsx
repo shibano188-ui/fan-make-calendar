@@ -470,8 +470,8 @@ export default function Profile() {
               {/* 実績見出し */}
               <p className="text-xs px-1 mb-3" style={{ color: '#F59E0B' }}>実績</p>
 
-              {/* バッジグリッド（20個・5行4列） */}
-              <div className="grid grid-cols-4 gap-3 px-1">
+              {/* バッジグリッド（20個・4行5列） */}
+              <div className="grid grid-cols-5 gap-2 px-1">
                 {BADGES.map((badge, i) => {
                   const unlocked = statsReady && badge.check(achStats);
                   const active = selectedBadge === i;
@@ -482,7 +482,7 @@ export default function Profile() {
                       className="flex flex-col items-center active:scale-90 transition-transform"
                     >
                       <div
-                        className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl"
+                        className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl"
                         style={{
                           opacity: unlocked ? 1 : 0.25,
                           filter: unlocked ? 'none' : 'grayscale(1)',
