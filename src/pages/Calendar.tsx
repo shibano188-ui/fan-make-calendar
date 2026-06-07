@@ -1115,7 +1115,7 @@ export default function Calendar() {
       for (const card of postCards) {
         if (!card.sourceUrl || skipSet.has(card.id)) continue;
         try {
-          const { byUrl, byTitle } = await findDuplicateEvents(workId, card.title.trim(), card.sourceUrl);
+          const { byUrl, byTitle } = await findDuplicateEvents(workId, card.title.trim(), card.date, card.endDate || null, card.sourceUrl);
           if (byUrl.length > 0) {
             setDuplicateWarning({ cardId: card.id, existingEvent: byUrl[0] });
             setPostSubmitting(false);
