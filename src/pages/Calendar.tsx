@@ -2339,10 +2339,6 @@ export default function Calendar() {
                     return (
                       <div key={event.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
                         style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(event.id) ? '3px solid #f59e0b' : undefined }}
-                        onTouchStart={() => startLongPress(() => handleFullDelete(event.id, event.title))}
-                        onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
-                        onMouseDown={() => startLongPress(() => handleFullDelete(event.id, event.title))}
-                        onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
                       >
                         {/* 上段: 日付＋タイトル */}
                         <div className="flex items-start gap-1 px-4 pt-4 pb-3">
@@ -2448,10 +2444,6 @@ export default function Calendar() {
                     return (
                       <div key={item.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
                         style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(item.id) ? '3px solid #f59e0b' : undefined }}
-                        onTouchStart={() => startLongPress(() => item.isPersonal ? handleFullDeletePersonal(item.id, item.title) : handleFullDelete(item.id, item.title))}
-                        onTouchEnd={cancelLongPress} onTouchCancel={cancelLongPress} onTouchMove={cancelLongPress}
-                        onMouseDown={() => startLongPress(() => item.isPersonal ? handleFullDeletePersonal(item.id, item.title) : handleFullDelete(item.id, item.title))}
-                        onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
                       >
                         {/* 上段: 日付＋タイトル */}
                         <div className="flex items-start gap-1 px-4 pt-4 pb-3">
