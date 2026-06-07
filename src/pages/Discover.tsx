@@ -898,7 +898,7 @@ export default function Discover() {
               {!homePref && (
                 <div className="mb-5 px-4 py-3 bg-bg-secondary rounded-xl border border-faint">
                   <p className="text-label-primary text-sm font-medium mb-1">ホーム県を設定する</p>
-                  <p className="text-label-tertiary text-xs mb-3 leading-relaxed">設定しておくと次回から自動で絞り込まれます。</p>
+                  <p className="text-label-tertiary text-xs mb-3 leading-relaxed">設定しておくと、ワンタップでホーム県に絞り込めます。</p>
                   <button
                     onClick={() => { setShowRegionPanel(false); setShowUserSettings(true); }}
                     className="text-xs font-semibold active:opacity-60"
@@ -917,7 +917,7 @@ export default function Discover() {
                   className="w-full text-center py-3 rounded-xl text-sm font-medium active:opacity-70 mb-3"
                   style={{ background: 'var(--accent-color)', color: 'var(--bg-primary)' }}
                 >
-                  ホーム県（{homePref}）に戻す
+                  ホーム県（{homePref}）で絞り込む
                 </button>
               )}
               {filterActive ? (
