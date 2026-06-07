@@ -8,14 +8,21 @@ const EXTRACT_PROMPT = `以下の情報から、含まれるイベント・予�
 日本語で回答し、情報がない・不明な場合はnullを設定してください。
 必ずJSON配列のみを返してください（余計な説明不要）。
 
+【終了日・終了時刻の抽出ルール】
+- 「〜」「-」「まで」「through」などで期間が示されている場合は必ずendDateを設定する
+- 例: 「7/15〜7/20」→ date: "2025-07-15", endDate: "2025-07-20"
+- 例: 「14:00〜17:00」→ time: "14:00", endTime: "17:00"
+- 例: 「〜8月31日」→ endDate: "2025-08-31"
+- 開始日のみ明記で終了日が不明な場合はendDate: null
+
 [
   {
     "title": "イベントのタイトル（必須、簡潔に）",
     "date": "開始日をYYYY-MM-DD形式で or null",
     "time": "開始時刻をHH:mm形式で or null",
-    "endDate": "終了日をYYYY-MM-DD形式で or null",
-    "endTime": "終了時刻をHH:mm形式で or null",
-    "category": "単行本|グッズ|イベント|誕生日|配信 のいずれか or null",
+    "endDate": "終了日をYYYY-MM-DD形式で（期間表記があれば必ず設定）or null",
+    "endTime": "終了時刻をHH:mm形式で（時間範囲があれば必ず設定）or null",
+    "category": "単行本|グッズ|イベント|誕生日|映画|アニメ|グルメ|コラボ のいずれか or null",
     "prefecture": "都道府県名（「都」「府」「県」を除いた形。例: 東京・大阪・神奈川・北海道）or null",
     "locationDetail": "詳細な会場名・住所 or null",
     "link": "公式URL or null",
