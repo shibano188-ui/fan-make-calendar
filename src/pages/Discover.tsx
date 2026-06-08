@@ -435,58 +435,31 @@ export default function Discover() {
           </div>
         )}
 
-        {/* 予約受付中セクション */}
+        {/* 予約受付中バナー */}
         {preorderEvents.length > 0 && (() => {
           const todayStr = new Date().toISOString().slice(0, 10);
-          const active = preorderEvents.filter(e => !e.date || e.date <= todayStr);
-          const upcoming = preorderEvents.filter(e => e.date && e.date > todayStr);
-          const daysUntil = (dateStr: string) => Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
-          const daysLeft = (e: import('../types').CalendarEvent) => {
-            const end = e.endDate ?? null;
-            if (!end) return null;
-            return Math.ceil((new Date(end).getTime() - Date.now()) / 86400000);
-          };
+          const activeCount = preorderEvents.filter(e => !e.date || e.date <= todayStr).length;
+          const upcomingCount = preorderEvents.length - activeCount;
           return (
-            <div className="flex-shrink-0 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
-              {active.length > 0 && (
-                <div className="px-4 pt-3 pb-2">
-                  <p className="text-xs font-bold mb-2" style={{ color: 'var(--accent-color)' }}>⚠️ 予約受付中</p>
-                  <div className="flex flex-col gap-1.5">
-                    {active.map(e => {
-                      const days = daysLeft(e);
-                      return (
-                        <div key={e.id} className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            {e.isOrderMade && (
-                              <span className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'var(--accent-color)', color: '#fff' }}>受注</span>
-                            )}
-                            <span className="text-xs text-label-primary truncate">{e.title}</span>
-                          </div>
-                          <span className="flex-shrink-0 text-[11px] text-label-tertiary">
-                            {days !== null ? (days <= 0 ? '本日締切' : `締切まで${days}日`) : '締切未定'}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {upcoming.length > 0 && (
-                <div className="px-4 pt-2 pb-3">
-                  <p className="text-xs font-bold mb-2 text-label-secondary">📅 もうすぐ予約開始</p>
-                  <div className="flex flex-col gap-1.5">
-                    {upcoming.map(e => (
-                      <div key={e.id} className="flex items-center justify-between gap-2">
-                        <span className="text-xs text-label-primary truncate">{e.title}</span>
-                        <span className="flex-shrink-0 text-[11px] text-label-tertiary">
-                          予約開始まで{daysUntil(e.date!)}日
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            <button
+              onClick={() => navigate('/preorders')}
+              className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b active:opacity-70"
+              style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-secondary)' }}
+            >
+              <div className="flex items-center gap-3">
+                {activeCount > 0 && (
+                  <span className="text-xs font-bold" style={{ color: 'var(--accent-color)' }}>
+                    ⚠️ 受付中 {activeCount}件
+                  </span>
+                )}
+                {upcomingCount > 0 && (
+                  <span className="text-xs text-label-secondary">
+                    📅 予約開始予定 {upcomingCount}件
+                  </span>
+                )}
+              </div>
+              <span className="text-xs text-label-tertiary">›</span>
+            </button>
           );
         })()}
 

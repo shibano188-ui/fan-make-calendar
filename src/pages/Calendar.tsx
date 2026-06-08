@@ -1717,22 +1717,25 @@ export default function Calendar() {
           const activeCount = preorderEvents.filter(e => !e.date || e.date <= todayStr).length;
           const upcomingCount = preorderEvents.length - activeCount;
           return (
-            <div
-              className="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b"
+            <button
+              onClick={() => navigate('/preorders')}
+              className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b active:opacity-70"
               style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-secondary)' }}
             >
-              {activeCount > 0 && (
-                <span className="text-xs font-bold" style={{ color: 'var(--accent-color)' }}>
-                  ⚠️ 予約受付中 {activeCount}件
-                </span>
-              )}
-              {upcomingCount > 0 && (
-                <span className="text-xs text-label-secondary">
-                  📅 予約開始予定 {upcomingCount}件
-                </span>
-              )}
-              <span className="text-[10px] text-label-tertiary ml-auto">発見タブで確認</span>
-            </div>
+              <div className="flex items-center gap-3">
+                {activeCount > 0 && (
+                  <span className="text-xs font-bold" style={{ color: 'var(--accent-color)' }}>
+                    ⚠️ 受付中 {activeCount}件
+                  </span>
+                )}
+                {upcomingCount > 0 && (
+                  <span className="text-xs text-label-secondary">
+                    📅 予約開始予定 {upcomingCount}件
+                  </span>
+                )}
+              </div>
+              <span className="text-xs text-label-tertiary">›</span>
+            </button>
           );
         })()}
 

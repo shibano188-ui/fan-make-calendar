@@ -13,6 +13,7 @@ const DateDetail      = lazy(() => import('./pages/DateDetail'));
 const PostCreate      = lazy(() => import('./pages/PostCreate'));
 const Customize       = lazy(() => import('./pages/Customize'));
 const Profile         = lazy(() => import('./pages/Profile'));
+const Preorders       = lazy(() => import('./pages/Preorders'));
 const WidgetCountdown = lazy(() => import('./pages/WidgetCountdown'));
 const WidgetToday     = lazy(() => import('./pages/WidgetToday'));
 const WidgetMonth     = lazy(() => import('./pages/WidgetMonth'));
@@ -95,6 +96,7 @@ export default function App() {
                     <Route path="/calendar/:workId/post"          element={<PostCreate />} />
                     <Route path="/customize"                      element={<Customize />} />
                     <Route path="/profile"                        element={<Profile />} />
+                    <Route path="/preorders"                      element={<Preorders />} />
                     <Route path="*"                               element={<NotFound />} />
                   </Routes>
                 </PhoneFrame>
