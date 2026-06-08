@@ -2590,11 +2590,30 @@ export default function Calendar() {
                               {showImagesList && (() => {
                                 const imgs = parseImageUrls(item.imageUrl);
                                 if (imgs.length === 0) return null;
-                                return (
+                                if (imgs.length === 1) return (
                                   <div className="mt-2">
                                     <img src={imgs[0]} alt="" loading="lazy"
                                       className="rounded-lg block"
                                       style={{ maxHeight: 160, maxWidth: '100%', height: 'auto', width: 'auto' }} />
+                                  </div>
+                                );
+                                if (imgs.length === 2) return (
+                                  <div className="grid grid-cols-2 gap-1.5 mt-2">
+                                    {imgs.map((src, i) => (
+                                      <div key={i} className="rounded-lg overflow-hidden" style={{ height: 110 }}>
+                                        <img src={src} alt="" loading="lazy" className="w-full h-full object-cover" />
+                                      </div>
+                                    ))}
+                                  </div>
+                                );
+                                return (
+                                  <div className="flex gap-1.5 overflow-x-auto pb-1 mt-2" style={{ scrollSnapType: 'x mandatory' }}>
+                                    {imgs.map((src, i) => (
+                                      <div key={i} className="rounded-lg overflow-hidden flex-shrink-0"
+                                        style={{ height: 130, width: 130, scrollSnapAlign: 'start' }}>
+                                        <img src={src} alt="" loading="lazy" className="w-full h-full object-cover" />
+                                      </div>
+                                    ))}
                                   </div>
                                 );
                               })()}
