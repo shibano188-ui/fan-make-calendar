@@ -366,12 +366,12 @@ export default function Discover() {
         />
 
         {/* 広告バナースロット（React Nativeでは AdMob コンポーネントに置き換える） */}
-        <div
+        {/* <div
           className="flex-shrink-0 flex items-center justify-center border-b"
           style={{ height: 50, borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-secondary)' }}
         >
           <span className="text-label-tertiary text-xs">広告</span>
-        </div>
+        </div> */}
 
         {/* 作品チップ */}
         {participatedWorks.length > 0 && (
