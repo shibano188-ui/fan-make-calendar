@@ -29,6 +29,7 @@ import {
   loadRegionFilter, saveRegionFilter, type FilterMode,
   incrementTotalLikesGiven,
   parseImageUrls,
+  parseLinks,
   loadImageVisibility,
 } from '../lib/constants';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
@@ -260,6 +261,13 @@ export default function Discover() {
         return activeFilterPrefs.has(pref);
       });
     }
+    // Calendar一覧と同じく日付昇順（nullは末尾）
+    evts = [...evts].sort((a, b) => {
+      if (!a.date && !b.date) return 0;
+      if (!a.date) return 1;
+      if (!b.date) return -1;
+      return a.date.localeCompare(b.date);
+    });
     return evts;
   }, [events, hiddenWorkIds, categoryFilters, user, activeFilterPrefs]);
 
@@ -551,11 +559,15 @@ export default function Discover() {
                         {/* メモ */}
                         {event.memo && <MemoText text={event.memo} className="text-label-secondary text-sm leading-relaxed" />}
                         {/* リンク */}
-                        {event.link && (
-                          <a href={event.link} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-1 px-3 py-1 rounded-full border border-default text-label-secondary text-xs w-fit active:opacity-60">
-                            <ExternalLink size={10} />{getDomain(event.link)}
-                          </a>
+                        {parseLinks(event.link).length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {parseLinks(event.link).map((url, i) => (
+                              <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                                className="flex items-center gap-1 px-3 py-1 rounded-full border border-default text-label-secondary text-xs w-fit active:opacity-60">
+                                <ExternalLink size={10} />{getDomain(url)}
+                              </a>
+                            ))}
+                          </div>
                         )}
                         {/* 投稿者 / 出典 */}
                         {(event.authorName || event.sourceUrl) && (
