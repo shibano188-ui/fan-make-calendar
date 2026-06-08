@@ -15,6 +15,7 @@ export type ParsedEvent = {
   memo: string | null;
   imageUrl: string | null;
   sourceUrl: string | null;
+  isOrderMade: boolean;
 };
 
 const inputCls =
@@ -60,6 +61,7 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
     memo:           clean(raw.memo),
     imageUrl:       clean(raw.imageUrl),
     sourceUrl:      sourceUrl ?? null,
+    isOrderMade:    raw.isOrderMade === true || raw.isOrderMade === 'true',
   });
 
   const parseAndApply = async (body: object, isUrl = false) => {

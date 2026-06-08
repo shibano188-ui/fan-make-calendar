@@ -167,6 +167,7 @@ interface InlineCard {
   sourceUrl: string;
   important: boolean;
   collapsed: boolean;
+  isOrderMade: boolean;
 }
 
 function newInlineCard(date: string): InlineCard {
@@ -190,6 +191,7 @@ function newInlineCard(date: string): InlineCard {
     sourceUrl: '',
     important: false,
     collapsed: false,
+    isOrderMade: false,
   };
 }
 
@@ -1117,6 +1119,7 @@ export default function Calendar() {
       memo:           parsed.memo           ?? base.memo,
       imageUrl:       parsed.imageUrl       ?? base.imageUrl,
       sourceUrl:      parsed.sourceUrl      ?? base.sourceUrl,
+      isOrderMade:    parsed.isOrderMade    || base.isOrderMade,
     });
     const defaultWorkId = !workId && participatedWorks.length > 0 ? participatedWorks[0].id : '';
     setPostCards(prev => {
@@ -1264,6 +1267,7 @@ export default function Calendar() {
       locationMapLink: c.locationMapLink || undefined,
       imageUrl: c.imageUrl || undefined,
       sourceUrl: c.sourceUrl || undefined,
+      isOrderMade: c.isOrderMade || false,
     });
     const serializedLinks = (c: InlineCard) => serializeLinks(c.links);
     const toPersonalEvent = (c: InlineCard): PersonalEvent => ({
