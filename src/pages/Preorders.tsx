@@ -55,7 +55,6 @@ export default function Preorders() {
   const renderTile = (event: CalendarEvent) => {
     const workColor = event.workId ? (workColorMap.get(event.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
     const catColor = getCategoryColor(event.category);
-    const borderColor = catColor ?? workColor;
     const days = event.endDate ? daysLeft(event.endDate) : null;
     const links = parseLinks(event.link);
     const workName = works.find(w => w.id === event.workId)?.name;
