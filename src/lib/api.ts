@@ -648,7 +648,7 @@ export async function listAllParticipatedWorkEvents(
 
 export async function updateEvent(
   eventId: string,
-  data: Partial<Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink'>>,
+  data: Partial<Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'isOrderMade'>>,
 ): Promise<void> {
   const row: Record<string, unknown> = {};
   if (data.title !== undefined) row.title = data.title;
@@ -663,6 +663,7 @@ export async function updateEvent(
   if ('prefecture' in data) row.prefecture = normalizePrefecture(data.prefecture) ?? null;
   if ('locationDetail' in data) row.location_detail = data.locationDetail || null;
   if ('locationMapLink' in data) row.location_map_link = data.locationMapLink || null;
+  if ('isOrderMade' in data) row.is_order_made = data.isOrderMade ?? false;
   const { error } = await supabase.from('events').update(row).eq('id', eventId);
   if (error) throw error;
 }

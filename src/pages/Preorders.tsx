@@ -192,7 +192,7 @@ export default function Preorders() {
             <div className="flex items-center gap-1.5 flex-wrap">
               {event.isOrderMade && (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#ef4444', color: '#fff' }}>
-                  受注
+                  予約
                 </span>
               )}
               {workName && (

@@ -543,8 +543,13 @@ export default function Discover() {
                       {/* 元のコンテンツ（右） */}
                       <div className="flex-1 min-w-0 flex flex-col gap-2 pb-3">
                         {/* バッジ行 */}
-                        {(event.workName || event.category || event.prefecture) && (
+                        {(event.isOrderMade || event.workName || event.category || event.prefecture) && (
                           <div className="flex items-center gap-1.5 flex-wrap">
+                            {event.isOrderMade && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#ef4444', color: '#fff' }}>
+                                予約
+                              </span>
+                            )}
                             {event.workName && (
                               <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
                                 style={{ color, backgroundColor: `${color}20` }}>

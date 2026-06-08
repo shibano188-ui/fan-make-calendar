@@ -467,6 +467,22 @@ function InlineCardItem({
             <label className="text-label-tertiary text-xs mb-1.5 block">メモ（任意）</label>
             <textarea value={card.memo} onChange={e => onChange({ memo: e.target.value })} placeholder="補足情報" rows={3} className={`${inputCls} resize-none`} />
           </div>
+          {/* 予約受付トグル */}
+          <div className="flex items-center justify-between py-1">
+            <div>
+              <p className="text-sm text-label-primary font-medium">予約受付</p>
+              <p className="text-xs text-label-tertiary mt-0.5">ONにすると「予約受付中」ページに表示</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onChange({ isOrderMade: !card.isOrderMade })}
+              className="flex-shrink-0 w-11 h-6 rounded-full relative transition-colors ml-3"
+              style={{ background: card.isOrderMade ? '#ef4444' : 'rgba(128,128,128,0.4)' }}
+            >
+              <div className="absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm"
+                style={{ left: card.isOrderMade ? 'calc(100% - 20px)' : '4px' }} />
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -1047,6 +1063,7 @@ export default function Calendar() {
       locationMapLink: event.locationMapLink ?? '',
       links: existingLinks.length > 0 ? existingLinks : [''],
       memo: event.memo ?? '',
+      isOrderMade: event.isOrderMade ?? false,
     });
   };
 
@@ -1069,6 +1086,7 @@ export default function Calendar() {
         locationMapLink: editForm.locationMapLink || undefined,
         link: serializeLinks(editForm.links ?? []),
         memo: editForm.memo?.trim() || undefined,
+        isOrderMade: editForm.isOrderMade ?? false,
       };
       await updateEvent(editEventId, patch);
       setEvents(prev => prev.map(e => e.id === editEventId ? { ...e, ...patch } : e));
@@ -2189,8 +2207,9 @@ export default function Calendar() {
                                   <p className="text-label-primary text-sm font-medium">{event.title}</p>
                                 </button>
                               </div>
-                              {/* 2行目: カテゴリ → 地域 → ♥ → 😊 → 🔗 → > → × */}
+                              {/* 2行目: 予約 → カテゴリ → 地域 → ♥ → 😊 → 🔗 → > → × */}
                               <div className="flex items-center px-3 pb-2 gap-1">
+                                {event.isOrderMade && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#ef4444', color: '#fff' }}>予約</span>}
                                 {event.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.category}</span>}
                                 {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>}
                                 <div className="flex-1" />
@@ -3142,6 +3161,22 @@ export default function Calendar() {
                 <div>
                   <label className="text-label-tertiary text-xs mb-1.5 block">メモ（任意）</label>
                   <textarea value={editForm.memo ?? ''} onChange={e => setEditForm(f => ({ ...f!, memo: e.target.value }))} placeholder="補足情報" rows={3} className={`${inputCls} resize-none`} />
+                </div>
+                {/* 予約受付トグル */}
+                <div className="flex items-center justify-between py-1">
+                  <div>
+                    <p className="text-sm text-label-primary font-medium">予約受付</p>
+                    <p className="text-xs text-label-tertiary mt-0.5">ONにすると「予約受付中」ページに表示</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditForm(f => ({ ...f!, isOrderMade: !(f?.isOrderMade) }))}
+                    className="flex-shrink-0 w-11 h-6 rounded-full relative transition-colors ml-3"
+                    style={{ background: editForm.isOrderMade ? '#ef4444' : 'rgba(128,128,128,0.4)' }}
+                  >
+                    <div className="absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm"
+                      style={{ left: editForm.isOrderMade ? 'calc(100% - 20px)' : '4px' }} />
+                  </button>
                 </div>
               </div>
             </div>
