@@ -38,7 +38,7 @@ export default function WidgetToday() {
       listUpcomingEvents(workId, todayStr, 3),
     ]).then(([todayEvs, upcoming]) => {
       setTodayEvents(todayEvs);
-      const next = upcoming.find(e => e.date > todayStr) ?? null;
+      const next = upcoming.find(e => !!e.date && e.date > todayStr) ?? null;
       setNextEvent(next);
     }).finally(() => setLoading(false));
   }, [workId, todayStr]);
@@ -104,7 +104,7 @@ export default function WidgetToday() {
             {nextEvent && (
               <div className="rounded-xl px-4 py-3 w-full" style={{ backgroundColor: 'var(--bg-secondary)' }}>
                 <p className="text-xs mb-1" style={{ color: 'var(--label-tertiary)' }}>
-                  次の予定（{formatNextDate(nextEvent.date)}）
+                  次の予定（{nextEvent.dateLabel ?? (nextEvent.date ? formatNextDate(nextEvent.date) : '日付未定')}）
                 </p>
                 <p className="font-semibold text-sm" style={{ color: 'var(--label-primary)' }}>{nextEvent.title}</p>
               </div>

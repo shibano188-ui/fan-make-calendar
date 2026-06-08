@@ -76,6 +76,7 @@ export default function ShareTarget() {
         const parsed = {
           title:          clean(first.title) ?? (sharedTitle || null),
           date:           clean(first.date),
+          dateLabel:      clean(first.dateLabel),
           time:           clean(first.time),
           endDate:        clean(first.endDate),
           endTime:        clean(first.endTime),
@@ -100,7 +101,7 @@ export default function ShareTarget() {
       .catch(() => {
         const fallback = {
           title: sharedTitle || null,
-          date: null, time: null, endDate: null, endTime: null,
+          date: null, dateLabel: null, time: null, endDate: null, endTime: null,
           category: null, prefecture: null, locationDetail: null,
           link: null, memo: null, imageUrl: null, sourceUrl: sharedUrl,
         };
