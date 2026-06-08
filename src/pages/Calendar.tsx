@@ -1381,7 +1381,7 @@ export default function Calendar() {
   }, [participatedWorks]);
 
   // カレンダーセル用: 日付→{title, color, position?, eventId}[]
-  type CellItem = { title: string; color: string; dotColor: string; position?: 'start' | 'middle' | 'end'; eventId: string; important?: boolean };
+  type CellItem = { title: string; color: string; dotColor: string; position?: 'start' | 'middle' | 'end'; eventId: string; important?: boolean; fuzzy?: boolean };
   const cellEventsByDate = useMemo(() => {
     const map = new Map<string, CellItem[]>();
     const add = (d: string, item: CellItem) => {
@@ -1394,17 +1394,18 @@ export default function Calendar() {
       const workColor = e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
       const dotColor = getCategoryColor(e.category) ?? workColor;
       const important = importantEventIds.has(e.id);
+      const fuzzy = !!e.dateLabel;
       if (e.date && e.endDate && e.endDate > e.date) {
         let cur = e.date;
         while (cur <= e.endDate!) {
           const pos: CellItem['position'] = cur === e.date ? 'start' : cur === e.endDate ? 'end' : 'middle';
-          add(cur, { title: e.title, color: workColor, dotColor, position: pos, eventId: e.id, important });
+          add(cur, { title: e.title, color: workColor, dotColor, position: pos, eventId: e.id, important, fuzzy });
           const next = new Date(cur + 'T00:00:00');
           next.setDate(next.getDate() + 1);
           cur = toDateStr(next);
         }
       } else if (e.date) {
-        add(e.date, { title: e.title, color: workColor, dotColor, eventId: e.id, important });
+        add(e.date, { title: e.title, color: workColor, dotColor, eventId: e.id, important, fuzzy });
       }
     }
     if (!workId) {
@@ -1929,6 +1930,8 @@ export default function Calendar() {
                                 >
                                   {item.important ? (
                                     <span className="text-[8px] leading-none flex-shrink-0" style={{ color: '#f59e0b' }}>★</span>
+                                  ) : item.fuzzy ? (
+                                    <div className="w-[5px] h-[5px] rounded-full flex-shrink-0" style={{ border: `1.5px solid ${item.dotColor.startsWith('#') ? item.dotColor : '#888'}` }} />
                                   ) : (
                                     <div className="w-[4px] h-[4px] rounded-full flex-shrink-0" style={{ backgroundColor: item.dotColor.startsWith('#') ? item.dotColor : '#888' }} />
                                   )}
