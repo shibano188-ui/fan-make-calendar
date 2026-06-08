@@ -306,26 +306,6 @@ function InlineCardItem({
             {card.dateLabel ? (
               /* 曖昧日付UI */
               <div className="flex flex-col gap-2">
-                <select
-                  value={card.dateLabel}
-                  onChange={e => {
-                    const val = e.target.value;
-                    const year = card.date ? card.date.slice(0, 4) : String(new Date().getFullYear());
-                    const seasonMonth: Record<string, string> = { '春頃': '04', '夏頃': '08', '秋頃': '11', '冬頃': '02' };
-                    const labelDay: Record<string, string> = { '上旬': '05', '中旬': '15', '下旬': '25', '中': '01' };
-                    if (seasonMonth[val]) {
-                      onChange({ dateLabel: val, date: `${year}-${seasonMonth[val]}-15` });
-                    } else {
-                      const month = card.date ? card.date.slice(5, 7) : String(new Date().getMonth() + 1).padStart(2, '0');
-                      onChange({ dateLabel: val, date: `${year}-${month}-${labelDay[val] ?? '15'}` });
-                    }
-                  }}
-                  className={inputCls}
-                >
-                  {[['上旬','上旬'],['中旬','中旬'],['下旬','下旬'],['月のみ','中'],['春頃','春頃'],['夏頃','夏頃'],['秋頃','秋頃'],['冬頃','冬頃']].map(([label, val]) => (
-                    <option key={val} value={val}>{label}</option>
-                  ))}
-                </select>
                 <div className="flex gap-2">
                   <select
                     value={card.date ? card.date.slice(0, 4) : ''}
@@ -360,6 +340,26 @@ function InlineCardItem({
                     </select>
                   )}
                 </div>
+                <select
+                  value={card.dateLabel}
+                  onChange={e => {
+                    const val = e.target.value;
+                    const year = card.date ? card.date.slice(0, 4) : String(new Date().getFullYear());
+                    const seasonMonth: Record<string, string> = { '春頃': '04', '夏頃': '08', '秋頃': '11', '冬頃': '02' };
+                    const labelDay: Record<string, string> = { '上旬': '05', '中旬': '15', '下旬': '25', '中': '01' };
+                    if (seasonMonth[val]) {
+                      onChange({ dateLabel: val, date: `${year}-${seasonMonth[val]}-15` });
+                    } else {
+                      const month = card.date ? card.date.slice(5, 7) : String(new Date().getMonth() + 1).padStart(2, '0');
+                      onChange({ dateLabel: val, date: `${year}-${month}-${labelDay[val] ?? '15'}` });
+                    }
+                  }}
+                  className={inputCls}
+                >
+                  {[['上旬','上旬'],['中旬','中旬'],['下旬','下旬'],['月のみ','中'],['春頃','春頃'],['夏頃','夏頃'],['秋頃','秋頃'],['冬頃','冬頃']].map(([label, val]) => (
+                    <option key={val} value={val}>{label}</option>
+                  ))}
+                </select>
               </div>
             ) : (
               /* 通常の日付ピッカー */
