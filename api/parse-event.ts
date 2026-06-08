@@ -52,7 +52,7 @@ const SCHEMA = (memoDesc: string) => `[
     "category": "単行本|グッズ|イベント|誕生日|映画|アニメ|グルメ|コラボ のいずれか or null",
     "prefecture": "都道府県名（「都」「府」「県」を除いた形。例: 東京・大阪・神奈川・北海道）or null",
     "locationDetail": "詳細な会場名・住所 or null",
-    "link": "公式URL or null",
+    "link": ["公式URLや関連リンクをすべて配列で。1件でも配列にする。リンクがなければnull"],
     "memo": "${memoDesc}"
   }
 ]`;
@@ -274,8 +274,17 @@ function parseRawText(rawText: string): unknown[] {
   return arr.map(item => {
     if (item && typeof item === 'object') {
       const obj = item as Record<string, unknown>;
+      // link が配列で返ってきた場合: 1件→文字列、複数→JSON文字列、空→null
+      const rawLink = obj.link;
+      const normalizedLink = Array.isArray(rawLink)
+        ? rawLink.filter((u): u is string => typeof u === 'string' && !!u).length === 0 ? null
+          : rawLink.filter((u): u is string => typeof u === 'string' && !!u).length === 1
+            ? rawLink.filter((u): u is string => typeof u === 'string' && !!u)[0]
+            : JSON.stringify(rawLink.filter((u): u is string => typeof u === 'string' && !!u))
+        : rawLink;
       return {
         ...obj,
+        link: normalizedLink,
         date: fixYear(obj.date),
         endDate: fixYear(obj.endDate),
         memo: cleanMemo(obj.memo),
