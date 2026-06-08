@@ -284,10 +284,10 @@ export async function findDuplicateEvents(
   }
 
   const norm = normalizeTitleForDup(title);
-  // 元タイトルと正規化タイトル(半角スペース化)の両方でクエリして全角/半角ゆれに対応
+  // プレフィックス+ワイルドカードで検索: 「イベント」→「イベント 東京」等の地名付きも検知
   const [{ data: d1 }, { data: d2 }] = await Promise.all([
-    supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, category, author_id').eq('work_id', workId).eq('pool', 0).ilike('title', title),
-    supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, category, author_id').eq('work_id', workId).eq('pool', 0).ilike('title', norm),
+    supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, category, author_id').eq('work_id', workId).eq('pool', 0).ilike('title', `${title}%`),
+    supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, category, author_id').eq('work_id', workId).eq('pool', 0).ilike('title', `${norm}%`),
   ]);
   const dedup = new Set<string>();
   const titleData = [...(d1 ?? []), ...(d2 ?? [])].filter(r => {
@@ -299,9 +299,12 @@ export async function findDuplicateEvents(
     const rowCategory = (row.category as string | null) ?? null;
     // 両方カテゴリあって異なる場合はスキップ（別イベント扱い）
     if (category && rowCategory && category !== rowCategory) continue;
+    // 正規化タイトルがnormと完全一致、またはnorm+スペースで始まる（地名付きバリアント）
+    const rowNorm = normalizeTitleForDup(row.title as string);
+    const titleMatch = rowNorm === norm || rowNorm.startsWith(`${norm} `);
     if (
       !seen.has(row.id as string) &&
-      normalizeTitleForDup(row.title as string) === norm &&
+      titleMatch &&
       datesOverlap(date, endDate ?? null, row.event_date as string, (row.end_date as string | null) ?? null)
     ) {
       seen.add(row.id as string);

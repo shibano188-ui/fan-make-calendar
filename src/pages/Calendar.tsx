@@ -1123,38 +1123,40 @@ export default function Calendar() {
           }
           if (byTitle.length > 0) {
             const normNewPref = card.prefecture || null;
+            const baseTitle = card.title.trim().replace(/　/g, ' ').toLowerCase();
             const trueDup = byTitle.find(m => !m.prefecture || !normNewPref || m.prefecture === normNewPref);
             if (trueDup) {
               setDuplicateWarning({ cardId: card.id, existingEvent: trueDup });
               setPostSubmitting(false);
               return;
             }
-            const match = byTitle[0];
             const suffix = normNewPref ? ` ${normNewPref}` : '';
             if (suffix) {
               titleSuffixes.set(card.id, suffix);
-              // 既存イベントにも地名を追加（自分の投稿はupdateEvent、他ユーザーはAPIエンドポイント経由）
-              if (match.prefecture) {
+              // 既存イベント全件を走査し、まだ地名が付いていないものだけ更新
+              const { data: { session } } = await supabase.auth.getSession();
+              for (const match of byTitle) {
+                if (!match.prefecture) continue;
+                const matchNorm = match.title.trim().replace(/　/g, ' ').toLowerCase();
+                // タイトルが元のまま（まだサフィックスなし）の場合のみ更新
+                if (matchNorm !== baseTitle) continue;
                 const newExistingTitle = `${match.title.trim()} ${match.prefecture}`;
                 try {
                   if (match.authorId === user.id) {
                     await updateEvent(match.id, { title: newExistingTitle });
-                  } else {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    if (session?.access_token) {
-                      await fetch('/api/update-event-title', {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                          'Authorization': `Bearer ${session.access_token}`,
-                        },
-                        body: JSON.stringify({ event_id: match.id, title: newExistingTitle }),
-                      });
-                    }
+                  } else if (session?.access_token) {
+                    await fetch('/api/update-event-title', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session.access_token}`,
+                      },
+                      body: JSON.stringify({ event_id: match.id, title: newExistingTitle }),
+                    });
                   }
                 } catch { /* 失敗しても続行 */ }
               }
-              setLocationSuffixMsg(`「${match.title}」（${match.prefecture ?? '全国'}）と区別するためタイトルに地名を追加しました`);
+              setLocationSuffixMsg(`タイトルに地名を追加しました（${byTitle.length}件の既存予定と区別）`);
             }
           }
         } catch {
