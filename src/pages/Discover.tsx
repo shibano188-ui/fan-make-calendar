@@ -438,14 +438,13 @@ export default function Discover() {
         {/* 予約受付中セクション */}
         {preorderEvents.length > 0 && (() => {
           const todayStr = new Date().toISOString().slice(0, 10);
-          const active = preorderEvents.filter(e => !e.reservationStartDate || e.reservationStartDate <= todayStr);
-          const upcoming = preorderEvents.filter(e => e.reservationStartDate && e.reservationStartDate > todayStr);
+          const active = preorderEvents.filter(e => !e.date || e.date <= todayStr);
+          const upcoming = preorderEvents.filter(e => e.date && e.date > todayStr);
           const daysUntil = (dateStr: string) => Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
           const daysLeft = (e: import('../types').CalendarEvent) => {
-            const end = e.reservationEndDate ?? e.date;
+            const end = e.endDate ?? null;
             if (!end) return null;
-            const d = Math.ceil((new Date(end).getTime() - Date.now()) / 86400000);
-            return d;
+            return Math.ceil((new Date(end).getTime() - Date.now()) / 86400000);
           };
           return (
             <div className="flex-shrink-0 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
@@ -480,7 +479,7 @@ export default function Discover() {
                       <div key={e.id} className="flex items-center justify-between gap-2">
                         <span className="text-xs text-label-primary truncate">{e.title}</span>
                         <span className="flex-shrink-0 text-[11px] text-label-tertiary">
-                          予約開始まで{daysUntil(e.reservationStartDate!)}日
+                          予約開始まで{daysUntil(e.date!)}日
                         </span>
                       </div>
                     ))}

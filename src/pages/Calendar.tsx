@@ -1714,7 +1714,7 @@ export default function Calendar() {
         {/* 予約受付中バナー（MyCalendarのみ） */}
         {!workId && preorderEvents.length > 0 && (() => {
           const todayStr = new Date().toISOString().slice(0, 10);
-          const activeCount = preorderEvents.filter(e => !e.reservationStartDate || e.reservationStartDate <= todayStr).length;
+          const activeCount = preorderEvents.filter(e => !e.date || e.date <= todayStr).length;
           const upcomingCount = preorderEvents.length - activeCount;
           return (
             <div

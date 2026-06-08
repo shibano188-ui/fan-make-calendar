@@ -120,8 +120,6 @@ function rowToEvent(e: Record<string, unknown>): CalendarEvent {
     imageUrl: (e.image_url as string | null) ?? undefined,
     sourceUrl: (e.source_url as string | null) ?? undefined,
     isOrderMade: (e.is_order_made as boolean | null) ?? false,
-    reservationStartDate: (e.reservation_start_date as string | null) ?? undefined,
-    reservationEndDate: (e.reservation_end_date as string | null) ?? undefined,
   };
 }
 
@@ -185,7 +183,7 @@ export async function listEventsByDate(workId: string, date: string, userId?: st
 
 export async function createEvents(
   workId: string,
-  events: Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'imageUrl' | 'sourceUrl' | 'isOrderMade' | 'reservationStartDate' | 'reservationEndDate'>[],
+  events: Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'imageUrl' | 'sourceUrl' | 'isOrderMade'>[],
   authorId: string,
 ): Promise<string[]> {
   const rows = await Promise.all(events.map(async e => {
@@ -218,8 +216,6 @@ export async function createEvents(
       ...(e.imageUrl ? { image_url: e.imageUrl } : {}),
       ...(e.sourceUrl ? { source_url: normalizeSourceUrl(e.sourceUrl) } : {}),
       is_order_made: e.isOrderMade ?? false,
-      reservation_start_date: e.reservationStartDate ?? null,
-      reservation_end_date: e.reservationEndDate ?? null,
       author_id: authorId,
       pool,
     };
@@ -239,12 +235,12 @@ export async function listPreorderEvents(workIds: string[]): Promise<CalendarEve
     .select('*')
     .in('work_id', workIds)
     .eq('pool', 0)
-    .or('is_order_made.eq.true,reservation_start_date.not.is.null')
-    .order('reservation_end_date', { ascending: true, nullsFirst: false });
+    .eq('is_order_made', true)
+    .order('end_date', { ascending: true, nullsFirst: false });
   if (error) throw error;
   return (data ?? []).map(rowToEvent).filter(e => {
-    if (e.reservationEndDate && e.reservationEndDate < today) return false;
-    if (e.reservationStartDate && e.reservationStartDate > in30days) return false;
+    if (e.endDate && e.endDate < today) return false;
+    if (e.date && e.date > in30days) return false;
     return true;
   });
 }

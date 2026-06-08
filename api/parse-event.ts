@@ -59,11 +59,9 @@ const BASE_RULES = `
 テキストに「ツイート投稿日: 〇年〇月〇日」が含まれる場合、「本日」「今日」はその日付として解釈する。
 【受注生産・予約フラグのルール】
 - 「受注生産」「受注販売」「受注受付」「原作受注」が含まれる場合 → isOrderMade: true
-- 受付期間・受注期間・予約受付期間の開始日 → reservationStartDate に設定
-- 受付期間・受注期間の終了日・予約締切日・受付終了日・注文締切日 → reservationEndDate に設定
-- 「お渡し予定」「発送予定」「お届け予定」「発売予定」など商品の到着・発売日 → date に設定
-- date（発売/お渡し日）と受付開始日が両方ある場合: date = 発売/お渡し日, reservationStartDate = 受付開始日
-- 受付期間しかない場合（発売日なし）: reservationStartDate = 受付開始日, reservationEndDate = 受付終了日, date = null`;
+- 受注・予約の場合: date = 受付開始日, endDate = 受付終了日（受付期間をカレンダーに表示する）
+- 「お渡し予定」「発送予定」「お届け予定」「発売予定」などの到着・発売日はmemoに記載する
+- 受付終了日が不明な場合: endDate = null`;
 
 const SCHEMA = (memoDesc: string) => `[
   {
@@ -78,8 +76,6 @@ const SCHEMA = (memoDesc: string) => `[
     "locationDetail": "詳細な会場名・住所 or null",
     "link": ["公式URLや関連リンクをすべて配列で。1件でも配列にする。リンクがなければnull"],
     "isOrderMade": "受注生産（受注期間中のみ注文可能）ならtrue、それ以外はfalse",
-    "reservationStartDate": "予約開始日をYYYY-MM-DD形式で or null",
-    "reservationEndDate": "予約締切日・受付終了日・注文締切日をYYYY-MM-DD形式で or null",
     "memo": "${memoDesc}"
   }
 ]`;
@@ -111,8 +107,8 @@ const TWEET_MEMO_RULES = `
 - 商品バリエーション（全X種、具体的な種類名や対象キャラ名など）
 - 申込締切・重要な日程
 - 注意事項
-【予約開始日の扱い】
-発売日と予約開始日が両方含まれる場合: date = 発売日, reservationStartDate = 予約開始日。memoには予約開始日を書かない。
+【受注生産のmemo】
+isOrderMade=trueの場合、「お渡し予定」「発送予定」「発売予定」などの情報があればmemoに記載する（例: "お渡し予定: 2026年12月上旬"）。
 
 【出力例】
 ポストに「抽選、価格3,800円、7/20締切、全8種（ハチワレ・うさぎ・モモンガなど）」がある場合:
@@ -374,8 +370,6 @@ function parseRawText(rawText: string): unknown[] {
       const dateLabel = rawDateLabel && validLabels.includes(rawDateLabel) ? rawDateLabel : null;
       const rawIsOrderMade = obj.isOrderMade;
       const isOrderMade = rawIsOrderMade === true || rawIsOrderMade === 'true';
-      const reservationStartDate = fixYear(obj.reservationStartDate);
-      const reservationEndDate = fixYear(obj.reservationEndDate);
       return {
         ...obj,
         link: normalizedLink,
@@ -384,8 +378,6 @@ function parseRawText(rawText: string): unknown[] {
         endDate: fixYear(obj.endDate),
         memo: cleanMemo(obj.memo),
         isOrderMade,
-        reservationStartDate: typeof reservationStartDate === 'string' ? reservationStartDate : null,
-        reservationEndDate: typeof reservationEndDate === 'string' ? reservationEndDate : null,
       };
     }
     return item;
@@ -464,18 +456,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       if (tweetImageUrl) {
         parsed.forEach(e => { (e as Record<string, unknown>).imageUrl = tweetImageUrl; });
-        // 受注・予約ありで締切不明なら画像から締切日を取得
+        // 受注生産で受付終了日不明なら画像から取得
         const needsFallback = parsed.some(e => {
           const ev = e as Record<string, unknown>;
-          return (ev.isOrderMade === true || ev.reservationStartDate) && !ev.reservationEndDate;
+          return ev.isOrderMade === true && !ev.endDate;
         });
         if (needsFallback) {
           const endDate = await fetchReservationEndFromImage(tweetImageUrl);
           if (endDate) {
             parsed.forEach(e => {
               const ev = e as Record<string, unknown>;
-              if ((ev.isOrderMade === true || ev.reservationStartDate) && !ev.reservationEndDate) {
-                ev.reservationEndDate = endDate;
+              if (ev.isOrderMade === true && !ev.endDate) {
+                ev.endDate = endDate;
               }
             });
           }
