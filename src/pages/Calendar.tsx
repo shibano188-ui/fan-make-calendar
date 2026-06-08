@@ -2583,6 +2583,12 @@ export default function Calendar() {
                                   <span className="text-xl font-bold text-label-primary leading-snug">{id}</span>
                                 </>
                               )}
+                              {item.time && (
+                                <>
+                                  <span className="text-[10px] text-label-tertiary leading-snug mt-1">{item.time}</span>
+                                  {item.endTime && <span className="text-[10px] text-label-tertiary leading-none">〜{item.endTime}</span>}
+                                </>
+                              )}
                             </div>
                             <div className="w-px self-stretch bg-white/10 flex-shrink-0" />
                             <div className="flex-1 min-w-0">
@@ -2628,12 +2634,6 @@ export default function Calendar() {
                                   {item.isPersonal && item.tag && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.tag}</span>}
                                   {item.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.category}</span>}
                                   {item.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.prefecture}</span>}
-                                </div>
-                              )}
-                              {(!hasPeriod && formatDateRange(item.date, item.endDate) || formatTimeRange(item.time, item.endTime)) && (
-                                <div className="flex items-center gap-2 mt-1.5">
-                                  {!hasPeriod && formatDateRange(item.date, item.endDate) && <span className="text-label-tertiary text-xs">{formatDateRange(item.date, item.endDate)}</span>}
-                                  {formatTimeRange(item.time, item.endTime) && <span className="text-label-tertiary text-xs">{formatTimeRange(item.time, item.endTime)}</span>}
                                 </div>
                               )}
                               {(() => {

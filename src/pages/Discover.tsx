@@ -63,10 +63,6 @@ function loadMyReactions(): Record<string, ReactionType> {
 
 
 
-function formatTimeRange(startTime?: string, endTime?: string): string | null {
-  if (!startTime) return null;
-  return endTime ? `${startTime}〜${endTime}` : startTime;
-}
 function getDomain(url: string): string {
   try {
     const { hostname } = new URL(url);
@@ -455,7 +451,7 @@ export default function Discover() {
                 const isInCalendar = calendarEventIds.has(event.id);
                 const showReAdd = isLiked && !isInCalendar;
                 const isLocked = lockedLikeIds.has(event.id);
-                const timeLabel = formatTimeRange(event.time, event.endTime);
+
                 const [, em, ed] = event.date.split('-').map(Number);
                 const todayStr = new Date().toISOString().slice(0, 10);
                 const isOngoing = event.date < todayStr && !!event.endDate && event.endDate >= todayStr;
@@ -485,6 +481,12 @@ export default function Discover() {
                           <>
                             <span className="text-[10px] text-label-tertiary leading-none">{em}月</span>
                             <span className="text-xl font-bold text-label-primary leading-snug">{ed}</span>
+                          </>
+                        )}
+                        {event.time && (
+                          <>
+                            <span className="text-[10px] text-label-tertiary leading-snug mt-1">{event.time}</span>
+                            {event.endTime && <span className="text-[10px] text-label-tertiary leading-none">〜{event.endTime}</span>}
                           </>
                         )}
                       </div>
@@ -547,8 +549,6 @@ export default function Discover() {
                             </div>
                           );
                         })()}
-                        {/* 時間 */}
-                        {timeLabel && <span className="text-label-secondary text-sm">{timeLabel}</span>}
                         {/* メモ */}
                         {event.memo && <MemoText text={event.memo} className="text-label-secondary text-sm leading-relaxed" />}
                         {/* リンク */}
