@@ -56,7 +56,12 @@ const BASE_RULES = `
 - 具体的な日付（「8月15日」など）→ dateLabel: null
 - 日付の情報が全くない → date: null, dateLabel: null
 【「本日」「今日」の扱い】
-テキストに「ツイート投稿日: 〇年〇月〇日」が含まれる場合、「本日」「今日」はその日付として解釈する。`;
+テキストに「ツイート投稿日: 〇年〇月〇日」が含まれる場合、「本日」「今日」はその日付として解釈する。
+【受注生産・予約フラグのルール】
+- 「受注生産」「受注販売」「受注受付」が含まれる場合 → isOrderMade: true
+- 予約開始日が明記されている場合 → reservationStartDate に設定
+- 予約締切日・受付終了日・注文締切日が明記されている場合 → reservationEndDate に設定
+- 発売日と予約開始日が両方ある場合: date = 発売日, reservationStartDate = 予約開始日`;
 
 const SCHEMA = (memoDesc: string) => `[
   {
@@ -70,6 +75,9 @@ const SCHEMA = (memoDesc: string) => `[
     "prefecture": "都道府県名（「都」「府」「県」を除いた形。例: 東京・大阪・神奈川・北海道）or null",
     "locationDetail": "詳細な会場名・住所 or null",
     "link": ["公式URLや関連リンクをすべて配列で。1件でも配列にする。リンクがなければnull"],
+    "isOrderMade": "受注生産（受注期間中のみ注文可能）ならtrue、それ以外はfalse",
+    "reservationStartDate": "予約開始日をYYYY-MM-DD形式で or null",
+    "reservationEndDate": "予約締切日・受付終了日・注文締切日をYYYY-MM-DD形式で or null",
     "memo": "${memoDesc}"
   }
 ]`;
@@ -102,7 +110,7 @@ const TWEET_MEMO_RULES = `
 - 申込締切・重要な日程
 - 注意事項
 【予約開始日の扱い】
-発売日と予約開始日が両方含まれる場合は1枚のカードにまとめる。発売日をdateに設定し、予約開始日はmemoに「〇月〇日より予約開始」と記載する。
+発売日と予約開始日が両方含まれる場合: date = 発売日, reservationStartDate = 予約開始日。memoには予約開始日を書かない。
 
 【出力例】
 ポストに「抽選、価格3,800円、7/20締切、全8種（ハチワレ・うさぎ・モモンガなど）」がある場合:
@@ -124,6 +132,38 @@ ${BASE_RULES}
 ${TWEET_MEMO_RULES}
 
 ${SCHEMA('上記ルールに従ったメモ文字列（改行は\\nで表現）or null')}`;
+
+// 受注・予約ありで締切不明のとき、画像から締切日だけを取得（低コスト）
+async function fetchReservationEndFromImage(imageUrlOrJson: string): Promise<string | null> {
+  try {
+    let urls: string[];
+    try {
+      const parsed = JSON.parse(imageUrlOrJson);
+      urls = Array.isArray(parsed) ? parsed : [imageUrlOrJson];
+    } catch {
+      urls = [imageUrlOrJson];
+    }
+    const content: Anthropic.Messages.MessageParam['content'] = [
+      ...urls.slice(0, 4).map(u => ({
+        type: 'image' as const,
+        source: { type: 'url' as const, url: u },
+      })),
+      {
+        type: 'text' as const,
+        text: 'この画像から予約締切日・受注受付終了日・注文締切日を探してください。見つかった場合はYYYY-MM-DD形式のみで返してください（例: 2026-07-31）。見つからない場合は "null" とだけ返してください。',
+      },
+    ];
+    const res = await anthropic.messages.create({
+      model: 'claude-haiku-4-5',
+      max_tokens: 50,
+      messages: [{ role: 'user', content }],
+    });
+    const block = res.content[0];
+    const text = block.type === 'text' ? block.text.trim() : '';
+    const match = text.match(/\d{4}-\d{2}-\d{2}/);
+    return match ? match[0] : null;
+  } catch { return null; }
+}
 
 type TweetContent = { text: string; imageUrl: string | null };
 
@@ -330,6 +370,10 @@ function parseRawText(rawText: string): unknown[] {
       const rawDateLabel = obj.dateLabel as string | null | undefined;
       const validLabels = ['上旬', '中旬', '下旬', '中', '春頃', '夏頃', '秋頃', '冬頃'];
       const dateLabel = rawDateLabel && validLabels.includes(rawDateLabel) ? rawDateLabel : null;
+      const rawIsOrderMade = obj.isOrderMade;
+      const isOrderMade = rawIsOrderMade === true || rawIsOrderMade === 'true';
+      const reservationStartDate = fixYear(obj.reservationStartDate);
+      const reservationEndDate = fixYear(obj.reservationEndDate);
       return {
         ...obj,
         link: normalizedLink,
@@ -337,6 +381,9 @@ function parseRawText(rawText: string): unknown[] {
         dateLabel,
         endDate: fixYear(obj.endDate),
         memo: cleanMemo(obj.memo),
+        isOrderMade,
+        reservationStartDate: typeof reservationStartDate === 'string' ? reservationStartDate : null,
+        reservationEndDate: typeof reservationEndDate === 'string' ? reservationEndDate : null,
       };
     }
     return item;
@@ -415,6 +462,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       if (tweetImageUrl) {
         parsed.forEach(e => { (e as Record<string, unknown>).imageUrl = tweetImageUrl; });
+        // 受注・予約ありで締切不明なら画像から締切日を取得
+        const needsFallback = parsed.some(e => {
+          const ev = e as Record<string, unknown>;
+          return (ev.isOrderMade === true || ev.reservationStartDate) && !ev.reservationEndDate;
+        });
+        if (needsFallback) {
+          const endDate = await fetchReservationEndFromImage(tweetImageUrl);
+          if (endDate) {
+            parsed.forEach(e => {
+              const ev = e as Record<string, unknown>;
+              if ((ev.isOrderMade === true || ev.reservationStartDate) && !ev.reservationEndDate) {
+                ev.reservationEndDate = endDate;
+              }
+            });
+          }
+        }
       }
       return res.status(200).json(parsed);
     }

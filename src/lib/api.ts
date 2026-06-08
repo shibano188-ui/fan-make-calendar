@@ -119,6 +119,9 @@ function rowToEvent(e: Record<string, unknown>): CalendarEvent {
     createdAt: e.created_at as string,
     imageUrl: (e.image_url as string | null) ?? undefined,
     sourceUrl: (e.source_url as string | null) ?? undefined,
+    isOrderMade: (e.is_order_made as boolean | null) ?? false,
+    reservationStartDate: (e.reservation_start_date as string | null) ?? undefined,
+    reservationEndDate: (e.reservation_end_date as string | null) ?? undefined,
   };
 }
 
@@ -182,7 +185,7 @@ export async function listEventsByDate(workId: string, date: string, userId?: st
 
 export async function createEvents(
   workId: string,
-  events: Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'imageUrl' | 'sourceUrl'>[],
+  events: Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'imageUrl' | 'sourceUrl' | 'isOrderMade' | 'reservationStartDate' | 'reservationEndDate'>[],
   authorId: string,
 ): Promise<string[]> {
   const rows = await Promise.all(events.map(async e => {
@@ -214,6 +217,9 @@ export async function createEvents(
       location_map_link: e.locationMapLink ?? null,
       ...(e.imageUrl ? { image_url: e.imageUrl } : {}),
       ...(e.sourceUrl ? { source_url: normalizeSourceUrl(e.sourceUrl) } : {}),
+      is_order_made: e.isOrderMade ?? false,
+      reservation_start_date: e.reservationStartDate ?? null,
+      reservation_end_date: e.reservationEndDate ?? null,
       author_id: authorId,
       pool,
     };
@@ -222,6 +228,25 @@ export async function createEvents(
   const { data, error } = await supabase.from('events').insert(rows).select('id');
   if (error) throw error;
   return (data ?? []).map(r => r.id as string);
+}
+
+export async function listPreorderEvents(workIds: string[]): Promise<CalendarEvent[]> {
+  if (workIds.length === 0) return [];
+  const today = new Date().toISOString().slice(0, 10);
+  const in30days = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .in('work_id', workIds)
+    .eq('pool', 0)
+    .or('is_order_made.eq.true,reservation_start_date.not.is.null')
+    .order('reservation_end_date', { ascending: true, nullsFirst: false });
+  if (error) throw error;
+  return (data ?? []).map(rowToEvent).filter(e => {
+    if (e.reservationEndDate && e.reservationEndDate < today) return false;
+    if (e.reservationStartDate && e.reservationStartDate > in30days) return false;
+    return true;
+  });
 }
 
 // ─── 重複検知 ──────────────────────────────────────────────────────

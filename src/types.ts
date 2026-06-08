@@ -21,4 +21,7 @@ export type CalendarEvent = {
   workName?: string;
   imageUrl?: string;
   sourceUrl?: string;
+  isOrderMade?: boolean;
+  reservationStartDate?: string;
+  reservationEndDate?: string;
 };

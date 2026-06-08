@@ -13,7 +13,7 @@ import {
   createEvents, getHomePrefecture, saveHomePrefecture,
   getDisplayName, saveDisplayName, listRecentWorks,
   listAllParticipatedWorkEvents, addLikeTap, setReaction, getReactionData, updateEvent,
-  findDuplicateEvents, type DuplicateMatch,
+  findDuplicateEvents, type DuplicateMatch, listPreorderEvents,
 } from '../lib/api';
 import { REACTIONS, type ReactionType } from '../lib/reactions';
 import type { Work } from '../lib/api';
@@ -812,10 +812,15 @@ export default function Calendar() {
     setIncludeAdjacent(saved.includeAdjacent);
   }, [location.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [preorderEvents, setPreorderEvents] = useState<CalendarEvent[]>([]);
+
   // MyCalendar: 参加中の作品リストを取得
   useEffect(() => {
     if (workId || !user) return;
-    listRecentWorks(user.id).then(setParticipatedWorks).catch(console.error);
+    listRecentWorks(user.id).then(works => {
+      setParticipatedWorks(works);
+      listPreorderEvents(works.map(w => w.id)).then(setPreorderEvents).catch(() => {});
+    }).catch(console.error);
   }, [workId, user?.id]);
 
   // MyCalendar: 参加中の全作品のイベントを取得
@@ -1705,6 +1710,31 @@ export default function Calendar() {
             <span className="text-label-tertiary text-xs">広告</span>
           </div>
         )} */}
+
+        {/* 予約受付中バナー（MyCalendarのみ） */}
+        {!workId && preorderEvents.length > 0 && (() => {
+          const todayStr = new Date().toISOString().slice(0, 10);
+          const activeCount = preorderEvents.filter(e => !e.reservationStartDate || e.reservationStartDate <= todayStr).length;
+          const upcomingCount = preorderEvents.length - activeCount;
+          return (
+            <div
+              className="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b"
+              style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-secondary)' }}
+            >
+              {activeCount > 0 && (
+                <span className="text-xs font-bold" style={{ color: 'var(--accent-color)' }}>
+                  ⚠️ 予約受付中 {activeCount}件
+                </span>
+              )}
+              {upcomingCount > 0 && (
+                <span className="text-xs text-label-secondary">
+                  📅 予約開始予定 {upcomingCount}件
+                </span>
+              )}
+              <span className="text-[10px] text-label-tertiary ml-auto">発見タブで確認</span>
+            </div>
+          );
+        })()}
 
         {/* 参加中の作品チップ（MyCalendarのみ） */}
         {!workId && participatedWorks.length > 0 && (
