@@ -217,7 +217,7 @@ export async function createEvents(
       location_detail: e.locationDetail ?? null,
       location_map_link: e.locationMapLink ?? null,
       ...(e.imageUrl ? { image_url: e.imageUrl } : {}),
-      ...(e.sourceUrl ? { source_url: e.sourceUrl } : {}),
+      ...(e.sourceUrl ? { source_url: normalizeSourceUrl(e.sourceUrl) } : {}),
       author_id: authorId,
       pool,
     };
@@ -244,17 +244,22 @@ function normalizeTitleForDup(t: string): string {
   return t.replace(/　/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-function datesOverlap(aStart: string, aEnd: string | null, bStart: string, bEnd: string | null): boolean {
-  const aS = aStart, aE = aEnd ?? aStart;
-  const bS = bStart, bE = bEnd ?? bStart;
-  return aS <= bE && bS <= aE;
+// sourceUrlを正規化: クエリパラメータ除去・twitter.com→x.com統一・末尾スラッシュ除去
+export function normalizeSourceUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    u.search = '';
+    u.hash = '';
+    if (u.hostname === 'twitter.com') u.hostname = 'x.com';
+    return u.toString().replace(/\/$/, '');
+  } catch {
+    return url.trim();
+  }
 }
 
 export async function findDuplicateEvents(
   workId: string,
   title: string,
-  date: string,
-  endDate?: string | null,
   sourceUrl?: string | null,
   category?: string | null,
 ): Promise<{ byUrl: DuplicateMatch[]; byTitle: DuplicateMatch[] }> {
@@ -263,13 +268,16 @@ export async function findDuplicateEvents(
   const byTitle: DuplicateMatch[] = [];
 
   if (sourceUrl) {
-    const { data } = await supabase
-      .from('events')
-      .select('id, title, event_date, end_date, prefecture, source_url, author_id')
-      .eq('work_id', workId)
-      .eq('source_url', sourceUrl)
-      .eq('pool', 0);
-    for (const row of data ?? []) {
+    const normUrl = normalizeSourceUrl(sourceUrl);
+    // 元URL・正規化URL両方で検索してURLゆれ（クエリパラメータ差異・x.com/twitter.com）に対応
+    const [{ data: ud1 }, { data: ud2 }] = await Promise.all([
+      supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, author_id').eq('work_id', workId).eq('pool', 0).eq('source_url', sourceUrl),
+      supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, author_id').eq('work_id', workId).eq('pool', 0).eq('source_url', normUrl),
+    ]);
+    const urlDedup = new Set<string>();
+    for (const row of [...(ud1 ?? []), ...(ud2 ?? [])]) {
+      if (urlDedup.has(row.id as string)) continue;
+      urlDedup.add(row.id as string);
       seen.add(row.id as string);
       byUrl.push({
         id: row.id as string,
@@ -302,11 +310,7 @@ export async function findDuplicateEvents(
     // 正規化タイトルがnormと完全一致、またはnorm+スペースで始まる（地名付きバリアント）
     const rowNorm = normalizeTitleForDup(row.title as string);
     const titleMatch = rowNorm === norm || rowNorm.startsWith(`${norm} `);
-    if (
-      !seen.has(row.id as string) &&
-      titleMatch &&
-      datesOverlap(date, endDate ?? null, row.event_date as string, (row.end_date as string | null) ?? null)
-    ) {
+    if (!seen.has(row.id as string) && titleMatch) {
       seen.add(row.id as string);
       byTitle.push({
         id: row.id as string,
