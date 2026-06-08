@@ -2758,6 +2758,11 @@ export default function Calendar() {
               </div>
             </div>
             {postError && <p className="text-red-400 text-xs px-4 pb-1">{postError}</p>}
+            {duplicateWarning && !postError && (
+              <p className="text-orange-400 text-xs px-4 pb-1">
+                「{duplicateWarning.existingEvent.title}」と重複しています（下に詳細）
+              </p>
+            )}
           </div>
 
           {/* スクロールエリア：top:60px から bottom:0 の絶対配置 */}

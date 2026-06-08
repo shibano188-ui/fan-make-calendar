@@ -272,13 +272,18 @@ export async function findDuplicateEvents(
   }
 
   const norm = normalizeTitleForDup(title);
-  // ilike には元のタイトルを使う（正規化済み文字列だと全角スペース等がマッチしない）
-  const { data: titleData } = await supabase
-    .from('events')
-    .select('id, title, event_date, end_date, prefecture, source_url')
-    .eq('work_id', workId)
-    .ilike('title', title);
-  for (const row of titleData ?? []) {
+  // 元タイトルと正規化タイトル(半角スペース化)の両方でクエリして全角/半角ゆれに対応
+  const [{ data: d1 }, { data: d2 }] = await Promise.all([
+    supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url').eq('work_id', workId).ilike('title', title),
+    supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url').eq('work_id', workId).ilike('title', norm),
+  ]);
+  const dedup = new Set<string>();
+  const titleData = [...(d1 ?? []), ...(d2 ?? [])].filter(r => {
+    if (dedup.has(r.id as string)) return false;
+    dedup.add(r.id as string);
+    return true;
+  });
+  for (const row of titleData) {
     if (
       !seen.has(row.id as string) &&
       normalizeTitleForDup(row.title as string) === norm &&
