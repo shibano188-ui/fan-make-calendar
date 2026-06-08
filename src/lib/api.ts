@@ -79,21 +79,13 @@ export async function getOrCreateWork(name: string): Promise<Work> {
 async function resolveAuthorNames(events: CalendarEvent[]): Promise<CalendarEvent[]> {
   const authorIds = [...new Set(events.map(e => e.authorId).filter((id): id is string => !!id))];
   if (authorIds.length === 0) return events;
-
-  let nameMap: Record<string, string> = {};
-  try {
-    // サービスロールキーを使うVercel APIを経由してRLSを回避
-    const res = await fetch('/api/display-names', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_ids: authorIds }),
-    });
-    if (res.ok) {
-      const data = await res.json() as { user_id: string; display_name: string | null }[];
-      nameMap = Object.fromEntries(data.map(d => [d.user_id, d.display_name ?? '匿名']));
-    }
-  } catch { /* fallback: all anonymous */ }
-
+  const { data } = await supabase
+    .from('user_settings')
+    .select('user_id, display_name')
+    .in('user_id', authorIds);
+  const nameMap = Object.fromEntries(
+    (data ?? []).map(d => [d.user_id as string, (d.display_name as string | null) ?? '匿名']),
+  );
   return events.map(e => ({
     ...e,
     authorName: e.authorId ? (nameMap[e.authorId] ?? '匿名') : undefined,
@@ -492,7 +484,8 @@ export async function getUserPublicProfile(userId: string): Promise<{
   birthdayPosts: number;
   collabPosts: number;
 }> {
-  const [posted, likes, likesGv, reactionsGv, worksArr, birthday, collab] = await Promise.all([
+  const [settingsRes, posted, likes, likesGv, reactionsGv, worksArr, birthday, collab] = await Promise.all([
+    supabase.from('user_settings').select('display_name, x_url, avatar_emoji').eq('user_id', userId).maybeSingle(),
     countUserPostedEvents(userId),
     getTotalReceivedLikes(userId),
     countUserLikesGiven(userId),
@@ -501,30 +494,10 @@ export async function getUserPublicProfile(userId: string): Promise<{
     countUserEventsByCategory(userId, '誕生日'),
     countUserEventsByCategory(userId, 'コラボ'),
   ]);
-  // display_name / x_url / avatar_emoji はRLS回避のためAPIエンドポイント経由で取得
-  let displayName: string | null = null;
-  let xUrl: string | null = null;
-  let avatarEmoji: string | null = null;
-  try {
-    const res = await fetch('/api/display-names', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_ids: [userId] }),
-    });
-    if (res.ok) {
-      const data = await res.json() as { user_id: string; display_name: string | null; x_url: string | null; avatar_emoji: string | null }[];
-      const row = data[0];
-      if (row) {
-        displayName = row.display_name ?? null;
-        xUrl = row.x_url ?? null;
-        avatarEmoji = row.avatar_emoji ?? null;
-      }
-    }
-  } catch { /* fallback null */ }
   return {
-    displayName,
-    xUrl,
-    avatarEmoji,
+    displayName: (settingsRes.data?.display_name as string | null) ?? null,
+    xUrl: (settingsRes.data?.x_url as string | null) ?? null,
+    avatarEmoji: (settingsRes.data?.avatar_emoji as string | null) ?? null,
     postedCount: posted,
     receivedLikes: likes,
     likesGiven: likesGv,
