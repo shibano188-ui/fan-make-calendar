@@ -472,10 +472,7 @@ export async function getUserPublicProfile(userId: string): Promise<{
   birthdayPosts: number;
   collabPosts: number;
 }> {
-  const [settingsRes, posted, likes, likesGv, reactionsGv, worksArr, birthday, collab] = await Promise.all([
-    // x_url, avatar_emoji は自分の行のみ読めれば十分（プロフィール設定は自分のみ）
-    // display_name は /api/display-names 経由で取得するため別途フェッチ
-    supabase.from('user_settings').select('x_url, avatar_emoji').eq('user_id', userId).maybeSingle(),
+  const [posted, likes, likesGv, reactionsGv, worksArr, birthday, collab] = await Promise.all([
     countUserPostedEvents(userId),
     getTotalReceivedLikes(userId),
     countUserLikesGiven(userId),
@@ -484,8 +481,10 @@ export async function getUserPublicProfile(userId: string): Promise<{
     countUserEventsByCategory(userId, '誕生日'),
     countUserEventsByCategory(userId, 'コラボ'),
   ]);
-  // display_name はRLS回避のためAPIエンドポイント経由で取得
+  // display_name / x_url / avatar_emoji はRLS回避のためAPIエンドポイント経由で取得
   let displayName: string | null = null;
+  let xUrl: string | null = null;
+  let avatarEmoji: string | null = null;
   try {
     const res = await fetch('/api/display-names', {
       method: 'POST',
@@ -493,14 +492,19 @@ export async function getUserPublicProfile(userId: string): Promise<{
       body: JSON.stringify({ user_ids: [userId] }),
     });
     if (res.ok) {
-      const data = await res.json() as { user_id: string; display_name: string | null }[];
-      displayName = data[0]?.display_name ?? null;
+      const data = await res.json() as { user_id: string; display_name: string | null; x_url: string | null; avatar_emoji: string | null }[];
+      const row = data[0];
+      if (row) {
+        displayName = row.display_name ?? null;
+        xUrl = row.x_url ?? null;
+        avatarEmoji = row.avatar_emoji ?? null;
+      }
     }
   } catch { /* fallback null */ }
   return {
     displayName,
-    xUrl: (settingsRes.data?.x_url as string | null) ?? null,
-    avatarEmoji: (settingsRes.data?.avatar_emoji as string | null) ?? null,
+    xUrl,
+    avatarEmoji,
     postedCount: posted,
     receivedLikes: likes,
     likesGiven: likesGv,

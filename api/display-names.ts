@@ -15,7 +15,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const admin = createClient(supabaseUrl, serviceRoleKey);
   const { data, error } = await admin
     .from('user_settings')
-    .select('user_id, display_name')
+    .select('user_id, display_name, x_url, avatar_emoji')
     .in('user_id', user_ids);
 
   if (error) return res.status(500).json({ error: error.message });
