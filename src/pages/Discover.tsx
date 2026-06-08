@@ -533,24 +533,12 @@ export default function Discover() {
                                 style={{ maxHeight: 220, maxWidth: '100%', height: 'auto', width: 'auto' }} />
                             </div>
                           );
-                          if (imgs.length === 2) return (
-                            <div className="grid grid-cols-2 gap-1.5">
-                              {imgs.map((src, i) => (
-                                <div key={i} className="rounded-lg overflow-hidden" style={{ height: 130 }}>
-                                  <img src={src} alt="" loading="lazy"
-                                    className="w-full h-full object-cover" />
-                                </div>
-                              ))}
-                            </div>
-                          );
                           return (
                             <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollSnapType: 'x mandatory' }}>
                               {imgs.map((src, i) => (
-                                <div key={i} className="rounded-lg overflow-hidden flex-shrink-0"
-                                  style={{ height: 160, width: 160, scrollSnapAlign: 'start' }}>
-                                  <img src={src} alt="" loading="lazy"
-                                    className="w-full h-full object-cover" />
-                                </div>
+                                <img key={i} src={src} alt="" loading="lazy"
+                                  className="rounded-lg flex-shrink-0 block"
+                                  style={{ height: 130, width: 'auto', scrollSnapAlign: 'start' }} />
                               ))}
                             </div>
                           );
