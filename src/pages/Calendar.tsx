@@ -2808,13 +2808,20 @@ export default function Calendar() {
                   </p>
                   <button
                     onClick={() => {
-                      const d = new Date(duplicateWarning.existingEvent.date);
+                      const ev = duplicateWarning.existingEvent;
                       setDuplicateWarning(null);
                       closePostForm();
-                      setYear(d.getFullYear());
-                      setMonth(d.getMonth());
-                      setSelectedDate(duplicateWarning.existingEvent.date);
-                      setSheetOpen(true);
+                      // 自分の投稿 or 現在の作品カレンダー上のイベント → カレンダーシートへ
+                      if (workId || ev.authorId === user?.id) {
+                        const d = new Date(ev.date);
+                        setYear(d.getFullYear());
+                        setMonth(d.getMonth());
+                        setSelectedDate(ev.date);
+                        setSheetOpen(true);
+                      } else {
+                        // 他ユーザーの投稿 → 発見タブにスクロール
+                        navigate('/discover', { state: { highlightEventId: ev.id } });
+                      }
                     }}
                     className="w-full py-1.5 text-xs rounded-lg border active:opacity-70"
                     style={{ borderColor: 'var(--border-default)', color: 'var(--label-secondary)' }}

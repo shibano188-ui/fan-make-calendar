@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
 import UserProfileModal from '../components/UserProfileModal';
 import MemoText from '../components/MemoText';
@@ -81,6 +81,8 @@ function getDomain(url: string): string {
 
 export default function Discover() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const highlightEventId = (location.state as { highlightEventId?: string } | null)?.highlightEventId ?? null;
   const { user } = useAuth();
 
   const [showImagesDiscover] = useState(() => loadImageVisibility().discover);
@@ -178,6 +180,18 @@ export default function Discover() {
     }).catch(() => setError('データの読み込みに失敗しました'))
       .finally(() => setLoading(false));
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ハイライト対象イベントにスクロール
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!highlightEventId || loading || events.length === 0) return;
+    setHighlightedId(highlightEventId);
+    setTimeout(() => {
+      document.getElementById(`discover-event-${highlightEventId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+    const timer = setTimeout(() => setHighlightedId(null), 2500);
+    return () => clearTimeout(timer);
+  }, [highlightEventId, loading, events.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // リアクション一括取得
   useEffect(() => {
@@ -448,8 +462,15 @@ export default function Discover() {
                 const [, endM, endD] = isOngoing ? event.endDate!.split('-').map(Number) : [0, 0, 0];
                 const catColor = getCategoryColor(event.category);
                 return (
-                  <div key={event.id} className="bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
-                    style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined }}
+                  <div
+                    key={event.id}
+                    id={`discover-event-${event.id}`}
+                    className="bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
+                    style={{
+                      borderLeft: catColor ? `3px solid ${catColor}` : undefined,
+                      transition: 'box-shadow 0.4s',
+                      boxShadow: highlightedId === event.id ? '0 0 0 2px var(--accent-color)' : undefined,
+                    }}
                   >
                     {/* コンテンツ部分（左に日付列） */}
                     <div className="flex items-stretch px-4 pt-4 gap-3">
