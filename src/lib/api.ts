@@ -473,7 +473,9 @@ export async function getUserPublicProfile(userId: string): Promise<{
   collabPosts: number;
 }> {
   const [settingsRes, posted, likes, likesGv, reactionsGv, worksArr, birthday, collab] = await Promise.all([
-    supabase.from('user_settings').select('display_name, x_url, avatar_emoji').eq('user_id', userId).maybeSingle(),
+    // x_url, avatar_emoji は自分の行のみ読めれば十分（プロフィール設定は自分のみ）
+    // display_name は /api/display-names 経由で取得するため別途フェッチ
+    supabase.from('user_settings').select('x_url, avatar_emoji').eq('user_id', userId).maybeSingle(),
     countUserPostedEvents(userId),
     getTotalReceivedLikes(userId),
     countUserLikesGiven(userId),
@@ -482,8 +484,21 @@ export async function getUserPublicProfile(userId: string): Promise<{
     countUserEventsByCategory(userId, '誕生日'),
     countUserEventsByCategory(userId, 'コラボ'),
   ]);
+  // display_name はRLS回避のためAPIエンドポイント経由で取得
+  let displayName: string | null = null;
+  try {
+    const res = await fetch('/api/display-names', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_ids: [userId] }),
+    });
+    if (res.ok) {
+      const data = await res.json() as { user_id: string; display_name: string | null }[];
+      displayName = data[0]?.display_name ?? null;
+    }
+  } catch { /* fallback null */ }
   return {
-    displayName: (settingsRes.data?.display_name as string | null) ?? null,
+    displayName,
     xUrl: (settingsRes.data?.x_url as string | null) ?? null,
     avatarEmoji: (settingsRes.data?.avatar_emoji as string | null) ?? null,
     postedCount: posted,
