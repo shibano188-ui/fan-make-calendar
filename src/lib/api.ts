@@ -257,6 +257,12 @@ export function normalizeSourceUrl(url: string): string {
   }
 }
 
+// X/TwitterのツイートIDを抽出（URLフォーマットに依存しない照合用）
+function extractTweetId(url: string): string | null {
+  const m = url.match(/\/status\/(\d+)/);
+  return m?.[1] ?? null;
+}
+
 export async function findDuplicateEvents(
   workId: string,
   title: string,
@@ -269,25 +275,32 @@ export async function findDuplicateEvents(
 
   if (sourceUrl) {
     const normUrl = normalizeSourceUrl(sourceUrl);
-    // 元URL・正規化URL両方で検索してURLゆれ（クエリパラメータ差異・x.com/twitter.com）に対応
-    const [{ data: ud1 }, { data: ud2 }] = await Promise.all([
-      supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, author_id').eq('work_id', workId).eq('pool', 0).eq('source_url', sourceUrl),
-      supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, author_id').eq('work_id', workId).eq('pool', 0).eq('source_url', normUrl),
-    ]);
+    const tweetId = extractTweetId(sourceUrl);
+    // X/TwitterURLはツイートIDのパターンマッチで検索（twitter.com/x.com・クエリパラメータゆれを吸収）
+    // 非TwitterURLは正規化URL・元URLの2クエリで対応
+    const queries = tweetId
+      ? [supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, author_id').eq('work_id', workId).eq('pool', 0).ilike('source_url', `%/status/${tweetId}%`)]
+      : [
+          supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, author_id').eq('work_id', workId).eq('pool', 0).eq('source_url', sourceUrl),
+          supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, author_id').eq('work_id', workId).eq('pool', 0).eq('source_url', normUrl),
+        ];
+    const results = await Promise.all(queries);
     const urlDedup = new Set<string>();
-    for (const row of [...(ud1 ?? []), ...(ud2 ?? [])]) {
-      if (urlDedup.has(row.id as string)) continue;
-      urlDedup.add(row.id as string);
-      seen.add(row.id as string);
-      byUrl.push({
-        id: row.id as string,
-        title: row.title as string,
-        date: row.event_date as string,
-        endDate: (row.end_date as string | null) ?? null,
-        prefecture: normalizePrefecture(row.prefecture as string | null) ?? null,
-        sourceUrl: row.source_url as string | null,
-        authorId: (row.author_id as string | null) ?? null,
-      });
+    for (const { data } of results) {
+      for (const row of data ?? []) {
+        if (urlDedup.has(row.id as string)) continue;
+        urlDedup.add(row.id as string);
+        seen.add(row.id as string);
+        byUrl.push({
+          id: row.id as string,
+          title: row.title as string,
+          date: row.event_date as string,
+          endDate: (row.end_date as string | null) ?? null,
+          prefecture: normalizePrefecture(row.prefecture as string | null) ?? null,
+          sourceUrl: row.source_url as string | null,
+          authorId: (row.author_id as string | null) ?? null,
+        });
+      }
     }
   }
 
