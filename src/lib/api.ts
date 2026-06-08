@@ -114,6 +114,7 @@ function rowToEvent(e: Record<string, unknown>): CalendarEvent {
     locationDetail: (e.location_detail as string | null) ?? undefined,
     locationMapLink: (e.location_map_link as string | null) ?? undefined,
     authorId: (e.author_id as string | null) ?? undefined,
+    workId: (e.work_id as string | null) ?? undefined,
     likes: (e.like_count as number) ?? 0,
     likedByMe: false,
     createdAt: e.created_at as string,
