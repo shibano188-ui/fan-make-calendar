@@ -5,7 +5,7 @@ import UserProfileModal from '../components/UserProfileModal';
 import MemoText from '../components/MemoText';
 import {
   Heart, Smile, Trash2, SlidersHorizontal, ExternalLink, Plus,
-  Map as MapIcon, Palette, History,
+  Map as MapIcon, Palette,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
@@ -99,7 +99,6 @@ export default function Discover() {
   const [filterValue, setFilterValue] = useState<string | null>(() => loadRegionFilter().filterValue);
   const [includeAdjacent, setIncludeAdjacent] = useState(() => loadRegionFilter().includeAdjacent);
   const [showRegionPanel, setShowRegionPanel] = useState(false);
-  const [showPast, setShowPast] = useState(() => localStorage.getItem('discover_show_past') === '1');
 
   // ホーム県・ユーザー設定
   const [homePref, setHomePref] = useState<string | null>(null);
@@ -173,14 +172,14 @@ export default function Discover() {
     if (!user) return;
     setLoading(true);
     Promise.all([
-      listUpcomingParticipatedEvents(user.id, { includePast: showPast }),
+      listUpcomingParticipatedEvents(user.id),
       listRecentWorks(user.id),
     ]).then(([evts, works]) => {
       setEvents(evts);
       setParticipatedWorks(works);
     }).catch(() => setError('データの読み込みに失敗しました'))
       .finally(() => setLoading(false));
-  }, [user?.id, showPast]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ハイライト対象イベントにスクロール
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
@@ -350,18 +349,6 @@ export default function Discover() {
           leftNode={<span className="text-base font-bold text-label-primary">みんなの投稿した予定</span>}
           rightAction={
             <div className="flex items-center gap-1">
-              <button
-                onClick={() => {
-                  const next = !showPast;
-                  setShowPast(next);
-                  localStorage.setItem('discover_show_past', next ? '1' : '0');
-                }}
-                aria-label="過去の予定を表示"
-                className="relative w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary active:opacity-60"
-              >
-                <History size={16} style={showPast ? { color: 'var(--accent-color)' } : { color: 'var(--label-secondary)' }} />
-                {showPast && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent-color)' }} />}
-              </button>
               <button
                 onClick={() => setShowRegionPanel(true)}
                 aria-label="地域で絞り込む"
