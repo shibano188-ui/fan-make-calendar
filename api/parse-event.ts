@@ -46,6 +46,10 @@ const BASE_RULES = `
 - 「8月中旬」→ date: "${CURRENT_YEAR}-08-15", dateLabel: "中旬"
 - 「8月下旬」→ date: "${CURRENT_YEAR}-08-25", dateLabel: "下旬"
 - 「8月発売」「8月予定」など月だけ → date: "${CURRENT_YEAR}-08-01", dateLabel: "中"
+- 「春」「春頃」「春発売」など → date: "${CURRENT_YEAR}-04-15", dateLabel: "春"
+- 「夏」「夏頃」「夏発売」など → date: "${CURRENT_YEAR}-08-15", dateLabel: "夏"
+- 「秋」「秋頃」「秋発売」など → date: "${CURRENT_YEAR}-11-15", dateLabel: "秋"
+- 「冬」「冬頃」「冬発売」など → date: "${CURRENT_YEAR}-02-15", dateLabel: "冬"
 - 具体的な日付（「8月15日」など）→ dateLabel: null
 - 日付の情報が全くない → date: null, dateLabel: null`;
 
@@ -53,7 +57,7 @@ const SCHEMA = (memoDesc: string) => `[
   {
     "title": "イベントのタイトル（必須、簡潔に）",
     "date": "開始日をYYYY-MM-DD形式で or null",
-    "dateLabel": "'上旬'|'中旬'|'下旬'|'中'（曖昧な日付の場合）or null",
+    "dateLabel": "'上旬'|'中旬'|'下旬'|'中'|'春'|'夏'|'秋'|'冬'（曖昧な日付の場合）or null",
     "time": "開始時刻をHH:mm形式で or null",
     "endDate": "終了日をYYYY-MM-DD形式で（期間表記があれば必ず設定）or null",
     "endTime": "終了時刻をHH:mm形式で（時間範囲があれば必ず設定）or null",
@@ -300,7 +304,7 @@ function parseRawText(rawText: string): unknown[] {
             : JSON.stringify(rawLink.filter((u): u is string => typeof u === 'string' && !!u))
         : rawLink;
       const rawDateLabel = obj.dateLabel as string | null | undefined;
-      const validLabels = ['上旬', '中旬', '下旬', '中'];
+      const validLabels = ['上旬', '中旬', '下旬', '中', '春', '夏', '秋', '冬'];
       const dateLabel = rawDateLabel && validLabels.includes(rawDateLabel) ? rawDateLabel : null;
       return {
         ...obj,
