@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { PREFECTURES } from '../lib/prefectures';
 import { loadImageVisibility, saveImageVisibility, type ImageVisibility } from '../lib/constants';
+import { supabase } from '../lib/supabase';
 
 const inputCls =
   'w-full bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong';
@@ -101,11 +102,33 @@ export default function UserSettingsSheet({
   onSave: (homePref: string | null, displayName: string) => Promise<void>;
   onClose: () => void;
 }) {
-  const [pref, setPref]         = useState(homePref ?? '');
-  const [name, setName]         = useState(displayName ?? '');
-  const [saving, setSaving]     = useState(false);
-  const [saved, setSaved]       = useState(false);
-  const [imgVis, setImgVis]     = useState<ImageVisibility>(() => loadImageVisibility());
+  const [pref, setPref]           = useState(homePref ?? '');
+  const [name, setName]           = useState(displayName ?? '');
+  const [saving, setSaving]       = useState(false);
+  const [saved, setSaved]         = useState(false);
+  const [imgVis, setImgVis]       = useState<ImageVisibility>(() => loadImageVisibility());
+  const [delConfirm, setDelConfirm] = useState(false);
+  const [deleting, setDeleting]   = useState(false);
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error('no session');
+      const res = await fetch('/api/delete-account', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('failed');
+      await supabase.auth.signOut();
+      window.location.href = '/';
+    } catch {
+      alert('削除に失敗しました。しばらくしてからもう一度お試しください。');
+      setDeleting(false);
+      setDelConfirm(false);
+    }
+  };
   const handleSave = async () => {
     setSaving(true);
     await onSave(pref || null, name);
@@ -209,6 +232,35 @@ export default function UserSettingsSheet({
           >
             {saved ? '保存しました ✓' : saving ? '保存中…' : '保存'}
           </button>
+
+          {/* アカウント削除 */}
+          <div className="mt-8 pt-6 border-t border-faint">
+            {!delConfirm ? (
+              <button
+                onClick={() => setDelConfirm(true)}
+                className="w-full py-2.5 rounded-xl text-sm text-red-400 border border-red-400/40 active:opacity-70"
+              >
+                アカウントを削除する
+              </button>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <p className="text-xs text-label-secondary text-center">すべてのデータが削除されます。この操作は取り消せません。</p>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={deleting}
+                  className="w-full py-2.5 rounded-xl text-sm font-semibold text-white bg-red-500 active:opacity-70 disabled:opacity-40"
+                >
+                  {deleting ? '削除中…' : '本当に削除する'}
+                </button>
+                <button
+                  onClick={() => setDelConfirm(false)}
+                  className="w-full py-2.5 rounded-xl text-sm text-label-secondary active:opacity-70"
+                >
+                  キャンセル
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
