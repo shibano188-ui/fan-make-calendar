@@ -4,6 +4,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import PhoneFrame from './components/PhoneFrame';
 import { Capacitor } from '@capacitor/core';
+import { initAdMob, showBanner } from './lib/admob';
 
 const WorkSelect      = lazy(() => import('./pages/WorkSelect'));
 const Calendar        = lazy(() => import('./pages/Calendar'));
@@ -59,12 +60,20 @@ function AndroidShareHandler() {
   return null;
 }
 
+function AdMobInitializer() {
+  useEffect(() => {
+    initAdMob().then(() => showBanner());
+  }, []);
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <ThemeProvider>
           <AndroidShareHandler />
+          <AdMobInitializer />
           <Suspense fallback={<PageLoader />}>
             <Routes>
               {/* ウィジェット・共有ターゲット（PhoneFrameなし） */}
