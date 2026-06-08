@@ -452,9 +452,10 @@ export default function Discover() {
                 const showReAdd = isLiked && !isInCalendar;
                 const isLocked = lockedLikeIds.has(event.id);
 
-                const [, em, ed] = event.date.split('-').map(Number);
+                const dateParts = event.date ? event.date.split('-').map(Number) : null;
+                const [, em, ed] = dateParts ?? [0, 0, 0];
                 const todayStr = new Date().toISOString().slice(0, 10);
-                const isOngoing = event.date < todayStr && !!event.endDate && event.endDate >= todayStr;
+                const isOngoing = !!event.date && event.date < todayStr && !!event.endDate && event.endDate >= todayStr;
                 const hasPeriod = !!event.endDate && event.endDate !== event.date;
                 const [, endM, endD] = hasPeriod ? event.endDate!.split('-').map(Number) : [0, 0, 0];
                 const catColor = getCategoryColor(event.category);
@@ -483,10 +484,12 @@ export default function Discover() {
                             <span className="text-[13px] font-bold text-label-primary leading-snug">{em}/{ed}</span>
                             <span className="text-[12px] font-bold text-label-secondary leading-snug">〜{endM}/{endD}</span>
                           </>
+                        ) : !event.date ? (
+                          <span className="text-sm text-label-tertiary leading-snug">—</span>
                         ) : (
                           <>
                             <span className="text-[10px] text-label-tertiary leading-none">{em}月</span>
-                            <span className="text-xl font-bold text-label-primary leading-snug">{ed}</span>
+                            <span className="text-xl font-bold text-label-primary leading-snug">{event.dateLabel ?? ed}</span>
                           </>
                         )}
                         {event.time && (

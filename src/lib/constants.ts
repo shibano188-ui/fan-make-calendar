@@ -186,6 +186,7 @@ const EVENT_QUEUE_KEY = 'fan_event_queue';
 export interface QueuedEvent {
   title: string | null;
   date: string | null;
+  dateLabel: string | null;
   time: string | null;
   endDate: string | null;
   endTime: string | null;

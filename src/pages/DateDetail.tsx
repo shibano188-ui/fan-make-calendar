@@ -183,7 +183,7 @@ function EventCard({
   const hasReactions = reactionData && Object.values(reactionData.counts).some(c => c > 0);
 
   const timeLabel = event.endTime ? `${event.time}〜${event.endTime}` : event.time;
-  const dateLabel = event.endDate && event.endDate !== event.date
+  const dateLabel = event.date && event.endDate && event.endDate !== event.date
     ? (() => { const fmt = (d: string) => { const [, m, day] = d.split('-'); return `${parseInt(m)}月${parseInt(day)}日`; }; return `${fmt(event.date)}〜${fmt(event.endDate)}`; })()
     : null;
   return (

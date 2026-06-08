@@ -112,12 +112,12 @@ const SHEET_FULL_H = 280;
 
 // ソート: 重要 > 複数日 > 通常
 function makePriorityComparator(importantIds: Set<string>) {
-  return (a: { id: string; date: string; endDate?: string }, b: { id: string; date: string; endDate?: string }) => {
+  return (a: { id: string; date: string | null; endDate?: string }, b: { id: string; date: string | null; endDate?: string }) => {
     const aImp = importantIds.has(a.id);
     const bImp = importantIds.has(b.id);
     if (aImp !== bImp) return aImp ? -1 : 1;
-    const aMulti = !!(a.endDate && a.endDate > a.date);
-    const bMulti = !!(b.endDate && b.endDate > b.date);
+    const aMulti = !!(a.endDate && a.date && a.endDate > a.date);
+    const bMulti = !!(b.endDate && b.date && b.endDate > b.date);
     if (aMulti !== bMulti) return aMulti ? -1 : 1;
     return 0;
   };
@@ -152,6 +152,7 @@ interface InlineCard {
   workId: string;
   title: string;
   date: string;
+  dateLabel: string; // '上旬'|'中旬'|'下旬'|'中'|'' (空=具体的な日付)
   time: string;
   endDate: string;
   endTime: string;
@@ -174,6 +175,7 @@ function newInlineCard(date: string): InlineCard {
     workId: '',
     title: '',
     date,
+    dateLabel: '',
     time: '',
     endDate: '',
     endTime: '',
@@ -278,26 +280,80 @@ function InlineCardItem({
           </div>
 
           <div className="flex flex-col gap-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-label-tertiary text-xs mb-1.5 block">開始日 <span className="text-red-400">*</span></label>
-                <input type="date" value={card.date} onChange={e => onChange({ date: e.target.value })} className={inputCls} />
+            {/* 開始日ヘッダー + 日付未定トグル */}
+            <div className="flex items-center justify-between">
+              <label className="text-label-tertiary text-xs">
+                開始日{!card.dateLabel && <span className="text-red-400"> *</span>}
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  if (card.dateLabel) {
+                    onChange({ dateLabel: '' });
+                  } else {
+                    const ym = card.date ? card.date.slice(0, 7) : new Date().toISOString().slice(0, 7);
+                    onChange({ dateLabel: '中旬', date: `${ym}-15` });
+                  }
+                }}
+                className="text-xs px-2 py-0.5 rounded-full border transition-colors"
+                style={card.dateLabel
+                  ? { borderColor: 'var(--accent-color)', color: 'var(--accent-color)' }
+                  : { borderColor: 'var(--border-default)', color: 'var(--label-tertiary)' }}
+              >
+                日付未定
+              </button>
+            </div>
+            {card.dateLabel ? (
+              /* 曖昧日付UI */
+              <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  type="month"
+                  value={card.date ? card.date.slice(0, 7) : ''}
+                  onChange={e => {
+                    const ym = e.target.value;
+                    const day = card.dateLabel === '上旬' ? '05' : card.dateLabel === '下旬' ? '25' : card.dateLabel === '中旬' ? '15' : '01';
+                    onChange({ date: ym ? `${ym}-${day}` : '' });
+                  }}
+                  className="flex-1 bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary caret-label-primary outline-none border border-faint focus:border-strong"
+                />
+                {(['上旬', '中旬', '下旬', '月のみ'] as const).map(label => {
+                  const val = label === '月のみ' ? '中' : label;
+                  const day = label === '上旬' ? '05' : label === '中旬' ? '15' : label === '下旬' ? '25' : '01';
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => {
+                        const ym = card.date ? card.date.slice(0, 7) : '';
+                        onChange({ dateLabel: val, date: ym ? `${ym}-${day}` : '' });
+                      }}
+                      className={`px-2.5 py-1.5 rounded-full text-xs border transition-colors ${card.dateLabel === val ? 'border-selected text-label-primary bg-label-primary/10' : 'border-default text-label-secondary'}`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
+            ) : (
+              /* 通常の日付ピッカー */
+              <input type="date" value={card.date} onChange={e => onChange({ date: e.target.value })} className={inputCls} />
+            )}
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-label-tertiary text-xs mb-1.5 block">開始時間</label>
                 <input type="time" value={card.time} onChange={e => onChange({ time: e.target.value })} className={inputCls} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-label-tertiary text-xs mb-1.5 block">終了日（任意）</label>
-                <input type="date" value={card.endDate} min={card.date || undefined} onChange={e => onChange({ endDate: e.target.value })} className={inputCls} />
               </div>
               <div>
                 <label className="text-label-tertiary text-xs mb-1.5 block">終了時間</label>
                 <input type="time" value={card.endTime} onChange={e => onChange({ endTime: e.target.value })} className={inputCls} />
               </div>
             </div>
+            {!card.dateLabel && (
+              <div>
+                <label className="text-label-tertiary text-xs mb-1.5 block">終了日（任意）</label>
+                <input type="date" value={card.endDate} min={card.date || undefined} onChange={e => onChange({ endDate: e.target.value })} className={inputCls} />
+              </div>
+            )}
           </div>
 
           <div>
@@ -770,7 +826,7 @@ export default function Calendar() {
   const calendarDays = useMemo(() => getCalendarDays(year, month), [year, month]);
 
   const monthEvents = useMemo(
-    () => [...events].sort((a, b) => a.date.localeCompare(b.date)),
+    () => [...events].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '')),
     [events],
   );
 
@@ -946,7 +1002,7 @@ export default function Calendar() {
     const existingLinks = parseLinks(event.link);
     setEditForm({
       title: event.title,
-      date: event.date,
+      date: event.date ?? '',
       time: event.time ?? '',
       endDate: event.endDate ?? '',
       endTime: event.endTime ?? '',
@@ -1013,6 +1069,7 @@ export default function Calendar() {
       workId:         matchedWork ? matchedWork.id : base.workId,
       title:          parsed.title          ?? base.title,
       date:           parsed.date           ?? base.date,
+      dateLabel:      parsed.dateLabel      ?? base.dateLabel,
       time:           parsed.time           ?? base.time,
       endDate:        parsed.endDate        ?? base.endDate,
       endTime:        parsed.endTime        ?? base.endTime,
@@ -1091,9 +1148,9 @@ export default function Calendar() {
   };
 
   const handlePostSubmit = async () => {
-    const invalid = postCards.find(c => !c.title.trim() || !c.date);
+    const invalid = postCards.find(c => !c.title.trim());
     if (invalid) {
-      setPostError('すべてのカードにタイトルと日付を入力してください');
+      setPostError('タイトルを入力してください');
       setPostCards(prev => prev.map(c => c.id === invalid.id ? { ...c, collapsed: false } : c));
       return;
     }
@@ -1166,7 +1223,7 @@ export default function Calendar() {
     }
 
     const toEventPayload = (c: InlineCard) => ({
-      title: c.title.trim() + (titleSuffixes.get(c.id) ?? ''), date: c.date, time: c.time || undefined,
+      title: c.title.trim() + (titleSuffixes.get(c.id) ?? ''), date: c.date || null, dateLabel: c.dateLabel || undefined, time: c.time || undefined,
       endDate: c.endDate || undefined, endTime: c.endTime || undefined,
       category: c.category || c.customCategory.trim() || undefined,
       link: serializeLinks(c.links), memo: c.memo || undefined,
@@ -1310,16 +1367,16 @@ export default function Calendar() {
       const workColor = e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
       const dotColor = getCategoryColor(e.category) ?? workColor;
       const important = importantEventIds.has(e.id);
-      if (e.endDate && e.endDate > e.date) {
+      if (e.date && e.endDate && e.endDate > e.date) {
         let cur = e.date;
-        while (cur <= e.endDate) {
+        while (cur <= e.endDate!) {
           const pos: CellItem['position'] = cur === e.date ? 'start' : cur === e.endDate ? 'end' : 'middle';
           add(cur, { title: e.title, color: workColor, dotColor, position: pos, eventId: e.id, important });
           const next = new Date(cur + 'T00:00:00');
           next.setDate(next.getDate() + 1);
           cur = toDateStr(next);
         }
-      } else {
+      } else if (e.date) {
         add(e.date, { title: e.title, color: workColor, dotColor, eventId: e.id, important });
       }
     }
@@ -1373,7 +1430,7 @@ export default function Calendar() {
     type RawEvt = { eventId: string; startDate: string; endDate: string; title: string; color: string; dotColor: string; important: boolean };
     const rawEvts: RawEvt[] = [];
     for (const e of visibleEvents) {
-      if (e.endDate && e.endDate > e.date) {
+      if (e.date && e.endDate && e.endDate > e.date) {
         const workColor = e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
         rawEvts.push({ eventId: e.id, startDate: e.date, endDate: e.endDate, title: e.title, color: workColor, dotColor: getCategoryColor(e.category) ?? workColor, important: importantEventIds.has(e.id) });
       }
@@ -1454,6 +1511,7 @@ export default function Calendar() {
   const sheetWorkEvents = useMemo(
     () => visibleEvents
       .filter(e => {
+        if (!e.date) return false;
         const end = e.endDate || e.date;
         return e.date <= selectedDate && selectedDate <= end;
       })
@@ -1472,7 +1530,7 @@ export default function Calendar() {
 
   // 予定一覧ビュー用: 作品イベント+個人予定を日付順にまとめたリスト
   type ListItem = {
-    id: string; date: string; title: string; time?: string; endDate?: string; endTime?: string;
+    id: string; date: string | null; dateLabel?: string | null; title: string; time?: string; endDate?: string; endTime?: string;
     category?: string; prefecture?: string; memo?: string; link?: string; imageUrl?: string;
     tag: string; isPersonal: boolean; workId?: string;
     likes?: number; likedByMe?: boolean;
@@ -1481,7 +1539,7 @@ export default function Calendar() {
   const myCalendarListItems = useMemo((): ListItem[] => {
     if (workId) return [];
     const workItems: ListItem[] = visibleEvents.map(e => ({
-      id: e.id, date: e.date, title: e.title, time: e.time, endDate: e.endDate, endTime: e.endTime,
+      id: e.id, date: e.date, dateLabel: e.dateLabel, title: e.title, time: e.time, endDate: e.endDate, endTime: e.endTime,
       category: e.category, prefecture: e.prefecture, link: e.link, imageUrl: e.imageUrl,
       tag: e.workName ?? '', isPersonal: false, workId: e.workId,
       likes: e.likes, likedByMe: e.likedByMe,
@@ -1496,7 +1554,7 @@ export default function Calendar() {
       const aImp = importantEventIds.has(a.id);
       const bImp = importantEventIds.has(b.id);
       if (aImp !== bImp) return aImp ? -1 : 1;
-      return a.date.localeCompare(b.date);
+      return (a.date ?? '').localeCompare(b.date ?? '');
     });
   }, [workId, visibleEvents, monthPersonalEvents, importantEventIds]);
 
@@ -1506,7 +1564,7 @@ export default function Calendar() {
       const aImp = importantEventIds.has(a.id);
       const bImp = importantEventIds.has(b.id);
       if (aImp !== bImp) return aImp ? -1 : 1;
-      return a.date.localeCompare(b.date);
+      return (a.date ?? '').localeCompare(b.date ?? '');
     }),
     [filteredEvents, importantEventIds],
   );
@@ -1937,10 +1995,10 @@ export default function Calendar() {
                       {/* タイトル */}
                       <p className="text-label-primary font-bold text-[15px] leading-snug line-clamp-1">{sheetDetailEvent.title}</p>
                       {/* 日付・時間 */}
-                      {(formatDateRange(sheetDetailEvent.date, sheetDetailEvent.endDate) || formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime)) && (
+                      {(formatDateRange(sheetDetailEvent.date ?? '', sheetDetailEvent.endDate) || formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime)) && (
                         <div className="flex items-center gap-2 -mt-1">
-                          {formatDateRange(sheetDetailEvent.date, sheetDetailEvent.endDate) && (
-                            <span className="text-label-secondary text-xs">{formatDateRange(sheetDetailEvent.date, sheetDetailEvent.endDate)}</span>
+                          {formatDateRange(sheetDetailEvent.date ?? '', sheetDetailEvent.endDate) && (
+                            <span className="text-label-secondary text-xs">{formatDateRange(sheetDetailEvent.date ?? '', sheetDetailEvent.endDate)}</span>
                           )}
                           {formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime) && (
                             <span className="text-label-secondary text-sm font-medium">{formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime)}</span>
@@ -2050,7 +2108,7 @@ export default function Calendar() {
                     ) : (
                       <div className="flex flex-col gap-2">
                         {sheetWorkEvents.map(event => {
-                          const dateLabel = formatDateRange(event.date, event.endDate);
+                          const dateLabel = formatDateRange(event.date ?? '', event.endDate);
                           const timeLabel = formatTimeRange(event.time, event.endTime);
                           const catColor = getCategoryColor(event.category);
                           return (
@@ -2144,7 +2202,7 @@ export default function Calendar() {
                     ) : (
                       <div className="flex flex-col gap-2">
                         {sheetWorkEvents.map(event => {
-                          const dateLabel = formatDateRange(event.date, event.endDate);
+                          const dateLabel = formatDateRange(event.date ?? '', event.endDate);
                           const timeLabel = formatTimeRange(event.time, event.endTime);
                           const catColor = getCategoryColor(event.category);
                           return (
@@ -2330,10 +2388,10 @@ export default function Calendar() {
               {/* タイトル */}
               <p className="text-label-primary font-bold text-[15px] leading-snug line-clamp-1">{listDetailEvent.title}</p>
               {/* 日付・時間 */}
-              {(formatDateRange(listDetailEvent.date, listDetailEvent.endDate) || formatTimeRange(listDetailEvent.time, listDetailEvent.endTime)) && (
+              {(formatDateRange(listDetailEvent.date ?? '', listDetailEvent.endDate) || formatTimeRange(listDetailEvent.time, listDetailEvent.endTime)) && (
                 <div className="flex items-center gap-2 -mt-1">
-                  {formatDateRange(listDetailEvent.date, listDetailEvent.endDate) && (
-                    <span className="text-label-secondary text-xs">{formatDateRange(listDetailEvent.date, listDetailEvent.endDate)}</span>
+                  {formatDateRange(listDetailEvent.date ?? '', listDetailEvent.endDate) && (
+                    <span className="text-label-secondary text-xs">{formatDateRange(listDetailEvent.date ?? '', listDetailEvent.endDate)}</span>
                   )}
                   {formatTimeRange(listDetailEvent.time, listDetailEvent.endTime) && (
                     <span className="text-label-secondary text-sm font-medium">{formatTimeRange(listDetailEvent.time, listDetailEvent.endTime)}</span>
@@ -2453,7 +2511,8 @@ export default function Calendar() {
               ) : (
                 <div className="flex flex-col gap-3">
                   {sortedListEvents.map(event => {
-                    const [, em, ed] = event.date.split('-').map(Number);
+                    const dateParts = event.date ? event.date.split('-').map(Number) : null;
+                    const [, em, ed] = dateParts ?? [0, 0, 0];
                     const hasPeriod = !!event.endDate && event.endDate !== event.date;
                     const [, endM, endD] = hasPeriod ? event.endDate!.split('-').map(Number) : [0, 0, 0];
                     const catColor = getCategoryColor(event.category);
@@ -2466,7 +2525,9 @@ export default function Calendar() {
                           <button onClick={() => setListDetailEvent(event)}
                             className="flex-1 flex items-start gap-3 min-w-0 text-left active:opacity-70 transition-opacity">
                             <div className="flex-shrink-0 w-10 flex flex-col items-center pt-0.5">
-                              {hasPeriod ? (
+                              {!event.date ? (
+                                <span className="text-sm text-label-tertiary leading-snug">—</span>
+                              ) : hasPeriod ? (
                                 <>
                                   <span className="text-[13px] font-bold text-label-primary leading-snug">{em}/{ed}</span>
                                   <span className="text-[12px] font-bold text-label-secondary leading-snug">〜{endM}/{endD}</span>
@@ -2474,7 +2535,7 @@ export default function Calendar() {
                               ) : (
                                 <>
                                   <span className="text-[10px] text-label-tertiary leading-none">{em}月</span>
-                                  <span className="text-xl font-bold text-label-primary leading-snug">{ed}</span>
+                                  <span className="text-xl font-bold text-label-primary leading-snug">{event.dateLabel ?? ed}</span>
                                 </>
                               )}
                             </div>
@@ -2552,7 +2613,8 @@ export default function Calendar() {
               ) : (
                 <div className="flex flex-col gap-3">
                   {myCalendarListItems.map(item => {
-                    const [, im, id] = item.date.split('-').map(Number);
+                    const dateParts2 = item.date ? item.date.split('-').map(Number) : null;
+                    const [, im, id] = dateParts2 ?? [0, 0, 0];
                     const hasPeriod = !!item.endDate && item.endDate !== item.date;
                     const [, endM, endD] = hasPeriod ? item.endDate!.split('-').map(Number) : [0, 0, 0];
                     const catColor = getCategoryColor(item.category);
@@ -2572,7 +2634,9 @@ export default function Calendar() {
                             className={`flex-1 flex items-start gap-3 min-w-0 text-left ${!item.isPersonal ? 'active:opacity-70 transition-opacity' : 'cursor-default'}`}
                           >
                             <div className="flex-shrink-0 w-10 flex flex-col items-center pt-0.5">
-                              {hasPeriod ? (
+                              {!item.date ? (
+                                <span className="text-sm text-label-tertiary leading-snug">—</span>
+                              ) : hasPeriod ? (
                                 <>
                                   <span className="text-[13px] font-bold text-label-primary leading-snug">{im}/{id}</span>
                                   <span className="text-[12px] font-bold text-label-secondary leading-snug">〜{endM}/{endD}</span>
@@ -2580,7 +2644,7 @@ export default function Calendar() {
                               ) : (
                                 <>
                                   <span className="text-[10px] text-label-tertiary leading-none">{im}月</span>
-                                  <span className="text-xl font-bold text-label-primary leading-snug">{id}</span>
+                                  <span className="text-xl font-bold text-label-primary leading-snug">{item.dateLabel ?? id}</span>
                                 </>
                               )}
                               {item.time && (

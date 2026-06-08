@@ -102,7 +102,8 @@ function rowToEvent(e: Record<string, unknown>): CalendarEvent {
   return {
     id: e.id as string,
     title: e.title as string,
-    date: e.event_date as string,
+    date: (e.event_date as string | null) ?? null,
+    dateLabel: (e.date_label as string | null) ?? undefined,
     time: ((e.event_time as string | null) ?? undefined)?.slice(0, 5),
     endDate: (e.end_date as string | null) ?? undefined,
     endTime: ((e.end_time as string | null) ?? undefined)?.slice(0, 5),
@@ -181,24 +182,27 @@ export async function listEventsByDate(workId: string, date: string, userId?: st
 
 export async function createEvents(
   workId: string,
-  events: Pick<CalendarEvent, 'title' | 'date' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'imageUrl' | 'sourceUrl'>[],
+  events: Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'imageUrl' | 'sourceUrl'>[],
   authorId: string,
 ): Promise<string[]> {
   const rows = await Promise.all(events.map(async e => {
     let pool = 0;
-    const { data: dups } = await supabase
-      .from('events')
-      .select('pool')
-      .eq('work_id', workId)
-      .eq('event_date', e.date)
-      .eq('title', e.title);
-    if (dups && dups.length > 0) {
-      pool = Math.max(...dups.map(d => d.pool as number)) + 1;
+    if (e.date) {
+      const { data: dups } = await supabase
+        .from('events')
+        .select('pool')
+        .eq('work_id', workId)
+        .eq('event_date', e.date)
+        .eq('title', e.title);
+      if (dups && dups.length > 0) {
+        pool = Math.max(...dups.map(d => d.pool as number)) + 1;
+      }
     }
     return {
       work_id: workId,
       title: e.title,
-      event_date: e.date,
+      event_date: e.date || null,
+      date_label: e.dateLabel ?? null,
       event_time: e.time ?? null,
       end_date: e.endDate ?? null,
       end_time: e.endTime ?? null,
@@ -622,11 +626,12 @@ export async function listAllParticipatedWorkEvents(
 
 export async function updateEvent(
   eventId: string,
-  data: Partial<Pick<CalendarEvent, 'title' | 'date' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink'>>,
+  data: Partial<Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink'>>,
 ): Promise<void> {
   const row: Record<string, unknown> = {};
   if (data.title !== undefined) row.title = data.title;
-  if (data.date !== undefined) row.event_date = data.date;
+  if (data.date !== undefined) row.event_date = data.date || null;
+  if ('dateLabel' in data) row.date_label = data.dateLabel ?? null;
   if ('time' in data) row.event_time = data.time || null;
   if ('endDate' in data) row.end_date = data.endDate || null;
   if ('endTime' in data) row.end_time = data.endTime || null;
@@ -762,11 +767,11 @@ export async function listUpcomingParticipatedEvents(
   });
 
   const ongoing = events
-    .filter(e => e.date < today)
+    .filter(e => e.date && e.date < today)
     .sort((a, b) => (a.endDate ?? '').localeCompare(b.endDate ?? ''));
   const upcoming = events
-    .filter(e => e.date >= today)
-    .sort((a, b) => a.date.localeCompare(b.date));
+    .filter(e => !e.date || e.date >= today)
+    .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
 
   return resolveAuthorNames([...ongoing, ...upcoming]);
 }

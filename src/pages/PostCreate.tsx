@@ -19,6 +19,7 @@ interface PostCard {
   id: string;
   title: string;
   date: string;
+  dateLabel: string;
   time: string;
   endDate: string;
   endTime: string;
@@ -40,6 +41,7 @@ function newCard(): PostCard {
     id: crypto.randomUUID(),
     title: '',
     date: '',
+    dateLabel: '',
     time: '',
     endDate: '',
     endTime: '',
@@ -55,12 +57,13 @@ function newCard(): PostCard {
   };
 }
 
-type EventInput = Pick<CalendarEvent, 'title' | 'date' | 'time' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink'>;
+type EventInput = Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink'>;
 
 function toEventInput(card: PostCard): EventInput {
   return {
     title: card.title,
-    date: card.date,
+    date: card.date || null,
+    dateLabel: card.dateLabel || undefined,
     time: card.time || undefined,
     category: card.category || card.customCategory.trim() || undefined,
     link: serializeLinks(card.links),
@@ -137,24 +140,65 @@ function PostCardItem({
           </div>
 
           {/* 日付・時間 */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-label-tertiary text-xs mb-1.5 block">日付</label>
-              <input
-                type="date"
-                value={card.date}
-                onChange={e => onChange({ date: e.target.value })}
-                className={inputCls}
-              />
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <label className="text-label-tertiary text-xs">日付</label>
+              <button
+                type="button"
+                onClick={() => {
+                  if (card.dateLabel) {
+                    onChange({ dateLabel: '' });
+                  } else {
+                    const ym = card.date ? card.date.slice(0, 7) : new Date().toISOString().slice(0, 7);
+                    onChange({ dateLabel: '中旬', date: `${ym}-15` });
+                  }
+                }}
+                className="text-xs px-2 py-0.5 rounded-full border transition-colors"
+                style={card.dateLabel
+                  ? { borderColor: 'var(--accent-color)', color: 'var(--accent-color)' }
+                  : { borderColor: 'var(--border-default)', color: 'var(--label-tertiary)' }}
+              >
+                日付未定
+              </button>
             </div>
-            <div>
-              <label className="text-label-tertiary text-xs mb-1.5 block">時間</label>
-              <input
-                type="time"
-                value={card.time}
-                onChange={e => onChange({ time: e.target.value })}
-                className={inputCls}
-              />
+            {card.dateLabel ? (
+              <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  type="month"
+                  value={card.date ? card.date.slice(0, 7) : ''}
+                  onChange={e => {
+                    const ym = e.target.value;
+                    const day = card.dateLabel === '上旬' ? '05' : card.dateLabel === '下旬' ? '25' : card.dateLabel === '中旬' ? '15' : '01';
+                    onChange({ date: ym ? `${ym}-${day}` : '' });
+                  }}
+                  className="flex-1 bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary caret-label-primary outline-none border border-faint focus:border-strong"
+                />
+                {(['上旬', '中旬', '下旬', '月のみ'] as const).map(label => {
+                  const val = label === '月のみ' ? '中' : label;
+                  const day = label === '上旬' ? '05' : label === '中旬' ? '15' : label === '下旬' ? '25' : '01';
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => {
+                        const ym = card.date ? card.date.slice(0, 7) : '';
+                        onChange({ dateLabel: val, date: ym ? `${ym}-${day}` : '' });
+                      }}
+                      className={`px-2.5 py-1.5 rounded-full text-xs border transition-colors ${card.dateLabel === val ? 'border-selected text-label-primary bg-label-primary/10' : 'border-default text-label-secondary'}`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <input type="date" value={card.date} onChange={e => onChange({ date: e.target.value })} className={inputCls} />
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-label-tertiary text-xs mb-1.5 block">時間</label>
+                <input type="time" value={card.time} onChange={e => onChange({ time: e.target.value })} className={inputCls} />
+              </div>
             </div>
           </div>
 
@@ -314,6 +358,7 @@ export default function PostCreate() {
       collapsed: false,
       title:          parsed.title          ?? base.title,
       date:           parsed.date           ?? base.date,
+      dateLabel:      parsed.dateLabel      ?? base.dateLabel,
       time:           parsed.time           ?? base.time,
       endDate:        parsed.endDate        ?? base.endDate,
       endTime:        parsed.endTime        ?? base.endTime,
@@ -337,9 +382,9 @@ export default function PostCreate() {
 
   const handleSubmit = async () => {
     if (!user) { setError('認証エラーです。リロードしてください'); return; }
-    const invalid = cards.find(c => !c.title.trim() || !c.date);
+    const invalid = cards.find(c => !c.title.trim());
     if (invalid) {
-      setError('すべてのカードにタイトルと日付を入力してください');
+      setError('タイトルを入力してください');
       setCards(prev => prev.map(c => c.id === invalid.id ? { ...c, collapsed: false } : c));
       return;
     }

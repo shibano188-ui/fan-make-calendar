@@ -40,12 +40,20 @@ const BASE_RULES = `
 - 例: 「7/15〜7/20」→ date: "${CURRENT_YEAR}-07-15", endDate: "${CURRENT_YEAR}-07-20"
 - 例: 「14:00〜17:00」→ time: "14:00", endTime: "17:00"
 - 例: 「〜8月31日」→ endDate: "${CURRENT_YEAR}-08-31"
-- 開始日のみ明記で終了日が不明な場合はendDate: null`;
+- 開始日のみ明記で終了日が不明な場合はendDate: null
+【曖昧な日付の扱い（dateLabel）】
+- 「8月上旬」→ date: "${CURRENT_YEAR}-08-05", dateLabel: "上旬"
+- 「8月中旬」→ date: "${CURRENT_YEAR}-08-15", dateLabel: "中旬"
+- 「8月下旬」→ date: "${CURRENT_YEAR}-08-25", dateLabel: "下旬"
+- 「8月発売」「8月予定」など月だけ → date: "${CURRENT_YEAR}-08-01", dateLabel: "中"
+- 具体的な日付（「8月15日」など）→ dateLabel: null
+- 日付の情報が全くない → date: null, dateLabel: null`;
 
 const SCHEMA = (memoDesc: string) => `[
   {
     "title": "イベントのタイトル（必須、簡潔に）",
     "date": "開始日をYYYY-MM-DD形式で or null",
+    "dateLabel": "'上旬'|'中旬'|'下旬'|'中'（曖昧な日付の場合）or null",
     "time": "開始時刻をHH:mm形式で or null",
     "endDate": "終了日をYYYY-MM-DD形式で（期間表記があれば必ず設定）or null",
     "endTime": "終了時刻をHH:mm形式で（時間範囲があれば必ず設定）or null",
@@ -291,10 +299,14 @@ function parseRawText(rawText: string): unknown[] {
             ? rawLink.filter((u): u is string => typeof u === 'string' && !!u)[0]
             : JSON.stringify(rawLink.filter((u): u is string => typeof u === 'string' && !!u))
         : rawLink;
+      const rawDateLabel = obj.dateLabel as string | null | undefined;
+      const validLabels = ['上旬', '中旬', '下旬', '中'];
+      const dateLabel = rawDateLabel && validLabels.includes(rawDateLabel) ? rawDateLabel : null;
       return {
         ...obj,
         link: normalizedLink,
         date: fixYear(obj.date),
+        dateLabel,
         endDate: fixYear(obj.endDate),
         memo: cleanMemo(obj.memo),
       };

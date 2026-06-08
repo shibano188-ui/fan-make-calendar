@@ -4,6 +4,7 @@ import { Sparkles, Link2, Loader2, Check } from 'lucide-react';
 export type ParsedEvent = {
   title: string | null;
   date: string | null;
+  dateLabel: string | null;
   time: string | null;
   endDate: string | null;
   endTime: string | null;
@@ -48,6 +49,7 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
   const rawToEvent = (raw: Record<string, unknown>, linkOverride?: string, sourceUrl?: string): ParsedEvent => ({
     title:          clean(raw.title),
     date:           clean(raw.date),
+    dateLabel:      clean(raw.dateLabel),
     time:           clean(raw.time),
     endDate:        clean(raw.endDate),
     endTime:        clean(raw.endTime),

@@ -1,7 +1,8 @@
 export type CalendarEvent = {
   id: string;
   title: string;
-  date: string;       // 'YYYY-MM-DD'
+  date: string | null;       // 'YYYY-MM-DD' or null（日付未定）
+  dateLabel?: string | null; // 表示用: '上旬'|'中旬'|'下旬'|'中'
   time?: string;      // 'HH:mm'
   category?: string;
   link?: string;

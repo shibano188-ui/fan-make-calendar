@@ -95,7 +95,7 @@ export default function WidgetCountdown() {
               </p>
             )}
             <p className="text-sm mt-1" style={{ color: 'var(--label-secondary)' }}>
-              {formatDate(event.date)}
+              {formatDate(event.date ?? "")}
               {event.time && ` ${event.time}`}
             </p>
           </div>
