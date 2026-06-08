@@ -486,6 +486,8 @@ export default function Discover() {
                           </>
                         ) : !event.date ? (
                           <span className="text-sm text-label-tertiary leading-snug">—</span>
+                        ) : ['春頃','夏頃','秋頃','冬頃'].includes(event.dateLabel ?? '') ? (
+                          <span className="text-xl font-bold text-label-primary leading-snug">{event.dateLabel}</span>
                         ) : (
                           <>
                             <span className="text-[10px] text-label-tertiary leading-none">{em}月</span>

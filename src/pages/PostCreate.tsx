@@ -162,34 +162,61 @@ function PostCardItem({
               </button>
             </div>
             {card.dateLabel ? (
-              <div className="flex items-center gap-2 flex-wrap">
-                <input
-                  type="month"
-                  value={card.date ? card.date.slice(0, 7) : ''}
+              <div className="flex flex-col gap-2">
+                <select
+                  value={card.dateLabel}
                   onChange={e => {
-                    const ym = e.target.value;
-                    const day = card.dateLabel === '上旬' ? '05' : card.dateLabel === '下旬' ? '25' : card.dateLabel === '中旬' ? '15' : '01';
-                    onChange({ date: ym ? `${ym}-${day}` : '' });
+                    const val = e.target.value;
+                    const year = card.date ? card.date.slice(0, 4) : String(new Date().getFullYear());
+                    const seasonMonth: Record<string, string> = { '春頃': '04', '夏頃': '08', '秋頃': '11', '冬頃': '02' };
+                    const labelDay: Record<string, string> = { '上旬': '05', '中旬': '15', '下旬': '25', '中': '01' };
+                    if (seasonMonth[val]) {
+                      onChange({ dateLabel: val, date: `${year}-${seasonMonth[val]}-15` });
+                    } else {
+                      const month = card.date ? card.date.slice(5, 7) : String(new Date().getMonth() + 1).padStart(2, '0');
+                      onChange({ dateLabel: val, date: `${year}-${month}-${labelDay[val] ?? '15'}` });
+                    }
                   }}
-                  className="flex-1 bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary caret-label-primary outline-none border border-faint focus:border-strong"
-                />
-                {(['上旬', '中旬', '下旬', '月のみ'] as const).map(label => {
-                  const val = label === '月のみ' ? '中' : label;
-                  const day = label === '上旬' ? '05' : label === '中旬' ? '15' : label === '下旬' ? '25' : '01';
-                  return (
-                    <button
-                      key={label}
-                      type="button"
-                      onClick={() => {
-                        const ym = card.date ? card.date.slice(0, 7) : '';
-                        onChange({ dateLabel: val, date: ym ? `${ym}-${day}` : '' });
+                  className={inputCls}
+                >
+                  {[['上旬','上旬'],['中旬','中旬'],['下旬','下旬'],['月のみ','中'],['春頃','春頃'],['夏頃','夏頃'],['秋頃','秋頃'],['冬頃','冬頃']].map(([label, val]) => (
+                    <option key={val} value={val}>{label}</option>
+                  ))}
+                </select>
+                <div className="flex gap-2">
+                  <select
+                    value={card.date ? card.date.slice(0, 4) : ''}
+                    onChange={e => {
+                      const year = e.target.value;
+                      const seasonMonth: Record<string, string> = { '春頃': '04', '夏頃': '08', '秋頃': '11', '冬頃': '02' };
+                      const labelDay: Record<string, string> = { '上旬': '05', '中旬': '15', '下旬': '25', '中': '01' };
+                      const month = card.date ? card.date.slice(5, 7) : String(new Date().getMonth() + 1).padStart(2, '0');
+                      const day = seasonMonth[card.dateLabel] ? '15' : (labelDay[card.dateLabel] ?? '15');
+                      const mm = seasonMonth[card.dateLabel] ?? month;
+                      onChange({ date: year ? `${year}-${mm}-${day}` : '' });
+                    }}
+                    className={inputCls}
+                  >
+                    {[0, 1, 2].map(off => { const y = new Date().getFullYear() + off; return <option key={y} value={String(y)}>{y}年</option>; })}
+                  </select>
+                  {!['春頃', '夏頃', '秋頃', '冬頃'].includes(card.dateLabel) && (
+                    <select
+                      value={card.date ? card.date.slice(5, 7) : ''}
+                      onChange={e => {
+                        const month = e.target.value;
+                        const year = card.date ? card.date.slice(0, 4) : String(new Date().getFullYear());
+                        const labelDay: Record<string, string> = { '上旬': '05', '中旬': '15', '下旬': '25', '中': '01' };
+                        onChange({ date: month ? `${year}-${month}-${labelDay[card.dateLabel] ?? '15'}` : '' });
                       }}
-                      className={`px-2.5 py-1.5 rounded-full text-xs border transition-colors ${card.dateLabel === val ? 'border-selected text-label-primary bg-label-primary/10' : 'border-default text-label-secondary'}`}
+                      className={inputCls}
                     >
-                      {label}
-                    </button>
-                  );
-                })}
+                      {Array.from({ length: 12 }, (_, i) => {
+                        const m = String(i + 1).padStart(2, '0');
+                        return <option key={m} value={m}>{i + 1}月</option>;
+                      })}
+                    </select>
+                  )}
+                </div>
               </div>
             ) : (
               <input type="date" value={card.date} onChange={e => onChange({ date: e.target.value })} className={inputCls} />
