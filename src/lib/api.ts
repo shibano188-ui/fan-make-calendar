@@ -733,11 +733,12 @@ export async function leaveCalendar(workId: string, userId: string): Promise<voi
   await syncParticipantCount(workId);
 }
 
-// ─── 発見タブ: 参加中の全作品の今日以降のイベント ────────────────
+// ─── 発見タブ: 参加中の全作品のイベント ────────────────────────────
 export async function listUpcomingParticipatedEvents(
   userId: string,
-  limit = 60,
+  options: { includePast?: boolean; limit?: number } = {},
 ): Promise<CalendarEvent[]> {
+  const { includePast = false, limit = 60 } = options;
   const { data: parts } = await supabase
     .from('participations')
     .select('work_id')
@@ -746,13 +747,24 @@ export async function listUpcomingParticipatedEvents(
   if (workIds.length === 0) return [];
 
   const today = new Date().toISOString().slice(0, 10);
-  const { data, error } = await supabase
+
+  let query = supabase
     .from('events')
     .select('*, works(name)')
     .in('work_id', workIds)
-    .eq('pool', 0)
-    .or(`end_date.gte.${today},and(end_date.is.null,event_date.gte.${today})`)
-    .limit(limit);
+    .eq('pool', 0);
+
+  if (includePast) {
+    // 直近90日以内の過去イベントも含める
+    const pastLimit = new Date();
+    pastLimit.setDate(pastLimit.getDate() - 90);
+    const pastFrom = pastLimit.toISOString().slice(0, 10);
+    query = query.gte('event_date', pastFrom);
+  } else {
+    query = query.or(`end_date.gte.${today},and(end_date.is.null,event_date.gte.${today})`);
+  }
+
+  const { data, error } = await query.limit(limit);
   if (error) throw error;
 
   const events = (data ?? []).map(e => {
@@ -761,15 +773,22 @@ export async function listUpcomingParticipatedEvents(
     return { ...ev, workId: (e as Record<string, unknown>).work_id as string, workName: works?.name ?? undefined };
   });
 
-  // 開催中（開始日が今日より前）を先頭に終了日昇順、それ以降は開始日昇順
+  // 開催中（開始日が今日より前かつ終了日が今日以降）→ 終了日昇順
+  // 今後 → 開始日昇順
+  // 過去（終了済み） → 開始日降順（新しい順）
   const ongoing = events
-    .filter(e => e.date < today)
+    .filter(e => e.date < today && (e.endDate ?? e.date) >= today)
     .sort((a, b) => (a.endDate ?? '').localeCompare(b.endDate ?? ''));
   const upcoming = events
     .filter(e => e.date >= today)
     .sort((a, b) => a.date.localeCompare(b.date));
+  const past = includePast
+    ? events
+        .filter(e => e.date < today && (e.endDate ?? e.date) < today)
+        .sort((a, b) => b.date.localeCompare(a.date))
+    : [];
 
-  return resolveAuthorNames([...ongoing, ...upcoming]);
+  return resolveAuthorNames([...ongoing, ...upcoming, ...past]);
 }
 
 export async function listRecentWorks(userId: string): Promise<Work[]> {
