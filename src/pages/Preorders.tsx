@@ -260,11 +260,11 @@ export default function Preorders() {
 
         {/* 締切行 */}
         <div
-          className="flex items-center justify-between px-4 py-2 border-t gap-2"
+          className="flex items-center justify-between px-4 py-3 border-t gap-3"
           style={{ borderColor: 'var(--border-subtle)' }}
         >
           <span
-            className="text-xs font-bold"
+            className="text-sm font-bold"
             style={{
               color: days === null ? 'var(--label-tertiary)'
                 : days <= 0 ? '#ef4444'
@@ -281,10 +281,10 @@ export default function Preorders() {
               href={links[0]}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-bold active:opacity-60"
+              className="flex items-center gap-1.5 text-sm px-4 py-2 rounded-full font-bold active:opacity-60"
               style={{ background: workColor, color: '#fff' }}
             >
-              <ExternalLink size={11} />
+              <ExternalLink size={13} />
               確認する
             </a>
           )}
