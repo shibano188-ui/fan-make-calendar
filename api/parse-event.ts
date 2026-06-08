@@ -35,12 +35,15 @@ async function resolveUrl(url: string): Promise<string> {
   } catch { return url; }
 }
 
+const CURRENT_YEAR = new Date().getFullYear();
+
 const BASE_RULES = `
+【現在の年】今年は${CURRENT_YEAR}年です。年が明示されていない場合は${CURRENT_YEAR}年として扱う。過去の年（例: 2023年、2024年）は絶対に使わない。
 【終了日・終了時刻の抽出ルール】
 - 「〜」「-」「まで」などで期間が示されている場合は必ずendDateを設定する
-- 例: 「7/15〜7/20」→ date: "2025-07-15", endDate: "2025-07-20"
+- 例: 「7/15〜7/20」→ date: "${CURRENT_YEAR}-07-15", endDate: "${CURRENT_YEAR}-07-20"
 - 例: 「14:00〜17:00」→ time: "14:00", endTime: "17:00"
-- 例: 「〜8月31日」→ endDate: "2025-08-31"
+- 例: 「〜8月31日」→ endDate: "${CURRENT_YEAR}-08-31"
 - 開始日のみ明記で終了日が不明な場合はendDate: null`;
 
 const SCHEMA = (memoDesc: string) => `[
@@ -261,11 +264,26 @@ function parseRawText(rawText: string): unknown[] {
   } else {
     throw new Error('Could not parse AI response');
   }
-  // memoフィールドのクリーニング
+  const currentYear = new Date().getFullYear();
+  // 年が明らかに過去（2年以上前）の場合は現在年に補正
+  const fixYear = (dateStr: unknown): unknown => {
+    if (typeof dateStr !== 'string') return dateStr;
+    const m = dateStr.match(/^(\d{4})-(\d{2}-\d{2})$/);
+    if (!m) return dateStr;
+    const year = parseInt(m[1], 10);
+    if (year < currentYear - 1) return `${currentYear}-${m[2]}`;
+    return dateStr;
+  };
+
   return arr.map(item => {
     if (item && typeof item === 'object') {
       const obj = item as Record<string, unknown>;
-      return { ...obj, memo: cleanMemo(obj.memo) };
+      return {
+        ...obj,
+        date: fixYear(obj.date),
+        endDate: fixYear(obj.endDate),
+        memo: cleanMemo(obj.memo),
+      };
     }
     return item;
   });
