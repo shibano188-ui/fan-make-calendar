@@ -3,11 +3,13 @@ import Anthropic from '@anthropic-ai/sdk';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-async function claudeComplete(prompt: string, maxTokens: number): Promise<string> {
+// 静的なシステムプロンプト（ルール・スキーマ）をキャッシュし、動的なコンテンツのみ毎回送る
+async function claudeComplete(systemPrompt: string, userContent: string, maxTokens: number): Promise<string> {
   const res = await anthropic.messages.create({
     model: 'claude-haiku-4-5',
     max_tokens: maxTokens,
-    messages: [{ role: 'user', content: prompt }],
+    system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
+    messages: [{ role: 'user', content: userContent }],
   });
   const block = res.content[0];
   return block.type === 'text' ? block.text : '';
@@ -346,7 +348,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const tweetContext = sharedText
         ? `ポスト本文（X アプリより直接）: ${sharedText}\n\n${pageText}`
         : pageText;
-      const rawText = await claudeComplete(`${tweetContext}\n\n---\n${EXTRACT_PROMPT_TWEET}`, 800);
+      const rawText = await claudeComplete(EXTRACT_PROMPT_TWEET, tweetContext, 800);
       let parsed: unknown[];
       try {
         parsed = parseRawText(rawText);
@@ -361,7 +363,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // 通常URL
     const pageText = await fetchPageText(processUrl);
-    const rawText2 = await claudeComplete(`${pageText}\n\n---\n${EXTRACT_PROMPT}`, 768);
+    const rawText2 = await claudeComplete(EXTRACT_PROMPT, pageText, 768);
     try {
       const parsed = parseRawText(rawText2);
       return res.status(200).json(parsed);
