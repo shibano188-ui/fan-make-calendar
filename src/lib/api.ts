@@ -751,12 +751,13 @@ export async function listUpcomingParticipatedEvents(
   if (workIds.length === 0) return [];
 
   const today = new Date().toISOString().slice(0, 10);
+  const monthStart = today.slice(0, 7) + '-01';
   const { data, error } = await supabase
     .from('events')
     .select('*, works(name)')
     .in('work_id', workIds)
     .eq('pool', 0)
-    .or(`end_date.gte.${today},and(end_date.is.null,event_date.gte.${today})`)
+    .or(`end_date.gte.${today},and(end_date.is.null,event_date.gte.${monthStart})`)
     .limit(limit);
   if (error) throw error;
 
@@ -766,11 +767,15 @@ export async function listUpcomingParticipatedEvents(
     return { ...ev, workId: (e as Record<string, unknown>).work_id as string, workName: works?.name ?? undefined };
   });
 
+  // dateLabel='中'（月のみ）は当月が終わるまで upcoming 扱い
+  const isMonthOnlyActive = (e: CalendarEvent) =>
+    e.dateLabel === '中' && !!e.date && e.date.slice(0, 7) >= today.slice(0, 7);
+
   const ongoing = events
-    .filter(e => e.date && e.date < today)
+    .filter(e => e.date && e.date < today && !isMonthOnlyActive(e))
     .sort((a, b) => (a.endDate ?? '').localeCompare(b.endDate ?? ''));
   const upcoming = events
-    .filter(e => !e.date || e.date >= today)
+    .filter(e => !e.date || e.date >= today || isMonthOnlyActive(e))
     .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
 
   return resolveAuthorNames([...ongoing, ...upcoming]);
