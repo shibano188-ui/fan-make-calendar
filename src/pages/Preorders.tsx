@@ -1,16 +1,47 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ExternalLink } from 'lucide-react';
+import { ChevronLeft, Heart, Smile, ExternalLink } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
 import MemoText from '../components/MemoText';
-import { listPreorderEvents, listRecentWorks, type Work } from '../lib/api';
-import { parseLinks, getCategoryColor } from '../lib/constants';
+import { useLikeAnimation } from '../hooks/useLikeAnimation';
+import {
+  listPreorderEvents, listRecentWorks, addLikeTap, setReaction, type Work,
+} from '../lib/api';
+import {
+  parseLinks, parseImageUrls, getCategoryColor,
+  loadLikedEventIds, addLikedEventId,
+  loadCalendarEventIds, addCalendarEventId,
+  incrementTotalLikesGiven,
+  loadImageVisibility,
+} from '../lib/constants';
+import { REACTIONS, type ReactionType } from '../lib/reactions';
 import { useAuth } from '../contexts/AuthContext';
 import type { CalendarEvent } from '../types';
 import { WORK_COLORS } from './Calendar';
 
 const BOTTOM_TAB_H = 56;
+const LIKE_MAX_TAPS = 10;
+const LIKE_COOLDOWN_MS = 60_000;
+
+interface LikeSession { tapsUsed: number; resetAt: number; }
+function loadLikeSession(id: string): LikeSession {
+  try {
+    const raw = localStorage.getItem(`like_session:${id}`);
+    if (!raw) return { tapsUsed: 0, resetAt: 0 };
+    const s = JSON.parse(raw) as LikeSession;
+    if (s.resetAt > 0 && Date.now() >= s.resetAt) return { tapsUsed: 0, resetAt: 0 };
+    return s;
+  } catch { return { tapsUsed: 0, resetAt: 0 }; }
+}
+function saveLikeSession(id: string, s: LikeSession) {
+  localStorage.setItem(`like_session:${id}`, JSON.stringify(s));
+}
+
+const REACTIONS_KEY = 'fan_reactions';
+function loadMyReactions(): Record<string, ReactionType> {
+  try { return JSON.parse(localStorage.getItem(REACTIONS_KEY) ?? '{}'); } catch { return {}; }
+}
 
 function daysLeft(dateStr: string): number {
   return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
@@ -22,6 +53,28 @@ export default function Preorders() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [works, setWorks] = useState<Work[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showImages] = useState(() => loadImageVisibility().discover);
+
+  const [likedEventIds, setLikedEventIds] = useState<Set<string>>(loadLikedEventIds);
+  const [calendarEventIds, setCalendarEventIds] = useState<Set<string>>(loadCalendarEventIds);
+  const initialCalendarIds = useRef(loadCalendarEventIds());
+  const [lockedLikeIds, setLockedLikeIds] = useState<Set<string>>(() => {
+    const set = new Set<string>();
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith('like_session:')) {
+        const s = JSON.parse(localStorage.getItem(key) ?? '{}') as LikeSession;
+        if (s.tapsUsed >= LIKE_MAX_TAPS && (s.resetAt === 0 || Date.now() < s.resetAt)) {
+          set.add(key.slice('like_session:'.length));
+        }
+      }
+    }
+    return set;
+  });
+  const [myReactions, setMyReactions] = useState<Record<string, ReactionType>>(loadMyReactions);
+  const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
+
+  const { trigger: triggerLike, renderOverlay: renderLikeOverlay } = useLikeAnimation();
 
   useEffect(() => {
     if (!user) return;
@@ -52,15 +105,61 @@ export default function Preorders() {
   const active = events.filter(e => !e.date || e.date <= today);
   const upcoming = events.filter(e => e.date && e.date > today);
 
+  const handleHeartPress = async (event: CalendarEvent, el: HTMLElement) => {
+    if (!user) return;
+    const session = loadLikeSession(event.id);
+    if (session.tapsUsed >= LIKE_MAX_TAPS) return;
+    const newTaps = session.tapsUsed + 1;
+    const resetAt = newTaps >= LIKE_MAX_TAPS ? Date.now() + LIKE_COOLDOWN_MS : 0;
+    saveLikeSession(event.id, { tapsUsed: newTaps, resetAt });
+    incrementTotalLikesGiven();
+    if (newTaps >= LIKE_MAX_TAPS) {
+      setLockedLikeIds(prev => { const next = new Set(prev); next.add(event.id); return next; });
+      setTimeout(() => {
+        setLockedLikeIds(prev => { const next = new Set(prev); next.delete(event.id); return next; });
+      }, LIKE_COOLDOWN_MS);
+    }
+    triggerLike(el);
+    try {
+      const newCount = await addLikeTap(event.id, user.id);
+      setEvents(prev => prev.map(e => e.id === event.id ? { ...e, likes: newCount } : e));
+    } catch {}
+    setLikedEventIds(addLikedEventId(event.id));
+    if (!calendarEventIds.has(event.id)) {
+      setCalendarEventIds(addCalendarEventId(event.id));
+    }
+  };
+
+  const handleReAddToCalendar = (eventId: string) => {
+    setCalendarEventIds(addCalendarEventId(eventId));
+  };
+
+  const handleReaction = (eventId: string, type: ReactionType) => {
+    const isToggleOff = myReactions[eventId] === type;
+    setMyReactions(prev => {
+      const next: Record<string, ReactionType> = { ...prev };
+      if (isToggleOff) delete next[eventId]; else next[eventId] = type;
+      localStorage.setItem(REACTIONS_KEY, JSON.stringify(next));
+      return next;
+    });
+    setOpenReactionPickerId(null);
+    if (user) setReaction(eventId, user.id, isToggleOff ? null : type).catch(() => {});
+  };
+
   const renderTile = (event: CalendarEvent) => {
     const workColor = event.workId ? (workColorMap.get(event.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
     const catColor = getCategoryColor(event.category);
     const days = event.endDate ? daysLeft(event.endDate) : null;
     const links = parseLinks(event.link);
     const workName = works.find(w => w.id === event.workId)?.name;
+    const isLiked = likedEventIds.has(event.id);
+    const isInCalendar = calendarEventIds.has(event.id);
+    const showReAdd = isLiked && !isInCalendar && !initialCalendarIds.current.has(event.id);
+    const isLocked = lockedLikeIds.has(event.id);
 
     const [, sm, sd] = event.date ? event.date.split('-').map(Number) : [0, 0, 0];
-    const [, em, ed] = event.endDate ? event.endDate.split('-').map(Number) : [0, 0, 0];
+    const hasPeriod = !!event.endDate && event.endDate !== event.date;
+    const [, em, ed] = hasPeriod ? event.endDate!.split('-').map(Number) : [0, 0, 0];
 
     return (
       <div
@@ -68,14 +167,15 @@ export default function Preorders() {
         className="bg-bg-secondary rounded-xl overflow-hidden shadow-card"
         style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined }}
       >
-        {/* コンテンツ部分（左に受付期間列） */}
+        {/* コンテンツ部分 */}
         <div className="flex items-stretch px-4 pt-4 gap-3">
           {/* 受付期間（左列） */}
           <div className="flex-shrink-0 w-10 flex flex-col items-center pt-0.5">
             {event.date ? (
               <>
-                <span className="text-[13px] font-bold text-label-primary leading-snug">{sm}/{sd}</span>
-                {event.endDate && (
+                <span className="text-[10px] text-label-tertiary leading-none">受付</span>
+                <span className="text-[13px] font-bold text-label-primary leading-snug mt-0.5">{sm}/{sd}</span>
+                {hasPeriod && (
                   <span className="text-[12px] font-bold text-label-secondary leading-snug">〜{em}/{ed}</span>
                 )}
               </>
@@ -91,39 +191,74 @@ export default function Preorders() {
             {/* バッジ行 */}
             <div className="flex items-center gap-1.5 flex-wrap">
               {event.isOrderMade && (
-                <span
-                  className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                  style={{ background: workColor, color: '#fff' }}
-                >
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#ef4444', color: '#fff' }}>
                   受注
                 </span>
               )}
               {workName && (
-                <span
-                  className="text-[10px] font-medium px-2 py-0.5 rounded-full"
-                  style={{ background: `${workColor}22`, color: workColor }}
-                >
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+                  style={{ color: workColor, backgroundColor: `${workColor}20` }}>
                   {workName}
                 </span>
               )}
               {event.category && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-bg-primary text-label-secondary">
+                <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">
                   {event.category}
                 </span>
               )}
             </div>
 
             {/* タイトル */}
-            <span className="text-sm font-bold text-label-primary leading-snug">{event.title}</span>
+            <p className="text-label-primary font-bold text-base leading-snug">{event.title}</p>
+
+            {/* 画像 */}
+            {showImages && (() => {
+              const imgs = parseImageUrls(event.imageUrl);
+              if (imgs.length === 0) return null;
+              if (imgs.length === 1) return (
+                <div className="flex justify-center">
+                  <img src={imgs[0]} alt="" loading="lazy"
+                    className="rounded-lg block"
+                    style={{ maxHeight: 220, maxWidth: '100%', height: 'auto', width: 'auto' }} />
+                </div>
+              );
+              return (
+                <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollSnapType: 'x mandatory' }}>
+                  {imgs.map((src, i) => (
+                    <img key={i} src={src} alt="" loading="lazy"
+                      className="rounded-lg flex-shrink-0 block"
+                      style={{ height: 130, width: 'auto', scrollSnapAlign: 'start' }} />
+                  ))}
+                </div>
+              );
+            })()}
 
             {/* メモ */}
-            {event.memo && (
-              <MemoText text={event.memo} className="text-xs text-label-tertiary" />
+            {event.memo && <MemoText text={event.memo} className="text-label-secondary text-sm leading-relaxed" />}
+
+            {/* リンク（外部サイト） */}
+            {links.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {links.map((url, i) => (
+                  <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1 px-3 py-1 rounded-full border border-default text-label-secondary text-xs w-fit active:opacity-60">
+                    <ExternalLink size={10} />
+                    {(() => {
+                      try {
+                        const { hostname } = new URL(url);
+                        if (hostname.includes('amazon')) return 'Amazon';
+                        if (hostname.includes('twitter.com') || hostname.includes('x.com')) return '公式X';
+                        return hostname.replace(/^www\./, '');
+                      } catch { return url; }
+                    })()}
+                  </a>
+                ))}
+              </div>
             )}
           </div>
         </div>
 
-        {/* 下段：締切・購入ボタン */}
+        {/* 締切行 */}
         <div
           className="flex items-center justify-between px-4 py-2 border-t gap-2"
           style={{ borderColor: 'var(--border-subtle)' }}
@@ -150,9 +285,62 @@ export default function Preorders() {
               style={{ background: workColor, color: '#fff' }}
             >
               <ExternalLink size={11} />
-              購入・予約する
+              確認する
             </a>
           )}
+        </div>
+
+        {/* アクション行 */}
+        <div className="flex items-center gap-2 pt-1 border-t px-4 pb-3" style={{ borderColor: 'var(--border-subtle)' }}>
+          <button
+            onClick={e => handleHeartPress(event, e.currentTarget)}
+            disabled={!user || isLocked}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm disabled:opacity-40 active:opacity-70"
+            style={{
+              borderColor: isLiked ? 'rgb(248,113,113)' : 'var(--border-default)',
+              color: isLiked ? 'rgb(248,113,113)' : 'var(--label-secondary)',
+            }}
+          >
+            <Heart size={14} style={{ fill: isLiked ? 'rgb(248,113,113)' : 'none' }} />
+            <span className="text-xs">{event.likes.toLocaleString('ja-JP')}</span>
+          </button>
+
+          {isInCalendar ? (
+            <span
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full border text-xs text-label-tertiary"
+              style={{ borderColor: 'var(--border-subtle)' }}
+            >
+              追加済み
+            </span>
+          ) : showReAdd ? (
+            <button
+              onClick={() => handleReAddToCalendar(event.id)}
+              disabled={!user}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full border text-xs font-semibold active:opacity-70 disabled:opacity-40"
+              style={{
+                borderColor: 'var(--accent-color)',
+                color: 'var(--accent-color)',
+                backgroundColor: 'color-mix(in srgb, var(--accent-color) 10%, transparent)',
+              }}
+            >
+              ＋ 再追加
+            </button>
+          ) : null}
+
+          <button
+            onClick={() => setOpenReactionPickerId(prev => prev === event.id ? null : event.id)}
+            className="ml-auto px-3 py-1.5 rounded-full border text-sm active:opacity-60 flex items-center justify-center"
+            style={{
+              borderColor: myReactions[event.id] ? 'var(--accent-color)' : 'var(--border-default)',
+              color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-secondary)',
+              minWidth: '2.5rem',
+            }}
+          >
+            {myReactions[event.id]
+              ? <img src={REACTIONS.find(r => r.type === myReactions[event.id])?.image} alt="" className="h-4 w-auto" />
+              : <Smile size={14} />
+            }
+          </button>
         </div>
       </div>
     );
@@ -179,7 +367,7 @@ export default function Preorders() {
         <div className="flex-1 overflow-y-auto px-4 pt-3 pb-6">
           {loading ? (
             <div className="flex flex-col gap-3">
-              {[1, 2, 3].map(i => <div key={i} className="h-24 bg-bg-secondary rounded-xl animate-pulse" />)}
+              {[1, 2, 3].map(i => <div key={i} className="h-40 bg-bg-secondary rounded-xl animate-pulse" />)}
             </div>
           ) : events.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-16">
@@ -203,7 +391,30 @@ export default function Preorders() {
           )}
         </div>
       </div>
+
+      {/* リアクションピッカー */}
+      {openReactionPickerId && (
+        <>
+          <div className="fixed inset-0 z-[310]" onClick={() => setOpenReactionPickerId(null)} />
+          <div className="fixed inset-x-0 max-w-app mx-auto z-[320]" style={{ bottom: BOTTOM_TAB_H + 8 }}>
+            <div className="mx-4 bg-bg-primary rounded-2xl border border-subtle shadow-xl p-3 grid grid-cols-3 gap-1">
+              {REACTIONS.map(r => (
+                <button
+                  key={r.type}
+                  onClick={() => handleReaction(openReactionPickerId, r.type)}
+                  className="flex flex-col items-center gap-1 px-2 py-2 rounded-xl active:opacity-60"
+                  style={{ background: myReactions[openReactionPickerId] === r.type ? 'var(--bg-secondary)' : 'transparent' }}
+                >
+                  <img src={r.image} alt={r.label} className="h-8 w-auto" />
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
       <BottomTab />
+      {renderLikeOverlay()}
     </>
   );
 }
