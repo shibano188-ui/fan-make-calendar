@@ -54,7 +54,9 @@ const BASE_RULES = `
 - 「秋」「秋頃」「秋発売」など → date: "${CURRENT_YEAR}-11-15", dateLabel: "秋頃"
 - 「冬」「冬頃」「冬発売」など → date: "${CURRENT_YEAR}-02-15", dateLabel: "冬頃"
 - 具体的な日付（「8月15日」など）→ dateLabel: null
-- 日付の情報が全くない → date: null, dateLabel: null`;
+- 日付の情報が全くない → date: null, dateLabel: null
+【「本日」「今日」の扱い】
+テキストに「ツイート投稿日: 〇年〇月〇日」が含まれる場合、「本日」「今日」はその日付として解釈する。`;
 
 const SCHEMA = (memoDesc: string) => `[
   {
@@ -99,6 +101,8 @@ const TWEET_MEMO_RULES = `
 - 商品バリエーション（全X種、具体的な種類名や対象キャラ名など）
 - 申込締切・重要な日程
 - 注意事項
+【予約開始日の扱い】
+発売日と予約開始日が両方含まれる場合は1枚のカードにまとめる。発売日をdateに設定し、予約開始日はmemoに「〇月〇日より予約開始」と記載する。
 
 【出力例】
 ポストに「抽選、価格3,800円、7/20締切、全8種（ハチワレ・うさぎ・モモンガなど）」がある場合:
@@ -134,6 +138,7 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
       author?: { name?: string };
       media?: { photos?: Array<{ url: string }> };
       links?: Array<{ url?: string; short_url?: string }>;
+      created_at?: number; // Unix timestamp (seconds)
     };
   };
   type SynData = Record<string, unknown>;
@@ -182,12 +187,26 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
     else if (imgUrls.length > 1) imageUrl = JSON.stringify(imgUrls);
   }
 
+  // ── ツイート投稿日の取得（「本日」解決用）
+  const parseTweetDate = (ts: number | string | undefined): string | null => {
+    if (!ts) return null;
+    const d = new Date(typeof ts === 'number' ? ts * 1000 : ts);
+    if (isNaN(d.getTime())) return null;
+    return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+  };
+  const tweetDate =
+    parseTweetDate(fx?.tweet?.created_at) ??
+    parseTweetDate((syn as { created_at?: string })?.created_at) ??
+    null;
+
   // ── テキスト優先順: fxtwitter → syndication → oEmbed
   if (fx?.tweet?.text) {
     const extLinks = (fx.tweet.links ?? [])
       .map(l => l.url || l.short_url)
       .filter((u): u is string => !!u && !/twitter\.com|x\.com|t\.co/.test(u));
-    let text = `投稿者: ${fx.tweet.author?.name ?? ''}\n内容: ${fx.tweet.text}`;
+    let text = `投稿者: ${fx.tweet.author?.name ?? ''}`;
+    if (tweetDate) text += `\nツイート投稿日: ${tweetDate}`;
+    text += `\n内容: ${fx.tweet.text}`;
     if (extLinks.length > 0) text += `\n【ポスト内の外部リンク】${extLinks.join(' / ')}`;
     return { text, imageUrl };
   }
@@ -199,7 +218,9 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
     const extLinks = urlEntities
       .map(u => u.expanded_url)
       .filter((u): u is string => !!u && !/twitter\.com|x\.com|t\.co/.test(u));
-    let text = `投稿者: ${authorName}\n内容: ${tweetText}`;
+    let text = `投稿者: ${authorName}`;
+    if (tweetDate) text += `\nツイート投稿日: ${tweetDate}`;
+    text += `\n内容: ${tweetText}`;
     if (extLinks.length > 0) text += `\n【ポスト内の外部リンク】${extLinks.join(' / ')}`;
     return { text, imageUrl };
   }
