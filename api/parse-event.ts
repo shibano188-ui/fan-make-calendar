@@ -454,6 +454,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       } catch {
         return res.status(422).json({ error: 'Could not parse response' });
       }
+      // テキストに「受注」があれば全イベントをisOrderMade=trueに強制設定
+      if (/受注/.test(tweetContext)) {
+        parsed.forEach(e => { (e as Record<string, unknown>).isOrderMade = true; });
+      }
       if (tweetImageUrl) {
         parsed.forEach(e => { (e as Record<string, unknown>).imageUrl = tweetImageUrl; });
         // 受注生産で受付終了日不明なら画像から取得
