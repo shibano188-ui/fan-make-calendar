@@ -62,14 +62,7 @@ function loadMyReactions(): Record<string, ReactionType> {
 }
 
 
-function fmtDate(dateStr: string): string {
-  const [, m, d] = dateStr.split('-');
-  return `${parseInt(m)}月${parseInt(d)}日`;
-}
-function formatDateRange(startDate: string, endDate?: string): string {
-  if (!endDate || endDate === startDate) return fmtDate(startDate);
-  return `${fmtDate(startDate)}〜${fmtDate(endDate)}`;
-}
+
 function formatTimeRange(startTime?: string, endTime?: string): string | null {
   if (!startTime) return null;
   return endTime ? `${startTime}〜${endTime}` : startTime;
@@ -533,11 +526,8 @@ export default function Discover() {
                             </div>
                           );
                         })()}
-                        {/* 日付・時間 */}
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-label-secondary text-sm">{formatDateRange(event.date, event.endDate)}</span>
-                          {timeLabel && <span className="text-label-secondary text-sm">{timeLabel}</span>}
-                        </div>
+                        {/* 時間 */}
+                        {timeLabel && <span className="text-label-secondary text-sm">{timeLabel}</span>}
                         {/* メモ */}
                         {event.memo && <MemoText text={event.memo} className="text-label-secondary text-sm leading-relaxed" />}
                         {/* リンク */}

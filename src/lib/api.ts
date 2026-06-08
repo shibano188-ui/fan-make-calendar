@@ -247,6 +247,7 @@ export async function findDuplicateEvents(
   date: string,
   endDate?: string | null,
   sourceUrl?: string | null,
+  category?: string | null,
 ): Promise<{ byUrl: DuplicateMatch[]; byTitle: DuplicateMatch[] }> {
   const seen = new Set<string>();
   const byUrl: DuplicateMatch[] = [];
@@ -274,8 +275,8 @@ export async function findDuplicateEvents(
   const norm = normalizeTitleForDup(title);
   // 元タイトルと正規化タイトル(半角スペース化)の両方でクエリして全角/半角ゆれに対応
   const [{ data: d1 }, { data: d2 }] = await Promise.all([
-    supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url').eq('work_id', workId).ilike('title', title),
-    supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url').eq('work_id', workId).ilike('title', norm),
+    supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, category').eq('work_id', workId).ilike('title', title),
+    supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, category').eq('work_id', workId).ilike('title', norm),
   ]);
   const dedup = new Set<string>();
   const titleData = [...(d1 ?? []), ...(d2 ?? [])].filter(r => {
@@ -284,6 +285,9 @@ export async function findDuplicateEvents(
     return true;
   });
   for (const row of titleData) {
+    const rowCategory = (row.category as string | null) ?? null;
+    // 両方カテゴリあって異なる場合はスキップ（別イベント扱い）
+    if (category && rowCategory && category !== rowCategory) continue;
     if (
       !seen.has(row.id as string) &&
       normalizeTitleForDup(row.title as string) === norm &&

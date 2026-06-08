@@ -1106,12 +1106,15 @@ export default function Calendar() {
     setDuplicateWarning(null);
     setPostSubmitting(true);
 
-    // ─── 重複検知（作品カレンダー + sourceUrl あり のカードのみ） ───
+    // ─── 重複検知（作品カレンダーへの投稿カードのみ） ───
     const titleSuffixes = new Map<string, string>();
-    if (workId && user) {
+    if (user) {
       for (const card of postCards) {
+        const targetWorkId = workId || card.workId;
+        if (!targetWorkId) continue; // 個人予定はスキップ
+        const cardCategory = card.category || card.customCategory.trim() || null;
         try {
-          const { byUrl, byTitle } = await findDuplicateEvents(workId, card.title.trim(), card.date, card.endDate || null, card.sourceUrl);
+          const { byUrl, byTitle } = await findDuplicateEvents(targetWorkId, card.title.trim(), card.date, card.endDate || null, card.sourceUrl, cardCategory);
           if (byUrl.length > 0) {
             setDuplicateWarning({ cardId: card.id, existingEvent: byUrl[0] });
             setPostSubmitting(false);
