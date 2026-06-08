@@ -2585,8 +2585,8 @@ export default function Calendar() {
                               )}
                               {item.time && (
                                 <>
-                                  <span className="text-[10px] text-label-tertiary leading-snug mt-1">{item.time}</span>
-                                  {item.endTime && <span className="text-[10px] text-label-tertiary leading-none">〜{item.endTime}</span>}
+                                  <span className="text-sm font-bold text-label-primary leading-snug mt-1">{item.time}</span>
+                                  {item.endTime && <span className="text-[11px] text-label-secondary leading-none">〜{item.endTime}</span>}
                                 </>
                               )}
                             </div>

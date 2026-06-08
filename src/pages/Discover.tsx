@@ -485,8 +485,8 @@ export default function Discover() {
                         )}
                         {event.time && (
                           <>
-                            <span className="text-[10px] text-label-tertiary leading-snug mt-1">{event.time}</span>
-                            {event.endTime && <span className="text-[10px] text-label-tertiary leading-none">〜{event.endTime}</span>}
+                            <span className="text-sm font-bold text-label-primary leading-snug mt-1">{event.time}</span>
+                            {event.endTime && <span className="text-[11px] text-label-secondary leading-none">〜{event.endTime}</span>}
                           </>
                         )}
                       </div>
