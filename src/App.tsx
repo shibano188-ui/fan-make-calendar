@@ -1,8 +1,9 @@
-import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import PhoneFrame from './components/PhoneFrame';
+import { Capacitor } from '@capacitor/core';
 
 const WorkSelect      = lazy(() => import('./pages/WorkSelect'));
 const Calendar        = lazy(() => import('./pages/Calendar'));
@@ -28,11 +29,42 @@ function PageLoader() {
   );
 }
 
+// Capacitorネイティブ上でのシェア受け取り
+function AndroidShareHandler() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    const handle = async () => {
+      try {
+        const { SendIntent } = await import('send-intent');
+        const result = await SendIntent.checkSendIntentReceived();
+        const url  = (result as Record<string, string | undefined>).url  ?? '';
+        const text = (result as Record<string, string | undefined>).text ?? '';
+        const title = (result as Record<string, string | undefined>).title ?? '';
+        if (!url && !text) return;
+        const params = new URLSearchParams();
+        if (url)   params.set('url',   url);
+        if (text)  params.set('text',  text);
+        if (title) params.set('title', title);
+        navigate(`/share?${params.toString()}`, { replace: true });
+      } catch (e) { console.error('[ShareHandler]', e); }
+    };
+
+    handle();
+    window.addEventListener('sendIntentReceived', handle);
+    return () => window.removeEventListener('sendIntentReceived', handle);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <ThemeProvider>
+          <AndroidShareHandler />
           <Suspense fallback={<PageLoader />}>
             <Routes>
               {/* ウィジェット・共有ターゲット（PhoneFrameなし） */}
