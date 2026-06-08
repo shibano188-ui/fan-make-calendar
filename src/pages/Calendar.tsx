@@ -21,6 +21,7 @@ import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { PrefectureSearch } from '../components/UserSettingsSheet';
 import UserSettingsSheet from '../components/UserSettingsSheet';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 import { useTheme } from '../contexts/ThemeContext';
 import SmartInputPanel, { type ParsedEvent } from '../components/SmartInputPanel';
 import MemoText from '../components/MemoText';
@@ -1132,6 +1133,27 @@ export default function Calendar() {
             const suffix = normNewPref ? ` ${normNewPref}` : '';
             if (suffix) {
               titleSuffixes.set(card.id, suffix);
+              // 既存イベントにも地名を追加（自分の投稿はupdateEvent、他ユーザーはAPIエンドポイント経由）
+              if (match.prefecture) {
+                const newExistingTitle = `${match.title.trim()} ${match.prefecture}`;
+                try {
+                  if (match.authorId === user.id) {
+                    await updateEvent(match.id, { title: newExistingTitle });
+                  } else {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (session?.access_token) {
+                      await fetch('/api/update-event-title', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${session.access_token}`,
+                        },
+                        body: JSON.stringify({ event_id: match.id, title: newExistingTitle }),
+                      });
+                    }
+                  }
+                } catch { /* 失敗しても続行 */ }
+              }
               setLocationSuffixMsg(`「${match.title}」（${match.prefecture ?? '全国'}）と区別するためタイトルに地名を追加しました`);
             }
           }

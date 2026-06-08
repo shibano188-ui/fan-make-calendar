@@ -79,13 +79,21 @@ export async function getOrCreateWork(name: string): Promise<Work> {
 async function resolveAuthorNames(events: CalendarEvent[]): Promise<CalendarEvent[]> {
   const authorIds = [...new Set(events.map(e => e.authorId).filter((id): id is string => !!id))];
   if (authorIds.length === 0) return events;
-  const { data } = await supabase
-    .from('user_settings')
-    .select('user_id, display_name')
-    .in('user_id', authorIds);
-  const nameMap = Object.fromEntries(
-    (data ?? []).map(d => [d.user_id as string, (d.display_name as string | null) ?? '匿名']),
-  );
+
+  let nameMap: Record<string, string> = {};
+  try {
+    // サービスロールキーを使うVercel APIを経由してRLSを回避
+    const res = await fetch('/api/display-names', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_ids: authorIds }),
+    });
+    if (res.ok) {
+      const data = await res.json() as { user_id: string; display_name: string | null }[];
+      nameMap = Object.fromEntries(data.map(d => [d.user_id, d.display_name ?? '匿名']));
+    }
+  } catch { /* fallback: all anonymous */ }
+
   return events.map(e => ({
     ...e,
     authorName: e.authorId ? (nameMap[e.authorId] ?? '匿名') : undefined,
@@ -229,6 +237,7 @@ export type DuplicateMatch = {
   endDate: string | null;
   prefecture: string | null;
   sourceUrl: string | null;
+  authorId: string | null;
 };
 
 function normalizeTitleForDup(t: string): string {
@@ -256,9 +265,10 @@ export async function findDuplicateEvents(
   if (sourceUrl) {
     const { data } = await supabase
       .from('events')
-      .select('id, title, event_date, end_date, prefecture, source_url')
+      .select('id, title, event_date, end_date, prefecture, source_url, author_id')
       .eq('work_id', workId)
-      .eq('source_url', sourceUrl);
+      .eq('source_url', sourceUrl)
+      .eq('pool', 0);
     for (const row of data ?? []) {
       seen.add(row.id as string);
       byUrl.push({
@@ -268,6 +278,7 @@ export async function findDuplicateEvents(
         endDate: (row.end_date as string | null) ?? null,
         prefecture: normalizePrefecture(row.prefecture as string | null) ?? null,
         sourceUrl: row.source_url as string | null,
+        authorId: (row.author_id as string | null) ?? null,
       });
     }
   }
@@ -275,8 +286,8 @@ export async function findDuplicateEvents(
   const norm = normalizeTitleForDup(title);
   // 元タイトルと正規化タイトル(半角スペース化)の両方でクエリして全角/半角ゆれに対応
   const [{ data: d1 }, { data: d2 }] = await Promise.all([
-    supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, category').eq('work_id', workId).ilike('title', title),
-    supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, category').eq('work_id', workId).ilike('title', norm),
+    supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, category, author_id').eq('work_id', workId).eq('pool', 0).ilike('title', title),
+    supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, category, author_id').eq('work_id', workId).eq('pool', 0).ilike('title', norm),
   ]);
   const dedup = new Set<string>();
   const titleData = [...(d1 ?? []), ...(d2 ?? [])].filter(r => {
@@ -301,6 +312,7 @@ export async function findDuplicateEvents(
         endDate: (row.end_date as string | null) ?? null,
         prefecture: normalizePrefecture(row.prefecture as string | null) ?? null,
         sourceUrl: row.source_url as string | null,
+        authorId: (row.author_id as string | null) ?? null,
       });
     }
   }
