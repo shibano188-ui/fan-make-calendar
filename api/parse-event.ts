@@ -1,22 +1,16 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import Groq from 'groq-sdk';
+import Anthropic from '@anthropic-ai/sdk';
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// 429 時は軽量モデルにフォールバック。fallback=true の場合はメモを信頼しない
-async function groqComplete(messages: { role: 'user'; content: string }[], maxTokens: number): Promise<{ content: string; fallback: boolean }> {
-  const models = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
-  for (let i = 0; i < models.length; i++) {
-    try {
-      const res = await groq.chat.completions.create({ model: models[i], max_tokens: maxTokens, messages });
-      return { content: res.choices[0]?.message?.content ?? '', fallback: i > 0 };
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes('429') && i < models.length - 1) continue;
-      throw e;
-    }
-  }
-  return { content: '', fallback: true };
+async function claudeComplete(prompt: string, maxTokens: number): Promise<string> {
+  const res = await anthropic.messages.create({
+    model: 'claude-haiku-4-5',
+    max_tokens: maxTokens,
+    messages: [{ role: 'user', content: prompt }],
+  });
+  const block = res.content[0];
+  return block.type === 'text' ? block.text : '';
 }
 
 // t.co を実URLに解決（GET + redirect follow で確実に取得）
@@ -305,18 +299,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     if (imageBase64) {
-      const completion = await groq.chat.completions.create({
-        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      const res2 = await anthropic.messages.create({
+        model: 'claude-haiku-4-5',
         max_tokens: 512,
         messages: [{
           role: 'user',
           content: [
-            { type: 'image_url', image_url: { url: `data:${mimeType ?? 'image/jpeg'};base64,${imageBase64}` } },
+            { type: 'image', source: { type: 'base64', media_type: (mimeType ?? 'image/jpeg') as 'image/jpeg', data: imageBase64 } },
             { type: 'text', text: `この画像のイベント情報を抽出してください。\n\n${EXTRACT_PROMPT}` },
           ],
         }],
       });
-      const rawText = completion.choices[0]?.message?.content ?? '';
+      const block = res2.content[0];
+      const rawText = block.type === 'text' ? block.text : '';
       try {
         return res.status(200).json(parseRawText(rawText));
       } catch {
@@ -351,7 +346,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const tweetContext = sharedText
         ? `ポスト本文（X アプリより直接）: ${sharedText}\n\n${pageText}`
         : pageText;
-      const { content: rawText, fallback } = await groqComplete([{ role: 'user', content: `${tweetContext}\n\n---\n${EXTRACT_PROMPT_TWEET}` }], 800);
+      const rawText = await claudeComplete(`${tweetContext}\n\n---\n${EXTRACT_PROMPT_TWEET}`, 800);
       let parsed: unknown[];
       try {
         parsed = parseRawText(rawText);
@@ -361,21 +356,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (tweetImageUrl) {
         parsed.forEach(e => { (e as Record<string, unknown>).imageUrl = tweetImageUrl; });
       }
-      // 軽量モデルのフォールバック時はメモを信頼できないので強制null
-      if (fallback) {
-        parsed.forEach(e => { (e as Record<string, unknown>).memo = null; });
-      }
       return res.status(200).json(parsed);
     }
 
     // 通常URL
     const pageText = await fetchPageText(processUrl);
-    const { content: rawText2, fallback: fallback2 } = await groqComplete([{ role: 'user', content: `${pageText}\n\n---\n${EXTRACT_PROMPT}` }], 768);
+    const rawText2 = await claudeComplete(`${pageText}\n\n---\n${EXTRACT_PROMPT}`, 768);
     try {
       const parsed = parseRawText(rawText2);
-      if (fallback2) {
-        parsed.forEach(e => { (e as Record<string, unknown>).memo = null; });
-      }
       return res.status(200).json(parsed);
     } catch {
       return res.status(422).json({ error: 'Could not parse response' });
