@@ -388,6 +388,12 @@ export default function PostCreate() {
       setCards(prev => prev.map(c => c.id === invalid.id ? { ...c, collapsed: false } : c));
       return;
     }
+    const noCat = cards.find(c => !c.category && !c.customCategory.trim());
+    if (noCat) {
+      setError('カテゴリを選択してください');
+      setCards(prev => prev.map(c => c.id === noCat.id ? { ...c, collapsed: false } : c));
+      return;
+    }
     setError('');
     setSubmitting(true);
     try {
