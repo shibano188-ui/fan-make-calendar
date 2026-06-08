@@ -58,10 +58,12 @@ const BASE_RULES = `
 【「本日」「今日」の扱い】
 テキストに「ツイート投稿日: 〇年〇月〇日」が含まれる場合、「本日」「今日」はその日付として解釈する。
 【受注生産・予約フラグのルール】
-- 「受注生産」「受注販売」「受注受付」が含まれる場合 → isOrderMade: true
-- 予約開始日が明記されている場合 → reservationStartDate に設定
-- 予約締切日・受付終了日・注文締切日が明記されている場合 → reservationEndDate に設定
-- 発売日と予約開始日が両方ある場合: date = 発売日, reservationStartDate = 予約開始日`;
+- 「受注生産」「受注販売」「受注受付」「原作受注」が含まれる場合 → isOrderMade: true
+- 受付期間・受注期間・予約受付期間の開始日 → reservationStartDate に設定
+- 受付期間・受注期間の終了日・予約締切日・受付終了日・注文締切日 → reservationEndDate に設定
+- 「お渡し予定」「発送予定」「お届け予定」「発売予定」など商品の到着・発売日 → date に設定
+- date（発売/お渡し日）と受付開始日が両方ある場合: date = 発売/お渡し日, reservationStartDate = 受付開始日
+- 受付期間しかない場合（発売日なし）: reservationStartDate = 受付開始日, reservationEndDate = 受付終了日, date = null`;
 
 const SCHEMA = (memoDesc: string) => `[
   {
