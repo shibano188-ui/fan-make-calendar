@@ -15,7 +15,7 @@ export type ParsedEvent = {
   memo: string | null;
   imageUrl: string | null;
   sourceUrl: string | null;
-  isOrderMade: boolean;
+  isOrderMade?: boolean;
 };
 
 const inputCls =

@@ -1119,7 +1119,7 @@ export default function Calendar() {
       memo:           parsed.memo           ?? base.memo,
       imageUrl:       parsed.imageUrl       ?? base.imageUrl,
       sourceUrl:      parsed.sourceUrl      ?? base.sourceUrl,
-      isOrderMade:    parsed.isOrderMade    || base.isOrderMade,
+      isOrderMade:    parsed.isOrderMade    ?? base.isOrderMade,
     });
     const defaultWorkId = !workId && participatedWorks.length > 0 ? participatedWorks[0].id : '';
     setPostCards(prev => {
