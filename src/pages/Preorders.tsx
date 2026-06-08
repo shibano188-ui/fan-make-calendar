@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ExternalLink } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
@@ -168,7 +168,7 @@ export default function Preorders() {
           )}
         </div>
       </div>
-      <BottomTab active="discover" />
+      <BottomTab />
     </>
   );
 }
