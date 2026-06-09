@@ -175,7 +175,6 @@ export default function Preorders() {
     const days = deadlineDate ? daysLeft(deadlineDate) : null;
     // 締切なし→発売日で自動期限
     const isDeadlineFromRelease = !deadlineDate && !!event.date && !event.dateLabel;
-    const releaseDays = isDeadlineFromRelease && event.date ? daysLeft(event.date) : null;
 
     return (
       <div
@@ -329,22 +328,18 @@ export default function Preorders() {
             style={{ borderColor: 'var(--border-subtle)' }}
           >
             {/* 締切テキスト */}
-            {!isReleaseOnly && (
+            {!isReleaseOnly && !isDeadlineFromRelease && (
               <span
                 className="text-sm font-bold"
                 style={{
-                  color: isDeadlineFromRelease
-                    ? (releaseDays! <= 0 ? '#ef4444' : releaseDays! <= 3 ? '#ef4444' : releaseDays! <= 7 ? '#f97316' : 'var(--label-secondary)')
-                    : days === null ? 'var(--label-tertiary)'
+                  color: days === null ? 'var(--label-tertiary)'
                     : days <= 0 ? '#ef4444'
                     : days <= 3 ? '#ef4444'
                     : days <= 7 ? '#f97316'
                     : 'var(--label-secondary)',
                 }}
               >
-                {isDeadlineFromRelease
-                  ? (releaseDays! <= 0 ? '発売日' : `発売まで${releaseDays}日`)
-                  : days === null ? '締切未定' : days <= 0 ? '本日締切' : `締切まで${days}日`}
+                {days === null ? '締切未定' : days <= 0 ? '本日締切' : `締切まで${days}日`}
               </span>
             )}
             {/* リンクボタン（最大2本） */}
