@@ -591,6 +591,7 @@ type PersonalEvent = {
   id: string;
   title: string;
   date: string;
+  dateLabel?: string;
   time?: string;
   endDate?: string;
   endTime?: string;
@@ -1083,6 +1084,7 @@ export default function Calendar() {
   const [editForm, setEditForm] = useState<Partial<InlineCard> | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState('');
+  const [editIsPersonal, setEditIsPersonal] = useState(false);
 
   const openEditEvent = (event: CalendarEvent) => {
     const VALID = POST_CATEGORIES as unknown as string[];
@@ -1106,16 +1108,65 @@ export default function Calendar() {
     });
   };
 
+  const openEditPersonalEvent = (pe: PersonalEvent) => {
+    setEditIsPersonal(true);
+    setEditEventId(pe.id);
+    setEditError('');
+    const existingLinks = parseLinks(pe.link);
+    setEditForm({
+      workId: '',
+      title: pe.title,
+      date: pe.date ?? '',
+      dateLabel: pe.dateLabel ?? '',
+      time: pe.time ?? '',
+      endDate: pe.endDate ?? '',
+      endTime: pe.endTime ?? '',
+      category: (pe.category as PostCategory | '') ?? '',
+      customCategory: '',
+      prefecture: pe.prefecture ?? '',
+      locationDetail: pe.locationDetail ?? '',
+      locationMapLink: pe.locationMapLink ?? '',
+      links: existingLinks.length > 0 ? existingLinks : [''],
+      memo: pe.memo ?? '',
+      isOrderMade: false,
+    });
+  };
+
   const handleEditSubmit = async () => {
     if (!editEventId || !editForm) return;
-    if (!editForm.title?.trim() || !editForm.date) { setEditError('タイトルと日付は必須です'); return; }
+    if (!editForm.title?.trim() || (!editForm.date && !editForm.dateLabel)) { setEditError('タイトルと日付は必須です'); return; }
+    if (editIsPersonal) {
+      const category = editForm.category || (editForm.customCategory?.trim() ?? '') || undefined;
+      const updated = personalEvents.map(pe => pe.id === editEventId ? {
+        ...pe,
+        title: editForm.title!.trim(),
+        date: editForm.date!,
+        dateLabel: editForm.dateLabel || undefined,
+        time: editForm.time || undefined,
+        endDate: editForm.endDate || undefined,
+        endTime: editForm.endTime || undefined,
+        category,
+        prefecture: editForm.prefecture || undefined,
+        locationDetail: editForm.locationDetail || undefined,
+        locationMapLink: editForm.locationMapLink || undefined,
+        link: serializeLinks(editForm.links ?? []),
+        memo: editForm.memo?.trim() || undefined,
+      } : pe);
+      setPersonalEvents(updated);
+      savePersonalEvents(updated);
+      setEditIsPersonal(false);
+      setEditEventId(null);
+      setEditForm(null);
+      return;
+    }
     setEditSubmitting(true);
     setEditError('');
     try {
       const category = editForm.category || (editForm.customCategory?.trim() ?? '') || undefined;
       const patch = {
         title: editForm.title.trim(),
-        date: editForm.date,
+        date: editForm.date ?? null,
+        dateLabel: editForm.dateLabel || undefined,
         time: editForm.time || undefined,
         endDate: editForm.endDate || undefined,
         endTime: editForm.endTime || undefined,
@@ -2456,6 +2507,9 @@ export default function Calendar() {
                                 {pe.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.category}</span>}
                                 {pe.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.prefecture}</span>}
                                 <div className="flex-1" />
+                                <button onClick={() => openEditPersonalEvent(pe)} className="w-9 h-9 flex items-center justify-center text-label-tertiary active:opacity-60">
+                                  <Pencil size={15} />
+                                </button>
                                 <button onClick={() => deletePersonalEvent(pe.id)} className="w-9 h-9 flex items-center justify-center text-label-tertiary active:text-red-400">
                                   <X size={16} />
                                 </button>
@@ -2963,6 +3017,12 @@ export default function Calendar() {
                                 {myReactions[item.id] ? <img src={REACTIONS.find(r => r.type === myReactions[item.id])?.image} alt="" className="h-4 w-auto" /> : <Smile size={16} />}
                               </button>
                             )}
+                            {item.isPersonal && (
+                              <button onClick={e => { e.stopPropagation(); const pe = personalEvents.find(p => p.id === item.id); if (pe) openEditPersonalEvent(pe); }}
+                                className="w-9 h-9 flex items-center justify-center text-label-tertiary active:opacity-60">
+                                <Pencil size={15} />
+                              </button>
+                            )}
                             <button onClick={e => { e.stopPropagation(); item.isPersonal ? deletePersonalEvent(item.id) : handleHideEvent(item.id); }}
                               className="w-9 h-9 flex items-center justify-center text-label-tertiary active:text-red-400">
                               <X size={16} />
@@ -3180,26 +3240,114 @@ export default function Calendar() {
                 </div>
                 {/* 日時 */}
                 <div className="flex flex-col gap-2">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-label-tertiary text-xs mb-1.5 block">開始日 <span className="text-red-400">*</span></label>
-                      <input type="date" value={editForm.date ?? ''} onChange={e => setEditForm(f => ({ ...f!, date: e.target.value }))} className={inputCls} />
+                  <div className="flex items-center justify-between">
+                    <label className="text-label-tertiary text-xs">
+                      開始日{!(editForm.dateLabel) && <span className="text-red-400"> *</span>}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (editForm.dateLabel) {
+                          setEditForm(f => ({ ...f!, dateLabel: '' }));
+                        } else {
+                          const ym = editForm.date ? editForm.date.slice(0, 7) : new Date().toISOString().slice(0, 7);
+                          setEditForm(f => ({ ...f!, dateLabel: '中旬', date: `${ym}-15` }));
+                        }
+                      }}
+                      className="text-xs px-2 py-0.5 rounded-full border transition-colors"
+                      style={editForm.dateLabel
+                        ? { borderColor: 'var(--accent-color)', color: 'var(--accent-color)' }
+                        : { borderColor: 'var(--border-default)', color: 'var(--label-tertiary)' }}
+                    >
+                      日付未定
+                    </button>
+                  </div>
+                  {editForm.dateLabel ? (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <select
+                          value={editForm.date ? editForm.date.slice(0, 4) : ''}
+                          onChange={e => {
+                            const year = e.target.value;
+                            const seasonMonth: Record<string, string> = { '春頃': '04', '夏頃': '08', '秋頃': '11', '冬頃': '02' };
+                            const labelDay: Record<string, string> = { '上旬': '05', '中旬': '15', '下旬': '25' };
+                            const month = editForm.date ? editForm.date.slice(5, 7) : String(new Date().getMonth() + 1).padStart(2, '0');
+                            const dl = editForm.dateLabel ?? '';
+                            const mm = seasonMonth[dl] ?? month;
+                            const day = seasonMonth[dl] ? '15'
+                              : dl === '中' ? String(new Date(parseInt(year), parseInt(mm), 0).getDate()).padStart(2, '0')
+                              : (labelDay[dl] ?? '15');
+                            setEditForm(f => ({ ...f!, date: year ? `${year}-${mm}-${day}` : '' }));
+                          }}
+                          className={inputCls}
+                        >
+                          {[0, 1, 2].map(off => { const y = new Date().getFullYear() + off; return <option key={y} value={String(y)}>{y}年</option>; })}
+                        </select>
+                        {!['春頃', '夏頃', '秋頃', '冬頃'].includes(editForm.dateLabel ?? '') && (
+                          <select
+                            value={editForm.date ? editForm.date.slice(5, 7) : ''}
+                            onChange={e => {
+                              const month = e.target.value;
+                              const year = editForm.date ? editForm.date.slice(0, 4) : String(new Date().getFullYear());
+                              const labelDay: Record<string, string> = { '上旬': '05', '中旬': '15', '下旬': '25' };
+                              const dl = editForm.dateLabel ?? '';
+                              const day = dl === '中' && month
+                                ? String(new Date(parseInt(year), parseInt(month), 0).getDate()).padStart(2, '0')
+                                : (labelDay[dl] ?? '15');
+                              setEditForm(f => ({ ...f!, date: month ? `${year}-${month}-${day}` : '' }));
+                            }}
+                            className={inputCls}
+                          >
+                            {Array.from({ length: 12 }, (_, i) => {
+                              const m = String(i + 1).padStart(2, '0');
+                              return <option key={m} value={m}>{i + 1}月</option>;
+                            })}
+                          </select>
+                        )}
+                      </div>
+                      <select
+                        value={editForm.dateLabel ?? ''}
+                        onChange={e => {
+                          const val = e.target.value;
+                          const year = editForm.date ? editForm.date.slice(0, 4) : String(new Date().getFullYear());
+                          const seasonMonth: Record<string, string> = { '春頃': '04', '夏頃': '08', '秋頃': '11', '冬頃': '02' };
+                          const labelDay: Record<string, string> = { '上旬': '05', '中旬': '15', '下旬': '25' };
+                          if (seasonMonth[val]) {
+                            setEditForm(f => ({ ...f!, dateLabel: val, date: `${year}-${seasonMonth[val]}-15` }));
+                          } else {
+                            const month = editForm.date ? editForm.date.slice(5, 7) : String(new Date().getMonth() + 1).padStart(2, '0');
+                            const day = val === '中'
+                              ? String(new Date(parseInt(year), parseInt(month), 0).getDate()).padStart(2, '0')
+                              : (labelDay[val] ?? '15');
+                            setEditForm(f => ({ ...f!, dateLabel: val, date: `${year}-${month}-${day}` }));
+                          }
+                        }}
+                        className={inputCls}
+                      >
+                        {[['上旬','上旬'],['中旬','中旬'],['下旬','下旬'],['月のみ','中'],['春頃','春頃'],['夏頃','夏頃'],['秋頃','秋頃'],['冬頃','冬頃']].map(([label, val]) => (
+                          <option key={val} value={val}>{label}</option>
+                        ))}
+                      </select>
                     </div>
+                  ) : (
+                    <input type="date" value={editForm.date ?? ''} onChange={e => setEditForm(f => ({ ...f!, date: e.target.value }))} className={inputCls} />
+                  )}
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-label-tertiary text-xs mb-1.5 block">開始時間</label>
                       <input type="time" value={editForm.time ?? ''} onChange={e => setEditForm(f => ({ ...f!, time: e.target.value }))} className={inputCls} />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-label-tertiary text-xs mb-1.5 block">終了日（任意）</label>
-                      <input type="date" value={editForm.endDate ?? ''} onChange={e => setEditForm(f => ({ ...f!, endDate: e.target.value }))} className={inputCls} />
                     </div>
                     <div>
                       <label className="text-label-tertiary text-xs mb-1.5 block">終了時間</label>
                       <input type="time" value={editForm.endTime ?? ''} onChange={e => setEditForm(f => ({ ...f!, endTime: e.target.value }))} className={inputCls} />
                     </div>
                   </div>
+                  {!editForm.dateLabel && (
+                    <div>
+                      <label className="text-label-tertiary text-xs mb-1.5 block">終了日（任意）</label>
+                      <input type="date" value={editForm.endDate ?? ''} min={editForm.date || undefined} onChange={e => setEditForm(f => ({ ...f!, endDate: e.target.value }))} className={inputCls} />
+                    </div>
+                  )}
                 </div>
                 {/* カテゴリ */}
                 <div>
