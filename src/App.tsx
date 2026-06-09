@@ -1,10 +1,10 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import PhoneFrame from './components/PhoneFrame';
 import { Capacitor } from '@capacitor/core';
-import { initAdMob, showBanner } from './lib/admob';
+import { initAdMob, showBanner, hideBanner } from './lib/admob';
 
 const WorkSelect      = lazy(() => import('./pages/WorkSelect'));
 const Calendar        = lazy(() => import('./pages/Calendar'));
@@ -61,10 +61,26 @@ function AndroidShareHandler() {
   return null;
 }
 
-function AdMobInitializer() {
+function AdMobController() {
+  const location = useLocation();
+
   useEffect(() => {
-    initAdMob().then(() => showBanner());
+    initAdMob();
   }, []);
+
+  useEffect(() => {
+    const path = location.pathname;
+    const isAdRoute =
+      path === '/calendar' ||
+      path === '/discover' ||
+      /^\/calendar\/[^/]+$/.test(path);
+    if (isAdRoute) {
+      showBanner();
+    } else {
+      hideBanner();
+    }
+  }, [location.pathname]);
+
   return null;
 }
 
@@ -74,7 +90,7 @@ export default function App() {
       <AuthProvider>
         <ThemeProvider>
           <AndroidShareHandler />
-          <AdMobInitializer />
+          <AdMobController />
           <Suspense fallback={<PageLoader />}>
             <Routes>
               {/* ウィジェット・共有ターゲット（PhoneFrameなし） */}

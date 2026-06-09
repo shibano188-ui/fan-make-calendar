@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { showBanner, hideBanner } from '../lib/admob';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
 import UserProfileModal from '../components/UserProfileModal';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
@@ -848,6 +849,14 @@ export default function Calendar() {
       .catch(() => setError('イベントの読み込みに失敗しました'))
       .finally(() => setLoading(false));
   }, [workId, user?.id, year, month, location.key]);
+
+  useEffect(() => {
+    if (postPanelOpen) {
+      hideBanner();
+    } else {
+      showBanner();
+    }
+  }, [postPanelOpen]);
 
   const toggleWorkVisibility = (wId: string) =>
     setHiddenWorkIds(prev => {
