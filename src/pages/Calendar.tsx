@@ -851,10 +851,19 @@ export default function Calendar() {
   }, [workId, user?.id, year, month, location.key]);
 
   useEffect(() => {
+    // マウント後にレイアウト確定してからバナーを表示
+    const raf = requestAnimationFrame(() => { showBanner(); });
+    return () => {
+      cancelAnimationFrame(raf);
+      hideBanner();
+    };
+  }, []);
+
+  useEffect(() => {
     if (postPanelOpen) {
       hideBanner();
     } else {
-      showBanner();
+      requestAnimationFrame(() => { showBanner(); });
     }
   }, [postPanelOpen]);
 

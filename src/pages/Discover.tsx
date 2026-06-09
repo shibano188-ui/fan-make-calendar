@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { showBanner, hideBanner } from '../lib/admob';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
 import UserProfileModal from '../components/UserProfileModal';
 import MemoText from '../components/MemoText';
@@ -166,6 +167,11 @@ export default function Discover() {
   }, [participatedWorks]);
 
   // データ取得
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => { showBanner(); });
+    return () => { cancelAnimationFrame(raf); hideBanner(); };
+  }, []);
+
   useEffect(() => {
     if (!user) return;
     setLoading(true);
