@@ -1088,12 +1088,14 @@ export default function Calendar() {
 
   const openEditEvent = (event: CalendarEvent) => {
     const VALID = POST_CATEGORIES as unknown as string[];
+    setEditIsPersonal(false);
     setEditEventId(event.id);
     setEditError('');
     const existingLinks = parseLinks(event.link);
     setEditForm({
       title: event.title,
       date: event.date ?? '',
+      dateLabel: event.dateLabel ?? '',
       time: event.time ?? '',
       endDate: event.endDate ?? '',
       endTime: event.endTime ?? '',
@@ -1297,7 +1299,7 @@ export default function Calendar() {
       setPostCards(prev => prev.map(c => c.id === invalid.id ? { ...c, collapsed: false } : c));
       return;
     }
-    const noCat = postCards.find(c => !c.category && !c.customCategory.trim());
+    const noCat = postCards.find(c => !c.category && !c.customCategory.trim() && (workId || c.workId));
     if (noCat) {
       setPostError('カテゴリを選択してください');
       setPostCards(prev => prev.map(c => c.id === noCat.id ? { ...c, collapsed: false } : c));
@@ -1511,22 +1513,23 @@ export default function Calendar() {
       const workColor = e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
       const dotColor = getCategoryColor(e.category) ?? workColor;
       const important = importantEventIds.has(e.id);
-      const fuzzy = !!e.dateLabel;
+      if (e.dateLabel) continue;
       if (e.date && e.endDate && e.endDate > e.date) {
         let cur = e.date;
         while (cur <= e.endDate!) {
           const pos: CellItem['position'] = cur === e.date ? 'start' : cur === e.endDate ? 'end' : 'middle';
-          add(cur, { title: e.title, color: workColor, dotColor, position: pos, eventId: e.id, important, fuzzy });
+          add(cur, { title: e.title, color: workColor, dotColor, position: pos, eventId: e.id, important });
           const next = new Date(cur + 'T00:00:00');
           next.setDate(next.getDate() + 1);
           cur = toDateStr(next);
         }
       } else if (e.date) {
-        add(e.date, { title: e.title, color: workColor, dotColor, eventId: e.id, important, fuzzy });
+        add(e.date, { title: e.title, color: workColor, dotColor, eventId: e.id, important });
       }
     }
     if (!workId) {
       for (const pe of monthPersonalEvents) {
+        if (pe.dateLabel) continue;
         const dotColor = getCategoryColor(pe.category) ?? '#888888';
         const important = importantEventIds.has(pe.id);
         if (pe.endDate && pe.endDate > pe.date) {
