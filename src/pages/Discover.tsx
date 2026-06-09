@@ -376,7 +376,7 @@ export default function Discover() {
         />
 
         {/* 広告バナースロット */}
-        <div className="flex-shrink-0" style={{ height: 50 }} />
+        <div id="ad-spacer" className="flex-shrink-0" style={{ height: 50 }} />
 
         {/* 作品チップ */}
         {participatedWorks.length > 0 && (

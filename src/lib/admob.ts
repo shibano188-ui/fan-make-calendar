@@ -9,6 +9,17 @@ export async function initAdMob() {
   await AdMob.initialize();
 }
 
+function getAdMargin(): number {
+  const spacer = document.getElementById('ad-spacer');
+  if (spacer) {
+    const rect = spacer.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 2;
+    return Math.round(rect.top * dpr);
+  }
+  // fallback: status bar(~30dp) + header(44dp) in physical pixels
+  return Math.round(74 * (window.devicePixelRatio || 2));
+}
+
 export async function showBanner() {
   if (!Capacitor.isNativePlatform()) return;
   if (bannerShown) {
@@ -18,7 +29,7 @@ export async function showBanner() {
       adId: BANNER_AD_ID,
       adSize: BannerAdSize.BANNER,
       position: BannerAdPosition.TOP_CENTER,
-      margin: 88,
+      margin: getAdMargin(),
       isTesting: false,
     });
     bannerShown = true;

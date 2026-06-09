@@ -1732,6 +1732,7 @@ export default function Calendar() {
         {/* 広告バナースロット */}
         {!postPanelOpen && (
           <div
+            id="ad-spacer"
             className="flex-shrink-0"
             style={{ height: 50 }}
           />
