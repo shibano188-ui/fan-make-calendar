@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Heart, Smile, ExternalLink } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
 import MemoText from '../components/MemoText';
+import PreorderEditSheet from '../components/PreorderEditSheet';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
 import {
   listPreorderEvents, listRecentWorks, addLikeTap, setReaction, type Work,
@@ -43,12 +44,14 @@ function loadMyReactions(): Record<string, ReactionType> {
   try { return JSON.parse(localStorage.getItem(REACTIONS_KEY) ?? '{}'); } catch { return {}; }
 }
 
+
 function daysLeft(dateStr: string): number {
   return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
 }
 
 export default function Preorders() {
   const navigate = useNavigate();
+  const { key: locationKey } = useLocation();
   const { user } = useAuth();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [works, setWorks] = useState<Work[]>([]);
@@ -73,6 +76,7 @@ export default function Preorders() {
   });
   const [myReactions, setMyReactions] = useState<Record<string, ReactionType>>(loadMyReactions);
   const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
+  const [preorderEditEvent, setPreorderEditEvent] = useState<CalendarEvent | null>(null);
 
   const { trigger: triggerLike, renderOverlay: renderLikeOverlay } = useLikeAnimation();
 
@@ -84,7 +88,7 @@ export default function Preorders() {
     }).then(evts => {
       setEvents(evts);
     }).catch(() => {}).finally(() => setLoading(false));
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id, locationKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const workColorMap = useMemo(() => {
     const saved: Record<string, string> = (() => {
@@ -102,8 +106,9 @@ export default function Preorders() {
   }, [works]);
 
   const today = new Date().toISOString().slice(0, 10);
-  const active = events.filter(e => !e.date || e.date <= today);
-  const upcoming = events.filter(e => e.date && e.date > today);
+  const getPreorderStart = (e: CalendarEvent) => e.preorderStart ?? e.date;
+  const active = events.filter(e => { const s = getPreorderStart(e); return !s || s <= today; });
+  const upcoming = events.filter(e => { const s = getPreorderStart(e); return !!s && s > today; });
 
   const handleHeartPress = async (event: CalendarEvent, el: HTMLElement) => {
     if (!user) return;
@@ -149,7 +154,6 @@ export default function Preorders() {
   const renderTile = (event: CalendarEvent) => {
     const workColor = event.workId ? (workColorMap.get(event.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
     const catColor = getCategoryColor(event.category);
-    const days = event.endDate ? daysLeft(event.endDate) : null;
     const links = parseLinks(event.link);
     const workName = works.find(w => w.id === event.workId)?.name;
     const isLiked = likedEventIds.has(event.id);
@@ -157,9 +161,20 @@ export default function Preorders() {
     const showReAdd = isLiked && !isInCalendar && !initialCalendarIds.current.has(event.id);
     const isLocked = lockedLikeIds.has(event.id);
 
-    const [, sm, sd] = event.date ? event.date.split('-').map(Number) : [0, 0, 0];
-    const hasPeriod = !!event.endDate && event.endDate !== event.date;
-    const [, em, ed] = hasPeriod ? event.endDate!.split('-').map(Number) : [0, 0, 0];
+    const [, relM, relD] = event.date ? event.date.split('-').map(Number) : [0, 0, 0];
+    const [, psm, psd] = event.preorderStart ? event.preorderStart.split('-').map(Number) : [0, 0, 0];
+    const [, pem, ped] = event.preorderEnd ? event.preorderEnd.split('-').map(Number) : [0, 0, 0];
+    // 新データ: preorderStart/End フィールドあり
+    const hasNewPreorderData = !!(event.preorderStart || event.preorderEnd);
+    // 旧データ互換: event.date=開始, event.endDate=締切
+    const legacyHasPeriod = !hasNewPreorderData && !!event.endDate && event.endDate !== event.date;
+    const [, legacyEM, legacyED] = legacyHasPeriod ? event.endDate!.split('-').map(Number) : [0, 0, 0];
+    const isReleaseOnly = !hasNewPreorderData && !!event.date && !event.endDate;
+    // 締切日 (新 or 旧)
+    const deadlineDate = event.preorderEnd ?? (!hasNewPreorderData ? event.endDate : undefined);
+    const days = deadlineDate ? daysLeft(deadlineDate) : null;
+    // 締切なし→発売日で自動期限
+    const isDeadlineFromRelease = !deadlineDate && !!event.date;
 
     return (
       <div
@@ -170,13 +185,41 @@ export default function Preorders() {
         {/* コンテンツ部分 */}
         <div className="flex items-stretch px-4 pt-4 gap-3">
           {/* 受付期間（左列） */}
-          <div className="flex-shrink-0 w-10 flex flex-col items-center pt-0.5">
-            {event.date ? (
+          <div className="flex-shrink-0 w-10 flex flex-col items-center pt-0.5 gap-0">
+            {hasNewPreorderData ? (
               <>
-                <span className="text-[10px] text-label-tertiary leading-none">受付</span>
-                <span className="text-[13px] font-bold text-label-primary leading-snug mt-0.5">{sm}/{sd}</span>
-                {hasPeriod && (
-                  <span className="text-[12px] font-bold text-label-secondary leading-snug">〜{em}/{ed}</span>
+                <span className="text-[10px] text-label-tertiary leading-none">予約</span>
+                {event.preorderStart && (
+                  <span className="text-[12px] font-bold text-label-primary leading-snug mt-0.5">{psm}/{psd}</span>
+                )}
+                {event.preorderEnd ? (
+                  <span className="text-[12px] font-bold text-label-secondary leading-snug">〜{pem}/{ped}</span>
+                ) : (
+                  <span className="text-[11px] text-label-tertiary leading-none">〜</span>
+                )}
+                {event.date && (
+                  <>
+                    <div className="w-full h-px my-1" style={{ backgroundColor: 'var(--border-subtle)' }} />
+                    <span className="text-[10px] text-label-tertiary leading-none">発売</span>
+                    {['春頃','夏頃','秋頃','冬頃'].includes(event.dateLabel ?? '') ? (
+                      <span className="text-[10px] font-bold text-label-secondary leading-snug mt-0.5">{event.dateLabel}</span>
+                    ) : event.dateLabel ? (
+                      <>
+                        <span className="text-[10px] text-label-tertiary leading-none mt-0.5">{relM}月</span>
+                        <span className="text-[11px] font-bold text-label-secondary leading-snug">{event.dateLabel}</span>
+                      </>
+                    ) : (
+                      <span className="text-[11px] font-bold text-label-secondary leading-snug mt-0.5">{relM}/{relD}</span>
+                    )}
+                  </>
+                )}
+              </>
+            ) : event.date ? (
+              <>
+                <span className="text-[10px] text-label-tertiary leading-none">{isReleaseOnly ? '発売' : '予約'}</span>
+                <span className="text-[13px] font-bold text-label-primary leading-snug mt-0.5">{relM}/{relD}</span>
+                {legacyHasPeriod && (
+                  <span className="text-[13px] font-bold text-label-secondary leading-snug">〜{legacyEM}/{legacyED}</span>
                 )}
               </>
             ) : (
@@ -188,23 +231,34 @@ export default function Preorders() {
 
           {/* 右側コンテンツ */}
           <div className="flex-1 min-w-0 flex flex-col gap-2 pb-3">
-            {/* バッジ行 */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {event.isOrderMade && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#ef4444', color: '#fff' }}>
-                  予約
-                </span>
-              )}
-              {workName && (
-                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
-                  style={{ color: workColor, backgroundColor: `${workColor}20` }}>
-                  {workName}
-                </span>
-              )}
-              {event.category && (
-                <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">
-                  {event.category}
-                </span>
+            {/* バッジ行 + 予約情報+ボタン */}
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-1.5 flex-wrap flex-1">
+                {event.isOrderMade && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#ef4444', color: '#fff' }}>
+                    予約
+                  </span>
+                )}
+                {workName && (
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+                    style={{ color: workColor, backgroundColor: `${workColor}20` }}>
+                    {workName}
+                  </span>
+                )}
+                {event.category && (
+                  <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">
+                    {event.category}
+                  </span>
+                )}
+              </div>
+              {event.workId && works.some(w => w.id === event.workId) && (
+                <button
+                  onClick={() => setPreorderEditEvent(event)}
+                  className="flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full border active:opacity-60"
+                  style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-color)' }}
+                >
+                  予約情報+
+                </button>
               )}
             </div>
 
@@ -259,36 +313,48 @@ export default function Preorders() {
         </div>
 
         {/* 締切行 */}
-        <div
-          className="flex items-center justify-between px-4 py-3 border-t gap-3"
-          style={{ borderColor: 'var(--border-subtle)' }}
-        >
-          <span
-            className="text-sm font-bold"
-            style={{
-              color: days === null ? 'var(--label-tertiary)'
-                : days <= 0 ? '#ef4444'
-                : days <= 3 ? '#ef4444'
-                : days <= 7 ? '#f97316'
-                : 'var(--label-secondary)',
-            }}
+        {(isReleaseOnly ? links.length > 0 : true) && (
+          <div
+            className="flex items-center justify-between px-4 py-3 border-t gap-3"
+            style={{ borderColor: 'var(--border-subtle)' }}
           >
-            {days === null ? '締切未定' : days <= 0 ? '⚠️ 本日締切' : `締切まで${days}日`}
-          </span>
-
-          {links.length > 0 && (
-            <a
-              href={links[0]}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-sm px-4 py-2 rounded-full font-bold active:opacity-60"
-              style={{ background: workColor, color: '#fff' }}
-            >
-              <ExternalLink size={13} />
-              確認する
-            </a>
-          )}
-        </div>
+            {/* 締切テキスト */}
+            {!isReleaseOnly && (
+              <span
+                className="text-sm font-bold"
+                style={{
+                  color: days === null ? 'var(--label-tertiary)'
+                    : days <= 0 ? '#ef4444'
+                    : days <= 3 ? '#ef4444'
+                    : days <= 7 ? '#f97316'
+                    : 'var(--label-secondary)',
+                }}
+              >
+                {isDeadlineFromRelease
+                  ? (days === null ? '発売まで' : days <= 0 ? '発売日' : `発売まで${days}日`)
+                  : days === null ? '締切未定' : days <= 0 ? '本日締切' : `締切まで${days}日`}
+              </span>
+            )}
+            {/* リンクボタン（最大2本） */}
+            {links.length > 0 && (
+              <div className={`flex gap-2 ${isReleaseOnly ? 'ml-auto' : ''}`}>
+                {links.slice(0, 2).map((url, i) => (
+                  <a
+                    key={i}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-sm px-4 py-2 rounded-full font-bold active:opacity-60"
+                    style={{ background: workColor, color: '#fff' }}
+                  >
+                    <ExternalLink size={13} />
+                    チェック!
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* アクション行 */}
         <div className="flex items-center gap-2 pt-1 border-t px-4 pb-3" style={{ borderColor: 'var(--border-subtle)' }}>
@@ -411,6 +477,16 @@ export default function Preorders() {
             </div>
           </div>
         </>
+      )}
+
+      {preorderEditEvent && (
+        <PreorderEditSheet
+          event={preorderEditEvent}
+          onClose={() => setPreorderEditEvent(null)}
+          onSaved={updated => {
+            setEvents(prev => prev.map(e => e.id === preorderEditEvent.id ? { ...e, ...updated } : e));
+          }}
+        />
       )}
 
       <BottomTab />

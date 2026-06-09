@@ -26,6 +26,7 @@ import { supabase } from '../lib/supabase';
 import { useTheme } from '../contexts/ThemeContext';
 import SmartInputPanel, { type ParsedEvent } from '../components/SmartInputPanel';
 import MemoText from '../components/MemoText';
+import PreorderEditSheet from '../components/PreorderEditSheet';
 import type { CalendarEvent } from '../types';
 
 export type { CalendarEvent };
@@ -315,10 +316,12 @@ function InlineCardItem({
                     onChange={e => {
                       const year = e.target.value;
                       const seasonMonth: Record<string, string> = { '春頃': '04', '夏頃': '08', '秋頃': '11', '冬頃': '02' };
-                      const labelDay: Record<string, string> = { '上旬': '05', '中旬': '15', '下旬': '25', '中': '01' };
+                      const labelDay: Record<string, string> = { '上旬': '05', '中旬': '15', '下旬': '25' };
                       const month = card.date ? card.date.slice(5, 7) : String(new Date().getMonth() + 1).padStart(2, '0');
-                      const day = seasonMonth[card.dateLabel] ? '15' : (labelDay[card.dateLabel] ?? '15');
                       const mm = seasonMonth[card.dateLabel] ?? month;
+                      const day = seasonMonth[card.dateLabel] ? '15'
+                        : card.dateLabel === '中' ? String(new Date(parseInt(year), parseInt(mm), 0).getDate()).padStart(2, '0')
+                        : (labelDay[card.dateLabel] ?? '15');
                       onChange({ date: year ? `${year}-${mm}-${day}` : '' });
                     }}
                     className={inputCls}
@@ -331,8 +334,11 @@ function InlineCardItem({
                       onChange={e => {
                         const month = e.target.value;
                         const year = card.date ? card.date.slice(0, 4) : String(new Date().getFullYear());
-                        const labelDay: Record<string, string> = { '上旬': '05', '中旬': '15', '下旬': '25', '中': '01' };
-                        onChange({ date: month ? `${year}-${month}-${labelDay[card.dateLabel] ?? '15'}` : '' });
+                        const labelDay: Record<string, string> = { '上旬': '05', '中旬': '15', '下旬': '25' };
+                        const day = card.dateLabel === '中' && month
+                          ? String(new Date(parseInt(year), parseInt(month), 0).getDate()).padStart(2, '0')
+                          : (labelDay[card.dateLabel] ?? '15');
+                        onChange({ date: month ? `${year}-${month}-${day}` : '' });
                       }}
                       className={inputCls}
                     >
@@ -349,12 +355,15 @@ function InlineCardItem({
                     const val = e.target.value;
                     const year = card.date ? card.date.slice(0, 4) : String(new Date().getFullYear());
                     const seasonMonth: Record<string, string> = { '春頃': '04', '夏頃': '08', '秋頃': '11', '冬頃': '02' };
-                    const labelDay: Record<string, string> = { '上旬': '05', '中旬': '15', '下旬': '25', '中': '01' };
+                    const labelDay: Record<string, string> = { '上旬': '05', '中旬': '15', '下旬': '25' };
                     if (seasonMonth[val]) {
                       onChange({ dateLabel: val, date: `${year}-${seasonMonth[val]}-15` });
                     } else {
                       const month = card.date ? card.date.slice(5, 7) : String(new Date().getMonth() + 1).padStart(2, '0');
-                      onChange({ dateLabel: val, date: `${year}-${month}-${labelDay[val] ?? '15'}` });
+                      const day = val === '中'
+                        ? String(new Date(parseInt(year), parseInt(month), 0).getDate()).padStart(2, '0')
+                        : (labelDay[val] ?? '15');
+                      onChange({ dateLabel: val, date: `${year}-${month}-${day}` });
                     }
                   }}
                   className={inputCls}
@@ -687,6 +696,7 @@ export default function Calendar() {
   const [sheetDetailEvent, setSheetDetailEvent] = useState<CalendarEvent | null>(null);
   const [sheetDetailReactionData, setSheetDetailReactionData] = useState<{ counts: Record<string, number>; myReaction: string | null } | null>(null);
   const [listDetailEvent, setListDetailEvent] = useState<CalendarEvent | null>(null);
+  const [preorderEditEvent, setPreorderEditEvent] = useState<CalendarEvent | null>(null);
   const [myReactions, setMyReactions] = useState<Record<string, ReactionType>>(() => loadMyReactions());
   const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
   const [linkPickerLinks, setLinkPickerLinks] = useState<string[] | null>(null);
@@ -828,16 +838,20 @@ export default function Calendar() {
     setIncludeAdjacent(saved.includeAdjacent);
   }, [location.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [preorderEvents, setPreorderEvents] = useState<CalendarEvent[]>([]);
-
   // MyCalendar: 参加中の作品リストを取得
   useEffect(() => {
     if (workId || !user) return;
     listRecentWorks(user.id).then(works => {
       setParticipatedWorks(works);
-      listPreorderEvents(works.map(w => w.id)).then(setPreorderEvents).catch(() => {});
     }).catch(console.error);
   }, [workId, user?.id]);
+
+  // MyCalendar: 予約受付中イベント
+  const [preorderEvents, setPreorderEvents] = useState<CalendarEvent[]>([]);
+  useEffect(() => {
+    if (workId || participatedWorks.length === 0) { setPreorderEvents([]); return; }
+    listPreorderEvents(participatedWorks.map(w => w.id)).then(setPreorderEvents).catch(() => {});
+  }, [workId, participatedWorks]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // MyCalendar: 参加中の全作品のイベントを取得
   useEffect(() => {
@@ -850,11 +864,21 @@ export default function Calendar() {
       .finally(() => setLoading(false));
   }, [workId, user?.id, year, month, location.key]);
 
+  // 広告バナー: レイアウト確定後に ad-spacer の位置を計測して表示
+  // paddingTop(36) + compact header(~32) ≈ 68 CSS px をフォールバックとして使用
+  const AD_MARGIN_FALLBACK = 96; // paddingTop(36) + compact header(48) + header-banner gap(12)
+  const adMarginRef = useRef(0);
   useEffect(() => {
-    // マウント後にレイアウト確定してからバナーを表示
-    const raf = requestAnimationFrame(() => { showBanner(); });
+    let timer: ReturnType<typeof setTimeout>;
+    const show = () => {
+      const spacer = document.getElementById('ad-spacer');
+      const top = spacer ? spacer.getBoundingClientRect().top : 0;
+      adMarginRef.current = top > 0 ? Math.round(top) : AD_MARGIN_FALLBACK;
+      showBanner(adMarginRef.current);
+    };
+    timer = setTimeout(show, 150);
     return () => {
-      cancelAnimationFrame(raf);
+      clearTimeout(timer);
       hideBanner();
     };
   }, []);
@@ -863,7 +887,7 @@ export default function Calendar() {
     if (postPanelOpen) {
       hideBanner();
     } else {
-      requestAnimationFrame(() => { showBanner(); });
+      showBanner(adMarginRef.current);
     }
   }, [postPanelOpen]);
 
@@ -1605,6 +1629,7 @@ export default function Calendar() {
     tag: string; isPersonal: boolean; workId?: string;
     likes?: number; likedByMe?: boolean;
     authorId?: string; authorName?: string;
+    isOrderMade?: boolean; preorderStart?: string; preorderEnd?: string;
   };
   const myCalendarListItems = useMemo((): ListItem[] => {
     if (workId) return [];
@@ -1614,6 +1639,7 @@ export default function Calendar() {
       tag: e.workName ?? '', isPersonal: false, workId: e.workId,
       likes: e.likes, likedByMe: e.likedByMe,
       authorId: e.authorId, authorName: e.authorName,
+      isOrderMade: e.isOrderMade, preorderStart: e.preorderStart, preorderEnd: e.preorderEnd,
     }));
     const personalItems: ListItem[] = monthPersonalEvents.map(pe => ({
       id: pe.id, date: pe.date, title: pe.title, time: pe.time, endDate: pe.endDate, endTime: pe.endTime,
@@ -1740,33 +1766,33 @@ export default function Calendar() {
 
         {/* 広告バナースロット */}
         {!postPanelOpen && (
-          <div
-            id="ad-spacer"
-            className="flex-shrink-0"
-            style={{ height: 50 }}
-          />
+          <>
+            <div className="flex-shrink-0" style={{ height: 12 }} />
+            <div id="ad-spacer" className="flex-shrink-0" style={{ height: 76 }} />
+          </>
         )}
+
 
         {/* 予約受付中バナー（MyCalendarのみ） */}
         {!workId && preorderEvents.length > 0 && (() => {
           const todayStr = new Date().toISOString().slice(0, 10);
-          const activeCount = preorderEvents.filter(e => !e.date || e.date <= todayStr).length;
+          const activeCount = preorderEvents.filter(e => { const s = e.preorderStart ?? e.date; return !s || s <= todayStr; }).length;
           const upcomingCount = preorderEvents.length - activeCount;
           return (
             <button
               onClick={() => navigate('/preorders')}
-              className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b active:opacity-70"
+              className="flex-shrink-0 flex items-center justify-between px-4 py-2 border-b active:opacity-70"
               style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-secondary)' }}
             >
               <div className="flex items-center gap-3">
                 {activeCount > 0 && (
                   <span className="text-xs font-bold" style={{ color: 'var(--accent-color)' }}>
-                    ⚠️ 受付中 {activeCount}件
+                    受付中 {activeCount}件
                   </span>
                 )}
                 {upcomingCount > 0 && (
                   <span className="text-xs text-label-secondary">
-                    📅 予約開始予定 {upcomingCount}件
+                    予約開始予定 {upcomingCount}件
                   </span>
                 )}
               </div>
@@ -1824,7 +1850,7 @@ export default function Calendar() {
             <button
               key={v}
               onClick={() => { setTopView(v); sessionStorage.setItem('cal_topView', v); }}
-              className="flex-1 py-2.5 text-sm font-medium transition-colors relative"
+              className="flex-1 py-1.5 text-sm font-medium transition-colors relative"
               style={{ color: topView === v ? 'var(--accent-color)' : 'var(--label-tertiary)' }}
             >
               {v === 'calendar' ? 'カレンダー' : '予定一覧'}
@@ -1873,11 +1899,11 @@ export default function Calendar() {
               </div>
             )}
             {/* カレンダーグリッドエリア */}
-            <div className="flex-1 overflow-hidden flex flex-col px-3 pt-1" style={{ fontFamily: calFontFamily }}>
+            <div className="flex-1 overflow-hidden flex flex-col px-1 pt-0" style={{ fontFamily: calFontFamily }}>
               {/* 曜日ラベル */}
               <div className="grid grid-cols-7 mb-0.5 flex-shrink-0">
                 {DAY_LABELS.map((label, i) => (
-                  <div key={label} className="text-center text-[11px] py-1 font-medium select-none"
+                  <div key={label} className="text-center text-[11px] py-0.5 font-medium select-none"
                     style={{ color: i === 0 ? 'var(--cal-sunday-color)' : i === 6 ? 'var(--cal-saturday-color)' : 'var(--cal-weekday-color)' }}>
                     {label}
                   </div>
@@ -2220,6 +2246,15 @@ export default function Calendar() {
                                   className="flex-1 min-w-0 text-left active:opacity-70 transition-opacity">
                                   <p className="text-label-primary text-sm font-medium">{event.title}</p>
                                 </button>
+                                {event.workId && participatedWorks.some(w => w.id === event.workId) && (
+                                  <button
+                                    onClick={e => { e.stopPropagation(); setPreorderEditEvent(event); }}
+                                    className="flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full border active:opacity-60"
+                                    style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-color)' }}
+                                  >
+                                    予約情報+
+                                  </button>
+                                )}
                               </div>
                               {/* 2行目: 予約 → カテゴリ → 地域 → ♥ → 😊 → 🔗 → > → × */}
                               <div className="flex items-center px-3 pb-2 gap-1">
@@ -2315,6 +2350,15 @@ export default function Calendar() {
                                   className="flex-1 min-w-0 text-left active:opacity-70 transition-opacity">
                                   <p className="text-label-primary text-sm font-medium">{event.title}</p>
                                 </button>
+                                {event.workId && participatedWorks.some(w => w.id === event.workId) && (
+                                  <button
+                                    onClick={e => { e.stopPropagation(); setPreorderEditEvent(event); }}
+                                    className="flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full border active:opacity-60"
+                                    style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-color)' }}
+                                  >
+                                    予約情報+
+                                  </button>
+                                )}
                               </div>
                               {/* 2行目: 作品名 → カテゴリ → 地域 → ♥ → 😊 → 🔗 → > → × */}
                               <div className="flex items-center px-3 pb-2 gap-1">
@@ -2616,6 +2660,9 @@ export default function Calendar() {
                     const hasPeriod = !!event.endDate && event.endDate !== event.date;
                     const [, endM, endD] = hasPeriod ? event.endDate!.split('-').map(Number) : [0, 0, 0];
                     const catColor = getCategoryColor(event.category);
+                    const hasPreorderData = !!(event.preorderStart || event.preorderEnd);
+                    const [, lpsm, lpsd] = event.preorderStart ? event.preorderStart.split('-').map(Number) : [0, 0, 0];
+                    const [, lpem, lped] = event.preorderEnd ? event.preorderEnd.split('-').map(Number) : [0, 0, 0];
                     return (
                       <div key={event.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
                         style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(event.id) ? '3px solid #f59e0b' : undefined }}
@@ -2625,20 +2672,38 @@ export default function Calendar() {
                           <button onClick={() => setListDetailEvent(event)}
                             className="flex-1 flex items-start gap-3 min-w-0 text-left active:opacity-70 transition-opacity">
                             <div className="flex-shrink-0 w-10 flex flex-col items-center pt-0.5">
-                              {!event.date ? (
+                              {hasPreorderData ? (
+                                <>
+                                  <span className="text-[10px] text-label-tertiary leading-none">予約</span>
+                                  {event.preorderStart && <span className="text-[12px] font-bold text-label-primary leading-snug mt-0.5">{lpsm}/{lpsd}</span>}
+                                  {event.preorderEnd ? (
+                                    <span className="text-[11px] font-bold text-label-secondary leading-snug">〜{lpem}/{lped}</span>
+                                  ) : <span className="text-[11px] text-label-tertiary leading-none">〜</span>}
+                                  {event.date && (
+                                    <>
+                                      <div className="w-full h-px my-1" style={{ backgroundColor: 'var(--border-subtle)' }} />
+                                      <span className="text-[10px] text-label-tertiary leading-none">発売</span>
+                                      {['春頃','夏頃','秋頃','冬頃'].includes(event.dateLabel ?? '') ? (
+                                        <span className="text-[10px] font-bold text-label-secondary leading-snug mt-0.5">{event.dateLabel}</span>
+                                      ) : event.dateLabel ? (
+                                        <><span className="text-[10px] text-label-tertiary leading-none mt-0.5">{em}月</span><span className="text-[11px] font-bold text-label-secondary leading-snug">{event.dateLabel}</span></>
+                                      ) : (
+                                        <span className="text-[11px] font-bold text-label-secondary leading-snug mt-0.5">{em}/{ed}</span>
+                                      )}
+                                    </>
+                                  )}
+                                </>
+                              ) : !event.date ? (
                                 <span className="text-sm text-label-tertiary leading-snug">—</span>
                               ) : hasPeriod ? (
                                 <>
                                   <span className="text-[13px] font-bold text-label-primary leading-snug">{em}/{ed}</span>
-                                  <span className="text-[12px] font-bold text-label-secondary leading-snug">〜{endM}/{endD}</span>
+                                  <span className="text-[13px] font-bold text-label-secondary leading-snug">〜{endM}/{endD}</span>
                                 </>
                               ) : ['春頃','夏頃','秋頃','冬頃'].includes(event.dateLabel ?? '') ? (
                                 <span className="text-xl font-bold text-label-primary leading-snug">{event.dateLabel}</span>
                               ) : (
-                                <>
-                                  <span className="text-[10px] text-label-tertiary leading-none">{em}月</span>
-                                  <span className="text-xl font-bold text-label-primary leading-snug">{event.dateLabel ?? ed}</span>
-                                </>
+                                <span className="text-[13px] font-bold text-label-primary leading-snug">{em}/{ed}</span>
                               )}
                             </div>
                             <div className="w-px self-stretch bg-white/10 flex-shrink-0" />
@@ -2670,6 +2735,15 @@ export default function Calendar() {
                               })()}
                             </div>
                           </button>
+                          {event.workId && participatedWorks.some(w => w.id === event.workId) && (
+                            <button
+                              onClick={e => { e.stopPropagation(); setPreorderEditEvent(event); }}
+                              className="flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full border active:opacity-60 self-start mt-1"
+                              style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-color)' }}
+                            >
+                              予約情報+
+                            </button>
+                          )}
                         </div>
                         {/* 下段: アクションボタン */}
                         <div className="flex items-center px-4 pt-1 pb-3 gap-1 justify-between border-t" style={{ borderColor: 'var(--border-faint)' }}>
@@ -2720,6 +2794,9 @@ export default function Calendar() {
                     const hasPeriod = !!item.endDate && item.endDate !== item.date;
                     const [, endM, endD] = hasPeriod ? item.endDate!.split('-').map(Number) : [0, 0, 0];
                     const catColor = getCategoryColor(item.category);
+                    const itemHasPreorder = !!(item.preorderStart || item.preorderEnd);
+                    const [, ipsm, ipsd] = item.preorderStart ? item.preorderStart.split('-').map(Number) : [0, 0, 0];
+                    const [, ipem, iped] = item.preorderEnd ? item.preorderEnd.split('-').map(Number) : [0, 0, 0];
                     return (
                       <div key={item.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
                         style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(item.id) ? '3px solid #f59e0b' : undefined }}
@@ -2736,25 +2813,43 @@ export default function Calendar() {
                             className={`flex-1 flex items-start gap-3 min-w-0 text-left ${!item.isPersonal ? 'active:opacity-70 transition-opacity' : 'cursor-default'}`}
                           >
                             <div className="flex-shrink-0 w-10 flex flex-col items-center pt-0.5">
-                              {!item.date ? (
+                              {itemHasPreorder ? (
+                                <>
+                                  <span className="text-[10px] text-label-tertiary leading-none">予約</span>
+                                  {item.preorderStart && <span className="text-[12px] font-bold text-label-primary leading-snug mt-0.5">{ipsm}/{ipsd}</span>}
+                                  {item.preorderEnd ? (
+                                    <span className="text-[11px] font-bold text-label-secondary leading-snug">〜{ipem}/{iped}</span>
+                                  ) : <span className="text-[11px] text-label-tertiary leading-none">〜</span>}
+                                  {item.date && (
+                                    <>
+                                      <div className="w-full h-px my-1" style={{ backgroundColor: 'var(--border-subtle)' }} />
+                                      <span className="text-[10px] text-label-tertiary leading-none">発売</span>
+                                      {['春頃','夏頃','秋頃','冬頃'].includes(item.dateLabel ?? '') ? (
+                                        <span className="text-[10px] font-bold text-label-secondary leading-snug mt-0.5">{item.dateLabel}</span>
+                                      ) : item.dateLabel ? (
+                                        <><span className="text-[10px] text-label-tertiary leading-none mt-0.5">{im}月</span><span className="text-[11px] font-bold text-label-secondary leading-snug">{item.dateLabel}</span></>
+                                      ) : (
+                                        <span className="text-[11px] font-bold text-label-secondary leading-snug mt-0.5">{im}/{id}</span>
+                                      )}
+                                    </>
+                                  )}
+                                </>
+                              ) : !item.date ? (
                                 <span className="text-sm text-label-tertiary leading-snug">—</span>
                               ) : hasPeriod ? (
                                 <>
                                   <span className="text-[13px] font-bold text-label-primary leading-snug">{im}/{id}</span>
-                                  <span className="text-[12px] font-bold text-label-secondary leading-snug">〜{endM}/{endD}</span>
+                                  <span className="text-[13px] font-bold text-label-secondary leading-snug">〜{endM}/{endD}</span>
                                 </>
                               ) : ['春頃','夏頃','秋頃','冬頃'].includes(item.dateLabel ?? '') ? (
                                 <span className="text-xl font-bold text-label-primary leading-snug">{item.dateLabel}</span>
                               ) : (
-                                <>
-                                  <span className="text-[10px] text-label-tertiary leading-none">{im}月</span>
-                                  <span className="text-xl font-bold text-label-primary leading-snug">{item.dateLabel ?? id}</span>
-                                </>
+                                <span className="text-[13px] font-bold text-label-primary leading-snug">{im}/{id}</span>
                               )}
-                              {item.time && (
+                              {!itemHasPreorder && item.time && (
                                 <>
                                   <span className="text-sm font-bold text-label-primary leading-snug mt-1">{item.time}</span>
-                                  {item.endTime && <span className="text-[11px] text-label-secondary leading-none">〜{item.endTime}</span>}
+                                  {item.endTime && <span className="text-sm font-bold text-label-primary leading-snug">〜{item.endTime}</span>}
                                 </>
                               )}
                             </div>
@@ -2822,6 +2917,19 @@ export default function Calendar() {
                               {item.memo && <p className="text-label-secondary text-xs mt-1.5 truncate">{item.memo}</p>}
                             </div>
                           </button>
+                          {!item.isPersonal && item.workId && participatedWorks.some(w => w.id === item.workId) && (
+                            <button
+                              onClick={e => {
+                                e.stopPropagation();
+                                const evt = visibleEvents.find(e => e.id === item.id);
+                                if (evt) setPreorderEditEvent(evt);
+                              }}
+                              className="flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full border active:opacity-60 self-start mt-1"
+                              style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-color)' }}
+                            >
+                              予約情報+
+                            </button>
+                          )}
                         </div>
                         {/* 下段: アクションボタン */}
                         <div className="flex items-center px-4 pt-1 pb-3 gap-1 justify-between border-t" style={{ borderColor: 'var(--border-faint)' }}>
@@ -3035,7 +3143,7 @@ export default function Calendar() {
             className="fixed inset-x-0 max-w-app mx-auto z-[160] rounded-t-2xl overflow-hidden"
             style={{
               bottom: BOTTOM_TAB_H,
-              height: '80vh',
+              height: 380,
               backgroundColor: 'var(--bg-primary)',
               animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both',
             }}
@@ -3272,6 +3380,18 @@ export default function Calendar() {
           </>
         );
       })()}
+
+      {preorderEditEvent && (
+        <PreorderEditSheet
+          event={preorderEditEvent}
+          onClose={() => setPreorderEditEvent(null)}
+          onSaved={updated => {
+            setEvents(prev => prev.map(e => e.id === preorderEditEvent.id ? { ...e, ...updated } : e));
+            setSheetDetailEvent(prev => prev?.id === preorderEditEvent.id ? { ...prev, ...updated } : prev);
+            setListDetailEvent(prev => prev?.id === preorderEditEvent.id ? { ...prev, ...updated } : prev);
+          }}
+        />
+      )}
 
       <BottomTab />
 

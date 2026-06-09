@@ -8,30 +8,18 @@ export async function initAdMob() {
   await AdMob.initialize();
 }
 
-function getAdMargin(): number {
-  const spacer = document.getElementById('ad-spacer');
-  const dpr = window.devicePixelRatio || 2;
-  const OFFSET_DP = 30; // ステータスバー分のオフセット補正
-  if (spacer) {
-    const rect = spacer.getBoundingClientRect();
-    return Math.round((rect.top + OFFSET_DP) * dpr);
-  }
-  return Math.round((74 + OFFSET_DP) * dpr);
-}
-
-export async function showBanner() {
+export async function showBanner(margin = 0) {
   if (!Capacitor.isNativePlatform()) return;
-  try { await AdMob.removeBanner(); } catch (_) { /* ignore */ }
   await AdMob.showBanner({
     adId: BANNER_AD_ID,
     adSize: BannerAdSize.ADAPTIVE_BANNER,
     position: BannerAdPosition.TOP_CENTER,
-    margin: getAdMargin(),
+    margin,
     isTesting: false,
   });
 }
 
 export async function hideBanner() {
   if (!Capacitor.isNativePlatform()) return;
-  try { await AdMob.removeBanner(); } catch (_) { /* ignore */ }
+  await AdMob.hideBanner();
 }

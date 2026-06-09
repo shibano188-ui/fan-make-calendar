@@ -17,6 +17,7 @@ import {
   getHomePrefecture, getDisplayName, saveHomePrefecture, saveDisplayName,
   deleteEvent, listPreorderEvents,
 } from '../lib/api';
+import PreorderEditSheet from '../components/PreorderEditSheet';
 import UserSettingsSheet from '../components/UserSettingsSheet';
 import type { Work } from '../lib/api';
 import type { CalendarEvent } from '../types';
@@ -128,10 +129,10 @@ export default function Discover() {
   // リアクション
   const [myReactions, setMyReactions] = useState<Record<string, ReactionType>>(loadMyReactions);
   const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
-  const [preorderEvents, setPreorderEvents] = useState<import('../types').CalendarEvent[]>([]);
 
   const { trigger: triggerLike, renderOverlay: renderLikeOverlay } = useLikeAnimation();
   const [viewingUserId, setViewingUserId] = useState<string | null>(null);
+  const [preorderEditEvent, setPreorderEditEvent] = useState<import('../types').CalendarEvent | null>(null);
   const handleDeleteEvent = async (id: string, title: string) => {
     if (!window.confirm(`「${title}」を削除しますか？\nこの操作は元に戻せません。`)) return;
     try {
@@ -181,10 +182,16 @@ export default function Discover() {
     ]).then(([evts, works]) => {
       setEvents(evts);
       setParticipatedWorks(works);
-      listPreorderEvents(works.map(w => w.id)).then(setPreorderEvents).catch(() => {});
     }).catch(() => setError('データの読み込みに失敗しました'))
       .finally(() => setLoading(false));
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 予約受付中イベント
+  const [preorderEvents, setPreorderEvents] = useState<CalendarEvent[]>([]);
+  useEffect(() => {
+    if (participatedWorks.length === 0) { setPreorderEvents([]); return; }
+    listPreorderEvents(participatedWorks.map(w => w.id)).then(setPreorderEvents).catch(() => {});
+  }, [participatedWorks]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ハイライト対象イベントにスクロール
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
@@ -382,12 +389,41 @@ export default function Discover() {
         />
 
         {/* 広告バナースロット */}
-        <div id="ad-spacer" className="flex-shrink-0" style={{ height: 50 }} />
+        <div className="flex-shrink-0" style={{ height: 20 }} />
+        <div id="ad-spacer" className="flex-shrink-0" style={{ height: 80 }} />
+
+        {/* 予約受付中バナー */}
+        {preorderEvents.length > 0 && (() => {
+          const todayStr = new Date().toISOString().slice(0, 10);
+          const activeCount = preorderEvents.filter(e => { const s = e.preorderStart ?? e.date; return !s || s <= todayStr; }).length;
+          const upcomingCount = preorderEvents.length - activeCount;
+          return (
+            <button
+              onClick={() => navigate('/preorders')}
+              className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b active:opacity-70"
+              style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-secondary)' }}
+            >
+              <div className="flex items-center gap-3">
+                {activeCount > 0 && (
+                  <span className="text-xs font-bold" style={{ color: 'var(--accent-color)' }}>
+                    受付中 {activeCount}件
+                  </span>
+                )}
+                {upcomingCount > 0 && (
+                  <span className="text-xs text-label-secondary">
+                    予約開始予定 {upcomingCount}件
+                  </span>
+                )}
+              </div>
+              <span className="text-xs text-label-tertiary">›</span>
+            </button>
+          );
+        })()}
 
         {/* 作品チップ */}
         {participatedWorks.length > 0 && (
           <div
-            className="flex-shrink-0 flex items-center gap-2 px-4 py-2 overflow-x-auto border-b"
+            className="flex-shrink-0 flex items-center gap-2 px-4 py-4 overflow-x-auto border-b"
             style={{ borderColor: 'var(--border-subtle)' }}
           >
             {participatedWorks.map((w, i) => {
@@ -436,33 +472,6 @@ export default function Discover() {
           </div>
         )}
 
-        {/* 予約受付中バナー */}
-        {preorderEvents.length > 0 && (() => {
-          const todayStr = new Date().toISOString().slice(0, 10);
-          const activeCount = preorderEvents.filter(e => !e.date || e.date <= todayStr).length;
-          const upcomingCount = preorderEvents.length - activeCount;
-          return (
-            <button
-              onClick={() => navigate('/preorders')}
-              className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b active:opacity-70"
-              style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-secondary)' }}
-            >
-              <div className="flex items-center gap-3">
-                {activeCount > 0 && (
-                  <span className="text-xs font-bold" style={{ color: 'var(--accent-color)' }}>
-                    ⚠️ 受付中 {activeCount}件
-                  </span>
-                )}
-                {upcomingCount > 0 && (
-                  <span className="text-xs text-label-secondary">
-                    📅 予約開始予定 {upcomingCount}件
-                  </span>
-                )}
-              </div>
-              <span className="text-xs text-label-tertiary">›</span>
-            </button>
-          );
-        })()}
 
         {/* フィード */}
         <div className="flex-1 overflow-y-auto px-4 pt-3 pb-6">
@@ -497,6 +506,9 @@ export default function Discover() {
                 const isOngoing = !!event.date && event.date < todayStr && !!event.endDate && event.endDate >= todayStr;
                 const hasPeriod = !!event.endDate && event.endDate !== event.date;
                 const [, endM, endD] = hasPeriod ? event.endDate!.split('-').map(Number) : [0, 0, 0];
+                const hasPreorderData = !!(event.preorderStart || event.preorderEnd);
+                const [, psm, psd] = event.preorderStart ? event.preorderStart.split('-').map(Number) : [0, 0, 0];
+                const [, pem, ped] = event.preorderEnd ? event.preorderEnd.split('-').map(Number) : [0, 0, 0];
                 const catColor = getCategoryColor(event.category);
                 return (
                   <div
@@ -513,7 +525,35 @@ export default function Discover() {
                     <div className="flex items-stretch px-4 pt-4 gap-3">
                       {/* 日付（左） */}
                       <div className="flex-shrink-0 w-10 flex flex-col items-center pt-0.5">
-                        {isOngoing ? (
+                        {hasPreorderData ? (
+                          <>
+                            <span className="text-[10px] text-label-tertiary leading-none">予約</span>
+                            {event.preorderStart && (
+                              <span className="text-[12px] font-bold text-label-primary leading-snug mt-0.5">{psm}/{psd}</span>
+                            )}
+                            {event.preorderEnd ? (
+                              <span className="text-[11px] font-bold text-label-secondary leading-snug">〜{pem}/{ped}</span>
+                            ) : (
+                              <span className="text-[11px] text-label-tertiary leading-none">〜</span>
+                            )}
+                            {event.date && (
+                              <>
+                                <div className="w-full h-px my-1" style={{ backgroundColor: 'var(--border-subtle)' }} />
+                                <span className="text-[10px] text-label-tertiary leading-none">発売</span>
+                                {['春頃','夏頃','秋頃','冬頃'].includes(event.dateLabel ?? '') ? (
+                                  <span className="text-[10px] font-bold text-label-secondary leading-snug mt-0.5">{event.dateLabel}</span>
+                                ) : event.dateLabel ? (
+                                  <>
+                                    <span className="text-[10px] text-label-tertiary leading-none mt-0.5">{em}月</span>
+                                    <span className="text-[11px] font-bold text-label-secondary leading-snug">{event.dateLabel}</span>
+                                  </>
+                                ) : (
+                                  <span className="text-[11px] font-bold text-label-secondary leading-snug mt-0.5">{em}/{ed}</span>
+                                )}
+                              </>
+                            )}
+                          </>
+                        ) : isOngoing ? (
                           <>
                             <span className="text-[9px] font-bold leading-none" style={{ color: 'var(--accent-color)' }}>開催中</span>
                             <span className="text-[11px] font-bold text-label-secondary leading-snug mt-1">〜{endM}/{endD}</span>
@@ -521,31 +561,29 @@ export default function Discover() {
                         ) : hasPeriod ? (
                           <>
                             <span className="text-[13px] font-bold text-label-primary leading-snug">{em}/{ed}</span>
-                            <span className="text-[12px] font-bold text-label-secondary leading-snug">〜{endM}/{endD}</span>
+                            <span className="text-[13px] font-bold text-label-secondary leading-snug">〜{endM}/{endD}</span>
                           </>
                         ) : !event.date ? (
                           <span className="text-sm text-label-tertiary leading-snug">—</span>
                         ) : ['春頃','夏頃','秋頃','冬頃'].includes(event.dateLabel ?? '') ? (
                           <span className="text-xl font-bold text-label-primary leading-snug">{event.dateLabel}</span>
                         ) : (
-                          <>
-                            <span className="text-[10px] text-label-tertiary leading-none">{em}月</span>
-                            <span className="text-xl font-bold text-label-primary leading-snug">{event.dateLabel ?? ed}</span>
-                          </>
+                          <span className="text-[13px] font-bold text-label-primary leading-snug">{em}/{ed}</span>
                         )}
                         {event.time && (
                           <>
                             <span className="text-sm font-bold text-label-primary leading-snug mt-1">{event.time}</span>
-                            {event.endTime && <span className="text-[11px] text-label-secondary leading-none">〜{event.endTime}</span>}
+                            {event.endTime && <span className="text-sm font-bold text-label-primary leading-snug">〜{event.endTime}</span>}
                           </>
                         )}
                       </div>
                       <div className="w-px self-stretch bg-white/10 flex-shrink-0" />
                       {/* 元のコンテンツ（右） */}
                       <div className="flex-1 min-w-0 flex flex-col gap-2 pb-3">
-                        {/* バッジ行 */}
-                        {(event.isOrderMade || event.workName || event.category || event.prefecture) && (
-                          <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* バッジ行 + 予約情報ボタン */}
+                        <div className="flex items-start justify-between gap-2">
+                          {(event.isOrderMade || event.workName || event.category || event.prefecture) && (
+                          <div className="flex items-center gap-1.5 flex-wrap flex-1">
                             {event.isOrderMade && (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#ef4444', color: '#fff' }}>
                                 予約
@@ -568,7 +606,17 @@ export default function Discover() {
                               </span>
                             )}
                           </div>
-                        )}
+                          )}
+                          {event.workId && participatedWorks.some(w => w.id === event.workId) && (
+                            <button
+                              onClick={() => setPreorderEditEvent(event)}
+                              className="flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full border active:opacity-60"
+                              style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-color)' }}
+                            >
+                              予約情報+
+                            </button>
+                          )}
+                        </div>
                         {/* タイトル */}
                         <p className="text-label-primary font-bold text-base leading-snug">{event.title}</p>
                         {/* 画像（X取得時） */}
@@ -891,6 +939,16 @@ export default function Discover() {
 
       {viewingUserId && (
         <UserProfileModal userId={viewingUserId} onClose={() => setViewingUserId(null)} />
+      )}
+
+      {preorderEditEvent && (
+        <PreorderEditSheet
+          event={preorderEditEvent}
+          onClose={() => setPreorderEditEvent(null)}
+          onSaved={updated => {
+            setEvents(prev => prev.map(e => e.id === preorderEditEvent.id ? { ...e, ...updated } : e));
+          }}
+        />
       )}
     </>
   );

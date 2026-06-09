@@ -75,7 +75,8 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
-        const res = await fetch('/api/parse-event', {
+        const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ?? '';
+        const res = await fetch(`${apiBase}/api/parse-event`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),

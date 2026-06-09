@@ -121,6 +121,8 @@ function rowToEvent(e: Record<string, unknown>): CalendarEvent {
     imageUrl: (e.image_url as string | null) ?? undefined,
     sourceUrl: (e.source_url as string | null) ?? undefined,
     isOrderMade: (e.is_order_made as boolean | null) ?? false,
+    preorderStart: (e.preorder_start_date as string | null) ?? undefined,
+    preorderEnd: (e.preorder_end_date as string | null) ?? undefined,
   };
 }
 
@@ -230,18 +232,17 @@ export async function createEvents(
 export async function listPreorderEvents(workIds: string[]): Promise<CalendarEvent[]> {
   if (workIds.length === 0) return [];
   const today = new Date().toISOString().slice(0, 10);
-  const in30days = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
   const { data, error } = await supabase
     .from('events')
     .select('*')
     .in('work_id', workIds)
     .eq('pool', 0)
     .eq('is_order_made', true)
-    .order('end_date', { ascending: true, nullsFirst: false });
+    .order('preorder_end_date', { ascending: true, nullsFirst: false });
   if (error) throw error;
   return (data ?? []).map(rowToEvent).filter(e => {
-    if (e.endDate && e.endDate < today) return false;
-    if (e.date && e.date > in30days) return false;
+    if (e.preorderEnd && e.preorderEnd < today) return false;
+    if (!e.preorderEnd && e.date && e.date < today) return false;
     return true;
   });
 }
@@ -332,6 +333,8 @@ export async function findDuplicateEvents(
   const titleData = [...(d1 ?? []), ...(d2 ?? [])].filter(r => {
     if (dedup.has(r.id as string)) return false;
     dedup.add(r.id as string);
+    // event_date が null のイベントは壊れたデータとして重複対象から除外
+    if (!r.event_date) return false;
     return true;
   });
   for (const row of titleData) {
@@ -665,6 +668,19 @@ export async function updateEvent(
   if ('locationMapLink' in data) row.location_map_link = data.locationMapLink || null;
   if ('isOrderMade' in data) row.is_order_made = data.isOrderMade ?? false;
   const { error } = await supabase.from('events').update(row).eq('id', eventId);
+  if (error) throw error;
+}
+
+export async function updatePreorderInfo(
+  eventId: string,
+  data: { isOrderMade: boolean; preorderStart: string; preorderEnd: string; link: string },
+): Promise<void> {
+  const { error } = await supabase.from('events').update({
+    is_order_made: data.isOrderMade,
+    preorder_start_date: data.preorderStart || null,
+    preorder_end_date: data.preorderEnd || null,
+    link_url: data.link || null,
+  }).eq('id', eventId);
   if (error) throw error;
 }
 

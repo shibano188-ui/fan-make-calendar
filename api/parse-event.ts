@@ -48,7 +48,7 @@ const BASE_RULES = `
 - 「8月1週目」→ date: "${CURRENT_YEAR}-08-05", dateLabel: "上旬"
 - 「8月2週目」→ date: "${CURRENT_YEAR}-08-15", dateLabel: "中旬"
 - 「8月3週目」「8月4週目」「8月5週目」→ date: "${CURRENT_YEAR}-08-25", dateLabel: "下旬"
-- 「8月発売」「8月予定」など月だけ → date: "${CURRENT_YEAR}-08-01", dateLabel: "中"
+- 「8月発売」「8月予定」など月だけ → date: "${CURRENT_YEAR}-08-31", dateLabel: "中"（月の末日を使う。例: 8月→31日, 9月→30日, 2月→28日）
 - 「春」「春頃」「春発売」など → date: "${CURRENT_YEAR}-04-15", dateLabel: "春頃"
 - 「夏」「夏頃」「夏発売」など → date: "${CURRENT_YEAR}-08-15", dateLabel: "夏頃"
 - 「秋」「秋頃」「秋発売」など → date: "${CURRENT_YEAR}-11-15", dateLabel: "秋頃"
@@ -385,6 +385,10 @@ function parseRawText(rawText: string): unknown[] {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).end();
 
   const { url, imageBase64, mimeType, sharedText } = req.body as {
