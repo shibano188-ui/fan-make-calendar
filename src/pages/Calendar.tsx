@@ -2759,6 +2759,8 @@ export default function Calendar() {
                                 </>
                               ) : ['春頃','夏頃','秋頃','冬頃'].includes(event.dateLabel ?? '') ? (
                                 <span className="text-xl font-bold text-label-primary leading-snug">{event.dateLabel}</span>
+                              ) : event.dateLabel ? (
+                                <><span className="text-[10px] text-label-tertiary leading-none">{em}月</span><span className="text-[13px] font-bold text-label-primary leading-snug">{event.dateLabel}</span></>
                               ) : (
                                 <span className="text-[13px] font-bold text-label-primary leading-snug">{em}/{ed}</span>
                               )}
@@ -2900,6 +2902,8 @@ export default function Calendar() {
                                 </>
                               ) : ['春頃','夏頃','秋頃','冬頃'].includes(item.dateLabel ?? '') ? (
                                 <span className="text-xl font-bold text-label-primary leading-snug">{item.dateLabel}</span>
+                              ) : item.dateLabel ? (
+                                <><span className="text-[10px] text-label-tertiary leading-none">{im}月</span><span className="text-[13px] font-bold text-label-primary leading-snug">{item.dateLabel}</span></>
                               ) : (
                                 <span className="text-[13px] font-bold text-label-primary leading-snug">{im}/{id}</span>
                               )}
