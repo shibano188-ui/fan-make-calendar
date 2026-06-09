@@ -796,7 +796,7 @@ export async function listUpcomingParticipatedEvents(
     .select('*, works(name)')
     .in('work_id', workIds)
     .eq('pool', 0)
-    .or(`end_date.gte.${today},and(end_date.is.null,event_date.gte.${monthStart}),preorder_end_date.gte.${today},and(preorder_end_date.is.null,is_order_made.eq.true,event_date.gte.${monthStart})`)
+    .or(`end_date.gte.${today},and(end_date.is.null,event_date.gte.${monthStart}),preorder_end_date.gte.${today},and(preorder_end_date.is.null,is_order_made.eq.true,event_date.gte.${today}),and(preorder_end_date.is.null,is_order_made.eq.true,event_date.is.null)`)
     .limit(limit);
   if (error) throw error;
 
