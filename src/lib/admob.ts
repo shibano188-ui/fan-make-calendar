@@ -10,12 +10,13 @@ export async function initAdMob() {
 
 function getAdMargin(): number {
   const spacer = document.getElementById('ad-spacer');
+  const dpr = window.devicePixelRatio || 2;
+  const OFFSET_DP = 30; // ステータスバー分のオフセット補正
   if (spacer) {
     const rect = spacer.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 2;
-    return Math.round(rect.top * dpr);
+    return Math.round((rect.top + OFFSET_DP) * dpr);
   }
-  return Math.round(74 * (window.devicePixelRatio || 2));
+  return Math.round((74 + OFFSET_DP) * dpr);
 }
 
 export async function showBanner() {
