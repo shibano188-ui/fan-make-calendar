@@ -217,7 +217,16 @@ export default function Preorders() {
             ) : event.date ? (
               <>
                 <span className="text-[10px] text-label-tertiary leading-none">{isReleaseOnly ? '発売' : '予約'}</span>
-                <span className="text-[13px] font-bold text-label-primary leading-snug mt-0.5">{relM}/{relD}</span>
+                {['春頃','夏頃','秋頃','冬頃'].includes(event.dateLabel ?? '') ? (
+                  <span className="text-[10px] font-bold text-label-primary leading-snug mt-0.5">{event.dateLabel}</span>
+                ) : event.dateLabel ? (
+                  <>
+                    <span className="text-[10px] text-label-tertiary leading-none mt-0.5">{relM}月</span>
+                    <span className="text-[11px] font-bold text-label-primary leading-snug">{event.dateLabel}</span>
+                  </>
+                ) : (
+                  <span className="text-[13px] font-bold text-label-primary leading-snug mt-0.5">{relM}/{relD}</span>
+                )}
                 {legacyHasPeriod && (
                   <span className="text-[13px] font-bold text-label-secondary leading-snug">〜{legacyEM}/{legacyED}</span>
                 )}

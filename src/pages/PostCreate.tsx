@@ -169,10 +169,12 @@ function PostCardItem({
                     onChange={e => {
                       const year = e.target.value;
                       const seasonMonth: Record<string, string> = { '春頃': '04', '夏頃': '08', '秋頃': '11', '冬頃': '02' };
-                      const labelDay: Record<string, string> = { '上旬': '05', '中旬': '15', '下旬': '25', '中': '01' };
+                      const labelDay: Record<string, string> = { '上旬': '05', '中旬': '15', '下旬': '25' };
                       const month = card.date ? card.date.slice(5, 7) : String(new Date().getMonth() + 1).padStart(2, '0');
-                      const day = seasonMonth[card.dateLabel] ? '15' : (labelDay[card.dateLabel] ?? '15');
                       const mm = seasonMonth[card.dateLabel] ?? month;
+                      const day = seasonMonth[card.dateLabel] ? '15'
+                        : card.dateLabel === '中' ? String(new Date(parseInt(year), parseInt(mm), 0).getDate()).padStart(2, '0')
+                        : (labelDay[card.dateLabel] ?? '15');
                       onChange({ date: year ? `${year}-${mm}-${day}` : '' });
                     }}
                     className={inputCls}
@@ -185,8 +187,11 @@ function PostCardItem({
                       onChange={e => {
                         const month = e.target.value;
                         const year = card.date ? card.date.slice(0, 4) : String(new Date().getFullYear());
-                        const labelDay: Record<string, string> = { '上旬': '05', '中旬': '15', '下旬': '25', '中': '01' };
-                        onChange({ date: month ? `${year}-${month}-${labelDay[card.dateLabel] ?? '15'}` : '' });
+                        const labelDay: Record<string, string> = { '上旬': '05', '中旬': '15', '下旬': '25' };
+                        const day = card.dateLabel === '中' && month
+                          ? String(new Date(parseInt(year), parseInt(month), 0).getDate()).padStart(2, '0')
+                          : (labelDay[card.dateLabel] ?? '15');
+                        onChange({ date: month ? `${year}-${month}-${day}` : '' });
                       }}
                       className={inputCls}
                     >
@@ -203,12 +208,15 @@ function PostCardItem({
                     const val = e.target.value;
                     const year = card.date ? card.date.slice(0, 4) : String(new Date().getFullYear());
                     const seasonMonth: Record<string, string> = { '春頃': '04', '夏頃': '08', '秋頃': '11', '冬頃': '02' };
-                    const labelDay: Record<string, string> = { '上旬': '05', '中旬': '15', '下旬': '25', '中': '01' };
+                    const labelDay: Record<string, string> = { '上旬': '05', '中旬': '15', '下旬': '25' };
                     if (seasonMonth[val]) {
                       onChange({ dateLabel: val, date: `${year}-${seasonMonth[val]}-15` });
                     } else {
                       const month = card.date ? card.date.slice(5, 7) : String(new Date().getMonth() + 1).padStart(2, '0');
-                      onChange({ dateLabel: val, date: `${year}-${month}-${labelDay[val] ?? '15'}` });
+                      const day = val === '中'
+                        ? String(new Date(parseInt(year), parseInt(month), 0).getDate()).padStart(2, '0')
+                        : (labelDay[val] ?? '15');
+                      onChange({ dateLabel: val, date: `${year}-${month}-${day}` });
                     }
                   }}
                   className={inputCls}
