@@ -9,6 +9,8 @@ import type { Work } from '../lib/api';
 import { POST_CATEGORIES, loadCategoryFilters, saveCategoryFilters, loadRegionFilter, saveRegionFilter, type FilterMode } from '../lib/constants';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { PrefectureSearch } from '../components/UserSettingsSheet';
+import { useConfirm } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
 
 function formatCount(n: number): string {
   return n.toLocaleString('ja-JP');
@@ -113,6 +115,8 @@ export default function WorkSelect() {
 
   const navigate = useNavigate();
   const { user } = useAuth();
+  const confirmDialog = useConfirm();
+  const showToast = useToast();
 
   // 地域フィルター（Calendar/Discoverと共有）
   const [filterMode, setFilterMode] = useState<FilterMode>(() => loadRegionFilter().filterMode);
@@ -197,7 +201,7 @@ export default function WorkSelect() {
 
   const handleLeave = async (work: Work) => {
     if (!user) return;
-    if (!window.confirm(`「${work.name}」から抜けますか？`)) return;
+    if (!(await confirmDialog({ title: '作品から抜ける', message: `「${work.name}」から抜けますか？`, confirmLabel: '抜ける', destructive: true }))) return;
     try {
       await leaveCalendar(work.id, user.id);
       setRecentWorks(prev => prev.filter(w => w.id !== work.id));
@@ -208,7 +212,7 @@ export default function WorkSelect() {
 
   const handleDelete = async (work: Work) => {
     if (!user) return;
-    if (!window.confirm(`「${work.name}」を完全に削除しますか？\nこの操作は元に戻せません。`)) return;
+    if (!(await confirmDialog({ title: '作品を完全に削除', message: `「${work.name}」を完全に削除しますか？\nこの操作は元に戻せません。`, confirmLabel: '削除', destructive: true }))) return;
     try {
       await deleteWork(work.id);
       setRecentWorks(prev => prev.filter(w => w.id !== work.id));

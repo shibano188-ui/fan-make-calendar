@@ -93,6 +93,11 @@
   to   { transform: translateY(0); }
 }
 
+@keyframes confirmIn {
+  from { transform: scale(1.08); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+
 @keyframes countPop {
   0%   { transform: scale(1); }
   40%  { transform: scale(1.35); }

@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import { PREFECTURES } from '../lib/prefectures';
 import { loadImageVisibility, saveImageVisibility, type ImageVisibility } from '../lib/constants';
 import { supabase } from '../lib/supabase';
+import { useToast } from './ui/Toast';
 
 const inputCls =
   'w-full bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-separator focus:border-strong';
@@ -105,6 +106,7 @@ export default function UserSettingsSheet({
   const [pref, setPref]           = useState(homePref ?? '');
   const [name, setName]           = useState(displayName ?? '');
   const [saving, setSaving]       = useState(false);
+  const showToast = useToast();
   const [saved, setSaved]         = useState(false);
   const [imgVis, setImgVis]       = useState<ImageVisibility>(() => loadImageVisibility());
   const [delConfirm, setDelConfirm] = useState(false);
@@ -124,7 +126,7 @@ export default function UserSettingsSheet({
       await supabase.auth.signOut();
       window.location.href = '/';
     } catch {
-      alert('削除に失敗しました。しばらくしてからもう一度お試しください。');
+      showToast('削除に失敗しました。しばらくして再試行してください', 'error');
       setDeleting(false);
       setDelConfirm(false);
     }

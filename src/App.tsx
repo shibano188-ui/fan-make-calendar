@@ -2,6 +2,8 @@ import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
+import { ConfirmProvider } from './components/ui/ConfirmDialog';
+import { ToastProvider } from './components/ui/Toast';
 import PhoneFrame from './components/PhoneFrame';
 import { Capacitor } from '@capacitor/core';
 import { initAdMob } from './lib/admob';
@@ -71,6 +73,8 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <ThemeProvider>
+        <ConfirmProvider>
+        <ToastProvider>
           <AndroidShareHandler />
           <AdMobController />
           <Suspense fallback={<PageLoader />}>
@@ -101,6 +105,8 @@ export default function App() {
               } />
             </Routes>
           </Suspense>
+        </ToastProvider>
+        </ConfirmProvider>
         </ThemeProvider>
       </AuthProvider>
     </BrowserRouter>

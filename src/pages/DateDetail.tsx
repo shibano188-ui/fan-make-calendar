@@ -12,6 +12,8 @@ import { incrementTotalLikesGiven } from '../lib/constants';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
 import UserProfileModal from '../components/UserProfileModal';
 import MemoText from '../components/MemoText';
+import { useConfirm } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
 
 // ─── いいねセッション（localStorage）────────────────────────────────
 
@@ -304,6 +306,8 @@ function EventCard({
 export default function DateDetail() {
   const { workId = '', date = '' } = useParams<{ workId: string; date: string }>();
   const { user } = useAuth();
+  const confirmDialog = useConfirm();
+  const showToast = useToast();
   const navigate = useNavigate();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -351,11 +355,11 @@ export default function DateDetail() {
   const handleDelete = async (eventId: string) => {
     const event = events.find(e => e.id === eventId);
     if (!event) return;
-    if (!window.confirm(`「${event.title}」を削除しますか？\nこの操作は元に戻せません。`)) return;
+    if (!(await confirmDialog({ title: '予定を削除', message: `「${event.title}」を削除しますか？\nこの操作は元に戻せません。`, confirmLabel: '削除', destructive: true }))) return;
     try {
       await deleteEvent(eventId);
       setEvents(prev => prev.filter(e => e.id !== eventId));
-    } catch { alert('削除に失敗しました'); }
+    } catch { showToast('削除に失敗しました', 'error'); }
   };
 
   const handleReaction = async (eventId: string, type: ReactionType) => {

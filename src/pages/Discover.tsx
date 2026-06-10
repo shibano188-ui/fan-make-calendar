@@ -38,6 +38,8 @@ import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { PrefectureSearch } from '../components/UserSettingsSheet';
 import { useAuth } from '../contexts/AuthContext';
 import { WORK_COLORS } from './Calendar';
+import { useConfirm } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
 
 // ─── 定数 ──────────────────────────────────────────────────────────
 
@@ -83,6 +85,8 @@ export default function Discover() {
   const location = useLocation();
   const highlightEventId = (location.state as { highlightEventId?: string } | null)?.highlightEventId ?? null;
   const { user } = useAuth();
+  const confirmDialog = useConfirm();
+  const showToast = useToast();
 
   const [showImagesDiscover] = useState(() => loadImageVisibility().discover);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -134,11 +138,11 @@ export default function Discover() {
   const [viewingUserId, setViewingUserId] = useState<string | null>(null);
   const [preorderEditEvent, setPreorderEditEvent] = useState<import('../types').CalendarEvent | null>(null);
   const handleDeleteEvent = async (id: string, title: string) => {
-    if (!window.confirm(`「${title}」を削除しますか？\nこの操作は元に戻せません。`)) return;
+    if (!(await confirmDialog({ title: '予定を削除', message: `「${title}」を削除しますか？\nこの操作は元に戻せません。`, confirmLabel: '削除', destructive: true }))) return;
     try {
       await deleteEvent(id);
       setEvents(prev => prev.filter(e => e.id !== id));
-    } catch { alert('削除に失敗しました'); }
+    } catch { showToast('削除に失敗しました', 'error'); }
   };
 
   // 編集パネル

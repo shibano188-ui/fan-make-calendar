@@ -3,6 +3,7 @@ import { X, Plus } from 'lucide-react';
 import { updatePreorderInfo } from '../lib/api';
 import { parseLinks, serializeLinks } from '../lib/constants';
 import type { CalendarEvent } from '../types';
+import { useToast } from './ui/Toast';
 
 interface Props {
   event: CalendarEvent;
@@ -20,6 +21,7 @@ export default function PreorderEditSheet({ event, onClose, onSaved }: Props) {
     return parsed.length > 0 ? parsed : [''];
   });
   const [saving, setSaving] = useState(false);
+  const showToast = useToast();
 
   const handleSave = async () => {
     setSaving(true);
@@ -29,7 +31,7 @@ export default function PreorderEditSheet({ event, onClose, onSaved }: Props) {
       onSaved({ isOrderMade: true, preorderStart: preorderStart || undefined, preorderEnd: preorderEnd || undefined, link: link || undefined });
       onClose();
     } catch {
-      alert('保存に失敗しました');
+      showToast('保存に失敗しました', 'error');
     } finally {
       setSaving(false);
     }

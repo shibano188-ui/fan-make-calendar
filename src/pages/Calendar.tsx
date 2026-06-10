@@ -41,6 +41,8 @@ import {
   loadEventQueue, removeFromEventQueue, type QueuedEvent,
   parseImageUrls, loadImageVisibility,
 } from '../lib/constants';
+import { useConfirm } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
 
 // ─── 定数 ──────────────────────────────────────────────────────────
 
@@ -629,6 +631,8 @@ export default function Calendar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const confirmDialog = useConfirm();
+  const showToast = useToast();
   const { settings, setCurrentCalendar, calFontFamily } = useTheme();
 
   const today = new Date();
@@ -769,7 +773,7 @@ export default function Calendar() {
 
   const handleLeave = async () => {
     if (!user) return;
-    if (!window.confirm(`「${workName}」のカレンダーから抜けますか？`)) return;
+    if (!(await confirmDialog({ title: 'カレンダーから抜ける', message: `「${workName}」のカレンダーから抜けますか？`, confirmLabel: '抜ける', destructive: true }))) return;
     await leaveCalendar(workId, user.id);
     localStorage.removeItem('last_calendar_workId');
     navigate('/');
@@ -777,7 +781,7 @@ export default function Calendar() {
 
   const handleDelete = async () => {
     if (!user) return;
-    if (!window.confirm(`「${workName}」のカレンダーをすべてのデータごと完全に削除しますか？\nこの操作は元に戻せません。`)) return;
+    if (!(await confirmDialog({ title: 'カレンダーを完全に削除', message: `「${workName}」のすべてのデータが削除されます。\nこの操作は元に戻せません。`, confirmLabel: '削除', destructive: true }))) return;
     setDeleting(true);
     setShowMenu(false);
     try {
@@ -786,7 +790,7 @@ export default function Calendar() {
       navigate('/');
     } catch {
       setDeleting(false);
-      alert('削除に失敗しました。');
+      showToast('削除に失敗しました', 'error');
     }
   };
 
@@ -1070,13 +1074,13 @@ export default function Calendar() {
   };
 
   const handleDeleteEvent = async (id: string, title: string) => {
-    if (!window.confirm(`「${title}」を削除しますか？\nこの操作は元に戻せません。`)) return;
+    if (!(await confirmDialog({ title: '予定を削除', message: `「${title}」を削除しますか？\nこの操作は元に戻せません。`, confirmLabel: '削除', destructive: true }))) return;
     try {
       await deleteEvent(id);
       setEvents(prev => prev.filter(e => e.id !== id));
       setSheetDetailEvent(prev => prev?.id === id ? null : prev);
       setListDetailEvent(prev => prev?.id === id ? null : prev);
-    } catch { alert('削除に失敗しました'); }
+    } catch { showToast('削除に失敗しました', 'error'); }
   };
 
   // ─── イベント編集（投稿者本人のみ） ────────────────────────────

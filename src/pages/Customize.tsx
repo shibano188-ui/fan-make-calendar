@@ -7,6 +7,8 @@ import { useTheme, COMMUNITY_THEMES, type FontFamily, type UserSettings } from '
 import { listSharedThemes, shareTheme, incrementThemeUseCount, deleteSharedTheme, listRecentWorks, type SharedTheme, type SharedThemeData, type Work } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { WORK_COLORS } from './Calendar';
+import { useConfirm } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
 
 const SYSTEM_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 
@@ -63,6 +65,8 @@ function CommunityThemeModal({
   canShare: boolean;
 }) {
   const [tab, setTab] = useState<Tab>('preset');
+  const confirmDialog = useConfirm();
+  const showToast = useToast();
   const [sharedThemes, setSharedThemes] = useState<SharedTheme[]>([]);
   const [loadingShared, setLoadingShared] = useState(false);
   const [shareName, setShareName] = useState('');
@@ -82,12 +86,12 @@ function CommunityThemeModal({
   };
 
   const handleDeleteShared = async (themeId: string) => {
-    if (!window.confirm('このテーマを削除しますか？')) return;
+    if (!(await confirmDialog({ title: 'テーマを削除', message: 'このテーマを削除しますか？', confirmLabel: '削除', destructive: true }))) return;
     try {
       await deleteSharedTheme(themeId);
       setSharedThemes(prev => prev.filter(t => t.id !== themeId));
     } catch {
-      alert('削除できませんでした。SupabaseのSQLエディタで以下を実行してください:\n\nDROP POLICY IF EXISTS "delete own shared_themes" ON shared_themes;\nCREATE POLICY "delete any shared_themes"\nON shared_themes FOR DELETE TO authenticated\nUSING (true);');
+      confirmDialog({ title: '削除できませんでした', message: 'SupabaseのSQLエディタで以下を実行してください:\n\nDROP POLICY IF EXISTS "delete own shared_themes" ON shared_themes;\nCREATE POLICY "delete any shared_themes"\nON shared_themes FOR DELETE TO authenticated\nUSING (true);', hideCancel: true });
     }
   };
 
