@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, Heart, Smile, ExternalLink } from 'lucide-react';
+import { ChevronLeft, Heart, Smile, ExternalLink, SlidersHorizontal } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
 import MemoText from '../components/MemoText';
@@ -10,11 +10,14 @@ import {
   listPreorderEvents, listRecentWorks, addLikeTap, setReaction, type Work,
 } from '../lib/api';
 import {
+  POST_CATEGORIES,
   parseLinks, parseImageUrls, getCategoryColor,
   loadLikedEventIds, addLikedEventId,
   loadCalendarEventIds, addCalendarEventId,
   incrementTotalLikesGiven,
   loadImageVisibility,
+  loadCategoryFilters, saveCategoryFilters,
+  loadHiddenWorkIds, saveHiddenWorkIds,
 } from '../lib/constants';
 import { REACTIONS, type ReactionType } from '../lib/reactions';
 import { useAuth } from '../contexts/AuthContext';
@@ -57,6 +60,9 @@ export default function Preorders() {
   const [works, setWorks] = useState<Work[]>([]);
   const [loading, setLoading] = useState(true);
   const [showImages] = useState(() => loadImageVisibility().discover);
+  const [hiddenWorkIds, setHiddenWorkIds] = useState<Set<string>>(loadHiddenWorkIds);
+  const [categoryFilters, setCategoryFilters] = useState<Record<string, string[]>>(loadCategoryFilters);
+  const [filterPickerWorkId, setFilterPickerWorkId] = useState<string | null>(null);
 
   const [likedEventIds, setLikedEventIds] = useState<Set<string>>(loadLikedEventIds);
   const [calendarEventIds, setCalendarEventIds] = useState<Set<string>>(loadCalendarEventIds);
@@ -107,8 +113,29 @@ export default function Preorders() {
 
   const today = new Date().toISOString().slice(0, 10);
   const getPreorderStart = (e: CalendarEvent) => e.preorderStart ?? e.date;
-  const active = events.filter(e => { const s = getPreorderStart(e); return !s || s <= today; });
-  const upcoming = events.filter(e => { const s = getPreorderStart(e); return !!s && s > today; });
+
+  const toggleWork = (wId: string) =>
+    setHiddenWorkIds(prev => {
+      const next = new Set(prev);
+      if (next.has(wId)) next.delete(wId); else next.add(wId);
+      saveHiddenWorkIds(next);
+      return next;
+    });
+
+  const visibleEvents = useMemo(() =>
+    events.filter(e => {
+      if (e.workId && hiddenWorkIds.has(e.workId)) return false;
+      const wId = e.workId ?? '';
+      if (wId) {
+        const cats = categoryFilters[wId];
+        if (cats && cats.length > 0 && cats.includes(e.category ?? '')) return false;
+      }
+      return true;
+    }),
+  [events, hiddenWorkIds, categoryFilters]);
+
+  const active = visibleEvents.filter(e => { const s = getPreorderStart(e); return !s || s <= today; });
+  const upcoming = visibleEvents.filter(e => { const s = getPreorderStart(e); return !!s && s > today; });
 
   const handleHeartPress = async (event: CalendarEvent, el: HTMLElement) => {
     if (!user) return;
@@ -321,30 +348,29 @@ export default function Preorders() {
           </div>
         </div>
 
-        {/* 締切行 */}
-        {(isReleaseOnly ? links.length > 0 : true) && (
+        {/* 締切行: 有効な締切日 or リンクがある場合のみ表示 */}
+        {((!isReleaseOnly && !isDeadlineFromRelease && days !== null) || links.length > 0) && (
           <div
-            className="flex items-center justify-between px-4 py-3 border-t gap-3"
+            className="flex items-center px-4 py-3 border-t gap-3"
             style={{ borderColor: 'var(--border-subtle)' }}
           >
-            {/* 締切テキスト */}
-            {!isReleaseOnly && !isDeadlineFromRelease && (
+            {/* 締切テキスト: 有効な締切日がある場合のみ（締切未定は非表示） */}
+            {!isReleaseOnly && !isDeadlineFromRelease && days !== null && (
               <span
                 className="text-sm font-bold"
                 style={{
-                  color: days === null ? 'var(--label-tertiary)'
-                    : days <= 0 ? '#ef4444'
+                  color: days <= 0 ? '#ef4444'
                     : days <= 3 ? '#ef4444'
                     : days <= 7 ? '#f97316'
                     : 'var(--label-secondary)',
                 }}
               >
-                {days === null ? '締切未定' : days <= 0 ? '本日締切' : `締切まで${days}日`}
+                {days <= 0 ? '本日締切' : `締切まで${days}日`}
               </span>
             )}
-            {/* リンクボタン（最大2本） */}
+            {/* リンクボタン（最大2本）: 常に右寄せ */}
             {links.length > 0 && (
-              <div className={`flex gap-2 ${isReleaseOnly ? 'ml-auto' : ''}`}>
+              <div className="flex gap-2 ml-auto">
                 {links.slice(0, 2).map((url, i) => (
                   <a
                     key={i}
@@ -437,12 +463,52 @@ export default function Preorders() {
           }
         />
 
+        {/* 作品チップ */}
+        {works.length > 0 && (
+          <div
+            className="flex-shrink-0 flex items-center gap-2 px-4 py-3 overflow-x-auto border-b"
+            style={{ borderColor: 'var(--border-subtle)' }}
+          >
+            {works.map((w, i) => {
+              const hidden = hiddenWorkIds.has(w.id);
+              const color = workColorMap.get(w.id) ?? WORK_COLORS[i % WORK_COLORS.length];
+              const hasCatFilter = (categoryFilters[w.id]?.length ?? 0) > 0;
+              return (
+                <div
+                  key={w.id}
+                  className="flex-shrink-0 flex items-center rounded-full border transition-all overflow-hidden"
+                  style={{
+                    borderColor: hidden ? 'var(--border-subtle)' : color,
+                    color: hidden ? 'var(--label-tertiary)' : color,
+                    opacity: hidden ? 0.5 : 1,
+                  }}
+                >
+                  <button
+                    onClick={() => toggleWork(w.id)}
+                    className="flex items-center gap-1.5 text-xs pl-3 pr-2 py-1 active:opacity-70"
+                  >
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: hidden ? 'var(--label-tertiary)' : color }} />
+                    {w.name}
+                  </button>
+                  <button
+                    onClick={e => { e.stopPropagation(); setFilterPickerWorkId(w.id); }}
+                    className="pr-2.5 py-1 active:opacity-70"
+                    style={{ color: hasCatFilter ? color : 'var(--label-tertiary)' }}
+                  >
+                    <SlidersHorizontal size={11} strokeWidth={hasCatFilter ? 2.5 : 1.5} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         <div className="flex-1 overflow-y-auto px-4 pt-3 pb-6">
           {loading ? (
             <div className="flex flex-col gap-3">
               {[1, 2, 3].map(i => <div key={i} className="h-40 bg-bg-secondary rounded-xl animate-pulse" />)}
             </div>
-          ) : events.length === 0 ? (
+          ) : visibleEvents.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-16">
               <p className="text-label-tertiary text-sm">受付中の受注・予約商品はありません</p>
             </div>
@@ -485,6 +551,51 @@ export default function Preorders() {
           </div>
         </>
       )}
+
+      {/* カテゴリフィルターピッカー */}
+      {filterPickerWorkId !== null && (() => {
+        const work = works.find(w => w.id === filterPickerWorkId);
+        if (!work) return null;
+        const current = categoryFilters[filterPickerWorkId] ?? [];
+        const color = workColorMap.get(filterPickerWorkId) ?? 'var(--accent-color)';
+        const toggle = (cat: string) => {
+          const next = current.includes(cat) ? current.filter(c => c !== cat) : [...current, cat];
+          const updated = { ...categoryFilters, [filterPickerWorkId]: next };
+          setCategoryFilters(updated);
+          saveCategoryFilters(updated);
+        };
+        return (
+          <>
+            <div className="fixed inset-0 z-[180]" onClick={() => setFilterPickerWorkId(null)} />
+            <div className="fixed bottom-14 left-0 right-0 z-[190] max-w-app mx-auto px-4 pb-2">
+              <div className="bg-bg-secondary rounded-xl shadow-card overflow-hidden">
+                <div className="flex items-center justify-between px-4 pt-4 pb-2">
+                  <span className="text-label-primary text-sm font-semibold">{work.name} の表示カテゴリ</span>
+                  <button
+                    onClick={() => { const u = { ...categoryFilters, [filterPickerWorkId]: [] }; setCategoryFilters(u); saveCategoryFilters(u); }}
+                    className="text-xs text-label-tertiary underline active:opacity-60"
+                  >すべて表示</button>
+                </div>
+                <p className="px-4 text-[11px] text-label-tertiary mb-3">色ありが表示中。タップしたカテゴリを非表示にします</p>
+                <div className="flex flex-wrap gap-2 px-4 pb-4">
+                  {POST_CATEGORIES.map(cat => {
+                    const hidden = current.includes(cat);
+                    return (
+                      <button key={cat} onClick={() => toggle(cat)}
+                        className="px-3 py-1.5 rounded-full text-xs border transition-colors active:opacity-70"
+                        style={hidden
+                          ? { borderColor: 'var(--border-default)', color: 'var(--label-tertiary)' }
+                          : { borderColor: color, color, backgroundColor: `${color}18` }}>
+                        {cat}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {preorderEditEvent && (
         <PreorderEditSheet
