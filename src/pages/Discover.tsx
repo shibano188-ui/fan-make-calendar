@@ -423,7 +423,7 @@ export default function Discover() {
 
         {/* 作品チップ */}
         {participatedWorks.length > 0 && (
-          <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 overflow-x-auto">
+          <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 overflow-x-auto border-b" style={{ borderColor: 'var(--border-subtle)' }}>
             {participatedWorks.map((w, i) => {
               const hidden = hiddenWorkIds.has(w.id);
               const color = workColorMap.get(w.id) ?? WORK_COLORS[i % WORK_COLORS.length];
@@ -431,10 +431,11 @@ export default function Discover() {
               return (
                 <div
                   key={w.id}
-                  className="flex-shrink-0 flex items-center rounded-full overflow-hidden transition-all"
+                  className="flex-shrink-0 flex items-center rounded-full border transition-all overflow-hidden"
                   style={{
-                    backgroundColor: hidden ? 'var(--fill-quaternary)' : `${color}20`,
+                    borderColor: hidden ? 'var(--border-subtle)' : color,
                     color: hidden ? 'var(--label-tertiary)' : color,
+                    opacity: hidden ? 0.5 : 1,
                   }}
                 >
                   <button
