@@ -42,6 +42,7 @@ import {
   parseImageUrls, loadImageVisibility,
   loadHiddenWorkIds, saveHiddenWorkIds,
 } from '../lib/constants';
+import { getCached, setCached } from '../lib/swrCache';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
 import { haptic } from '../lib/haptics';
@@ -817,13 +818,35 @@ export default function Calendar() {
     });
   }, [workId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // いいね・投稿・削除などのローカル変更をタブ離脱時にキャッシュへ反映
+  const eventsCacheKeyRef = useRef<string | null>(null);
+  const eventsRef = useRef<CalendarEvent[]>([]);
+  eventsRef.current = events;
+  useEffect(() => () => {
+    if (eventsCacheKeyRef.current) setCached(eventsCacheKeyRef.current, eventsRef.current);
+  }, []);
+
   useEffect(() => {
     if (!workId) return;
-    setLoading(true);
-    setError('');
+    const key = `cal-events:${workId}:${year}-${month}`;
+    const cached = getCached<CalendarEvent[]>(key);
+    if (cached) {
+      // キャッシュを即表示し、裏で再取得して最新化
+      setEvents(cached);
+      eventsCacheKeyRef.current = key;
+      setLoading(false);
+      setError('');
+    } else {
+      setLoading(true);
+      setError('');
+    }
     listEvents(workId, year, month)
-      .then(setEvents)
-      .catch(() => setError('イベントの読み込みに失敗しました'))
+      .then(evts => {
+        setEvents(evts);
+        setCached(key, evts);
+        eventsCacheKeyRef.current = key;
+      })
+      .catch(() => { if (!getCached(key)) setError('イベントの読み込みに失敗しました'); })
       .finally(() => setLoading(false));
   }, [workId, year, month, location.key]);
 
@@ -848,26 +871,48 @@ export default function Calendar() {
   // MyCalendar: 参加中の作品リストを取得
   useEffect(() => {
     if (workId || !user) return;
+    const cached = getCached<Work[]>(`works:${user.id}`);
+    if (cached) setParticipatedWorks(cached);
     listRecentWorks(user.id).then(works => {
       setParticipatedWorks(works);
+      setCached(`works:${user.id}`, works);
     }).catch(console.error);
   }, [workId, user?.id]);
 
   // MyCalendar: 予約受付中イベント
-  const [preorderEvents, setPreorderEvents] = useState<CalendarEvent[]>([]);
+  const [preorderEvents, setPreorderEvents] = useState<CalendarEvent[]>(
+    () => (workId ? [] : getCached<CalendarEvent[]>('preorder-banner') ?? [])
+  );
   useEffect(() => {
     if (workId || participatedWorks.length === 0) { setPreorderEvents([]); return; }
-    listPreorderEvents(participatedWorks.map(w => w.id)).then(setPreorderEvents).catch(() => {});
+    listPreorderEvents(participatedWorks.map(w => w.id)).then(evts => {
+      setPreorderEvents(evts);
+      setCached('preorder-banner', evts);
+    }).catch(() => {});
   }, [workId, participatedWorks]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // MyCalendar: 参加中の全作品のイベントを取得
   useEffect(() => {
     if (workId || !user) return;
-    setLoading(true);
-    setError('');
+    const key = `mycal-events:${user.id}:${year}-${month}`;
+    const cached = getCached<CalendarEvent[]>(key);
+    if (cached) {
+      // キャッシュを即表示し、裏で再取得して最新化
+      setEvents(cached);
+      eventsCacheKeyRef.current = key;
+      setLoading(false);
+      setError('');
+    } else {
+      setLoading(true);
+      setError('');
+    }
     listAllParticipatedWorkEvents(user.id, year, month)
-      .then(setEvents)
-      .catch(() => setError('イベントの読み込みに失敗しました'))
+      .then(evts => {
+        setEvents(evts);
+        setCached(key, evts);
+        eventsCacheKeyRef.current = key;
+      })
+      .catch(() => { if (!getCached(key)) setError('イベントの読み込みに失敗しました'); })
       .finally(() => setLoading(false));
   }, [workId, user?.id, year, month, location.key]);
 

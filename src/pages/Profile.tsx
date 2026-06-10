@@ -12,6 +12,7 @@ import {
   listRecentWorks, countUserPostedEvents, getTotalReceivedLikes,
   countUserLikesGiven, countUserReactionsGiven, countUserEventsByCategory,
 } from '../lib/api';
+import { getCached, setCached } from '../lib/swrCache';
 
 const ANIMAL_AVATARS = [
   '🦊','🐱','🐼','🐻','🐰','🐨','🐯','🐶',
@@ -171,7 +172,7 @@ export default function Profile() {
 
   useEffect(() => {
     if (!user) return;
-    Promise.all([
+    const fetchAll = () => Promise.all([
       getDisplayName(user.id),
       getHomePrefecture(user.id),
       getXUrl(user.id),
@@ -183,7 +184,8 @@ export default function Profile() {
       countUserReactionsGiven(user.id),
       countUserEventsByCategory(user.id, '誕生日'),
       countUserEventsByCategory(user.id, 'コラボ'),
-    ]).then(([name, pref, x, emoji, posted, likes, works, likesGv, reactionsGv, birthday, collab]) => {
+    ]);
+    const apply = ([name, pref, x, emoji, posted, likes, works, likesGv, reactionsGv, birthday, collab]: Awaited<ReturnType<typeof fetchAll>>) => {
       setDisplayName(name);
       setHomePref(pref);
       setXUrl(x);
@@ -195,6 +197,13 @@ export default function Profile() {
       setReactionsGiven(reactionsGv);
       setBirthdayPosts(birthday);
       setCollabPosts(collab);
+    };
+    // キャッシュを即表示し、裏で再取得して最新化
+    const cached = getCached<Awaited<ReturnType<typeof fetchAll>>>(`profile:${user.id}`);
+    if (cached) apply(cached);
+    fetchAll().then(results => {
+      apply(results);
+      setCached(`profile:${user.id}`, results);
     }).catch(() => {});
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -9,6 +9,7 @@ import { useLikeAnimation } from '../hooks/useLikeAnimation';
 import {
   listPreorderEvents, listRecentWorks, addLikeTap, setReaction, type Work,
 } from '../lib/api';
+import { getCached, setCached } from '../lib/swrCache';
 import {
   POST_CATEGORIES,
   parseLinks, parseImageUrls, getCategoryColor,
@@ -92,11 +93,19 @@ export default function Preorders() {
 
   useEffect(() => {
     if (!user) return;
+    const cached = getCached<{ works: Work[]; evts: CalendarEvent[] }>(`preorders:${user.id}`);
+    if (cached) {
+      // キャッシュを即表示し、裏で再取得して最新化
+      setWorks(cached.works);
+      setEvents(cached.evts);
+      setLoading(false);
+    }
     listRecentWorks(user.id).then(ws => {
       setWorks(ws);
-      return listPreorderEvents(ws.map(w => w.id));
-    }).then(evts => {
-      setEvents(evts);
+      return listPreorderEvents(ws.map(w => w.id)).then(evts => {
+        setEvents(evts);
+        setCached(`preorders:${user.id}`, { works: ws, evts });
+      });
     }).catch(() => {}).finally(() => setLoading(false));
   }, [user?.id, locationKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -459,7 +468,7 @@ export default function Preorders() {
         <Header
           compact
           leftNode={
-            <div className="flex items-center">
+            <div className="flex items-center gap-2.5">
               <button onClick={() => navigate(-1)} className="w-9 h-9 flex items-center justify-center rounded-lg pressable" style={{ color: 'var(--accent-color)', backgroundColor: 'var(--fill-tertiary)' }}>
                 <ChevronLeft size={22} />
               </button>

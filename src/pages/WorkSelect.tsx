@@ -7,6 +7,7 @@ import { listWorks, searchWorks, getOrCreateWork, getWorkById, upsertParticipati
 import { useAuth } from '../contexts/AuthContext';
 import type { Work } from '../lib/api';
 import { POST_CATEGORIES, loadCategoryFilters, saveCategoryFilters, loadRegionFilter, saveRegionFilter, type FilterMode } from '../lib/constants';
+import { getCached, setCached } from '../lib/swrCache';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { PrefectureSearch } from '../components/UserSettingsSheet';
 import { useConfirm } from '../components/ui/ConfirmDialog';
@@ -137,17 +138,36 @@ export default function WorkSelect() {
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
+    const cached = getCached<Work[]>('popular-works');
+    if (cached) {
+      // キャッシュを即表示し、裏で再取得して最新化
+      setPopularWorks(cached);
+      setLoadingPopular(false);
+    }
     listWorks()
-      .then(setPopularWorks)
-      .catch(() => setError('作品の読み込みに失敗しました'))
+      .then(works => { setPopularWorks(works); setCached('popular-works', works); })
+      .catch(() => { if (!getCached('popular-works')) setError('作品の読み込みに失敗しました'); })
       .finally(() => setLoadingPopular(false));
   }, []);
 
   useEffect(() => {
     if (!user) return;
-    listRecentWorks(user.id).then(setRecentWorks).catch(console.error);
+    const cached = getCached<Work[]>(`works:${user.id}`);
+    if (cached) setRecentWorks(cached);
+    listRecentWorks(user.id).then(works => {
+      setRecentWorks(works);
+      setCached(`works:${user.id}`, works);
+    }).catch(console.error);
     getHomePrefecture(user.id).then(setHomePref).catch(() => {});
   }, [user?.id]);
+
+  // 参加・脱退によるローカル変更をキャッシュへ反映（カレンダーのチップが即追従）
+  useEffect(() => {
+    if (!user) return;
+    if (getCached(`works:${user.id}`) !== undefined || recentWorks.length > 0) {
+      setCached(`works:${user.id}`, recentWorks);
+    }
+  }, [recentWorks, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const q = query.trim();

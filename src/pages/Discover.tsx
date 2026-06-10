@@ -44,6 +44,7 @@ import { useToast } from '../components/ui/Toast';
 import { haptic } from '../lib/haptics';
 import EmptyState from '../components/ui/EmptyState';
 import { SkeletonList } from '../components/ui/Skeleton';
+import { getCached, setCached } from '../lib/swrCache';
 
 // ─── 定数 ──────────────────────────────────────────────────────────
 
@@ -190,16 +191,43 @@ export default function Discover() {
       ]);
       setEvents(evts);
       setParticipatedWorks(works);
+      setCached(`discover:${user.id}`, { evts, works });
       setError('');
     } catch {
-      setError('読み込めませんでした。下に引っぱって再読み込みできます');
+      // キャッシュ表示中はエラーバナーを出さない（裏の再取得失敗のみ）
+      if (!getCached(`discover:${user.id}`)) {
+        setError('読み込めませんでした。下に引っぱって再読み込みできます');
+      }
     }
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // いいね数・削除などのローカル変更をタブ離脱時にキャッシュへ反映
+  const eventsRef = useRef<CalendarEvent[]>([]);
+  const worksRef = useRef<Work[]>([]);
+  eventsRef.current = events;
+  worksRef.current = participatedWorks;
+  useEffect(() => {
+    if (!user) return;
+    return () => {
+      if (eventsRef.current.length || worksRef.current.length) {
+        setCached(`discover:${user.id}`, { evts: eventsRef.current, works: worksRef.current });
+      }
+    };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!user) return;
-    setLoading(true);
-    reload().finally(() => setLoading(false));
+    const cached = getCached<{ evts: CalendarEvent[]; works: Work[] }>(`discover:${user.id}`);
+    if (cached) {
+      // キャッシュを即表示し、裏で再取得して最新化（スケルトンなし）
+      setEvents(cached.evts);
+      setParticipatedWorks(cached.works);
+      setLoading(false);
+      reload();
+    } else {
+      setLoading(true);
+      reload().finally(() => setLoading(false));
+    }
   }, [user?.id, reload]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // プルトゥリフレッシュ（スクロール先頭で80px以上引っ張る・preventDefaultしない安全実装）
@@ -230,10 +258,15 @@ export default function Discover() {
   };
 
   // 予約受付中イベント
-  const [preorderEvents, setPreorderEvents] = useState<CalendarEvent[]>([]);
+  const [preorderEvents, setPreorderEvents] = useState<CalendarEvent[]>(
+    () => getCached<CalendarEvent[]>('preorder-banner') ?? []
+  );
   useEffect(() => {
     if (participatedWorks.length === 0) { setPreorderEvents([]); return; }
-    listPreorderEvents(participatedWorks.map(w => w.id)).then(setPreorderEvents).catch(() => {});
+    listPreorderEvents(participatedWorks.map(w => w.id)).then(evts => {
+      setPreorderEvents(evts);
+      setCached('preorder-banner', evts);
+    }).catch(() => {});
   }, [participatedWorks]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ハイライト対象イベントにスクロール
