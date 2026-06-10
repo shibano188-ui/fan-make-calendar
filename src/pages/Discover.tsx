@@ -367,23 +367,21 @@ export default function Discover() {
           compact
           leftNode={<span className="text-base font-semibold text-label-primary">発見</span>}
           rightAction={
-            <div className="flex items-center">
+            <div className="flex items-center gap-1">
               <button
                 onClick={() => setShowRegionPanel(true)}
                 aria-label="地域で絞り込む"
-                className="relative w-9 h-9 flex items-center justify-center rounded-lg pressable"
-                style={{ color: filterActive ? 'var(--accent-color)' : 'var(--label-secondary)', backgroundColor: 'var(--fill-tertiary)' }}
+                className="relative w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary active:opacity-60"
               >
-                <MapIcon size={17} />
-                {filterActive && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent-color)' }} />}
+                <MapIcon size={16} style={filterActive ? { color: 'var(--accent-color)' } : {}} />
+                {filterActive && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent-color)' }} />}
               </button>
               <button
                 onClick={() => navigate('/customize')}
                 aria-label="カスタマイズ"
-                className="w-9 h-9 flex items-center justify-center rounded-lg pressable"
-                style={{ color: 'var(--label-secondary)', backgroundColor: 'var(--fill-tertiary)' }}
+                className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary active:opacity-60"
               >
-                <Palette size={18} />
+                <Palette size={16} />
               </button>
               <SettingsMenuButton />
             </div>

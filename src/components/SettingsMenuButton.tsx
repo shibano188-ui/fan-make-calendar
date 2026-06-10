@@ -30,8 +30,7 @@ export default function SettingsMenuButton() {
     <>
       <button
         onClick={() => setShowSheet(true)}
-        className="w-9 h-9 flex items-center justify-center rounded-lg text-label-secondary pressable"
-        style={{ backgroundColor: 'var(--fill-tertiary)' }}
+        className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary active:opacity-60"
         aria-label="設定"
       >
         <MoreVertical size={16} />
