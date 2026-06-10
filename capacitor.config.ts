@@ -8,6 +8,11 @@ const config: CapacitorConfig = {
     androidScheme: 'https',
     url: 'https://fan-make-calendar.vercel.app',
   },
+  plugins: {
+    SplashScreen: {
+      backgroundColor: '#0e0e10',
+    },
+  },
 };
 
 export default config;

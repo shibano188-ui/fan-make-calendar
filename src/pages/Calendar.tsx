@@ -2937,7 +2937,7 @@ export default function Calendar() {
                                 if (imgs.length === 0) return null;
                                 if (imgs.length === 1) return (
                                   <div className="mt-2">
-                                    <img src={imgs[0]} alt="" loading="lazy"
+                                    <img src={imgs[0]} alt="" loading="lazy" decoding="async"
                                       className="rounded-lg block"
                                       style={{ maxHeight: 160, maxWidth: '100%', height: 'auto', width: 'auto' }} />
                                   </div>
@@ -2947,7 +2947,7 @@ export default function Calendar() {
                                     style={{ scrollSnapType: 'x mandatory' }}
                                     onTouchStart={e => e.stopPropagation()}>
                                     {imgs.map((src, i) => (
-                                      <img key={i} src={src} alt="" loading="lazy"
+                                      <img key={i} src={src} alt="" loading="lazy" decoding="async"
                                         className="rounded-lg flex-shrink-0 block"
                                         style={{ height: 100, width: 'auto', scrollSnapAlign: 'start' }} />
                                     ))}

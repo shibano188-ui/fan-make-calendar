@@ -285,7 +285,7 @@ export default function Preorders() {
               if (imgs.length === 0) return null;
               if (imgs.length === 1) return (
                 <div className="flex justify-center">
-                  <img src={imgs[0]} alt="" loading="lazy"
+                  <img src={imgs[0]} alt="" loading="lazy" decoding="async"
                     className="rounded-lg block"
                     style={{ maxHeight: 220, maxWidth: '100%', height: 'auto', width: 'auto' }} />
                 </div>
@@ -293,7 +293,7 @@ export default function Preorders() {
               return (
                 <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollSnapType: 'x mandatory' }}>
                   {imgs.map((src, i) => (
-                    <img key={i} src={src} alt="" loading="lazy"
+                    <img key={i} src={src} alt="" loading="lazy" decoding="async"
                       className="rounded-lg flex-shrink-0 block"
                       style={{ height: 130, width: 'auto', scrollSnapAlign: 'start' }} />
                   ))}
