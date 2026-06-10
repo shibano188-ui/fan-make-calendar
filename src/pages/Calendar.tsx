@@ -5,7 +5,7 @@ import UserProfileModal from '../components/UserProfileModal';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Palette, Plus, Heart, MoreVertical, Link2, LogOut, Trash2,
-  ChevronDown, ChevronUp, ChevronLeft, X, Settings, Map as MapIcon, ExternalLink, Smile, SlidersHorizontal, Pencil, Star, Share2, Inbox, Check,
+  ChevronDown, ChevronUp, ChevronLeft, ChevronRight, X, Settings, Map as MapIcon, ExternalLink, Smile, SlidersHorizontal, Pencil, Star, Share2, Inbox, Check, Clock,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
@@ -1757,9 +1757,9 @@ export default function Calendar() {
           compact
           leftNode={
             <div className="flex items-center gap-1">
-              <button onClick={prevMonth} aria-label="前の月" className="text-label-tertiary text-xl leading-none px-1 active:text-label-primary">‹</button>
+              <button onClick={prevMonth} aria-label="前の月" className="w-8 h-8 flex items-center justify-center rounded-lg pressable" style={{ color: 'var(--accent-color)' }}><ChevronLeft size={20} /></button>
               <span className="text-base font-bold text-label-primary">{year}年{month + 1}月</span>
-              <button onClick={nextMonth} aria-label="次の月" className="text-label-tertiary text-xl leading-none px-1 active:text-label-primary">›</button>
+              <button onClick={nextMonth} aria-label="次の月" className="w-8 h-8 flex items-center justify-center rounded-lg pressable" style={{ color: 'var(--accent-color)' }}><ChevronRight size={20} /></button>
             </div>
           }
           rightAction={
@@ -1835,12 +1835,13 @@ export default function Calendar() {
           return (
             <button
               onClick={() => navigate('/preorders')}
-              className="flex-shrink-0 flex items-center justify-between px-4 py-2 border-b active:opacity-70"
-              style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-secondary)' }}
+              className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 border-b active:opacity-70"
+              style={{ backgroundColor: 'color-mix(in srgb, var(--color-warning) 12%, transparent)', borderColor: 'var(--separator)' }}
             >
-              <div className="flex items-center gap-3">
+              <Clock size={14} style={{ color: 'var(--color-warning)', flexShrink: 0 }} />
+              <div className="flex items-center gap-2 flex-1 min-w-0">
                 {activeCount > 0 && (
-                  <span className="text-xs font-bold" style={{ color: 'var(--accent-color)' }}>
+                  <span className="text-xs font-semibold" style={{ color: 'var(--color-warning)' }}>
                     受付中 {activeCount}件
                   </span>
                 )}
@@ -1850,7 +1851,7 @@ export default function Calendar() {
                   </span>
                 )}
               </div>
-              <span className="text-xs text-label-tertiary">›</span>
+              <ChevronRight size={14} className="text-label-tertiary flex-shrink-0" />
             </button>
           );
         })()}
@@ -1941,7 +1942,7 @@ export default function Calendar() {
             <span className="text-white text-xs font-semibold flex-1 text-left">
               {eventQueue.length}件のストックがあります
             </span>
-            <span className="text-white/70 text-[10px]">確認する →</span>
+            <ChevronRight size={14} color="rgba(255,255,255,0.7)" />
           </button>
         )}
 
@@ -2124,7 +2125,7 @@ export default function Calendar() {
                   style={{ height: SHEET_COLLAPSED_H }}
                   onClick={() => { setSheetOpen(v => !v); setSheetDetailEvent(null); setOpenReactionPickerId(null); }}
                 >
-                  <div className="w-10 h-1 rounded-full mb-2" style={{ backgroundColor: 'var(--border-subtle)' }} />
+                  <div className="w-9 h-[5px] rounded-full mb-2" style={{ backgroundColor: 'var(--fill-primary)' }} />
                   <div className="w-full px-4 flex items-center justify-between">
                     <p className="text-label-primary text-sm font-semibold">{selectedDateLabel}</p>
                     <div className="flex items-center gap-2">
@@ -2132,7 +2133,8 @@ export default function Calendar() {
                       {sheetOpen && !postPanelOpen && !sheetDetailEvent && (
                         <button
                           onClick={e => { e.stopPropagation(); openPostForm(selectedDate); }}
-                          className="w-7 h-7 flex items-center justify-center rounded-full bg-label-primary text-bg-primary active:opacity-70"
+                          className="w-7 h-7 flex items-center justify-center rounded-full active:opacity-70 text-white"
+                          style={{ backgroundColor: 'var(--accent-color)' }}
                           aria-label="予定を追加"
                         >
                           <Plus size={15} strokeWidth={2.5} />
@@ -2296,7 +2298,7 @@ export default function Calendar() {
                           const timeLabel = formatTimeRange(event.time, event.endTime);
                           const catColor = getCategoryColor(event.category);
                           return (
-                            <div key={event.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
+                            <div key={event.id} className="w-full bg-bg-secondary rounded-[14px] overflow-hidden select-none"
                               style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(event.id) ? '3px solid #f59e0b' : undefined }}
                             >
                               {/* 1行目: タイトル */}
@@ -2308,18 +2310,18 @@ export default function Calendar() {
                                 {event.workId && participatedWorks.some(w => w.id === event.workId) && (
                                   <button
                                     onClick={e => { e.stopPropagation(); setPreorderEditEvent(event); }}
-                                    className="flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full border active:opacity-60"
-                                    style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-color)' }}
+                                    className="flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full active:opacity-60"
+                                    style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)', color: 'var(--accent-color)' }}
                                   >
-                                    予約情報+
+                                    ＋予約情報
                                   </button>
                                 )}
                               </div>
                               {/* 2行目: 予約 → カテゴリ → 地域 → ♥ → 😊 → 🔗 → > → × */}
                               <div className="flex items-center px-3 pb-2 gap-1">
-                                {event.isOrderMade && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#ef4444', color: '#fff' }}>予約</span>}
-                                {event.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.category}</span>}
-                                {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>}
+                                {event.isOrderMade && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--color-destructive)', color: '#fff' }}>予約</span>}
+                                {event.category && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">{event.category}</span>}
+                                {event.prefecture && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">{event.prefecture}</span>}
                                 <div className="flex-1" />
                                 <button
                                   onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); triggerLike(e.currentTarget); }}
@@ -2363,8 +2365,8 @@ export default function Calendar() {
                                     )}
                                     {links.length > 0 && (
                                       <a href={links[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                                        className="flex items-center gap-0.5 px-2 py-0.5 rounded-full border text-[10px] text-label-secondary active:opacity-60 flex-shrink-0"
-                                        style={{ borderColor: 'var(--border-default)' }}>
+                                        className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] text-label-secondary active:opacity-60 flex-shrink-0 bg-fill-3"
+                                        >
                                         <ExternalLink size={9} />{getDomain(links[0])}
                                       </a>
                                     )}
@@ -2400,7 +2402,7 @@ export default function Calendar() {
                           const timeLabel = formatTimeRange(event.time, event.endTime);
                           const catColor = getCategoryColor(event.category);
                           return (
-                            <div key={event.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
+                            <div key={event.id} className="w-full bg-bg-secondary rounded-[14px] overflow-hidden select-none"
                               style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(event.id) ? '3px solid #f59e0b' : undefined }}
                             >
                               {/* 1行目: タイトル */}
@@ -2412,10 +2414,10 @@ export default function Calendar() {
                                 {event.workId && participatedWorks.some(w => w.id === event.workId) && (
                                   <button
                                     onClick={e => { e.stopPropagation(); setPreorderEditEvent(event); }}
-                                    className="flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full border active:opacity-60"
-                                    style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-color)' }}
+                                    className="flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full active:opacity-60"
+                                    style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)', color: 'var(--accent-color)' }}
                                   >
-                                    予約情報+
+                                    ＋予約情報
                                   </button>
                                 )}
                               </div>
@@ -2425,8 +2427,8 @@ export default function Calendar() {
                                   style={{ color: workColorMap.get(event.workId ?? '') ?? 'var(--label-tertiary)', backgroundColor: `${workColorMap.get(event.workId ?? '') ?? '#888888'}20` }}>
                                   {event.workName}
                                 </span>}
-                                {event.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.category}</span>}
-                                {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{event.prefecture}</span>}
+                                {event.category && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">{event.category}</span>}
+                                {event.prefecture && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">{event.prefecture}</span>}
                                 <div className="flex-1" />
                                 <button
                                   onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); triggerLike(e.currentTarget); }}
@@ -2469,8 +2471,8 @@ export default function Calendar() {
                                     )}
                                     {links.length > 0 && (
                                       <a href={links[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                                        className="flex items-center gap-0.5 px-2 py-0.5 rounded-full border text-[10px] text-label-secondary active:opacity-60 flex-shrink-0"
-                                        style={{ borderColor: 'var(--border-default)' }}>
+                                        className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] text-label-secondary active:opacity-60 flex-shrink-0 bg-fill-3"
+                                        >
                                         <ExternalLink size={9} />{getDomain(links[0])}
                                       </a>
                                     )}
@@ -2499,7 +2501,7 @@ export default function Calendar() {
                           const timeLabel = formatTimeRange(pe.time, pe.endTime);
                           const catColor = getCategoryColor(pe.category);
                           return (
-                            <div key={pe.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
+                            <div key={pe.id} className="w-full bg-bg-secondary rounded-[14px] overflow-hidden select-none"
                               style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(pe.id) ? '3px solid #f59e0b' : undefined }}
                             >
                               {/* 1行目: タイトル + 🔔⭐ */}
@@ -2511,9 +2513,9 @@ export default function Calendar() {
                               </div>
                               {/* 2行目: 個人 → カテゴリ → 地域 → × */}
                               <div className="flex items-center px-3 pb-2 gap-1">
-                                <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">個人</span>
-                                {pe.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.category}</span>}
-                                {pe.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{pe.prefecture}</span>}
+                                <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">個人</span>
+                                {pe.category && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">{pe.category}</span>}
+                                {pe.prefecture && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">{pe.prefecture}</span>}
                                 <div className="flex-1" />
                                 <button onClick={() => openEditPersonalEvent(pe)} className="w-9 h-9 flex items-center justify-center text-label-tertiary active:opacity-60">
                                   <Pencil size={15} />
@@ -2535,8 +2537,8 @@ export default function Calendar() {
                                 return (
                                   <div className="flex items-center gap-1.5 px-3 pb-2 -mt-1 flex-wrap">
                                     <a href={links[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                                      className="flex items-center gap-0.5 px-2 py-0.5 rounded-full border text-[10px] text-label-secondary active:opacity-60"
-                                      style={{ borderColor: 'var(--border-default)' }}>
+                                      className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] text-label-secondary active:opacity-60 bg-fill-3"
+                                      >
                                       <ExternalLink size={9} />{getDomain(links[0])}
                                     </a>
                                     {links.length > 1 && <span className="text-[10px] text-label-tertiary">+{links.length - 1}</span>}
@@ -2726,7 +2728,7 @@ export default function Calendar() {
                     const [, lpsm, lpsd] = event.preorderStart ? event.preorderStart.split('-').map(Number) : [0, 0, 0];
                     const [, lpem, lped] = event.preorderEnd ? event.preorderEnd.split('-').map(Number) : [0, 0, 0];
                     return (
-                      <div key={event.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
+                      <div key={event.id} className="w-full bg-bg-secondary rounded-[14px] overflow-hidden select-none"
                         style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(event.id) ? '3px solid #f59e0b' : undefined }}
                       >
                         {/* 上段: 日付＋タイトル */}
@@ -2773,7 +2775,7 @@ export default function Calendar() {
                             <div className="w-px self-stretch bg-white/10 flex-shrink-0" />
                             <div className="flex-1 min-w-0">
                               <p className="text-label-primary text-sm font-medium leading-snug">{event.title}</p>
-                              {event.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5 mt-2 inline-block">{event.prefecture}</span>}
+                              {event.prefecture && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5 mt-2 inline-block">{event.prefecture}</span>}
                               {(() => {
                                 const links = parseLinks(event.link);
                                 const hasLink = links.length > 0;
@@ -2788,8 +2790,8 @@ export default function Calendar() {
                                     )}
                                     {hasLink && (
                                       <a href={links[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                                        className="flex items-center gap-0.5 px-2 py-0.5 rounded-full border text-[10px] text-label-secondary active:opacity-60"
-                                        style={{ borderColor: 'var(--border-default)' }}>
+                                        className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] text-label-secondary active:opacity-60 bg-fill-3"
+                                        >
                                         <ExternalLink size={9} />{getDomain(links[0])}
                                       </a>
                                     )}
@@ -2802,10 +2804,10 @@ export default function Calendar() {
                           {event.workId && participatedWorks.some(w => w.id === event.workId) && (
                             <button
                               onClick={e => { e.stopPropagation(); setPreorderEditEvent(event); }}
-                              className="flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full border active:opacity-60 self-start mt-1"
-                              style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-color)' }}
+                              className="flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full active:opacity-60 self-start mt-1"
+                              style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)', color: 'var(--accent-color)' }}
                             >
-                              予約情報+
+                              ＋予約情報
                             </button>
                           )}
                         </div>
@@ -2862,7 +2864,7 @@ export default function Calendar() {
                     const [, ipsm, ipsd] = item.preorderStart ? item.preorderStart.split('-').map(Number) : [0, 0, 0];
                     const [, ipem, iped] = item.preorderEnd ? item.preorderEnd.split('-').map(Number) : [0, 0, 0];
                     return (
-                      <div key={item.id} className="w-full bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
+                      <div key={item.id} className="w-full bg-bg-secondary rounded-[14px] overflow-hidden select-none"
                         style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(item.id) ? '3px solid #f59e0b' : undefined }}
                       >
                         {/* 上段: 日付＋タイトル */}
@@ -2952,9 +2954,9 @@ export default function Calendar() {
                                       {item.tag}
                                     </span>
                                   )}
-                                  {item.isPersonal && item.tag && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.tag}</span>}
-                                  {item.category && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.category}</span>}
-                                  {item.prefecture && <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">{item.prefecture}</span>}
+                                  {item.isPersonal && item.tag && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">{item.tag}</span>}
+                                  {item.category && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">{item.category}</span>}
+                                  {item.prefecture && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">{item.prefecture}</span>}
                                 </div>
                               )}
                               {(() => {
@@ -2971,8 +2973,8 @@ export default function Calendar() {
                                     )}
                                     {hasLink && (
                                       <a href={links[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                                        className="flex items-center gap-0.5 px-2 py-0.5 rounded-full border text-[10px] text-label-secondary active:opacity-60"
-                                        style={{ borderColor: 'var(--border-default)' }}>
+                                        className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] text-label-secondary active:opacity-60 bg-fill-3"
+                                        >
                                         <ExternalLink size={9} />{getDomain(links[0])}
                                       </a>
                                     )}
@@ -2990,10 +2992,10 @@ export default function Calendar() {
                                 const evt = visibleEvents.find(e => e.id === item.id);
                                 if (evt) setPreorderEditEvent(evt);
                               }}
-                              className="flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full border active:opacity-60 self-start mt-1"
-                              style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-color)' }}
+                              className="flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full active:opacity-60 self-start mt-1"
+                              style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)', color: 'var(--accent-color)' }}
                             >
-                              予約情報+
+                              ＋予約情報
                             </button>
                           )}
                         </div>
@@ -3062,7 +3064,8 @@ export default function Calendar() {
             if (postPanelOpen) { closePostForm(); }
             else { openPostForm(selectedDate); }
           }}
-          className="fixed bottom-[72px] right-4 w-[52px] h-[52px] bg-label-primary text-bg-primary rounded-full flex items-center justify-center shadow-xl z-40 active:opacity-80"
+          className="fixed bottom-[72px] right-4 w-14 h-14 rounded-full flex items-center justify-center shadow-xl z-40 active:opacity-80 text-white"
+          style={{ backgroundColor: 'var(--accent-color)' }}
           aria-label={postPanelOpen ? '閉じる' : '予定を追加'}
         >
           <div style={{ transition: 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)', transform: postPanelOpen ? 'rotate(45deg)' : 'rotate(0deg)' }}>
@@ -3076,7 +3079,8 @@ export default function Calendar() {
         <>
           <div className="fixed inset-0 z-[310]" onClick={() => setOpenReactionPickerId(null)} />
           <div className="fixed inset-x-0 max-w-app mx-auto z-[320]" style={{ bottom: BOTTOM_TAB_H + 8 }}>
-            <div className="mx-4 bg-bg-primary rounded-2xl border border-subtle shadow-xl p-3 grid grid-cols-3 gap-1">
+            <div className="mx-4 bg-bg-primary rounded-[18px] shadow-xl p-3 grid grid-cols-3 gap-1"
+              style={{ animation: 'slideUpIn 0.25s cubic-bezier(0.32, 0.72, 0, 1) both' }}>
               {REACTIONS.map(r => (
                 <button
                   key={r.type}
@@ -3097,7 +3101,8 @@ export default function Calendar() {
         <>
           <div className="fixed inset-0 z-[310]" onClick={() => setLinkPickerLinks(null)} />
           <div className="fixed inset-x-0 max-w-app mx-auto z-[320]" style={{ bottom: BOTTOM_TAB_H + 8 }}>
-            <div className="mx-4 bg-bg-primary rounded-2xl border border-subtle shadow-xl overflow-hidden">
+            <div className="mx-4 bg-bg-primary rounded-[18px] shadow-xl overflow-hidden"
+              style={{ animation: 'slideUpIn 0.25s cubic-bezier(0.32, 0.72, 0, 1) both' }}>
               <p className="text-label-tertiary text-xs px-4 pt-3 pb-2">リンクを選択</p>
               {linkPickerLinks.map((url, i) => (
                 <a key={i} href={url} target="_blank" rel="noopener noreferrer"
@@ -3117,7 +3122,7 @@ export default function Calendar() {
       {/* 予定追加フォームパネル（絶対配置スクロール方式） */}
       {postPanelOpen && (
         <div
-          className="fixed inset-x-0 max-w-app mx-auto z-[160] rounded-t-2xl overflow-hidden"
+          className="fixed inset-x-0 max-w-app mx-auto z-[160] rounded-t-[18px] overflow-hidden"
           style={{
             bottom: BOTTOM_TAB_H,
             height: 380,
@@ -3128,17 +3133,17 @@ export default function Calendar() {
         >
           {/* ヘッダー：絶対配置でtop固定 */}
           <div
-            className="absolute inset-x-0 top-0 z-10 rounded-t-2xl"
+            className="absolute inset-x-0 top-0 z-10 rounded-t-[18px]"
             style={{ backgroundColor: 'var(--bg-primary)' }}
           >
             <div className="flex justify-center pt-3 pb-1">
-              <div className="w-10 h-1 rounded-full" style={{ backgroundColor: 'var(--border-subtle)' }} />
+              <div className="w-9 h-[5px] rounded-full" style={{ backgroundColor: 'var(--fill-primary)' }} />
             </div>
             <div className="px-4 pb-2 flex items-center justify-between">
               <p className="text-label-secondary text-xs">予定を追加</p>
               <div className="flex items-center gap-2">
                 <button onClick={closePostForm} className="text-xs text-label-tertiary px-3 py-1.5 rounded-lg active:opacity-60">キャンセル</button>
-                <button onClick={() => void handlePostSubmit()} disabled={postSubmitting || !!duplicateWarning} className="text-xs font-semibold text-bg-primary bg-label-primary px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40">
+                <button onClick={() => void handlePostSubmit()} disabled={postSubmitting || !!duplicateWarning} className="text-xs font-semibold text-white px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40" style={{ backgroundColor: 'var(--accent-color)' }}>
                   {postSubmitting ? '送信中…' : workId && user ? '投稿' : '保存'}
                 </button>
               </div>
@@ -3212,7 +3217,7 @@ export default function Calendar() {
         <>
           <div className="fixed inset-0 z-[159] bg-black/40" onClick={() => { setEditEventId(null); setEditForm(null); }} />
           <div
-            className="fixed inset-x-0 max-w-app mx-auto z-[160] rounded-t-2xl overflow-hidden"
+            className="fixed inset-x-0 max-w-app mx-auto z-[160] rounded-t-[18px] overflow-hidden"
             style={{
               bottom: BOTTOM_TAB_H,
               height: 380,
@@ -3222,17 +3227,17 @@ export default function Calendar() {
           >
             {/* ヘッダー */}
             <div
-              className="absolute inset-x-0 top-0 z-10 rounded-t-2xl"
+              className="absolute inset-x-0 top-0 z-10 rounded-t-[18px]"
               style={{ backgroundColor: 'var(--bg-primary)' }}
             >
               <div className="flex justify-center pt-3 pb-1">
-                <div className="w-10 h-1 rounded-full" style={{ backgroundColor: 'var(--border-subtle)' }} />
+                <div className="w-9 h-[5px] rounded-full" style={{ backgroundColor: 'var(--fill-primary)' }} />
               </div>
               <div className="px-4 pb-2 flex items-center justify-between">
                 <p className="text-label-secondary text-xs">予定を編集</p>
                 <div className="flex items-center gap-2">
                   <button onClick={() => { setEditEventId(null); setEditForm(null); }} className="text-xs text-label-tertiary px-3 py-1.5 rounded-lg active:opacity-60">キャンセル</button>
-                  <button onClick={handleEditSubmit} disabled={editSubmitting} className="text-xs font-semibold text-bg-primary bg-label-primary px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40">
+                  <button onClick={handleEditSubmit} disabled={editSubmitting} className="text-xs font-semibold text-white px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40" style={{ backgroundColor: 'var(--accent-color)' }}>
                     {editSubmitting ? '更新中…' : '保存'}
                   </button>
                 </div>
