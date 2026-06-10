@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { showBanner, hideBanner } from '../lib/admob';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
@@ -180,18 +180,53 @@ export default function Discover() {
     return () => { cancelAnimationFrame(raf); hideBanner(); };
   }, []);
 
+  const reload = useCallback(async () => {
+    if (!user) return;
+    try {
+      const [evts, works] = await Promise.all([
+        listUpcomingParticipatedEvents(user.id),
+        listRecentWorks(user.id),
+      ]);
+      setEvents(evts);
+      setParticipatedWorks(works);
+      setError('');
+    } catch {
+      setError('読み込めませんでした。下に引っぱって再読み込みできます');
+    }
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!user) return;
     setLoading(true);
-    Promise.all([
-      listUpcomingParticipatedEvents(user.id),
-      listRecentWorks(user.id),
-    ]).then(([evts, works]) => {
-      setEvents(evts);
-      setParticipatedWorks(works);
-    }).catch(() => setError('データの読み込みに失敗しました'))
-      .finally(() => setLoading(false));
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    reload().finally(() => setLoading(false));
+  }, [user?.id, reload]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // プルトゥリフレッシュ（スクロール先頭で80px以上引っ張る・preventDefaultしない安全実装）
+  const [refreshing, setRefreshing] = useState(false);
+  const feedRef = useRef<HTMLDivElement>(null);
+  const pullStartY = useRef<number | null>(null);
+  const onFeedTouchStart = (e: React.TouchEvent) => {
+    pullStartY.current = (feedRef.current?.scrollTop ?? 1) <= 0 ? e.touches[0].clientY : null;
+  };
+  const onFeedTouchEnd = async (e: React.TouchEvent) => {
+    if (pullStartY.current === null || refreshing) return;
+    const pulled = e.changedTouches[0].clientY - pullStartY.current;
+    pullStartY.current = null;
+    if (pulled < 80 || (feedRef.current?.scrollTop ?? 1) > 0) return;
+    setRefreshing(true);
+    await reload();
+    setRefreshing(false);
+  };
+
+  // スクロール位置の保持（タブを離れて戻っても同じ場所から）
+  useEffect(() => {
+    if (loading) return;
+    const saved = sessionStorage.getItem('discover_scroll');
+    if (saved) feedRef.current?.scrollTo({ top: parseInt(saved, 10) });
+  }, [loading]);
+  const onFeedScroll = () => {
+    sessionStorage.setItem('discover_scroll', String(feedRef.current?.scrollTop ?? 0));
+  };
 
   // 予約受付中イベント
   const [preorderEvents, setPreorderEvents] = useState<CalendarEvent[]>([]);
@@ -455,7 +490,8 @@ export default function Discover() {
                   </button>
                   <button
                     onClick={e => { e.stopPropagation(); setFilterPickerWorkId(w.id); }}
-                    className="pr-2.5 py-1.5 pressable"
+                    aria-label={`${w.name} のカテゴリで絞り込む`}
+                    className="pr-2.5 py-1.5 pressable tap-44"
                     style={{ color: hasCatFilter ? color : 'var(--label-tertiary)' }}
                   >
                     <SlidersHorizontal size={12} strokeWidth={hasCatFilter ? 2.5 : 1.5} />
@@ -480,11 +516,16 @@ export default function Discover() {
 
 
         {/* フィード */}
-        <div className="flex-1 overflow-y-auto px-4 pt-3 pb-6">
+        <div ref={feedRef} onScroll={onFeedScroll} onTouchStart={onFeedTouchStart} onTouchEnd={onFeedTouchEnd} className="flex-1 overflow-y-auto px-4 pt-3 pb-6">
+          {refreshing && (
+            <div className="flex justify-center py-2">
+              <div className="w-5 h-5 rounded-full border-2 animate-spin" style={{ borderColor: 'var(--fill-primary)', borderTopColor: 'var(--accent-text)' }} />
+            </div>
+          )}
           {loading ? (
             <SkeletonList count={3} tall />
           ) : error ? (
-            <p className="text-center text-red-400 text-sm py-10">{error}</p>
+            <p className="text-center text-sm py-10" style={{ color: 'var(--color-destructive)' }}>{error}</p>
           ) : !user ? (
             <p className="text-center text-label-tertiary text-sm py-10">ログインが必要です</p>
           ) : visibleEvents.length === 0 ? (
@@ -707,12 +748,14 @@ export default function Discover() {
 
                       {/* カレンダー状態ボタン */}
                       {isInCalendar ? (
-                        <span
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs text-label-tertiary"
+                        <button
+                          onClick={() => navigate('/calendar')}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs text-label-tertiary pressable"
                           style={{ backgroundColor: 'var(--fill-tertiary)' }}
+                          aria-label="カレンダーで見る"
                         >
                           追加済み
-                        </span>
+                        </button>
                       ) : showReAdd ? (
                         <button
                           onClick={() => handleReAddToCalendar(event.id)}

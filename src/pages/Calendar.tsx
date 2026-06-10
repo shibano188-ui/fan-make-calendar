@@ -283,7 +283,7 @@ function InlineCardItem({
           </div>
           <div>
             <label className="text-label-tertiary text-xs mb-1.5 block">タイトル <span className="text-red-400">*</span></label>
-            <input type="text" value={card.title} onChange={e => onChange({ title: e.target.value })} placeholder="例：単行本 第15巻 発売" className={inputCls} />
+            <input type="text" value={card.title} onChange={e => onChange({ title: e.target.value })} placeholder="例：単行本 第15巻 発売" enterKeyHint="next" className={inputCls} />
           </div>
 
           <div className="flex flex-col gap-2">
@@ -1764,9 +1764,9 @@ export default function Calendar() {
           compact
           leftNode={
             <div className="flex items-center gap-1">
-              <button onClick={prevMonth} aria-label="前の月" className="w-8 h-8 flex items-center justify-center rounded-lg pressable" style={{ color: 'var(--accent-color)' }}><ChevronLeft size={20} /></button>
-              <span className="text-base font-bold text-label-primary">{year}年{month + 1}月</span>
-              <button onClick={nextMonth} aria-label="次の月" className="w-8 h-8 flex items-center justify-center rounded-lg pressable" style={{ color: 'var(--accent-color)' }}><ChevronRight size={20} /></button>
+              <button onClick={prevMonth} aria-label="前の月" className="w-8 h-8 flex items-center justify-center rounded-lg pressable tap-44" style={{ color: 'var(--accent-color)' }}><ChevronLeft size={20} /></button>
+              <button onClick={() => { const t = new Date(); setYear(t.getFullYear()); setMonth(t.getMonth()); }} aria-label="今月へ戻る" className="text-base font-bold text-label-primary pressable">{year}年{month + 1}月</button>
+              <button onClick={nextMonth} aria-label="次の月" className="w-8 h-8 flex items-center justify-center rounded-lg pressable tap-44" style={{ color: 'var(--accent-color)' }}><ChevronRight size={20} /></button>
             </div>
           }
           rightAction={
@@ -1895,7 +1895,8 @@ export default function Calendar() {
                   </button>
                   <button
                     onClick={e => { e.stopPropagation(); setFilterPickerWorkId(w.id); }}
-                    className="pr-2.5 py-1 active:opacity-70"
+                    aria-label={`${w.name} のカテゴリで絞り込む`}
+                    className="pr-2.5 py-1 active:opacity-70 tap-44"
                     style={{ color: hasCatFilter ? color : 'var(--label-tertiary)' }}
                   >
                     <SlidersHorizontal size={11} strokeWidth={hasCatFilter ? 2.5 : 1.5} />
@@ -3260,7 +3261,7 @@ export default function Calendar() {
                 {/* タイトル */}
                 <div>
                   <label className="text-label-tertiary text-xs mb-1.5 block">タイトル <span className="text-red-400">*</span></label>
-                  <input type="text" value={editForm.title ?? ''} onChange={e => setEditForm(f => ({ ...f!, title: e.target.value }))} placeholder="タイトル" className={inputCls} />
+                  <input type="text" value={editForm.title ?? ''} onChange={e => setEditForm(f => ({ ...f!, title: e.target.value }))} placeholder="タイトル" enterKeyHint="next" className={inputCls} />
                 </div>
                 {/* 日時 */}
                 <div className="flex flex-col gap-2">
