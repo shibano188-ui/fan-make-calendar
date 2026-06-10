@@ -159,6 +159,16 @@ export function toggleImportantEventId(id: string): Set<string> {
   return new Set(set);
 }
 
+// ─── 作品表示ON/OFF（hiddenWorkIds）永続化 ─────────────────────────────
+const HIDDEN_WORK_IDS_KEY = 'fan_hidden_work_ids';
+export function loadHiddenWorkIds(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_WORK_IDS_KEY) ?? '[]') as string[]); }
+  catch { return new Set(); }
+}
+export function saveHiddenWorkIds(ids: Set<string>): void {
+  localStorage.setItem(HIDDEN_WORK_IDS_KEY, JSON.stringify([...ids]));
+}
+
 // ─── 地域フィルター: Calendar ↔ Discover 間で共有 ─────────────────────
 const REGION_FILTER_KEY = 'fan_region_filter';
 export type FilterMode = 'none' | 'pref' | 'region';

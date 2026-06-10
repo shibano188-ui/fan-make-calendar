@@ -40,6 +40,7 @@ import {
   incrementTotalLikesGiven,
   loadEventQueue, removeFromEventQueue, type QueuedEvent,
   parseImageUrls, loadImageVisibility,
+  loadHiddenWorkIds, saveHiddenWorkIds,
 } from '../lib/constants';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
@@ -665,7 +666,7 @@ export default function Calendar() {
   const [showUserSettings, setShowUserSettings] = useState(false);
 
   const [participatedWorks, setParticipatedWorks] = useState<Work[]>([]);
-  const [hiddenWorkIds, setHiddenWorkIds] = useState<Set<string>>(new Set());
+  const [hiddenWorkIds, setHiddenWorkIds] = useState<Set<string>>(loadHiddenWorkIds);
   const [categoryFilters, setCategoryFilters] = useState<Record<string, string[]>>(loadCategoryFilters);
   const [filterPickerWorkId, setFilterPickerWorkId] = useState<string | null>(null);
 
@@ -902,6 +903,7 @@ export default function Calendar() {
       const next = new Set(prev);
       if (next.has(wId)) next.delete(wId);
       else next.add(wId);
+      saveHiddenWorkIds(next);
       return next;
     });
 

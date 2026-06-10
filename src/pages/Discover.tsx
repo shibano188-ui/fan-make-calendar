@@ -33,6 +33,7 @@ import {
   parseImageUrls,
   parseLinks,
   loadImageVisibility,
+  loadHiddenWorkIds, saveHiddenWorkIds,
 } from '../lib/constants';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { PrefectureSearch } from '../components/UserSettingsSheet';
@@ -96,7 +97,7 @@ export default function Discover() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [participatedWorks, setParticipatedWorks] = useState<Work[]>([]);
-  const [hiddenWorkIds, setHiddenWorkIds] = useState<Set<string>>(new Set());
+  const [hiddenWorkIds, setHiddenWorkIds] = useState<Set<string>>(loadHiddenWorkIds);
   const [categoryFilters, setCategoryFilters] = useState<Record<string, string[]>>(loadCategoryFilters);
   const [filterPickerWorkId, setFilterPickerWorkId] = useState<string | null>(null);
 
@@ -332,6 +333,7 @@ export default function Discover() {
     setHiddenWorkIds(prev => {
       const next = new Set(prev);
       if (next.has(wId)) next.delete(wId); else next.add(wId);
+      saveHiddenWorkIds(next);
       return next;
     });
 
