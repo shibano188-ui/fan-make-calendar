@@ -6,7 +6,7 @@ import UserProfileModal from '../components/UserProfileModal';
 import MemoText from '../components/MemoText';
 import {
   Heart, Smile, Trash2, SlidersHorizontal, ExternalLink, Plus,
-  Map as MapIcon, Palette,
+  Map as MapIcon, Palette, Clock, ChevronRight,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
@@ -365,23 +365,25 @@ export default function Discover() {
       >
         <Header
           compact
-          leftNode={<span className="text-base font-bold text-label-primary">みんなの投稿した予定</span>}
+          leftNode={<span className="text-base font-semibold text-label-primary">発見</span>}
           rightAction={
-            <div className="flex items-center gap-1">
+            <div className="flex items-center">
               <button
                 onClick={() => setShowRegionPanel(true)}
                 aria-label="地域で絞り込む"
-                className="relative w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary active:opacity-60"
+                className="relative w-11 h-11 flex items-center justify-center rounded-full pressable"
+                style={{ color: filterActive ? 'var(--accent-color)' : 'var(--label-secondary)' }}
               >
-                <MapIcon size={16} style={filterActive ? { color: 'var(--accent-color)' } : {}} />
-                {filterActive && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent-color)' }} />}
+                <MapIcon size={18} />
+                {filterActive && <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent-color)' }} />}
               </button>
               <button
                 onClick={() => navigate('/customize')}
                 aria-label="カスタマイズ"
-                className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary active:opacity-60"
+                className="w-11 h-11 flex items-center justify-center rounded-full pressable"
+                style={{ color: 'var(--label-secondary)' }}
               >
-                <Palette size={16} />
+                <Palette size={18} />
               </button>
               <SettingsMenuButton />
             </div>
@@ -400,32 +402,30 @@ export default function Discover() {
           return (
             <button
               onClick={() => navigate('/preorders')}
-              className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b active:opacity-70"
-              style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-secondary)' }}
+              className="flex-shrink-0 flex items-center gap-3 mx-4 mb-2 px-4 py-3 rounded-[14px] pressable"
+              style={{ backgroundColor: 'color-mix(in srgb, var(--color-warning) 12%, transparent)' }}
             >
-              <div className="flex items-center gap-3">
+              <Clock size={16} style={{ color: 'var(--color-warning)', flexShrink: 0 }} />
+              <div className="flex items-center gap-2 flex-1 min-w-0">
                 {activeCount > 0 && (
-                  <span className="text-xs font-bold" style={{ color: 'var(--accent-color)' }}>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--color-warning)' }}>
                     受付中 {activeCount}件
                   </span>
                 )}
                 {upcomingCount > 0 && (
-                  <span className="text-xs text-label-secondary">
+                  <span className="text-sm text-label-secondary">
                     予約開始予定 {upcomingCount}件
                   </span>
                 )}
               </div>
-              <span className="text-xs text-label-tertiary">›</span>
+              <ChevronRight size={16} className="text-label-tertiary flex-shrink-0" />
             </button>
           );
         })()}
 
         {/* 作品チップ */}
         {participatedWorks.length > 0 && (
-          <div
-            className="flex-shrink-0 flex items-center gap-2 px-4 py-4 overflow-x-auto border-b"
-            style={{ borderColor: 'var(--border-subtle)' }}
-          >
+          <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 overflow-x-auto">
             {participatedWorks.map((w, i) => {
               const hidden = hiddenWorkIds.has(w.id);
               const color = workColorMap.get(w.id) ?? WORK_COLORS[i % WORK_COLORS.length];
@@ -433,26 +433,25 @@ export default function Discover() {
               return (
                 <div
                   key={w.id}
-                  className="flex-shrink-0 flex items-center rounded-full border transition-all overflow-hidden"
+                  className="flex-shrink-0 flex items-center rounded-full overflow-hidden transition-all"
                   style={{
-                    borderColor: hidden ? 'var(--border-subtle)' : color,
+                    backgroundColor: hidden ? 'var(--fill-quaternary)' : `${color}20`,
                     color: hidden ? 'var(--label-tertiary)' : color,
-                    opacity: hidden ? 0.5 : 1,
                   }}
                 >
                   <button
                     onClick={() => toggleWork(w.id)}
-                    className="flex items-center gap-1.5 text-xs pl-3 pr-2 py-1 active:opacity-70"
+                    className="flex items-center gap-1.5 text-[13px] pl-3 pr-2 py-1.5 pressable"
                   >
                     <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: hidden ? 'var(--label-tertiary)' : color }} />
                     {w.name}
                   </button>
                   <button
                     onClick={e => { e.stopPropagation(); setFilterPickerWorkId(w.id); }}
-                    className="pr-2.5 py-1 active:opacity-70"
+                    className="pr-2.5 py-1.5 pressable"
                     style={{ color: hasCatFilter ? color : 'var(--label-tertiary)' }}
                   >
-                    <SlidersHorizontal size={11} strokeWidth={hasCatFilter ? 2.5 : 1.5} />
+                    <SlidersHorizontal size={12} strokeWidth={hasCatFilter ? 2.5 : 1.5} />
                   </button>
                 </div>
               );
@@ -462,12 +461,12 @@ export default function Discover() {
 
         {/* 地域フィルターインジケーター */}
         {filterActive && (
-          <div className="flex-shrink-0 flex items-center gap-2 px-4 py-1.5 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
+          <div className="flex-shrink-0 flex items-center gap-2 px-4 py-1.5">
             <span className="text-[11px] text-label-tertiary">絞り込み：</span>
-            <span className="text-[11px] px-2 py-0.5 rounded-full border" style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-color)' }}>{filterLabel}</span>
+            <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)', color: 'var(--accent-color)' }}>{filterLabel}</span>
             <button
               onClick={() => { setFilterMode('none'); setFilterValue(null); setIncludeAdjacent(false); saveRegionFilter({ filterMode: 'none', filterValue: null, includeAdjacent: false }); }}
-              className="text-[11px] text-label-tertiary underline active:opacity-60"
+              className="text-[11px] text-label-tertiary pressable"
             >解除</button>
           </div>
         )}
@@ -514,17 +513,16 @@ export default function Discover() {
                   <div
                     key={event.id}
                     id={`discover-event-${event.id}`}
-                    className="bg-bg-secondary rounded-xl overflow-hidden select-none shadow-card"
+                    className="bg-bg-secondary rounded-[14px] overflow-hidden select-none"
                     style={{
                       borderLeft: catColor ? `3px solid ${catColor}` : undefined,
-                      transition: 'box-shadow 0.4s',
-                      boxShadow: highlightedId === event.id ? '0 0 0 2px var(--accent-color)' : undefined,
+                      outline: highlightedId === event.id ? '2px solid var(--accent-color)' : undefined,
                     }}
                   >
                     {/* コンテンツ部分（左に日付列） */}
                     <div className="flex items-stretch px-4 pt-4 gap-3">
                       {/* 日付（左） */}
-                      <div className="flex-shrink-0 w-10 flex flex-col items-center pt-0.5">
+                      <div className="flex-shrink-0 w-12 flex flex-col items-center pt-0.5">
                         {hasPreorderData ? (
                           <>
                             <span className="text-[10px] text-label-tertiary leading-none">予約</span>
@@ -555,7 +553,7 @@ export default function Discover() {
                           </>
                         ) : isOngoing ? (
                           <>
-                            <span className="text-[9px] font-bold leading-none" style={{ color: 'var(--accent-color)' }}>開催中</span>
+                            <span className="text-[11px] font-bold leading-none" style={{ color: 'var(--color-success)' }}>開催中</span>
                             <span className="text-[11px] font-bold text-label-secondary leading-snug mt-1">〜{endM}/{endD}</span>
                           </>
                         ) : hasPeriod ? (
@@ -579,7 +577,7 @@ export default function Discover() {
                           </>
                         )}
                       </div>
-                      <div className="w-px self-stretch bg-white/10 flex-shrink-0" />
+                      <div className="w-px self-stretch flex-shrink-0" style={{ backgroundColor: 'var(--separator)' }} />
                       {/* 元のコンテンツ（右） */}
                       <div className="flex-1 min-w-0 flex flex-col gap-2 pb-3">
                         {/* バッジ行 + 予約情報ボタン */}
@@ -587,23 +585,23 @@ export default function Discover() {
                           {(event.isOrderMade || event.workName || event.category || event.prefecture) && (
                           <div className="flex items-center gap-1.5 flex-wrap flex-1">
                             {event.isOrderMade && (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#ef4444', color: '#fff' }}>
+                              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--color-destructive)', color: '#fff' }}>
                                 予約
                               </span>
                             )}
                             {event.workName && (
-                              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+                              <span className="text-[11px] font-medium px-2 py-0.5 rounded-full"
                                 style={{ color, backgroundColor: `${color}20` }}>
                                 {event.workName}
                               </span>
                             )}
                             {event.category && (
-                              <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">
+                              <span className="text-[11px] text-label-secondary rounded-full px-2 py-0.5" style={{ backgroundColor: 'var(--fill-quaternary)' }}>
                                 {event.category}
                               </span>
                             )}
                             {event.prefecture && (
-                              <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">
+                              <span className="text-[11px] text-label-secondary rounded-full px-2 py-0.5" style={{ backgroundColor: 'var(--fill-quaternary)' }}>
                                 {event.prefecture}
                               </span>
                             )}
@@ -612,10 +610,10 @@ export default function Discover() {
                           {event.workId && participatedWorks.some(w => w.id === event.workId) && (
                             <button
                               onClick={() => setPreorderEditEvent(event)}
-                              className="flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full border active:opacity-60"
-                              style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-color)' }}
+                              className="flex-shrink-0 text-[11px] px-2.5 py-1 rounded-full pressable"
+                              style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)', color: 'var(--accent-color)' }}
                             >
-                              予約情報+
+                              ＋予約情報
                             </button>
                           )}
                         </div>
@@ -649,7 +647,8 @@ export default function Discover() {
                           <div className="flex flex-wrap gap-2">
                             {parseLinks(event.link).map((url, i) => (
                               <a key={i} href={url} target="_blank" rel="noopener noreferrer"
-                                className="flex items-center gap-1 px-3 py-1 rounded-full border border-default text-label-secondary text-xs w-fit active:opacity-60">
+                                className="flex items-center gap-1 px-3 py-1 rounded-full text-label-secondary text-xs w-fit pressable"
+                                style={{ backgroundColor: 'var(--fill-tertiary)' }}>
                                 <ExternalLink size={10} />{getDomain(url)}
                               </a>
                             ))}
@@ -675,26 +674,26 @@ export default function Discover() {
                       </div>
                     </div>
                     {/* アクション行 */}
-                    <div className="flex items-center gap-2 pt-1 border-t px-4 pb-3" style={{ borderColor: 'var(--border-subtle)' }}>
-                      {/* ❤️ いいね（クールダウン付き） */}
+                    <div className="flex items-center gap-2 pt-1 mx-4 border-t pb-3" style={{ borderColor: 'var(--separator)' }}>
+                      {/* ❤️ いいね */}
                       <button
                         onClick={e => { handleHeartPress(event); triggerLike(e.currentTarget); }}
                         disabled={!user || isLocked}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm disabled:opacity-40 active:opacity-70"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm disabled:opacity-40 pressable"
                         style={{
-                          borderColor: isLiked ? 'rgb(248,113,113)' : 'var(--border-default)',
-                          color: isLiked ? 'rgb(248,113,113)' : 'var(--label-secondary)',
+                          backgroundColor: isLiked ? 'color-mix(in srgb, var(--color-destructive) 15%, transparent)' : 'var(--fill-tertiary)',
+                          color: isLiked ? 'var(--color-destructive)' : 'var(--label-secondary)',
                         }}
                       >
-                        <Heart size={14} style={{ fill: isLiked ? 'rgb(248,113,113)' : 'none' }} />
+                        <Heart size={14} style={{ fill: isLiked ? 'var(--color-destructive)' : 'none' }} />
                         <span className="text-xs">{event.likes.toLocaleString('ja-JP')}</span>
                       </button>
 
                       {/* カレンダー状態ボタン */}
                       {isInCalendar ? (
                         <span
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-full border text-xs text-label-tertiary"
-                          style={{ borderColor: 'var(--border-subtle)' }}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs text-label-tertiary"
+                          style={{ backgroundColor: 'var(--fill-tertiary)' }}
                         >
                           追加済み
                         </span>
@@ -702,11 +701,10 @@ export default function Discover() {
                         <button
                           onClick={() => handleReAddToCalendar(event.id)}
                           disabled={!user}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-full border text-xs font-semibold active:opacity-70 disabled:opacity-40"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold pressable disabled:opacity-40"
                           style={{
-                            borderColor: 'var(--accent-color)',
+                            backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)',
                             color: 'var(--accent-color)',
-                            backgroundColor: 'color-mix(in srgb, var(--accent-color) 10%, transparent)',
                           }}
                         >
                           ＋ 再追加
@@ -716,9 +714,9 @@ export default function Discover() {
                       {/* 😊 リアクション */}
                       <button
                         onClick={() => setOpenReactionPickerId(prev => prev === event.id ? null : event.id)}
-                        className="ml-auto px-3 py-1.5 rounded-full border text-sm active:opacity-60 flex items-center justify-center"
+                        className="ml-auto px-3 py-1.5 rounded-full text-sm pressable flex items-center justify-center"
                         style={{
-                          borderColor: myReactions[event.id] ? 'var(--accent-color)' : 'var(--border-default)',
+                          backgroundColor: myReactions[event.id] ? 'color-mix(in srgb, var(--accent-color) 15%, transparent)' : 'var(--fill-tertiary)',
                           color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-secondary)',
                           minWidth: '2.5rem',
                         }}
@@ -733,8 +731,8 @@ export default function Discover() {
                       {event.authorId && user && event.authorId === user.id && (
                         <button
                           onClick={() => handleDeleteEvent(event.id, event.title)}
-                          className="px-3 py-1.5 rounded-full border border-default text-sm active:opacity-60 flex items-center justify-center"
-                          style={{ color: 'var(--label-tertiary)', minWidth: '2.5rem' }}
+                          className="px-3 py-1.5 rounded-full text-sm pressable flex items-center justify-center"
+                          style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-tertiary)', minWidth: '2.5rem' }}
                         >
                           <Trash2 size={14} />
                         </button>
@@ -753,13 +751,13 @@ export default function Discover() {
         <>
           <div className="fixed inset-0 z-[310]" onClick={() => setOpenReactionPickerId(null)} />
           <div className="fixed inset-x-0 max-w-app mx-auto z-[320]" style={{ bottom: BOTTOM_TAB_H + 8 }}>
-            <div className="mx-4 bg-bg-primary rounded-2xl border border-subtle shadow-xl p-3 grid grid-cols-3 gap-1">
+            <div className="mx-4 bg-bg-secondary rounded-[18px] shadow-xl p-3 grid grid-cols-3 gap-1" style={{ animation: 'slideUpIn 0.25s cubic-bezier(0.32,0.72,0,1) both' }}>
               {REACTIONS.map(r => (
                 <button
                   key={r.type}
                   onClick={() => handleReaction(openReactionPickerId, r.type)}
-                  className="flex flex-col items-center gap-1 px-2 py-2 rounded-xl active:opacity-60"
-                  style={{ background: myReactions[openReactionPickerId] === r.type ? 'var(--bg-secondary)' : 'transparent' }}
+                  className="flex flex-col items-center gap-1 px-2 py-2 rounded-[10px] pressable"
+                  style={{ background: myReactions[openReactionPickerId] === r.type ? 'var(--fill-tertiary)' : 'transparent' }}
                 >
                   <img src={r.image} alt={r.label} className="h-8 w-auto" />
                 </button>

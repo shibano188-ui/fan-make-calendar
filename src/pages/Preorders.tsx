@@ -179,13 +179,13 @@ export default function Preorders() {
     return (
       <div
         key={event.id}
-        className="bg-bg-secondary rounded-xl overflow-hidden shadow-card"
+        className="bg-bg-secondary rounded-[14px] overflow-hidden"
         style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined }}
       >
         {/* コンテンツ部分 */}
         <div className="flex items-stretch px-4 pt-4 gap-3">
           {/* 受付期間（左列） */}
-          <div className="flex-shrink-0 w-10 flex flex-col items-center pt-0.5 gap-0">
+          <div className="flex-shrink-0 w-12 flex flex-col items-center pt-0.5 gap-0">
             {hasNewPreorderData ? (
               <>
                 <span className="text-[10px] text-label-tertiary leading-none">予約</span>
@@ -236,7 +236,7 @@ export default function Preorders() {
             )}
           </div>
 
-          <div className="w-px self-stretch bg-white/10 flex-shrink-0" />
+          <div className="w-px self-stretch flex-shrink-0" style={{ backgroundColor: 'var(--separator)' }} />
 
           {/* 右側コンテンツ */}
           <div className="flex-1 min-w-0 flex flex-col gap-2 pb-3">
@@ -244,18 +244,18 @@ export default function Preorders() {
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-1.5 flex-wrap flex-1">
                 {event.isOrderMade && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#ef4444', color: '#fff' }}>
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--color-destructive)', color: '#fff' }}>
                     予約
                   </span>
                 )}
                 {workName && (
-                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+                  <span className="text-[11px] font-medium px-2 py-0.5 rounded-full"
                     style={{ color: workColor, backgroundColor: `${workColor}20` }}>
                     {workName}
                   </span>
                 )}
                 {event.category && (
-                  <span className="text-[10px] text-label-tertiary bg-bg-primary rounded-full px-2 py-0.5">
+                  <span className="text-[11px] text-label-secondary rounded-full px-2 py-0.5" style={{ backgroundColor: 'var(--fill-quaternary)' }}>
                     {event.category}
                   </span>
                 )}
@@ -263,10 +263,10 @@ export default function Preorders() {
               {event.workId && works.some(w => w.id === event.workId) && (
                 <button
                   onClick={() => setPreorderEditEvent(event)}
-                  className="flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full border active:opacity-60"
-                  style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-color)' }}
+                  className="flex-shrink-0 text-[11px] px-2.5 py-1 rounded-full pressable"
+                  style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)', color: 'var(--accent-color)' }}
                 >
-                  予約情報+
+                  ＋予約情報
                 </button>
               )}
             </div>
@@ -304,7 +304,8 @@ export default function Preorders() {
               <div className="flex flex-wrap gap-2">
                 {links.map((url, i) => (
                   <a key={i} href={url} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1 px-3 py-1 rounded-full border border-default text-label-secondary text-xs w-fit active:opacity-60">
+                    className="flex items-center gap-1 px-3 py-1 rounded-full text-label-secondary text-xs w-fit pressable"
+                    style={{ backgroundColor: 'var(--fill-tertiary)' }}>
                     <ExternalLink size={10} />
                     {(() => {
                       try {
@@ -333,9 +334,9 @@ export default function Preorders() {
                 className="text-sm font-bold"
                 style={{
                   color: days === null ? 'var(--label-tertiary)'
-                    : days <= 0 ? '#ef4444'
-                    : days <= 3 ? '#ef4444'
-                    : days <= 7 ? '#f97316'
+                    : days <= 0 ? 'var(--color-destructive)'
+                    : days <= 3 ? 'var(--color-destructive)'
+                    : days <= 7 ? 'var(--color-warning)'
                     : 'var(--label-secondary)',
                 }}
               >
@@ -364,24 +365,24 @@ export default function Preorders() {
         )}
 
         {/* アクション行 */}
-        <div className="flex items-center gap-2 pt-1 border-t px-4 pb-3" style={{ borderColor: 'var(--border-subtle)' }}>
+        <div className="flex items-center gap-2 pt-1 mx-4 border-t pb-3" style={{ borderColor: 'var(--separator)' }}>
           <button
             onClick={e => handleHeartPress(event, e.currentTarget)}
             disabled={!user || isLocked}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm disabled:opacity-40 active:opacity-70"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm disabled:opacity-40 pressable"
             style={{
-              borderColor: isLiked ? 'rgb(248,113,113)' : 'var(--border-default)',
-              color: isLiked ? 'rgb(248,113,113)' : 'var(--label-secondary)',
+              backgroundColor: isLiked ? 'color-mix(in srgb, var(--color-destructive) 15%, transparent)' : 'var(--fill-tertiary)',
+              color: isLiked ? 'var(--color-destructive)' : 'var(--label-secondary)',
             }}
           >
-            <Heart size={14} style={{ fill: isLiked ? 'rgb(248,113,113)' : 'none' }} />
+            <Heart size={14} style={{ fill: isLiked ? 'var(--color-destructive)' : 'none' }} />
             <span className="text-xs">{event.likes.toLocaleString('ja-JP')}</span>
           </button>
 
           {isInCalendar ? (
             <span
-              className="flex items-center gap-1 px-3 py-1.5 rounded-full border text-xs text-label-tertiary"
-              style={{ borderColor: 'var(--border-subtle)' }}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs text-label-tertiary"
+              style={{ backgroundColor: 'var(--fill-tertiary)' }}
             >
               追加済み
             </span>
@@ -389,11 +390,10 @@ export default function Preorders() {
             <button
               onClick={() => handleReAddToCalendar(event.id)}
               disabled={!user}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-full border text-xs font-semibold active:opacity-70 disabled:opacity-40"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold pressable disabled:opacity-40"
               style={{
-                borderColor: 'var(--accent-color)',
+                backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)',
                 color: 'var(--accent-color)',
-                backgroundColor: 'color-mix(in srgb, var(--accent-color) 10%, transparent)',
               }}
             >
               ＋ 再追加
@@ -402,9 +402,9 @@ export default function Preorders() {
 
           <button
             onClick={() => setOpenReactionPickerId(prev => prev === event.id ? null : event.id)}
-            className="ml-auto px-3 py-1.5 rounded-full border text-sm active:opacity-60 flex items-center justify-center"
+            className="ml-auto px-3 py-1.5 rounded-full text-sm pressable flex items-center justify-center"
             style={{
-              borderColor: myReactions[event.id] ? 'var(--accent-color)' : 'var(--border-default)',
+              backgroundColor: myReactions[event.id] ? 'color-mix(in srgb, var(--accent-color) 15%, transparent)' : 'var(--fill-tertiary)',
               color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-secondary)',
               minWidth: '2.5rem',
             }}
@@ -428,11 +428,11 @@ export default function Preorders() {
         <Header
           compact
           leftNode={
-            <div className="flex items-center gap-1">
-              <button onClick={() => navigate(-1)} className="w-8 h-8 flex items-center justify-center rounded-lg active:opacity-60">
-                <ChevronLeft size={20} className="text-label-primary" />
+            <div className="flex items-center">
+              <button onClick={() => navigate(-1)} className="w-11 h-11 flex items-center justify-center rounded-full pressable" style={{ color: 'var(--accent-color)' }}>
+                <ChevronLeft size={22} />
               </button>
-              <span className="text-base font-bold text-label-primary">予約受付中</span>
+              <span className="text-base font-semibold text-label-primary">予約受付中</span>
             </div>
           }
         />
@@ -450,13 +450,13 @@ export default function Preorders() {
             <div className="flex flex-col gap-4">
               {active.length > 0 && (
                 <div className="flex flex-col gap-3">
-                  <p className="text-xs font-bold" style={{ color: 'var(--accent-color)' }}>⚠️ 受付中</p>
+                  <p className="text-[13px] text-label-secondary px-1">受付中</p>
                   {active.map(renderTile)}
                 </div>
               )}
               {upcoming.length > 0 && (
                 <div className="flex flex-col gap-3">
-                  <p className="text-xs font-bold text-label-secondary">📅 もうすぐ予約開始</p>
+                  <p className="text-[13px] text-label-secondary px-1">もうすぐ予約開始</p>
                   {upcoming.map(renderTile)}
                 </div>
               )}
@@ -470,13 +470,13 @@ export default function Preorders() {
         <>
           <div className="fixed inset-0 z-[310]" onClick={() => setOpenReactionPickerId(null)} />
           <div className="fixed inset-x-0 max-w-app mx-auto z-[320]" style={{ bottom: BOTTOM_TAB_H + 8 }}>
-            <div className="mx-4 bg-bg-primary rounded-2xl border border-subtle shadow-xl p-3 grid grid-cols-3 gap-1">
+            <div className="mx-4 bg-bg-secondary rounded-[18px] shadow-xl p-3 grid grid-cols-3 gap-1" style={{ animation: 'slideUpIn 0.25s cubic-bezier(0.32,0.72,0,1) both' }}>
               {REACTIONS.map(r => (
                 <button
                   key={r.type}
                   onClick={() => handleReaction(openReactionPickerId, r.type)}
-                  className="flex flex-col items-center gap-1 px-2 py-2 rounded-xl active:opacity-60"
-                  style={{ background: myReactions[openReactionPickerId] === r.type ? 'var(--bg-secondary)' : 'transparent' }}
+                  className="flex flex-col items-center gap-1 px-2 py-2 rounded-[10px] pressable"
+                  style={{ background: myReactions[openReactionPickerId] === r.type ? 'var(--fill-tertiary)' : 'transparent' }}
                 >
                   <img src={r.image} alt={r.label} className="h-8 w-auto" />
                 </button>
