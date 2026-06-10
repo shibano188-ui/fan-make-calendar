@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { PREFECTURES } from '../lib/prefectures';
 import { loadImageVisibility, saveImageVisibility, type ImageVisibility } from '../lib/constants';
@@ -139,8 +140,9 @@ export default function UserSettingsSheet({
     setTimeout(() => { setSaved(false); onClose(); }, 700);
   };
 
-  return (
-    <div className="fixed inset-0 z-[200] flex flex-col justify-end">
+  // Header の backdrop-filter が fixed の基準になる（Chromium）ため body 直下に描画する
+  return createPortal(
+    <div className="fixed inset-0 z-[200] max-w-app mx-auto flex flex-col justify-end">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div
         className="relative bg-bg-primary rounded-t-[18px]"
@@ -268,6 +270,7 @@ export default function UserSettingsSheet({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
