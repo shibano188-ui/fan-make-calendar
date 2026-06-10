@@ -400,23 +400,23 @@ export default function Discover() {
           return (
             <button
               onClick={() => navigate('/preorders')}
-              className="flex-shrink-0 flex items-center gap-3 mx-4 mb-2 px-4 py-3 rounded-[14px] pressable"
-              style={{ backgroundColor: 'color-mix(in srgb, var(--color-warning) 12%, transparent)' }}
+              className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 border-b active:opacity-70"
+              style={{ backgroundColor: 'color-mix(in srgb, var(--color-warning) 12%, transparent)', borderColor: 'var(--separator)' }}
             >
-              <Clock size={16} style={{ color: 'var(--color-warning)', flexShrink: 0 }} />
+              <Clock size={14} style={{ color: 'var(--color-warning)', flexShrink: 0 }} />
               <div className="flex items-center gap-2 flex-1 min-w-0">
                 {activeCount > 0 && (
-                  <span className="text-sm font-semibold" style={{ color: 'var(--color-warning)' }}>
+                  <span className="text-xs font-semibold" style={{ color: 'var(--color-warning)' }}>
                     受付中 {activeCount}件
                   </span>
                 )}
                 {upcomingCount > 0 && (
-                  <span className="text-sm text-label-secondary">
+                  <span className="text-xs text-label-secondary">
                     予約開始予定 {upcomingCount}件
                   </span>
                 )}
               </div>
-              <ChevronRight size={16} className="text-label-tertiary flex-shrink-0" />
+              <ChevronRight size={14} className="text-label-tertiary flex-shrink-0" />
             </button>
           );
         })()}
