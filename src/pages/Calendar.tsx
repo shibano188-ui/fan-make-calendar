@@ -1842,7 +1842,8 @@ export default function Calendar() {
               </button>
 
               <div className="relative" ref={menuRef}>
-                <button onClick={() => setShowMenu(v => !v)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary">
+                {/* MyCalendarはメニュー項目がユーザー設定のみなので直接開く */}
+                <button onClick={() => { if (workId) setShowMenu(v => !v); else setShowUserSettings(true); }} className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary">
                   <MoreVertical size={16} />
                 </button>
                 {showMenu && (
