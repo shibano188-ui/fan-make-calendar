@@ -10,7 +10,6 @@ import { POST_CATEGORIES, loadCategoryFilters, saveCategoryFilters, loadRegionFi
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { PrefectureSearch } from '../components/UserSettingsSheet';
 import { useConfirm } from '../components/ui/ConfirmDialog';
-import { useToast } from '../components/ui/Toast';
 import { haptic } from '../lib/haptics';
 
 function formatCount(n: number): string {
@@ -117,7 +116,6 @@ export default function WorkSelect() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const confirmDialog = useConfirm();
-  const showToast = useToast();
 
   // 地域フィルター（Calendar/Discoverと共有）
   const [filterMode, setFilterMode] = useState<FilterMode>(() => loadRegionFilter().filterMode);

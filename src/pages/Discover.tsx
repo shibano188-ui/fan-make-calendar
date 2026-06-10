@@ -6,7 +6,7 @@ import UserProfileModal from '../components/UserProfileModal';
 import MemoText from '../components/MemoText';
 import {
   Heart, Smile, Trash2, SlidersHorizontal, ExternalLink, Plus,
-  Map as MapIcon, Palette, Clock, ChevronRight,
+  Map as MapIcon, Palette, Clock, ChevronRight, Compass, CalendarDays,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
@@ -41,6 +41,8 @@ import { WORK_COLORS } from './Calendar';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
 import { haptic } from '../lib/haptics';
+import EmptyState from '../components/ui/EmptyState';
+import { SkeletonList } from '../components/ui/Skeleton';
 
 // ─── 定数 ──────────────────────────────────────────────────────────
 
@@ -480,21 +482,30 @@ export default function Discover() {
         {/* フィード */}
         <div className="flex-1 overflow-y-auto px-4 pt-3 pb-6">
           {loading ? (
-            <div className="flex flex-col gap-3">
-              {[1, 2, 3].map(i => <div key={i} className="h-24 bg-bg-secondary rounded-2xl animate-pulse" />)}
-            </div>
+            <SkeletonList count={3} tall />
           ) : error ? (
             <p className="text-center text-red-400 text-sm py-10">{error}</p>
           ) : !user ? (
             <p className="text-center text-label-tertiary text-sm py-10">ログインが必要です</p>
           ) : visibleEvents.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 py-16">
-              <p className="text-label-tertiary text-sm">
-                {participatedWorks.length === 0
-                  ? '作品タブから作品に参加するとイベントが表示されます'
-                  : '今後の予定はありません'}
-              </p>
-            </div>
+            participatedWorks.length === 0 ? (
+              <EmptyState
+                icon={<Compass size={48} strokeWidth={1.2} />}
+                title="まだ作品に参加していません"
+                description="好きな作品に参加すると、みんなが投稿した予定がここに流れてきます"
+                actionLabel="作品を探す"
+                onAction={() => navigate('/select')}
+              />
+            ) : (
+              <EmptyState
+                icon={<CalendarDays size={48} strokeWidth={1.2} />}
+                title="今後の予定はまだありません"
+                description="見つけた予定を投稿すると、同じ作品のファンに届きます"
+                actionLabel="予定を投稿する"
+                onAction={() => navigate('/calendar')}
+                actionVariant="tinted"
+              />
+            )
           ) : (
             <div className="flex flex-col gap-3">
               {visibleEvents.map(event => {

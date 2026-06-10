@@ -8,7 +8,6 @@ import { listSharedThemes, shareTheme, incrementThemeUseCount, deleteSharedTheme
 import { useAuth } from '../contexts/AuthContext';
 import { WORK_COLORS } from './Calendar';
 import { useConfirm } from '../components/ui/ConfirmDialog';
-import { useToast } from '../components/ui/Toast';
 
 const SYSTEM_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 
@@ -66,7 +65,6 @@ function CommunityThemeModal({
 }) {
   const [tab, setTab] = useState<Tab>('preset');
   const confirmDialog = useConfirm();
-  const showToast = useToast();
   const [sharedThemes, setSharedThemes] = useState<SharedTheme[]>([]);
   const [loadingShared, setLoadingShared] = useState(false);
   const [shareName, setShareName] = useState('');

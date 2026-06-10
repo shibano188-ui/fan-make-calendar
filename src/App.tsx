@@ -5,6 +5,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ConfirmProvider } from './components/ui/ConfirmDialog';
 import { ToastProvider } from './components/ui/Toast';
 import PhoneFrame from './components/PhoneFrame';
+import Onboarding from './components/Onboarding';
 import { Capacitor } from '@capacitor/core';
 import { initAdMob } from './lib/admob';
 
@@ -88,6 +89,7 @@ export default function App() {
               {/* メインアプリ */}
               <Route path="/*" element={
                 <PhoneFrame>
+                  <Onboarding />
                   <Routes>
                     <Route path="/"                               element={<Calendar />} />
                     <Route path="/select"                          element={<WorkSelect />} />

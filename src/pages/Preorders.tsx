@@ -22,6 +22,8 @@ import type { CalendarEvent } from '../types';
 import { WORK_COLORS } from './Calendar';
 import { getContrastText } from '../lib/color';
 import { haptic } from '../lib/haptics';
+import EmptyState from '../components/ui/EmptyState';
+import { SkeletonList } from '../components/ui/Skeleton';
 
 const BOTTOM_TAB_H = 56;
 const LIKE_MAX_TAPS = 10;
@@ -442,13 +444,13 @@ export default function Preorders() {
 
         <div className="flex-1 overflow-y-auto px-4 pt-3 pb-6">
           {loading ? (
-            <div className="flex flex-col gap-3">
-              {[1, 2, 3].map(i => <div key={i} className="h-40 bg-bg-secondary rounded-xl animate-pulse" />)}
-            </div>
+            <SkeletonList count={3} tall />
           ) : events.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-16">
-              <p className="text-label-tertiary text-sm">受付中の受注・予約商品はありません</p>
-            </div>
+            <EmptyState
+              icon={<span role="img" aria-label="買い物">🛍</span>}
+              title="受付中の予約はありません"
+              description="予約・受注情報は投稿から自動で検出され、ここにまとまります"
+            />
           ) : (
             <div className="flex flex-col gap-4">
               {active.length > 0 && (
