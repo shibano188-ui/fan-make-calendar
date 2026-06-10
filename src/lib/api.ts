@@ -692,6 +692,17 @@ export async function deleteEvent(eventId: string): Promise<void> {
   if (error) throw error;
 }
 
+// ─── 通報 ──────────────────────────────────────────────────────────
+
+export async function reportEvent(eventId: string, reporterId: string, reason: string): Promise<void> {
+  const { error } = await supabase.from('reports').insert({
+    event_id: eventId,
+    reporter_id: reporterId,
+    reason,
+  });
+  if (error) throw error;
+}
+
 // ─── 作品削除 ──────────────────────────────────────────────────────
 
 export async function deleteWork(workId: string): Promise<void> {

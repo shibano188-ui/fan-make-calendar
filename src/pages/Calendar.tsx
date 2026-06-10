@@ -1135,6 +1135,15 @@ export default function Calendar() {
   // ─── イベント編集（投稿者本人のみ） ────────────────────────────
   const [editEventId, setEditEventId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<InlineCard> | null>(null);
+
+  // 編集フォーム表示中はバナー広告を隠す（キーボード表示でフォームがバナーに被るため）
+  const editWasOpenRef = useRef(false);
+  useEffect(() => {
+    const open = editEventId !== null;
+    if (open && !editWasOpenRef.current) hideBanner();
+    if (!open && editWasOpenRef.current) showBanner(adMarginRef.current);
+    editWasOpenRef.current = open;
+  }, [editEventId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState('');
   const [editIsPersonal, setEditIsPersonal] = useState(false);

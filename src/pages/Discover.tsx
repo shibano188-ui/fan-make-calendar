@@ -5,7 +5,7 @@ import { useLikeAnimation } from '../hooks/useLikeAnimation';
 import UserProfileModal from '../components/UserProfileModal';
 import MemoText from '../components/MemoText';
 import {
-  Heart, Smile, Trash2, SlidersHorizontal, ExternalLink, Plus,
+  Heart, Smile, Trash2, Flag, SlidersHorizontal, ExternalLink, Plus,
   Map as MapIcon, Palette, Clock, ChevronRight, Compass, CalendarDays,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
@@ -15,7 +15,7 @@ import {
   listUpcomingParticipatedEvents, listRecentWorks,
   setReaction, getMyReactionsBatch, addLikeTap,
   getHomePrefecture, getDisplayName, saveHomePrefecture, saveDisplayName,
-  deleteEvent, listPreorderEvents,
+  deleteEvent, listPreorderEvents, reportEvent,
 } from '../lib/api';
 import PreorderEditSheet from '../components/PreorderEditSheet';
 import UserSettingsSheet from '../components/UserSettingsSheet';
@@ -148,6 +148,15 @@ export default function Discover() {
       await deleteEvent(id);
       setEvents(prev => prev.filter(e => e.id !== id));
     } catch { showToast('削除に失敗しました', 'error'); }
+  };
+
+  const handleReportEvent = async (id: string, title: string) => {
+    if (!user) return;
+    if (!(await confirmDialog({ title: '投稿を通報', message: `「${title}」を不適切な投稿として通報しますか？`, confirmLabel: '通報する', destructive: true }))) return;
+    try {
+      await reportEvent(id, user.id, 'inappropriate');
+      showToast('通報を受け付けました');
+    } catch { showToast('通報に失敗しました', 'error'); }
   };
 
   // 編集パネル
@@ -820,6 +829,17 @@ export default function Discover() {
                           : <Smile size={14} />
                         }
                       </button>
+
+                      {/* 🚩 通報（他人の投稿のみ） */}
+                      {user && event.authorId !== user.id && (
+                        <button
+                          onClick={() => handleReportEvent(event.id, event.title)}
+                          className="px-3 py-1.5 rounded-full text-sm pressable flex items-center justify-center"
+                          style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-tertiary)', minWidth: '2.5rem' }}
+                        >
+                          <Flag size={14} />
+                        </button>
+                      )}
 
                       {/* 🗑️ 削除（自分の投稿のみ） */}
                       {event.authorId && user && event.authorId === user.id && (
