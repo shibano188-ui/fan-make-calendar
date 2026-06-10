@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import React from 'react';
+import { haptic } from '../lib/haptics';
 
 interface Particle {
   id: number;
@@ -26,6 +27,7 @@ export function useLikeAnimation() {
   const [floaters, setFloaters]   = useState<Floater[]>([]);
 
   const trigger = useCallback((el: HTMLElement) => {
+    haptic.light();
     const rect = el.getBoundingClientRect();
     const cx = rect.left + rect.width  / 2;
     const cy = rect.top  + rect.height / 2;

@@ -11,6 +11,7 @@ import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { PrefectureSearch } from '../components/UserSettingsSheet';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
+import { haptic } from '../lib/haptics';
 
 function formatCount(n: number): string {
   return n.toLocaleString('ja-JP');
@@ -423,6 +424,7 @@ export default function WorkSelect() {
                   const name = pendingWork.name;
                   setPendingWork(null);
                   setQuery('');
+                  haptic.success();
                   setToast(`「${name}」に参加しました`);
                   setTimeout(() => setToast(null), 2500);
                 }}

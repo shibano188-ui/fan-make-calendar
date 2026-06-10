@@ -40,6 +40,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { WORK_COLORS } from './Calendar';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
+import { haptic } from '../lib/haptics';
 
 // ─── 定数 ──────────────────────────────────────────────────────────
 
@@ -350,6 +351,7 @@ export default function Discover() {
 
   // リアクション
   const handleReaction = (eventId: string, type: ReactionType) => {
+    haptic.light();
     const isToggleOff = myReactions[eventId] === type;
     setMyReactions(prev => {
       const next: Record<string, ReactionType> = { ...prev };

@@ -43,6 +43,7 @@ import {
 } from '../lib/constants';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
+import { haptic } from '../lib/haptics';
 
 // ─── 定数 ──────────────────────────────────────────────────────────
 
@@ -1010,6 +1011,7 @@ export default function Calendar() {
   };
 
   const handleReaction = (eventId: string, type: ReactionType) => {
+    haptic.light();
     const isToggleOff = myReactions[eventId] === type;
     setMyReactions(prev => {
       const next = { ...prev };
@@ -1461,6 +1463,7 @@ export default function Calendar() {
         saveImportantEventIds(important);
         setImportantEventIds(new Set(important));
       }
+      haptic.success();
       closePostForm();
     } catch {
       setPostError('投稿に失敗しました。もう一度お試しください');

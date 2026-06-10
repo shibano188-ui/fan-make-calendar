@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Search, CalendarDays, Compass, User } from 'lucide-react';
 import { loadEventQueue } from '../lib/constants';
+import { haptic } from '../lib/haptics';
 
 const tabs = [
   { label: '作品',         icon: Search,       index: 0 },
@@ -45,7 +46,7 @@ export default function BottomTab() {
           return (
             <button
               key={index}
-              onClick={() => navigate(getTabPath(index))}
+              onClick={() => { haptic.select(); navigate(getTabPath(index)); }}
               className="flex-1 flex flex-col items-center gap-[3px] py-2 pressable relative"
               aria-label={label}
             >

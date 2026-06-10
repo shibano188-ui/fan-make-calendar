@@ -21,6 +21,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { CalendarEvent } from '../types';
 import { WORK_COLORS } from './Calendar';
 import { getContrastText } from '../lib/color';
+import { haptic } from '../lib/haptics';
 
 const BOTTOM_TAB_H = 56;
 const LIKE_MAX_TAPS = 10;
@@ -141,6 +142,7 @@ export default function Preorders() {
   };
 
   const handleReaction = (eventId: string, type: ReactionType) => {
+    haptic.light();
     const isToggleOff = myReactions[eventId] === type;
     setMyReactions(prev => {
       const next: Record<string, ReactionType> = { ...prev };

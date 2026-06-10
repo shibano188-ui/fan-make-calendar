@@ -10,11 +10,25 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 0 1px rgba(0,0,0,0.04);
   }
   .pressable {
-    transition: opacity 0.12s ease;
+    transition: transform 0.15s cubic-bezier(0.32,0.72,0,1), opacity 0.15s ease;
     -webkit-tap-highlight-color: transparent;
   }
   .pressable:active {
-    opacity: 0.5;
+    transform: scale(0.96);
+    opacity: 0.7;
+  }
+  /* アイコンのみボタンのタップ領域を44pxに拡張（視覚サイズは不変） */
+  .tap-44 {
+    position: relative;
+  }
+  .tap-44::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
   }
 }
 
@@ -121,4 +135,19 @@ body {
   color: var(--label-primary);
   font-family: 'M PLUS 1p', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* キーボードフォーカスの可視化（PWA・デスクトップ用） */
+:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+/* 視差・動きを抑える設定のユーザーにはアニメーションを無効化 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

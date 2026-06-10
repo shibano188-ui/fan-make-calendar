@@ -14,6 +14,7 @@ import UserProfileModal from '../components/UserProfileModal';
 import MemoText from '../components/MemoText';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
+import { haptic } from '../lib/haptics';
 
 // ─── いいねセッション（localStorage）────────────────────────────────
 
@@ -363,6 +364,7 @@ export default function DateDetail() {
   };
 
   const handleReaction = async (eventId: string, type: ReactionType) => {
+    haptic.light();
     if (!user) return;
     const current = eventReactions[eventId];
     const isToggleOff = current?.myReaction === type;

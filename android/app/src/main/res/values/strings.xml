@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">FanHive</string>
+    <string name="title_activity_main">FanHive</string>
+    <string name="package_name">jp.llp.fanhive</string>
+    <string name="custom_url_scheme">jp.llp.fanhive</string>
+</resources>
