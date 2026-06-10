@@ -1,14 +1,23 @@
 import { createContext, useContext, useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { getUserSettings, updateUserSettings } from '../lib/api';
+import { accentTokens } from '../lib/color';
+import { syncStatusBar } from '../lib/statusbar';
 
-export type ThemeMode = 'simple' | 'dark';
+export type ThemeMode = 'simple' | 'dark' | 'system';
 export type FontFamily = 'system' | 'serif' | 'rounded' | 'custom';
+
+/** 'system' を OS 設定に基づいて 'simple' | 'dark' に解決する */
+export function resolveTheme(mode: ThemeMode): 'simple' | 'dark' {
+  if (mode !== 'system') return mode;
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'simple' : 'dark';
+}
 
 export interface CommunityTheme {
   id: string;
   name: string;
   useCount: number;
+  dark: boolean;
   vars: Record<string, string>;
 }
 
@@ -17,6 +26,7 @@ export const COMMUNITY_THEMES: CommunityTheme[] = [
     id: 'sakura',
     name: 'さくらピンク',
     useCount: 482,
+    dark: false,
     vars: {
       '--bg-primary': '#fff0f3', '--bg-secondary': '#ffd6e0', '--bg-tertiary': '#fec9d5',
       '--label-primary': '#2a1a1f', '--label-secondary': '#7a4a56', '--label-tertiary': '#b07a88',
@@ -34,6 +44,7 @@ export const COMMUNITY_THEMES: CommunityTheme[] = [
     id: 'midnight',
     name: 'ミッドナイト',
     useCount: 891,
+    dark: true,
     vars: {
       '--bg-primary': '#080c14', '--bg-secondary': '#111827', '--bg-tertiary': '#1a2535',
       '--label-primary': '#c8d8f0', '--label-secondary': '#7890b0', '--label-tertiary': '#4a5a70',
@@ -51,6 +62,7 @@ export const COMMUNITY_THEMES: CommunityTheme[] = [
     id: 'matcha',
     name: '抹茶グリーン',
     useCount: 256,
+    dark: true,
     vars: {
       '--bg-primary': '#1a2614', '--bg-secondary': '#263520', '--bg-tertiary': '#344a28',
       '--label-primary': '#c8e8b0', '--label-secondary': '#7aaa60', '--label-tertiary': '#4a7040',
@@ -68,6 +80,7 @@ export const COMMUNITY_THEMES: CommunityTheme[] = [
     id: 'ivory',
     name: 'アイボリー',
     useCount: 203,
+    dark: false,
     vars: {
       '--bg-primary': '#faf8f2', '--bg-secondary': '#f0ece0', '--bg-tertiary': '#e6e0cc',
       '--label-primary': '#2c2820', '--label-secondary': '#6a6050', '--label-tertiary': '#9a9080',
@@ -85,6 +98,7 @@ export const COMMUNITY_THEMES: CommunityTheme[] = [
     id: 'mahou',
     name: '魔法少女の夢',
     useCount: 743,
+    dark: true,
     vars: {
       '--bg-primary': '#1a0d2e', '--bg-secondary': '#2d1448', '--bg-tertiary': '#401a60',
       '--label-primary': '#f0c0f8', '--label-secondary': '#b080c8', '--label-tertiary': '#6840a0',
@@ -102,6 +116,7 @@ export const COMMUNITY_THEMES: CommunityTheme[] = [
     id: 'neon',
     name: 'ネオン街',
     useCount: 1204,
+    dark: true,
     vars: {
       '--bg-primary': '#0a0a12', '--bg-secondary': '#12121e', '--bg-tertiary': '#1a1a2e',
       '--label-primary': '#d0e8ff', '--label-secondary': '#5080b0', '--label-tertiary': '#304060',
@@ -119,6 +134,7 @@ export const COMMUNITY_THEMES: CommunityTheme[] = [
     id: 'autumn',
     name: '秋の情景',
     useCount: 389,
+    dark: true,
     vars: {
       '--bg-primary': '#1e1208', '--bg-secondary': '#2e1c0c', '--bg-tertiary': '#3e2610',
       '--label-primary': '#f8e0b0', '--label-secondary': '#c09060', '--label-tertiary': '#806040',
@@ -152,7 +168,7 @@ export interface UserSettings {
 }
 
 const DEFAULT_SETTINGS: UserSettings = {
-  theme: 'dark',
+  theme: 'system',
   font: 'system',
   accentColor: '#FBBF00',
   backgroundImageUrl: '',
@@ -171,7 +187,7 @@ const DEFAULT_SETTINGS: UserSettings = {
 const ACCENT_COLORS = ['#2C2C2A', '#888780', '#D85A30', '#1D9E75', '#378ADD', '#D4537E'] as const;
 export { ACCENT_COLORS };
 
-export const THEME_VARS: Record<ThemeMode, Record<string, string>> = {
+export const THEME_VARS: Record<'simple' | 'dark', Record<string, string>> = {
   dark: {
     '--bg-primary':        '#0e0e10',
     '--bg-secondary':      '#1c1c1e',
@@ -257,19 +273,44 @@ function fontStack(settings: UserSettings): string {
   return '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 }
 
+// テーマ変数の適用 + data-theme / theme-color / ステータスバー同期（共通処理）
+function applyThemeVars(settings: UserSettings) {
+  const root = document.documentElement;
+  const communityTheme = settings.communityThemeId
+    ? COMMUNITY_THEMES.find(t => t.id === settings.communityThemeId)
+    : null;
+  const resolved = resolveTheme(settings.theme);
+  const vars = communityTheme ? communityTheme.vars : THEME_VARS[resolved];
+  Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
+
+  const isDark = communityTheme ? communityTheme.dark : resolved === 'dark';
+  root.dataset.theme = isDark ? 'dark' : 'light';
+
+  // ブラウザクローム・ネイティブステータスバーをテーマに追従させる
+  const bgPrimary = vars['--bg-primary'] ?? (isDark ? '#0e0e10' : '#f2f2f7');
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', bgPrimary);
+  syncStatusBar(isDark, bgPrimary);
+}
+
+// アクセントカラー + 派生トークンの適用（共通処理）
+function applyAccentVars(accentColor: string) {
+  const root = document.documentElement;
+  root.style.setProperty('--accent-color', accentColor);
+  const { on, textDark, textLight } = accentTokens(accentColor);
+  root.style.setProperty('--accent-on', on);
+  root.style.setProperty('--accent-text-dark', textDark);
+  root.style.setProperty('--accent-text-light', textLight);
+}
+
 // ウィジェットページが設定をCSSに反映するためのユーティリティ
 export function applySettingsToCSS(settings: UserSettings) {
   const root = document.documentElement;
 
   // テーマカラー
-  const communityTheme = settings.communityThemeId
-    ? COMMUNITY_THEMES.find(t => t.id === settings.communityThemeId)
-    : null;
-  const vars = communityTheme ? communityTheme.vars : THEME_VARS[settings.theme];
-  Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
+  applyThemeVars(settings);
 
   // アクセントカラー
-  root.style.setProperty('--accent-color', settings.accentColor);
+  applyAccentVars(settings.accentColor);
 
   // 背景画像
   if (settings.backgroundImageUrl) {
@@ -380,18 +421,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }).catch(console.error);
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // テーマカラーを CSS 変数に反映
+  // テーマカラーを CSS 変数に反映（theme='system' のときは OS 設定変更にも追従）
   useEffect(() => {
-    const communityTheme = settings.communityThemeId
-      ? COMMUNITY_THEMES.find(t => t.id === settings.communityThemeId)
-      : null;
-    const vars = communityTheme ? communityTheme.vars : THEME_VARS[settings.theme];
-    Object.entries(vars).forEach(([k, v]) => document.documentElement.style.setProperty(k, v));
-  }, [settings.theme, settings.communityThemeId]);
+    applyThemeVars(settings);
+    if (settings.theme !== 'system') return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = () => applyThemeVars(settings);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, [settings.theme, settings.communityThemeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // アクセントカラーを CSS 変数に反映
+  // アクセントカラー + 派生トークンを CSS 変数に反映
   useEffect(() => {
-    document.documentElement.style.setProperty('--accent-color', settings.accentColor);
+    applyAccentVars(settings.accentColor);
   }, [settings.accentColor]);
 
   // カレンダー文字色・グリッド線色を CSS 変数に反映

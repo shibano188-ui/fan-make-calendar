@@ -468,9 +468,16 @@ export default function Customize() {
         <section>
           <p className="text-label-tertiary text-xs mb-3">テーマ</p>
           <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => updateSettings({ theme: 'system', communityThemeId: '' })} className={themeButtonClass(settings.theme === 'system' && !isCommunityActive)}>
+              <div className="h-12 flex">
+                <div className="flex-1 bg-[#f5f5f5]" />
+                <div className="flex-1 bg-[#1a1a1a]" />
+              </div>
+              <div className="bg-bg-secondary py-1.5"><p className="text-xs text-label-primary text-center">システムに合わせる</p></div>
+            </button>
             <button onClick={() => updateSettings({ theme: 'simple', communityThemeId: '' })} className={themeButtonClass(settings.theme === 'simple' && !isCommunityActive)}>
               <div className="h-12 bg-[#f5f5f5]" />
-              <div className="bg-bg-secondary py-1.5"><p className="text-xs text-label-primary text-center">シンプル</p></div>
+              <div className="bg-bg-secondary py-1.5"><p className="text-xs text-label-primary text-center">ライト</p></div>
             </button>
             <button onClick={() => updateSettings({ theme: 'dark', communityThemeId: '' })} className={themeButtonClass(settings.theme === 'dark' && !isCommunityActive)}>
               <div className="h-12 bg-[#1a1a1a]" />

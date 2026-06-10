@@ -6,6 +6,9 @@
   .shadow-card {
     box-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 0 1px rgba(0,0,0,0.15);
   }
+  [data-theme="light"] .shadow-card {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 0 1px rgba(0,0,0,0.04);
+  }
   .pressable {
     transition: opacity 0.12s ease;
     -webkit-tap-highlight-color: transparent;
@@ -47,6 +50,11 @@
 
   /* ─ accent & semantic colors ─ */
   --accent-color:      #FBBF00;
+  /* アクセント派生（Phase E-2）: 塗りの上の文字色 / 文字・アイコン用アクセント */
+  --accent-on:         #1a1a1a;
+  --accent-text-dark:  #FBBF00;
+  --accent-text-light: #B8860B;
+  --accent-text:       var(--accent-text-dark);
   --color-destructive: #ff453a;
   --color-success:     #30d158;
   --color-warning:     #ffd60a;
@@ -56,6 +64,13 @@
   --cal-saturday-color:   rgba(96,165,250,0.8);
   --cal-sunday-color:     rgba(239,68,68,0.8);
   --cal-other-month-color: rgba(128,128,128,0.35);
+}
+
+/* ライトテーマ時の上書き（data-theme は ThemeContext が設定する） */
+[data-theme="light"] {
+  --accent-text:        var(--accent-text-light);
+  --cal-saturday-color: rgba(37,99,235,0.9);
+  --cal-sunday-color:   rgba(220,38,38,0.9);
 }
 
 * {
