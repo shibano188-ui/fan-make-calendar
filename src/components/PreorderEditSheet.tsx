@@ -39,7 +39,7 @@ export default function PreorderEditSheet({ event, onClose, onSaved }: Props) {
     <>
       <div className="fixed inset-0 z-[400]" onClick={onClose} />
       <div
-        className="fixed inset-x-0 bottom-0 z-[410] max-w-app mx-auto rounded-t-2xl flex flex-col"
+        className="fixed inset-x-0 bottom-0 z-[410] max-w-app mx-auto rounded-t-[18px] flex flex-col"
         style={{ backgroundColor: 'var(--bg-primary)', animation: 'slideUpPanel 0.22s cubic-bezier(0.32,0.72,0,1) both' }}
       >
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
@@ -98,7 +98,7 @@ export default function PreorderEditSheet({ event, onClose, onSaved }: Props) {
           </div>
 
           <button onClick={handleSave} disabled={saving}
-            className="w-full py-3 rounded-xl text-sm font-bold active:opacity-70 disabled:opacity-40"
+            className="w-full py-3 rounded-[14px] text-sm font-bold active:opacity-70 disabled:opacity-40"
             style={{ background: 'var(--accent-color)', color: 'var(--bg-primary)' }}>
             {saving ? '更新中…' : '更新'}
           </button>

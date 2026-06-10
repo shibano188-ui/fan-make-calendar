@@ -154,7 +154,7 @@ export interface UserSettings {
 const DEFAULT_SETTINGS: UserSettings = {
   theme: 'dark',
   font: 'system',
-  accentColor: '#0A84FF',
+  accentColor: '#FBBF00',
   backgroundImageUrl: '',
   bgImageOffsetX: 50,
   bgImageOffsetY: 50,

@@ -29,7 +29,7 @@ function WorkItem({
     <button
       onClick={participated ? undefined : onClick}
       disabled={participated}
-      className="w-full flex items-center justify-between px-4 py-3.5 bg-bg-secondary rounded-xl text-left transition-opacity disabled:opacity-100"
+      className="w-full flex items-center justify-between px-4 py-3.5 bg-bg-secondary rounded-[14px] text-left transition-opacity disabled:opacity-100"
       style={participated ? { cursor: 'default' } : undefined}
     >
       <div>
@@ -62,7 +62,7 @@ function ParticipatedWorkItem({
 
   return (
     <div className="relative">
-      <div className="w-full flex items-center justify-between px-4 py-3.5 bg-bg-secondary rounded-xl">
+      <div className="w-full flex items-center justify-between px-4 py-3.5 bg-bg-secondary rounded-[14px]">
         <div>
           <p className="text-label-primary font-semibold text-[15px]">{work.name}</p>
           <p className="text-label-secondary text-xs mt-0.5">参加者 {formatCount(work.participantCount)}人</p>
@@ -77,7 +77,7 @@ function ParticipatedWorkItem({
           {menuOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-              <div className="absolute right-0 top-9 z-50 bg-bg-secondary border border-subtle rounded-xl overflow-hidden shadow-lg w-48">
+              <div className="absolute right-0 top-9 z-50 bg-bg-secondary border border-subtle rounded-[14px] overflow-hidden shadow-lg w-48">
                 <button
                   onClick={() => { setMenuOpen(false); onLeave(); }}
                   className="w-full flex items-center gap-3 px-4 py-3 text-sm text-label-primary active:opacity-60"
@@ -254,7 +254,7 @@ export default function WorkSelect() {
       </div>
 
       <div className="px-5 mb-6">
-        <div className="flex items-center gap-3 bg-bg-secondary rounded-xl px-4 py-3">
+        <div className="flex items-center gap-3 bg-fill-3 rounded-[10px] h-9 px-3">
           <Search size={16} className="text-label-tertiary flex-shrink-0" />
           <input
             type="text"
@@ -296,13 +296,14 @@ export default function WorkSelect() {
               <div className="mt-2">
                 <button
                   onClick={handleCreate}
-                  className="w-full flex items-center justify-between px-4 py-3.5 bg-bg-secondary rounded-xl text-left active:opacity-70 transition-opacity"
+                  className="w-full flex items-center justify-between px-4 py-3.5 rounded-[14px] text-left active:opacity-70 transition-opacity"
+                  style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)', color: 'var(--accent-color)' }}
                 >
                   <div>
-                    <p className="text-label-primary font-semibold text-[15px]">「{q}」を新しく作る</p>
-                    <p className="text-label-secondary text-xs mt-0.5">このカレンダーを最初に作成する</p>
+                    <p className="font-semibold text-[15px]">「{q}」を新しく作る</p>
+                    <p className="text-xs mt-0.5 opacity-70">このカレンダーを最初に作成する</p>
                   </div>
-                  <ChevronRight size={16} className="text-label-tertiary flex-shrink-0 ml-2" />
+                  <ChevronRight size={16} className="flex-shrink-0 ml-2 opacity-60" />
                 </button>
               </div>
             )}
@@ -324,7 +325,7 @@ export default function WorkSelect() {
 
             {loadingPopular ? (
               <div className="flex flex-col gap-2">
-                {[1, 2, 3].map(i => <div key={i} className="h-14 bg-bg-secondary rounded-xl animate-pulse" />)}
+                {[1, 2, 3].map(i => <div key={i} className="h-14 bg-bg-secondary rounded-[14px] animate-pulse" />)}
               </div>
             ) : popularWorks.length > 0 ? (
               <Section title="人気のカレンダー">
@@ -353,7 +354,7 @@ export default function WorkSelect() {
       {pendingWork && (
         <>
           <div className="fixed inset-0 z-[150] bg-black/40" onClick={() => setPendingWork(null)} />
-          <div className="fixed bottom-0 left-0 right-0 z-[160] max-w-app mx-auto rounded-t-2xl overflow-hidden" style={{ backgroundColor: 'var(--bg-primary)' }}>
+          <div className="fixed bottom-0 left-0 right-0 z-[160] max-w-app mx-auto rounded-t-[18px] overflow-hidden" style={{ backgroundColor: 'var(--bg-primary)' }}>
             <div className="px-5 pt-5 pb-4">
               {/* タイトル */}
               <p className="text-label-primary font-semibold text-[15px] mb-1">表示するカテゴリを選択</p>
@@ -367,14 +368,13 @@ export default function WorkSelect() {
                     <button
                       key={cat}
                       onClick={() => setPendingCats(prev => active ? prev.filter(c => c !== cat) : [...prev, cat])}
-                      className="px-3 py-1.5 rounded-full text-xs border transition-colors active:opacity-70"
+                      className="px-3 py-1.5 rounded-full text-xs transition-colors active:opacity-70"
                       style={active ? {
-                        borderColor: 'var(--accent-color)',
                         color: 'var(--accent-color)',
-                        backgroundColor: 'color-mix(in srgb, var(--accent-color) 12%, transparent)',
+                        backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)',
                       } : {
-                        borderColor: 'var(--border-default)',
                         color: 'var(--label-secondary)',
+                        backgroundColor: 'var(--fill-tertiary)',
                       }}
                     >
                       {cat}
@@ -383,10 +383,10 @@ export default function WorkSelect() {
                 })}
                 <button
                   onClick={() => setPendingCats([...POST_CATEGORIES])}
-                  className="px-3 py-1.5 rounded-full text-xs border transition-colors active:opacity-70"
+                  className="px-3 py-1.5 rounded-full text-xs transition-colors active:opacity-70"
                   style={{
-                    borderColor: 'var(--border-default)',
                     color: 'var(--label-tertiary)',
+                    backgroundColor: 'var(--fill-tertiary)',
                   }}
                 >
                   全て表示
@@ -422,7 +422,7 @@ export default function WorkSelect() {
                   setToast(`「${name}」に参加しました`);
                   setTimeout(() => setToast(null), 2500);
                 }}
-                className="w-full py-3 rounded-xl text-sm font-semibold active:opacity-70"
+                className="w-full py-3 rounded-[14px] text-sm font-semibold active:opacity-70"
                 style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' }}
               >
                 「{pendingWork.name}」に参加する
@@ -432,8 +432,8 @@ export default function WorkSelect() {
         </>
       )}
       {toast && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[300] px-4 py-2.5 rounded-full text-sm font-medium text-white shadow-lg"
-          style={{ backgroundColor: 'var(--accent-color)', whiteSpace: 'nowrap' }}>
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[300] px-4 py-2.5 rounded-full text-sm font-medium shadow-lg"
+          style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)', whiteSpace: 'nowrap' }}>
           {toast}
         </div>
       )}
@@ -443,12 +443,12 @@ export default function WorkSelect() {
         <div className="fixed inset-0 z-[200] flex flex-col justify-end">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowRegionPanel(false)} />
           <div
-            className="relative bg-bg-primary rounded-t-2xl"
+            className="relative bg-bg-primary rounded-t-[18px]"
             style={{ maxHeight: '85vh', display: 'flex', flexDirection: 'column', animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both' }}
           >
-            <div style={{ flexShrink: 0 }} className="pt-3 px-4 pb-3 border-b border-faint">
+            <div style={{ flexShrink: 0 }} className="pt-3 px-4 pb-3 border-b border-separator">
               <div className="flex justify-center mb-2">
-                <div className="w-10 h-1 rounded-full bg-label-tertiary/50" />
+                <div className="w-9 h-[5px] rounded-full" style={{ backgroundColor: 'var(--fill-primary)' }} />
               </div>
               <div className="flex items-center justify-between">
                 <p className="text-label-primary font-semibold text-sm">地域で絞り込む</p>
@@ -480,7 +480,7 @@ export default function WorkSelect() {
                     if (e.target.value) { setFilterMode('region'); setFilterValue(e.target.value); setIncludeAdjacent(false); saveRegionFilter({ filterMode: 'region', filterValue: e.target.value, includeAdjacent: false }); setShowRegionPanel(false); }
                     else { setFilterMode('none'); setFilterValue(null); saveRegionFilter({ filterMode: 'none', filterValue: null, includeAdjacent: false }); }
                   }}
-                  className="w-full bg-bg-secondary rounded-xl px-3 py-3 text-sm text-label-primary outline-none border border-subtle appearance-none"
+                  className="w-full bg-bg-secondary rounded-[14px] px-3 py-3 text-sm text-label-primary outline-none border border-subtle appearance-none"
                 >
                   <option value="">地域を選ぶ</option>
                   {REGIONS.map(r => <option key={r.name} value={r.name}>{r.name}地方</option>)}
@@ -489,7 +489,7 @@ export default function WorkSelect() {
               {filterMode === 'pref' && filterValue && (ADJACENT[filterValue]?.length ?? 0) > 0 && (
                 <button
                   onClick={() => { setIncludeAdjacent(v => !v); saveRegionFilter({ filterMode, filterValue, includeAdjacent: !includeAdjacent }); }}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-bg-secondary rounded-xl mb-5"
+                  className="w-full flex items-center justify-between px-4 py-3 bg-bg-secondary rounded-[14px] mb-5"
                 >
                   <div>
                     <p className="text-sm text-label-primary text-left">隣接する県を含む</p>
@@ -501,7 +501,7 @@ export default function WorkSelect() {
                 </button>
               )}
               {!homePref && (
-                <div className="mb-4 px-4 py-3 bg-bg-secondary rounded-xl border border-faint">
+                <div className="mb-4 px-4 py-3 bg-bg-secondary rounded-[14px] border border-faint">
                   <p className="text-label-primary text-sm font-medium mb-1">ホーム県を設定する</p>
                   <p className="text-label-tertiary text-xs mb-3 leading-relaxed">設定しておくと、ワンタップでホーム県に絞り込めます。</p>
                   <button onClick={() => { setShowRegionPanel(false); navigate('/profile'); }} className="text-xs font-semibold active:opacity-60" style={{ color: 'var(--accent-color)' }}>プロフィールで登録する →</button>
@@ -514,14 +514,14 @@ export default function WorkSelect() {
                     saveRegionFilter({ filterMode: 'pref', filterValue: homePref, includeAdjacent: false });
                     setShowRegionPanel(false);
                   }}
-                  className="w-full text-center py-3 rounded-xl text-sm font-medium active:opacity-70 mb-3"
+                  className="w-full text-center py-3 rounded-[14px] text-sm font-medium active:opacity-70 mb-3"
                   style={{ background: 'var(--accent-color)', color: 'var(--bg-primary)' }}
                 >
                   ホーム県（{homePref}）で絞り込む
                 </button>
               )}
               {filterActive && (
-                <button onClick={() => { setFilterMode('none'); setFilterValue(null); setIncludeAdjacent(false); saveRegionFilter({ filterMode: 'none', filterValue: null, includeAdjacent: false }); setShowRegionPanel(false); }} className="w-full text-center py-3 rounded-xl border border-subtle text-sm text-label-secondary active:opacity-60">全国表示（絞り込みなし）</button>
+                <button onClick={() => { setFilterMode('none'); setFilterValue(null); setIncludeAdjacent(false); saveRegionFilter({ filterMode: 'none', filterValue: null, includeAdjacent: false }); setShowRegionPanel(false); }} className="w-full text-center py-3 rounded-[14px] border border-subtle text-sm text-label-secondary active:opacity-60">全国表示（絞り込みなし）</button>
               )}
             </div>
           </div>

@@ -100,11 +100,10 @@ function LikeButton({
           onClick={e => { handleTap(); triggerAnim(e.currentTarget); }}
           disabled={!userId || locked}
           aria-label={`いいね (${event.likes.toLocaleString('ja-JP')}件)`}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm select-none ${locked ? 'opacity-30' : ''}`}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm select-none ${locked ? 'opacity-30' : ''}`}
           style={{
-            borderColor: flash ? 'rgb(248,113,113)' : hasLiked ? 'rgb(248,113,113)' : 'var(--border-default)',
             color: hasLiked ? 'rgb(248,113,113)' : 'var(--label-secondary)',
-            background: flash ? 'rgba(248,113,113,0.12)' : 'transparent',
+            background: flash ? 'rgba(248,113,113,0.18)' : hasLiked ? 'rgba(248,113,113,0.12)' : 'var(--fill-tertiary)',
             transform: bumped ? 'scale(1.26)' : 'scale(1)',
             transition: 'transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.15s, background 0.2s',
           }}
@@ -187,7 +186,7 @@ function EventCard({
     ? (() => { const fmt = (d: string) => { const [, m, day] = d.split('-'); return `${parseInt(m)}月${parseInt(day)}日`; }; return `${fmt(event.date)}〜${fmt(event.endDate)}`; })()
     : null;
   return (
-    <div className="bg-bg-secondary rounded-xl px-4 py-4 flex flex-col gap-3 shadow-card">
+    <div className="bg-bg-secondary rounded-[14px] px-4 py-4 flex flex-col gap-3">
       {/* タイトル + 時間 */}
       <div className="flex items-start justify-between gap-2">
         <p className="text-label-primary font-bold text-[15px] leading-snug flex-1">{event.title}</p>
@@ -211,7 +210,8 @@ function EventCard({
             href={event.link}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 px-3 py-1 rounded-full border border-default text-label-secondary text-xs active:opacity-60"
+            className="flex items-center gap-1 px-3 py-1 rounded-full text-label-secondary text-xs active:opacity-60"
+            style={{ backgroundColor: 'var(--fill-tertiary)' }}
           >
             <ExternalLink size={11} />
             <span>{getDomain(event.link)}</span>
@@ -225,9 +225,11 @@ function EventCard({
         {onOpenReactionPicker && (
           <button
             onClick={onOpenReactionPicker}
-            className="flex items-center justify-center px-3 py-1.5 rounded-full border text-sm active:opacity-60"
+            className="flex items-center justify-center px-3 py-1.5 rounded-full text-sm active:opacity-60"
             style={{
-              borderColor: reactionData?.myReaction ? 'var(--accent-color)' : 'var(--border-default)',
+              backgroundColor: reactionData?.myReaction
+                ? 'color-mix(in srgb, var(--accent-color) 15%, transparent)'
+                : 'var(--fill-tertiary)',
               color: reactionData?.myReaction ? 'var(--accent-color)' : 'var(--label-secondary)',
               minWidth: '2.5rem',
             }}
@@ -247,8 +249,8 @@ function EventCard({
             return `https://twitter.com/intent/tweet?text=${encodeURIComponent(parts.join('\n'))}`;
           })()}
           target="_blank" rel="noopener noreferrer"
-          className="ml-auto flex items-center justify-center px-3 py-1.5 rounded-full border text-sm active:opacity-60"
-          style={{ borderColor: 'var(--border-default)', color: 'var(--label-secondary)', minWidth: '2.5rem' }}
+          className="ml-auto flex items-center justify-center px-3 py-1.5 rounded-full text-sm active:opacity-60"
+          style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-secondary)', minWidth: '2.5rem' }}
         >
           <Share2 size={14} />
         </a>
@@ -256,8 +258,8 @@ function EventCard({
         {onDelete && userId && event.authorId === userId && (
           <button
             onClick={() => onDelete(event.id)}
-            className="flex items-center justify-center px-3 py-1.5 rounded-full border text-sm active:opacity-60"
-            style={{ borderColor: 'var(--border-default)', color: 'var(--label-tertiary)', minWidth: '2.5rem' }}
+            className="flex items-center justify-center px-3 py-1.5 rounded-full text-sm active:opacity-60"
+            style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-tertiary)', minWidth: '2.5rem' }}
           >
             <Trash2 size={14} />
           </button>
@@ -402,7 +404,7 @@ export default function DateDetail() {
 
         {loading ? (
           <div className="flex flex-col gap-3">
-            {[1, 2].map(i => <div key={i} className="h-32 bg-bg-secondary rounded-xl animate-pulse" />)}
+            {[1, 2].map(i => <div key={i} className="h-32 bg-bg-secondary rounded-[14px] animate-pulse" />)}
           </div>
         ) : events.length === 0 ? (
           <p className="text-center text-label-tertiary text-sm py-16">
@@ -433,12 +435,12 @@ export default function DateDetail() {
         <>
           <div className="fixed inset-0 z-[310]" onClick={() => setOpenReactionPickerId(null)} />
           <div className="fixed inset-x-0 max-w-app mx-auto z-[320]" style={{ bottom: 80 }}>
-            <div className="mx-4 bg-bg-primary rounded-2xl border border-subtle shadow-xl p-3 grid grid-cols-3 gap-1">
+            <div className="mx-4 bg-bg-primary rounded-[18px] shadow-xl p-3 grid grid-cols-3 gap-1" style={{ animation: 'slideUpIn 0.25s cubic-bezier(0.32, 0.72, 0, 1) both' }}>
               {REACTIONS.map(r => (
                 <button
                   key={r.type}
                   onClick={() => handleReaction(openReactionPickerId, r.type)}
-                  className="flex flex-col items-center gap-1 px-2 py-2 rounded-xl active:opacity-60"
+                  className="flex flex-col items-center gap-1 px-2 py-2 rounded-[14px] active:opacity-60"
                   style={{
                     background: eventReactions[openReactionPickerId]?.myReaction === r.type
                       ? 'var(--bg-secondary)'
@@ -456,7 +458,8 @@ export default function DateDetail() {
       {/* FAB */}
       <button
         onClick={() => navigate(`/calendar/${workId}/post?date=${date}`)}
-        className="fixed bottom-[76px] right-4 w-[52px] h-[52px] bg-label-primary text-bg-primary rounded-full flex items-center justify-center shadow-xl z-40 active:opacity-80 transition-opacity"
+        className="fixed bottom-[76px] right-4 w-14 h-14 rounded-full flex items-center justify-center shadow-xl z-40 active:opacity-80 transition-opacity"
+        style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' }}
         aria-label="予定を追加"
       >
         <Plus size={22} strokeWidth={2.5} />

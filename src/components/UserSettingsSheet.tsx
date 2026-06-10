@@ -5,7 +5,7 @@ import { loadImageVisibility, saveImageVisibility, type ImageVisibility } from '
 import { supabase } from '../lib/supabase';
 
 const inputCls =
-  'w-full bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong';
+  'w-full bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-separator focus:border-strong';
 
 // ─── 都道府県選択（検索欄 + ドロップダウンボタン分離） ─────────────
 
@@ -47,7 +47,7 @@ export function PrefectureSearch({
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-bg-secondary border border-faint rounded-xl active:opacity-70"
+        className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-bg-secondary border border-separator rounded-[14px] active:opacity-70"
       >
         <span className={value ? 'text-label-primary font-medium' : 'text-label-tertiary'}>
           {value || '都道府県を選択...'}
@@ -60,11 +60,11 @@ export function PrefectureSearch({
 
       {/* ③ 選択肢リスト（内部スクロールなし・親コンテナがスクロール） */}
       {open && (
-        <div className="bg-bg-secondary border border-faint rounded-xl overflow-hidden">
+        <div className="bg-bg-secondary border border-separator rounded-[14px] overflow-hidden">
           <button
             type="button"
             onClick={() => select('')}
-            className={`w-full text-left px-3 py-2.5 text-sm border-b border-faint ${!value ? 'text-label-primary font-medium' : 'text-label-tertiary'}`}
+            className={`w-full text-left px-3 py-2.5 text-sm border-b border-separator ${!value ? 'text-label-primary font-medium' : 'text-label-tertiary'}`}
           >
             指定なし
           </button>
@@ -74,7 +74,7 @@ export function PrefectureSearch({
               type="button"
               onClick={() => select(p)}
               className={`w-full text-left px-3 py-2.5 text-sm active:opacity-60 ${
-                i < filtered.length - 1 ? 'border-b border-faint' : ''
+                i < filtered.length - 1 ? 'border-b border-separator' : ''
               } ${value === p ? 'text-label-primary font-semibold bg-label-primary/5' : 'text-label-secondary'}`}
             >
               {p}
@@ -141,7 +141,7 @@ export default function UserSettingsSheet({
     <div className="fixed inset-0 z-[200] flex flex-col justify-end">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div
-        className="relative bg-bg-primary rounded-t-2xl"
+        className="relative bg-bg-primary rounded-t-[18px]"
         style={{
           maxHeight: '85vh',
           display: 'flex',
@@ -150,9 +150,9 @@ export default function UserSettingsSheet({
         }}
       >
         {/* 固定ヘッダー */}
-        <div style={{ flexShrink: 0 }} className="pt-3 px-4 pb-3 border-b border-faint">
+        <div style={{ flexShrink: 0 }} className="pt-3 px-4 pb-3 border-b border-separator">
           <div className="flex justify-center mb-2">
-            <div className="w-10 h-1 rounded-full bg-label-tertiary/50" />
+            <div className="w-9 h-[5px] rounded-full" style={{ backgroundColor: 'var(--fill-primary)' }} />
           </div>
           <div className="flex items-center justify-between">
             <p className="text-label-primary font-semibold text-sm">ユーザー設定</p>
@@ -210,7 +210,7 @@ export default function UserSettingsSheet({
                   <button
                     key={key}
                     onClick={() => { const next = { ...imgVis, [key]: !on }; setImgVis(next); saveImageVisibility(next); }}
-                    className="flex items-center justify-between px-4 py-3 rounded-xl bg-bg-secondary active:opacity-70"
+                    className="flex items-center justify-between px-4 py-3 rounded-[14px] bg-bg-secondary active:opacity-70"
                   >
                     <span className="text-sm text-label-primary">{label}に画像を表示</span>
                     <div className="relative w-10 h-6 rounded-full transition-colors flex-shrink-0"
@@ -228,17 +228,19 @@ export default function UserSettingsSheet({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="w-full py-3 rounded-xl bg-label-primary text-bg-primary font-semibold text-sm active:opacity-70 disabled:opacity-40"
+            className="w-full py-3 rounded-[14px] font-semibold text-sm active:opacity-70 disabled:opacity-40"
+            style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' }}
           >
             {saved ? '保存しました ✓' : saving ? '保存中…' : '保存'}
           </button>
 
           {/* アカウント削除 */}
-          <div className="mt-8 pt-6 border-t border-faint">
+          <div className="mt-8 pt-6 border-t border-separator">
             {!delConfirm ? (
               <button
                 onClick={() => setDelConfirm(true)}
-                className="w-full py-2.5 rounded-xl text-sm text-red-400 border border-red-400/40 active:opacity-70"
+                className="w-full py-2.5 rounded-[14px] text-sm active:opacity-70"
+                style={{ color: 'var(--color-destructive)', backgroundColor: 'var(--fill-tertiary)' }}
               >
                 アカウントを削除する
               </button>
@@ -248,13 +250,14 @@ export default function UserSettingsSheet({
                 <button
                   onClick={handleDeleteAccount}
                   disabled={deleting}
-                  className="w-full py-2.5 rounded-xl text-sm font-semibold text-white bg-red-500 active:opacity-70 disabled:opacity-40"
+                  className="w-full py-2.5 rounded-[14px] text-sm font-semibold active:opacity-70 disabled:opacity-40"
+                  style={{ backgroundColor: 'var(--color-destructive)', color: '#ffffff' }}
                 >
                   {deleting ? '削除中…' : '本当に削除する'}
                 </button>
                 <button
                   onClick={() => setDelConfirm(false)}
-                  className="w-full py-2.5 rounded-xl text-sm text-label-secondary active:opacity-70"
+                  className="w-full py-2.5 rounded-[14px] text-sm text-label-secondary active:opacity-70"
                 >
                   キャンセル
                 </button>

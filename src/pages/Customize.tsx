@@ -134,7 +134,8 @@ function CommunityThemeModal({
         <div className="flex px-4 pt-3 gap-1">
           {(['preset', 'shared'] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${tab === t ? 'bg-label-primary text-bg-primary' : 'text-label-secondary'}`}>
+              className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${tab === t ? '' : 'text-label-secondary'}`}
+              style={tab === t ? { backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' } : {}}>
               {t === 'preset' ? 'プリセット' : 'みんなの共有'}
             </button>
           ))}
@@ -198,7 +199,8 @@ function CommunityThemeModal({
                 placeholder="テーマ名を入力して共有"
                 className="flex-1 bg-bg-secondary rounded-lg px-3 py-2 text-sm text-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong" />
               <button onClick={handleShare} disabled={!shareName.trim() || sharing}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-label-primary text-bg-primary text-sm font-medium disabled:opacity-30 active:opacity-70">
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-30 active:opacity-70"
+                style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' }}>
                 {sharing ? <Loader size={13} className="animate-spin" /> : <Share2 size={13} />}
                 共有
               </button>

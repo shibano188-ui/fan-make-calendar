@@ -283,7 +283,7 @@ export default function Profile() {
           {/* ── プロフィール ───────────────────────── */}
           <section>
             <p className="text-label-tertiary text-xs mb-3">プロフィール</p>
-            <div className="rounded-xl overflow-hidden shadow-card" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+            <div className="rounded-[14px] overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>
 
               {/* アバター＋名前＋称号 */}
               <div className="flex items-center gap-4 px-5 pt-5 pb-4">
@@ -427,7 +427,7 @@ export default function Profile() {
 
           {/* ── ファンスター & 実績バッジ ──────────── */}
           <section>
-            <div className="rounded-xl shadow-card px-3 pt-4 pb-4" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+            <div className="rounded-[14px] px-3 pt-4 pb-4" style={{ backgroundColor: 'var(--bg-secondary)' }}>
 
               {/* 称号行 */}
               <div className="flex items-center gap-3 px-1 mb-4">
@@ -540,7 +540,7 @@ export default function Profile() {
             <p className="text-label-tertiary text-xs mb-3">アクティビティ</p>
             <button
               onClick={() => navigate('/select')}
-              className="w-full flex items-center justify-between px-5 py-4 rounded-xl shadow-card active:opacity-70"
+              className="w-full flex items-center justify-between px-5 py-4 rounded-[14px] active:opacity-70"
               style={{ backgroundColor: 'var(--bg-secondary)' }}
             >
               <span className="text-label-primary text-sm">参加している作品</span>
@@ -559,7 +559,7 @@ export default function Profile() {
                 { label: 'もらったいいね', value: receivedLikes, unit: '' },
                 { label: 'リアクションした', value: reactionsGiven, unit: '回' },
               ].map(({ label, value, unit }) => (
-                <div key={label} className="rounded-xl px-4 py-4 shadow-card flex flex-col gap-1" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                <div key={label} className="rounded-[14px] px-4 py-4 flex flex-col gap-1" style={{ backgroundColor: 'var(--bg-secondary)' }}>
                   <span className="text-label-tertiary text-[11px] leading-none">{label}</span>
                   <span className="text-label-primary text-2xl font-bold leading-tight">
                     {value === null ? '…' : value}
@@ -576,10 +576,10 @@ export default function Profile() {
       {showRegionPanel && (
         <div className="fixed inset-0 z-[200] flex flex-col justify-end">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowRegionPanel(false)} />
-          <div className="relative bg-bg-primary rounded-t-2xl"
+          <div className="relative bg-bg-primary rounded-t-[18px]"
             style={{ maxHeight: '85vh', display: 'flex', flexDirection: 'column', animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both' }}>
-            <div style={{ flexShrink: 0 }} className="pt-3 px-4 pb-3 border-b border-faint">
-              <div className="flex justify-center mb-2"><div className="w-10 h-1 rounded-full bg-label-tertiary/50" /></div>
+            <div style={{ flexShrink: 0 }} className="pt-3 px-4 pb-3 border-b border-separator">
+              <div className="flex justify-center mb-2"><div className="w-9 h-[5px] rounded-full" style={{ backgroundColor: 'var(--fill-primary)' }} /></div>
               <div className="flex items-center justify-between">
                 <p className="text-label-primary font-semibold text-sm">地域で絞り込む</p>
                 <button onClick={() => setShowRegionPanel(false)} className="text-xs text-label-secondary active:opacity-60">閉じる</button>

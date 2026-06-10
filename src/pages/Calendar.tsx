@@ -2133,8 +2133,8 @@ export default function Calendar() {
                       {sheetOpen && !postPanelOpen && !sheetDetailEvent && (
                         <button
                           onClick={e => { e.stopPropagation(); openPostForm(selectedDate); }}
-                          className="w-7 h-7 flex items-center justify-center rounded-full active:opacity-70 text-white"
-                          style={{ backgroundColor: 'var(--accent-color)' }}
+                          className="w-7 h-7 flex items-center justify-center rounded-full active:opacity-70"
+                          style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' }}
                           aria-label="予定を追加"
                         >
                           <Plus size={15} strokeWidth={2.5} />
@@ -3064,8 +3064,8 @@ export default function Calendar() {
             if (postPanelOpen) { closePostForm(); }
             else { openPostForm(selectedDate); }
           }}
-          className="fixed bottom-[72px] right-4 w-14 h-14 rounded-full flex items-center justify-center shadow-xl z-40 active:opacity-80 text-white"
-          style={{ backgroundColor: 'var(--accent-color)' }}
+          className="fixed bottom-[72px] right-4 w-14 h-14 rounded-full flex items-center justify-center shadow-xl z-40 active:opacity-80"
+          style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' }}
           aria-label={postPanelOpen ? '閉じる' : '予定を追加'}
         >
           <div style={{ transition: 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)', transform: postPanelOpen ? 'rotate(45deg)' : 'rotate(0deg)' }}>
@@ -3143,7 +3143,7 @@ export default function Calendar() {
               <p className="text-label-secondary text-xs">予定を追加</p>
               <div className="flex items-center gap-2">
                 <button onClick={closePostForm} className="text-xs text-label-tertiary px-3 py-1.5 rounded-lg active:opacity-60">キャンセル</button>
-                <button onClick={() => void handlePostSubmit()} disabled={postSubmitting || !!duplicateWarning} className="text-xs font-semibold text-white px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40" style={{ backgroundColor: 'var(--accent-color)' }}>
+                <button onClick={() => void handlePostSubmit()} disabled={postSubmitting || !!duplicateWarning} className="text-xs font-semibold px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' }}>
                   {postSubmitting ? '送信中…' : workId && user ? '投稿' : '保存'}
                 </button>
               </div>
@@ -3237,7 +3237,7 @@ export default function Calendar() {
                 <p className="text-label-secondary text-xs">予定を編集</p>
                 <div className="flex items-center gap-2">
                   <button onClick={() => { setEditEventId(null); setEditForm(null); }} className="text-xs text-label-tertiary px-3 py-1.5 rounded-lg active:opacity-60">キャンセル</button>
-                  <button onClick={handleEditSubmit} disabled={editSubmitting} className="text-xs font-semibold text-white px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40" style={{ backgroundColor: 'var(--accent-color)' }}>
+                  <button onClick={handleEditSubmit} disabled={editSubmitting} className="text-xs font-semibold px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' }}>
                     {editSubmitting ? '更新中…' : '保存'}
                   </button>
                 </div>

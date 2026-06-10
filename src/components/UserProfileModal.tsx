@@ -55,7 +55,7 @@ export default function UserProfileModal({
     <div className="fixed inset-0 z-[500] flex items-center justify-center px-6">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div
-        className="relative w-full max-w-sm rounded-2xl overflow-hidden shadow-xl"
+        className="relative w-full max-w-sm rounded-[14px] overflow-hidden shadow-xl"
         style={{
           backgroundColor: 'var(--bg-primary)',
           animation: 'slideUpIn 0.2s ease-out both',
@@ -94,11 +94,11 @@ export default function UserProfileModal({
 
               {/* 称号・グレード */}
               {title && (
-                <div className="flex items-center gap-3 px-4 py-2 rounded-xl w-full" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                <div className="flex items-center gap-3 px-4 py-2 rounded-[14px] w-full" style={{ backgroundColor: 'var(--bg-secondary)' }}>
                   <p className="flex-1 text-sm font-bold text-label-primary">⭐ {title}</p>
                   {grade !== null && (
                     <div className="text-right flex-shrink-0">
-                      <p className="text-label-tertiary" style={{ fontSize: 9 }}>グレード</p>
+                      <p className="text-label-tertiary" style={{ fontSize: 11 }}>グレード</p>
                       <p className="text-label-primary font-bold" style={{ fontSize: 15, lineHeight: 1.1 }}>
                         {grade}<span className="text-label-tertiary font-normal" style={{ fontSize: 10 }}>/500</span>
                       </p>
@@ -112,8 +112,8 @@ export default function UserProfileModal({
                   href={profile.xUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-full border text-sm active:opacity-60"
-                  style={{ borderColor: 'var(--border-default)', color: 'var(--label-secondary)' }}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm active:opacity-60"
+                  style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-secondary)' }}
                 >
                   <ExternalLink size={13} />X でフォロー
                 </a>
@@ -123,7 +123,7 @@ export default function UserProfileModal({
             {/* 統計 */}
             <div className="grid grid-cols-2 gap-3">
               <div
-                className="rounded-xl px-4 py-4 shadow-card flex flex-col gap-1"
+                className="rounded-[14px] px-4 py-4 flex flex-col gap-1"
                 style={{ backgroundColor: 'var(--bg-secondary)' }}
               >
                 <span className="text-label-tertiary text-[11px]">投稿した予定</span>
@@ -133,7 +133,7 @@ export default function UserProfileModal({
                 </span>
               </div>
               <div
-                className="rounded-xl px-4 py-4 shadow-card flex flex-col gap-1"
+                className="rounded-[14px] px-4 py-4 flex flex-col gap-1"
                 style={{ backgroundColor: 'var(--bg-secondary)' }}
               >
                 <span className="text-label-tertiary text-[11px]">もらったいいね</span>
