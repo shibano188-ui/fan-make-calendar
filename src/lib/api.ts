@@ -791,16 +791,41 @@ export async function listUpcomingParticipatedEvents(
 
   const today = new Date().toISOString().slice(0, 10);
   const monthStart = today.slice(0, 7) + '-01';
-  const { data, error } = await supabase
-    .from('events')
-    .select('*, works(name)')
-    .in('work_id', workIds)
-    .eq('pool', 0)
-    .or(`end_date.gte.${today},and(end_date.is.null,event_date.gte.${monthStart}),preorder_end_date.gte.${today},and(preorder_end_date.is.null,is_order_made.eq.true,event_date.gte.${today}),and(preorder_end_date.is.null,is_order_made.eq.true,event_date.is.null)`)
-    .limit(limit);
-  if (error) throw error;
 
-  const events = (data ?? []).map(e => {
+  // 通常イベント + 予約イベントを並列取得
+  // 予約イベントは .eq('is_order_made', true) を単独メソッドで使うことで確実に取得する
+  // （.or() 内の is_order_made.eq.true は Supabase クライアントの複合条件で動作しないケースがある）
+  const [mainResult, preorderResult] = await Promise.all([
+    supabase
+      .from('events')
+      .select('*, works(name)')
+      .in('work_id', workIds)
+      .eq('pool', 0)
+      .or(`end_date.gte.${today},and(end_date.is.null,event_date.gte.${monthStart})`)
+      .limit(limit),
+    supabase
+      .from('events')
+      .select('*, works(name)')
+      .in('work_id', workIds)
+      .eq('pool', 0)
+      .eq('is_order_made', true),
+  ]);
+  if (mainResult.error) throw mainResult.error;
+
+  // 予約イベントを listPreorderEvents と同じクライアント側フィルターで絞り込む
+  const preorderRows = (preorderResult.data ?? []).filter(e => {
+    const pe = e.preorder_end_date as string | null;
+    const ed = e.event_date as string | null;
+    if (pe && pe < today) return false;
+    if (!pe && ed && ed < today) return false;
+    return true;
+  });
+
+  // 重複排除してマージ（通常クエリに既に含まれる予約イベントを除く）
+  const mainIds = new Set((mainResult.data ?? []).map(e => e.id as string));
+  const combined = [...(mainResult.data ?? []), ...preorderRows.filter(e => !mainIds.has(e.id as string))];
+
+  const events = combined.map(e => {
     const ev = rowToEvent(e as Record<string, unknown>);
     const works = (e as Record<string, unknown>).works as { name: string } | null;
     return { ...ev, workId: (e as Record<string, unknown>).work_id as string, workName: works?.name ?? undefined };
