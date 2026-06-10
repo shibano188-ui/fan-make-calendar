@@ -30,8 +30,13 @@ export default function BottomTab() {
 
   return (
     <nav
-      className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-app bg-bg-primary border-t border-subtle z-[100]"
-      style={{ backgroundColor: 'var(--bg-primary)' }}
+      className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-app border-t border-separator z-[100]"
+      style={{
+        backgroundColor: 'color-mix(in srgb, var(--bg-primary) 88%, transparent)',
+        backdropFilter: 'saturate(180%) blur(20px)',
+        WebkitBackdropFilter: 'saturate(180%) blur(20px)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+      }}
     >
       <div className="flex">
         {tabs.map(({ label, icon: Icon, index }) => {
@@ -41,15 +46,15 @@ export default function BottomTab() {
             <button
               key={index}
               onClick={() => navigate(getTabPath(index))}
-              className="flex-1 flex flex-col items-center gap-1 py-2 transition-colors relative"
+              className="flex-1 flex flex-col items-center gap-[3px] py-2 pressable relative"
               aria-label={label}
             >
               <div className="relative">
                 <Icon
-                  size={20}
+                  size={22}
                   className={active ? '' : 'text-label-tertiary'}
                   style={active ? { color: 'var(--accent-color)' } : {}}
-                  strokeWidth={active ? 2 : 1.5}
+                  strokeWidth={active ? 2.5 : 1.8}
                 />
                 {showBadge && (
                   <span
@@ -61,7 +66,7 @@ export default function BottomTab() {
                 )}
               </div>
               <span
-                className={`text-[10px] ${active ? '' : 'text-label-tertiary'}`}
+                className={`text-[11px] leading-none font-medium ${active ? '' : 'text-label-tertiary'}`}
                 style={active ? { color: 'var(--accent-color)' } : {}}
               >
                 {label}

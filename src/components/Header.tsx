@@ -13,6 +13,12 @@ interface Props {
   compact?: boolean;
 }
 
+const headerStyle: React.CSSProperties = {
+  backgroundColor: 'color-mix(in srgb, var(--bg-primary) 88%, transparent)',
+  backdropFilter: 'saturate(180%) blur(20px)',
+  WebkitBackdropFilter: 'saturate(180%) blur(20px)',
+};
+
 export default function Header({ title, subtitle, subtitleNode, onBack, closeMode = false, rightAction, leftNode, compact = false }: Props) {
   const navigate = useNavigate();
 
@@ -21,11 +27,14 @@ export default function Header({ title, subtitle, subtitleNode, onBack, closeMod
     else navigate(-1);
   };
 
-  const py = compact ? 'py-2' : 'py-3';
+  const py = compact ? 'py-1' : 'py-2';
 
   if (leftNode !== undefined) {
     return (
-      <header className={`flex items-center justify-between px-4 ${py} bg-bg-primary border-b border-subtle`}>
+      <header
+        className={`flex items-center justify-between px-2 ${py} border-b border-separator`}
+        style={headerStyle}
+      >
         <div className="flex-1 flex items-center min-w-0">
           {leftNode}
         </div>
@@ -39,21 +48,25 @@ export default function Header({ title, subtitle, subtitleNode, onBack, closeMod
   }
 
   return (
-    <header className={`flex items-center px-4 ${py} bg-bg-primary border-b border-subtle`}>
+    <header
+      className={`flex items-center px-2 ${py} border-b border-separator`}
+      style={headerStyle}
+    >
       <div className="flex-1 flex items-center">
         <button
           onClick={handleBack}
-          className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-primary"
+          className="w-11 h-11 flex items-center justify-center rounded-full pressable"
+          style={{ color: 'var(--accent-color)' }}
           aria-label={closeMode ? '閉じる' : '戻る'}
         >
-          {closeMode ? <X size={16} /> : <ChevronLeft size={18} />}
+          {closeMode ? <X size={20} /> : <ChevronLeft size={24} />}
         </button>
       </div>
 
       <div className="flex-1 text-center px-1">
         {title && <p className="text-sm font-semibold text-label-primary leading-tight">{title}</p>}
         {subtitleNode ?? (subtitle && (
-          <p className="text-xs text-label-secondary leading-tight">{subtitle}</p>
+          <p className="text-[11px] text-label-secondary leading-tight">{subtitle}</p>
         ))}
       </div>
 

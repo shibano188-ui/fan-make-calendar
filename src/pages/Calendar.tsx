@@ -1898,21 +1898,26 @@ export default function Calendar() {
           </div>
         )}
 
-        {/* 上部タブ（カレンダー / 予定一覧） */}
-        <div className="flex flex-shrink-0 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
-          {(['calendar', 'list'] as const).map(v => (
-            <button
-              key={v}
-              onClick={() => { setTopView(v); sessionStorage.setItem('cal_topView', v); }}
-              className="flex-1 py-1.5 text-sm font-medium transition-colors relative"
-              style={{ color: topView === v ? 'var(--accent-color)' : 'var(--label-tertiary)' }}
-            >
-              {v === 'calendar' ? 'カレンダー' : '予定一覧'}
-              {topView === v && (
-                <span className="absolute bottom-0 left-4 right-4 h-0.5 rounded-full" style={{ backgroundColor: 'var(--accent-color)' }} />
-              )}
-            </button>
-          ))}
+        {/* 上部タブ（カレンダー / 予定一覧） — iOS セグメントコントロール */}
+        <div className="flex-shrink-0 px-4 py-2">
+          <div
+            className="flex rounded-[10px] p-[2px]"
+            style={{ backgroundColor: 'var(--fill-tertiary)' }}
+          >
+            {(['calendar', 'list'] as const).map(v => (
+              <button
+                key={v}
+                onClick={() => { setTopView(v); sessionStorage.setItem('cal_topView', v); }}
+                className="flex-1 py-[5px] text-[13px] font-medium rounded-[8px] transition-all duration-200 pressable"
+                style={topView === v
+                  ? { backgroundColor: 'var(--bg-secondary)', color: 'var(--label-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }
+                  : { backgroundColor: 'transparent', color: 'var(--label-secondary)' }
+                }
+              >
+                {v === 'calendar' ? 'カレンダー' : '予定一覧'}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* タブ以下のコンテンツエリア（背景画像はここから） */}

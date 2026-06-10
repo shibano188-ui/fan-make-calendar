@@ -10,6 +10,7 @@ export default {
         bg: {
           primary:   'var(--bg-primary)',
           secondary: 'var(--bg-secondary)',
+          tertiary:  'var(--bg-tertiary)',
         },
         label: {
           primary:   'var(--label-primary)',
@@ -20,14 +21,24 @@ export default {
           text:        'var(--input-text)',
           placeholder: 'var(--input-placeholder)',
         },
-        accent: 'var(--accent-color)',
+        fill: {
+          1: 'var(--fill-primary)',
+          2: 'var(--fill-secondary)',
+          3: 'var(--fill-tertiary)',
+          4: 'var(--fill-quaternary)',
+        },
+        accent:      'var(--accent-color)',
+        destructive: 'var(--color-destructive)',
+        success:     'var(--color-success)',
+        warning:     'var(--color-warning)',
       },
       borderColor: {
-        subtle:   'var(--border-subtle)',
-        faint:    'var(--border-faint)',
-        default:  'var(--border-default)',
-        strong:   'var(--border-strong)',
-        selected: 'var(--border-selected)',
+        subtle:    'var(--border-subtle)',
+        faint:     'var(--border-faint)',
+        default:   'var(--border-default)',
+        strong:    'var(--border-strong)',
+        selected:  'var(--border-selected)',
+        separator: 'var(--separator)',
       },
       maxWidth: {
         app: '480px',
