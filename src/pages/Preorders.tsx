@@ -20,6 +20,7 @@ import { REACTIONS, type ReactionType } from '../lib/reactions';
 import { useAuth } from '../contexts/AuthContext';
 import type { CalendarEvent } from '../types';
 import { WORK_COLORS } from './Calendar';
+import { getContrastText } from '../lib/color';
 
 const BOTTOM_TAB_H = 56;
 const LIKE_MAX_TAPS = 10;
@@ -353,7 +354,7 @@ export default function Preorders() {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 text-sm px-4 py-2 rounded-full font-bold active:opacity-60"
-                    style={{ background: workColor, color: '#fff' }}
+                    style={{ background: workColor, color: getContrastText(workColor) }}
                   >
                     <ExternalLink size={13} />
                     チェック!

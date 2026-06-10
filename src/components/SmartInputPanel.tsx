@@ -169,7 +169,7 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
             onClick={handleUrlParse}
             disabled={loading || !urlValue.trim()}
             className="px-3 py-2 rounded-lg text-xs font-semibold flex-shrink-0 active:opacity-70 disabled:opacity-40"
-            style={{ backgroundColor: 'var(--accent-color)', color: '#fff' }}
+            style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
           >
             {loading ? <Loader2 size={14} className="animate-spin" /> : '解析'}
           </button>
@@ -196,7 +196,7 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
                   border: `1.5px solid ${selected.has(i) ? 'var(--accent-color)' : 'var(--border-default)'}`,
                 }}
               >
-                {selected.has(i) && <Check size={10} color="#fff" strokeWidth={3} />}
+                {selected.has(i) && <Check size={10} color="var(--accent-on)" strokeWidth={3} />}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium text-label-primary truncate">
@@ -220,7 +220,7 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
               onClick={applySelected}
               disabled={selected.size === 0}
               className="flex-2 px-4 py-2 rounded-lg text-xs font-semibold active:opacity-70 disabled:opacity-40"
-              style={{ backgroundColor: 'var(--accent-color)', color: '#fff' }}
+              style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
             >
               {selected.size}件を追加
             </button>

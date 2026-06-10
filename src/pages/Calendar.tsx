@@ -426,7 +426,7 @@ function InlineCardItem({
                 type="button"
                 onClick={() => onChange({ isOrderMade: !card.isOrderMade })}
                 className="flex-shrink-0 w-9 h-5 rounded-full relative transition-colors"
-                style={{ background: card.isOrderMade ? '#ef4444' : 'rgba(128,128,128,0.4)' }}
+                style={{ background: card.isOrderMade ? 'var(--color-destructive)' : 'var(--fill-primary)' }}
               >
                 <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm"
                   style={{ left: card.isOrderMade ? 'calc(100% - 18px)' : '2px' }} />
@@ -573,7 +573,7 @@ function RegionFilterPanel({
             </div>
           )}
           {canGoHome ? (
-            <button onClick={() => onApplyPref(homePref!)} className="w-full text-center py-3 rounded-xl text-sm font-medium active:opacity-70" style={{ background: 'var(--accent-color)', color: 'var(--bg-primary)' }}>
+            <button onClick={() => onApplyPref(homePref!)} className="w-full text-center py-3 rounded-xl text-sm font-medium active:opacity-70" style={{ background: 'var(--accent-color)', color: 'var(--accent-on)' }}>
               ホーム県（{homePref}）で絞り込む
             </button>
           ) : filterActive ? (
@@ -1938,11 +1938,11 @@ export default function Calendar() {
             className="mx-3 mt-2 flex items-center gap-2 px-3 py-2.5 rounded-xl active:opacity-70"
             style={{ backgroundColor: 'var(--accent-color)' }}
           >
-            <Inbox size={15} color="#fff" />
-            <span className="text-white text-xs font-semibold flex-1 text-left">
+            <Inbox size={15} color="var(--accent-on)" />
+            <span className="text-xs font-semibold flex-1 text-left" style={{ color: 'var(--accent-on)' }}>
               {eventQueue.length}件のストックがあります
             </span>
-            <ChevronRight size={14} color="rgba(255,255,255,0.7)" />
+            <ChevronRight size={14} color="var(--accent-on)" opacity={0.7} />
           </button>
         )}
 
@@ -2134,7 +2134,7 @@ export default function Calendar() {
                         <button
                           onClick={e => { e.stopPropagation(); openPostForm(selectedDate); }}
                           className="w-7 h-7 flex items-center justify-center rounded-full active:opacity-70"
-                          style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' }}
+                          style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
                           aria-label="予定を追加"
                         >
                           <Plus size={15} strokeWidth={2.5} />
@@ -2772,7 +2772,7 @@ export default function Calendar() {
                                 <span className="text-[13px] font-bold text-label-primary leading-snug">{em}/{ed}</span>
                               )}
                             </div>
-                            <div className="w-px self-stretch bg-white/10 flex-shrink-0" />
+                            <div className="w-px self-stretch flex-shrink-0" style={{ backgroundColor: 'var(--separator)' }} />
                             <div className="flex-1 min-w-0">
                               <p className="text-label-primary text-sm font-medium leading-snug">{event.title}</p>
                               {event.prefecture && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5 mt-2 inline-block">{event.prefecture}</span>}
@@ -2921,7 +2921,7 @@ export default function Calendar() {
                                 </>
                               )}
                             </div>
-                            <div className="w-px self-stretch bg-white/10 flex-shrink-0" />
+                            <div className="w-px self-stretch flex-shrink-0" style={{ backgroundColor: 'var(--separator)' }} />
                             <div className="flex-1 min-w-0">
                               <p className="text-label-primary text-sm font-medium leading-snug">{item.title}</p>
                               {showImagesList && (() => {
@@ -3065,7 +3065,7 @@ export default function Calendar() {
             else { openPostForm(selectedDate); }
           }}
           className="fixed bottom-[72px] right-4 w-14 h-14 rounded-full flex items-center justify-center shadow-xl z-40 active:opacity-80"
-          style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' }}
+          style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
           aria-label={postPanelOpen ? '閉じる' : '予定を追加'}
         >
           <div style={{ transition: 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)', transform: postPanelOpen ? 'rotate(45deg)' : 'rotate(0deg)' }}>
@@ -3143,7 +3143,7 @@ export default function Calendar() {
               <p className="text-label-secondary text-xs">予定を追加</p>
               <div className="flex items-center gap-2">
                 <button onClick={closePostForm} className="text-xs text-label-tertiary px-3 py-1.5 rounded-lg active:opacity-60">キャンセル</button>
-                <button onClick={() => void handlePostSubmit()} disabled={postSubmitting || !!duplicateWarning} className="text-xs font-semibold px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' }}>
+                <button onClick={() => void handlePostSubmit()} disabled={postSubmitting || !!duplicateWarning} className="text-xs font-semibold px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
                   {postSubmitting ? '送信中…' : workId && user ? '投稿' : '保存'}
                 </button>
               </div>
@@ -3237,7 +3237,7 @@ export default function Calendar() {
                 <p className="text-label-secondary text-xs">予定を編集</p>
                 <div className="flex items-center gap-2">
                   <button onClick={() => { setEditEventId(null); setEditForm(null); }} className="text-xs text-label-tertiary px-3 py-1.5 rounded-lg active:opacity-60">キャンセル</button>
-                  <button onClick={handleEditSubmit} disabled={editSubmitting} className="text-xs font-semibold px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' }}>
+                  <button onClick={handleEditSubmit} disabled={editSubmitting} className="text-xs font-semibold px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
                     {editSubmitting ? '更新中…' : '保存'}
                   </button>
                 </div>
@@ -3398,7 +3398,7 @@ export default function Calendar() {
                       type="button"
                       onClick={() => setEditForm(f => ({ ...f!, isOrderMade: !(f?.isOrderMade) }))}
                       className="flex-shrink-0 w-9 h-5 rounded-full relative transition-colors"
-                      style={{ background: editForm.isOrderMade ? '#ef4444' : 'rgba(128,128,128,0.4)' }}
+                      style={{ background: editForm.isOrderMade ? 'var(--color-destructive)' : 'var(--fill-primary)' }}
                     >
                       <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm"
                         style={{ left: editForm.isOrderMade ? 'calc(100% - 18px)' : '2px' }} />
@@ -3593,7 +3593,7 @@ export default function Calendar() {
                         border: `1.5px solid ${queueSelected.has(i) ? 'var(--accent-color)' : 'var(--border-default)'}`,
                       }}
                     >
-                      {queueSelected.has(i) && <Check size={11} color="#fff" strokeWidth={3} />}
+                      {queueSelected.has(i) && <Check size={11} color="var(--accent-on)" strokeWidth={3} />}
                     </button>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-label-primary truncate">{ev.title ?? '（タイトルなし）'}</p>
@@ -3620,8 +3620,8 @@ export default function Calendar() {
               <button
                 onClick={applyQueueSelected}
                 disabled={queueSelected.size === 0}
-                className="flex-2 px-5 py-2.5 rounded-xl text-xs font-semibold text-white active:opacity-70 disabled:opacity-40"
-                style={{ backgroundColor: 'var(--accent-color)' }}
+                className="flex-2 px-5 py-2.5 rounded-xl text-xs font-semibold active:opacity-70 disabled:opacity-40"
+                style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
               >
                 {queueSelected.size}件をカレンダーに追加
               </button>

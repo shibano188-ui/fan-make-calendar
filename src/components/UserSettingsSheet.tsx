@@ -229,7 +229,7 @@ export default function UserSettingsSheet({
             onClick={handleSave}
             disabled={saving}
             className="w-full py-3 rounded-[14px] font-semibold text-sm active:opacity-70 disabled:opacity-40"
-            style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' }}
+            style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
           >
             {saved ? '保存しました ✓' : saving ? '保存中…' : '保存'}
           </button>

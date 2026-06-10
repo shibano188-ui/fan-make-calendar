@@ -423,7 +423,7 @@ export default function WorkSelect() {
                   setTimeout(() => setToast(null), 2500);
                 }}
                 className="w-full py-3 rounded-[14px] text-sm font-semibold active:opacity-70"
-                style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' }}
+                style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
               >
                 「{pendingWork.name}」に参加する
               </button>
@@ -433,7 +433,7 @@ export default function WorkSelect() {
       )}
       {toast && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[300] px-4 py-2.5 rounded-full text-sm font-medium shadow-lg"
-          style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)', whiteSpace: 'nowrap' }}>
+          style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)', whiteSpace: 'nowrap' }}>
           {toast}
         </div>
       )}
@@ -515,7 +515,7 @@ export default function WorkSelect() {
                     setShowRegionPanel(false);
                   }}
                   className="w-full text-center py-3 rounded-[14px] text-sm font-medium active:opacity-70 mb-3"
-                  style={{ background: 'var(--accent-color)', color: 'var(--bg-primary)' }}
+                  style={{ background: 'var(--accent-color)', color: 'var(--accent-on)' }}
                 >
                   ホーム県（{homePref}）で絞り込む
                 </button>

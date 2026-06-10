@@ -9,7 +9,7 @@ export default function NotFound() {
       <button
         onClick={() => navigate('/')}
         className="mt-2 px-5 py-2.5 rounded-[14px] text-sm font-semibold active:opacity-70"
-        style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' }}
+        style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
       >
         ホームへ戻る
       </button>

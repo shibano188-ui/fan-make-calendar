@@ -99,7 +99,7 @@ export default function PreorderEditSheet({ event, onClose, onSaved }: Props) {
 
           <button onClick={handleSave} disabled={saving}
             className="w-full py-3 rounded-[14px] text-sm font-bold active:opacity-70 disabled:opacity-40"
-            style={{ background: 'var(--accent-color)', color: 'var(--bg-primary)' }}>
+            style={{ background: 'var(--accent-color)', color: 'var(--accent-on)' }}>
             {saving ? '更新中…' : '更新'}
           </button>
         </div>

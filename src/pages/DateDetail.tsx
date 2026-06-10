@@ -459,7 +459,7 @@ export default function DateDetail() {
       <button
         onClick={() => navigate(`/calendar/${workId}/post?date=${date}`)}
         className="fixed bottom-[76px] right-4 w-14 h-14 rounded-full flex items-center justify-center shadow-xl z-40 active:opacity-80 transition-opacity"
-        style={{ backgroundColor: 'var(--accent-color)', color: 'var(--bg-primary)' }}
+        style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
         aria-label="予定を追加"
       >
         <Plus size={22} strokeWidth={2.5} />

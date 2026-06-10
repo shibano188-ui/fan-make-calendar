@@ -58,8 +58,8 @@ export default function BottomTab() {
                 />
                 {showBadge && (
                   <span
-                    className="absolute -top-1 -right-1.5 min-w-[14px] h-[14px] rounded-full flex items-center justify-center text-white font-bold"
-                    style={{ fontSize: 9, backgroundColor: 'var(--accent-color)', paddingInline: 3 }}
+                    className="absolute -top-1 -right-1.5 min-w-[14px] h-[14px] rounded-full flex items-center justify-center font-bold"
+                    style={{ fontSize: 9, backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)', paddingInline: 3 }}
                   >
                     {queueCount > 9 ? '9+' : queueCount}
                   </span>

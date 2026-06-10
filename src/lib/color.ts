@@ -23,6 +23,8 @@ function relativeLuminance(hex: string): number | null {
 
 /** 塗り色の上に載せる文字色を返す。明るい塗り→黒系、暗い塗り→白 */
 export function getContrastText(color: string): string {
+  // CSS変数（アクセント色）が渡された場合は算出済みトークンに委ねる
+  if (color.startsWith('var(')) return 'var(--accent-on)';
   const lum = relativeLuminance(color);
   if (lum === null) return '#ffffff';
   return lum > 0.45 ? '#1a1a1a' : '#ffffff';

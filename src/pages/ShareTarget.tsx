@@ -141,8 +141,8 @@ export default function ShareTarget() {
           <div className="flex flex-col gap-2 w-full mt-2">
             <button
               onClick={() => navigate('/calendar?openQueue=1', { replace: true })}
-              className="w-full py-3 rounded-xl text-sm font-semibold text-white active:opacity-70"
-              style={{ backgroundColor: 'var(--accent-color)' }}
+              className="w-full py-3 rounded-xl text-sm font-semibold active:opacity-70"
+              style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
             >
               カレンダーでまとめて確認する
             </button>
@@ -160,8 +160,8 @@ export default function ShareTarget() {
           <div className="flex flex-col gap-2 w-full mt-2">
             <button
               onClick={() => navigate('/calendar', { replace: true, state: { pendingParsedEvent: pendingRef.current } })}
-              className="w-full py-3 rounded-xl text-sm font-semibold text-white active:opacity-70"
-              style={{ backgroundColor: 'var(--accent-color)' }}
+              className="w-full py-3 rounded-xl text-sm font-semibold active:opacity-70"
+              style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
             >
               カレンダーでフォームを開く
             </button>
@@ -178,8 +178,8 @@ export default function ShareTarget() {
           <div className="flex flex-col gap-2 w-full mt-2">
             <button
               onClick={() => navigate('/calendar', { replace: true, state: { pendingParsedEvent: pendingRef.current } })}
-              className="w-full py-3 rounded-xl text-sm font-semibold text-white active:opacity-70"
-              style={{ backgroundColor: 'var(--accent-color)' }}
+              className="w-full py-3 rounded-xl text-sm font-semibold active:opacity-70"
+              style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
             >
               カレンダーでフォームを開く
             </button>

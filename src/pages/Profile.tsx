@@ -295,7 +295,7 @@ export default function Profile() {
                   {(editingField === 'avatar' ? editAvatarEmoji : avatarEmoji) ? (
                     <span className="text-3xl leading-none">{editingField === 'avatar' ? editAvatarEmoji : avatarEmoji}</span>
                   ) : (
-                    <span className="text-xl font-bold" style={{ color: 'var(--bg-primary)' }}>{initials}</span>
+                    <span className="text-xl font-bold" style={{ color: 'var(--accent-on)' }}>{initials}</span>
                   )}
                   {editingField !== 'avatar' && (
                     <span className="absolute bottom-0 right-0 w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--bg-primary)' }}>
@@ -316,7 +316,7 @@ export default function Profile() {
                         <X size={13} className="text-label-secondary" />
                       </button>
                       <button onClick={() => saveSingleField('name')} disabled={savingProfile} className="w-7 h-7 flex items-center justify-center rounded-full active:opacity-70 disabled:opacity-40" style={{ backgroundColor: 'var(--accent-color)' }}>
-                        <Check size={13} style={{ color: 'var(--bg-primary)' }} />
+                        <Check size={13} style={{ color: 'var(--accent-on)' }} />
                       </button>
                     </div>
                   ) : (
@@ -636,7 +636,7 @@ export default function Profile() {
               {homePref && !(filterMode === 'pref' && filterValue === homePref) && (
                 <button onClick={() => { setFilterMode('pref'); setFilterValue(homePref); setIncludeAdjacent(false); saveRegionFilter({ filterMode: 'pref', filterValue: homePref, includeAdjacent: false }); setShowRegionPanel(false); }}
                   className="w-full text-center py-3 rounded-xl text-sm font-medium active:opacity-70 mb-3"
-                  style={{ background: 'var(--accent-color)', color: 'var(--bg-primary)' }}>
+                  style={{ background: 'var(--accent-color)', color: 'var(--accent-on)' }}>
                   ホーム県（{homePref}）で絞り込む
                 </button>
               )}

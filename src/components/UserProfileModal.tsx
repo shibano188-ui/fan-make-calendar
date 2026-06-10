@@ -87,7 +87,7 @@ export default function UserProfileModal({
                 {profile?.avatarEmoji ? (
                   <span className="text-3xl leading-none">{profile.avatarEmoji}</span>
                 ) : (
-                  <span className="text-xl font-bold" style={{ color: 'var(--bg-primary)' }}>{initials}</span>
+                  <span className="text-xl font-bold" style={{ color: 'var(--accent-on)' }}>{initials}</span>
                 )}
               </div>
               <p className="text-label-primary font-semibold text-lg leading-tight">{name}</p>

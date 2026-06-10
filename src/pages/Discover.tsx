@@ -909,7 +909,7 @@ export default function Discover() {
                     setShowRegionPanel(false);
                   }}
                   className="w-full text-center py-3 rounded-xl text-sm font-medium active:opacity-70 mb-3"
-                  style={{ background: 'var(--accent-color)', color: 'var(--bg-primary)' }}
+                  style={{ background: 'var(--accent-color)', color: 'var(--accent-on)' }}
                 >
                   ホーム県（{homePref}）で絞り込む
                 </button>
