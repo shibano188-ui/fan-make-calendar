@@ -371,17 +371,17 @@ export default function Discover() {
               <button
                 onClick={() => setShowRegionPanel(true)}
                 aria-label="地域で絞り込む"
-                className="relative w-11 h-11 flex items-center justify-center rounded-full pressable"
-                style={{ color: filterActive ? 'var(--accent-color)' : 'var(--label-secondary)' }}
+                className="relative w-9 h-9 flex items-center justify-center rounded-full pressable"
+                style={{ color: filterActive ? 'var(--accent-color)' : 'var(--label-secondary)', backgroundColor: 'var(--fill-tertiary)' }}
               >
-                <MapIcon size={18} />
-                {filterActive && <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent-color)' }} />}
+                <MapIcon size={17} />
+                {filterActive && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent-color)' }} />}
               </button>
               <button
                 onClick={() => navigate('/customize')}
                 aria-label="カスタマイズ"
-                className="w-11 h-11 flex items-center justify-center rounded-full pressable"
-                style={{ color: 'var(--label-secondary)' }}
+                className="w-9 h-9 flex items-center justify-center rounded-full pressable"
+                style={{ color: 'var(--label-secondary)', backgroundColor: 'var(--fill-tertiary)' }}
               >
                 <Palette size={18} />
               </button>

@@ -32,7 +32,7 @@ export default function Header({ title, subtitle, subtitleNode, onBack, closeMod
   if (leftNode !== undefined) {
     return (
       <header
-        className={`flex items-center justify-between px-2 ${py} border-b border-separator`}
+        className={`flex items-center justify-between px-4 ${py} border-b border-separator`}
         style={headerStyle}
       >
         <div className="flex-1 flex items-center min-w-0">
@@ -49,14 +49,14 @@ export default function Header({ title, subtitle, subtitleNode, onBack, closeMod
 
   return (
     <header
-      className={`flex items-center px-2 ${py} border-b border-separator`}
+      className={`flex items-center px-4 ${py} border-b border-separator`}
       style={headerStyle}
     >
       <div className="flex-1 flex items-center">
         <button
           onClick={handleBack}
           className="w-11 h-11 flex items-center justify-center rounded-full pressable"
-          style={{ color: 'var(--accent-color)' }}
+          style={{ color: 'var(--accent-color)', backgroundColor: 'var(--fill-tertiary)' }}
           aria-label={closeMode ? '閉じる' : '戻る'}
         >
           {closeMode ? <X size={20} /> : <ChevronLeft size={24} />}
