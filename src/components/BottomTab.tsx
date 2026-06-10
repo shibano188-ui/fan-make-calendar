@@ -66,7 +66,7 @@ export default function BottomTab() {
                 )}
               </div>
               <span
-                className={`text-[11px] leading-none font-medium ${active ? '' : 'text-label-tertiary'}`}
+                className={`text-[11px] leading-none ${active ? '' : 'text-label-tertiary'}`}
                 style={active ? { color: 'var(--accent-color)' } : {}}
               >
                 {label}
