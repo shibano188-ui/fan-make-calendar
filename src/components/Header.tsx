@@ -55,7 +55,7 @@ export default function Header({ title, subtitle, subtitleNode, onBack, closeMod
       <div className="flex-1 flex items-center">
         <button
           onClick={handleBack}
-          className="w-11 h-11 flex items-center justify-center rounded-full pressable"
+          className="w-9 h-9 flex items-center justify-center rounded-lg pressable"
           style={{ color: 'var(--accent-color)', backgroundColor: 'var(--fill-tertiary)' }}
           aria-label={closeMode ? '閉じる' : '戻る'}
         >

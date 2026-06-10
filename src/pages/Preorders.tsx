@@ -429,7 +429,7 @@ export default function Preorders() {
           compact
           leftNode={
             <div className="flex items-center">
-              <button onClick={() => navigate(-1)} className="w-9 h-9 flex items-center justify-center rounded-full pressable" style={{ color: 'var(--accent-color)', backgroundColor: 'var(--fill-tertiary)' }}>
+              <button onClick={() => navigate(-1)} className="w-9 h-9 flex items-center justify-center rounded-lg pressable" style={{ color: 'var(--accent-color)', backgroundColor: 'var(--fill-tertiary)' }}>
                 <ChevronLeft size={22} />
               </button>
               <span className="text-base font-semibold text-label-primary">予約受付中</span>
