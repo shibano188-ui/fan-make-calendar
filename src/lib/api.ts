@@ -132,31 +132,17 @@ export async function listEvents(workId: string, year: number, month: number): P
   const from = `${year}-${m}-01`;
   const to = `${year}-${m}-${String(lastDay).padStart(2, '0')}`;
 
-  // 通常イベントと予約受付中イベントを並列取得
-  const [mainResult, preorderResult] = await Promise.all([
-    supabase.from('events').select('*')
-      .eq('work_id', workId).eq('pool', 0).not('is_order_made', 'eq', true)
-      .lte('event_date', to)
-      .or(`end_date.gte.${from},and(end_date.is.null,event_date.gte.${from})`)
-      .order('event_date', { ascending: true }),
-    supabase.from('events').select('*')
-      .eq('work_id', workId).eq('pool', 0).eq('is_order_made', true),
-  ]);
-  if (mainResult.error) throw mainResult.error;
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .eq('work_id', workId)
+    .eq('pool', 0)
+    .lte('event_date', to)
+    .or(`end_date.gte.${from},and(end_date.is.null,event_date.gte.${from})`)
+    .order('event_date', { ascending: true });
 
-  // 予約受付期間が今月と重なるイベントのみ残す
-  const preorderRows = (preorderResult.data ?? []).filter(e => {
-    const ps = (e.preorder_start_date as string | null) ?? (e.event_date as string | null);
-    const pe = (e.preorder_end_date as string | null) ?? (e.event_date as string | null);
-    return (!pe || pe >= from) && (!ps || ps <= to);
-  });
-
-  const mainIds = new Set((mainResult.data ?? []).map(e => e.id as string));
-  const combined = [
-    ...(mainResult.data ?? []),
-    ...preorderRows.filter(e => !mainIds.has(e.id as string)),
-  ];
-  return resolveAuthorNames(combined.map(e => rowToEvent(e as Record<string, unknown>)));
+  if (error) throw error;
+  return resolveAuthorNames((data ?? []).map(rowToEvent));
 }
 
 export async function listEventsByDate(workId: string, date: string, userId?: string): Promise<CalendarEvent[]> {
@@ -644,33 +630,16 @@ export async function listAllParticipatedWorkEvents(
   const from = `${year}-${m}-01`;
   const to = `${year}-${m}-${String(lastDay).padStart(2, '0')}`;
   const workMap = Object.fromEntries(works.map(w => [w.id, w.name]));
-  const workIds = works.map(w => w.id);
-
-  // 通常イベントと予約受付中イベントを並列取得
-  const [mainResult, preorderResult] = await Promise.all([
-    supabase.from('events').select('*')
-      .in('work_id', workIds).eq('pool', 0).not('is_order_made', 'eq', true)
-      .lte('event_date', to)
-      .or(`end_date.gte.${from},and(end_date.is.null,event_date.gte.${from})`)
-      .order('event_date', { ascending: true }),
-    supabase.from('events').select('*')
-      .in('work_id', workIds).eq('pool', 0).eq('is_order_made', true),
-  ]);
-  if (mainResult.error) throw mainResult.error;
-
-  // 予約受付期間が今月と重なるイベントのみ残す
-  const preorderRows = (preorderResult.data ?? []).filter(e => {
-    const ps = (e.preorder_start_date as string | null) ?? (e.event_date as string | null);
-    const pe = (e.preorder_end_date as string | null) ?? (e.event_date as string | null);
-    return (!pe || pe >= from) && (!ps || ps <= to);
-  });
-
-  const mainIds = new Set((mainResult.data ?? []).map(e => e.id as string));
-  const combined = [
-    ...(mainResult.data ?? []),
-    ...preorderRows.filter(e => !mainIds.has(e.id as string)),
-  ];
-  const events = combined.map(e => ({
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .in('work_id', works.map(w => w.id))
+    .eq('pool', 0)
+    .lte('event_date', to)
+    .or(`end_date.gte.${from},and(end_date.is.null,event_date.gte.${from})`)
+    .order('event_date', { ascending: true });
+  if (error) throw error;
+  const events = (data ?? []).map(e => ({
     ...rowToEvent(e as Record<string, unknown>),
     workId: e.work_id as string,
     workName: workMap[e.work_id as string] ?? '',
