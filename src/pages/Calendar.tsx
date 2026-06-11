@@ -2911,7 +2911,7 @@ export default function Calendar() {
                               className="flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full active:opacity-60 self-start mt-1"
                               style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)', color: 'var(--accent-color)' }}
                             >
-                              ＋予約情報
+                              ＋情報
                             </button>
                           )}
                         </div>
@@ -3099,7 +3099,7 @@ export default function Calendar() {
                               className="flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full active:opacity-60 self-start mt-1"
                               style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)', color: 'var(--accent-color)' }}
                             >
-                              ＋予約情報
+                              ＋情報
                             </button>
                           )}
                         </div>
