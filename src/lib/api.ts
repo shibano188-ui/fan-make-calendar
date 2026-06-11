@@ -623,17 +623,26 @@ export async function listUpcomingEvents(workId: string, from: string, limit = 5
 export async function listAllParticipatedWorkEvents(
   userId: string, year: number, month: number,
 ): Promise<CalendarEvent[]> {
-  const works = await listRecentWorks(userId);
-  if (works.length === 0) return [];
+  // 全参加作品を取得（listRecentWorks の limit(10) を使わない）
+  const { data: parts } = await supabase
+    .from('participations')
+    .select('work_id, works(id, name)')
+    .eq('user_id', userId);
+  const workIds = (parts ?? []).map(p => p.work_id as string);
+  if (workIds.length === 0) return [];
+  const workMap: Record<string, string> = {};
+  for (const p of parts ?? []) {
+    const w = (p as unknown as { works: { id: string; name: string } | null }).works;
+    if (w) workMap[w.id] = w.name;
+  }
   const m = String(month + 1).padStart(2, '0');
   const lastDay = new Date(year, month + 1, 0).getDate();
   const from = `${year}-${m}-01`;
   const to = `${year}-${m}-${String(lastDay).padStart(2, '0')}`;
-  const workMap = Object.fromEntries(works.map(w => [w.id, w.name]));
   const { data, error } = await supabase
     .from('events')
     .select('*')
-    .in('work_id', works.map(w => w.id))
+    .in('work_id', workIds)
     .eq('pool', 0)
     .lte('event_date', to)
     .or(`end_date.gte.${from},and(end_date.is.null,event_date.gte.${from})`)
@@ -813,6 +822,7 @@ export async function listUpcomingParticipatedEvents(
       .in('work_id', workIds)
       .eq('pool', 0)
       .or(`end_date.gte.${today},and(end_date.is.null,event_date.gte.${monthStart})`)
+      .order('event_date', { ascending: true, nullsFirst: false })
       .limit(limit),
     supabase
       .from('events')
@@ -863,6 +873,23 @@ export async function listRecentWorks(userId: string): Promise<Work[]> {
     .eq('user_id', userId)
     .order('last_visited_at', { ascending: false })
     .limit(10);
+
+  if (error) return [];
+
+  return (data ?? [])
+    .filter(p => p.works)
+    .map(p => {
+      const w = p.works as unknown as { id: string; name: string; participant_count: number };
+      return { id: w.id, name: w.name, participantCount: w.participant_count };
+    });
+}
+
+export async function listAllParticipatedWorks(userId: string): Promise<Work[]> {
+  const { data, error } = await supabase
+    .from('participations')
+    .select('work_id, last_visited_at, works(id, name, participant_count)')
+    .eq('user_id', userId)
+    .order('last_visited_at', { ascending: false });
 
   if (error) return [];
 

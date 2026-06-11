@@ -12,8 +12,8 @@ import Header from '../components/Header';
 import {
   listEvents, getWorkById, leaveCalendar, deleteWork, deleteEvent,
   createEvents, getHomePrefecture, saveHomePrefecture,
-  getDisplayName, saveDisplayName, listRecentWorks,
-  listAllParticipatedWorkEvents, addLikeTap, setReaction, getReactionData, updateEvent,
+  getDisplayName, saveDisplayName,
+  listAllParticipatedWorkEvents, listAllParticipatedWorks, addLikeTap, setReaction, getReactionData, updateEvent,
   findDuplicateEvents, type DuplicateMatch, listPreorderEvents,
 } from '../lib/api';
 import { REACTIONS, type ReactionType } from '../lib/reactions';
@@ -868,12 +868,12 @@ export default function Calendar() {
     setIncludeAdjacent(saved.includeAdjacent);
   }, [location.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // MyCalendar: 参加中の作品リストを取得
+  // MyCalendar: 参加中の作品リストを取得（全作品、limit(10)なし）
   useEffect(() => {
     if (workId || !user) return;
     const cached = getCached<Work[]>(`works:${user.id}`);
     if (cached) setParticipatedWorks(cached);
-    listRecentWorks(user.id).then(works => {
+    listAllParticipatedWorks(user.id).then(works => {
       setParticipatedWorks(works);
       setCached(`works:${user.id}`, works);
     }).catch(console.error);
