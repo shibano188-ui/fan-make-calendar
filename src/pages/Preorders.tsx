@@ -192,7 +192,7 @@ export default function Preorders() {
     if (user) setReaction(eventId, user.id, isToggleOff ? null : type).catch(() => {});
   };
 
-  const renderTile = (event: CalendarEvent, isUpcoming = false) => {
+  const renderTile = (event: CalendarEvent) => {
     const workColor = event.workId ? (workColorMap.get(event.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
     const catColor = getCategoryColor(event.category);
     const links = parseLinks(event.link);
@@ -284,25 +284,11 @@ export default function Preorders() {
             {/* バッジ行 + 予約情報+ボタン */}
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-1.5 flex-wrap flex-1">
-                {event.isOrderMade && (() => {
-                  if (isUpcoming) {
-                    const s = getPreorderStart(event);
-                    const [, sm, sd] = s ? s.split('-').map(Number) : [0, 0, 0];
-                    return (
-                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#f97316', color: '#fff' }}>
-                        {s ? `${sm}/${sd}から予約` : 'もうすぐ予約'}
-                      </span>
-                    );
-                  }
-                  const deadlineDate = event.preorderEnd ?? (!event.preorderStart ? event.endDate : undefined);
-                  const d = deadlineDate ? daysLeft(deadlineDate) : null;
-                  const [, dm, dd] = deadlineDate ? deadlineDate.split('-').map(Number) : [0, 0, 0];
-                  return (
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--color-destructive)', color: '#fff' }}>
-                      {d === null ? '受付中' : d <= 0 ? '本日まで' : d <= 7 ? `残り${d}日` : `〜${dm}/${dd}`}
-                    </span>
-                  );
-                })()}
+                {event.isOrderMade && (
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--color-destructive)', color: '#fff' }}>
+                    予約
+                  </span>
+                )}
                 {workName && (
                   <span className="text-[11px] font-medium px-2 py-0.5 rounded-full"
                     style={{ color: workColor, backgroundColor: `${workColor}20` }}>
@@ -545,14 +531,14 @@ export default function Preorders() {
             <div className="flex flex-col gap-4">
               {active.length > 0 && (
                 <div className="flex flex-col gap-3">
-                  <p className="text-[13px] text-label-secondary px-1">受付中</p>
-                  {active.map(e => renderTile(e, false))}
+                  <p className="text-[13px] font-bold text-label-primary px-1">予約受付中</p>
+                  {active.map(renderTile)}
                 </div>
               )}
               {upcoming.length > 0 && (
                 <div className="flex flex-col gap-3">
-                  <p className="text-[13px] text-label-secondary px-1">もうすぐ予約開始</p>
-                  {upcoming.map(e => renderTile(e, true))}
+                  <p className="text-[13px] font-bold text-label-primary px-1">もうすぐ予約開始</p>
+                  {upcoming.map(renderTile)}
                 </div>
               )}
             </div>
