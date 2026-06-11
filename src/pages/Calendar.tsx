@@ -1398,6 +1398,12 @@ export default function Calendar() {
       setPostCards(prev => prev.map(c => c.id === noCat.id ? { ...c, collapsed: false } : c));
       return;
     }
+    const noDate = postCards.find(c => !c.date && !c.dateLabel);
+    if (noDate) {
+      setPostError('日付を入力してください');
+      setPostCards(prev => prev.map(c => c.id === noDate.id ? { ...c, collapsed: false } : c));
+      return;
+    }
     setPostError('');
     setDuplicateWarning(null);
     setPostSubmitting(true);

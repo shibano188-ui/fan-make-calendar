@@ -429,6 +429,12 @@ export default function PostCreate() {
       setCards(prev => prev.map(c => c.id === noCat.id ? { ...c, collapsed: false } : c));
       return;
     }
+    const noDate = cards.find(c => !c.date && !c.dateLabel);
+    if (noDate) {
+      setError('日付を入力してください');
+      setCards(prev => prev.map(c => c.id === noDate.id ? { ...c, collapsed: false } : c));
+      return;
+    }
     setError('');
     setSubmitting(true);
     try {
