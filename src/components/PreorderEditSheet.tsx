@@ -27,7 +27,7 @@ export default function PreorderEditSheet({ event, onClose, onSaved }: Props) {
   const handleSave = async () => {
     setSaving(true);
     const link = serializeLinks(links) ?? '';
-    const finalDate = date || null;
+    const finalDate = date || (event.dateLabel ? null : (event.date || null));
     const finalDateLabel = date ? null : (event.dateLabel || null);
     try {
       await updatePreorderInfo(event.id, { isOrderMade: event.isOrderMade ?? false, preorderStart, preorderEnd, link, date: finalDate, dateLabel: finalDateLabel });
