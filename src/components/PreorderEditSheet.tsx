@@ -14,6 +14,7 @@ interface Props {
 const inputCls = 'w-full bg-bg-secondary rounded-lg px-3 py-2 text-sm text-label-primary outline-none border border-faint focus:border-strong';
 
 export default function PreorderEditSheet({ event, onClose, onSaved }: Props) {
+  const [date, setDate] = useState(event.dateLabel ? '' : (event.date ?? ''));
   const [preorderStart, setPreorderStart] = useState(event.preorderStart ?? '');
   const [preorderEnd, setPreorderEnd] = useState(event.preorderEnd ?? '');
   const [links, setLinks] = useState<string[]>(() => {
@@ -26,9 +27,16 @@ export default function PreorderEditSheet({ event, onClose, onSaved }: Props) {
   const handleSave = async () => {
     setSaving(true);
     const link = serializeLinks(links) ?? '';
+    const finalDate = date || null;
+    const finalDateLabel = date ? null : (event.dateLabel || null);
     try {
-      await updatePreorderInfo(event.id, { isOrderMade: true, preorderStart, preorderEnd, link });
-      onSaved({ isOrderMade: true, preorderStart: preorderStart || undefined, preorderEnd: preorderEnd || undefined, link: link || undefined });
+      await updatePreorderInfo(event.id, { isOrderMade: event.isOrderMade ?? false, preorderStart, preorderEnd, link, date: finalDate, dateLabel: finalDateLabel });
+      onSaved({
+        preorderStart: preorderStart || undefined,
+        preorderEnd: preorderEnd || undefined,
+        link: link || undefined,
+        ...(date ? { date, dateLabel: undefined } : {}),
+      });
       onClose();
     } catch {
       showToast('保存に失敗しました', 'error');
@@ -45,7 +53,7 @@ export default function PreorderEditSheet({ event, onClose, onSaved }: Props) {
         style={{ backgroundColor: 'var(--bg-primary)', animation: 'slideUpPanel 0.22s cubic-bezier(0.32,0.72,0,1) both' }}
       >
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
-          <span className="text-sm font-bold text-label-primary">予約情報を追加</span>
+          <span className="text-sm font-bold text-label-primary">情報を追加</span>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center text-label-tertiary active:opacity-60">
             <X size={18} />
           </button>
@@ -53,6 +61,22 @@ export default function PreorderEditSheet({ event, onClose, onSaved }: Props) {
         <p className="px-4 pb-3 text-xs text-label-tertiary truncate">{event.title}</p>
 
         <div className="px-4 flex flex-col gap-4 pb-6">
+          {/* 日付 */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-label-tertiary">
+              日付{event.dateLabel ? `（現在: ${event.dateLabel}）` : '（任意）'}
+            </label>
+            <input
+              type="date"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+              className={inputCls}
+            />
+            {event.dateLabel && !date && (
+              <p className="text-[11px] text-label-tertiary">日付を入力すると「{event.dateLabel}」から変更されます</p>
+            )}
+          </div>
+
           {/* 予約開始日 */}
           <div className="flex flex-col gap-1">
             <label className="text-xs text-label-tertiary">予約開始日（任意）</label>
@@ -67,7 +91,7 @@ export default function PreorderEditSheet({ event, onClose, onSaved }: Props) {
 
           {/* 販売リンク */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-label-tertiary">販売リンク（任意・複数可）</label>
+            <label className="text-xs text-label-tertiary">リンク（任意・複数可）</label>
             <div className="flex flex-col gap-2">
               {links.map((lnk, i) => (
                 <div key={i} className="flex items-center gap-2">

@@ -686,13 +686,15 @@ export async function updateEvent(
 
 export async function updatePreorderInfo(
   eventId: string,
-  data: { isOrderMade: boolean; preorderStart: string; preorderEnd: string; link: string },
+  data: { isOrderMade: boolean; preorderStart: string; preorderEnd: string; link: string; date: string | null; dateLabel: string | null },
 ): Promise<void> {
   const { error } = await supabase.from('events').update({
     is_order_made: data.isOrderMade,
     preorder_start_date: data.preorderStart || null,
     preorder_end_date: data.preorderEnd || null,
     link_url: data.link || null,
+    event_date: data.date || null,
+    date_label: data.dateLabel || null,
   }).eq('id', eventId);
   if (error) throw error;
 }
