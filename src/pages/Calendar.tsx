@@ -1396,6 +1396,22 @@ export default function Calendar() {
     setLiveDups({});
   };
 
+  // DateDetail の＋ボタンから遷移してきたとき、その日付で投稿フォームを開く
+  useEffect(() => {
+    const openDate = (location.state as { openPostDate?: string } | null)?.openPostDate;
+    if (!openDate) return;
+    const d = new Date(openDate);
+    if (!isNaN(d.getTime())) {
+      setYear(d.getFullYear());
+      setMonth(d.getMonth());
+      setSelectedDate(openDate);
+    }
+    openPostForm(openDate);
+    // 戻る操作などでの再オープンを防ぐため state をクリア
+    navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // 入力中のリアルタイム重複チェック（600msデバウンス・投稿前に気づけるように）
   useEffect(() => {
     if (!postPanelOpen || !user) return;
