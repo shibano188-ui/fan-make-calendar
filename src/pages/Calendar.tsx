@@ -175,6 +175,8 @@ interface InlineCard {
   important: boolean;
   collapsed: boolean;
   isOrderMade: boolean;
+  preorderStart: string;
+  preorderEnd: string;
 }
 
 function newInlineCard(date: string): InlineCard {
@@ -199,6 +201,8 @@ function newInlineCard(date: string): InlineCard {
     important: false,
     collapsed: false,
     isOrderMade: false,
+    preorderStart: '',
+    preorderEnd: '',
   };
 }
 
@@ -424,12 +428,19 @@ function InlineCardItem({
                 className="flex-1 bg-bg-primary rounded-lg px-3 py-1.5 text-xs text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong"
               />
             </div>
-            {/* 予約受付トグル */}
+            {/* 予約あり トグル */}
             <div className="flex items-center justify-between mt-3">
-              <span className="text-xs text-label-secondary">予約受付</span>
+              <span className="text-xs text-label-secondary">予約あり</span>
               <button
                 type="button"
-                onClick={() => onChange({ isOrderMade: !card.isOrderMade })}
+                onClick={() => {
+                  const next = !card.isOrderMade;
+                  const today = new Date().toISOString().slice(0, 10);
+                  onChange({
+                    isOrderMade: next,
+                    preorderStart: next && !card.preorderStart ? today : card.preorderStart,
+                  });
+                }}
                 className="flex-shrink-0 w-9 h-5 rounded-full relative transition-colors"
                 style={{ background: card.isOrderMade ? 'var(--color-destructive)' : 'var(--fill-primary)' }}
               >
@@ -437,6 +448,20 @@ function InlineCardItem({
                   style={{ left: card.isOrderMade ? 'calc(100% - 18px)' : '2px' }} />
               </button>
             </div>
+            {card.isOrderMade && (
+              <div className="flex gap-2 mt-2">
+                <div className="flex-1">
+                  <label className="text-[10px] text-label-tertiary block mb-1">予約開始日</label>
+                  <input type="date" value={card.preorderStart} onChange={e => onChange({ preorderStart: e.target.value })}
+                    className="w-full bg-bg-primary rounded-lg px-2 py-1.5 text-xs text-label-primary outline-none border border-faint focus:border-strong" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-[10px] text-label-tertiary block mb-1">予約終了日</label>
+                  <input type="date" value={card.preorderEnd} min={card.preorderStart || undefined} onChange={e => onChange({ preorderEnd: e.target.value })}
+                    className="w-full bg-bg-primary rounded-lg px-2 py-1.5 text-xs text-label-primary outline-none border border-faint focus:border-strong" />
+                </div>
+              </div>
+            )}
           </div>
 
           <div>
@@ -1169,6 +1194,8 @@ export default function Calendar() {
       links: existingLinks.length > 0 ? existingLinks : [''],
       memo: event.memo ?? '',
       isOrderMade: event.isOrderMade ?? false,
+      preorderStart: event.preorderStart ?? '',
+      preorderEnd: event.preorderEnd ?? '',
     });
   };
 
@@ -1241,6 +1268,8 @@ export default function Calendar() {
         link: serializeLinks(editForm.links ?? []),
         memo: editForm.memo?.trim() || undefined,
         isOrderMade: editForm.isOrderMade ?? false,
+        preorderStart: editForm.preorderStart || undefined,
+        preorderEnd: editForm.preorderEnd || undefined,
       };
       await updateEvent(editEventId, patch);
       setEvents(prev => prev.map(e => e.id === editEventId ? { ...e, ...patch } : e));
@@ -1292,6 +1321,8 @@ export default function Calendar() {
       imageUrl:       parsed.imageUrl       ?? base.imageUrl,
       sourceUrl:      parsed.sourceUrl      ?? base.sourceUrl,
       isOrderMade:    parsed.isOrderMade    ?? base.isOrderMade,
+      preorderStart:  parsed.preorderStart  ?? base.preorderStart,
+      preorderEnd:    parsed.preorderEnd    ?? base.preorderEnd,
     });
     const defaultWorkId = !workId && participatedWorks.length > 0 ? participatedWorks[0].id : '';
     setPostCards(prev => {
@@ -1440,6 +1471,8 @@ export default function Calendar() {
       imageUrl: c.imageUrl || undefined,
       sourceUrl: c.sourceUrl || undefined,
       isOrderMade: c.isOrderMade || false,
+      preorderStart: c.preorderStart || undefined,
+      preorderEnd: c.preorderEnd || undefined,
     });
     const serializedLinks = (c: InlineCard) => serializeLinks(c.links);
     const toPersonalEvent = (c: InlineCard): PersonalEvent => ({
@@ -3456,12 +3489,20 @@ export default function Calendar() {
                       className="flex-1 bg-bg-primary rounded-lg px-3 py-1.5 text-xs text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong"
                     />
                   </div>
-                  {/* 予約受付トグル */}
+                  {/* 予約あり トグル */}
                   <div className="flex items-center justify-between mt-3">
-                    <span className="text-xs text-label-secondary">予約受付</span>
+                    <span className="text-xs text-label-secondary">予約あり</span>
                     <button
                       type="button"
-                      onClick={() => setEditForm(f => ({ ...f!, isOrderMade: !(f?.isOrderMade) }))}
+                      onClick={() => {
+                        const next = !editForm.isOrderMade;
+                        const today = new Date().toISOString().slice(0, 10);
+                        setEditForm(f => ({
+                          ...f!,
+                          isOrderMade: next,
+                          preorderStart: next && !f?.preorderStart ? today : f?.preorderStart ?? '',
+                        }));
+                      }}
                       className="flex-shrink-0 w-9 h-5 rounded-full relative transition-colors"
                       style={{ background: editForm.isOrderMade ? 'var(--color-destructive)' : 'var(--fill-primary)' }}
                     >
@@ -3469,6 +3510,20 @@ export default function Calendar() {
                         style={{ left: editForm.isOrderMade ? 'calc(100% - 18px)' : '2px' }} />
                     </button>
                   </div>
+                  {editForm.isOrderMade && (
+                    <div className="flex gap-2 mt-2">
+                      <div className="flex-1">
+                        <label className="text-[10px] text-label-tertiary block mb-1">予約開始日</label>
+                        <input type="date" value={editForm.preorderStart ?? ''} onChange={e => setEditForm(f => ({ ...f!, preorderStart: e.target.value }))}
+                          className="w-full bg-bg-primary rounded-lg px-2 py-1.5 text-xs text-label-primary outline-none border border-faint focus:border-strong" />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[10px] text-label-tertiary block mb-1">予約終了日</label>
+                        <input type="date" value={editForm.preorderEnd ?? ''} min={editForm.preorderStart || undefined} onChange={e => setEditForm(f => ({ ...f!, preorderEnd: e.target.value }))}
+                          className="w-full bg-bg-primary rounded-lg px-2 py-1.5 text-xs text-label-primary outline-none border border-faint focus:border-strong" />
+                      </div>
+                    </div>
+                  )}
                 </div>
                 {/* 場所 */}
                 <div>

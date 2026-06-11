@@ -186,7 +186,7 @@ export async function listEventsByDate(workId: string, date: string, userId?: st
 
 export async function createEvents(
   workId: string,
-  events: Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'imageUrl' | 'sourceUrl' | 'isOrderMade'>[],
+  events: Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'imageUrl' | 'sourceUrl' | 'isOrderMade' | 'preorderStart' | 'preorderEnd'>[],
   authorId: string,
 ): Promise<string[]> {
   const rows = await Promise.all(events.map(async e => {
@@ -219,6 +219,8 @@ export async function createEvents(
       ...(e.imageUrl ? { image_url: e.imageUrl } : {}),
       ...(e.sourceUrl ? { source_url: normalizeSourceUrl(e.sourceUrl) } : {}),
       is_order_made: e.isOrderMade ?? false,
+      preorder_start_date: e.preorderStart ?? null,
+      preorder_end_date: e.preorderEnd ?? null,
       author_id: authorId,
       pool,
     };
@@ -660,7 +662,7 @@ export async function listAllParticipatedWorkEvents(
 
 export async function updateEvent(
   eventId: string,
-  data: Partial<Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'isOrderMade'>>,
+  data: Partial<Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'isOrderMade' | 'preorderStart' | 'preorderEnd'>>,
 ): Promise<void> {
   const row: Record<string, unknown> = {};
   if (data.title !== undefined) row.title = data.title;
@@ -676,6 +678,8 @@ export async function updateEvent(
   if ('locationDetail' in data) row.location_detail = data.locationDetail || null;
   if ('locationMapLink' in data) row.location_map_link = data.locationMapLink || null;
   if ('isOrderMade' in data) row.is_order_made = data.isOrderMade ?? false;
+  if ('preorderStart' in data) row.preorder_start_date = data.preorderStart || null;
+  if ('preorderEnd' in data) row.preorder_end_date = data.preorderEnd || null;
   const { error } = await supabase.from('events').update(row).eq('id', eventId);
   if (error) throw error;
 }

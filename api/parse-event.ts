@@ -59,23 +59,26 @@ const BASE_RULES = `
 テキストに「ツイート投稿日: 〇年〇月〇日」が含まれる場合、「本日」「今日」はその日付として解釈する。
 【受注生産・予約フラグのルール】
 - テキストに「受注」という文字が含まれる場合は必ず isOrderMade: true
-- 受注・予約の場合: date = 受付開始日, endDate = 受付終了日（受付期間をカレンダーに表示する）
-- 「お渡し予定」「発送予定」「お届け予定」「発売予定」などの到着・発売日はmemoに記載する
-- 受付終了日が不明な場合: endDate = null`;
+- isOrderMade=true の場合: preorderStart = 受付開始日, preorderEnd = 受付終了日
+- date には「お渡し予定」「発送予定」「発売予定」などの実際のイベント日（受付期間とは別）を入れる
+- 受付開始日・終了日が不明な場合は preorderStart/preorderEnd を null にする
+- isOrderMade=false の通常イベントでは preorderStart/preorderEnd は null`;
 
 const SCHEMA = (memoDesc: string) => `[
   {
     "title": "イベントのタイトル（必須、簡潔に）",
-    "date": "開始日をYYYY-MM-DD形式で or null",
+    "date": "実際のイベント日・発売日・お渡し日をYYYY-MM-DD形式で or null（予約受付期間とは別）",
     "dateLabel": "'上旬'|'中旬'|'下旬'|'中'|'春頃'|'夏頃'|'秋頃'|'冬頃'（曖昧な日付の場合）or null",
     "time": "開始時刻をHH:mm形式で or null",
-    "endDate": "終了日をYYYY-MM-DD形式で（期間表記があれば必ず設定）or null",
-    "endTime": "終了時刻をHH:mm形式で（時間範囲があれば必ず設定）or null",
+    "endDate": "通常イベントの終了日をYYYY-MM-DD形式で（期間表記があれば設定）or null",
+    "endTime": "終了時刻をHH:mm形式で（時間範囲があれば設定）or null",
     "category": "単行本|グッズ|イベント|誕生日|映画|アニメ|グルメ|コラボ のいずれか or null",
     "prefecture": "都道府県名（「都」「府」「県」を除いた形。例: 東京・大阪・神奈川・北海道）or null",
     "locationDetail": "詳細な会場名・住所 or null",
     "link": ["公式URLや関連リンクをすべて配列で。1件でも配列にする。リンクがなければnull"],
     "isOrderMade": "「受注」という言葉が含まれる場合はtrue（受注生産・受注販売・受注商品・原作受注など）、それ以外はfalse",
+    "preorderStart": "isOrderMade=trueの場合のみ: 予約・受付開始日をYYYY-MM-DD形式で or null",
+    "preorderEnd": "isOrderMade=trueの場合のみ: 予約・受付終了日をYYYY-MM-DD形式で or null",
     "memo": "${memoDesc}"
   }
 ]`;
@@ -378,6 +381,8 @@ function parseRawText(rawText: string): unknown[] {
         endDate: fixYear(obj.endDate),
         memo: cleanMemo(obj.memo),
         isOrderMade,
+        preorderStart: fixYear(obj.preorderStart),
+        preorderEnd: fixYear(obj.preorderEnd),
       };
     }
     return item;
