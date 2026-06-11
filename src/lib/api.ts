@@ -412,13 +412,16 @@ export async function findDuplicateEvents(
       for (const row of d3 ?? []) {
         if (seen.has(row.id as string)) continue;
         if (!row.event_date) continue;
-        const rowCategory = (row.category as string | null) ?? null;
-        if (category && rowCategory && category !== rowCategory) continue;
         const rowPref = normalizePrefecture(row.prefecture as string | null) ?? null;
         if (newPref && rowPref && newPref !== rowPref) continue;
         const rowKeywords = stripForKeywords(row.title as string, opts.workName);
         if (!rowKeywords) continue;
-        if (bigramSimilarity(newKeywords, rowKeywords) < 0.5) continue;
+        const sim = bigramSimilarity(newKeywords, rowKeywords);
+        // カテゴリ不一致は通常スキップだが、類似度が非常に高い場合は同一予定の
+        // カテゴリ選択ゆれ（例: グッズ/グルメ）とみなして検知する
+        const rowCategory = (row.category as string | null) ?? null;
+        const catMismatch = !!(category && rowCategory && category !== rowCategory);
+        if (sim < (catMismatch ? 0.75 : 0.5)) continue;
         seen.add(row.id as string);
         byDateKeyword.push({
           id: row.id as string,

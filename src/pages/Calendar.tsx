@@ -3362,12 +3362,12 @@ export default function Calendar() {
                       } else {
                         setPostCards(remaining);
                       }
-                      showToast('既存の予定にいいねしました');
+                      showToast('予定を追加しました');
                     }}
                     className="w-full py-2 text-xs font-semibold rounded-lg active:opacity-70 mb-1.5"
                     style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
                   >
-                    ❤️ 既存の予定にいいねして済ませる
+                    この予定を追加
                   </button>
                   <div className="flex gap-1.5">
                     <button
