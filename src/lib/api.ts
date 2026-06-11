@@ -647,6 +647,51 @@ export async function listAllParticipatedWorkEvents(
   return resolveAuthorNames(events);
 }
 
+// 予定一覧タブ用: 月フィルターなし・予約受付中を含む全イベント（MyCalendar モード）
+export async function listAllEventsForParticipatedWorks(userId: string): Promise<CalendarEvent[]> {
+  const works = await listRecentWorks(userId);
+  if (works.length === 0) return [];
+  const workIds = works.map(w => w.id);
+  const workMap = Object.fromEntries(works.map(w => [w.id, w.name]));
+  const [mainResult, preorderResult] = await Promise.all([
+    supabase.from('events').select('*')
+      .in('work_id', workIds).eq('pool', 0).not('is_order_made', 'eq', true)
+      .order('event_date', { ascending: true, nullsFirst: false }),
+    supabase.from('events').select('*')
+      .in('work_id', workIds).eq('pool', 0).eq('is_order_made', true),
+  ]);
+  if (mainResult.error) throw mainResult.error;
+  const mainIds = new Set((mainResult.data ?? []).map(e => e.id as string));
+  const combined = [
+    ...(mainResult.data ?? []),
+    ...(preorderResult.data ?? []).filter(e => !mainIds.has(e.id as string)),
+  ];
+  const events = combined.map(e => ({
+    ...rowToEvent(e as Record<string, unknown>),
+    workId: e.work_id as string,
+    workName: workMap[e.work_id as string] ?? '',
+  }));
+  return resolveAuthorNames(events);
+}
+
+// 予定一覧タブ用: 月フィルターなし・予約受付中を含む全イベント（workId モード）
+export async function listAllEventsForWork(workId: string): Promise<CalendarEvent[]> {
+  const [mainResult, preorderResult] = await Promise.all([
+    supabase.from('events').select('*')
+      .eq('work_id', workId).eq('pool', 0).not('is_order_made', 'eq', true)
+      .order('event_date', { ascending: true, nullsFirst: false }),
+    supabase.from('events').select('*')
+      .eq('work_id', workId).eq('pool', 0).eq('is_order_made', true),
+  ]);
+  if (mainResult.error) throw mainResult.error;
+  const mainIds = new Set((mainResult.data ?? []).map(e => e.id as string));
+  const combined = [
+    ...(mainResult.data ?? []),
+    ...(preorderResult.data ?? []).filter(e => !mainIds.has(e.id as string)),
+  ];
+  return resolveAuthorNames(combined.map(e => rowToEvent(e as Record<string, unknown>)));
+}
+
 // ─── イベント編集 ─────────────────────────────────────────────────
 
 export async function updateEvent(
