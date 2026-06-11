@@ -774,8 +774,13 @@ export default function Calendar() {
   });
   const [postError, setPostError] = useState('');
   const [postSubmitting, setPostSubmitting] = useState(false);
-  const [duplicateWarning, setDuplicateWarning] = useState<{ cardId: string; existingEvent: DuplicateMatch } | null>(null);
+  const [duplicateWarning, setDuplicateWarning] = useState<{ cardId: string; existingEvent: DuplicateMatch; kind: 'url' | 'title' | 'dateKeyword' } | null>(null);
   const [locationSuffixMsg, setLocationSuffixMsg] = useState<string | null>(null);
+  // 「別の予定として投稿」で重複チェックをスキップするカードID
+  const ignoredDupCardIdsRef = useRef<Set<string>>(new Set());
+  // 入力中のリアルタイム重複警告（cardId → 既存イベント）
+  const [liveDups, setLiveDups] = useState<Record<string, DuplicateMatch>>({});
+  const liveDupCheckedSigRef = useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
     if (!user) return;
@@ -1378,12 +1383,60 @@ export default function Calendar() {
     setPostDate(date);
     setPostCards([{ ...newInlineCard(date), workId: defaultWorkId }]);
     setPostError('');
+    ignoredDupCardIdsRef.current.clear();
+    liveDupCheckedSigRef.current.clear();
+    setLiveDups({});
     setPostPanelOpen(true);
   };
   const closePostForm = () => {
     setPostPanelOpen(false);
     setDuplicateWarning(null);
+    ignoredDupCardIdsRef.current.clear();
+    liveDupCheckedSigRef.current.clear();
+    setLiveDups({});
   };
+
+  // 入力中のリアルタイム重複チェック（600msデバウンス・投稿前に気づけるように）
+  useEffect(() => {
+    if (!postPanelOpen || !user) return;
+    const timer = setTimeout(() => {
+      for (const card of postCards) {
+        const targetWorkId = workId || card.workId;
+        const title = card.title.trim();
+        if (!targetWorkId || title.length < 2) {
+          setLiveDups(prev => {
+            if (!prev[card.id]) return prev;
+            const next = { ...prev };
+            delete next[card.id];
+            return next;
+          });
+          continue;
+        }
+        const sig = [title, card.date, card.endDate, card.sourceUrl, card.category || card.customCategory.trim(), card.prefecture, targetWorkId].join('|');
+        if (liveDupCheckedSigRef.current.get(card.id) === sig) continue;
+        liveDupCheckedSigRef.current.set(card.id, sig);
+        const cardCategory = card.category || card.customCategory.trim() || null;
+        const cardWorkName = workId ? workName : (participatedWorks.find(w => w.id === card.workId)?.name ?? null);
+        findDuplicateEvents(targetWorkId, title, card.sourceUrl, cardCategory,
+          { date: card.date || null, endDate: card.endDate || null, workName: cardWorkName, prefecture: card.prefecture || null })
+          .then(({ byUrl, byTitle, byDateKeyword }) => {
+            const normPref = card.prefecture || null;
+            // 都道府県が異なるbyTitleは投稿時に自動で地名サフィックスが付くので警告しない
+            const titleDup = byTitle.find(m => !m.prefecture || !normPref || m.prefecture === normPref) ?? null;
+            const match = byUrl[0] ?? titleDup ?? byDateKeyword[0] ?? null;
+            setLiveDups(prev => {
+              if (match) return { ...prev, [card.id]: match };
+              if (!prev[card.id]) return prev;
+              const next = { ...prev };
+              delete next[card.id];
+              return next;
+            });
+          })
+          .catch(() => { /* チェック失敗は無視 */ });
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [postCards, postPanelOpen, user, workId, workName, participatedWorks]);
 
   const handlePostSubmit = async () => {
     const invalid = postCards.find(c => !c.title.trim());
@@ -1414,11 +1467,19 @@ export default function Calendar() {
       for (const card of postCards) {
         const targetWorkId = workId || card.workId;
         if (!targetWorkId) continue; // 個人予定はスキップ
+        if (ignoredDupCardIdsRef.current.has(card.id)) continue; // 「別の予定として投稿」済み
         const cardCategory = card.category || card.customCategory.trim() || null;
+        const cardWorkName = workId ? workName : (participatedWorks.find(w => w.id === card.workId)?.name ?? null);
         try {
-          const { byUrl, byTitle } = await findDuplicateEvents(targetWorkId, card.title.trim(), card.sourceUrl, cardCategory);
+          const { byUrl, byTitle, byDateKeyword } = await findDuplicateEvents(targetWorkId, card.title.trim(), card.sourceUrl, cardCategory,
+            { date: card.date || null, endDate: card.endDate || null, workName: cardWorkName, prefecture: card.prefecture || null });
           if (byUrl.length > 0) {
-            setDuplicateWarning({ cardId: card.id, existingEvent: byUrl[0] });
+            setDuplicateWarning({ cardId: card.id, existingEvent: byUrl[0], kind: 'url' });
+            setPostSubmitting(false);
+            return;
+          }
+          if (byDateKeyword.length > 0) {
+            setDuplicateWarning({ cardId: card.id, existingEvent: byDateKeyword[0], kind: 'dateKeyword' });
             setPostSubmitting(false);
             return;
           }
@@ -1427,7 +1488,7 @@ export default function Calendar() {
             const baseTitle = card.title.trim().replace(/　/g, ' ').toLowerCase();
             const trueDup = byTitle.find(m => !m.prefecture || !normNewPref || m.prefecture === normNewPref);
             if (trueDup) {
-              setDuplicateWarning({ cardId: card.id, existingEvent: trueDup });
+              setDuplicateWarning({ cardId: card.id, existingEvent: trueDup, kind: 'title' });
               setPostSubmitting(false);
               return;
             }
@@ -3267,46 +3328,89 @@ export default function Calendar() {
             <div className="px-4 pt-2 pb-8 flex flex-col gap-3">
               {duplicateWarning && (
                 <div className="rounded-xl border border-orange-400/40 bg-orange-400/10 p-3">
-                  <p className="text-orange-400 text-xs font-semibold mb-0.5">同じ予定がすでに登録されています</p>
+                  <p className="text-orange-400 text-xs font-semibold mb-0.5">
+                    {duplicateWarning.kind === 'dateKeyword' ? '同じ日に似た予定があります' : '同じ予定がすでに登録されています'}
+                  </p>
                   <p className="text-label-secondary text-xs mb-2 line-clamp-1">
                     「{duplicateWarning.existingEvent.title}」{duplicateWarning.existingEvent.prefecture ? `（${duplicateWarning.existingEvent.prefecture}）` : ''} {duplicateWarning.existingEvent.date}
                   </p>
                   <button
-                    onClick={() => {
-                      const ev = duplicateWarning.existingEvent;
+                    onClick={async () => {
+                      if (!user) return;
+                      const dw = duplicateWarning;
                       setDuplicateWarning(null);
-                      closePostForm();
-                      // 自分の投稿 or 現在の作品カレンダー上のイベント → カレンダーシートへ
-                      if (workId || ev.authorId === user?.id) {
-                        const d = new Date(ev.date);
-                        setYear(d.getFullYear());
-                        setMonth(d.getMonth());
-                        setSelectedDate(ev.date);
-                        setSheetOpen(true);
+                      try { await addLikeTap(dw.existingEvent.id, user.id); } catch { /* いいね失敗でも続行 */ }
+                      const remaining = postCards.filter(c => c.id !== dw.cardId);
+                      if (remaining.length === 0) {
+                        closePostForm();
                       } else {
-                        // 他ユーザーの投稿 → 発見タブにスクロール
-                        navigate('/discover', { state: { highlightEventId: ev.id } });
+                        setPostCards(remaining);
                       }
+                      showToast('既存の予定にいいねしました');
                     }}
-                    className="w-full py-1.5 text-xs rounded-lg border active:opacity-70"
-                    style={{ borderColor: 'var(--border-default)', color: 'var(--label-secondary)' }}
+                    className="w-full py-2 text-xs font-semibold rounded-lg active:opacity-70 mb-1.5"
+                    style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
                   >
-                    既存の予定を見る
+                    ❤️ 既存の予定にいいねして済ませる
                   </button>
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={() => {
+                        const ev = duplicateWarning.existingEvent;
+                        setDuplicateWarning(null);
+                        closePostForm();
+                        // 自分の投稿 or 現在の作品カレンダー上のイベント → カレンダーシートへ
+                        if (workId || ev.authorId === user?.id) {
+                          const d = new Date(ev.date);
+                          setYear(d.getFullYear());
+                          setMonth(d.getMonth());
+                          setSelectedDate(ev.date);
+                          setSheetOpen(true);
+                        } else {
+                          // 他ユーザーの投稿 → 発見タブにスクロール
+                          navigate('/discover', { state: { highlightEventId: ev.id } });
+                        }
+                      }}
+                      className="flex-1 py-1.5 text-xs rounded-lg border active:opacity-70"
+                      style={{ borderColor: 'var(--border-default)', color: 'var(--label-secondary)' }}
+                    >
+                      既存の予定を見る
+                    </button>
+                    <button
+                      onClick={() => {
+                        ignoredDupCardIdsRef.current.add(duplicateWarning.cardId);
+                        setDuplicateWarning(null);
+                        void handlePostSubmit();
+                      }}
+                      className="flex-1 py-1.5 text-xs rounded-lg border active:opacity-70"
+                      style={{ borderColor: 'var(--border-default)', color: 'var(--label-secondary)' }}
+                    >
+                      別の予定として投稿
+                    </button>
+                  </div>
                 </div>
               )}
               <SmartInputPanel onApply={applyParsedToPost} />
               {postCards.map((card, i) => (
-                <InlineCardItem
-                  key={card.id}
-                  card={card}
-                  index={i}
-                  total={postCards.length}
-                  participatedWorks={workId ? undefined : participatedWorks}
-                  onChange={patch => updatePostCard(card.id, patch)}
-                  onToggle={() => togglePostCard(card.id)}
-                  onRemove={() => removePostCard(card.id)}
-                />
+                <div key={card.id} className="flex flex-col gap-1.5">
+                  {liveDups[card.id] && duplicateWarning?.cardId !== card.id && (
+                    <div className="rounded-lg border border-orange-400/40 bg-orange-400/10 px-3 py-2">
+                      <p className="text-orange-400 text-[11px] font-semibold">似た予定がすでにあります</p>
+                      <p className="text-label-secondary text-[11px] line-clamp-1">
+                        「{liveDups[card.id].title}」{liveDups[card.id].prefecture ? `（${liveDups[card.id].prefecture}）` : ''} {liveDups[card.id].date}
+                      </p>
+                    </div>
+                  )}
+                  <InlineCardItem
+                    card={card}
+                    index={i}
+                    total={postCards.length}
+                    participatedWorks={workId ? undefined : participatedWorks}
+                    onChange={patch => updatePostCard(card.id, patch)}
+                    onToggle={() => togglePostCard(card.id)}
+                    onRemove={() => removePostCard(card.id)}
+                  />
+                </div>
               ))}
               <button onClick={addPostCard} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-subtle text-label-secondary text-sm active:opacity-60">
                 <Plus size={15} />別の予定を追加

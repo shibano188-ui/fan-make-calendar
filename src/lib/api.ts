@@ -265,6 +265,39 @@ function normalizeTitleForDup(t: string): string {
   return t.replace(/　/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
+// 重複判定で情報量の少ない汎用語（同日の別イベント同士の誤検知を防ぐ）
+const DUP_GENERIC_WORDS = ['発売', '開催', '開始', '決定', '予約', '受付', '販売', '登場', '公開', '情報', '解禁', 'イベント', 'グッズ', 'キャンペーン', 'コラボ'];
+
+// タイトルから記号・作品名・汎用語を除去してキーワード部分だけを残す
+function stripForKeywords(title: string, workName?: string | null): string {
+  let t = title
+    .replace(/[【】「」『』（）()[\]・！!？?～〜:：、。,.\s　]+/g, ' ')
+    .toLowerCase()
+    .trim();
+  if (workName) t = t.split(workName.toLowerCase()).join(' ');
+  for (const w of DUP_GENERIC_WORDS) t = t.split(w).join(' ');
+  return t.replace(/\s+/g, ' ').trim();
+}
+
+// 文字バイグラムの重なり率（overlap coefficient）。日本語は分かち書き不要なバイグラム比較が実用的
+function bigramSimilarity(a: string, b: string): number {
+  const ca = a.replace(/\s+/g, '');
+  const cb = b.replace(/\s+/g, '');
+  if (!ca || !cb) return 0;
+  if (ca === cb) return 1;
+  if (ca.length < 2 || cb.length < 2) return 0;
+  const grams = (s: string) => {
+    const set = new Set<string>();
+    for (let i = 0; i < s.length - 1; i++) set.add(s.slice(i, i + 2));
+    return set;
+  };
+  const A = grams(ca);
+  const B = grams(cb);
+  let inter = 0;
+  for (const g of A) if (B.has(g)) inter++;
+  return inter / Math.min(A.size, B.size);
+}
+
 // sourceUrlを正規化: クエリパラメータ除去・twitter.com→x.com統一・末尾スラッシュ除去
 export function normalizeSourceUrl(url: string): string {
   try {
@@ -289,10 +322,12 @@ export async function findDuplicateEvents(
   title: string,
   sourceUrl?: string | null,
   category?: string | null,
-): Promise<{ byUrl: DuplicateMatch[]; byTitle: DuplicateMatch[] }> {
+  opts?: { date?: string | null; endDate?: string | null; workName?: string | null; prefecture?: string | null },
+): Promise<{ byUrl: DuplicateMatch[]; byTitle: DuplicateMatch[]; byDateKeyword: DuplicateMatch[] }> {
   const seen = new Set<string>();
   const byUrl: DuplicateMatch[] = [];
   const byTitle: DuplicateMatch[] = [];
+  const byDateKeyword: DuplicateMatch[] = [];
 
   if (sourceUrl) {
     const normUrl = normalizeSourceUrl(sourceUrl);
@@ -360,7 +395,45 @@ export async function findDuplicateEvents(
     }
   }
 
-  return { byUrl, byTitle };
+  // ─── 日付一致 + キーワード類似度 ───
+  // 期間が重なる既存予定のうち、作品名・汎用語を除いたキーワードが半分以上重なるものを検知
+  if (opts?.date) {
+    const newStart = opts.date;
+    const newEnd = opts.endDate || opts.date;
+    const newKeywords = stripForKeywords(title, opts.workName);
+    if (newKeywords) {
+      const { data: d3 } = await supabase
+        .from('events')
+        .select('id, title, event_date, end_date, prefecture, source_url, category, author_id')
+        .eq('work_id', workId).eq('pool', 0)
+        .lte('event_date', newEnd)
+        .or(`end_date.gte.${newStart},and(end_date.is.null,event_date.gte.${newStart})`);
+      const newPref = normalizePrefecture(opts.prefecture ?? null) ?? null;
+      for (const row of d3 ?? []) {
+        if (seen.has(row.id as string)) continue;
+        if (!row.event_date) continue;
+        const rowCategory = (row.category as string | null) ?? null;
+        if (category && rowCategory && category !== rowCategory) continue;
+        const rowPref = normalizePrefecture(row.prefecture as string | null) ?? null;
+        if (newPref && rowPref && newPref !== rowPref) continue;
+        const rowKeywords = stripForKeywords(row.title as string, opts.workName);
+        if (!rowKeywords) continue;
+        if (bigramSimilarity(newKeywords, rowKeywords) < 0.5) continue;
+        seen.add(row.id as string);
+        byDateKeyword.push({
+          id: row.id as string,
+          title: row.title as string,
+          date: row.event_date as string,
+          endDate: (row.end_date as string | null) ?? null,
+          prefecture: rowPref,
+          sourceUrl: row.source_url as string | null,
+          authorId: (row.author_id as string | null) ?? null,
+        });
+      }
+    }
+  }
+
+  return { byUrl, byTitle, byDateKeyword };
 }
 
 // ─── いいね ────────────────────────────────────────────────────────
