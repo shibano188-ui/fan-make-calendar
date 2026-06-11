@@ -13,8 +13,7 @@ import {
   listEvents, getWorkById, leaveCalendar, deleteWork, deleteEvent,
   createEvents, getHomePrefecture, saveHomePrefecture,
   getDisplayName, saveDisplayName, listRecentWorks,
-  listAllParticipatedWorkEvents, listAllEventsForParticipatedWorks, listAllEventsForWork,
-  addLikeTap, setReaction, getReactionData, updateEvent,
+  listAllParticipatedWorkEvents, addLikeTap, setReaction, getReactionData, updateEvent,
   findDuplicateEvents, type DuplicateMatch, listPreorderEvents,
 } from '../lib/api';
 import { REACTIONS, type ReactionType } from '../lib/reactions';
@@ -646,7 +645,6 @@ export default function Calendar() {
   const [month, setMonth] = useState(today.getMonth());
   const [workName, setWorkName] = useState('');
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [allListEvents, setAllListEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(!!workId);
   const [error, setError] = useState('');
   const [showMenu, setShowMenu] = useState(false);
@@ -918,15 +916,6 @@ export default function Calendar() {
       .finally(() => setLoading(false));
   }, [workId, user?.id, year, month, location.key]);
 
-  // 予定一覧タブ用: 月フィルターなし・全期間の全イベントを取得
-  useEffect(() => {
-    if (!workId && user) {
-      listAllEventsForParticipatedWorks(user.id).then(setAllListEvents).catch(console.error);
-    } else if (workId) {
-      listAllEventsForWork(workId).then(setAllListEvents).catch(console.error);
-    }
-  }, [workId, user?.id, location.key]);
-
   // 広告バナー: レイアウト確定後に ad-spacer の位置を計測して表示
   // paddingTop(36) + compact header(~32) ≈ 68 CSS px をフォールバックとして使用
   const AD_MARGIN_FALLBACK = 96; // paddingTop(36) + compact header(48) + header-banner gap(12)
@@ -993,11 +982,11 @@ export default function Calendar() {
   }, [monthEvents, activeFilterPrefs]);
 
   // 表示中のイベント（作品非表示・カテゴリフィルター・個人非表示リスト適用済み）
-  // Model A: MyCalendarモードでは、発見タブでいいねしたイベントのみ表示
+  // Model A: MyCalendarモードでは、発見タブでいいねしたイベントのみ表示（グリッド用）
   // categoryFilters[wId] = 非表示にするカテゴリのリスト（空 = 全表示）
   const visibleEvents = useMemo(() => {
     let evts = workId ? filteredEvents : filteredEvents.filter(e => !e.workId || !hiddenWorkIds.has(e.workId));
-    // MyCalendarモード: カレンダーに追加済みのイベントのみ（自分の投稿 or ❤️追加済み）
+    // MyCalendarモード（グリッド）: カレンダーに追加済みのイベントのみ（自分の投稿 or ❤️追加済み）
     if (!workId) evts = evts.filter(e => calendarEventIds.has(e.id));
     evts = evts.filter(e => !hiddenEventIds.has(e.id));
     evts = evts.filter(e => {
@@ -1009,6 +998,20 @@ export default function Calendar() {
     });
     return evts;
   }, [workId, filteredEvents, hiddenWorkIds, calendarEventIds, hiddenEventIds, categoryFilters]);
+
+  // 予定一覧タブ用: calendarEventIds フィルターなし（参加作品の当月全イベントを表示）
+  const listViewEvents = useMemo(() => {
+    let evts = workId ? filteredEvents : filteredEvents.filter(e => !e.workId || !hiddenWorkIds.has(e.workId));
+    evts = evts.filter(e => !hiddenEventIds.has(e.id));
+    evts = evts.filter(e => {
+      const wId = e.workId ?? (workId || '');
+      if (!wId) return true;
+      const cats = categoryFilters[wId];
+      if (!cats || cats.length === 0) return true;
+      return !cats.includes(e.category ?? '');
+    });
+    return evts;
+  }, [workId, filteredEvents, hiddenWorkIds, hiddenEventIds, categoryFilters]);
 
   const prevMonth = () => {
     if (month === 0) { setYear(y => y - 1); setMonth(11); }
@@ -1761,20 +1764,8 @@ export default function Calendar() {
   };
   const myCalendarListItems = useMemo((): ListItem[] => {
     if (workId) return [];
-    // allListEvents: 月フィルターなし・全期間・予約受付中を含む全作品イベント
-    let evts = allListEvents.filter(e => !e.workId || !hiddenWorkIds.has(e.workId));
-    evts = evts.filter(e => !hiddenEventIds.has(e.id));
-    evts = evts.filter(e => {
-      const wId = e.workId ?? '';
-      if (!wId) return true;
-      const cats = categoryFilters[wId];
-      if (!cats || cats.length === 0) return true;
-      return !cats.includes(e.category ?? '');
-    });
-    if (activeFilterPrefs) {
-      evts = evts.filter(e => !e.prefecture || activeFilterPrefs.has(e.prefecture.replace(/[都府県]$/, '')));
-    }
-    const workItems: ListItem[] = evts.map(e => ({
+    // listViewEvents: 当月の参加作品全イベント（calendarEventIds フィルターなし）
+    const workItems: ListItem[] = listViewEvents.map(e => ({
       id: e.id, date: e.date, dateLabel: e.dateLabel, title: e.title, time: e.time, endDate: e.endDate, endTime: e.endTime,
       category: e.category, prefecture: e.prefecture, link: e.link, imageUrl: e.imageUrl,
       tag: e.workName ?? '', isPersonal: false, workId: e.workId,
@@ -1782,8 +1773,7 @@ export default function Calendar() {
       authorId: e.authorId, authorName: e.authorName,
       isOrderMade: e.isOrderMade, preorderStart: e.preorderStart, preorderEnd: e.preorderEnd,
     }));
-    // 個人予定は全月分
-    const personalItems: ListItem[] = personalEvents.map(pe => ({
+    const personalItems: ListItem[] = monthPersonalEvents.map(pe => ({
       id: pe.id, date: pe.date, title: pe.title, time: pe.time, endDate: pe.endDate, endTime: pe.endTime,
       category: pe.category, prefecture: pe.prefecture, memo: pe.memo,
       tag: '個人', isPersonal: true,
@@ -1794,21 +1784,18 @@ export default function Calendar() {
       if (aImp !== bImp) return aImp ? -1 : 1;
       return (a.date ?? '').localeCompare(b.date ?? '');
     });
-  }, [workId, allListEvents, hiddenWorkIds, hiddenEventIds, categoryFilters, activeFilterPrefs, personalEvents, importantEventIds]);
+  }, [workId, listViewEvents, monthPersonalEvents, importantEventIds]);
 
-  // workIdモード一覧用: 月フィルターなし・予約受付中を含む全イベント → 重要優先 → 日付順
-  const sortedListEvents = useMemo(() => {
-    const source = workId ? allListEvents : [];
-    const filtered = activeFilterPrefs
-      ? source.filter(e => !e.prefecture || activeFilterPrefs.has(e.prefecture.replace(/[都府県]$/, '')))
-      : source;
-    return [...filtered].sort((a, b) => {
+  // workIdモード一覧用: 重要優先 → 日付順
+  const sortedListEvents = useMemo(
+    () => [...listViewEvents].sort((a, b) => {
       const aImp = importantEventIds.has(a.id);
       const bImp = importantEventIds.has(b.id);
       if (aImp !== bImp) return aImp ? -1 : 1;
       return (a.date ?? '').localeCompare(b.date ?? '');
-    });
-  }, [workId, allListEvents, importantEventIds, activeFilterPrefs]);
+    }),
+    [listViewEvents, importantEventIds],
+  );
 
   const selectedDateLabel = useMemo(() => {
     const d = new Date(selectedDate + 'T00:00:00');
