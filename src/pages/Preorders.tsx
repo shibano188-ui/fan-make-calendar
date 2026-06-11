@@ -281,7 +281,7 @@ export default function Preorders() {
 
           {/* 右側コンテンツ */}
           <div className="flex-1 min-w-0 flex flex-col gap-2 pb-3">
-            {/* バッジ行 + 予約情報+ボタン */}
+            {/* バッジ行 + 情報ボタン */}
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-1.5 flex-wrap flex-1">
                 {event.isOrderMade && (
@@ -307,7 +307,7 @@ export default function Preorders() {
                   className="flex-shrink-0 text-[11px] px-2.5 py-1 rounded-full pressable"
                   style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)', color: 'var(--accent-color)' }}
                 >
-                  ＋予約情報
+                  ＋情報
                 </button>
               )}
             </div>
