@@ -29,9 +29,13 @@ export default function PreorderEditSheet({ event, onClose, onSaved }: Props) {
     const link = serializeLinks(links) ?? '';
     const finalDate = date || (event.dateLabel ? null : (event.date || null));
     const finalDateLabel = date ? null : (event.dateLabel || null);
+    // 予約開始日 or 終了日が入っていれば「予約あり」を自動でオンにする
+    // （予約受付ページは is_order_made=true で絞り込むため）
+    const isOrderMade = (event.isOrderMade ?? false) || !!preorderStart || !!preorderEnd;
     try {
-      await updatePreorderInfo(event.id, { isOrderMade: event.isOrderMade ?? false, preorderStart, preorderEnd, link, date: finalDate, dateLabel: finalDateLabel });
+      await updatePreorderInfo(event.id, { isOrderMade, preorderStart, preorderEnd, link, date: finalDate, dateLabel: finalDateLabel });
       onSaved({
+        isOrderMade,
         preorderStart: preorderStart || undefined,
         preorderEnd: preorderEnd || undefined,
         link: link || undefined,
