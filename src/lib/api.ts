@@ -790,14 +790,6 @@ export async function reportEvent(eventId: string, reporterId: string, reason: s
   if (error) throw error;
 }
 
-// ─── 作品削除 ──────────────────────────────────────────────────────
-
-export async function deleteWork(workId: string): Promise<void> {
-  // 参加者のみ削除可（チェックは関数側）。likes/events/participations/works を関数内で一括削除
-  const { error } = await supabase.rpc('delete_work', { p_work_id: workId });
-  if (error) throw error;
-}
-
 // ─── リアクション ─────────────────────────────────────────────────
 
 export async function setReaction(eventId: string, userId: string, type: string | null): Promise<void> {

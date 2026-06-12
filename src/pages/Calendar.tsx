@@ -10,7 +10,7 @@ import {
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
 import {
-  listEvents, getWorkById, leaveCalendar, deleteWork, deleteEvent,
+  listEvents, getWorkById, leaveCalendar, deleteEvent,
   createEvents, getHomePrefecture, saveHomePrefecture,
   getDisplayName, saveDisplayName,
   listAllParticipatedWorkEvents, listAllParticipatedWorks, addLikeTap, setReaction, getReactionData, updateEvent,
@@ -677,7 +677,6 @@ export default function Calendar() {
   const [error, setError] = useState('');
   const [showMenu, setShowMenu] = useState(false);
   const [copyDone, setCopyDone] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const { trigger: triggerLike, renderOverlay: renderLikeOverlay } = useLikeAnimation();
@@ -813,21 +812,6 @@ export default function Calendar() {
     await leaveCalendar(workId, user.id);
     localStorage.removeItem('last_calendar_workId');
     navigate('/');
-  };
-
-  const handleDelete = async () => {
-    if (!user) return;
-    if (!(await confirmDialog({ title: 'カレンダーを完全に削除', message: `「${workName}」のすべてのデータが削除されます。\nこの操作は元に戻せません。`, confirmLabel: '削除', destructive: true }))) return;
-    setDeleting(true);
-    setShowMenu(false);
-    try {
-      await deleteWork(workId);
-      localStorage.removeItem('last_calendar_workId');
-      navigate('/');
-    } catch {
-      setDeleting(false);
-      showToast('削除に失敗しました', 'error');
-    }
   };
 
   const handleSaveUserSettings = async (newPref: string | null, newName: string) => {
@@ -1986,10 +1970,6 @@ export default function Calendar() {
                           <div className="h-px bg-subtle mx-3" />
                           <button onClick={handleLeave} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 active:opacity-60">
                             <LogOut size={15} />カレンダーから抜ける
-                          </button>
-                          <div className="h-px bg-subtle mx-3" />
-                          <button onClick={handleDelete} disabled={deleting} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 active:opacity-60 disabled:opacity-40">
-                            <Trash2 size={15} />{deleting ? '削除中…' : 'カレンダーを削除'}
                           </button>
                         </>
                       )}

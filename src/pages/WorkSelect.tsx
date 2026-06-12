@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, ChevronRight, MoreVertical, LogOut, Trash2, Check, Palette, Map as MapIcon } from 'lucide-react';
+import { Search, ChevronRight, MoreVertical, LogOut, Check, Palette, Map as MapIcon } from 'lucide-react';
 import Layout from '../components/Layout';
 import SettingsMenuButton from '../components/SettingsMenuButton';
-import { listWorks, searchWorks, getOrCreateWork, getWorkById, upsertParticipation, listRecentWorks, leaveCalendar, deleteWork, getHomePrefecture } from '../lib/api';
+import { listWorks, searchWorks, getOrCreateWork, getWorkById, upsertParticipation, listRecentWorks, leaveCalendar, getHomePrefecture } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import type { Work } from '../lib/api';
 import { POST_CATEGORIES, loadCategoryFilters, saveCategoryFilters, loadRegionFilter, saveRegionFilter, type FilterMode } from '../lib/constants';
@@ -54,11 +54,9 @@ function WorkItem({
 function ParticipatedWorkItem({
   work,
   onLeave,
-  onDelete,
 }: {
   work: Work;
   onLeave: () => void;
-  onDelete: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -86,13 +84,6 @@ function ParticipatedWorkItem({
                   className="w-full flex items-center gap-3 px-4 py-3 text-sm text-label-primary active:opacity-60"
                 >
                   <LogOut size={14} className="text-label-secondary" />カレンダーから抜ける
-                </button>
-                <div className="h-px bg-subtle mx-3" />
-                <button
-                  onClick={() => { setMenuOpen(false); onDelete(); }}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 active:opacity-60"
-                >
-                  <Trash2 size={14} />カレンダーを削除
                 </button>
               </div>
             </>
@@ -229,18 +220,6 @@ export default function WorkSelect() {
     }
   };
 
-  const handleDelete = async (work: Work) => {
-    if (!user) return;
-    if (!(await confirmDialog({ title: '作品を完全に削除', message: `「${work.name}」を完全に削除しますか？\nこの操作は元に戻せません。`, confirmLabel: '削除', destructive: true }))) return;
-    try {
-      await deleteWork(work.id);
-      setRecentWorks(prev => prev.filter(w => w.id !== work.id));
-      setPopularWorks(prev => prev.filter(w => w.id !== work.id));
-    } catch {
-      setError('削除に失敗しました');
-    }
-  };
-
   const q = query.trim();
   const exactMatch = q ? searchResults.some(w => w.name.toLowerCase() === q.toLowerCase()) : false;
   const canCreate = q.length > 0 && !exactMatch;
@@ -340,7 +319,6 @@ export default function WorkSelect() {
                     key={w.id}
                     work={w}
                     onLeave={() => handleLeave(w)}
-                    onDelete={() => handleDelete(w)}
                   />
                 ))}
               </Section>
