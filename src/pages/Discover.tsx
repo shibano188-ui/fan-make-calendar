@@ -345,8 +345,7 @@ export default function Discover() {
   // 表示イベント（作品・カテゴリフィルター・地域フィルター・自分の投稿除外・追加済み除外）
   const visibleEvents = useMemo(() => {
     let evts = events.filter(e => !e.workId || !hiddenWorkIds.has(e.workId));
-    // 自分の投稿は発見タブに表示しない
-    if (user) evts = evts.filter(e => e.authorId !== user.id);
+    // 自分の投稿も表示する（追加済みフィルターで普段は出ず、×で外したものだけ現れて❤️で戻せる）
     // 通報済みイベントは通報者には表示しない
     evts = evts.filter(e => !reportedEventIds.has(e.id));
     // カテゴリフィルター
@@ -388,6 +387,14 @@ export default function Discover() {
   // ❤️ いいね（クールダウン付き）＋初回のみカレンダーに追加
   const handleHeartPress = async (event: CalendarEvent) => {
     if (!user) return;
+    // 自分の投稿: いいね加算なしでマイカレンダーに戻すだけ（自己いいねの水増し防止）
+    if (event.authorId === user.id) {
+      if (!calendarEventIds.has(event.id)) {
+        const nextCal = addCalendarEventId(event.id);
+        setCalendarEventIds(nextCal);
+      }
+      return;
+    }
     const session = loadLikeSession(event.id);
     if (session.tapsUsed >= LIKE_MAX_TAPS) return;
     const newTaps = session.tapsUsed + 1;
@@ -603,7 +610,7 @@ export default function Discover() {
                 const color = event.workId ? (workColorMap.get(event.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
                 const isLiked = likedEventIds.has(event.id);
                 const isInCalendar = calendarEventIds.has(event.id);
-                const showReAdd = isLiked && !isInCalendar;
+                const showReAdd = (isLiked || (!!user && event.authorId === user.id)) && !isInCalendar;
                 const isLocked = lockedLikeIds.has(event.id);
 
                 const dateParts = event.date ? event.date.split('-').map(Number) : null;
