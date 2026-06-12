@@ -21,10 +21,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // ユーザーデータを削除
+  // 削除前に参加作品IDを控える（人数再同期のため）
+  const { data: parts } = await adminClient
+    .from('participations')
+    .select('work_id')
+    .eq('user_id', user.id);
+  const affectedWorkIds = [...new Set((parts ?? []).map(p => p.work_id as string))];
+
+  // ユーザーデータを削除（reactions / likes / reports / participations / user_settings）
   await adminClient.from('reactions').delete().eq('user_id', user.id);
+  await adminClient.from('likes').delete().eq('user_id', user.id);
+  await adminClient.from('reports').delete().eq('reporter_id', user.id);
   await adminClient.from('participations').delete().eq('user_id', user.id);
   await adminClient.from('user_settings').delete().eq('user_id', user.id);
+
+  // 抜けた作品の参加人数を実数に再同期
+  for (const workId of affectedWorkIds) {
+    const { count } = await adminClient
+      .from('participations')
+      .select('*', { count: 'exact', head: true })
+      .eq('work_id', workId);
+    await adminClient.from('works').update({ participant_count: count ?? 0 }).eq('id', workId);
+  }
 
   // 認証アカウントを削除
   const { error } = await adminClient.auth.admin.deleteUser(user.id);
