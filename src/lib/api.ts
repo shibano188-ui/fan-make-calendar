@@ -874,7 +874,9 @@ export async function leaveCalendar(workId: string, userId: string): Promise<voi
 // ─── 発見タブ: 参加中の全作品の今日以降のイベント ────────────────
 export async function listUpcomingParticipatedEvents(
   userId: string,
-  limit = 60,
+  // 全参加作品の合算に掛かるため小さくしない（60だった頃、日付昇順の枠を
+  // 作品間で奪い合い、後ろの日付の予定が表示されないバグがあった）
+  limit = 500,
 ): Promise<CalendarEvent[]> {
   const { data: parts } = await supabase
     .from('participations')
