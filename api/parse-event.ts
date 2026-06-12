@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import Anthropic from '@anthropic-ai/sdk';
-import { checkParseRateLimit, getClientIp } from './_ratelimit';
+import { checkParseRateLimit, getClientIp } from './_ratelimit.js';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
