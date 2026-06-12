@@ -88,6 +88,25 @@ export function addLikedEventId(id: string): Set<string> {
   return new Set(set);
 }
 
+// ─── like_session キーの掃除 ──────────────────────────────────────
+// クールダウンが完全に終わったキー（resetAt 経過済み）のみ削除する。
+// 進行中の連打カウント（resetAt=0 で tapsUsed<上限）は残す＝挙動は不変。
+export function cleanupLikeSessions(): void {
+  try {
+    const now = Date.now();
+    const toRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith('like_session:')) continue;
+      try {
+        const s = JSON.parse(localStorage.getItem(key) ?? '{}') as { resetAt?: number };
+        if (s.resetAt && s.resetAt > 0 && now >= s.resetAt) toRemove.push(key);
+      } catch { toRemove.push(key); }
+    }
+    toRemove.forEach(k => localStorage.removeItem(k));
+  } catch { /* noop */ }
+}
+
 // ─── いいねタップ総数カウンター ────────────────────────────────────
 const TOTAL_LIKES_GIVEN_KEY = 'fan_total_likes_given';
 export function loadTotalLikesGiven(): number {

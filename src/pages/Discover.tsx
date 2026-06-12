@@ -45,6 +45,7 @@ import { haptic } from '../lib/haptics';
 import EmptyState from '../components/ui/EmptyState';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { getCached, setCached } from '../lib/swrCache';
+import { safeHref } from '../lib/url';
 
 // ─── 定数 ──────────────────────────────────────────────────────────
 
@@ -747,7 +748,7 @@ export default function Discover() {
                         {parseLinks(event.link).length > 0 && (
                           <div className="flex flex-wrap gap-2">
                             {parseLinks(event.link).map((url, i) => (
-                              <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                              <a key={i} href={safeHref(url)} target="_blank" rel="noopener noreferrer"
                                 className="flex items-center gap-1 px-3 py-1 rounded-full text-label-secondary text-xs w-fit pressable"
                                 style={{ backgroundColor: 'var(--fill-tertiary)' }}>
                                 <ExternalLink size={10} />{getDomain(url)}
@@ -764,7 +765,7 @@ export default function Discover() {
                               ) : `by ${event.authorName}`)}
                             </p>
                             {event.sourceUrl && (
-                              <a href={event.sourceUrl} target="_blank" rel="noopener noreferrer"
+                              <a href={safeHref(event.sourceUrl)} target="_blank" rel="noopener noreferrer"
                                 className="text-label-tertiary text-xs underline underline-offset-2 active:opacity-60 flex-shrink-0"
                                 onClick={e => e.stopPropagation()}>
                                 出典

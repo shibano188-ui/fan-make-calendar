@@ -20,6 +20,7 @@ const ANIMAL_AVATARS = [
   '🦄','🐙','🦜','🦅','🦖','🐳','🦓','🐢',
 ];
 import { loadRegionFilter, saveRegionFilter, type FilterMode } from '../lib/constants';
+import { safeHref } from '../lib/url';
 import { PrefectureSearch } from '../components/UserSettingsSheet';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 
@@ -418,7 +419,7 @@ export default function Profile() {
                     <div className="flex items-baseline gap-1.5 min-w-0">
                       <span className="text-label-tertiary text-xs flex-shrink-0">X:</span>
                       {xUrl ? (
-                        <a href={xUrl} target="_blank" rel="noopener noreferrer" className="text-sm truncate active:opacity-60" style={{ color: 'var(--accent-color)' }}>
+                        <a href={safeHref(xUrl)} target="_blank" rel="noopener noreferrer" className="text-sm truncate active:opacity-60" style={{ color: 'var(--accent-color)' }}>
                           {xUrl.replace(/^https?:\/\/(www\.)?(x\.com|twitter\.com)\//, '@')}
                         </a>
                       ) : (

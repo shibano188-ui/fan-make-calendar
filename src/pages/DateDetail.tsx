@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { CalendarEvent } from '../types';
 import { REACTIONS, type ReactionType } from '../lib/reactions';
 import { incrementTotalLikesGiven } from '../lib/constants';
+import { safeHref } from '../lib/url';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
 import UserProfileModal from '../components/UserProfileModal';
 import MemoText from '../components/MemoText';
@@ -210,7 +211,7 @@ function EventCard({
       {event.link && (
         <div className="flex flex-wrap gap-2">
           <a
-            href={event.link}
+            href={safeHref(event.link)}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1 px-3 py-1 rounded-full text-label-secondary text-xs active:opacity-60"
@@ -292,7 +293,7 @@ function EventCard({
           {' '}・ {timeAgo(event.createdAt)}
         </p>
         {event.sourceUrl && (
-          <a href={event.sourceUrl} target="_blank" rel="noopener noreferrer"
+          <a href={safeHref(event.sourceUrl)} target="_blank" rel="noopener noreferrer"
             className="text-label-tertiary text-xs underline underline-offset-2 active:opacity-60 flex-shrink-0">
             出典
           </a>

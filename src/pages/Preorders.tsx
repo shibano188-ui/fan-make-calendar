@@ -25,6 +25,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { CalendarEvent } from '../types';
 import { WORK_COLORS } from './Calendar';
 import { getContrastText } from '../lib/color';
+import { safeHref } from '../lib/url';
 import { haptic } from '../lib/haptics';
 import EmptyState from '../components/ui/EmptyState';
 import { SkeletonList } from '../components/ui/Skeleton';
@@ -344,7 +345,7 @@ export default function Preorders() {
             {links.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {links.map((url, i) => (
-                  <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                  <a key={i} href={safeHref(url)} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-1 px-3 py-1 rounded-full text-label-secondary text-xs w-fit pressable"
                     style={{ backgroundColor: 'var(--fill-tertiary)' }}>
                     <ExternalLink size={10} />
@@ -389,7 +390,7 @@ export default function Preorders() {
                 {links.slice(0, 2).map((url, i) => (
                   <a
                     key={i}
-                    href={url}
+                    href={safeHref(url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 text-sm px-4 py-2 rounded-full font-bold active:opacity-60"

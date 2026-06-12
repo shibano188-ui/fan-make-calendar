@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, ExternalLink } from 'lucide-react';
 import { getUserPublicProfile } from '../lib/api';
 import { calcTitle, calcGrade, type AchievementStats } from '../lib/achievements';
+import { safeHref } from '../lib/url';
 
 interface Profile {
   displayName: string | null;
@@ -109,7 +110,7 @@ export default function UserProfileModal({
 
               {profile?.xUrl && (
                 <a
-                  href={profile.xUrl}
+                  href={safeHref(profile.xUrl)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm active:opacity-60"

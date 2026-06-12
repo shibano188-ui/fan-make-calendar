@@ -43,6 +43,7 @@ import {
   loadHiddenWorkIds, saveHiddenWorkIds,
 } from '../lib/constants';
 import { getCached, setCached } from '../lib/swrCache';
+import { safeHref } from '../lib/url';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
 import { haptic } from '../lib/haptics';
@@ -51,10 +52,12 @@ import { haptic } from '../lib/haptics';
 
 const DAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
 
-// 作品ごとの識別カラー（最大8作品まで色分け、以降はループ）
+// 作品ごとの識別カラー（先頭8色は従来通り。9作品目以降の同色衝突を避けるため追加色を後ろに足す）
 export const WORK_COLORS = [
   '#FF6B6B', '#4FC3F7', '#81C784', '#FFB74D',
   '#BA68C8', '#4DB6AC', '#F06292', '#A1887F',
+  '#7986CB', '#9CCC65', '#FF8A65', '#4DD0E1',
+  '#DCE775', '#BA8FD0', '#90A4AE', '#F48FB1',
 ];
 
 const REACTIONS_KEY = 'fan_reactions';
@@ -2378,7 +2381,7 @@ export default function Calendar() {
                           <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5 w-fit">{sheetDetailEvent.prefecture}</span>
                           {sheetDetailEvent.locationDetail && <p className="text-xs text-label-secondary">{sheetDetailEvent.locationDetail}</p>}
                           {sheetDetailEvent.locationMapLink && (
-                            <a href={sheetDetailEvent.locationMapLink} target="_blank" rel="noopener noreferrer"
+                            <a href={safeHref(sheetDetailEvent.locationMapLink)} target="_blank" rel="noopener noreferrer"
                               className="flex items-center gap-1 text-xs active:opacity-60 w-fit" style={{ color: 'var(--accent-color)' }}>
                               <ExternalLink size={11} />地図を開く
                             </a>
@@ -2389,7 +2392,7 @@ export default function Calendar() {
                       {sheetDetailEvent.memo && <MemoText text={sheetDetailEvent.memo} className="text-label-secondary text-sm leading-relaxed" />}
                       {/* リンク */}
                       {parseLinks(sheetDetailEvent.link).map((url, i) => (
-                        <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                        <a key={i} href={safeHref(url)} target="_blank" rel="noopener noreferrer"
                           className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-default text-label-secondary text-xs w-fit active:opacity-60">
                           <ExternalLink size={11} /><span>{getDomain(url)}</span>
                         </a>
@@ -2459,7 +2462,7 @@ export default function Calendar() {
                             <p className="text-label-tertiary text-xs">by {sheetDetailEvent.authorName}</p>
                           )}
                           {sheetDetailEvent.sourceUrl && (
-                            <a href={sheetDetailEvent.sourceUrl} target="_blank" rel="noopener noreferrer"
+                            <a href={safeHref(sheetDetailEvent.sourceUrl)} target="_blank" rel="noopener noreferrer"
                               className="text-label-tertiary text-xs underline underline-offset-2 active:opacity-60 flex-shrink-0 ml-auto">
                               出典
                             </a>
@@ -2545,7 +2548,7 @@ export default function Calendar() {
                                       </button>
                                     )}
                                     {links.length > 0 && (
-                                      <a href={links[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                                      <a href={safeHref(links[0])} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
                                         className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] text-label-secondary active:opacity-60 flex-shrink-0 bg-fill-3"
                                         >
                                         <ExternalLink size={9} />{getDomain(links[0])}
@@ -2651,7 +2654,7 @@ export default function Calendar() {
                                       </button>
                                     )}
                                     {links.length > 0 && (
-                                      <a href={links[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                                      <a href={safeHref(links[0])} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
                                         className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] text-label-secondary active:opacity-60 flex-shrink-0 bg-fill-3"
                                         >
                                         <ExternalLink size={9} />{getDomain(links[0])}
@@ -2717,7 +2720,7 @@ export default function Calendar() {
                                 if (links.length === 0) return null;
                                 return (
                                   <div className="flex items-center gap-1.5 px-3 pb-2 -mt-1 flex-wrap">
-                                    <a href={links[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                                    <a href={safeHref(links[0])} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
                                       className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] text-label-secondary active:opacity-60 bg-fill-3"
                                       >
                                       <ExternalLink size={9} />{getDomain(links[0])}
@@ -2793,7 +2796,7 @@ export default function Calendar() {
                   <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5 w-fit">{listDetailEvent.prefecture}</span>
                   {listDetailEvent.locationDetail && <p className="text-xs text-label-secondary">{listDetailEvent.locationDetail}</p>}
                   {listDetailEvent.locationMapLink && (
-                    <a href={listDetailEvent.locationMapLink} target="_blank" rel="noopener noreferrer"
+                    <a href={safeHref(listDetailEvent.locationMapLink)} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-1 text-xs active:opacity-60 w-fit" style={{ color: 'var(--accent-color)' }}>
                       <ExternalLink size={11} />地図を開く
                     </a>
@@ -2804,7 +2807,7 @@ export default function Calendar() {
               {listDetailEvent.memo && <MemoText text={listDetailEvent.memo} className="text-label-secondary text-sm leading-relaxed" />}
               {/* リンク */}
               {parseLinks(listDetailEvent.link).map((url, i) => (
-                <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                <a key={i} href={safeHref(url)} target="_blank" rel="noopener noreferrer"
                   className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-default text-label-secondary text-xs w-fit active:opacity-60">
                   <ExternalLink size={11} /><span>{getDomain(url)}</span>
                 </a>
@@ -2873,7 +2876,7 @@ export default function Calendar() {
                     <p className="text-label-tertiary text-xs">by {listDetailEvent.authorName}</p>
                   )}
                   {listDetailEvent.sourceUrl && (
-                    <a href={listDetailEvent.sourceUrl} target="_blank" rel="noopener noreferrer"
+                    <a href={safeHref(listDetailEvent.sourceUrl)} target="_blank" rel="noopener noreferrer"
                       className="text-label-tertiary text-xs underline underline-offset-2 active:opacity-60 flex-shrink-0 ml-auto">
                       出典
                     </a>
@@ -2970,7 +2973,7 @@ export default function Calendar() {
                                       </button>
                                     )}
                                     {hasLink && (
-                                      <a href={links[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                                      <a href={safeHref(links[0])} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
                                         className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] text-label-secondary active:opacity-60 bg-fill-3"
                                         >
                                         <ExternalLink size={9} />{getDomain(links[0])}
@@ -3153,7 +3156,7 @@ export default function Calendar() {
                                       </button>
                                     )}
                                     {hasLink && (
-                                      <a href={links[0]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                                      <a href={safeHref(links[0])} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
                                         className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] text-label-secondary active:opacity-60 bg-fill-3"
                                         >
                                         <ExternalLink size={9} />{getDomain(links[0])}
@@ -3286,7 +3289,7 @@ export default function Calendar() {
               style={{ animation: 'slideUpIn 0.25s cubic-bezier(0.32, 0.72, 0, 1) both' }}>
               <p className="text-label-tertiary text-xs px-4 pt-3 pb-2">リンクを選択</p>
               {linkPickerLinks.map((url, i) => (
-                <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                <a key={i} href={safeHref(url)} target="_blank" rel="noopener noreferrer"
                   onClick={() => setLinkPickerLinks(null)}
                   className="flex items-center gap-3 px-4 py-3 border-t text-sm text-label-primary active:opacity-60"
                   style={{ borderColor: 'var(--border-subtle)' }}>
