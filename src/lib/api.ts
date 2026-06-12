@@ -442,17 +442,11 @@ export async function findDuplicateEvents(
 // ─── いいね ────────────────────────────────────────────────────────
 
 // 1タップ = +1（10回連打対応）
-export async function addLikeTap(eventId: string, userId: string): Promise<number> {
-  // likesテーブルにユーザー行を確保（初回のみ挿入）
-  await supabase
-    .from('likes')
-    .upsert({ event_id: eventId, user_id: userId }, { onConflict: 'event_id,user_id', ignoreDuplicates: true });
-
-  // like_countをインクリメント
-  const { data: ev } = await supabase.from('events').select('like_count').eq('id', eventId).single();
-  const newCount = (ev?.like_count ?? 0) + 1;
-  await supabase.from('events').update({ like_count: newCount }).eq('id', eventId);
-  return newCount;
+// like行の確保と like_count 加算は SECURITY DEFINER 関数で行う（events直接UPDATEを廃止）
+export async function addLikeTap(eventId: string, _userId: string): Promise<number> {
+  const { data, error } = await supabase.rpc('add_like_tap', { p_event_id: eventId });
+  if (error) throw error;
+  return (data as number) ?? 0;
 }
 
 export async function toggleLike(eventId: string, userId: string): Promise<{ liked: boolean; count: number }> {
@@ -764,22 +758,24 @@ export async function updatePreorderInfo(
   eventId: string,
   data: { isOrderMade: boolean; preorderStart: string; preorderEnd: string; link: string; date: string | null; dateLabel: string | null },
 ): Promise<void> {
-  const { error } = await supabase.from('events').update({
-    is_order_made: data.isOrderMade,
-    preorder_start_date: data.preorderStart || null,
-    preorder_end_date: data.preorderEnd || null,
-    link_url: data.link || null,
-    event_date: data.date || null,
-    date_label: data.dateLabel || null,
-  }).eq('id', eventId);
+  // 参加作品なら他人の予定も更新するため SECURITY DEFINER 関数（参加者チェック付き）経由
+  const { error } = await supabase.rpc('update_preorder_info', {
+    p_event_id: eventId,
+    p_is_order_made: data.isOrderMade,
+    p_preorder_start: data.preorderStart || null,
+    p_preorder_end: data.preorderEnd || null,
+    p_link: data.link || '',
+    p_date: data.date,
+    p_date_label: data.dateLabel,
+  });
   if (error) throw error;
 }
 
 // ─── イベント削除 ─────────────────────────────────────────────────
 
 export async function deleteEvent(eventId: string): Promise<void> {
-  await supabase.from('likes').delete().eq('event_id', eventId);
-  const { error } = await supabase.from('events').delete().eq('id', eventId);
+  // 本人のみ削除可（投稿者チェックは関数側）。likes も関数内で削除
+  const { error } = await supabase.rpc('delete_event', { p_event_id: eventId });
   if (error) throw error;
 }
 
@@ -797,14 +793,8 @@ export async function reportEvent(eventId: string, reporterId: string, reason: s
 // ─── 作品削除 ──────────────────────────────────────────────────────
 
 export async function deleteWork(workId: string): Promise<void> {
-  const { data: eventRows } = await supabase
-    .from('events').select('id').eq('work_id', workId);
-  if (eventRows && eventRows.length > 0) {
-    await supabase.from('likes').delete().in('event_id', eventRows.map(e => e.id as string));
-  }
-  await supabase.from('events').delete().eq('work_id', workId);
-  await supabase.from('participations').delete().eq('work_id', workId);
-  const { error } = await supabase.from('works').delete().eq('id', workId);
+  // 参加者のみ削除可（チェックは関数側）。likes/events/participations/works を関数内で一括削除
+  const { error } = await supabase.rpc('delete_work', { p_work_id: workId });
   if (error) throw error;
 }
 
