@@ -86,6 +86,10 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
           body: JSON.stringify(body),
         });
         if (!res.ok) {
+          if (res.status === 429) {
+            lastError = '利用が集中しています。時間をおいてお試しください';
+            break;
+          }
           const text = await res.text().catch(() => '');
           throw new Error(`${res.status}: ${text.slice(0, 400)}`);
         }

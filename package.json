@@ -18,6 +18,8 @@
     "@capacitor/haptics": "^8.0.2",
     "@capacitor/status-bar": "^8.0.2",
     "@supabase/supabase-js": "^2.106.1",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.38.0",
     "groq-sdk": "^1.2.0",
     "lucide-react": "^0.511.0",
     "react": "^18.3.1",

@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import Anthropic from '@anthropic-ai/sdk';
+import { checkParseRateLimit, getClientIp } from './_ratelimit';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -395,6 +396,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).end();
+
+  const rl = await checkParseRateLimit(getClientIp(req));
+  if (!rl.ok) {
+    res.setHeader('Retry-After', String(rl.retryAfterSec));
+    return res.status(429).json({ error: 'rate_limited' });
+  }
 
   const { url, imageBase64, mimeType, sharedText } = req.body as {
     url?: string;

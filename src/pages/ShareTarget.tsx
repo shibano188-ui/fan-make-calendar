@@ -58,7 +58,10 @@ export default function ShareTarget() {
               ...(sharedText ? { sharedText } : {}),
             }),
           });
-          if (!res.ok) throw new Error(`${res.status}`);
+          if (!res.ok) {
+            if (res.status === 429) { lastError = '429'; break; }
+            throw new Error(`${res.status}`);
+          }
           const raw = await res.json();
           const arr: unknown[] = Array.isArray(raw) ? raw : [raw];
           const first = arr[0] as Record<string, unknown> | undefined;
