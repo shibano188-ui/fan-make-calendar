@@ -11,6 +11,7 @@ import { REACTIONS, type ReactionType } from '../lib/reactions';
 import { incrementTotalLikesGiven } from '../lib/constants';
 import { safeHref } from '../lib/url';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
+import { useReportedEventIds } from '../hooks/useReportedEventIds';
 import UserProfileModal from '../components/UserProfileModal';
 import MemoText from '../components/MemoText';
 import { useConfirm } from '../components/ui/ConfirmDialog';
@@ -312,6 +313,7 @@ export default function DateDetail() {
   const showToast = useToast();
   const navigate = useNavigate();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const { reportedEventIds } = useReportedEventIds(user?.id);
   const [loading, setLoading] = useState(true);
   const [eventReactions, setEventReactions] = useState<Record<string, ReactionData>>({});
   const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
@@ -347,6 +349,9 @@ export default function DateDetail() {
       ),
     ).then(pairs => setEventReactions(Object.fromEntries(pairs)));
   }, [events, user?.id]);
+
+  // 通報済みイベントは通報者には表示しない
+  const visibleEvents = events.filter(e => !reportedEventIds.has(e.id));
 
   const handleTapped = (eventId: string, newCount: number) => {
     setEvents(prev =>
@@ -413,13 +418,13 @@ export default function DateDetail() {
           <div className="flex flex-col gap-3">
             {[1, 2].map(i => <div key={i} className="h-32 bg-bg-secondary rounded-[14px] animate-pulse" />)}
           </div>
-        ) : events.length === 0 ? (
+        ) : visibleEvents.length === 0 ? (
           <p className="text-center text-label-tertiary text-sm py-16">
             この日の予定はまだありません
           </p>
         ) : (
           <div className="flex flex-col gap-3">
-            {events.map(event => (
+            {visibleEvents.map(event => (
               <EventCard
                 key={event.id}
                 event={event}

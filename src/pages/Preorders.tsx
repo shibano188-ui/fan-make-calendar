@@ -6,6 +6,7 @@ import Header from '../components/Header';
 import MemoText from '../components/MemoText';
 import PreorderEditSheet from '../components/PreorderEditSheet';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
+import { useReportedEventIds } from '../hooks/useReportedEventIds';
 import {
   listPreorderEvents, listRecentWorks, addLikeTap, setReaction, type Work,
 } from '../lib/api';
@@ -62,6 +63,7 @@ export default function Preorders() {
   const navigate = useNavigate();
   const { key: locationKey } = useLocation();
   const { user } = useAuth();
+  const { reportedEventIds } = useReportedEventIds(user?.id);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [works, setWorks] = useState<Work[]>([]);
   const [loading, setLoading] = useState(true);
@@ -138,6 +140,7 @@ export default function Preorders() {
 
   const visibleEvents = useMemo(() =>
     events.filter(e => {
+      if (reportedEventIds.has(e.id)) return false;
       if (e.workId && hiddenWorkIds.has(e.workId)) return false;
       const wId = e.workId ?? '';
       if (wId) {
@@ -146,7 +149,7 @@ export default function Preorders() {
       }
       return true;
     }),
-  [events, hiddenWorkIds, categoryFilters]);
+  [events, hiddenWorkIds, categoryFilters, reportedEventIds]);
 
   const active = visibleEvents.filter(e => { const s = getPreorderStart(e); return !s || s <= today; });
   const upcoming = visibleEvents.filter(e => { const s = getPreorderStart(e); return !!s && s > today; });

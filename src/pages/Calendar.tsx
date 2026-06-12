@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { showBanner, hideBanner } from '../lib/admob';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
+import { useReportedEventIds } from '../hooks/useReportedEventIds';
 import UserProfileModal from '../components/UserProfileModal';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -662,6 +663,7 @@ export default function Calendar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const { reportedEventIds } = useReportedEventIds(user?.id);
   const confirmDialog = useConfirm();
   const showToast = useToast();
   const { settings, setCurrentCalendar, calFontFamily } = useTheme();
@@ -990,13 +992,17 @@ export default function Calendar() {
   );
 
   const filteredEvents = useMemo(() => {
-    if (!activeFilterPrefs) return monthEvents;
-    return monthEvents.filter(e => {
-      if (!e.prefecture) return true;
-      const pref = e.prefecture.replace(/[都府県]$/, '');
-      return activeFilterPrefs.has(pref);
-    });
-  }, [monthEvents, activeFilterPrefs]);
+    // 通報済みイベントは通報者には表示しない
+    let evts = monthEvents.filter(e => !reportedEventIds.has(e.id));
+    if (activeFilterPrefs) {
+      evts = evts.filter(e => {
+        if (!e.prefecture) return true;
+        const pref = e.prefecture.replace(/[都府県]$/, '');
+        return activeFilterPrefs.has(pref);
+      });
+    }
+    return evts;
+  }, [monthEvents, activeFilterPrefs, reportedEventIds]);
 
   // 表示中のイベント（作品非表示・カテゴリフィルター・個人非表示リスト適用済み）
   // Model A: MyCalendarモードでは、発見タブでいいねしたイベントのみ表示

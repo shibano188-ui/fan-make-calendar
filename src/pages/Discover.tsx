@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom';
 import { showBanner, hideBanner } from '../lib/admob';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
+import { useReportedEventIds } from '../hooks/useReportedEventIds';
 import UserProfileModal from '../components/UserProfileModal';
 import MemoText from '../components/MemoText';
 import {
@@ -91,6 +92,7 @@ export default function Discover() {
   const location = useLocation();
   const highlightEventId = (location.state as { highlightEventId?: string } | null)?.highlightEventId ?? null;
   const { user } = useAuth();
+  const { reportedEventIds, addReportedEventId } = useReportedEventIds(user?.id);
   const confirmDialog = useConfirm();
   const showToast = useToast();
 
@@ -153,9 +155,10 @@ export default function Discover() {
 
   const handleReportEvent = async (id: string, title: string) => {
     if (!user) return;
-    if (!(await confirmDialog({ title: '投稿を通報', message: `「${title}」を不適切な投稿として通報しますか？`, confirmLabel: '通報する', destructive: true }))) return;
+    if (!(await confirmDialog({ title: '投稿を通報', message: `「${title}」を不適切な投稿として通報しますか？\n通報した投稿は表示されなくなります。`, confirmLabel: '通報する', destructive: true }))) return;
     try {
       await reportEvent(id, user.id, 'inappropriate');
+      addReportedEventId(id);
       showToast('通報を受け付けました');
     } catch { showToast('通報に失敗しました', 'error'); }
   };
@@ -344,6 +347,8 @@ export default function Discover() {
     let evts = events.filter(e => !e.workId || !hiddenWorkIds.has(e.workId));
     // 自分の投稿は発見タブに表示しない
     if (user) evts = evts.filter(e => e.authorId !== user.id);
+    // 通報済みイベントは通報者には表示しない
+    evts = evts.filter(e => !reportedEventIds.has(e.id));
     // カテゴリフィルター
     evts = evts.filter(e => {
       const wId = e.workId ?? '';
@@ -370,7 +375,7 @@ export default function Discover() {
       return a.date.localeCompare(b.date);
     });
     return evts;
-  }, [events, hiddenWorkIds, categoryFilters, user, activeFilterPrefs]);
+  }, [events, hiddenWorkIds, categoryFilters, user, activeFilterPrefs, reportedEventIds]);
 
   const toggleWork = (wId: string) =>
     setHiddenWorkIds(prev => {

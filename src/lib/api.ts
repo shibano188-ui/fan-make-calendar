@@ -790,6 +790,16 @@ export async function reportEvent(eventId: string, reporterId: string, reason: s
   if (error) throw error;
 }
 
+// 自分が通報したイベントID一覧（通報者の画面から非表示にするため）
+export async function getReportedEventIds(reporterId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('reports')
+    .select('event_id')
+    .eq('reporter_id', reporterId);
+  if (error) throw error;
+  return (data ?? []).map(r => r.event_id as string);
+}
+
 // ─── リアクション ─────────────────────────────────────────────────
 
 export async function setReaction(eventId: string, userId: string, type: string | null): Promise<void> {
