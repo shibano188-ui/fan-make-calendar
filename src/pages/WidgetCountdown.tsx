@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { getEventById, listUpcomingEvents, getWorkById } from '../lib/api';
 import { loadCalendarSettings, applySettingsToCSS } from '../contexts/ThemeContext';
+import { parseCategories } from '../lib/constants';
 import type { CalendarEvent } from '../types';
 
 function toDateStr(d: Date): string {
@@ -91,7 +92,7 @@ export default function WidgetCountdown() {
             </p>
             {event.category && (
               <p className="text-xs px-2 py-0.5 rounded-full border" style={{ color: 'var(--label-tertiary)', borderColor: 'rgba(255,255,255,0.15)' }}>
-                {event.category}
+                {parseCategories(event.category).join('・')}
               </p>
             )}
             <p className="text-sm mt-1" style={{ color: 'var(--label-secondary)' }}>

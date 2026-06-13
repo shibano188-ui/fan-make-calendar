@@ -30,6 +30,28 @@ export function getCategoryColor(category?: string): string | null {
   return CATEGORY_FALLBACK_PALETTE[Math.abs(hash) % CATEGORY_FALLBACK_PALETTE.length];
 }
 
+// ─── 複数カテゴリ: categoryフィールドのパース/シリアライズ ───────────
+// linkと同じ流儀: 単一はプレーン文字列、複数はJSON配列文字列で保存。
+// 既存の単一カテゴリデータ（プレーン文字列）はそのまま [文字列] として読める。
+export function parseCategories(category?: string | null): string[] {
+  if (!category) return [];
+  try {
+    const parsed = JSON.parse(category);
+    if (Array.isArray(parsed)) return (parsed as unknown[]).filter(s => typeof s === 'string' && s) as string[];
+    return [category];
+  } catch { return [category]; }
+}
+export function serializeCategories(cats: string[]): string | undefined {
+  const filtered = cats.map(s => s.trim()).filter(Boolean);
+  if (filtered.length === 0) return undefined;
+  if (filtered.length === 1) return filtered[0];
+  return JSON.stringify(filtered);
+}
+/** 複数カテゴリのうち先頭の色を返す（左ボーダー/ドット色用）。未設定は null */
+export function getPrimaryCategoryColor(category?: string | null): string | null {
+  return getCategoryColor(parseCategories(category)[0]);
+}
+
 // ─── 複数リンク: linkフィールドのパース/シリアライズ ─────────────────
 // 単一URLはそのまま文字列、複数URLはJSON配列文字列で保存
 export function parseLinks(link?: string): string[] {

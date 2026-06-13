@@ -28,7 +28,8 @@ import {
   loadCategoryFilters, saveCategoryFilters,
   loadLikedEventIds, addLikedEventId,
   loadCalendarEventIds, addCalendarEventId, saveCalendarEventIds,
-  getCategoryColor,
+  getPrimaryCategoryColor,
+  parseCategories,
   loadRegionFilter, saveRegionFilter, type FilterMode,
   incrementTotalLikesGiven,
   parseImageUrls,
@@ -43,6 +44,7 @@ import { WORK_COLORS } from './Calendar';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
 import { haptic } from '../lib/haptics';
+import CategoryChips from '../components/CategoryChips';
 import EmptyState from '../components/ui/EmptyState';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { getCached, setCached } from '../lib/swrCache';
@@ -354,7 +356,8 @@ export default function Discover() {
       if (!wId) return true;
       const cats = categoryFilters[wId];
       if (!cats || cats.length === 0) return true;
-      return !cats.includes(e.category ?? '');
+      const evCats = parseCategories(e.category);
+      return evCats.length === 0 ? true : !evCats.some(c => cats.includes(c));
     });
     // 追加済みの予定は非表示（セッション開始前に追加済みのもののみ。タブ内で追加しても即消えない）
     evts = evts.filter(e => !initialCalendarIds.current.has(e.id));
@@ -622,7 +625,7 @@ export default function Discover() {
                 const hasPreorderData = !!(event.preorderStart || event.preorderEnd);
                 const [, psm, psd] = event.preorderStart ? event.preorderStart.split('-').map(Number) : [0, 0, 0];
                 const [, pem, ped] = event.preorderEnd ? event.preorderEnd.split('-').map(Number) : [0, 0, 0];
-                const catColor = getCategoryColor(event.category);
+                const catColor = getPrimaryCategoryColor(event.category);
                 return (
                   <div
                     key={event.id}
@@ -709,11 +712,7 @@ export default function Discover() {
                                 {event.workName}
                               </span>
                             )}
-                            {event.category && (
-                              <span className="text-[11px] text-label-secondary rounded-full px-2 py-0.5" style={{ backgroundColor: 'var(--fill-quaternary)' }}>
-                                {event.category}
-                              </span>
-                            )}
+                            <CategoryChips category={event.category} className="text-[11px] text-label-secondary rounded-full px-2 py-0.5" style={{ backgroundColor: 'var(--fill-quaternary)' }} />
                             {event.prefecture && (
                               <span className="text-[11px] text-label-secondary rounded-full px-2 py-0.5" style={{ backgroundColor: 'var(--fill-quaternary)' }}>
                                 {event.prefecture}

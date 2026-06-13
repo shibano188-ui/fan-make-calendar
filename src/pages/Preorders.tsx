@@ -13,7 +13,7 @@ import {
 import { getCached, setCached } from '../lib/swrCache';
 import {
   POST_CATEGORIES,
-  parseLinks, parseImageUrls, getCategoryColor,
+  parseLinks, parseImageUrls, getPrimaryCategoryColor, parseCategories,
   loadLikedEventIds, addLikedEventId,
   loadCalendarEventIds, addCalendarEventId,
   incrementTotalLikesGiven,
@@ -28,6 +28,7 @@ import { WORK_COLORS } from './Calendar';
 import { getContrastText } from '../lib/color';
 import { safeHref } from '../lib/url';
 import { haptic } from '../lib/haptics';
+import CategoryChips from '../components/CategoryChips';
 import EmptyState from '../components/ui/EmptyState';
 import { SkeletonList } from '../components/ui/Skeleton';
 
@@ -145,7 +146,7 @@ export default function Preorders() {
       const wId = e.workId ?? '';
       if (wId) {
         const cats = categoryFilters[wId];
-        if (cats && cats.length > 0 && cats.includes(e.category ?? '')) return false;
+        if (cats && cats.length > 0 && parseCategories(e.category).some(c => cats.includes(c))) return false;
       }
       return true;
     }),
@@ -198,7 +199,7 @@ export default function Preorders() {
 
   const renderTile = (event: CalendarEvent) => {
     const workColor = event.workId ? (workColorMap.get(event.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
-    const catColor = getCategoryColor(event.category);
+    const catColor = getPrimaryCategoryColor(event.category);
     const links = parseLinks(event.link);
     const workName = works.find(w => w.id === event.workId)?.name;
     const isLiked = likedEventIds.has(event.id);
@@ -299,11 +300,7 @@ export default function Preorders() {
                     {workName}
                   </span>
                 )}
-                {event.category && (
-                  <span className="text-[11px] text-label-secondary rounded-full px-2 py-0.5" style={{ backgroundColor: 'var(--fill-quaternary)' }}>
-                    {event.category}
-                  </span>
-                )}
+                <CategoryChips category={event.category} className="text-[11px] text-label-secondary rounded-full px-2 py-0.5" style={{ backgroundColor: 'var(--fill-quaternary)' }} />
               </div>
               {event.workId && works.some(w => w.id === event.workId) && (
                 <button

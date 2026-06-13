@@ -6,14 +6,13 @@ import Header from '../components/Header';
 import SmartInputPanel, { type ParsedEvent } from '../components/SmartInputPanel';
 import { createEvents } from '../lib/api';
 import { PREFECTURES } from '../lib/prefectures';
-import { parseLinks, serializeLinks, loadImportantEventIds, saveImportantEventIds } from '../lib/constants';
+import { parseLinks, serializeLinks, serializeCategories, loadImportantEventIds, saveImportantEventIds } from '../lib/constants';
 import { useAuth } from '../contexts/AuthContext';
 import type { CalendarEvent } from '../types';
 
 // ─── 型定義 ────────────────────────────────────────────────────────
 
 const CATEGORIES = ['単行本', 'グッズ', 'イベント', '誕生日', '配信'] as const;
-type Category = (typeof CATEGORIES)[number];
 
 interface PostCard {
   id: string;
@@ -23,8 +22,7 @@ interface PostCard {
   time: string;
   endDate: string;
   endTime: string;
-  category: Category | '';
-  customCategory: string;
+  categories: string[];
   prefecture: string;
   locationDetail: string;
   locationMapLink: string;
@@ -45,8 +43,7 @@ function newCard(): PostCard {
     time: '',
     endDate: '',
     endTime: '',
-    category: '',
-    customCategory: '',
+    categories: [],
     prefecture: '',
     locationDetail: '',
     locationMapLink: '',
@@ -65,7 +62,7 @@ function toEventInput(card: PostCard): EventInput {
     date: card.date || null,
     dateLabel: card.dateLabel || undefined,
     time: card.time || undefined,
-    category: card.category || card.customCategory.trim() || undefined,
+    category: serializeCategories(card.categories),
     link: serializeLinks(card.links),
     memo: card.memo || undefined,
     prefecture: card.prefecture || undefined,
@@ -95,7 +92,21 @@ function PostCardItem({
   onToggle: () => void;
   onRemove: () => void;
 }) {
-  const isCustomActive = !card.category && card.customCategory.trim().length > 0;
+  const [customInput, setCustomInput] = useState('');
+  const customCats = card.categories.filter(c => !(CATEGORIES as readonly string[]).includes(c));
+  const toggleCategory = (cat: string) => {
+    onChange({
+      categories: card.categories.includes(cat)
+        ? card.categories.filter(c => c !== cat)
+        : [...card.categories, cat],
+    });
+  };
+  const addCustomCategory = () => {
+    const v = customInput.trim();
+    if (!v) return;
+    if (!card.categories.includes(v)) onChange({ categories: [...card.categories, v] });
+    setCustomInput('');
+  };
   const hasPrefecture = card.prefecture.length > 0;
 
   return (
@@ -237,17 +248,17 @@ function PostCardItem({
             </div>
           </div>
 
-          {/* カテゴリ */}
+          {/* カテゴリ（複数選択可） */}
           <div>
-            <label className="text-label-tertiary text-xs mb-1.5 block">カテゴリ</label>
+            <label className="text-label-tertiary text-xs mb-1.5 block">カテゴリ（複数選択可）</label>
             <div className="flex flex-wrap gap-2 mb-2">
               {CATEGORIES.map(cat => (
                 <button
                   key={cat}
                   type="button"
-                  onClick={() => onChange({ category: card.category === cat ? '' : cat, customCategory: '' })}
+                  onClick={() => toggleCategory(cat)}
                   className={`px-3 py-1 rounded-full text-xs border transition-colors ${
-                    card.category === cat
+                    card.categories.includes(cat)
                       ? 'border-selected text-label-primary bg-label-primary/10'
                       : 'border-default text-label-secondary'
                   }`}
@@ -255,18 +266,29 @@ function PostCardItem({
                   {cat}
                 </button>
               ))}
+              {/* 選択済みのカスタムカテゴリ（×で除去） */}
+              {customCats.map(cat => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => toggleCategory(cat)}
+                  className="px-3 py-1 rounded-full text-xs border border-selected text-label-primary bg-label-primary/10 flex items-center gap-1"
+                >
+                  {cat}<X size={11} />
+                </button>
+              ))}
             </div>
-            {/* カスタムカテゴリ */}
+            {/* カスタムカテゴリ追加 */}
             <div className="flex items-center gap-2">
               <span className="text-label-tertiary text-xs flex-shrink-0">その他：</span>
               <input
                 type="text"
-                value={card.customCategory}
-                onChange={e => onChange({ customCategory: e.target.value, category: '' })}
-                placeholder="自由に入力"
-                className={`flex-1 bg-bg-primary rounded-lg px-3 py-1.5 text-xs text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border transition-colors ${
-                  isCustomActive ? 'border-default' : 'border-faint focus:border-strong'
-                }`}
+                value={customInput}
+                onChange={e => setCustomInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomCategory(); } }}
+                onBlur={addCustomCategory}
+                placeholder="自由に入力（Enterで追加）"
+                className="flex-1 bg-bg-primary rounded-lg px-3 py-1.5 text-xs text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong transition-colors"
               />
             </div>
           </div>
@@ -386,7 +408,6 @@ export default function PostCreate() {
     setCards(prev => [...prev.map(c => ({ ...c, collapsed: true })), newCard()]);
 
   const applyParsed = (parsed: ParsedEvent) => {
-    const VALID_CATS = CATEGORIES as unknown as string[];
     const filled = (c: PostCard) => c.title.trim() !== '' || c.date !== '';
     const parsedCard = (base: PostCard): PostCard => ({
       ...base,
@@ -397,12 +418,9 @@ export default function PostCreate() {
       time:           parsed.time           ?? base.time,
       endDate:        parsed.endDate        ?? base.endDate,
       endTime:        parsed.endTime        ?? base.endTime,
-      category:       VALID_CATS.includes(parsed.category ?? '')
-                        ? (parsed.category as typeof base.category)
-                        : base.category,
-      customCategory: !VALID_CATS.includes(parsed.category ?? '') && parsed.category
-                        ? parsed.category
-                        : base.customCategory,
+      categories:     parsed.category && !base.categories.includes(parsed.category)
+                        ? [...base.categories, parsed.category]
+                        : base.categories,
       prefecture:     parsed.prefecture     ?? base.prefecture,
       locationDetail: parsed.locationDetail ?? base.locationDetail,
       links:          parsed.link ? parseLinks(parsed.link).length > 0 ? parseLinks(parsed.link) : base.links : base.links,
@@ -423,7 +441,7 @@ export default function PostCreate() {
       setCards(prev => prev.map(c => c.id === invalid.id ? { ...c, collapsed: false } : c));
       return;
     }
-    const noCat = cards.find(c => !c.category && !c.customCategory.trim());
+    const noCat = cards.find(c => c.categories.length === 0);
     if (noCat) {
       setError('カテゴリを選択してください');
       setCards(prev => prev.map(c => c.id === noCat.id ? { ...c, collapsed: false } : c));

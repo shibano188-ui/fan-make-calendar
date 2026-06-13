@@ -1,5 +1,15 @@
 import { supabase } from './supabase';
 import type { CalendarEvent } from '../types';
+import { parseCategories } from './constants';
+
+/** 2つのカテゴリ値（単一文字列 or JSON配列文字列）が完全に重ならない場合 true。
+ *  どちらかが空なら false（＝別イベントとは判定しない）。複数カテゴリの重複検知に使う。 */
+function categoriesDisjoint(a?: string | null, b?: string | null): boolean {
+  const ac = parseCategories(a);
+  const bc = parseCategories(b);
+  if (ac.length === 0 || bc.length === 0) return false;
+  return !ac.some(c => bc.includes(c));
+}
 
 export type Work = {
   id: string;
@@ -376,8 +386,8 @@ export async function findDuplicateEvents(
   });
   for (const row of titleData) {
     const rowCategory = (row.category as string | null) ?? null;
-    // 両方カテゴリあって異なる場合はスキップ（別イベント扱い）
-    if (category && rowCategory && category !== rowCategory) continue;
+    // 両方カテゴリあって全く重ならない場合はスキップ（別イベント扱い）
+    if (categoriesDisjoint(category, rowCategory)) continue;
     // 正規化タイトルがnormと完全一致、またはnorm+スペースで始まる（地名付きバリアント）
     const rowNorm = normalizeTitleForDup(row.title as string);
     const titleMatch = rowNorm === norm || rowNorm.startsWith(`${norm} `);
@@ -420,7 +430,7 @@ export async function findDuplicateEvents(
         // カテゴリ不一致は通常スキップだが、類似度が非常に高い場合は同一予定の
         // カテゴリ選択ゆれ（例: グッズ/グルメ）とみなして検知する
         const rowCategory = (row.category as string | null) ?? null;
-        const catMismatch = !!(category && rowCategory && category !== rowCategory);
+        const catMismatch = categoriesDisjoint(category, rowCategory);
         if (sim < (catMismatch ? 0.75 : 0.5)) continue;
         seen.add(row.id as string);
         byDateKeyword.push({
@@ -1010,10 +1020,11 @@ export async function countUserReactionsGiven(userId: string): Promise<number> {
 }
 
 export async function countUserEventsByCategory(userId: string, category: string): Promise<number> {
-  const { count } = await supabase
+  // category は単一文字列 or JSON配列文字列で保存されるため、取得してJS側で判定する
+  const { data } = await supabase
     .from('events')
-    .select('id', { count: 'exact', head: true })
-    .eq('author_id', userId)
-    .eq('category', category);
-  return count ?? 0;
+    .select('category')
+    .eq('author_id', userId);
+  if (!data) return 0;
+  return data.filter(r => parseCategories(r.category as string | null).includes(category)).length;
 }

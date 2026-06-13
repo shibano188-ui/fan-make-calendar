@@ -27,15 +27,17 @@ import { supabase } from '../lib/supabase';
 import { useTheme } from '../contexts/ThemeContext';
 import SmartInputPanel, { type ParsedEvent } from '../components/SmartInputPanel';
 import MemoText from '../components/MemoText';
+import CategoryChips from '../components/CategoryChips';
 import PreorderEditSheet from '../components/PreorderEditSheet';
 import type { CalendarEvent } from '../types';
 
 export type { CalendarEvent };
 
 import {
-  POST_CATEGORIES, type PostCategory, loadCategoryFilters, saveCategoryFilters,
+  POST_CATEGORIES, loadCategoryFilters, saveCategoryFilters,
   loadCalendarEventIds, saveCalendarEventIds, removeCalendarEventId,
-  parseLinks, serializeLinks, getCategoryColor,
+  parseLinks, serializeLinks, getPrimaryCategoryColor,
+  parseCategories, serializeCategories,
   loadImportantEventIds, saveImportantEventIds, toggleImportantEventId,
   type FilterMode, saveRegionFilter, loadRegionFilter,
   incrementTotalLikesGiven,
@@ -167,8 +169,7 @@ interface InlineCard {
   time: string;
   endDate: string;
   endTime: string;
-  category: PostCategory | '';
-  customCategory: string;
+  categories: string[];
   prefecture: string;
   locationDetail: string;
   locationMapLink: string;
@@ -193,8 +194,7 @@ function newInlineCard(date: string): InlineCard {
     time: '',
     endDate: '',
     endTime: '',
-    category: '',
-    customCategory: '',
+    categories: [],
     prefecture: '',
     locationDetail: '',
     locationMapLink: '',
@@ -227,6 +227,21 @@ function InlineCardItem({
   onToggle: () => void;
   onRemove: () => void;
 }) {
+  const [customInput, setCustomInput] = useState('');
+  const customCats = card.categories.filter(c => !(POST_CATEGORIES as readonly string[]).includes(c));
+  const toggleCategory = (cat: string) => {
+    onChange({
+      categories: card.categories.includes(cat)
+        ? card.categories.filter(c => c !== cat)
+        : [...card.categories, cat],
+    });
+  };
+  const addCustomCategory = () => {
+    const v = customInput.trim();
+    if (!v) return;
+    if (!card.categories.includes(v)) onChange({ categories: [...card.categories, v] });
+    setCustomInput('');
+  };
   return (
     <div className="bg-bg-secondary rounded-xl overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 cursor-pointer select-none" onClick={onToggle}>
@@ -409,16 +424,26 @@ function InlineCardItem({
           </div>
 
           <div>
-            <label className="text-label-tertiary text-xs mb-1.5 block">カテゴリ</label>
+            <label className="text-label-tertiary text-xs mb-1.5 block">カテゴリ（複数選択可）</label>
             <div className="flex flex-wrap gap-2 mb-2">
               {POST_CATEGORIES.map(cat => (
                 <button
                   key={cat}
                   type="button"
-                  onClick={() => onChange({ category: card.category === cat ? '' : cat, customCategory: '' })}
-                  className={`px-3 py-1 rounded-full text-xs border transition-colors ${card.category === cat ? 'border-selected text-label-primary bg-label-primary/10' : 'border-default text-label-secondary'}`}
+                  onClick={() => toggleCategory(cat)}
+                  className={`px-3 py-1 rounded-full text-xs border transition-colors ${card.categories.includes(cat) ? 'border-selected text-label-primary bg-label-primary/10' : 'border-default text-label-secondary'}`}
                 >
                   {cat}
+                </button>
+              ))}
+              {customCats.map(cat => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => toggleCategory(cat)}
+                  className="px-3 py-1 rounded-full text-xs border border-selected text-label-primary bg-label-primary/10 flex items-center gap-1"
+                >
+                  {cat}<X size={11} />
                 </button>
               ))}
             </div>
@@ -426,9 +451,11 @@ function InlineCardItem({
               <span className="text-label-tertiary text-xs flex-shrink-0">その他：</span>
               <input
                 type="text"
-                value={card.customCategory}
-                onChange={e => onChange({ customCategory: e.target.value, category: '' })}
-                placeholder="自由に入力"
+                value={customInput}
+                onChange={e => setCustomInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomCategory(); } }}
+                onBlur={addCustomCategory}
+                placeholder="自由に入力（Enterで追加）"
                 className="flex-1 bg-bg-primary rounded-lg px-3 py-1.5 text-xs text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong"
               />
             </div>
@@ -759,15 +786,13 @@ export default function Calendar() {
   // フォームstate（ボトムシート内に統合）
   const [postCards, setPostCards] = useState<InlineCard[]>(() => {
     if (!shareData) return [newInlineCard(todayStr)];
-    const VALID_CATS = POST_CATEGORIES as unknown as string[];
     const date = shareData.date ?? todayStr;
     return [{
       ...newInlineCard(date),
       workId: '',
       title: shareData.title ?? '',
       time: shareData.time ?? '',
-      category: VALID_CATS.includes(shareData.category ?? '') ? shareData.category as PostCategory : '',
-      customCategory: !VALID_CATS.includes(shareData.category ?? '') && shareData.category ? shareData.category : '',
+      categories: parseCategories(shareData.category),
       prefecture: shareData.prefecture ?? '',
       locationDetail: shareData.locationDetail ?? '',
       link: shareData.link ?? '',
@@ -1017,7 +1042,8 @@ export default function Calendar() {
       if (!wId) return true;
       const cats = categoryFilters[wId];
       if (!cats || cats.length === 0) return true;
-      return !cats.includes(e.category ?? '');
+      const evCats = parseCategories(e.category);
+      return evCats.length === 0 ? true : !evCats.some(c => cats.includes(c));
     });
     return evts;
   }, [workId, filteredEvents, hiddenWorkIds, calendarEventIds, hiddenEventIds, categoryFilters]);
@@ -1170,9 +1196,9 @@ export default function Calendar() {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState('');
   const [editIsPersonal, setEditIsPersonal] = useState(false);
+  const [editCustomInput, setEditCustomInput] = useState('');
 
   const openEditEvent = (event: CalendarEvent) => {
-    const VALID = POST_CATEGORIES as unknown as string[];
     setEditIsPersonal(false);
     setEditEventId(event.id);
     setEditError('');
@@ -1184,8 +1210,7 @@ export default function Calendar() {
       time: event.time ?? '',
       endDate: event.endDate ?? '',
       endTime: event.endTime ?? '',
-      category: VALID.includes(event.category ?? '') ? event.category as typeof POST_CATEGORIES[number] : '',
-      customCategory: !VALID.includes(event.category ?? '') && event.category ? event.category : '',
+      categories: parseCategories(event.category),
       prefecture: event.prefecture ?? '',
       locationDetail: event.locationDetail ?? '',
       locationMapLink: event.locationMapLink ?? '',
@@ -1210,8 +1235,7 @@ export default function Calendar() {
       time: pe.time ?? '',
       endDate: pe.endDate ?? '',
       endTime: pe.endTime ?? '',
-      category: (pe.category as PostCategory | '') ?? '',
-      customCategory: '',
+      categories: parseCategories(pe.category),
       prefecture: pe.prefecture ?? '',
       locationDetail: pe.locationDetail ?? '',
       locationMapLink: pe.locationMapLink ?? '',
@@ -1225,7 +1249,7 @@ export default function Calendar() {
     if (!editEventId || !editForm) return;
     if (!editForm.title?.trim() || (!editForm.date && !editForm.dateLabel)) { setEditError('タイトルと日付は必須です'); return; }
     if (editIsPersonal) {
-      const category = editForm.category || (editForm.customCategory?.trim() ?? '') || undefined;
+      const category = serializeCategories(editForm.categories ?? []);
       const updated = personalEvents.map(pe => pe.id === editEventId ? {
         ...pe,
         title: editForm.title!.trim(),
@@ -1251,7 +1275,7 @@ export default function Calendar() {
     setEditSubmitting(true);
     setEditError('');
     try {
-      const category = editForm.category || (editForm.customCategory?.trim() ?? '') || undefined;
+      const category = serializeCategories(editForm.categories ?? []);
       const patch = {
         title: editForm.title.trim(),
         date: editForm.date ?? null,
@@ -1292,7 +1316,6 @@ export default function Calendar() {
     setPostCards(prev => prev.filter(c => c.id !== id));
 
   const applyParsedToPost = (parsed: ParsedEvent) => {
-    const VALID_CATS = POST_CATEGORIES as unknown as string[];
     const filled = (c: InlineCard) => c.title.trim() !== '' || c.date !== postDate;
     const titleLower = (parsed.title ?? '').toLowerCase();
     const matchedWork = participatedWorks.find(w => w.name && titleLower.includes(w.name.toLowerCase()));
@@ -1306,12 +1329,9 @@ export default function Calendar() {
       time:           parsed.time           ?? base.time,
       endDate:        parsed.endDate        ?? base.endDate,
       endTime:        parsed.endTime        ?? base.endTime,
-      category:       VALID_CATS.includes(parsed.category ?? '')
-                        ? (parsed.category as typeof base.category)
-                        : base.category,
-      customCategory: !VALID_CATS.includes(parsed.category ?? '') && parsed.category
-                        ? parsed.category
-                        : base.customCategory,
+      categories:     parsed.category && !base.categories.includes(parsed.category)
+                        ? [...base.categories, parsed.category]
+                        : base.categories,
       prefecture:     parsed.prefecture     ?? base.prefecture,
       locationDetail: parsed.locationDetail ?? base.locationDetail,
       links:          parsed.link ? (parseLinks(parsed.link).length > 0 ? parseLinks(parsed.link) : base.links) : base.links,
@@ -1421,10 +1441,11 @@ export default function Calendar() {
           });
           continue;
         }
-        const sig = [title, card.date, card.endDate, card.sourceUrl, card.category || card.customCategory.trim(), card.prefecture, targetWorkId].join('|');
+        const cardCategorySig = serializeCategories(card.categories) ?? '';
+        const sig = [title, card.date, card.endDate, card.sourceUrl, cardCategorySig, card.prefecture, targetWorkId].join('|');
         if (liveDupCheckedSigRef.current.get(card.id) === sig) continue;
         liveDupCheckedSigRef.current.set(card.id, sig);
-        const cardCategory = card.category || card.customCategory.trim() || null;
+        const cardCategory = serializeCategories(card.categories) ?? null;
         const cardWorkName = workId ? workName : (participatedWorks.find(w => w.id === card.workId)?.name ?? null);
         findDuplicateEvents(targetWorkId, title, card.sourceUrl, cardCategory,
           { date: card.date || null, endDate: card.endDate || null, workName: cardWorkName, prefecture: card.prefecture || null })
@@ -1454,7 +1475,7 @@ export default function Calendar() {
       setPostCards(prev => prev.map(c => c.id === invalid.id ? { ...c, collapsed: false } : c));
       return;
     }
-    const noCat = postCards.find(c => !c.category && !c.customCategory.trim() && (workId || c.workId));
+    const noCat = postCards.find(c => c.categories.length === 0 && (workId || c.workId));
     if (noCat) {
       setPostError('カテゴリを選択してください');
       setPostCards(prev => prev.map(c => c.id === noCat.id ? { ...c, collapsed: false } : c));
@@ -1477,7 +1498,7 @@ export default function Calendar() {
         const targetWorkId = workId || card.workId;
         if (!targetWorkId) continue; // 個人予定はスキップ
         if (ignoredDupCardIdsRef.current.has(card.id)) continue; // 「別の予定として投稿」済み
-        const cardCategory = card.category || card.customCategory.trim() || null;
+        const cardCategory = serializeCategories(card.categories) ?? null;
         const cardWorkName = workId ? workName : (participatedWorks.find(w => w.id === card.workId)?.name ?? null);
         try {
           const { byUrl, byTitle, byDateKeyword } = await findDuplicateEvents(targetWorkId, card.title.trim(), card.sourceUrl, cardCategory,
@@ -1539,7 +1560,7 @@ export default function Calendar() {
     const toEventPayload = (c: InlineCard) => ({
       title: c.title.trim() + (titleSuffixes.get(c.id) ?? ''), date: c.date || null, dateLabel: c.dateLabel || undefined, time: c.time || undefined,
       endDate: c.endDate || undefined, endTime: c.endTime || undefined,
-      category: c.category || c.customCategory.trim() || undefined,
+      category: serializeCategories(c.categories),
       link: serializeLinks(c.links), memo: c.memo || undefined,
       prefecture: c.prefecture || undefined,
       locationDetail: c.locationDetail || undefined,
@@ -1556,7 +1577,7 @@ export default function Calendar() {
       ...(c.time && { time: c.time }),
       ...(c.endDate && { endDate: c.endDate }),
       ...(c.endTime && { endTime: c.endTime }),
-      ...((c.category || c.customCategory.trim()) && { category: c.category || c.customCategory.trim() }),
+      ...(serializeCategories(c.categories) && { category: serializeCategories(c.categories) }),
       ...(c.prefecture && { prefecture: c.prefecture }),
       ...(c.locationDetail && { locationDetail: c.locationDetail }),
       ...(c.locationMapLink && { locationMapLink: c.locationMapLink }),
@@ -1683,7 +1704,7 @@ export default function Calendar() {
     for (const e of visibleEvents) {
       // タイル色: 作品色、ドット色: カテゴリ色（なければ作品色）
       const workColor = e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
-      const dotColor = getCategoryColor(e.category) ?? workColor;
+      const dotColor = getPrimaryCategoryColor(e.category) ?? workColor;
       const important = importantEventIds.has(e.id);
       if (e.dateLabel) continue;
       if (e.date && e.endDate && e.endDate > e.date) {
@@ -1702,7 +1723,7 @@ export default function Calendar() {
     if (!workId) {
       for (const pe of monthPersonalEvents) {
         if (pe.dateLabel) continue;
-        const dotColor = getCategoryColor(pe.category) ?? '#888888';
+        const dotColor = getPrimaryCategoryColor(pe.category) ?? '#888888';
         const important = importantEventIds.has(pe.id);
         if (pe.endDate && pe.endDate > pe.date) {
           let cur = pe.date;
@@ -1752,13 +1773,13 @@ export default function Calendar() {
     for (const e of visibleEvents) {
       if (e.date && e.endDate && e.endDate > e.date) {
         const workColor = e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
-        rawEvts.push({ eventId: e.id, startDate: e.date, endDate: e.endDate, title: e.title, color: workColor, dotColor: getCategoryColor(e.category) ?? workColor, important: importantEventIds.has(e.id) });
+        rawEvts.push({ eventId: e.id, startDate: e.date, endDate: e.endDate, title: e.title, color: workColor, dotColor: getPrimaryCategoryColor(e.category) ?? workColor, important: importantEventIds.has(e.id) });
       }
     }
     if (!workId) {
       for (const pe of monthPersonalEvents) {
         if (pe.endDate && pe.endDate > pe.date) {
-          rawEvts.push({ eventId: pe.id, startDate: pe.date, endDate: pe.endDate, title: pe.title, color: '#888888', dotColor: getCategoryColor(pe.category) ?? '#888888', important: importantEventIds.has(pe.id) });
+          rawEvts.push({ eventId: pe.id, startDate: pe.date, endDate: pe.endDate, title: pe.title, color: '#888888', dotColor: getPrimaryCategoryColor(pe.category) ?? '#888888', important: importantEventIds.has(pe.id) });
         }
       }
     }
@@ -2345,7 +2366,7 @@ export default function Calendar() {
                             {sheetDetailEvent.workName}
                           </span>
                         )}
-                          {sheetDetailEvent.category && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{sheetDetailEvent.category}</span>}
+                          <CategoryChips category={sheetDetailEvent.category} className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5" />
                         </div>
                       )}
                       {/* タイトル */}
@@ -2466,7 +2487,7 @@ export default function Calendar() {
                         {sheetWorkEvents.map(event => {
                           const dateLabel = formatDateRange(event.date ?? '', event.endDate);
                           const timeLabel = formatTimeRange(event.time, event.endTime);
-                          const catColor = getCategoryColor(event.category);
+                          const catColor = getPrimaryCategoryColor(event.category);
                           return (
                             <div key={event.id} className="w-full bg-bg-secondary rounded-[14px] overflow-hidden select-none"
                               style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(event.id) ? '3px solid #f59e0b' : undefined }}
@@ -2490,7 +2511,7 @@ export default function Calendar() {
                               {/* 2行目: 予約 → カテゴリ → 地域 → ♥ → 😊 → 🔗 → > → × */}
                               <div className="flex items-center px-3 pb-2 gap-1">
                                 {event.isOrderMade && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--color-destructive)', color: '#fff' }}>予約</span>}
-                                {event.category && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">{event.category}</span>}
+                                <CategoryChips category={event.category} className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5" />
                                 {event.prefecture && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">{event.prefecture}</span>}
                                 <div className="flex-1" />
                                 <button
@@ -2570,7 +2591,7 @@ export default function Calendar() {
                         {sheetWorkEvents.map(event => {
                           const dateLabel = formatDateRange(event.date ?? '', event.endDate);
                           const timeLabel = formatTimeRange(event.time, event.endTime);
-                          const catColor = getCategoryColor(event.category);
+                          const catColor = getPrimaryCategoryColor(event.category);
                           return (
                             <div key={event.id} className="w-full bg-bg-secondary rounded-[14px] overflow-hidden select-none"
                               style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(event.id) ? '3px solid #f59e0b' : undefined }}
@@ -2597,7 +2618,7 @@ export default function Calendar() {
                                   style={{ color: workColorMap.get(event.workId ?? '') ?? 'var(--label-tertiary)', backgroundColor: `${workColorMap.get(event.workId ?? '') ?? '#888888'}20` }}>
                                   {event.workName}
                                 </span>}
-                                {event.category && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">{event.category}</span>}
+                                <CategoryChips category={event.category} className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5" />
                                 {event.prefecture && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">{event.prefecture}</span>}
                                 <div className="flex-1" />
                                 <button
@@ -2669,7 +2690,7 @@ export default function Calendar() {
                         {sheetPersonalEvents.map(pe => {
                           const dateLabel = formatDateRange(pe.date, pe.endDate);
                           const timeLabel = formatTimeRange(pe.time, pe.endTime);
-                          const catColor = getCategoryColor(pe.category);
+                          const catColor = getPrimaryCategoryColor(pe.category);
                           return (
                             <div key={pe.id} className="w-full bg-bg-secondary rounded-[14px] overflow-hidden select-none"
                               style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(pe.id) ? '3px solid #f59e0b' : undefined }}
@@ -2684,7 +2705,7 @@ export default function Calendar() {
                               {/* 2行目: 個人 → カテゴリ → 地域 → × */}
                               <div className="flex items-center px-3 pb-2 gap-1">
                                 <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">個人</span>
-                                {pe.category && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">{pe.category}</span>}
+                                <CategoryChips category={pe.category} className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5" />
                                 {pe.prefecture && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">{pe.prefecture}</span>}
                                 <div className="flex-1" />
                                 <button onClick={() => openEditPersonalEvent(pe)} className="w-9 h-9 flex items-center justify-center text-label-tertiary active:opacity-60">
@@ -2760,7 +2781,7 @@ export default function Calendar() {
                 {listDetailEvent.workName}
               </span>
             )}
-                  {listDetailEvent.category && <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5">{listDetailEvent.category}</span>}
+                  <CategoryChips category={listDetailEvent.category} className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5" />
                 </div>
               )}
               {/* タイトル */}
@@ -2893,7 +2914,7 @@ export default function Calendar() {
                     const [, em, ed] = dateParts ?? [0, 0, 0];
                     const hasPeriod = !!event.endDate && event.endDate !== event.date;
                     const [, endM, endD] = hasPeriod ? event.endDate!.split('-').map(Number) : [0, 0, 0];
-                    const catColor = getCategoryColor(event.category);
+                    const catColor = getPrimaryCategoryColor(event.category);
                     const hasPreorderData = !!(event.preorderStart || event.preorderEnd);
                     const [, lpsm, lpsd] = event.preorderStart ? event.preorderStart.split('-').map(Number) : [0, 0, 0];
                     const [, lpem, lped] = event.preorderEnd ? event.preorderEnd.split('-').map(Number) : [0, 0, 0];
@@ -3029,7 +3050,7 @@ export default function Calendar() {
                     const [, im, id] = dateParts2 ?? [0, 0, 0];
                     const hasPeriod = !!item.endDate && item.endDate !== item.date;
                     const [, endM, endD] = hasPeriod ? item.endDate!.split('-').map(Number) : [0, 0, 0];
-                    const catColor = getCategoryColor(item.category);
+                    const catColor = getPrimaryCategoryColor(item.category);
                     const itemHasPreorder = !!(item.preorderStart || item.preorderEnd);
                     const [, ipsm, ipsd] = item.preorderStart ? item.preorderStart.split('-').map(Number) : [0, 0, 0];
                     const [, ipem, iped] = item.preorderEnd ? item.preorderEnd.split('-').map(Number) : [0, 0, 0];
@@ -3125,7 +3146,7 @@ export default function Calendar() {
                                     </span>
                                   )}
                                   {item.isPersonal && item.tag && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">{item.tag}</span>}
-                                  {item.category && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">{item.category}</span>}
+                                  <CategoryChips category={item.category} className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5" />
                                   {item.prefecture && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">{item.prefecture}</span>}
                                 </div>
                               )}
@@ -3579,18 +3600,34 @@ export default function Calendar() {
                     </div>
                   )}
                 </div>
-                {/* カテゴリ */}
+                {/* カテゴリ（複数選択可） */}
                 <div>
-                  <label className="text-label-tertiary text-xs mb-1.5 block">カテゴリ</label>
+                  <label className="text-label-tertiary text-xs mb-1.5 block">カテゴリ（複数選択可）</label>
                   <div className="flex flex-wrap gap-2 mb-2">
-                    {POST_CATEGORIES.map(cat => (
+                    {POST_CATEGORIES.map(cat => {
+                      const selected = (editForm.categories ?? []).includes(cat);
+                      return (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setEditForm(f => {
+                            const cats = f?.categories ?? [];
+                            return { ...f!, categories: cats.includes(cat) ? cats.filter(c => c !== cat) : [...cats, cat] };
+                          })}
+                          className={`px-3 py-1 rounded-full text-xs border transition-colors ${selected ? 'border-selected text-label-primary bg-label-primary/10' : 'border-default text-label-secondary'}`}
+                        >
+                          {cat}
+                        </button>
+                      );
+                    })}
+                    {(editForm.categories ?? []).filter(c => !(POST_CATEGORIES as readonly string[]).includes(c)).map(cat => (
                       <button
                         key={cat}
                         type="button"
-                        onClick={() => setEditForm(f => ({ ...f!, category: f?.category === cat ? '' : cat, customCategory: '' }))}
-                        className={`px-3 py-1 rounded-full text-xs border transition-colors ${editForm.category === cat ? 'border-selected text-label-primary bg-label-primary/10' : 'border-default text-label-secondary'}`}
+                        onClick={() => setEditForm(f => ({ ...f!, categories: (f?.categories ?? []).filter(c => c !== cat) }))}
+                        className="px-3 py-1 rounded-full text-xs border border-selected text-label-primary bg-label-primary/10 flex items-center gap-1"
                       >
-                        {cat}
+                        {cat}<X size={11} />
                       </button>
                     ))}
                   </div>
@@ -3598,9 +3635,22 @@ export default function Calendar() {
                     <span className="text-label-tertiary text-xs flex-shrink-0">その他：</span>
                     <input
                       type="text"
-                      value={editForm.customCategory ?? ''}
-                      onChange={e => setEditForm(f => ({ ...f!, customCategory: e.target.value, category: '' }))}
-                      placeholder="自由に入力"
+                      value={editCustomInput}
+                      onChange={e => setEditCustomInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const v = editCustomInput.trim();
+                          if (v) setEditForm(f => ({ ...f!, categories: (f?.categories ?? []).includes(v) ? (f?.categories ?? []) : [...(f?.categories ?? []), v] }));
+                          setEditCustomInput('');
+                        }
+                      }}
+                      onBlur={() => {
+                        const v = editCustomInput.trim();
+                        if (v) setEditForm(f => ({ ...f!, categories: (f?.categories ?? []).includes(v) ? (f?.categories ?? []) : [...(f?.categories ?? []), v] }));
+                        setEditCustomInput('');
+                      }}
+                      placeholder="自由に入力（Enterで追加）"
                       className="flex-1 bg-bg-primary rounded-lg px-3 py-1.5 text-xs text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong"
                     />
                   </div>
