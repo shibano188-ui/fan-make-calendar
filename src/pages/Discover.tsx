@@ -30,6 +30,7 @@ import {
   loadCalendarEventIds, addCalendarEventId, saveCalendarEventIds,
   getPrimaryCategoryColor,
   parseCategories,
+  GOODS_SUBCATEGORIES,
   loadRegionFilter, saveRegionFilter, type FilterMode,
   incrementTotalLikesGiven,
   parseImageUrls,
@@ -106,6 +107,7 @@ export default function Discover() {
   const [hiddenWorkIds, setHiddenWorkIds] = useState<Set<string>>(loadHiddenWorkIds);
   const [categoryFilters, setCategoryFilters] = useState<Record<string, string[]>>(loadCategoryFilters);
   const [filterPickerWorkId, setFilterPickerWorkId] = useState<string | null>(null);
+  const [filterGoodsOpen, setFilterGoodsOpen] = useState(false);
 
   // 地域フィルター（Calendarタブと共有）
   const [filterMode, setFilterMode] = useState<FilterMode>(() => loadRegionFilter().filterMode);
@@ -932,6 +934,28 @@ export default function Discover() {
                       </button>
                     );
                   })}
+                </div>
+                {/* グッズの種類で絞る（▾展開） */}
+                <div className="px-4 pb-3">
+                  <button onClick={() => setFilterGoodsOpen(o => !o)} className="text-[11px] text-label-tertiary active:opacity-60">
+                    グッズの種類で絞る {filterGoodsOpen ? '▴' : '▾'}
+                  </button>
+                  {filterGoodsOpen && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {GOODS_SUBCATEGORIES.map(sub => {
+                        const hidden = current.includes(sub);
+                        return (
+                          <button key={sub} onClick={() => toggle(sub)}
+                            className="px-3 py-1.5 rounded-full text-xs border transition-colors active:opacity-70"
+                            style={hidden
+                              ? { borderColor: 'var(--border-default)', color: 'var(--label-tertiary)' }
+                              : { borderColor: color, color, backgroundColor: `${color}18` }}>
+                            {sub}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
                 {/* 一括追加ボタン */}
                 <div className="px-4 pb-4 border-t pt-3" style={{ borderColor: 'var(--border-subtle)' }}>

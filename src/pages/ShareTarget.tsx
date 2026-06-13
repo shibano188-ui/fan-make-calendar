@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Loader2, CheckCircle, AlertCircle, Inbox } from 'lucide-react';
-import { loadShareMode, addToEventQueue } from '../lib/constants';
+import { loadShareMode, addToEventQueue, categoriesFromRaw } from '../lib/constants';
 
 type Status = 'parsing' | 'done' | 'stocked' | 'error';
 
@@ -84,7 +84,7 @@ export default function ShareTarget() {
           time:           clean(first.time),
           endDate:        clean(first.endDate),
           endTime:        clean(first.endTime),
-          category:       clean(first.category),
+          category:       categoriesFromRaw(first),
           prefecture:     clean(first.prefecture),
           locationDetail: clean(first.locationDetail),
           link:           clean(first.link),

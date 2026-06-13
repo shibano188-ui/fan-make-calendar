@@ -6,7 +6,7 @@ import Header from '../components/Header';
 import SmartInputPanel, { type ParsedEvent } from '../components/SmartInputPanel';
 import { createEvents } from '../lib/api';
 import { PREFECTURES } from '../lib/prefectures';
-import { POST_CATEGORIES, parseLinks, serializeLinks, serializeCategories, loadImportantEventIds, saveImportantEventIds } from '../lib/constants';
+import { POST_CATEGORIES, GOODS_PARENT, GOODS_SUBCATEGORIES, isGoodsSubcategory, normalizeGoodsCategories, parseCategories, parseLinks, serializeLinks, serializeCategories, loadImportantEventIds, saveImportantEventIds } from '../lib/constants';
 import { useAuth } from '../contexts/AuthContext';
 import type { CalendarEvent } from '../types';
 
@@ -92,13 +92,22 @@ function PostCardItem({
   onRemove: () => void;
 }) {
   const [customInput, setCustomInput] = useState('');
-  const customCats = card.categories.filter(c => !(POST_CATEGORIES as readonly string[]).includes(c));
+  const customCats = card.categories.filter(c => !(POST_CATEGORIES as readonly string[]).includes(c) && !isGoodsSubcategory(c));
   const toggleCategory = (cat: string) => {
-    onChange({
-      categories: card.categories.includes(cat)
-        ? card.categories.filter(c => c !== cat)
-        : [...card.categories, cat],
-    });
+    let next: string[];
+    if (card.categories.includes(cat)) {
+      next = card.categories.filter(c => c !== cat);
+      if (cat === GOODS_PARENT) next = next.filter(c => !isGoodsSubcategory(c)); // グッズ解除で種別も外す
+    } else {
+      next = [...card.categories, cat];
+    }
+    onChange({ categories: normalizeGoodsCategories(next) });
+  };
+  const toggleSubcategory = (sub: string) => {
+    const next = card.categories.includes(sub)
+      ? card.categories.filter(c => c !== sub)
+      : [...card.categories, sub];
+    onChange({ categories: normalizeGoodsCategories(next) });
   };
   const addCustomCategory = () => {
     const v = customInput.trim();
@@ -277,6 +286,28 @@ function PostCardItem({
                 </button>
               ))}
             </div>
+            {/* グッズの種類（グッズ選択時のみ・任意） */}
+            {card.categories.includes(GOODS_PARENT) && (
+              <div className="mb-2 pl-3 border-l-2 border-faint">
+                <label className="text-label-tertiary text-[11px] mb-1.5 block">グッズの種類（任意・複数可）</label>
+                <div className="flex flex-wrap gap-2">
+                  {GOODS_SUBCATEGORIES.map(sub => (
+                    <button
+                      key={sub}
+                      type="button"
+                      onClick={() => toggleSubcategory(sub)}
+                      className={`px-3 py-1 rounded-full text-xs border transition-colors ${
+                        card.categories.includes(sub)
+                          ? 'border-selected text-label-primary bg-label-primary/10'
+                          : 'border-default text-label-secondary'
+                      }`}
+                    >
+                      {sub}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {/* カスタムカテゴリ追加 */}
             <div className="flex items-center gap-2">
               <span className="text-label-tertiary text-xs flex-shrink-0">その他：</span>
@@ -417,9 +448,7 @@ export default function PostCreate() {
       time:           parsed.time           ?? base.time,
       endDate:        parsed.endDate        ?? base.endDate,
       endTime:        parsed.endTime        ?? base.endTime,
-      categories:     parsed.category && !base.categories.includes(parsed.category)
-                        ? [...base.categories, parsed.category]
-                        : base.categories,
+      categories:     normalizeGoodsCategories([...new Set([...base.categories, ...parseCategories(parsed.category)])]),
       prefecture:     parsed.prefecture     ?? base.prefecture,
       locationDetail: parsed.locationDetail ?? base.locationDetail,
       links:          parsed.link ? parseLinks(parsed.link).length > 0 ? parseLinks(parsed.link) : base.links : base.links,

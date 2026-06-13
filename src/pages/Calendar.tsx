@@ -34,7 +34,8 @@ import type { CalendarEvent } from '../types';
 export type { CalendarEvent };
 
 import {
-  POST_CATEGORIES, loadCategoryFilters, saveCategoryFilters,
+  POST_CATEGORIES, GOODS_PARENT, GOODS_SUBCATEGORIES, isGoodsSubcategory, normalizeGoodsCategories,
+  loadCategoryFilters, saveCategoryFilters,
   loadCalendarEventIds, saveCalendarEventIds, removeCalendarEventId,
   parseLinks, serializeLinks, getPrimaryCategoryColor,
   parseCategories, serializeCategories,
@@ -228,13 +229,22 @@ function InlineCardItem({
   onRemove: () => void;
 }) {
   const [customInput, setCustomInput] = useState('');
-  const customCats = card.categories.filter(c => !(POST_CATEGORIES as readonly string[]).includes(c));
+  const customCats = card.categories.filter(c => !(POST_CATEGORIES as readonly string[]).includes(c) && !isGoodsSubcategory(c));
   const toggleCategory = (cat: string) => {
-    onChange({
-      categories: card.categories.includes(cat)
-        ? card.categories.filter(c => c !== cat)
-        : [...card.categories, cat],
-    });
+    let next: string[];
+    if (card.categories.includes(cat)) {
+      next = card.categories.filter(c => c !== cat);
+      if (cat === GOODS_PARENT) next = next.filter(c => !isGoodsSubcategory(c)); // グッズ解除で種別も外す
+    } else {
+      next = [...card.categories, cat];
+    }
+    onChange({ categories: normalizeGoodsCategories(next) });
+  };
+  const toggleSubcategory = (sub: string) => {
+    const next = card.categories.includes(sub)
+      ? card.categories.filter(c => c !== sub)
+      : [...card.categories, sub];
+    onChange({ categories: normalizeGoodsCategories(next) });
   };
   const addCustomCategory = () => {
     const v = customInput.trim();
@@ -447,6 +457,24 @@ function InlineCardItem({
                 </button>
               ))}
             </div>
+            {/* グッズの種類（グッズ選択時のみ・任意） */}
+            {card.categories.includes(GOODS_PARENT) && (
+              <div className="mb-2 pl-3 border-l-2 border-faint">
+                <label className="text-label-tertiary text-[11px] mb-1.5 block">グッズの種類（任意・複数可）</label>
+                <div className="flex flex-wrap gap-2">
+                  {GOODS_SUBCATEGORIES.map(sub => (
+                    <button
+                      key={sub}
+                      type="button"
+                      onClick={() => toggleSubcategory(sub)}
+                      className={`px-3 py-1 rounded-full text-xs border transition-colors ${card.categories.includes(sub) ? 'border-selected text-label-primary bg-label-primary/10' : 'border-default text-label-secondary'}`}
+                    >
+                      {sub}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <span className="text-label-tertiary text-xs flex-shrink-0">その他：</span>
               <input
@@ -726,6 +754,7 @@ export default function Calendar() {
   const [hiddenWorkIds, setHiddenWorkIds] = useState<Set<string>>(loadHiddenWorkIds);
   const [categoryFilters, setCategoryFilters] = useState<Record<string, string[]>>(loadCategoryFilters);
   const [filterPickerWorkId, setFilterPickerWorkId] = useState<string | null>(null);
+  const [filterGoodsOpen, setFilterGoodsOpen] = useState(false);
 
   const [shareData] = useState<Record<string, string | null> | null>(() => {
     // router state が最優先（ShareTarget から navigate の state で直接渡す）
@@ -1329,9 +1358,7 @@ export default function Calendar() {
       time:           parsed.time           ?? base.time,
       endDate:        parsed.endDate        ?? base.endDate,
       endTime:        parsed.endTime        ?? base.endTime,
-      categories:     parsed.category && !base.categories.includes(parsed.category)
-                        ? [...base.categories, parsed.category]
-                        : base.categories,
+      categories:     normalizeGoodsCategories([...new Set([...base.categories, ...parseCategories(parsed.category)])]),
       prefecture:     parsed.prefecture     ?? base.prefecture,
       locationDetail: parsed.locationDetail ?? base.locationDetail,
       links:          parsed.link ? (parseLinks(parsed.link).length > 0 ? parseLinks(parsed.link) : base.links) : base.links,
@@ -3612,7 +3639,14 @@ export default function Calendar() {
                           type="button"
                           onClick={() => setEditForm(f => {
                             const cats = f?.categories ?? [];
-                            return { ...f!, categories: cats.includes(cat) ? cats.filter(c => c !== cat) : [...cats, cat] };
+                            let next: string[];
+                            if (cats.includes(cat)) {
+                              next = cats.filter(c => c !== cat);
+                              if (cat === GOODS_PARENT) next = next.filter(c => !isGoodsSubcategory(c));
+                            } else {
+                              next = [...cats, cat];
+                            }
+                            return { ...f!, categories: normalizeGoodsCategories(next) };
                           })}
                           className={`px-3 py-1 rounded-full text-xs border transition-colors ${selected ? 'border-selected text-label-primary bg-label-primary/10' : 'border-default text-label-secondary'}`}
                         >
@@ -3620,7 +3654,7 @@ export default function Calendar() {
                         </button>
                       );
                     })}
-                    {(editForm.categories ?? []).filter(c => !(POST_CATEGORIES as readonly string[]).includes(c)).map(cat => (
+                    {(editForm.categories ?? []).filter(c => !(POST_CATEGORIES as readonly string[]).includes(c) && !isGoodsSubcategory(c)).map(cat => (
                       <button
                         key={cat}
                         type="button"
@@ -3631,6 +3665,28 @@ export default function Calendar() {
                       </button>
                     ))}
                   </div>
+                  {/* グッズの種類（グッズ選択時のみ・任意） */}
+                  {(editForm.categories ?? []).includes(GOODS_PARENT) && (
+                    <div className="mb-2 pl-3 border-l-2 border-faint">
+                      <label className="text-label-tertiary text-[11px] mb-1.5 block">グッズの種類（任意・複数可）</label>
+                      <div className="flex flex-wrap gap-2">
+                        {GOODS_SUBCATEGORIES.map(sub => (
+                          <button
+                            key={sub}
+                            type="button"
+                            onClick={() => setEditForm(f => {
+                              const cats = f?.categories ?? [];
+                              const next = cats.includes(sub) ? cats.filter(c => c !== sub) : [...cats, sub];
+                              return { ...f!, categories: normalizeGoodsCategories(next) };
+                            })}
+                            className={`px-3 py-1 rounded-full text-xs border transition-colors ${(editForm.categories ?? []).includes(sub) ? 'border-selected text-label-primary bg-label-primary/10' : 'border-default text-label-secondary'}`}
+                          >
+                            {sub}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2">
                     <span className="text-label-tertiary text-xs flex-shrink-0">その他：</span>
                     <input
@@ -3803,7 +3859,7 @@ export default function Calendar() {
                   <button onClick={clearAll} className="text-xs text-label-tertiary underline active:opacity-60">すべて表示</button>
                 </div>
                 <p className="px-4 text-[11px] text-label-tertiary mb-3">色ありが表示中。タップしたカテゴリを非表示にします</p>
-                <div className="flex flex-wrap gap-2 px-4 pb-4">
+                <div className="flex flex-wrap gap-2 px-4 pb-2">
                   {POST_CATEGORIES.map(cat => {
                     const hidden = current.includes(cat);
                     return (
@@ -3824,6 +3880,36 @@ export default function Calendar() {
                       </button>
                     );
                   })}
+                </div>
+                {/* グッズの種類で絞る（▾展開） */}
+                <div className="px-4 pb-4">
+                  <button onClick={() => setFilterGoodsOpen(o => !o)} className="text-[11px] text-label-tertiary active:opacity-60">
+                    グッズの種類で絞る {filterGoodsOpen ? '▴' : '▾'}
+                  </button>
+                  {filterGoodsOpen && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {GOODS_SUBCATEGORIES.map(sub => {
+                        const hidden = current.includes(sub);
+                        return (
+                          <button
+                            key={sub}
+                            onClick={() => toggle(sub)}
+                            className="px-3 py-1.5 rounded-full text-xs border transition-colors active:opacity-70"
+                            style={hidden ? {
+                              borderColor: 'var(--border-default)',
+                              color: 'var(--label-tertiary)',
+                            } : {
+                              borderColor: workColorMap.get(filterPickerWorkId) ?? 'var(--accent-color)',
+                              color: workColorMap.get(filterPickerWorkId) ?? 'var(--accent-color)',
+                              backgroundColor: `${workColorMap.get(filterPickerWorkId) ?? 'var(--accent-color)'}18`,
+                            }}
+                          >
+                            {sub}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -1,5 +1,18 @@
 export const POST_CATEGORIES = ['書籍', 'グッズ', 'イベント', '誕生日', 'アニメ・映画', 'グルメ', 'キャンペーン'] as const;
 
+// ─── グッズのサブ種別（入れ子。グッズ選択時のみ表示・任意） ─────────────
+export const GOODS_PARENT = 'グッズ';
+export const GOODS_SUBCATEGORIES = ['くじ', 'ガチャ', 'プライズ', '食玩', 'ぬい', 'アクスタ', '缶バッジ', 'キーホルダー', 'フィギュア', 'ステッカー', 'アパレル'] as const;
+export function isGoodsSubcategory(c: string): boolean {
+  return (GOODS_SUBCATEGORIES as readonly string[]).includes(c);
+}
+/** 種別が含まれていれば親「グッズ」を補完（先頭に）。重複は作らない。 */
+export function normalizeGoodsCategories(cats: string[]): string[] {
+  const hasSub = cats.some(isGoodsSubcategory);
+  if (hasSub && !cats.includes(GOODS_PARENT)) return [GOODS_PARENT, ...cats];
+  return cats;
+}
+
 // ─── カテゴリカラー ───────────────────────────────────────────────────
 // 既知カテゴリの固定色
 export const CATEGORY_COLOR_MAP: Record<string, string> = {
@@ -54,6 +67,21 @@ export function serializeCategories(cats: string[]): string | undefined {
 /** 複数カテゴリのうち先頭の色を返す（左ボーダー/ドット色用）。未設定は null */
 export function getPrimaryCategoryColor(category?: string | null): string | null {
   return getCategoryColor(parseCategories(category)[0]);
+}
+
+// AI応答のカテゴリ候補（トップ＋グッズ種別）。未知の文字列は捨てる
+const KNOWN_CATEGORIES = new Set<string>([...POST_CATEGORIES, ...GOODS_SUBCATEGORIES]);
+/** AI応答の raw.categories(配列) or raw.category(旧・単一) を、既知カテゴリに絞り込み、
+ *  親グッズを補完して、シリアライズ済み文字列（単一=文字列 / 複数=JSON配列文字列）にする */
+export function categoriesFromRaw(raw: { categories?: unknown; category?: unknown }): string | null {
+  let cats: string[] = [];
+  if (Array.isArray(raw.categories)) {
+    cats = (raw.categories as unknown[]).filter(c => typeof c === 'string') as string[];
+  } else if (typeof raw.category === 'string') {
+    cats = [raw.category];
+  }
+  cats = [...new Set(cats.map(c => c.trim()).filter(c => KNOWN_CATEGORIES.has(c)))];
+  return serializeCategories(normalizeGoodsCategories(cats)) ?? null;
 }
 
 // ─── 複数リンク: linkフィールドのパース/シリアライズ ─────────────────

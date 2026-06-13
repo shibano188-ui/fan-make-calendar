@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Sparkles, Link2, Loader2, Check } from 'lucide-react';
+import { categoriesFromRaw } from '../lib/constants';
 
 export type ParsedEvent = {
   title: string | null;
@@ -56,7 +57,7 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
     time:           clean(raw.time),
     endDate:        clean(raw.endDate),
     endTime:        clean(raw.endTime),
-    category:       clean(raw.category),
+    category:       categoriesFromRaw(raw),
     prefecture:     clean(raw.prefecture),
     locationDetail: clean(raw.locationDetail),
     link:           linkOverride ?? clean(raw.link),

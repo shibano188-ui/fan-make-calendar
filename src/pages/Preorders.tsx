@@ -13,7 +13,7 @@ import {
 import { getCached, setCached } from '../lib/swrCache';
 import {
   POST_CATEGORIES,
-  parseLinks, parseImageUrls, getPrimaryCategoryColor, parseCategories,
+  parseLinks, parseImageUrls, getPrimaryCategoryColor, parseCategories, GOODS_SUBCATEGORIES,
   loadLikedEventIds, addLikedEventId,
   loadCalendarEventIds, addCalendarEventId,
   incrementTotalLikesGiven,
@@ -72,6 +72,7 @@ export default function Preorders() {
   const [hiddenWorkIds, setHiddenWorkIds] = useState<Set<string>>(loadHiddenWorkIds);
   const [categoryFilters, setCategoryFilters] = useState<Record<string, string[]>>(loadCategoryFilters);
   const [filterPickerWorkId, setFilterPickerWorkId] = useState<string | null>(null);
+  const [filterGoodsOpen, setFilterGoodsOpen] = useState(false);
 
   const [likedEventIds, setLikedEventIds] = useState<Set<string>>(loadLikedEventIds);
   const [calendarEventIds, setCalendarEventIds] = useState<Set<string>>(loadCalendarEventIds);
@@ -593,7 +594,7 @@ export default function Preorders() {
                   >すべて表示</button>
                 </div>
                 <p className="px-4 text-[11px] text-label-tertiary mb-3">色ありが表示中。タップしたカテゴリを非表示にします</p>
-                <div className="flex flex-wrap gap-2 px-4 pb-4">
+                <div className="flex flex-wrap gap-2 px-4 pb-2">
                   {POST_CATEGORIES.map(cat => {
                     const hidden = current.includes(cat);
                     return (
@@ -606,6 +607,28 @@ export default function Preorders() {
                       </button>
                     );
                   })}
+                </div>
+                {/* グッズの種類で絞る（▾展開） */}
+                <div className="px-4 pb-4">
+                  <button onClick={() => setFilterGoodsOpen(o => !o)} className="text-[11px] text-label-tertiary active:opacity-60">
+                    グッズの種類で絞る {filterGoodsOpen ? '▴' : '▾'}
+                  </button>
+                  {filterGoodsOpen && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {GOODS_SUBCATEGORIES.map(sub => {
+                        const hidden = current.includes(sub);
+                        return (
+                          <button key={sub} onClick={() => toggle(sub)}
+                            className="px-3 py-1.5 rounded-full text-xs border transition-colors active:opacity-70"
+                            style={hidden
+                              ? { borderColor: 'var(--border-default)', color: 'var(--label-tertiary)' }
+                              : { borderColor: color, color, backgroundColor: `${color}18` }}>
+                            {sub}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
