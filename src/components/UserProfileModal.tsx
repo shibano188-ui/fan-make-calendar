@@ -14,7 +14,6 @@ interface Profile {
   reactionsGiven: number;
   works: number;
   birthdayPosts: number;
-  collabPosts: number;
 }
 
 export default function UserProfileModal({
@@ -45,7 +44,6 @@ export default function UserProfileModal({
         reactionsGiven: profile.reactionsGiven,
         works: profile.works,
         birthdayPosts: profile.birthdayPosts,
-        collabPosts: profile.collabPosts,
       }
     : null;
 

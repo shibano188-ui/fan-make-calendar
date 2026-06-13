@@ -52,8 +52,6 @@ const BADGES = [
   // 特殊カテゴリ
   { emoji: '🎂', label: '誕生日マスター', desc: '誕生日投稿5件',   check: (s: AchievementStats) => s.birthdayPosts >= 5 },
   { emoji: '🎉', label: '誕生日神',       desc: '誕生日投稿20件',  check: (s: AchievementStats) => s.birthdayPosts >= 20 },
-  { emoji: '🤝', label: 'コラボハンター', desc: 'コラボ投稿3件',   check: (s: AchievementStats) => s.collabPosts >= 3 },
-  { emoji: '🔗', label: 'コラボマスター', desc: 'コラボ投稿10件',  check: (s: AchievementStats) => s.collabPosts >= 10 },
 ];
 
 // ─── カスタムSVGスターレーダーチャート ─────────────────────────────
@@ -156,7 +154,6 @@ export default function Profile() {
   const [likesGiven, setLikesGiven] = useState<number | null>(null);
   const [reactionsGiven, setReactionsGiven] = useState<number | null>(null);
   const [birthdayPosts, setBirthdayPosts] = useState<number | null>(null);
-  const [collabPosts, setCollabPosts] = useState<number | null>(null);
 
   // バッジタップ表示
   const [selectedBadge, setSelectedBadge] = useState<number | null>(null);
@@ -184,9 +181,8 @@ export default function Profile() {
       countUserLikesGiven(user.id),
       countUserReactionsGiven(user.id),
       countUserEventsByCategory(user.id, '誕生日'),
-      countUserEventsByCategory(user.id, 'コラボ'),
     ]);
-    const apply = ([name, pref, x, emoji, posted, likes, works, likesGv, reactionsGv, birthday, collab]: Awaited<ReturnType<typeof fetchAll>>) => {
+    const apply = ([name, pref, x, emoji, posted, likes, works, likesGv, reactionsGv, birthday]: Awaited<ReturnType<typeof fetchAll>>) => {
       setDisplayName(name);
       setHomePref(pref);
       setXUrl(x);
@@ -197,7 +193,6 @@ export default function Profile() {
       setLikesGiven(likesGv);
       setReactionsGiven(reactionsGv);
       setBirthdayPosts(birthday);
-      setCollabPosts(collab);
     };
     // キャッシュを即表示し、裏で再取得して最新化
     const cached = getCached<Awaited<ReturnType<typeof fetchAll>>>(`profile:${user.id}`);
@@ -244,7 +239,7 @@ export default function Profile() {
 
   // 称号・実績計算（全データ揃ったときのみ）
   const statsReady = postedCount !== null && receivedLikes !== null && worksCount !== null
-    && likesGiven !== null && reactionsGiven !== null && birthdayPosts !== null && collabPosts !== null;
+    && likesGiven !== null && reactionsGiven !== null && birthdayPosts !== null;
 
   const achStats: AchievementStats = {
     posted: postedCount ?? 0,
@@ -253,7 +248,6 @@ export default function Profile() {
     reactionsGiven: reactionsGiven ?? 0,
     works: worksCount ?? 0,
     birthdayPosts: birthdayPosts ?? 0,
-    collabPosts: collabPosts ?? 0,
   };
   const title = statsReady ? calcTitle(achStats) : null;
   const radarData = statsReady ? calcRadarData(achStats) : null;

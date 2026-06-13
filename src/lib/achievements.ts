@@ -5,7 +5,6 @@ export type AchievementStats = {
   reactionsGiven: number;
   works: number;
   birthdayPosts: number;
-  collabPosts: number;
 };
 
 export const TITLE_TIERS = [
