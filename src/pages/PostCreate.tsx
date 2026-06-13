@@ -6,13 +6,12 @@ import Header from '../components/Header';
 import SmartInputPanel, { type ParsedEvent } from '../components/SmartInputPanel';
 import { createEvents } from '../lib/api';
 import { PREFECTURES } from '../lib/prefectures';
-import { parseLinks, serializeLinks, serializeCategories, loadImportantEventIds, saveImportantEventIds } from '../lib/constants';
+import { POST_CATEGORIES, parseLinks, serializeLinks, serializeCategories, loadImportantEventIds, saveImportantEventIds } from '../lib/constants';
 import { useAuth } from '../contexts/AuthContext';
 import type { CalendarEvent } from '../types';
 
 // ─── 型定義 ────────────────────────────────────────────────────────
 
-const CATEGORIES = ['単行本', 'グッズ', 'イベント', '誕生日', '配信'] as const;
 
 interface PostCard {
   id: string;
@@ -93,7 +92,7 @@ function PostCardItem({
   onRemove: () => void;
 }) {
   const [customInput, setCustomInput] = useState('');
-  const customCats = card.categories.filter(c => !(CATEGORIES as readonly string[]).includes(c));
+  const customCats = card.categories.filter(c => !(POST_CATEGORIES as readonly string[]).includes(c));
   const toggleCategory = (cat: string) => {
     onChange({
       categories: card.categories.includes(cat)
@@ -252,7 +251,7 @@ function PostCardItem({
           <div>
             <label className="text-label-tertiary text-xs mb-1.5 block">カテゴリ（複数選択可）</label>
             <div className="flex flex-wrap gap-2 mb-2">
-              {CATEGORIES.map(cat => (
+              {POST_CATEGORIES.map(cat => (
                 <button
                   key={cat}
                   type="button"
