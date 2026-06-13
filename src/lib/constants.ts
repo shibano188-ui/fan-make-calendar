@@ -69,6 +69,15 @@ export function getPrimaryCategoryColor(category?: string | null): string | null
   return getCategoryColor(parseCategories(category)[0]);
 }
 
+/** チップ表示用カテゴリ: グッズの種別がある時は冗長な親「グッズ」を省く（枠色はgetPrimaryで紫が残る） */
+export function displayCategories(category?: string | null): string[] {
+  const cats = parseCategories(category);
+  if (cats.includes(GOODS_PARENT) && cats.some(isGoodsSubcategory)) {
+    return cats.filter(c => c !== GOODS_PARENT);
+  }
+  return cats;
+}
+
 // AI応答のカテゴリ候補（トップ＋グッズ種別）。未知の文字列は捨てる
 const KNOWN_CATEGORIES = new Set<string>([...POST_CATEGORIES, ...GOODS_SUBCATEGORIES]);
 /** AI応答の raw.categories(配列) or raw.category(旧・単一) を、既知カテゴリに絞り込み、

@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { parseCategories } from '../lib/constants';
+import { displayCategories } from '../lib/constants';
 
 type Props = {
   category?: string | null;
@@ -11,7 +11,7 @@ type Props = {
 
 /** category（単一文字列 or JSON配列文字列）をパースして、1カテゴリ＝1チップで描画する */
 export default function CategoryChips({ category, className, style }: Props) {
-  const cats = parseCategories(category);
+  const cats = displayCategories(category);
   if (cats.length === 0) return null;
   return (
     <>

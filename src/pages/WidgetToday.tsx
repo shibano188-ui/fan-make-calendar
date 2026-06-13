@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { listEventsByDate, listUpcomingEvents, getWorkById } from '../lib/api';
 import { loadCalendarSettings, applySettingsToCSS } from '../contexts/ThemeContext';
-import { parseCategories } from '../lib/constants';
+import { displayCategories } from '../lib/constants';
 import type { CalendarEvent } from '../types';
 
 function toDateStr(d: Date) {
@@ -95,7 +95,7 @@ export default function WidgetToday() {
               <p className="font-semibold text-sm" style={{ color: 'var(--label-primary)' }}>{e.title}</p>
               <div className="flex items-center gap-2 mt-1">
                 {e.time && <span className="text-xs" style={{ color: 'var(--label-secondary)' }}>{e.time}</span>}
-                {e.category && <span className="text-xs" style={{ color: 'var(--label-tertiary)' }}>{parseCategories(e.category).join('・')}</span>}
+                {e.category && <span className="text-xs" style={{ color: 'var(--label-tertiary)' }}>{displayCategories(e.category).join('・')}</span>}
               </div>
             </div>
           ))
