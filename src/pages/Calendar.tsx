@@ -1904,7 +1904,7 @@ export default function Calendar() {
     category?: string; prefecture?: string; memo?: string; link?: string; imageUrl?: string;
     tag: string; isPersonal: boolean; workId?: string;
     likes?: number; likedByMe?: boolean;
-    authorId?: string; authorName?: string;
+    authorId?: string; authorName?: string; sourceUrl?: string;
     isOrderMade?: boolean; preorderStart?: string; preorderEnd?: string;
   };
   const myCalendarListItems = useMemo((): ListItem[] => {
@@ -1914,7 +1914,7 @@ export default function Calendar() {
       category: e.category, prefecture: e.prefecture, link: e.link, imageUrl: e.imageUrl, memo: e.memo,
       tag: e.workName ?? '', isPersonal: false, workId: e.workId,
       likes: e.likes, likedByMe: e.likedByMe,
-      authorId: e.authorId, authorName: e.authorName,
+      authorId: e.authorId, authorName: e.authorName, sourceUrl: e.sourceUrl,
       isOrderMade: e.isOrderMade, preorderStart: e.preorderStart, preorderEnd: e.preorderEnd,
     }));
     const personalItems: ListItem[] = monthPersonalEvents.map(pe => ({
@@ -2976,6 +2976,7 @@ export default function Calendar() {
                       category: item.category, prefecture: item.prefecture, memo: item.memo,
                       link: item.link, imageUrl: item.imageUrl, workId: item.workId,
                       workName: item.tag || undefined, authorId: item.authorId, authorName: item.authorName,
+                      sourceUrl: item.sourceUrl,
                       isOrderMade: item.isOrderMade, preorderStart: item.preorderStart, preorderEnd: item.preorderEnd,
                       likes: item.likes ?? 0, likedByMe: item.likedByMe ?? false, createdAt: '',
                     };
