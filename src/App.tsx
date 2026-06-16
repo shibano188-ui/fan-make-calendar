@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ConfirmProvider } from './components/ui/ConfirmDialog';
+import { ActionSheetProvider } from './components/ui/ActionSheet';
 import { ToastProvider } from './components/ui/Toast';
 import PhoneFrame from './components/PhoneFrame';
 import Onboarding from './components/Onboarding';
@@ -96,6 +97,7 @@ export default function App() {
       <AuthProvider>
         <ThemeProvider>
         <ConfirmProvider>
+        <ActionSheetProvider>
         <ToastProvider>
           <AndroidShareHandler />
           <AdMobController />
@@ -130,6 +132,7 @@ export default function App() {
             </Routes>
           </Suspense>
         </ToastProvider>
+        </ActionSheetProvider>
         </ConfirmProvider>
         </ThemeProvider>
       </AuthProvider>

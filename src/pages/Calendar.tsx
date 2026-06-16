@@ -48,6 +48,7 @@ import {
 import { getCached, setCached } from '../lib/swrCache';
 import { safeHref } from '../lib/url';
 import { useConfirm } from '../components/ui/ConfirmDialog';
+import { useActionSheet } from '../components/ui/ActionSheet';
 import { useToast } from '../components/ui/Toast';
 import { haptic } from '../lib/haptics';
 
@@ -706,6 +707,7 @@ export default function Calendar() {
   const { user } = useAuth();
   const { reportedEventIds } = useReportedEventIds(user?.id);
   const confirmDialog = useConfirm();
+  const actionSheet = useActionSheet();
   const showToast = useToast();
   const { settings, setCurrentCalendar, calFontFamily } = useTheme();
 
@@ -1157,14 +1159,23 @@ export default function Calendar() {
     if (dx < 0) nextMonth(); else prevMonth();
   };
 
-  const handleDeleteEvent = async (id: string, title: string) => {
-    if (!(await confirmDialog({ title: '予定を削除', message: `「${title}」を削除しますか？\nこの操作は元に戻せません。`, confirmLabel: '削除', destructive: true }))) return;
-    try {
-      await deleteEvent(id);
-      setEvents(prev => prev.filter(e => e.id !== id));
-      setSheetDetailEvent(prev => prev?.id === id ? null : prev);
-      setListDetailEvent(prev => prev?.id === id ? null : prev);
-    } catch { showToast('削除に失敗しました', 'error'); }
+  // 自分の投稿の「消す」：非表示（自分のカレンダーから隠す）か完全削除かを選ばせる
+  const removeOwnEvent = async (id: string, title: string) => {
+    const choice = await actionSheet({
+      message: `「${title}」`,
+      options: [
+        { id: 'hide', label: '自分の表示から隠す' },
+        { id: 'delete', label: '完全に削除（みんなのカレンダーからも消える）', destructive: true },
+      ],
+    });
+    if (choice === 'hide') {
+      handleHideEvent(id);
+    } else if (choice === 'delete') {
+      try {
+        await deleteEvent(id);
+        setEvents(prev => prev.filter(e => e.id !== id));
+      } catch { showToast('削除に失敗しました', 'error'); }
+    }
   };
 
   // ─── イベント編集（投稿者本人のみ） ────────────────────────────
@@ -2348,7 +2359,7 @@ export default function Calendar() {
                               shareUrl={buildTweetUrl(event.title, workName, displayName)}
                               isOwn={isOwn}
                               onEdit={() => openEditEvent(event)}
-                              onDelete={() => handleDeleteEvent(event.id, event.title)}
+                              onDelete={() => removeOwnEvent(event.id, event.title)}
                               onInfoEdit={canEditInfo ? () => setPreorderEditEvent(event) : undefined}
                               onHide={isOwn ? undefined : () => handleHideEvent(event.id)}
                               onAuthorClick={event.authorId ? () => setViewingUserId(event.authorId!) : undefined}
@@ -2382,7 +2393,7 @@ export default function Calendar() {
                               shareUrl={buildTweetUrl(event.title, event.workName ?? workName, displayName)}
                               isOwn={isOwn}
                               onEdit={() => openEditEvent(event)}
-                              onDelete={() => handleDeleteEvent(event.id, event.title)}
+                              onDelete={() => removeOwnEvent(event.id, event.title)}
                               onInfoEdit={canEditInfo ? () => setPreorderEditEvent(event) : undefined}
                               onHide={isOwn ? undefined : () => handleHideEvent(event.id)}
                               onAuthorClick={event.authorId ? () => setViewingUserId(event.authorId!) : undefined}
@@ -2459,7 +2470,7 @@ export default function Calendar() {
                         shareUrl={buildTweetUrl(event.title, workName, displayName)}
                         isOwn={isOwn}
                         onEdit={() => openEditEvent(event)}
-                        onDelete={() => handleDeleteEvent(event.id, event.title)}
+                        onDelete={() => removeOwnEvent(event.id, event.title)}
                         onInfoEdit={canEditInfo ? () => setPreorderEditEvent(event) : undefined}
                         onHide={isOwn ? undefined : () => handleHideEvent(event.id)}
                         onAuthorClick={event.authorId ? () => setViewingUserId(event.authorId!) : undefined}
@@ -2523,7 +2534,7 @@ export default function Calendar() {
                         shareUrl={buildTweetUrl(item.title, item.tag || null, displayName)}
                         isOwn={isOwn}
                         onEdit={() => { const evt = visibleEvents.find(e => e.id === item.id); if (evt) openEditEvent(evt); }}
-                        onDelete={() => handleDeleteEvent(item.id, item.title)}
+                        onDelete={() => removeOwnEvent(item.id, item.title)}
                         onInfoEdit={canEditInfo ? () => { const evt = visibleEvents.find(e => e.id === item.id); if (evt) setPreorderEditEvent(evt); } : undefined}
                         onHide={isOwn ? undefined : () => handleHideEvent(item.id)}
                         onAuthorClick={item.authorId ? () => setViewingUserId(item.authorId!) : undefined}
