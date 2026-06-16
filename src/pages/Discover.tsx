@@ -4,10 +4,9 @@ import { showBanner, hideBanner } from '../lib/admob';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
 import { useReportedEventIds } from '../hooks/useReportedEventIds';
 import UserProfileModal from '../components/UserProfileModal';
-import MemoText from '../components/MemoText';
-import SourceBadge from '../components/SourceBadge';
+import EventTile from '../components/EventTile';
 import {
-  Heart, Smile, Trash2, Flag, SlidersHorizontal, ExternalLink, Plus,
+  SlidersHorizontal, Plus,
   Map as MapIcon, Palette, Clock, ChevronRight, Compass, CalendarDays,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
@@ -29,13 +28,10 @@ import {
   loadCategoryFilters, saveCategoryFilters,
   loadLikedEventIds, addLikedEventId,
   loadCalendarEventIds, addCalendarEventId, saveCalendarEventIds,
-  getPrimaryCategoryColor,
   parseCategories,
   GOODS_SUBCATEGORIES,
   loadRegionFilter, saveRegionFilter, type FilterMode,
   incrementTotalLikesGiven,
-  parseImageUrls,
-  parseLinks,
   loadImageVisibility,
   loadHiddenWorkIds, saveHiddenWorkIds,
 } from '../lib/constants';
@@ -46,11 +42,9 @@ import { WORK_COLORS } from './Calendar';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
 import { haptic } from '../lib/haptics';
-import CategoryChips from '../components/CategoryChips';
 import EmptyState from '../components/ui/EmptyState';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { getCached, setCached } from '../lib/swrCache';
-import { safeHref } from '../lib/url';
 
 // ─── 定数 ──────────────────────────────────────────────────────────
 
@@ -79,14 +73,6 @@ function loadMyReactions(): Record<string, ReactionType> {
 
 
 
-function getDomain(url: string): string {
-  try {
-    const { hostname } = new URL(url);
-    if (hostname.includes('amazon')) return 'Amazon';
-    if (hostname.includes('twitter.com') || hostname.includes('x.com')) return '公式X';
-    return hostname.replace(/^www\./, '');
-  } catch { return url; }
-}
 
 
 // ─── コンポーネント ────────────────────────────────────────────────
@@ -618,249 +604,28 @@ export default function Discover() {
                 const isInCalendar = calendarEventIds.has(event.id);
                 const showReAdd = (isLiked || (!!user && event.authorId === user.id)) && !isInCalendar;
                 const isLocked = lockedLikeIds.has(event.id);
-
-                const dateParts = event.date ? event.date.split('-').map(Number) : null;
-                const [, em, ed] = dateParts ?? [0, 0, 0];
-                const todayStr = new Date().toISOString().slice(0, 10);
-                const isOngoing = !!event.date && event.date < todayStr && !!event.endDate && event.endDate >= todayStr;
-                const hasPeriod = !!event.endDate && event.endDate !== event.date;
-                const [, endM, endD] = hasPeriod ? event.endDate!.split('-').map(Number) : [0, 0, 0];
-                const hasPreorderData = !!(event.preorderStart || event.preorderEnd);
-                const [, psm, psd] = event.preorderStart ? event.preorderStart.split('-').map(Number) : [0, 0, 0];
-                const [, pem, ped] = event.preorderEnd ? event.preorderEnd.split('-').map(Number) : [0, 0, 0];
-                const catColor = getPrimaryCategoryColor(event.category);
+                const isOwn = !!user && event.authorId === user.id;
+                const canEditInfo = !!event.workId && participatedWorks.some(w => w.id === event.workId);
                 return (
-                  <div
-                    key={event.id}
-                    id={`discover-event-${event.id}`}
-                    className="bg-bg-secondary rounded-[14px] overflow-hidden select-none"
-                    style={{
-                      borderLeft: catColor ? `3px solid ${catColor}` : undefined,
-                      outline: highlightedId === event.id ? '2px solid var(--accent-color)' : undefined,
-                    }}
-                  >
-                    {/* コンテンツ部分（左に日付列） */}
-                    <div className="flex items-stretch px-4 pt-4 gap-3">
-                      {/* 日付（左） */}
-                      <div className="flex-shrink-0 w-12 flex flex-col items-center pt-0.5">
-                        {hasPreorderData ? (
-                          <>
-                            <span className="text-[10px] text-label-tertiary leading-none">予約</span>
-                            {event.preorderStart && (
-                              <span className="text-[12px] font-bold text-label-primary leading-snug mt-0.5">{psm}/{psd}</span>
-                            )}
-                            {event.preorderEnd ? (
-                              <span className="text-[11px] font-bold text-label-secondary leading-snug">〜{pem}/{ped}</span>
-                            ) : (
-                              <span className="text-[11px] text-label-tertiary leading-none">〜</span>
-                            )}
-                            {event.date && (
-                              <>
-                                <div className="w-full h-px my-1" style={{ backgroundColor: 'var(--border-subtle)' }} />
-                                <span className="text-[10px] text-label-tertiary leading-none">発売</span>
-                                {['春頃','夏頃','秋頃','冬頃'].includes(event.dateLabel ?? '') ? (
-                                  <span className="text-[10px] font-bold text-label-secondary leading-snug mt-0.5">{event.dateLabel}</span>
-                                ) : event.dateLabel ? (
-                                  <>
-                                    <span className="text-[10px] text-label-tertiary leading-none mt-0.5">{em}月</span>
-                                    <span className="text-[11px] font-bold text-label-secondary leading-snug">{event.dateLabel}</span>
-                                  </>
-                                ) : (
-                                  <span className="text-[11px] font-bold text-label-secondary leading-snug mt-0.5">{em}/{ed}</span>
-                                )}
-                              </>
-                            )}
-                          </>
-                        ) : isOngoing ? (
-                          <>
-                            <span className="text-[11px] font-bold leading-none" style={{ color: 'var(--color-success)' }}>開催中</span>
-                            <span className="text-[11px] font-bold text-label-secondary leading-snug mt-1">〜{endM}/{endD}</span>
-                          </>
-                        ) : hasPeriod ? (
-                          <>
-                            <span className="text-[13px] font-bold text-label-primary leading-snug">{em}/{ed}</span>
-                            <span className="text-[13px] font-bold text-label-secondary leading-snug">〜{endM}/{endD}</span>
-                          </>
-                        ) : !event.date ? (
-                          <span className="text-sm text-label-tertiary leading-snug">—</span>
-                        ) : ['春頃','夏頃','秋頃','冬頃'].includes(event.dateLabel ?? '') ? (
-                          <span className="text-xl font-bold text-label-primary leading-snug">{event.dateLabel}</span>
-                        ) : event.dateLabel ? (
-                          <><span className="text-[10px] text-label-tertiary leading-none">{em}月</span><span className="text-[13px] font-bold text-label-primary leading-snug">{event.dateLabel}</span></>
-                        ) : (
-                          <span className="text-[13px] font-bold text-label-primary leading-snug">{em}/{ed}</span>
-                        )}
-                        {event.time && (
-                          <>
-                            <span className="text-sm font-bold text-label-primary leading-snug mt-1">{event.time}</span>
-                            {event.endTime && <span className="text-sm font-bold text-label-primary leading-snug">〜{event.endTime}</span>}
-                          </>
-                        )}
-                      </div>
-                      <div className="w-px self-stretch flex-shrink-0" style={{ backgroundColor: 'var(--separator)' }} />
-                      {/* 元のコンテンツ（右） */}
-                      <div className="flex-1 min-w-0 flex flex-col gap-2 pb-3">
-                        {/* バッジ行 + 情報ボタン */}
-                        <div className="flex items-start justify-between gap-2">
-                          {(event.isOrderMade || event.workName || event.category || event.prefecture) && (
-                          <div className="flex items-center gap-1.5 flex-wrap flex-1">
-                            {event.isOrderMade && (
-                              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--color-destructive)', color: '#fff' }}>
-                                予約
-                              </span>
-                            )}
-                            {event.workName && (
-                              <span className="text-[11px] font-medium px-2 py-0.5 rounded-full"
-                                style={{ color, backgroundColor: `${color}20` }}>
-                                {event.workName}
-                              </span>
-                            )}
-                            <CategoryChips category={event.category} className="text-[11px] text-label-secondary rounded-full px-2 py-0.5" style={{ backgroundColor: 'var(--fill-quaternary)' }} />
-                            {event.prefecture && (
-                              <span className="text-[11px] text-label-secondary rounded-full px-2 py-0.5" style={{ backgroundColor: 'var(--fill-quaternary)' }}>
-                                {event.prefecture}
-                              </span>
-                            )}
-                          </div>
-                          )}
-                          {event.workId && participatedWorks.some(w => w.id === event.workId) && (
-                            <button
-                              onClick={() => setPreorderEditEvent(event)}
-                              className="flex-shrink-0 text-[11px] px-2.5 py-1 rounded-full pressable"
-                              style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)', color: 'var(--accent-color)' }}
-                            >
-                              ＋情報
-                            </button>
-                          )}
-                        </div>
-                        {/* タイトル */}
-                        <p className="text-label-primary font-bold text-base leading-snug">{event.title}</p>
-                        {/* 画像（X取得時） */}
-                        {showImagesDiscover && (() => {
-                          const imgs = parseImageUrls(event.imageUrl);
-                          if (imgs.length === 0) return null;
-                          if (imgs.length === 1) return (
-                            <div className="flex justify-center">
-                              <img src={imgs[0]} alt="" loading="lazy" decoding="async"
-                                className="rounded-lg block"
-                                style={{ maxHeight: 220, maxWidth: '100%', height: 'auto', width: 'auto' }} />
-                            </div>
-                          );
-                          return (
-                            <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollSnapType: 'x mandatory' }}>
-                              {imgs.map((src, i) => (
-                                <img key={i} src={src} alt="" loading="lazy" decoding="async"
-                                  className="rounded-lg flex-shrink-0 block"
-                                  style={{ height: 130, width: 'auto', scrollSnapAlign: 'start' }} />
-                              ))}
-                            </div>
-                          );
-                        })()}
-                        {/* メモ */}
-                        {event.memo && <MemoText text={event.memo} className="text-label-secondary text-sm leading-relaxed" />}
-                        {/* リンク */}
-                        {parseLinks(event.link).length > 0 && (
-                          <div className="flex flex-wrap gap-2">
-                            {parseLinks(event.link).map((url, i) => (
-                              <a key={i} href={safeHref(url)} target="_blank" rel="noopener noreferrer"
-                                className="flex items-center gap-1 px-3 py-1 rounded-full text-label-secondary text-xs w-fit pressable"
-                                style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-                                <ExternalLink size={10} />{getDomain(url)}
-                              </a>
-                            ))}
-                          </div>
-                        )}
-                        {/* 投稿者 / 出典 */}
-                        {(event.authorName || event.sourceUrl) && (
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-label-tertiary text-xs">
-                              {event.authorName && (event.authorId ? (
-                                <button onClick={() => setViewingUserId(event.authorId!)} className="underline underline-offset-2 active:opacity-60">by {event.authorName}</button>
-                              ) : `by ${event.authorName}`)}
-                            </p>
-                            <SourceBadge sourceUrl={event.sourceUrl} />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    {/* アクション行 */}
-                    <div className="flex items-center gap-2 pt-1 mx-4 border-t pb-3" style={{ borderColor: 'var(--separator)' }}>
-                      {/* ❤️ いいね */}
-                      <button
-                        onClick={e => { handleHeartPress(event); triggerLike(e.currentTarget); }}
-                        disabled={!user || isLocked}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm disabled:opacity-40 pressable"
-                        style={{
-                          backgroundColor: isLiked ? 'color-mix(in srgb, var(--color-destructive) 15%, transparent)' : 'var(--fill-tertiary)',
-                          color: isLiked ? 'var(--color-destructive)' : 'var(--label-secondary)',
-                        }}
-                      >
-                        <Heart size={14} style={{ fill: isLiked ? 'var(--color-destructive)' : 'none' }} />
-                        <span className="text-xs">{event.likes.toLocaleString('ja-JP')}</span>
-                      </button>
-
-                      {/* カレンダー状態ボタン */}
-                      {isInCalendar ? (
-                        <button
-                          onClick={() => navigate('/calendar')}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs text-label-tertiary pressable"
-                          style={{ backgroundColor: 'var(--fill-tertiary)' }}
-                          aria-label="カレンダーで見る"
-                        >
-                          追加済み
-                        </button>
-                      ) : showReAdd ? (
-                        <button
-                          onClick={() => handleReAddToCalendar(event.id)}
-                          disabled={!user}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold pressable disabled:opacity-40"
-                          style={{
-                            backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)',
-                            color: 'var(--accent-color)',
-                          }}
-                        >
-                          ＋ 再追加
-                        </button>
-                      ) : null}
-
-                      {/* 😊 リアクション */}
-                      <button
-                        onClick={() => setOpenReactionPickerId(prev => prev === event.id ? null : event.id)}
-                        className="ml-auto px-3 py-1.5 rounded-full text-sm pressable flex items-center justify-center"
-                        style={{
-                          backgroundColor: myReactions[event.id] ? 'color-mix(in srgb, var(--accent-color) 15%, transparent)' : 'var(--fill-tertiary)',
-                          color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-secondary)',
-                          minWidth: '2.5rem',
-                        }}
-                      >
-                        {myReactions[event.id]
-                          ? <img src={REACTIONS.find(r => r.type === myReactions[event.id])?.image} alt="" className="h-4 w-auto" />
-                          : <Smile size={14} />
-                        }
-                      </button>
-
-                      {/* 🚩 通報（他人の投稿のみ） */}
-                      {user && event.authorId !== user.id && (
-                        <button
-                          onClick={() => handleReportEvent(event.id, event.title)}
-                          className="px-3 py-1.5 rounded-full text-sm pressable flex items-center justify-center"
-                          style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-tertiary)', minWidth: '2.5rem' }}
-                        >
-                          <Flag size={14} />
-                        </button>
-                      )}
-
-                      {/* 🗑️ 削除（自分の投稿のみ） */}
-                      {event.authorId && user && event.authorId === user.id && (
-                        <button
-                          onClick={() => handleDeleteEvent(event.id, event.title)}
-                          className="px-3 py-1.5 rounded-full text-sm pressable flex items-center justify-center"
-                          style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-tertiary)', minWidth: '2.5rem' }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </div>
+                  <div key={event.id} id={`discover-event-${event.id}`}>
+                    <EventTile
+                      event={event}
+                      workColor={color}
+                      showImages={showImagesDiscover}
+                      highlighted={highlightedId === event.id}
+                      liked={isLiked}
+                      likeLocked={isLocked || !user}
+                      onLike={el => { handleHeartPress(event); triggerLike(el); }}
+                      calendarStatus={isInCalendar ? 'in' : showReAdd ? 'readd' : null}
+                      onCalendarStatusClick={() => { if (isInCalendar) navigate('/calendar'); else handleReAddToCalendar(event.id); }}
+                      myReaction={myReactions[event.id] ?? null}
+                      onReact={() => setOpenReactionPickerId(prev => prev === event.id ? null : event.id)}
+                      isOwn={isOwn}
+                      onDelete={() => handleDeleteEvent(event.id, event.title)}
+                      onReport={user ? () => handleReportEvent(event.id, event.title) : undefined}
+                      onInfoEdit={canEditInfo ? () => setPreorderEditEvent(event) : undefined}
+                      onAuthorClick={event.authorId ? () => setViewingUserId(event.authorId!) : undefined}
+                    />
                   </div>
                 );
               })}
