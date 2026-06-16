@@ -193,7 +193,8 @@ export default function EventTile(props: EventTileProps) {
             </div>
           )}
           {imgs.length > 1 && (
-            <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollSnapType: 'x mandatory' }}>
+            <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollSnapType: 'x mandatory' }}
+              onTouchStart={e => e.stopPropagation()}>
               {imgs.map((src, i) => (
                 <img key={i} src={src} alt="" loading="lazy" decoding="async" className="rounded-lg flex-shrink-0 block" style={{ height: 130, width: 'auto', scrollSnapAlign: 'start' }} />
               ))}
