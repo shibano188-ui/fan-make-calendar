@@ -3136,6 +3136,7 @@ export default function Calendar() {
                             </div>
                             <div className="w-px self-stretch flex-shrink-0" style={{ backgroundColor: 'var(--separator)' }} />
                             <div className="flex-1 min-w-0">
+                              {item.isOrderMade && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full mb-1 inline-block" style={{ background: 'var(--color-destructive)', color: '#fff' }}>予約</span>}
                               <p className="text-label-primary text-sm font-medium leading-snug">{item.title}</p>
                               {showImagesList && (() => {
                                 const imgs = parseImageUrls(item.imageUrl);
