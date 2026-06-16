@@ -10,6 +10,7 @@ import type { CalendarEvent } from '../types';
 import { REACTIONS, type ReactionType } from '../lib/reactions';
 import { incrementTotalLikesGiven } from '../lib/constants';
 import { safeHref } from '../lib/url';
+import SourceBadge from '../components/SourceBadge';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
 import { useReportedEventIds } from '../hooks/useReportedEventIds';
 import UserProfileModal from '../components/UserProfileModal';
@@ -192,6 +193,10 @@ function EventCard({
     : null;
   return (
     <div className="bg-bg-secondary rounded-[14px] px-4 py-4 flex flex-col gap-3">
+      {/* 予約バッジ */}
+      {event.isOrderMade && (
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full w-fit" style={{ background: 'var(--color-destructive)', color: '#fff' }}>予約</span>
+      )}
       {/* タイトル + 時間 */}
       <div className="flex items-start justify-between gap-2">
         <p className="text-label-primary font-bold text-[15px] leading-snug flex-1">{event.title}</p>
@@ -293,12 +298,7 @@ function EventCard({
           ) : (event.authorName ?? '匿名')}
           {' '}・ {timeAgo(event.createdAt)}
         </p>
-        {event.sourceUrl && (
-          <a href={safeHref(event.sourceUrl)} target="_blank" rel="noopener noreferrer"
-            className="text-label-tertiary text-xs underline underline-offset-2 active:opacity-60 flex-shrink-0">
-            出典
-          </a>
-        )}
+        <SourceBadge sourceUrl={event.sourceUrl} />
       </div>
     </div>
   );

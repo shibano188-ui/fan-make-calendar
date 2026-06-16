@@ -5,6 +5,7 @@ import { useLikeAnimation } from '../hooks/useLikeAnimation';
 import { useReportedEventIds } from '../hooks/useReportedEventIds';
 import UserProfileModal from '../components/UserProfileModal';
 import MemoText from '../components/MemoText';
+import SourceBadge from '../components/SourceBadge';
 import {
   Heart, Smile, Trash2, Flag, SlidersHorizontal, ExternalLink, Plus,
   Map as MapIcon, Palette, Clock, ChevronRight, Compass, CalendarDays,
@@ -777,13 +778,7 @@ export default function Discover() {
                                 <button onClick={() => setViewingUserId(event.authorId!)} className="underline underline-offset-2 active:opacity-60">by {event.authorName}</button>
                               ) : `by ${event.authorName}`)}
                             </p>
-                            {event.sourceUrl && (
-                              <a href={safeHref(event.sourceUrl)} target="_blank" rel="noopener noreferrer"
-                                className="text-label-tertiary text-xs underline underline-offset-2 active:opacity-60 flex-shrink-0"
-                                onClick={e => e.stopPropagation()}>
-                                出典
-                              </a>
-                            )}
+                            <SourceBadge sourceUrl={event.sourceUrl} />
                           </div>
                         )}
                       </div>

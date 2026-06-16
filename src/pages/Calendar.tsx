@@ -29,6 +29,7 @@ import SmartInputPanel, { type ParsedEvent } from '../components/SmartInputPanel
 import MemoText from '../components/MemoText';
 import CategoryChips from '../components/CategoryChips';
 import PreorderEditSheet from '../components/PreorderEditSheet';
+import SourceBadge from '../components/SourceBadge';
 import type { CalendarEvent } from '../types';
 
 export type { CalendarEvent };
@@ -2385,8 +2386,9 @@ export default function Calendar() {
                         )}
                       </div>
                       {/* バッジ */}
-                      {(sheetDetailEvent.workName || sheetDetailEvent.category) && (
+                      {(sheetDetailEvent.isOrderMade || sheetDetailEvent.workName || sheetDetailEvent.category) && (
                         <div className="flex items-center gap-1.5 flex-wrap">
+                          {sheetDetailEvent.isOrderMade && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--color-destructive)', color: '#fff' }}>予約</span>}
                           {sheetDetailEvent.workName && (
                           <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
                             style={{ color: workColorMap.get(sheetDetailEvent.workId ?? '') ?? 'var(--label-tertiary)', backgroundColor: `${workColorMap.get(sheetDetailEvent.workId ?? '') ?? '#888888'}20` }}>
@@ -2495,12 +2497,7 @@ export default function Calendar() {
                           {sheetDetailEvent.authorName && (
                             <p className="text-label-tertiary text-xs">by {sheetDetailEvent.authorName}</p>
                           )}
-                          {sheetDetailEvent.sourceUrl && (
-                            <a href={safeHref(sheetDetailEvent.sourceUrl)} target="_blank" rel="noopener noreferrer"
-                              className="text-label-tertiary text-xs underline underline-offset-2 active:opacity-60 flex-shrink-0 ml-auto">
-                              出典
-                            </a>
-                          )}
+                          <div className="ml-auto"><SourceBadge sourceUrl={sheetDetailEvent.sourceUrl} /></div>
                         </div>
                       )}
                     </div>
@@ -2639,8 +2636,9 @@ export default function Calendar() {
                                   </button>
                                 )}
                               </div>
-                              {/* 2行目: 作品名 → カテゴリ → 地域 → ♥ → 😊 → 🔗 → > → × */}
+                              {/* 2行目: 予約 → 作品名 → カテゴリ → 地域 → ♥ → 😊 → 🔗 → > → × */}
                               <div className="flex items-center px-3 pb-2 gap-1">
+                                {event.isOrderMade && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: 'var(--color-destructive)', color: '#fff' }}>予約</span>}
                                 {event.workName && <span className="text-[10px] font-medium px-2 py-0.5 rounded-full max-w-[72px] truncate"
                                   style={{ color: workColorMap.get(event.workId ?? '') ?? 'var(--label-tertiary)', backgroundColor: `${workColorMap.get(event.workId ?? '') ?? '#888888'}20` }}>
                                   {event.workName}
@@ -2800,8 +2798,9 @@ export default function Calendar() {
                 )}
               </div>
               {/* バッジ */}
-              {(listDetailEvent.workName || listDetailEvent.category) && (
+              {(listDetailEvent.isOrderMade || listDetailEvent.workName || listDetailEvent.category) && (
                 <div className="flex items-center gap-1.5 flex-wrap">
+                  {listDetailEvent.isOrderMade && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--color-destructive)', color: '#fff' }}>予約</span>}
                   {listDetailEvent.workName && (
               <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
                 style={{ color: workColorMap.get(listDetailEvent.workId ?? '') ?? 'var(--label-tertiary)', backgroundColor: `${workColorMap.get(listDetailEvent.workId ?? '') ?? '#888888'}20` }}>
@@ -2909,12 +2908,7 @@ export default function Calendar() {
                   {listDetailEvent.authorName && (
                     <p className="text-label-tertiary text-xs">by {listDetailEvent.authorName}</p>
                   )}
-                  {listDetailEvent.sourceUrl && (
-                    <a href={safeHref(listDetailEvent.sourceUrl)} target="_blank" rel="noopener noreferrer"
-                      className="text-label-tertiary text-xs underline underline-offset-2 active:opacity-60 flex-shrink-0 ml-auto">
-                      出典
-                    </a>
-                  )}
+                  <div className="ml-auto"><SourceBadge sourceUrl={listDetailEvent.sourceUrl} /></div>
                 </div>
               )}
             </div>
@@ -2992,6 +2986,7 @@ export default function Calendar() {
                             </div>
                             <div className="w-px self-stretch flex-shrink-0" style={{ backgroundColor: 'var(--separator)' }} />
                             <div className="flex-1 min-w-0">
+                              {event.isOrderMade && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full mb-1 inline-block" style={{ background: 'var(--color-destructive)', color: '#fff' }}>予約</span>}
                               <p className="text-label-primary text-sm font-medium leading-snug">{event.title}</p>
                               {event.prefecture && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5 mt-2 inline-block">{event.prefecture}</span>}
                               {(() => {
