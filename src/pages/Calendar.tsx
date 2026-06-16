@@ -2510,100 +2510,30 @@ export default function Calendar() {
                     ) : (
                       <div className="flex flex-col gap-2">
                         {sheetWorkEvents.map(event => {
-                          const dateLabel = formatDateRange(event.date ?? '', event.endDate);
-                          const timeLabel = formatTimeRange(event.time, event.endTime);
-                          const catColor = getPrimaryCategoryColor(event.category);
+                          const isOwn = !!user && event.authorId === user.id;
+                          const canEditInfo = !!event.workId && participatedWorks.some(w => w.id === event.workId);
                           return (
-                            <div key={event.id} className="w-full bg-bg-secondary rounded-[14px] overflow-hidden select-none"
-                              style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(event.id) ? '3px solid #f59e0b' : undefined }}
-                            >
-                              {/* 1行目: タイトル */}
-                              <div className="flex items-center px-3 pt-3 pb-1 gap-1">
-                                <button onClick={() => setSheetDetailEvent(event)}
-                                  className="flex-1 min-w-0 text-left active:opacity-70 transition-opacity">
-                                  <p className="text-label-primary text-sm font-medium">{event.title}</p>
-                                </button>
-                                {event.workId && participatedWorks.some(w => w.id === event.workId) && (
-                                  <button
-                                    onClick={e => { e.stopPropagation(); setPreorderEditEvent(event); }}
-                                    className="flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full active:opacity-60"
-                                    style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)', color: 'var(--accent-color)' }}
-                                  >
-                                    ＋情報
-                                  </button>
-                                )}
-                              </div>
-                              {/* 2行目: 予約 → カテゴリ → 地域 → ♥ → 😊 → 🔗 → > → × */}
-                              <div className="flex items-center px-3 pb-2 gap-1">
-                                {event.isOrderMade && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--color-destructive)', color: '#fff' }}>予約</span>}
-                                <CategoryChips category={event.category} className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5" />
-                                {event.prefecture && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">{event.prefecture}</span>}
-                                <div className="flex-1" />
-                                <button
-                                  onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); triggerLike(e.currentTarget); }}
-                                  disabled={!user || lockedLikeIds.has(event.id)}
-                                  className="flex items-center gap-0.5 px-2 h-9 text-xs disabled:opacity-30"
-                                  style={{ color: event.likedByMe ? 'rgb(248,113,113)' : 'var(--label-tertiary)' }}
-                                >
-                                  <Heart size={14} style={{ fill: event.likedByMe ? 'rgb(248,113,113)' : 'none' }} />
-                                  <span>{event.likes}</span>
-                                </button>
-                                <button
-                                  onClick={e => { e.stopPropagation(); setOpenReactionPickerId(prev => prev === event.id ? null : event.id); }}
-                                  className="px-2 h-9 flex items-center active:opacity-60"
-                                  style={{ color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[event.id] ? 1 : 0.5 }}
-                                >
-                                  {myReactions[event.id]
-                                    ? <img src={REACTIONS.find(r => r.type === myReactions[event.id])?.image} alt="" className="h-4 w-auto" />
-                                    : <Smile size={16} />
-                                  }
-                                </button>
-                                <button onClick={() => handleHideEvent(event.id)} className="w-9 h-9 flex items-center justify-center text-label-tertiary active:text-red-400">
-                                  <X size={16} />
-                                </button>
-                              </div>
-                              {/* 3行目: 日付範囲・時間 */}
-                              {(dateLabel || timeLabel) && (
-                                <div className="flex items-center gap-2 px-3 pb-2 -mt-1">
-                                  {dateLabel && <span className="text-label-tertiary text-xs">{dateLabel}</span>}
-                                  {timeLabel && <span className="text-label-tertiary text-xs">{timeLabel}</span>}
-                                </div>
-                              )}
-                              {/* 4行目: by author + リンクピル + Xシェア */}
-                              {(() => {
-                                const links = parseLinks(event.link);
-                                return (
-                                  <div className="flex items-center gap-1.5 px-3 pb-2 -mt-1">
-                                    {event.authorName && (
-                                      <button onClick={e => { e.stopPropagation(); if (event.authorId) setViewingUserId(event.authorId); }} className="text-[10px] text-label-tertiary active:opacity-60 flex-shrink-0" style={{ textDecoration: event.authorId ? 'underline' : 'none', textUnderlineOffset: 2 }}>
-                                        by {event.authorName}
-                                      </button>
-                                    )}
-                                    {links.length > 0 && (
-                                      <a href={safeHref(links[0])} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                                        className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] text-label-secondary active:opacity-60 flex-shrink-0 bg-fill-3"
-                                        >
-                                        <ExternalLink size={9} />{getDomain(links[0])}
-                                      </a>
-                                    )}
-                                    {links.length > 1 && <span className="text-[10px] text-label-tertiary flex-shrink-0">+{links.length - 1}</span>}
-                                    <div className="ml-auto flex items-center flex-shrink-0">
-                                      <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(event.id)); }} className="w-8 h-8 flex items-center justify-center active:opacity-60">
-                                        <Star size={14} style={{ fill: importantEventIds.has(event.id) ? '#f59e0b' : 'none', color: importantEventIds.has(event.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
-                                      </button>
-                                      <a
-                                        href={buildTweetUrl(event.title, workName, displayName)}
-                                        target="_blank" rel="noopener noreferrer"
-                                        onClick={e => e.stopPropagation()}
-                                        className="w-8 h-8 flex items-center justify-center text-label-tertiary active:opacity-60"
-                                      >
-                                        <Share2 size={13} />
-                                      </a>
-                                    </div>
-                                  </div>
-                                );
-                              })()}
-                            </div>
+                            <EventTile
+                              key={event.id}
+                              event={event}
+                              density="compact"
+                              showImages={false}
+                              workColor={event.workId ? (workColorMap.get(event.workId) ?? 'var(--accent-color)') : 'var(--accent-color)'}
+                              liked={event.likedByMe}
+                              likeLocked={lockedLikeIds.has(event.id) || !user}
+                              onLike={el => { handleSheetEventLike(event.id); triggerLike(el); }}
+                              myReaction={myReactions[event.id] ?? null}
+                              onReact={() => setOpenReactionPickerId(prev => prev === event.id ? null : event.id)}
+                              important={importantEventIds.has(event.id)}
+                              onToggleImportant={() => setImportantEventIds(toggleImportantEventId(event.id))}
+                              shareUrl={buildTweetUrl(event.title, workName, displayName)}
+                              isOwn={isOwn}
+                              onEdit={() => openEditEvent(event)}
+                              onDelete={() => handleDeleteEvent(event.id, event.title)}
+                              onInfoEdit={canEditInfo ? () => setPreorderEditEvent(event) : undefined}
+                              onHide={isOwn ? undefined : () => handleHideEvent(event.id)}
+                              onAuthorClick={event.authorId ? () => setViewingUserId(event.authorId!) : undefined}
+                            />
                           );
                         })}
                       </div>
@@ -2614,156 +2544,51 @@ export default function Calendar() {
                     ) : (
                       <div className="flex flex-col gap-2">
                         {sheetWorkEvents.map(event => {
-                          const dateLabel = formatDateRange(event.date ?? '', event.endDate);
-                          const timeLabel = formatTimeRange(event.time, event.endTime);
-                          const catColor = getPrimaryCategoryColor(event.category);
+                          const isOwn = !!user && event.authorId === user.id;
+                          const canEditInfo = !!event.workId && participatedWorks.some(w => w.id === event.workId);
                           return (
-                            <div key={event.id} className="w-full bg-bg-secondary rounded-[14px] overflow-hidden select-none"
-                              style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(event.id) ? '3px solid #f59e0b' : undefined }}
-                            >
-                              {/* 1行目: タイトル */}
-                              <div className="flex items-center px-3 pt-3 pb-1 gap-1">
-                                <button onClick={() => event.workId && setSheetDetailEvent(event)}
-                                  className="flex-1 min-w-0 text-left active:opacity-70 transition-opacity">
-                                  <p className="text-label-primary text-sm font-medium">{event.title}</p>
-                                </button>
-                                {event.workId && participatedWorks.some(w => w.id === event.workId) && (
-                                  <button
-                                    onClick={e => { e.stopPropagation(); setPreorderEditEvent(event); }}
-                                    className="flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full active:opacity-60"
-                                    style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)', color: 'var(--accent-color)' }}
-                                  >
-                                    ＋情報
-                                  </button>
-                                )}
-                              </div>
-                              {/* 2行目: 予約 → 作品名 → カテゴリ → 地域 → ♥ → 😊 → 🔗 → > → × */}
-                              <div className="flex items-center px-3 pb-2 gap-1">
-                                {event.isOrderMade && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: 'var(--color-destructive)', color: '#fff' }}>予約</span>}
-                                {event.workName && <span className="text-[10px] font-medium px-2 py-0.5 rounded-full max-w-[72px] truncate"
-                                  style={{ color: workColorMap.get(event.workId ?? '') ?? 'var(--label-tertiary)', backgroundColor: `${workColorMap.get(event.workId ?? '') ?? '#888888'}20` }}>
-                                  {event.workName}
-                                </span>}
-                                <CategoryChips category={event.category} className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5" />
-                                {event.prefecture && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">{event.prefecture}</span>}
-                                <div className="flex-1" />
-                                <button
-                                  onClick={e => { e.stopPropagation(); handleSheetEventLike(event.id); triggerLike(e.currentTarget); }}
-                                  disabled={!user || lockedLikeIds.has(event.id)}
-                                  className="flex items-center gap-0.5 px-2 h-9 text-xs disabled:opacity-30"
-                                  style={{ color: event.likedByMe ? 'rgb(248,113,113)' : 'var(--label-tertiary)' }}
-                                >
-                                  <Heart size={14} style={{ fill: event.likedByMe ? 'rgb(248,113,113)' : 'none' }} />
-                                  <span>{event.likes}</span>
-                                </button>
-                                <button
-                                  onClick={e => { e.stopPropagation(); setOpenReactionPickerId(prev => prev === event.id ? null : event.id); }}
-                                  className="px-2 h-9 flex items-center active:opacity-60"
-                                  style={{ color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-tertiary)', opacity: myReactions[event.id] ? 1 : 0.5 }}
-                                >
-                                  {myReactions[event.id]
-                                    ? <img src={REACTIONS.find(r => r.type === myReactions[event.id])?.image} alt="" className="h-4 w-auto" />
-                                    : <Smile size={16} />
-                                  }
-                                </button>
-                                <button onClick={() => handleHideEvent(event.id)} className="w-9 h-9 flex items-center justify-center text-label-tertiary active:text-red-400">
-                                  <X size={16} />
-                                </button>
-                              </div>
-                              {(dateLabel || timeLabel) && (
-                                <div className="flex items-center gap-2 px-3 pb-2 -mt-1">
-                                  {dateLabel && <span className="text-label-tertiary text-xs">{dateLabel}</span>}
-                                  {timeLabel && <span className="text-label-tertiary text-xs">{timeLabel}</span>}
-                                </div>
-                              )}
-                              {/* 4行目: by author + リンクピル + Xシェア */}
-                              {(() => {
-                                const links = parseLinks(event.link);
-                                return (
-                                  <div className="flex items-center gap-1.5 px-3 pb-2 -mt-1">
-                                    {event.authorName && (
-                                      <button onClick={e => { e.stopPropagation(); if (event.authorId) setViewingUserId(event.authorId); }} className="text-[10px] text-label-tertiary active:opacity-60 flex-shrink-0" style={{ textDecoration: event.authorId ? 'underline' : 'none', textUnderlineOffset: 2 }}>
-                                        by {event.authorName}
-                                      </button>
-                                    )}
-                                    {links.length > 0 && (
-                                      <a href={safeHref(links[0])} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                                        className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] text-label-secondary active:opacity-60 flex-shrink-0 bg-fill-3"
-                                        >
-                                        <ExternalLink size={9} />{getDomain(links[0])}
-                                      </a>
-                                    )}
-                                    {links.length > 1 && <span className="text-[10px] text-label-tertiary flex-shrink-0">+{links.length - 1}</span>}
-                                    <div className="ml-auto flex items-center flex-shrink-0">
-                                      <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(event.id)); }} className="w-8 h-8 flex items-center justify-center active:opacity-60">
-                                        <Star size={14} style={{ fill: importantEventIds.has(event.id) ? '#f59e0b' : 'none', color: importantEventIds.has(event.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
-                                      </button>
-                                      <a
-                                        href={buildTweetUrl(event.title, event.workName ?? workName, displayName)}
-                                        target="_blank" rel="noopener noreferrer"
-                                        onClick={e => e.stopPropagation()}
-                                        className="w-8 h-8 flex items-center justify-center text-label-tertiary active:opacity-60"
-                                      >
-                                        <Share2 size={13} />
-                                      </a>
-                                    </div>
-                                  </div>
-                                );
-                              })()}
-                            </div>
+                            <EventTile
+                              key={event.id}
+                              event={event}
+                              density="compact"
+                              showImages={false}
+                              workColor={event.workId ? (workColorMap.get(event.workId) ?? 'var(--accent-color)') : 'var(--accent-color)'}
+                              liked={event.likedByMe}
+                              likeLocked={lockedLikeIds.has(event.id) || !user}
+                              onLike={el => { handleSheetEventLike(event.id); triggerLike(el); }}
+                              myReaction={myReactions[event.id] ?? null}
+                              onReact={() => setOpenReactionPickerId(prev => prev === event.id ? null : event.id)}
+                              important={importantEventIds.has(event.id)}
+                              onToggleImportant={() => setImportantEventIds(toggleImportantEventId(event.id))}
+                              shareUrl={buildTweetUrl(event.title, event.workName ?? workName, displayName)}
+                              isOwn={isOwn}
+                              onEdit={() => openEditEvent(event)}
+                              onDelete={() => handleDeleteEvent(event.id, event.title)}
+                              onInfoEdit={canEditInfo ? () => setPreorderEditEvent(event) : undefined}
+                              onHide={isOwn ? undefined : () => handleHideEvent(event.id)}
+                              onAuthorClick={event.authorId ? () => setViewingUserId(event.authorId!) : undefined}
+                            />
                           );
                         })}
                         {sheetPersonalEvents.map(pe => {
-                          const dateLabel = formatDateRange(pe.date, pe.endDate);
-                          const timeLabel = formatTimeRange(pe.time, pe.endTime);
-                          const catColor = getPrimaryCategoryColor(pe.category);
+                          const ev: CalendarEvent = {
+                            id: pe.id, title: pe.title, date: pe.date, time: pe.time, endDate: pe.endDate, endTime: pe.endTime,
+                            category: pe.category, prefecture: pe.prefecture, memo: pe.memo, link: pe.link,
+                            workName: '個人', likes: 0, likedByMe: false, createdAt: '',
+                          };
                           return (
-                            <div key={pe.id} className="w-full bg-bg-secondary rounded-[14px] overflow-hidden select-none"
-                              style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined, borderRight: importantEventIds.has(pe.id) ? '3px solid #f59e0b' : undefined }}
-                            >
-                              {/* 1行目: タイトル + 🔔⭐ */}
-                              <div className="flex items-center px-3 pt-3 pb-1 gap-1">
-                                <p className="flex-1 min-w-0 text-label-primary text-sm font-medium truncate">{pe.title}</p>
-                                <button onClick={e => { e.stopPropagation(); setImportantEventIds(toggleImportantEventId(pe.id)); }} className="w-9 h-9 flex items-center justify-center flex-shrink-0 active:opacity-60">
-                                  <Star size={16} style={{ fill: importantEventIds.has(pe.id) ? '#f59e0b' : 'none', color: importantEventIds.has(pe.id) ? '#f59e0b' : 'var(--label-tertiary)' }} />
-                                </button>
-                              </div>
-                              {/* 2行目: 個人 → カテゴリ → 地域 → × */}
-                              <div className="flex items-center px-3 pb-2 gap-1">
-                                <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">個人</span>
-                                <CategoryChips category={pe.category} className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5" />
-                                {pe.prefecture && <span className="text-[10px] text-label-tertiary bg-fill-4 rounded-full px-2 py-0.5">{pe.prefecture}</span>}
-                                <div className="flex-1" />
-                                <button onClick={() => openEditPersonalEvent(pe)} className="w-9 h-9 flex items-center justify-center text-label-tertiary active:opacity-60">
-                                  <Pencil size={15} />
-                                </button>
-                                <button onClick={() => deletePersonalEvent(pe.id)} className="w-9 h-9 flex items-center justify-center text-label-tertiary active:text-red-400">
-                                  <X size={16} />
-                                </button>
-                              </div>
-                              {/* 3行目: 日付範囲・時間 */}
-                              {(dateLabel || timeLabel) && (
-                                <div className="flex items-center gap-2 px-3 pb-2 -mt-1">
-                                  {dateLabel && <span className="text-label-tertiary text-xs">{dateLabel}</span>}
-                                  {timeLabel && <span className="text-label-tertiary text-xs">{timeLabel}</span>}
-                                </div>
-                              )}
-                              {(() => {
-                                const links = parseLinks(pe.link);
-                                if (links.length === 0) return null;
-                                return (
-                                  <div className="flex items-center gap-1.5 px-3 pb-2 -mt-1 flex-wrap">
-                                    <a href={safeHref(links[0])} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                                      className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] text-label-secondary active:opacity-60 bg-fill-3"
-                                      >
-                                      <ExternalLink size={9} />{getDomain(links[0])}
-                                    </a>
-                                    {links.length > 1 && <span className="text-[10px] text-label-tertiary">+{links.length - 1}</span>}
-                                  </div>
-                                );
-                              })()}
-                              {pe.memo && <p className="text-label-secondary text-xs px-3 pb-2 truncate">{pe.memo}</p>}
-                            </div>
+                            <EventTile
+                              key={pe.id}
+                              event={ev}
+                              density="compact"
+                              showImages={false}
+                              workColor="var(--label-tertiary)"
+                              important={importantEventIds.has(pe.id)}
+                              onToggleImportant={() => setImportantEventIds(toggleImportantEventId(pe.id))}
+                              isOwn
+                              onEdit={() => openEditPersonalEvent(pe)}
+                              onDelete={() => deletePersonalEvent(pe.id)}
+                            />
                           );
                         })}
                       </div>
