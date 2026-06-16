@@ -75,11 +75,6 @@ function loadMyReactions(): Record<string, ReactionType> {
 
 
 
-// 過去予定の表示トグル（端末ごとに記憶）
-const SHOW_PAST_KEY = 'discover_show_past';
-function loadShowPast(): boolean { return localStorage.getItem(SHOW_PAST_KEY) === '1'; }
-function saveShowPast(v: boolean) { localStorage.setItem(SHOW_PAST_KEY, v ? '1' : '0'); }
-
 // ─── コンポーネント ────────────────────────────────────────────────
 
 export default function Discover() {
@@ -96,7 +91,6 @@ export default function Discover() {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
-  const [showPast, setShowPast] = useState(loadShowPast);
   const prevMonth = () => { if (month === 0) { setYear(y => y - 1); setMonth(11); } else setMonth(m => m - 1); };
   const nextMonth = () => { if (month === 11) { setYear(y => y + 1); setMonth(0); } else setMonth(m => m + 1); };
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -373,11 +367,9 @@ export default function Discover() {
         return activeFilterPrefs.has(pref);
       });
     }
-    // 過去予定トグル（オフ時は今日以降のみ。終了日があればそれで判定・日付なしは残す）
-    if (!showPast) {
-      const todayStr = new Date().toISOString().slice(0, 10);
-      evts = evts.filter(e => !e.date || (e.endDate ?? e.date) >= todayStr);
-    }
+    // 終了済みの予定は非表示（期間中・未来終了は表示・日付なしは残す）
+    const todayStr = new Date().toISOString().slice(0, 10);
+    evts = evts.filter(e => !e.date || (e.endDate ?? e.date) >= todayStr);
     // Calendar一覧と同じく日付昇順（nullは末尾）
     evts = [...evts].sort((a, b) => {
       if (!a.date && !b.date) return 0;
@@ -386,7 +378,7 @@ export default function Discover() {
       return a.date.localeCompare(b.date);
     });
     return evts;
-  }, [events, hiddenWorkIds, categoryFilters, user, activeFilterPrefs, reportedEventIds, showPast]);
+  }, [events, hiddenWorkIds, categoryFilters, user, activeFilterPrefs, reportedEventIds]);
 
   const toggleWork = (wId: string) =>
     setHiddenWorkIds(prev => {
@@ -477,7 +469,14 @@ export default function Discover() {
       >
         <Header
           compact
-          leftNode={<span className="text-base font-semibold text-label-primary">発見</span>}
+          leftNode={
+            <div className="flex items-center gap-1">
+              <span className="text-base font-semibold text-label-primary mr-1">発見</span>
+              <button onClick={prevMonth} aria-label="前の月" className="w-8 h-8 flex items-center justify-center rounded-lg pressable tap-44" style={{ color: 'var(--accent-color)' }}><ChevronLeft size={20} /></button>
+              <button onClick={() => { const t = new Date(); setYear(t.getFullYear()); setMonth(t.getMonth()); }} aria-label="今月へ戻る" className="text-base font-bold text-label-primary pressable">{year}年{month + 1}月</button>
+              <button onClick={nextMonth} aria-label="次の月" className="w-8 h-8 flex items-center justify-center rounded-lg pressable tap-44" style={{ color: 'var(--accent-color)' }}><ChevronRight size={20} /></button>
+            </div>
+          }
           rightAction={
             <div className="flex items-center gap-1">
               <button
@@ -584,22 +583,6 @@ export default function Discover() {
         )}
 
 
-        {/* 月送り + 過去予定トグル */}
-        <div className="flex-shrink-0 flex items-center justify-between px-2 py-2 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
-          <div className="flex items-center gap-1">
-            <button onClick={prevMonth} aria-label="前の月" className="w-8 h-8 flex items-center justify-center rounded-lg pressable" style={{ color: 'var(--accent-color)' }}><ChevronLeft size={20} /></button>
-            <button onClick={() => { const t = new Date(); setYear(t.getFullYear()); setMonth(t.getMonth()); }} aria-label="今月へ戻る" className="text-base font-bold text-label-primary pressable px-1">{year}年{month + 1}月</button>
-            <button onClick={nextMonth} aria-label="次の月" className="w-8 h-8 flex items-center justify-center rounded-lg pressable" style={{ color: 'var(--accent-color)' }}><ChevronRight size={20} /></button>
-          </div>
-          <button
-            onClick={() => { const v = !showPast; setShowPast(v); saveShowPast(v); }}
-            className="text-[11px] px-2.5 py-1 mr-1 rounded-full pressable"
-            style={{ backgroundColor: showPast ? 'color-mix(in srgb, var(--accent-color) 15%, transparent)' : 'var(--fill-tertiary)', color: showPast ? 'var(--accent-color)' : 'var(--label-tertiary)' }}
-          >
-            過去も表示
-          </button>
-        </div>
-
         {/* フィード */}
         <div ref={feedRef} onScroll={onFeedScroll} onTouchStart={onFeedTouchStart} onTouchEnd={onFeedTouchEnd} className="flex-1 overflow-y-auto px-4 pt-3 pb-6">
           {refreshing && (
@@ -626,7 +609,7 @@ export default function Discover() {
               <EmptyState
                 icon={<CalendarDays size={48} strokeWidth={1.2} />}
                 title={`${year}年${month + 1}月の予定はまだありません`}
-                description={showPast ? '見つけた予定を投稿すると、同じ作品のファンに届きます' : '過去の予定は「過去も表示」で見られます'}
+                description="見つけた予定を投稿すると、同じ作品のファンに届きます"
                 actionLabel="予定を投稿する"
                 onAction={() => navigate('/calendar')}
                 actionVariant="tinted"
