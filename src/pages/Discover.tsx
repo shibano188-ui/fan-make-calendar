@@ -247,10 +247,26 @@ export default function Discover() {
   const [refreshing, setRefreshing] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
   const pullStartY = useRef<number | null>(null);
+  const swipeStartX = useRef<number | null>(null);
+  const swipeStartY = useRef<number | null>(null);
   const onFeedTouchStart = (e: React.TouchEvent) => {
     pullStartY.current = (feedRef.current?.scrollTop ?? 1) <= 0 ? e.touches[0].clientY : null;
+    swipeStartX.current = e.touches[0].clientX;
+    swipeStartY.current = e.touches[0].clientY;
   };
   const onFeedTouchEnd = async (e: React.TouchEvent) => {
+    // 横スワイプで月移動（水平が支配的かつ60px以上・縦スクロール/プル更新と競合しない）
+    if (swipeStartX.current !== null && swipeStartY.current !== null) {
+      const sdx = e.changedTouches[0].clientX - swipeStartX.current;
+      const sdy = e.changedTouches[0].clientY - swipeStartY.current;
+      swipeStartX.current = null;
+      swipeStartY.current = null;
+      if (Math.abs(sdx) >= 60 && Math.abs(sdx) >= Math.abs(sdy) * 1.5) {
+        pullStartY.current = null;
+        if (sdx < 0) nextMonth(); else prevMonth();
+        return;
+      }
+    }
     if (pullStartY.current === null || refreshing) return;
     const pulled = e.changedTouches[0].clientY - pullStartY.current;
     pullStartY.current = null;
