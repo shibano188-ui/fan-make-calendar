@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, Heart, Smile, ExternalLink, SlidersHorizontal } from 'lucide-react';
+import { ChevronLeft, ExternalLink, SlidersHorizontal } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
-import MemoText from '../components/MemoText';
 import PreorderEditSheet from '../components/PreorderEditSheet';
+import EventTile from '../components/EventTile';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
 import { useReportedEventIds } from '../hooks/useReportedEventIds';
 import {
@@ -13,7 +13,7 @@ import {
 import { getCached, setCached } from '../lib/swrCache';
 import {
   POST_CATEGORIES,
-  parseLinks, parseImageUrls, getPrimaryCategoryColor, parseCategories, GOODS_SUBCATEGORIES,
+  parseLinks, parseCategories, GOODS_SUBCATEGORIES,
   loadLikedEventIds, addLikedEventId,
   loadCalendarEventIds, addCalendarEventId,
   incrementTotalLikesGiven,
@@ -28,7 +28,6 @@ import { WORK_COLORS } from './Calendar';
 import { getContrastText } from '../lib/color';
 import { safeHref } from '../lib/url';
 import { haptic } from '../lib/haptics';
-import CategoryChips from '../components/CategoryChips';
 import EmptyState from '../components/ui/EmptyState';
 import { SkeletonList } from '../components/ui/Skeleton';
 
@@ -200,264 +199,60 @@ export default function Preorders() {
 
   const renderTile = (event: CalendarEvent) => {
     const workColor = event.workId ? (workColorMap.get(event.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
-    const catColor = getPrimaryCategoryColor(event.category);
     const links = parseLinks(event.link);
     const workName = works.find(w => w.id === event.workId)?.name;
     const isLiked = likedEventIds.has(event.id);
     const isInCalendar = calendarEventIds.has(event.id);
     const showReAdd = isLiked && !isInCalendar && !initialCalendarIds.current.has(event.id);
     const isLocked = lockedLikeIds.has(event.id);
+    const canEditInfo = !!event.workId && works.some(w => w.id === event.workId);
 
-    const [, relM, relD] = event.date ? event.date.split('-').map(Number) : [0, 0, 0];
-    const [, psm, psd] = event.preorderStart ? event.preorderStart.split('-').map(Number) : [0, 0, 0];
-    const [, pem, ped] = event.preorderEnd ? event.preorderEnd.split('-').map(Number) : [0, 0, 0];
-    // 新データ: preorderStart/End フィールドあり
+    // 締切（新 preorderEnd or 旧 endDate）からの残り日数
     const hasNewPreorderData = !!(event.preorderStart || event.preorderEnd);
-    // 旧データ互換: event.date=開始, event.endDate=締切
-    const legacyHasPeriod = !hasNewPreorderData && !!event.endDate && event.endDate !== event.date;
-    const [, legacyEM, legacyED] = legacyHasPeriod ? event.endDate!.split('-').map(Number) : [0, 0, 0];
     const isReleaseOnly = !hasNewPreorderData && !!event.date && !event.endDate;
-    // 締切日 (新 or 旧)
     const deadlineDate = event.preorderEnd ?? (!hasNewPreorderData ? event.endDate : undefined);
     const days = deadlineDate ? daysLeft(deadlineDate) : null;
-    // 締切なし→発売日で自動期限
     const isDeadlineFromRelease = !deadlineDate && !!event.date && !event.dateLabel;
+    const showDeadline = !isReleaseOnly && !isDeadlineFromRelease && days !== null;
 
-    return (
-      <div
-        key={event.id}
-        className="bg-bg-secondary rounded-[14px] overflow-hidden"
-        style={{ borderLeft: catColor ? `3px solid ${catColor}` : undefined }}
-      >
-        {/* コンテンツ部分 */}
-        <div className="flex items-stretch px-4 pt-4 gap-3">
-          {/* 受付期間（左列） */}
-          <div className="flex-shrink-0 w-12 flex flex-col items-center pt-0.5 gap-0">
-            {hasNewPreorderData ? (
-              <>
-                <span className="text-[10px] text-label-tertiary leading-none">予約</span>
-                {event.preorderStart && (
-                  <span className="text-[12px] font-bold text-label-primary leading-snug mt-0.5">{psm}/{psd}</span>
-                )}
-                {event.preorderEnd ? (
-                  <span className="text-[12px] font-bold text-label-secondary leading-snug">〜{pem}/{ped}</span>
-                ) : (
-                  <span className="text-[11px] text-label-tertiary leading-none">〜</span>
-                )}
-                {event.date && (
-                  <>
-                    <div className="w-full h-px my-1" style={{ backgroundColor: 'var(--border-subtle)' }} />
-                    <span className="text-[10px] text-label-tertiary leading-none">発売</span>
-                    {['春頃','夏頃','秋頃','冬頃'].includes(event.dateLabel ?? '') ? (
-                      <span className="text-[10px] font-bold text-label-secondary leading-snug mt-0.5">{event.dateLabel}</span>
-                    ) : event.dateLabel ? (
-                      <>
-                        <span className="text-[10px] text-label-tertiary leading-none mt-0.5">{relM}月</span>
-                        <span className="text-[11px] font-bold text-label-secondary leading-snug">{event.dateLabel}</span>
-                      </>
-                    ) : (
-                      <span className="text-[11px] font-bold text-label-secondary leading-snug mt-0.5">{relM}/{relD}</span>
-                    )}
-                  </>
-                )}
-              </>
-            ) : event.date ? (
-              <>
-                <span className="text-[10px] text-label-tertiary leading-none">{isReleaseOnly ? '発売' : '予約'}</span>
-                {['春頃','夏頃','秋頃','冬頃'].includes(event.dateLabel ?? '') ? (
-                  <span className="text-[10px] font-bold text-label-primary leading-snug mt-0.5">{event.dateLabel}</span>
-                ) : event.dateLabel ? (
-                  <>
-                    <span className="text-[10px] text-label-tertiary leading-none mt-0.5">{relM}月</span>
-                    <span className="text-[11px] font-bold text-label-primary leading-snug">{event.dateLabel}</span>
-                  </>
-                ) : (
-                  <span className="text-[13px] font-bold text-label-primary leading-snug mt-0.5">{relM}/{relD}</span>
-                )}
-                {legacyHasPeriod && (
-                  <span className="text-[13px] font-bold text-label-secondary leading-snug">〜{legacyEM}/{legacyED}</span>
-                )}
-              </>
-            ) : (
-              <span className="text-sm text-label-tertiary">—</span>
-            )}
-          </div>
-
-          <div className="w-px self-stretch flex-shrink-0" style={{ backgroundColor: 'var(--separator)' }} />
-
-          {/* 右側コンテンツ */}
-          <div className="flex-1 min-w-0 flex flex-col gap-2 pb-3">
-            {/* バッジ行 + 情報ボタン */}
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-center gap-1.5 flex-wrap flex-1">
-                {event.isOrderMade && (
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--color-destructive)', color: '#fff' }}>
-                    予約
-                  </span>
-                )}
-                {workName && (
-                  <span className="text-[11px] font-medium px-2 py-0.5 rounded-full"
-                    style={{ color: workColor, backgroundColor: `${workColor}20` }}>
-                    {workName}
-                  </span>
-                )}
-                <CategoryChips category={event.category} className="text-[11px] text-label-secondary rounded-full px-2 py-0.5" style={{ backgroundColor: 'var(--fill-quaternary)' }} />
-              </div>
-              {event.workId && works.some(w => w.id === event.workId) && (
-                <button
-                  onClick={() => setPreorderEditEvent(event)}
-                  className="flex-shrink-0 text-[11px] px-2.5 py-1 rounded-full pressable"
-                  style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)', color: 'var(--accent-color)' }}
-                >
-                  ＋情報
-                </button>
-              )}
-            </div>
-
-            {/* タイトル */}
-            <p className="text-label-primary font-bold text-base leading-snug">{event.title}</p>
-
-            {/* 画像 */}
-            {showImages && (() => {
-              const imgs = parseImageUrls(event.imageUrl);
-              if (imgs.length === 0) return null;
-              if (imgs.length === 1) return (
-                <div className="flex justify-center">
-                  <img src={imgs[0]} alt="" loading="lazy" decoding="async"
-                    className="rounded-lg block"
-                    style={{ maxHeight: 220, maxWidth: '100%', height: 'auto', width: 'auto' }} />
-                </div>
-              );
-              return (
-                <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollSnapType: 'x mandatory' }}>
-                  {imgs.map((src, i) => (
-                    <img key={i} src={src} alt="" loading="lazy" decoding="async"
-                      className="rounded-lg flex-shrink-0 block"
-                      style={{ height: 130, width: 'auto', scrollSnapAlign: 'start' }} />
-                  ))}
-                </div>
-              );
-            })()}
-
-            {/* メモ */}
-            {event.memo && <MemoText text={event.memo} className="text-label-secondary text-sm leading-relaxed" />}
-
-            {/* リンク（外部サイト） */}
-            {links.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {links.map((url, i) => (
-                  <a key={i} href={safeHref(url)} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1 px-3 py-1 rounded-full text-label-secondary text-xs w-fit pressable"
-                    style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-                    <ExternalLink size={10} />
-                    {(() => {
-                      try {
-                        const { hostname } = new URL(url);
-                        if (hostname.includes('amazon')) return 'Amazon';
-                        if (hostname.includes('twitter.com') || hostname.includes('x.com')) return '公式X';
-                        return hostname.replace(/^www\./, '');
-                      } catch { return url; }
-                    })()}
-                  </a>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* 締切行: 有効な締切日 or リンクがある場合のみ表示 */}
-        {((!isReleaseOnly && !isDeadlineFromRelease && days !== null) || links.length > 0) && (
-          <div
-            className="flex items-center px-4 py-3 border-t gap-3"
-            style={{ borderColor: 'var(--border-subtle)' }}
-          >
-            {/* 締切テキスト: 有効な締切日がある場合のみ（締切未定は非表示） */}
-            {!isReleaseOnly && !isDeadlineFromRelease && days !== null && (
-              <span
-                className="text-sm font-bold"
-                style={{
-                  color: days <= 0 ? 'var(--color-destructive)'
-                    : days <= 3 ? 'var(--color-destructive)'
-                    : days <= 7 ? 'var(--color-warning)'
-                    : 'var(--label-secondary)',
-                }}
-              >
-                {days <= 0 ? '本日締切' : `締切まで${days}日`}
-              </span>
-            )}
-            {/* リンクボタン（最大2本）: 常に右寄せ */}
-            {links.length > 0 && (
-              <div className="flex gap-2 ml-auto">
-                {links.slice(0, 2).map((url, i) => (
-                  <a
-                    key={i}
-                    href={safeHref(url)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-sm px-4 py-2 rounded-full font-bold active:opacity-60"
-                    style={{ background: workColor, color: getContrastText(workColor) }}
-                  >
-                    <ExternalLink size={13} />
-                    チェック!
-                  </a>
-                ))}
-              </div>
-            )}
+    // 共通タイルの下に出す「締切まで／チェック!」行
+    const footer = (showDeadline || links.length > 0) ? (
+      <div className="flex items-center px-4 py-3 border-t gap-3" style={{ borderColor: 'var(--border-subtle)' }}>
+        {showDeadline && (
+          <span className="text-sm font-bold" style={{ color: days! <= 3 ? 'var(--color-destructive)' : days! <= 7 ? 'var(--color-warning)' : 'var(--label-secondary)' }}>
+            {days! <= 0 ? '本日締切' : `締切まで${days}日`}
+          </span>
+        )}
+        {links.length > 0 && (
+          <div className="flex gap-2 ml-auto">
+            {links.slice(0, 2).map((url, i) => (
+              <a key={i} href={safeHref(url)} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-sm px-4 py-2 rounded-full font-bold active:opacity-60"
+                style={{ background: workColor, color: getContrastText(workColor) }}>
+                <ExternalLink size={13} />チェック!
+              </a>
+            ))}
           </div>
         )}
-
-        {/* アクション行 */}
-        <div className="flex items-center gap-2 pt-1 mx-4 border-t pb-3" style={{ borderColor: 'var(--separator)' }}>
-          <button
-            onClick={e => handleHeartPress(event, e.currentTarget)}
-            disabled={!user || isLocked}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm disabled:opacity-40 pressable"
-            style={{
-              backgroundColor: isLiked ? 'color-mix(in srgb, var(--color-destructive) 15%, transparent)' : 'var(--fill-tertiary)',
-              color: isLiked ? 'var(--color-destructive)' : 'var(--label-secondary)',
-            }}
-          >
-            <Heart size={14} style={{ fill: isLiked ? 'var(--color-destructive)' : 'none' }} />
-            <span className="text-xs">{event.likes.toLocaleString('ja-JP')}</span>
-          </button>
-
-          {isInCalendar ? (
-            <span
-              className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs text-label-tertiary"
-              style={{ backgroundColor: 'var(--fill-tertiary)' }}
-            >
-              追加済み
-            </span>
-          ) : showReAdd ? (
-            <button
-              onClick={() => handleReAddToCalendar(event.id)}
-              disabled={!user}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold pressable disabled:opacity-40"
-              style={{
-                backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)',
-                color: 'var(--accent-color)',
-              }}
-            >
-              ＋ 再追加
-            </button>
-          ) : null}
-
-          <button
-            onClick={() => setOpenReactionPickerId(prev => prev === event.id ? null : event.id)}
-            className="ml-auto px-3 py-1.5 rounded-full text-sm pressable flex items-center justify-center"
-            style={{
-              backgroundColor: myReactions[event.id] ? 'color-mix(in srgb, var(--accent-color) 15%, transparent)' : 'var(--fill-tertiary)',
-              color: myReactions[event.id] ? 'var(--accent-color)' : 'var(--label-secondary)',
-              minWidth: '2.5rem',
-            }}
-          >
-            {myReactions[event.id]
-              ? <img src={REACTIONS.find(r => r.type === myReactions[event.id])?.image} alt="" className="h-4 w-auto" />
-              : <Smile size={14} />
-            }
-          </button>
-        </div>
       </div>
+    ) : null;
+
+    return (
+      <EventTile
+        key={event.id}
+        event={workName ? { ...event, workName } : event}
+        workColor={workColor}
+        showImages={showImages}
+        liked={isLiked}
+        likeLocked={isLocked || !user}
+        onLike={el => handleHeartPress(event, el)}
+        calendarStatus={isInCalendar ? 'in' : showReAdd ? 'readd' : null}
+        onCalendarStatusClick={isInCalendar ? undefined : () => handleReAddToCalendar(event.id)}
+        myReaction={myReactions[event.id] ?? null}
+        onReact={() => setOpenReactionPickerId(prev => prev === event.id ? null : event.id)}
+        onInfoEdit={canEditInfo ? () => setPreorderEditEvent(event) : undefined}
+        footer={footer}
+      />
     );
   };
 
