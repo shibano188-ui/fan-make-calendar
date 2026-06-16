@@ -5,8 +5,8 @@ import { useReportedEventIds } from '../hooks/useReportedEventIds';
 import UserProfileModal from '../components/UserProfileModal';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Palette, Plus, Heart, MoreVertical, Link2, LogOut, Trash2,
-  ChevronDown, ChevronUp, ChevronLeft, ChevronRight, X, Settings, Map as MapIcon, ExternalLink, Smile, SlidersHorizontal, Pencil, Star, Share2, Inbox, Check, Clock,
+  Palette, Plus, MoreVertical, Link2, LogOut,
+  ChevronDown, ChevronUp, ChevronLeft, ChevronRight, X, Settings, Map as MapIcon, ExternalLink, SlidersHorizontal, Star, Inbox, Check, Clock,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
@@ -14,7 +14,7 @@ import {
   listEvents, getWorkById, leaveCalendar, deleteEvent,
   createEvents, getHomePrefecture, saveHomePrefecture,
   getDisplayName, saveDisplayName,
-  listAllParticipatedWorkEvents, listAllParticipatedWorks, addLikeTap, setReaction, getReactionData, updateEvent,
+  listAllParticipatedWorkEvents, listAllParticipatedWorks, addLikeTap, setReaction, updateEvent,
   findDuplicateEvents, type DuplicateMatch, listPreorderEvents,
 } from '../lib/api';
 import { REACTIONS, type ReactionType } from '../lib/reactions';
@@ -26,10 +26,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../contexts/ThemeContext';
 import SmartInputPanel, { type ParsedEvent } from '../components/SmartInputPanel';
-import MemoText from '../components/MemoText';
-import CategoryChips from '../components/CategoryChips';
 import PreorderEditSheet from '../components/PreorderEditSheet';
-import SourceBadge from '../components/SourceBadge';
 import EventTile from '../components/EventTile';
 import type { CalendarEvent } from '../types';
 
@@ -98,25 +95,12 @@ function getDomain(url: string): string {
   } catch { return url; }
 }
 
-function fmtMD(dateStr: string): string {
-  const [, m, d] = dateStr.split('-');
-  return `${parseInt(m)}月${parseInt(d)}日`;
-}
 function buildTweetUrl(title: string, workName: string | null | undefined, displayName: string | null): string {
   const parts = [`「${title}」をカレンダーに登録しました！`];
   if (workName) parts.push(`#${workName.replace(/\s/g, '_')}`);
   if (displayName) parts.push(`by ${displayName}`);
   parts.push(window.location.origin);
   return `https://twitter.com/intent/tweet?text=${encodeURIComponent(parts.join('\n'))}`;
-}
-
-function formatDateRange(startDate: string, endDate?: string): string | null {
-  if (!endDate || endDate === startDate) return null;
-  return `${fmtMD(startDate)}〜${fmtMD(endDate)}`;
-}
-function formatTimeRange(startTime?: string, endTime?: string): string | null {
-  if (!startTime) return null;
-  return endTime ? `${startTime}〜${endTime}` : startTime;
 }
 
 const inputCls =
@@ -789,7 +773,6 @@ export default function Calendar() {
     () => (sessionStorage.getItem('cal_topView') as 'calendar' | 'list') ?? 'calendar',
   );
   const [sheetDetailEvent, setSheetDetailEvent] = useState<CalendarEvent | null>(null);
-  const [sheetDetailReactionData, setSheetDetailReactionData] = useState<{ counts: Record<string, number>; myReaction: string | null } | null>(null);
   const [listDetailEvent, setListDetailEvent] = useState<CalendarEvent | null>(null);
   const [preorderEditEvent, setPreorderEditEvent] = useState<CalendarEvent | null>(null);
   const [myReactions, setMyReactions] = useState<Record<string, ReactionType>>(() => loadMyReactions());
@@ -1106,15 +1089,6 @@ export default function Calendar() {
     savePersonalEvents(updated);
   };
 
-  // sheetDetailEvent が変わったらリアクションデータをSupabaseから取得
-  useEffect(() => {
-    const evt = sheetDetailEvent ?? listDetailEvent;
-    if (!evt) { setSheetDetailReactionData(null); return; }
-    getReactionData(evt.id, user?.id)
-      .then(setSheetDetailReactionData)
-      .catch(() => setSheetDetailReactionData({ counts: {}, myReaction: null }));
-  }, [sheetDetailEvent?.id, listDetailEvent?.id, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const handleSheetEventLike = async (eventId: string) => {
     if (!user) return;
     const session = loadLikeSession(eventId);
@@ -1146,25 +1120,6 @@ export default function Calendar() {
       localStorage.setItem(REACTIONS_KEY, JSON.stringify(next));
       return next;
     });
-    // sheetDetailReactionData の楽観的更新
-    if (eventId === sheetDetailEvent?.id || eventId === listDetailEvent?.id) {
-      setSheetDetailReactionData(prev => {
-        if (!prev) return prev;
-        const counts = { ...prev.counts };
-        if (isToggleOff) {
-          counts[type] = Math.max(0, (counts[type] ?? 0) - 1);
-          if (counts[type] === 0) delete counts[type];
-        } else {
-          if (prev.myReaction) {
-            const old = prev.myReaction;
-            counts[old] = Math.max(0, (counts[old] ?? 0) - 1);
-            if (counts[old] === 0) delete counts[old];
-          }
-          counts[type] = (counts[type] ?? 0) + 1;
-        }
-        return { counts, myReaction: isToggleOff ? null : type };
-      });
-    }
     setOpenReactionPickerId(null);
     if (user) {
       setReaction(eventId, user.id, isToggleOff ? null : type).catch(console.error);
@@ -2366,143 +2321,7 @@ export default function Calendar() {
                 </div>
                 {/* イベントリスト / 詳細 */}
                 <div className="flex-1 overflow-y-auto px-4 pb-4">
-                  {sheetDetailEvent ? (
-                    <div className="flex flex-col gap-3">
-                      <div className="flex items-center justify-between">
-                        <button
-                          onClick={() => setSheetDetailEvent(null)}
-                          className="flex items-center gap-1 text-xs text-label-secondary active:opacity-60 -ml-1"
-                        >
-                          <ChevronLeft size={14} />一覧に戻る
-                        </button>
-                        {sheetDetailEvent.authorId && user && sheetDetailEvent.authorId === user.id && (
-                          <div className="flex items-center gap-1">
-                            <button onClick={() => openEditEvent(sheetDetailEvent)} className="w-8 h-8 flex items-center justify-center active:opacity-60" style={{ color: 'var(--accent-color)' }}>
-                              <Pencil size={15} />
-                            </button>
-                            <button onClick={() => handleDeleteEvent(sheetDetailEvent.id, sheetDetailEvent.title)} className="w-8 h-8 flex items-center justify-center active:opacity-60 text-label-tertiary">
-                              <Trash2 size={15} />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      {/* バッジ */}
-                      {(sheetDetailEvent.isOrderMade || sheetDetailEvent.workName || sheetDetailEvent.category) && (
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {sheetDetailEvent.isOrderMade && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--color-destructive)', color: '#fff' }}>予約</span>}
-                          {sheetDetailEvent.workName && (
-                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
-                            style={{ color: workColorMap.get(sheetDetailEvent.workId ?? '') ?? 'var(--label-tertiary)', backgroundColor: `${workColorMap.get(sheetDetailEvent.workId ?? '') ?? '#888888'}20` }}>
-                            {sheetDetailEvent.workName}
-                          </span>
-                        )}
-                          <CategoryChips category={sheetDetailEvent.category} className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5" />
-                        </div>
-                      )}
-                      {/* タイトル */}
-                      <p className="text-label-primary font-bold text-[15px] leading-snug line-clamp-1">{sheetDetailEvent.title}</p>
-                      {/* 日付・時間 */}
-                      {(formatDateRange(sheetDetailEvent.date ?? '', sheetDetailEvent.endDate) || formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime)) && (
-                        <div className="flex items-center gap-2 -mt-1">
-                          {formatDateRange(sheetDetailEvent.date ?? '', sheetDetailEvent.endDate) && (
-                            <span className="text-label-secondary text-xs">{formatDateRange(sheetDetailEvent.date ?? '', sheetDetailEvent.endDate)}</span>
-                          )}
-                          {formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime) && (
-                            <span className="text-label-secondary text-sm font-medium">{formatTimeRange(sheetDetailEvent.time, sheetDetailEvent.endTime)}</span>
-                          )}
-                        </div>
-                      )}
-                      {/* 都道府県・場所 */}
-                      {sheetDetailEvent.prefecture && (
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5 w-fit">{sheetDetailEvent.prefecture}</span>
-                          {sheetDetailEvent.locationDetail && <p className="text-xs text-label-secondary">{sheetDetailEvent.locationDetail}</p>}
-                          {sheetDetailEvent.locationMapLink && (
-                            <a href={safeHref(sheetDetailEvent.locationMapLink)} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-1 text-xs active:opacity-60 w-fit" style={{ color: 'var(--accent-color)' }}>
-                              <ExternalLink size={11} />地図を開く
-                            </a>
-                          )}
-                        </div>
-                      )}
-                      {/* メモ（❤️の前） */}
-                      {sheetDetailEvent.memo && <MemoText text={sheetDetailEvent.memo} className="text-label-secondary text-sm leading-relaxed" />}
-                      {/* リンク */}
-                      {parseLinks(sheetDetailEvent.link).map((url, i) => (
-                        <a key={i} href={safeHref(url)} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-default text-label-secondary text-xs w-fit active:opacity-60">
-                          <ExternalLink size={11} /><span>{getDomain(url)}</span>
-                        </a>
-                      ))}
-                      {/* ❤️いいね + 😊リアクション + ★重要 */}
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <button
-                          onClick={e => { handleSheetEventLike(sheetDetailEvent.id); triggerLike(e.currentTarget); }}
-                          disabled={!user || lockedLikeIds.has(sheetDetailEvent.id)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm disabled:opacity-40"
-                          style={{
-                            borderColor: sheetDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'var(--border-default)',
-                            color: sheetDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'var(--label-secondary)',
-                          }}
-                        >
-                          <Heart size={14} style={{ fill: sheetDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'none', color: sheetDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'var(--label-secondary)' }} />
-                          <span>{sheetDetailEvent.likes.toLocaleString('ja-JP')}</span>
-                        </button>
-                        <button
-                          onClick={() => setOpenReactionPickerId(prev => prev === sheetDetailEvent.id ? null : sheetDetailEvent.id)}
-                          className="flex items-center justify-center px-3 py-1.5 rounded-xl border text-sm active:opacity-60"
-                          style={{
-                            borderColor: (sheetDetailReactionData?.myReaction ?? myReactions[sheetDetailEvent.id]) ? 'var(--accent-color)' : 'var(--border-default)',
-                            color: (sheetDetailReactionData?.myReaction ?? myReactions[sheetDetailEvent.id]) ? 'var(--accent-color)' : 'var(--label-secondary)',
-                            minWidth: '2.5rem',
-                          }}
-                        >
-                          {(sheetDetailReactionData?.myReaction ?? myReactions[sheetDetailEvent.id])
-                            ? <img src={REACTIONS.find(r => r.type === (sheetDetailReactionData?.myReaction ?? myReactions[sheetDetailEvent.id]))?.image} alt="" className="h-4 w-auto" />
-                            : <Smile size={14} />
-                          }
-                        </button>
-                        {/* ⭐ 重要トグル（アイコンのみ） */}
-                        <button
-                          onClick={() => setImportantEventIds(toggleImportantEventId(sheetDetailEvent.id))}
-                          className="px-3 py-1.5 rounded-full border text-sm active:opacity-60 flex items-center justify-center"
-                          style={{ borderColor: importantEventIds.has(sheetDetailEvent.id) ? '#f59e0b' : 'var(--border-default)', color: importantEventIds.has(sheetDetailEvent.id) ? '#f59e0b' : 'var(--label-secondary)', minWidth: '2.5rem' }}
-                        >
-                          <Star size={14} style={{ fill: importantEventIds.has(sheetDetailEvent.id) ? '#f59e0b' : 'none' }} />
-                        </button>
-                        {/* Xシェア */}
-                        <a
-                          href={buildTweetUrl(sheetDetailEvent.title, sheetDetailEvent.workName ?? workName, displayName)}
-                          target="_blank" rel="noopener noreferrer"
-                          onClick={e => e.stopPropagation()}
-                          className="ml-auto px-3 py-1.5 rounded-full border text-sm active:opacity-60 flex items-center justify-center"
-                          style={{ borderColor: 'var(--border-default)', color: 'var(--label-secondary)', minWidth: '2.5rem' }}
-                        >
-                          <Share2 size={14} />
-                        </a>
-                      </div>
-                      {/* リアクション集計 */}
-                      {sheetDetailReactionData && Object.values(sheetDetailReactionData.counts).some(c => c > 0) && (
-                        <div className="flex items-center gap-3 flex-wrap">
-                          {REACTIONS.filter(r => (sheetDetailReactionData.counts[r.type] ?? 0) > 0).map(r => (
-                            <span key={r.type} className="flex items-center gap-0.5 text-label-secondary">
-                              <img src={r.image} alt={r.label} className="h-4 w-auto" />
-                              <span className="text-xs">{sheetDetailReactionData.counts[r.type]}</span>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {/* by + 出典（最下行） */}
-                      {(sheetDetailEvent.authorName || sheetDetailEvent.sourceUrl) && (
-                        <div className="flex items-center justify-between">
-                          {sheetDetailEvent.authorName && (
-                            <p className="text-label-tertiary text-xs">by {sheetDetailEvent.authorName}</p>
-                          )}
-                          <div className="ml-auto"><SourceBadge sourceUrl={sheetDetailEvent.sourceUrl} /></div>
-                        </div>
-                      )}
-                    </div>
-                  ) : loading ? (
+                  {loading ? (
                     <div className="flex flex-col gap-2">{[1, 2].map(i => <div key={i} className="h-14 bg-bg-secondary rounded-xl animate-pulse" />)}</div>
                   ) : workId ? (
                     sheetWorkEvents.length === 0 ? (
@@ -2602,143 +2421,7 @@ export default function Calendar() {
           /* ─── 予定一覧ビュー ─── */
           <div className="flex-1 overflow-y-auto px-4 pt-3 pb-24"
             onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}>
-          {listDetailEvent ? (
-            /* 予定詳細 */
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={() => setListDetailEvent(null)}
-                  className="flex items-center gap-1 text-xs text-label-secondary active:opacity-60 -ml-1"
-                >
-                  <ChevronLeft size={14} />一覧に戻る
-                </button>
-                {listDetailEvent.authorId && user && listDetailEvent.authorId === user.id && (
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => openEditEvent(listDetailEvent)} className="w-8 h-8 flex items-center justify-center active:opacity-60" style={{ color: 'var(--accent-color)' }}>
-                      <Pencil size={15} />
-                    </button>
-                    <button onClick={() => handleDeleteEvent(listDetailEvent.id, listDetailEvent.title)} className="w-8 h-8 flex items-center justify-center active:opacity-60 text-label-tertiary">
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                )}
-              </div>
-              {/* バッジ */}
-              {(listDetailEvent.isOrderMade || listDetailEvent.workName || listDetailEvent.category) && (
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {listDetailEvent.isOrderMade && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--color-destructive)', color: '#fff' }}>予約</span>}
-                  {listDetailEvent.workName && (
-              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
-                style={{ color: workColorMap.get(listDetailEvent.workId ?? '') ?? 'var(--label-tertiary)', backgroundColor: `${workColorMap.get(listDetailEvent.workId ?? '') ?? '#888888'}20` }}>
-                {listDetailEvent.workName}
-              </span>
-            )}
-                  <CategoryChips category={listDetailEvent.category} className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5" />
-                </div>
-              )}
-              {/* タイトル */}
-              <p className="text-label-primary font-bold text-[15px] leading-snug line-clamp-1">{listDetailEvent.title}</p>
-              {/* 日付・時間 */}
-              {(formatDateRange(listDetailEvent.date ?? '', listDetailEvent.endDate) || formatTimeRange(listDetailEvent.time, listDetailEvent.endTime)) && (
-                <div className="flex items-center gap-2 -mt-1">
-                  {formatDateRange(listDetailEvent.date ?? '', listDetailEvent.endDate) && (
-                    <span className="text-label-secondary text-xs">{formatDateRange(listDetailEvent.date ?? '', listDetailEvent.endDate)}</span>
-                  )}
-                  {formatTimeRange(listDetailEvent.time, listDetailEvent.endTime) && (
-                    <span className="text-label-secondary text-sm font-medium">{formatTimeRange(listDetailEvent.time, listDetailEvent.endTime)}</span>
-                  )}
-                </div>
-              )}
-              {/* 都道府県・場所 */}
-              {listDetailEvent.prefecture && (
-                <div className="flex flex-col gap-1">
-                  <span className="text-[10px] text-label-tertiary bg-bg-secondary rounded-full px-2 py-0.5 w-fit">{listDetailEvent.prefecture}</span>
-                  {listDetailEvent.locationDetail && <p className="text-xs text-label-secondary">{listDetailEvent.locationDetail}</p>}
-                  {listDetailEvent.locationMapLink && (
-                    <a href={safeHref(listDetailEvent.locationMapLink)} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-xs active:opacity-60 w-fit" style={{ color: 'var(--accent-color)' }}>
-                      <ExternalLink size={11} />地図を開く
-                    </a>
-                  )}
-                </div>
-              )}
-              {/* メモ（❤️の前） */}
-              {listDetailEvent.memo && <MemoText text={listDetailEvent.memo} className="text-label-secondary text-sm leading-relaxed" />}
-              {/* リンク */}
-              {parseLinks(listDetailEvent.link).map((url, i) => (
-                <a key={i} href={safeHref(url)} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-default text-label-secondary text-xs w-fit active:opacity-60">
-                  <ExternalLink size={11} /><span>{getDomain(url)}</span>
-                </a>
-              ))}
-              {/* ❤️いいね + 😊リアクション + ★重要 */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={e => { handleSheetEventLike(listDetailEvent.id); triggerLike(e.currentTarget); }}
-                  disabled={!user || lockedLikeIds.has(listDetailEvent.id)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm disabled:opacity-40"
-                  style={{
-                    borderColor: listDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'var(--border-default)',
-                    color: listDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'var(--label-secondary)',
-                  }}
-                >
-                  <Heart size={14} style={{ fill: listDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'none', color: listDetailEvent.likedByMe ? 'rgb(248,113,113)' : 'var(--label-secondary)' }} />
-                  <span>{listDetailEvent.likes.toLocaleString('ja-JP')}</span>
-                </button>
-                <button
-                  onClick={() => setOpenReactionPickerId(prev => prev === listDetailEvent.id ? null : listDetailEvent.id)}
-                  className="flex items-center justify-center px-3 py-1.5 rounded-xl border text-sm active:opacity-60"
-                  style={{
-                    borderColor: (sheetDetailReactionData?.myReaction ?? myReactions[listDetailEvent.id]) ? 'var(--accent-color)' : 'var(--border-default)',
-                    color: (sheetDetailReactionData?.myReaction ?? myReactions[listDetailEvent.id]) ? 'var(--accent-color)' : 'var(--label-secondary)',
-                    minWidth: '2.5rem',
-                  }}
-                >
-                  {(sheetDetailReactionData?.myReaction ?? myReactions[listDetailEvent.id])
-                    ? <img src={REACTIONS.find(r => r.type === (sheetDetailReactionData?.myReaction ?? myReactions[listDetailEvent.id]))?.image} alt="" className="h-4 w-auto" />
-                    : <Smile size={14} />
-                  }
-                </button>
-              {/* ⭐ 重要トグル（アイコンのみ） */}
-              <button
-                onClick={() => setImportantEventIds(toggleImportantEventId(listDetailEvent.id))}
-                className="px-3 py-1.5 rounded-full border text-sm active:opacity-60 flex items-center justify-center"
-                style={{ borderColor: importantEventIds.has(listDetailEvent.id) ? '#f59e0b' : 'var(--border-default)', color: importantEventIds.has(listDetailEvent.id) ? '#f59e0b' : 'var(--label-secondary)', minWidth: '2.5rem' }}
-              >
-                <Star size={14} style={{ fill: importantEventIds.has(listDetailEvent.id) ? '#f59e0b' : 'none' }} />
-              </button>
-              {/* Xシェア */}
-              <a
-                href={buildTweetUrl(listDetailEvent.title, listDetailEvent.workName ?? workName, displayName)}
-                target="_blank" rel="noopener noreferrer"
-                className="ml-auto px-3 py-1.5 rounded-full border text-sm active:opacity-60 flex items-center justify-center"
-                style={{ borderColor: 'var(--border-default)', color: 'var(--label-secondary)', minWidth: '2.5rem' }}
-              >
-                <Share2 size={14} />
-              </a>
-              </div>
-              {/* リアクション集計 */}
-              {sheetDetailReactionData && Object.values(sheetDetailReactionData.counts).some(c => c > 0) && (
-                <div className="flex items-center gap-3 flex-wrap">
-                  {REACTIONS.filter(r => (sheetDetailReactionData.counts[r.type] ?? 0) > 0).map(r => (
-                    <span key={r.type} className="flex items-center gap-0.5 text-label-secondary">
-                      <img src={r.image} alt={r.label} className="h-4 w-auto" />
-                      <span className="text-xs">{sheetDetailReactionData.counts[r.type]}</span>
-                    </span>
-                  ))}
-                </div>
-              )}
-              {/* by + 出典（最下行） */}
-              {(listDetailEvent.authorName || listDetailEvent.sourceUrl) && (
-                <div className="flex items-center justify-between">
-                  {listDetailEvent.authorName && (
-                    <p className="text-label-tertiary text-xs">by {listDetailEvent.authorName}</p>
-                  )}
-                  <div className="ml-auto"><SourceBadge sourceUrl={listDetailEvent.sourceUrl} /></div>
-                </div>
-              )}
-            </div>
-          ) : (
+          {(
             <><p className="text-label-secondary text-xs px-1" style={{ marginBottom: filterActive ? 4 : 12 }}>今月の予定</p>
             {filterActive && (
               <div className="flex items-center gap-2 mb-3">
