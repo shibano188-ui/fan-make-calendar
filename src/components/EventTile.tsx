@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Heart, Smile, Flag, Trash2, Pencil, Star, Share2, ExternalLink } from 'lucide-react';
+import { Heart, Smile, Flag, Trash2, Pencil, Star, Share2, ExternalLink, X } from 'lucide-react';
 import CategoryChips from './CategoryChips';
 import MemoText from './MemoText';
 import SourceBadge from './SourceBadge';
@@ -51,6 +51,9 @@ export type EventTileProps = {
 
   // ＋情報（参加中の作品のみ）
   onInfoEdit?: () => void;
+
+  // ✕ 自分のカレンダーから隠す（カレンダーのみ）
+  onHide?: () => void;
 
   onAuthorClick?: () => void;
 
@@ -134,7 +137,7 @@ export default function EventTile(props: EventTileProps) {
     event, density = 'rich', workColor = 'var(--accent-color)', showImages = false, highlighted,
     liked, likeLocked, onLike, calendarStatus, onCalendarStatusClick,
     myReaction, onReact, important, onToggleImportant, shareUrl,
-    isOwn, onEdit, onDelete, onReport, onInfoEdit, onAuthorClick, footer,
+    isOwn, onEdit, onDelete, onReport, onInfoEdit, onHide, onAuthorClick, footer,
   } = props;
   const t = TOKENS[density];
   const catColor = getPrimaryCategoryColor(event.category);
@@ -143,7 +146,7 @@ export default function EventTile(props: EventTileProps) {
   const reaction = myReaction ? REACTIONS.find(r => r.type === myReaction) : undefined;
 
   const hasActions = onLike || calendarStatus || onReact || onToggleImportant || shareUrl
-    || (onReport && !isOwn) || (isOwn && (onEdit || onDelete));
+    || (onReport && !isOwn) || (isOwn && (onEdit || onDelete)) || onHide;
 
   return (
     <div
@@ -283,6 +286,12 @@ export default function EventTile(props: EventTileProps) {
           {isOwn && onDelete && (
             <button onClick={onDelete} className={`${t.btn} ${actBtn} text-sm`} style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-tertiary)', minWidth: '2.5rem' }}>
               <Trash2 size={t.icon} />
+            </button>
+          )}
+
+          {onHide && (
+            <button onClick={onHide} className={`${onReact || onToggleImportant ? '' : 'ml-auto'} ${t.btn} ${actBtn} text-sm`} style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-tertiary)', minWidth: '2.5rem' }}>
+              <X size={t.icon} />
             </button>
           )}
         </div>
