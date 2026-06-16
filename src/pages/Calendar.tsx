@@ -1911,7 +1911,7 @@ export default function Calendar() {
     if (workId) return [];
     const workItems: ListItem[] = visibleEvents.map(e => ({
       id: e.id, date: e.date, dateLabel: e.dateLabel, title: e.title, time: e.time, endDate: e.endDate, endTime: e.endTime,
-      category: e.category, prefecture: e.prefecture, link: e.link, imageUrl: e.imageUrl,
+      category: e.category, prefecture: e.prefecture, link: e.link, imageUrl: e.imageUrl, memo: e.memo,
       tag: e.workName ?? '', isPersonal: false, workId: e.workId,
       likes: e.likes, likedByMe: e.likedByMe,
       authorId: e.authorId, authorName: e.authorName,
