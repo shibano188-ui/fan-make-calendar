@@ -6,7 +6,7 @@ import SettingsMenuButton from '../components/SettingsMenuButton';
 import { listWorks, searchWorks, getOrCreateWork, getWorkById, upsertParticipation, listRecentWorks, leaveCalendar, getHomePrefecture } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import type { Work } from '../lib/api';
-import { POST_CATEGORIES, loadCategoryFilters, saveCategoryFilters, loadRegionFilter, saveRegionFilter, type FilterMode } from '../lib/constants';
+import { POST_CATEGORIES, loadCategoryFilters, saveCategoryFilters, loadRegionFilter, saveRegionFilter, SHOW_POPULAR_CALENDARS, type FilterMode } from '../lib/constants';
 import { getCached, setCached } from '../lib/swrCache';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { PrefectureSearch } from '../components/UserSettingsSheet';
@@ -324,29 +324,31 @@ export default function WorkSelect() {
               </Section>
             )}
 
-            {loadingPopular ? (
-              <div className="flex flex-col gap-2">
-                {[1, 2, 3].map(i => <div key={i} className="h-14 bg-bg-secondary rounded-[14px] animate-pulse" />)}
-              </div>
-            ) : popularWorks.length > 0 ? (
-              <Section title="人気のカレンダー">
-                {popularWorks.map(w => {
-                  const already = recentWorks.some(r => r.id === w.id);
-                  return (
-                    <WorkItem
-                      key={w.id}
-                      name={w.name}
-                      count={w.participantCount}
-                      onClick={() => handleSelect(w)}
-                      participated={already}
-                    />
-                  );
-                })}
-              </Section>
-            ) : (
-              <p className="text-center text-label-tertiary text-sm py-10">
-                まだカレンダーがありません。<br />作品名を検索して最初のカレンダーを作りましょう。
-              </p>
+            {SHOW_POPULAR_CALENDARS && (
+              loadingPopular ? (
+                <div className="flex flex-col gap-2">
+                  {[1, 2, 3].map(i => <div key={i} className="h-14 bg-bg-secondary rounded-[14px] animate-pulse" />)}
+                </div>
+              ) : popularWorks.length > 0 ? (
+                <Section title="人気のカレンダー">
+                  {popularWorks.map(w => {
+                    const already = recentWorks.some(r => r.id === w.id);
+                    return (
+                      <WorkItem
+                        key={w.id}
+                        name={w.name}
+                        count={w.participantCount}
+                        onClick={() => handleSelect(w)}
+                        participated={already}
+                      />
+                    );
+                  })}
+                </Section>
+              ) : (
+                <p className="text-center text-label-tertiary text-sm py-10">
+                  まだカレンダーがありません。<br />作品名を検索して最初のカレンダーを作りましょう。
+                </p>
+              )
             )}
           </>
         )}

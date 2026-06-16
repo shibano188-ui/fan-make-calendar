@@ -1,5 +1,13 @@
 export const POST_CATEGORIES = ['書籍', 'グッズ', 'イベント', '誕生日', 'アニメ・映画', 'グルメ', 'キャンペーン'] as const;
 
+// ─── クローズドテスト中の暫定フラグ（作品2つフェーズ）─────────────────────
+// 初回起動した人を自動参加させるデフォルト作品（名前で照合）
+export const DEFAULT_WORK_NAMES = ['ちいかわ', 'ハイキュー!!'];
+// 作品タブの「人気のカレンダー」表示。作品が増えたら true に戻す
+export const SHOW_POPULAR_CALENDARS = false;
+// 初回起動時のオンボーディング案内。再度出すなら true に戻す
+export const SHOW_ONBOARDING = false;
+
 // ─── グッズのサブ種別（入れ子。グッズ選択時のみ表示・任意） ─────────────
 export const GOODS_PARENT = 'グッズ';
 export const GOODS_SUBCATEGORIES = ['くじ', 'ガチャ', 'プライズ', '食玩', 'ぬい', 'アクスタ', '缶バッジ', 'キーホルダー', 'フィギュア', 'ステッカー', 'アパレル', '雑貨'] as const;
