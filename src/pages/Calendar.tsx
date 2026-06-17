@@ -784,7 +784,7 @@ export default function Calendar() {
   const [postPanelOpen, setPostPanelOpen] = useState(!!shareData);
   const [postDate, setPostDate] = useState(shareInitDate);
   const [selectedDate, setSelectedDate] = useState(todayStr);
-  const [sheetOpen, setSheetOpen] = useState(!!shareData);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [personalEvents, setPersonalEvents] = useState<PersonalEvent[]>([]);
   const [topView, setTopView] = useState<'calendar' | 'list'>(
     () => (sessionStorage.getItem('cal_topView') as 'calendar' | 'list') ?? 'calendar',
@@ -1158,8 +1158,9 @@ export default function Calendar() {
       return;
     }
     setSelectedDate(dateStr);
-    setSheetOpen(true);
-    setSheetDetailEvent(null);
+    setListAnchor(dateStr);
+    setListScope('day');
+    setTopView('list');
   };
 
   const deletePersonalEvent = (id: string) => {
@@ -1443,7 +1444,7 @@ export default function Calendar() {
     setEventQueue(next);
     setQueueSelected(new Set());
     if (next.length === 0) setQueueSheetOpen(false);
-    if (!postPanelOpen) { setPostPanelOpen(true); setSheetOpen(true); }
+    if (!postPanelOpen) { setPostPanelOpen(true); }
   };
 
   const dismissQueue = (indices: number[]) => {
@@ -2799,7 +2800,9 @@ export default function Calendar() {
                           setYear(d.getFullYear());
                           setMonth(d.getMonth());
                           setSelectedDate(ev.date);
-                          setSheetOpen(true);
+                          setListAnchor(ev.date);
+                          setListScope('day');
+                          setTopView('list');
                         } else {
                           // 他ユーザーの投稿 → 発見タブにスクロール
                           navigate('/discover', { state: { highlightEventId: ev.id } });
