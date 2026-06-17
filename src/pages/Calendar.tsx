@@ -1164,8 +1164,8 @@ export default function Calendar() {
     const choice = await actionSheet({
       message: `「${title}」`,
       options: [
-        { id: 'hide', label: '自分の表示から隠す' },
-        { id: 'delete', label: '完全に削除（みんなのカレンダーからも消える）', destructive: true },
+        { id: 'hide', label: 'カレンダーから削除' },
+        { id: 'delete', label: '完全に削除', destructive: true },
       ],
     });
     if (choice === 'hide') {
