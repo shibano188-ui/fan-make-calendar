@@ -123,21 +123,8 @@ const inputCls =
   'w-full bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong';
 
 const BOTTOM_TAB_H = 56;
-const SHEET_COLLAPSED_H = 76;
-const SHEET_FULL_H = 280;
 
 // ソート: 重要 > 複数日 > 通常
-function makePriorityComparator(importantIds: Set<string>) {
-  return (a: { id: string; date: string | null; endDate?: string }, b: { id: string; date: string | null; endDate?: string }) => {
-    const aImp = importantIds.has(a.id);
-    const bImp = importantIds.has(b.id);
-    if (aImp !== bImp) return aImp ? -1 : 1;
-    const aMulti = !!(a.endDate && a.date && a.endDate > a.date);
-    const bMulti = !!(b.endDate && b.date && b.endDate > b.date);
-    if (aMulti !== bMulti) return aMulti ? -1 : 1;
-    return 0;
-  };
-}
 
 // ─── カレンダーグリッドのユーティリティ ───────────────────────────
 
@@ -784,7 +771,6 @@ export default function Calendar() {
   const [postPanelOpen, setPostPanelOpen] = useState(!!shareData);
   const [postDate, setPostDate] = useState(shareInitDate);
   const [selectedDate, setSelectedDate] = useState(todayStr);
-  const [sheetOpen, setSheetOpen] = useState(false);
   const [personalEvents, setPersonalEvents] = useState<PersonalEvent[]>([]);
   const [topView, setTopView] = useState<'calendar' | 'list'>(
     () => (sessionStorage.getItem('cal_topView') as 'calendar' | 'list') ?? 'calendar',
@@ -1927,27 +1913,6 @@ export default function Calendar() {
     return map;
   }, [multiDayOverlaySegments, calendarDays]);
 
-  // ボトムシート用: 選択日の作品イベント（複数日イベント対応）
-  const sheetWorkEvents = useMemo(
-    () => visibleEvents
-      .filter(e => {
-        if (!e.date) return false;
-        const end = e.endDate || e.date;
-        return e.date <= selectedDate && selectedDate <= end;
-      })
-      .sort(makePriorityComparator(importantEventIds)),
-    [visibleEvents, selectedDate, importantEventIds],
-  );
-  const sheetPersonalEvents = useMemo(
-    () => personalEvents
-      .filter(e => {
-        const end = e.endDate || e.date;
-        return e.date <= selectedDate && selectedDate <= end;
-      })
-      .sort(makePriorityComparator(importantEventIds)),
-    [personalEvents, selectedDate, importantEventIds],
-  );
-
   // 予定一覧ビュー用: 作品イベント+個人予定を日付順にまとめたリスト
   type ListItem = {
     id: string; date: string | null; dateLabel?: string | null; title: string; time?: string; endDate?: string; endTime?: string;
@@ -1992,18 +1957,6 @@ export default function Calendar() {
     }),
     [listScope, filteredEvents, listFilteredEvents, importantEventIds],
   );
-
-  const selectedDateLabel = useMemo(() => {
-    const d = new Date(selectedDate + 'T00:00:00');
-    const m = d.getMonth() + 1;
-    const day = d.getDate();
-    const dow = DAY_LABELS[d.getDay()];
-    return `${m}月${day}日（${dow}）`;
-  }, [selectedDate]);
-
-  const sheetEventCount = workId
-    ? sheetWorkEvents.length
-    : sheetWorkEvents.length + sheetPersonalEvents.length;
 
   return (
     <>
@@ -2309,7 +2262,7 @@ export default function Calendar() {
                   {calendarDays.map(({ date, isCurrentMonth }, idx) => {
                     const dateStr = toDateStr(date);
                     const isToday = dateStr === todayStr;
-                    const isSelected = dateStr === selectedDate && isCurrentMonth && (sheetOpen || postPanelOpen);
+                    const isSelected = dateStr === selectedDate && isCurrentMonth && postPanelOpen;
                     const col = idx % 7;
                     const cellItems = isCurrentMonth ? (cellEventsByDate.get(dateStr) ?? []) : [];
                     return (
@@ -2380,139 +2333,6 @@ export default function Calendar() {
               </div>
             </div>
 
-            {/* ボトムシート（日付タップ） */}
-            <div
-              className="flex-shrink-0 overflow-hidden"
-              style={{
-                height: sheetOpen ? SHEET_FULL_H : 0,
-                transition: 'height 0.3s cubic-bezier(0.32, 0.72, 0, 1)',
-                borderTop: sheetOpen ? '1px solid var(--border-subtle)' : 'none',
-                backgroundColor: 'var(--bg-primary)',
-              }}
-            >
-              <div className="flex flex-col" style={{ height: SHEET_FULL_H }}>
-                {/* ハンドル＋日付ヘッダー */}
-                <div
-                  className="flex flex-col items-center pt-2 flex-shrink-0 cursor-pointer select-none"
-                  style={{ height: SHEET_COLLAPSED_H }}
-                  onClick={() => { setSheetOpen(v => !v); setSheetDetailEvent(null); setOpenReactionPickerId(null); }}
-                >
-                  <div className="w-9 h-[5px] rounded-full mb-2" style={{ backgroundColor: 'var(--fill-primary)' }} />
-                  <div className="w-full px-4 flex items-center justify-between">
-                    <p className="text-label-primary text-sm font-semibold">{selectedDateLabel}</p>
-                    <div className="flex items-center gap-2">
-                      {sheetEventCount > 0 && <span className="text-label-tertiary text-xs">{sheetEventCount}件</span>}
-                      {sheetOpen && !postPanelOpen && !sheetDetailEvent && (
-                        <button
-                          onClick={e => { e.stopPropagation(); openPostForm(selectedDate); }}
-                          className="w-7 h-7 flex items-center justify-center rounded-full active:opacity-70"
-                          style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
-                          aria-label="予定を追加"
-                        >
-                          <Plus size={15} strokeWidth={2.5} />
-                        </button>
-                      )}
-                      <ChevronDown size={16} className="text-label-tertiary transition-transform duration-300" style={{ transform: sheetOpen ? 'rotate(180deg)' : 'none' }} />
-                    </div>
-                  </div>
-                </div>
-                {/* イベントリスト / 詳細 */}
-                <div className="flex-1 overflow-y-auto px-4 pb-4">
-                  {loading ? (
-                    <div className="flex flex-col gap-2">{[1, 2].map(i => <div key={i} className="h-14 bg-bg-secondary rounded-xl animate-pulse" />)}</div>
-                  ) : workId ? (
-                    sheetWorkEvents.length === 0 ? (
-                      <p className="text-center text-label-tertiary text-sm py-6">この日の予定はありません</p>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        {sheetWorkEvents.map(event => {
-                          const isOwn = !!user && event.authorId === user.id;
-                          const canEditInfo = !!event.workId && participatedWorks.some(w => w.id === event.workId);
-                          return (
-                            <EventTile
-                              key={event.id}
-                              event={event}
-                              density="compact"
-                              showImages={false}
-                              workColor={event.workId ? (workColorMap.get(event.workId) ?? 'var(--accent-color)') : 'var(--accent-color)'}
-                              liked={event.likedByMe}
-                              likeLocked={lockedLikeIds.has(event.id) || !user}
-                              onLike={el => { handleSheetEventLike(event.id); triggerLike(el); }}
-                              myReaction={myReactions[event.id] ?? null}
-                              onReact={() => setOpenReactionPickerId(prev => prev === event.id ? null : event.id)}
-                              important={importantEventIds.has(event.id)}
-                              onToggleImportant={() => setImportantEventIds(toggleImportantEventId(event.id))}
-                              shareUrl={buildTweetUrl(event.title, workName, displayName)}
-                              isOwn={isOwn}
-                              onEdit={() => openEditEvent(event)}
-                              onDelete={() => removeOwnEvent(event.id, event.title)}
-                              onInfoEdit={canEditInfo ? () => setPreorderEditEvent(event) : undefined}
-                              onHide={isOwn ? undefined : () => handleHideEvent(event.id)}
-                              onAuthorClick={event.authorId ? () => setViewingUserId(event.authorId!) : undefined}
-                            />
-                          );
-                        })}
-                      </div>
-                    )
-                  ) : (
-                    sheetWorkEvents.length === 0 && sheetPersonalEvents.length === 0 ? (
-                      <p className="text-center text-label-tertiary text-sm py-6">この日の予定はありません</p>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        {sheetWorkEvents.map(event => {
-                          const isOwn = !!user && event.authorId === user.id;
-                          const canEditInfo = !!event.workId && participatedWorks.some(w => w.id === event.workId);
-                          return (
-                            <EventTile
-                              key={event.id}
-                              event={event}
-                              density="compact"
-                              showImages={false}
-                              workColor={event.workId ? (workColorMap.get(event.workId) ?? 'var(--accent-color)') : 'var(--accent-color)'}
-                              liked={event.likedByMe}
-                              likeLocked={lockedLikeIds.has(event.id) || !user}
-                              onLike={el => { handleSheetEventLike(event.id); triggerLike(el); }}
-                              myReaction={myReactions[event.id] ?? null}
-                              onReact={() => setOpenReactionPickerId(prev => prev === event.id ? null : event.id)}
-                              important={importantEventIds.has(event.id)}
-                              onToggleImportant={() => setImportantEventIds(toggleImportantEventId(event.id))}
-                              shareUrl={buildTweetUrl(event.title, event.workName ?? workName, displayName)}
-                              isOwn={isOwn}
-                              onEdit={() => openEditEvent(event)}
-                              onDelete={() => removeOwnEvent(event.id, event.title)}
-                              onInfoEdit={canEditInfo ? () => setPreorderEditEvent(event) : undefined}
-                              onHide={isOwn ? undefined : () => handleHideEvent(event.id)}
-                              onAuthorClick={event.authorId ? () => setViewingUserId(event.authorId!) : undefined}
-                            />
-                          );
-                        })}
-                        {sheetPersonalEvents.map(pe => {
-                          const ev: CalendarEvent = {
-                            id: pe.id, title: pe.title, date: pe.date, time: pe.time, endDate: pe.endDate, endTime: pe.endTime,
-                            category: pe.category, prefecture: pe.prefecture, memo: pe.memo, link: pe.link,
-                            workName: '個人', likes: 0, likedByMe: false, createdAt: '',
-                          };
-                          return (
-                            <EventTile
-                              key={pe.id}
-                              event={ev}
-                              density="compact"
-                              showImages={false}
-                              workColor="var(--label-tertiary)"
-                              important={importantEventIds.has(pe.id)}
-                              onToggleImportant={() => setImportantEventIds(toggleImportantEventId(pe.id))}
-                              isOwn
-                              onEdit={() => openEditPersonalEvent(pe)}
-                              onDelete={() => deletePersonalEvent(pe.id)}
-                            />
-                          );
-                        })}
-                      </div>
-                    )
-                  )}
-                </div>
-              </div>
-            </div>
           </div>
         ) : (
           /* ─── 予定一覧ビュー ─── */
@@ -2658,7 +2478,7 @@ export default function Calendar() {
       </div>
 
       {/* FAB（シート展開中・詳細ビュー表示中は非表示。投稿フォームが開いているときは×ボタンとして表示） */}
-      {(!sheetOpen || postPanelOpen) && !sheetDetailEvent && !listDetailEvent && (
+      {!sheetDetailEvent && !listDetailEvent && (
         <button
           onClick={() => {
             if (postPanelOpen) { closePostForm(); }
