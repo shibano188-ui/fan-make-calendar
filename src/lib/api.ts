@@ -136,12 +136,8 @@ function rowToEvent(e: Record<string, unknown>): CalendarEvent {
   };
 }
 
-export async function listEvents(workId: string, year: number, month: number): Promise<CalendarEvent[]> {
-  const m = String(month + 1).padStart(2, '0');
-  const lastDay = new Date(year, month + 1, 0).getDate();
-  const from = `${year}-${m}-01`;
-  const to = `${year}-${m}-${String(lastDay).padStart(2, '0')}`;
-
+// 期間（from〜to, どちらも 'YYYY-MM-DD'）で1作品の予定を取得。期間に重なる予定を含む。
+export async function listEventsRange(workId: string, from: string, to: string): Promise<CalendarEvent[]> {
   const { data, error } = await supabase
     .from('events')
     .select('*')
@@ -153,6 +149,12 @@ export async function listEvents(workId: string, year: number, month: number): P
 
   if (error) throw error;
   return resolveAuthorNames((data ?? []).map(rowToEvent));
+}
+
+export async function listEvents(workId: string, year: number, month: number): Promise<CalendarEvent[]> {
+  const m = String(month + 1).padStart(2, '0');
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  return listEventsRange(workId, `${year}-${m}-01`, `${year}-${m}-${String(lastDay).padStart(2, '0')}`);
 }
 
 export async function listEventsByDate(workId: string, date: string, userId?: string): Promise<CalendarEvent[]> {
@@ -699,8 +701,9 @@ export async function listUpcomingEvents(workId: string, from: string, limit = 5
   return (data ?? []).map(e => rowToEvent(e as Record<string, unknown>));
 }
 
-export async function listAllParticipatedWorkEvents(
-  userId: string, year: number, month: number,
+// 期間（from〜to）で全参加作品の予定を取得。期間に重なる予定を含む。
+export async function listAllParticipatedWorkEventsRange(
+  userId: string, from: string, to: string,
 ): Promise<CalendarEvent[]> {
   // 全参加作品を取得（listRecentWorks の limit(10) を使わない）
   const { data: parts } = await supabase
@@ -714,10 +717,6 @@ export async function listAllParticipatedWorkEvents(
     const w = (p as unknown as { works: { id: string; name: string } | null }).works;
     if (w) workMap[w.id] = w.name;
   }
-  const m = String(month + 1).padStart(2, '0');
-  const lastDay = new Date(year, month + 1, 0).getDate();
-  const from = `${year}-${m}-01`;
-  const to = `${year}-${m}-${String(lastDay).padStart(2, '0')}`;
   const { data, error } = await supabase
     .from('events')
     .select('*')
@@ -733,6 +732,14 @@ export async function listAllParticipatedWorkEvents(
     workName: workMap[e.work_id as string] ?? '',
   }));
   return resolveAuthorNames(events);
+}
+
+export async function listAllParticipatedWorkEvents(
+  userId: string, year: number, month: number,
+): Promise<CalendarEvent[]> {
+  const m = String(month + 1).padStart(2, '0');
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  return listAllParticipatedWorkEventsRange(userId, `${year}-${m}-01`, `${year}-${m}-${String(lastDay).padStart(2, '0')}`);
 }
 
 // ─── イベント編集 ─────────────────────────────────────────────────

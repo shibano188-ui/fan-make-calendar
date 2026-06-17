@@ -11,7 +11,7 @@ import {
 import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
 import {
-  listEvents, getWorkById, leaveCalendar, deleteEvent,
+  listEvents, listEventsRange, listAllParticipatedWorkEventsRange, getWorkById, leaveCalendar, deleteEvent,
   createEvents, getHomePrefecture, saveHomePrefecture,
   getDisplayName, saveDisplayName,
   listAllParticipatedWorkEvents, listAllParticipatedWorks, addLikeTap, setReaction, updateEvent,
@@ -94,6 +94,21 @@ function getDomain(url: string): string {
     if (hostname.includes('bookwalker')) return 'BOOKWALKER';
     return hostname.replace(/^www\./, '');
   } catch { return url; }
+}
+
+function fmtLocal(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+// 表示粒度＋基準日 → [from, to]（どちらも 'YYYY-MM-DD'）
+function listRangeFor(scope: 'month' | 'week' | 'day', anchor: string): [string, string] {
+  const d = new Date(anchor + 'T00:00:00');
+  if (scope === 'day') return [anchor, anchor];
+  if (scope === 'week') {
+    const sun = new Date(d); sun.setDate(d.getDate() - d.getDay());
+    const sat = new Date(sun); sat.setDate(sun.getDate() + 6);
+    return [fmtLocal(sun), fmtLocal(sat)];
+  }
+  return [fmtLocal(new Date(d.getFullYear(), d.getMonth(), 1)), fmtLocal(new Date(d.getFullYear(), d.getMonth() + 1, 0))];
 }
 
 function buildTweetUrl(title: string, workName: string | null | undefined, displayName: string | null): string {
@@ -774,6 +789,10 @@ export default function Calendar() {
   const [topView, setTopView] = useState<'calendar' | 'list'>(
     () => (sessionStorage.getItem('cal_topView') as 'calendar' | 'list') ?? 'calendar',
   );
+  // 予定一覧の表示粒度（月=既存どおり / 週・日=期間取得）
+  const [listScope, setListScope] = useState<'month' | 'week' | 'day'>('month');
+  const [listAnchor, setListAnchor] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [listRangeEvents, setListRangeEvents] = useState<CalendarEvent[]>([]);
   const [sheetDetailEvent, setSheetDetailEvent] = useState<CalendarEvent | null>(null);
   const [listDetailEvent, setListDetailEvent] = useState<CalendarEvent | null>(null);
   const [preorderEditEvent, setPreorderEditEvent] = useState<CalendarEvent | null>(null);
@@ -1064,6 +1083,64 @@ export default function Calendar() {
     return evts;
   }, [workId, filteredEvents, hiddenWorkIds, calendarEventIds, hiddenEventIds, categoryFilters]);
 
+  // ─── 予定一覧の週/日ビュー用：期間取得＋同じフィルタ（月ビューは既存memoのまま） ───
+  const listRange = useMemo(() => listRangeFor(listScope, listAnchor), [listScope, listAnchor]);
+  useEffect(() => {
+    if (topView !== 'list' || listScope === 'month' || !user) return;
+    const [from, to] = listRange;
+    const p = workId ? listEventsRange(workId, from, to) : listAllParticipatedWorkEventsRange(user.id, from, to);
+    p.then(setListRangeEvents).catch(() => setListRangeEvents([]));
+  }, [topView, listScope, listRange, workId, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const listFilteredEvents = useMemo(() => {
+    let evts = listRangeEvents.filter(e => !reportedEventIds.has(e.id));
+    if (activeFilterPrefs) {
+      evts = evts.filter(e => {
+        if (!e.prefecture) return true;
+        return activeFilterPrefs.has(e.prefecture.replace(/[都府県]$/, ''));
+      });
+    }
+    return evts;
+  }, [listRangeEvents, activeFilterPrefs, reportedEventIds]);
+  const listVisibleEvents = useMemo(() => {
+    let evts = workId ? listFilteredEvents : listFilteredEvents.filter(e => !e.workId || !hiddenWorkIds.has(e.workId));
+    if (!workId) evts = evts.filter(e => calendarEventIds.has(e.id));
+    evts = evts.filter(e => !hiddenEventIds.has(e.id));
+    evts = evts.filter(e => {
+      const wId = e.workId ?? (workId || '');
+      if (!wId) return true;
+      const cats = categoryFilters[wId];
+      if (!cats || cats.length === 0) return true;
+      const evCats = parseCategories(e.category);
+      return evCats.length === 0 ? true : !evCats.some(c => cats.includes(c));
+    });
+    return evts;
+  }, [workId, listFilteredEvents, hiddenWorkIds, calendarEventIds, hiddenEventIds, categoryFilters]);
+  const listRangePersonal = useMemo(() => {
+    if (listScope === 'month') return [];
+    const [from, to] = listRange;
+    return [...personalEvents.filter(e => e.date >= from && e.date <= to)].sort((a, b) => a.date.localeCompare(b.date));
+  }, [personalEvents, listScope, listRange]);
+  const listRangeLabel = useMemo(() => {
+    const [from, to] = listRange;
+    const f = new Date(from + 'T00:00:00');
+    if (listScope === 'day') return `${f.getMonth() + 1}月${f.getDate()}日（${DAY_LABELS[f.getDay()]}）`;
+    if (listScope === 'week') { const t = new Date(to + 'T00:00:00'); return `${f.getMonth() + 1}/${f.getDate()}〜${t.getMonth() + 1}/${t.getDate()}`; }
+    return '';
+  }, [listScope, listRange]);
+  const shiftAnchor = (dir: number) => {
+    const d = new Date(listAnchor + 'T00:00:00');
+    d.setDate(d.getDate() + dir * (listScope === 'week' ? 7 : 1));
+    setListAnchor(fmtLocal(d));
+  };
+  const enterListScope = (s: 'month' | 'week' | 'day') => {
+    if (s !== 'month') {
+      const t = new Date();
+      const inMonth = t.getFullYear() === year && t.getMonth() === month;
+      setListAnchor(inMonth ? fmtLocal(t) : fmtLocal(new Date(year, month, 1)));
+    }
+    setListScope(s);
+  };
+
   const prevMonth = () => {
     if (month === 0) { setYear(y => y - 1); setMonth(11); }
     else setMonth(m => m - 1);
@@ -1110,6 +1187,7 @@ export default function Calendar() {
       setSheetDetailEvent(prev => prev?.id === eventId ? { ...prev, likes: newCount, likedByMe: true } : prev);
       setListDetailEvent(prev => prev?.id === eventId ? { ...prev, likes: newCount, likedByMe: true } : prev);
       setEvents(prev => prev.map(e => e.id === eventId ? { ...e, likes: newCount, likedByMe: true } : e));
+      setListRangeEvents(prev => prev.map(e => e.id === eventId ? { ...e, likes: newCount, likedByMe: true } : e));
     } catch (e) { console.error(e); }
   };
 
@@ -1154,9 +1232,12 @@ export default function Calendar() {
     const dy = e.changedTouches[0].clientY - swipeStartY.current;
     swipeStartX.current = null;
     swipeStartY.current = null;
-    // 水平方向が支配的かつ60px以上で月移動（縦スクロールと競合しない）
+    // 水平方向が支配的かつ60px以上で移動（縦スクロールと競合しない）
     if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-    if (dx < 0) nextMonth(); else prevMonth();
+    // 予定一覧の週/日ビューでは基準日を、それ以外は月を送る
+    if (topView === 'list' && listScope !== 'month') {
+      shiftAnchor(dx < 0 ? 1 : -1);
+    } else if (dx < 0) nextMonth(); else prevMonth();
   };
 
   // 自分の投稿の「消す」：非表示（自分のカレンダーから隠す）か完全削除かを選ばせる
@@ -1174,6 +1255,7 @@ export default function Calendar() {
       try {
         await deleteEvent(id);
         setEvents(prev => prev.filter(e => e.id !== id));
+        setListRangeEvents(prev => prev.filter(e => e.id !== id));
       } catch { showToast('削除に失敗しました', 'error'); }
     }
   };
@@ -1292,6 +1374,7 @@ export default function Calendar() {
       };
       await updateEvent(editEventId, patch);
       setEvents(prev => prev.map(e => e.id === editEventId ? { ...e, ...patch } : e));
+      setListRangeEvents(prev => prev.map(e => e.id === editEventId ? { ...e, ...patch } : e));
       setSheetDetailEvent(prev => prev?.id === editEventId ? { ...prev, ...patch } : prev);
       setListDetailEvent(prev => prev?.id === editEventId ? { ...prev, ...patch } : prev);
       setEditEventId(null);
@@ -1875,7 +1958,9 @@ export default function Calendar() {
   };
   const myCalendarListItems = useMemo((): ListItem[] => {
     if (workId) return [];
-    const workItems: ListItem[] = visibleEvents.map(e => ({
+    const srcEvents = listScope === 'month' ? visibleEvents : listVisibleEvents;
+    const srcPersonal = listScope === 'month' ? monthPersonalEvents : listRangePersonal;
+    const workItems: ListItem[] = srcEvents.map(e => ({
       id: e.id, date: e.date, dateLabel: e.dateLabel, title: e.title, time: e.time, endDate: e.endDate, endTime: e.endTime,
       category: e.category, prefecture: e.prefecture, link: e.link, imageUrl: e.imageUrl, memo: e.memo,
       tag: e.workName ?? '', isPersonal: false, workId: e.workId,
@@ -1883,7 +1968,7 @@ export default function Calendar() {
       authorId: e.authorId, authorName: e.authorName, sourceUrl: e.sourceUrl,
       isOrderMade: e.isOrderMade, preorderStart: e.preorderStart, preorderEnd: e.preorderEnd,
     }));
-    const personalItems: ListItem[] = monthPersonalEvents.map(pe => ({
+    const personalItems: ListItem[] = srcPersonal.map(pe => ({
       id: pe.id, date: pe.date, title: pe.title, time: pe.time, endDate: pe.endDate, endTime: pe.endTime,
       category: pe.category, prefecture: pe.prefecture, memo: pe.memo,
       tag: '個人', isPersonal: true,
@@ -1894,17 +1979,17 @@ export default function Calendar() {
       if (aImp !== bImp) return aImp ? -1 : 1;
       return (a.date ?? '').localeCompare(b.date ?? '');
     });
-  }, [workId, visibleEvents, monthPersonalEvents, importantEventIds]);
+  }, [workId, listScope, visibleEvents, listVisibleEvents, monthPersonalEvents, listRangePersonal, importantEventIds]);
 
   // workIdモード一覧用: 重要優先 → 日付順
   const sortedListEvents = useMemo(
-    () => [...filteredEvents].sort((a, b) => {
+    () => [...(listScope === 'month' ? filteredEvents : listFilteredEvents)].sort((a, b) => {
       const aImp = importantEventIds.has(a.id);
       const bImp = importantEventIds.has(b.id);
       if (aImp !== bImp) return aImp ? -1 : 1;
       return (a.date ?? '').localeCompare(b.date ?? '');
     }),
-    [filteredEvents, importantEventIds],
+    [listScope, filteredEvents, listFilteredEvents, importantEventIds],
   );
 
   const selectedDateLabel = useMemo(() => {
@@ -2433,7 +2518,26 @@ export default function Calendar() {
           <div className="flex-1 overflow-y-auto px-4 pt-3 pb-24"
             onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}>
           {(
-            <><p className="text-label-secondary text-xs px-1" style={{ marginBottom: filterActive ? 4 : 12 }}>今月の予定</p>
+            <><div className="flex items-center justify-between px-1" style={{ marginBottom: filterActive ? 4 : 12 }}>
+              {/* 月/週/日 セグメント */}
+              <div className="flex rounded-lg p-0.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+                {(['month', 'week', 'day'] as const).map(s => (
+                  <button key={s} onClick={() => enterListScope(s)}
+                    className="px-3 py-1 text-[12px] font-medium rounded-md transition-colors"
+                    style={{ backgroundColor: listScope === s ? 'var(--bg-primary)' : 'transparent', color: listScope === s ? 'var(--label-primary)' : 'var(--label-tertiary)' }}>
+                    {s === 'month' ? '月' : s === 'week' ? '週' : '日'}
+                  </button>
+                ))}
+              </div>
+              {/* 週/日は基準日の送り */}
+              {listScope !== 'month' && (
+                <div className="flex items-center gap-1">
+                  <button onClick={() => shiftAnchor(-1)} aria-label="前へ" className="w-7 h-7 flex items-center justify-center rounded-lg pressable" style={{ color: 'var(--accent-color)' }}><ChevronLeft size={18} /></button>
+                  <button onClick={() => setListAnchor(new Date().toISOString().slice(0, 10))} className="text-[12px] font-bold text-label-primary text-center pressable" style={{ minWidth: 90 }}>{listRangeLabel}</button>
+                  <button onClick={() => shiftAnchor(1)} aria-label="次へ" className="w-7 h-7 flex items-center justify-center rounded-lg pressable" style={{ color: 'var(--accent-color)' }}><ChevronRight size={18} /></button>
+                </div>
+              )}
+            </div>
             {filterActive && (
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-[11px] text-label-tertiary">絞り込み：</span>
@@ -3200,6 +3304,7 @@ export default function Calendar() {
           onClose={() => setPreorderEditEvent(null)}
           onSaved={updated => {
             setEvents(prev => prev.map(e => e.id === preorderEditEvent.id ? { ...e, ...updated } : e));
+            setListRangeEvents(prev => prev.map(e => e.id === preorderEditEvent.id ? { ...e, ...updated } : e));
             setSheetDetailEvent(prev => prev?.id === preorderEditEvent.id ? { ...prev, ...updated } : prev);
             setListDetailEvent(prev => prev?.id === preorderEditEvent.id ? { ...prev, ...updated } : prev);
           }}
