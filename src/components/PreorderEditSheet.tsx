@@ -17,6 +17,7 @@ export default function PreorderEditSheet({ event, onClose, onSaved }: Props) {
   const [date, setDate] = useState(event.dateLabel ? '' : (event.date ?? ''));
   const [time, setTime] = useState(event.time ?? '');
   const [endTime, setEndTime] = useState(event.endTime ?? '');
+  const [endDate, setEndDate] = useState(event.endDate ?? '');
   const [preorderStart, setPreorderStart] = useState(event.preorderStart ?? '');
   const [preorderEnd, setPreorderEnd] = useState(event.preorderEnd ?? '');
   const [preorderStartTime, setPreorderStartTime] = useState(event.preorderStartTime ?? '');
@@ -37,7 +38,7 @@ export default function PreorderEditSheet({ event, onClose, onSaved }: Props) {
     // （予約受付ページは is_order_made=true で絞り込むため）
     const isOrderMade = (event.isOrderMade ?? false) || !!preorderStart || !!preorderEnd;
     try {
-      await updatePreorderInfo(event.id, { isOrderMade, preorderStart, preorderEnd, preorderStartTime, preorderEndTime, time, endTime, link, date: finalDate, dateLabel: finalDateLabel });
+      await updatePreorderInfo(event.id, { isOrderMade, preorderStart, preorderEnd, preorderStartTime, preorderEndTime, time, endTime, endDate, link, date: finalDate, dateLabel: finalDateLabel });
       onSaved({
         isOrderMade,
         preorderStart: preorderStart || undefined,
@@ -46,6 +47,7 @@ export default function PreorderEditSheet({ event, onClose, onSaved }: Props) {
         preorderEndTime: preorderEndTime || undefined,
         time: time || undefined,
         endTime: endTime || undefined,
+        endDate: endDate || undefined,
         link: link || undefined,
         ...(date ? { date, dateLabel: undefined } : {}),
       });
@@ -73,57 +75,64 @@ export default function PreorderEditSheet({ event, onClose, onSaved }: Props) {
         <p className="px-4 pb-3 text-xs text-label-tertiary truncate">{event.title}</p>
 
         <div className="px-4 flex flex-col gap-4 pb-6">
-          {/* 日付・開始時間 */}
+          {/* 日付 */}
           <div className="flex flex-col gap-1">
             <label className="text-xs text-label-tertiary">
               日付{event.dateLabel ? `（現在: ${event.dateLabel}）` : '（任意）'}
             </label>
-            <div className="flex gap-2">
-              <input
-                type="date"
-                value={date}
-                onChange={e => setDate(e.target.value)}
-                className={`${inputCls} flex-1`}
-              />
-              <input
-                type="time"
-                value={time}
-                onChange={e => setTime(e.target.value)}
-                className={`${inputCls} flex-1`}
-              />
-            </div>
+            <input
+              type="date"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+              className={inputCls}
+            />
             {event.dateLabel && !date && (
               <p className="text-[11px] text-label-tertiary">日付を入力すると「{event.dateLabel}」から変更されます</p>
             )}
           </div>
 
-          {/* 終了時間 */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-label-tertiary">終了時間（任意）</label>
-            <input
-              type="time"
-              value={endTime}
-              onChange={e => setEndTime(e.target.value)}
-              className={inputCls}
-            />
+          {/* 開始時間・終了時間 */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-label-tertiary">開始時間（任意）</label>
+              <input type="time" value={time} onChange={e => setTime(e.target.value)} className={inputCls} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-label-tertiary">終了時間（任意）</label>
+              <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className={inputCls} />
+            </div>
           </div>
 
-          {/* 予約開始日・時間 */}
+          {/* 終了日 */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-label-tertiary">終了日（任意）</label>
+            <input type="date" value={endDate} min={date || undefined} onChange={e => setEndDate(e.target.value)} className={inputCls} />
+          </div>
+
+          <div className="h-px" style={{ backgroundColor: 'var(--border-subtle)' }} />
+
+          {/* 予約開始日 */}
           <div className="flex flex-col gap-1">
             <label className="text-xs text-label-tertiary">予約開始日（任意）</label>
-            <div className="flex gap-2">
-              <input type="date" value={preorderStart} onChange={e => setPreorderStart(e.target.value)} className={`${inputCls} flex-1`} />
-              <input type="time" value={preorderStartTime} onChange={e => setPreorderStartTime(e.target.value)} className={`${inputCls} flex-1`} />
+            <input type="date" value={preorderStart} onChange={e => setPreorderStart(e.target.value)} className={inputCls} />
+          </div>
+
+          {/* 予約開始時間・締切時間 */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-label-tertiary">予約開始時間（任意）</label>
+              <input type="time" value={preorderStartTime} onChange={e => setPreorderStartTime(e.target.value)} className={inputCls} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-label-tertiary">予約締切時間（任意）</label>
+              <input type="time" value={preorderEndTime} onChange={e => setPreorderEndTime(e.target.value)} className={inputCls} />
             </div>
           </div>
 
-          {/* 予約締切日・時間 */}
+          {/* 予約締切日 */}
           <div className="flex flex-col gap-1">
             <label className="text-xs text-label-tertiary">予約締切日（任意）</label>
-            <div className="flex gap-2">
-              <input type="date" value={preorderEnd} onChange={e => setPreorderEnd(e.target.value)} className={`${inputCls} flex-1`} />
-              <input type="time" value={preorderEndTime} onChange={e => setPreorderEndTime(e.target.value)} className={`${inputCls} flex-1`} />
-            </div>
+            <input type="date" value={preorderEnd} min={preorderStart || undefined} onChange={e => setPreorderEnd(e.target.value)} className={inputCls} />
           </div>
 
           {/* 販売リンク */}
