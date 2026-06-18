@@ -24,4 +24,6 @@ export type CalendarEvent = {
   isOrderMade?: boolean;
   preorderStart?: string; // 'YYYY-MM-DD' 予約開始日
   preorderEnd?: string;   // 'YYYY-MM-DD' 予約締切日
+  preorderStartTime?: string; // 'HH:mm' 予約開始時間（任意）
+  preorderEndTime?: string;   // 'HH:mm' 予約締切時間（任意）
 };

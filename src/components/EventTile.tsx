@@ -86,9 +86,11 @@ function DateColumn({ event, density }: { event: CalendarEvent; density: Density
         <>
           <span className="text-[10px] text-label-tertiary leading-none">予約</span>
           {event.preorderStart && <span className="text-[12px] font-bold text-label-primary leading-snug mt-0.5">{psm}/{psd}</span>}
+          {event.preorderStart && event.preorderStartTime && <span className="text-[9px] text-label-tertiary leading-none">{event.preorderStartTime}</span>}
           {event.preorderEnd
             ? <span className="text-[11px] font-bold text-label-secondary leading-snug">〜{pem}/{ped}</span>
             : <span className="text-[11px] text-label-tertiary leading-none">〜</span>}
+          {event.preorderEnd && event.preorderEndTime && <span className="text-[9px] text-label-tertiary leading-none">{event.preorderEndTime}</span>}
           {event.date && (
             <>
               <div className="w-full h-px my-1" style={{ backgroundColor: 'var(--border-subtle)' }} />

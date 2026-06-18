@@ -172,6 +172,8 @@ interface InlineCard {
   isOrderMade: boolean;
   preorderStart: string;
   preorderEnd: string;
+  preorderStartTime: string;
+  preorderEndTime: string;
 }
 
 function newInlineCard(date: string): InlineCard {
@@ -197,6 +199,8 @@ function newInlineCard(date: string): InlineCard {
     isOrderMade: false,
     preorderStart: '',
     preorderEnd: '',
+    preorderStartTime: '',
+    preorderEndTime: '',
   };
 }
 
@@ -497,16 +501,30 @@ function InlineCardItem({
               </button>
             </div>
             {card.isOrderMade && (
-              <div className="flex gap-2 mt-2">
-                <div className="flex-1">
-                  <label className="text-[10px] text-label-tertiary block mb-1">予約開始日</label>
-                  <input type="date" value={card.preorderStart} onChange={e => onChange({ preorderStart: e.target.value })}
-                    className="w-full bg-bg-primary rounded-lg px-2 py-1.5 text-xs text-label-primary outline-none border border-faint focus:border-strong" />
+              <div className="flex flex-col gap-2 mt-2">
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="text-[10px] text-label-tertiary block mb-1">予約開始日</label>
+                    <input type="date" value={card.preorderStart} onChange={e => onChange({ preorderStart: e.target.value })}
+                      className="w-full bg-bg-primary rounded-lg px-2 py-1.5 text-xs text-label-primary outline-none border border-faint focus:border-strong" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-[10px] text-label-tertiary block mb-1">開始時間（任意）</label>
+                    <input type="time" value={card.preorderStartTime} onChange={e => onChange({ preorderStartTime: e.target.value })}
+                      className="w-full bg-bg-primary rounded-lg px-2 py-1.5 text-xs text-label-primary outline-none border border-faint focus:border-strong" />
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <label className="text-[10px] text-label-tertiary block mb-1">予約終了日</label>
-                  <input type="date" value={card.preorderEnd} min={card.preorderStart || undefined} onChange={e => onChange({ preorderEnd: e.target.value })}
-                    className="w-full bg-bg-primary rounded-lg px-2 py-1.5 text-xs text-label-primary outline-none border border-faint focus:border-strong" />
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="text-[10px] text-label-tertiary block mb-1">予約終了日</label>
+                    <input type="date" value={card.preorderEnd} min={card.preorderStart || undefined} onChange={e => onChange({ preorderEnd: e.target.value })}
+                      className="w-full bg-bg-primary rounded-lg px-2 py-1.5 text-xs text-label-primary outline-none border border-faint focus:border-strong" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-[10px] text-label-tertiary block mb-1">終了時間（任意）</label>
+                    <input type="time" value={card.preorderEndTime} onChange={e => onChange({ preorderEndTime: e.target.value })}
+                      className="w-full bg-bg-primary rounded-lg px-2 py-1.5 text-xs text-label-primary outline-none border border-faint focus:border-strong" />
+                  </div>
                 </div>
               </div>
             )}
@@ -1285,6 +1303,8 @@ export default function Calendar() {
       isOrderMade: event.isOrderMade ?? false,
       preorderStart: event.preorderStart ?? '',
       preorderEnd: event.preorderEnd ?? '',
+      preorderStartTime: event.preorderStartTime ?? '',
+      preorderEndTime: event.preorderEndTime ?? '',
     });
   };
 
@@ -1358,6 +1378,8 @@ export default function Calendar() {
         isOrderMade: editForm.isOrderMade ?? false,
         preorderStart: editForm.preorderStart || undefined,
         preorderEnd: editForm.preorderEnd || undefined,
+        preorderStartTime: editForm.preorderStartTime || undefined,
+        preorderEndTime: editForm.preorderEndTime || undefined,
       };
       await updateEvent(editEventId, patch);
       setEvents(prev => prev.map(e => e.id === editEventId ? { ...e, ...patch } : e));
@@ -1635,6 +1657,8 @@ export default function Calendar() {
       isOrderMade: c.isOrderMade || false,
       preorderStart: c.preorderStart || undefined,
       preorderEnd: c.preorderEnd || undefined,
+      preorderStartTime: c.preorderStartTime || undefined,
+      preorderEndTime: c.preorderEndTime || undefined,
     });
     const serializedLinks = (c: InlineCard) => serializeLinks(c.links);
     const toPersonalEvent = (c: InlineCard): PersonalEvent => ({
@@ -1920,7 +1944,7 @@ export default function Calendar() {
     tag: string; isPersonal: boolean; workId?: string;
     likes?: number; likedByMe?: boolean;
     authorId?: string; authorName?: string; sourceUrl?: string;
-    isOrderMade?: boolean; preorderStart?: string; preorderEnd?: string;
+    isOrderMade?: boolean; preorderStart?: string; preorderEnd?: string; preorderStartTime?: string; preorderEndTime?: string;
   };
   const myCalendarListItems = useMemo((): ListItem[] => {
     if (workId) return [];
@@ -1933,6 +1957,7 @@ export default function Calendar() {
       likes: e.likes, likedByMe: e.likedByMe,
       authorId: e.authorId, authorName: e.authorName, sourceUrl: e.sourceUrl,
       isOrderMade: e.isOrderMade, preorderStart: e.preorderStart, preorderEnd: e.preorderEnd,
+      preorderStartTime: e.preorderStartTime, preorderEndTime: e.preorderEndTime,
     }));
     const personalItems: ListItem[] = srcPersonal.map(pe => ({
       id: pe.id, date: pe.date, title: pe.title, time: pe.time, endDate: pe.endDate, endTime: pe.endTime,
@@ -2422,6 +2447,7 @@ export default function Calendar() {
                       workName: item.tag || undefined, authorId: item.authorId, authorName: item.authorName,
                       sourceUrl: item.sourceUrl,
                       isOrderMade: item.isOrderMade, preorderStart: item.preorderStart, preorderEnd: item.preorderEnd,
+                      preorderStartTime: item.preorderStartTime, preorderEndTime: item.preorderEndTime,
                       likes: item.likes ?? 0, likedByMe: item.likedByMe ?? false, createdAt: '',
                     };
                     if (item.isPersonal) {
@@ -2936,16 +2962,30 @@ export default function Calendar() {
                     </button>
                   </div>
                   {editForm.isOrderMade && (
-                    <div className="flex gap-2 mt-2">
-                      <div className="flex-1">
-                        <label className="text-[10px] text-label-tertiary block mb-1">予約開始日</label>
-                        <input type="date" value={editForm.preorderStart ?? ''} onChange={e => setEditForm(f => ({ ...f!, preorderStart: e.target.value }))}
-                          className="w-full bg-bg-primary rounded-lg px-2 py-1.5 text-xs text-label-primary outline-none border border-faint focus:border-strong" />
+                    <div className="flex flex-col gap-2 mt-2">
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <label className="text-[10px] text-label-tertiary block mb-1">予約開始日</label>
+                          <input type="date" value={editForm.preorderStart ?? ''} onChange={e => setEditForm(f => ({ ...f!, preorderStart: e.target.value }))}
+                            className="w-full bg-bg-primary rounded-lg px-2 py-1.5 text-xs text-label-primary outline-none border border-faint focus:border-strong" />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-[10px] text-label-tertiary block mb-1">開始時間（任意）</label>
+                          <input type="time" value={editForm.preorderStartTime ?? ''} onChange={e => setEditForm(f => ({ ...f!, preorderStartTime: e.target.value }))}
+                            className="w-full bg-bg-primary rounded-lg px-2 py-1.5 text-xs text-label-primary outline-none border border-faint focus:border-strong" />
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <label className="text-[10px] text-label-tertiary block mb-1">予約終了日</label>
-                        <input type="date" value={editForm.preorderEnd ?? ''} min={editForm.preorderStart || undefined} onChange={e => setEditForm(f => ({ ...f!, preorderEnd: e.target.value }))}
-                          className="w-full bg-bg-primary rounded-lg px-2 py-1.5 text-xs text-label-primary outline-none border border-faint focus:border-strong" />
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <label className="text-[10px] text-label-tertiary block mb-1">予約終了日</label>
+                          <input type="date" value={editForm.preorderEnd ?? ''} min={editForm.preorderStart || undefined} onChange={e => setEditForm(f => ({ ...f!, preorderEnd: e.target.value }))}
+                            className="w-full bg-bg-primary rounded-lg px-2 py-1.5 text-xs text-label-primary outline-none border border-faint focus:border-strong" />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-[10px] text-label-tertiary block mb-1">終了時間（任意）</label>
+                          <input type="time" value={editForm.preorderEndTime ?? ''} onChange={e => setEditForm(f => ({ ...f!, preorderEndTime: e.target.value }))}
+                            className="w-full bg-bg-primary rounded-lg px-2 py-1.5 text-xs text-label-primary outline-none border border-faint focus:border-strong" />
+                        </div>
                       </div>
                     </div>
                   )}

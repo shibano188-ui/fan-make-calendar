@@ -133,6 +133,8 @@ function rowToEvent(e: Record<string, unknown>): CalendarEvent {
     isOrderMade: (e.is_order_made as boolean | null) ?? false,
     preorderStart: (e.preorder_start_date as string | null) ?? undefined,
     preorderEnd: (e.preorder_end_date as string | null) ?? undefined,
+    preorderStartTime: ((e.preorder_start_time as string | null) ?? undefined)?.slice(0, 5),
+    preorderEndTime: ((e.preorder_end_time as string | null) ?? undefined)?.slice(0, 5),
   };
 }
 
@@ -198,7 +200,7 @@ export async function listEventsByDate(workId: string, date: string, userId?: st
 
 export async function createEvents(
   workId: string,
-  events: Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'imageUrl' | 'sourceUrl' | 'isOrderMade' | 'preorderStart' | 'preorderEnd'>[],
+  events: Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'imageUrl' | 'sourceUrl' | 'isOrderMade' | 'preorderStart' | 'preorderEnd' | 'preorderStartTime' | 'preorderEndTime'>[],
   authorId: string,
 ): Promise<string[]> {
   const rows = await Promise.all(events.map(async e => {
@@ -233,6 +235,8 @@ export async function createEvents(
       is_order_made: e.isOrderMade ?? false,
       preorder_start_date: e.preorderStart ?? null,
       preorder_end_date: e.preorderEnd ?? null,
+      preorder_start_time: e.preorderStartTime ?? null,
+      preorder_end_time: e.preorderEndTime ?? null,
       author_id: authorId,
       pool,
     };
@@ -746,7 +750,7 @@ export async function listAllParticipatedWorkEvents(
 
 export async function updateEvent(
   eventId: string,
-  data: Partial<Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'isOrderMade' | 'preorderStart' | 'preorderEnd'>>,
+  data: Partial<Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'isOrderMade' | 'preorderStart' | 'preorderEnd' | 'preorderStartTime' | 'preorderEndTime'>>,
 ): Promise<void> {
   const row: Record<string, unknown> = {};
   if (data.title !== undefined) row.title = data.title;
@@ -764,13 +768,15 @@ export async function updateEvent(
   if ('isOrderMade' in data) row.is_order_made = data.isOrderMade ?? false;
   if ('preorderStart' in data) row.preorder_start_date = data.preorderStart || null;
   if ('preorderEnd' in data) row.preorder_end_date = data.preorderEnd || null;
+  if ('preorderStartTime' in data) row.preorder_start_time = data.preorderStartTime || null;
+  if ('preorderEndTime' in data) row.preorder_end_time = data.preorderEndTime || null;
   const { error } = await supabase.from('events').update(row).eq('id', eventId);
   if (error) throw error;
 }
 
 export async function updatePreorderInfo(
   eventId: string,
-  data: { isOrderMade: boolean; preorderStart: string; preorderEnd: string; link: string; date: string | null; dateLabel: string | null },
+  data: { isOrderMade: boolean; preorderStart: string; preorderEnd: string; preorderStartTime: string; preorderEndTime: string; link: string; date: string | null; dateLabel: string | null },
 ): Promise<void> {
   // 参加作品なら他人の予定も更新するため SECURITY DEFINER 関数（参加者チェック付き）経由
   const { error } = await supabase.rpc('update_preorder_info', {
@@ -778,6 +784,8 @@ export async function updatePreorderInfo(
     p_is_order_made: data.isOrderMade,
     p_preorder_start: data.preorderStart || null,
     p_preorder_end: data.preorderEnd || null,
+    p_preorder_start_time: data.preorderStartTime || null,
+    p_preorder_end_time: data.preorderEndTime || null,
     p_link: data.link || '',
     p_date: data.date,
     p_date_label: data.dateLabel,
