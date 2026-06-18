@@ -776,7 +776,7 @@ export async function updateEvent(
 
 export async function updatePreorderInfo(
   eventId: string,
-  data: { isOrderMade: boolean; preorderStart: string; preorderEnd: string; preorderStartTime: string; preorderEndTime: string; link: string; date: string | null; dateLabel: string | null },
+  data: { isOrderMade: boolean; preorderStart: string; preorderEnd: string; preorderStartTime: string; preorderEndTime: string; time: string; endTime: string; link: string; date: string | null; dateLabel: string | null },
 ): Promise<void> {
   // 参加作品なら他人の予定も更新するため SECURITY DEFINER 関数（参加者チェック付き）経由
   const { error } = await supabase.rpc('update_preorder_info', {
@@ -786,6 +786,8 @@ export async function updatePreorderInfo(
     p_preorder_end: data.preorderEnd || null,
     p_preorder_start_time: data.preorderStartTime || null,
     p_preorder_end_time: data.preorderEndTime || null,
+    p_event_time: data.time || null,
+    p_end_time: data.endTime || null,
     p_link: data.link || '',
     p_date: data.date,
     p_date_label: data.dateLabel,

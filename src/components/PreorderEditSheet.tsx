@@ -15,6 +15,8 @@ const inputCls = 'w-full bg-bg-secondary rounded-lg px-3 py-2 text-sm text-label
 
 export default function PreorderEditSheet({ event, onClose, onSaved }: Props) {
   const [date, setDate] = useState(event.dateLabel ? '' : (event.date ?? ''));
+  const [time, setTime] = useState(event.time ?? '');
+  const [endTime, setEndTime] = useState(event.endTime ?? '');
   const [preorderStart, setPreorderStart] = useState(event.preorderStart ?? '');
   const [preorderEnd, setPreorderEnd] = useState(event.preorderEnd ?? '');
   const [preorderStartTime, setPreorderStartTime] = useState(event.preorderStartTime ?? '');
@@ -35,13 +37,15 @@ export default function PreorderEditSheet({ event, onClose, onSaved }: Props) {
     // （予約受付ページは is_order_made=true で絞り込むため）
     const isOrderMade = (event.isOrderMade ?? false) || !!preorderStart || !!preorderEnd;
     try {
-      await updatePreorderInfo(event.id, { isOrderMade, preorderStart, preorderEnd, preorderStartTime, preorderEndTime, link, date: finalDate, dateLabel: finalDateLabel });
+      await updatePreorderInfo(event.id, { isOrderMade, preorderStart, preorderEnd, preorderStartTime, preorderEndTime, time, endTime, link, date: finalDate, dateLabel: finalDateLabel });
       onSaved({
         isOrderMade,
         preorderStart: preorderStart || undefined,
         preorderEnd: preorderEnd || undefined,
         preorderStartTime: preorderStartTime || undefined,
         preorderEndTime: preorderEndTime || undefined,
+        time: time || undefined,
+        endTime: endTime || undefined,
         link: link || undefined,
         ...(date ? { date, dateLabel: undefined } : {}),
       });
@@ -69,20 +73,39 @@ export default function PreorderEditSheet({ event, onClose, onSaved }: Props) {
         <p className="px-4 pb-3 text-xs text-label-tertiary truncate">{event.title}</p>
 
         <div className="px-4 flex flex-col gap-4 pb-6">
-          {/* 日付 */}
+          {/* 日付・開始時間 */}
           <div className="flex flex-col gap-1">
             <label className="text-xs text-label-tertiary">
               日付{event.dateLabel ? `（現在: ${event.dateLabel}）` : '（任意）'}
             </label>
-            <input
-              type="date"
-              value={date}
-              onChange={e => setDate(e.target.value)}
-              className={inputCls}
-            />
+            <div className="flex gap-2">
+              <input
+                type="date"
+                value={date}
+                onChange={e => setDate(e.target.value)}
+                className={`${inputCls} flex-1`}
+              />
+              <input
+                type="time"
+                value={time}
+                onChange={e => setTime(e.target.value)}
+                className={`${inputCls} flex-1`}
+              />
+            </div>
             {event.dateLabel && !date && (
               <p className="text-[11px] text-label-tertiary">日付を入力すると「{event.dateLabel}」から変更されます</p>
             )}
+          </div>
+
+          {/* 終了時間 */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-label-tertiary">終了時間（任意）</label>
+            <input
+              type="time"
+              value={endTime}
+              onChange={e => setEndTime(e.target.value)}
+              className={inputCls}
+            />
           </div>
 
           {/* 予約開始日・時間 */}
