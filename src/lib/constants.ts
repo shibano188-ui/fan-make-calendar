@@ -210,6 +210,23 @@ export function addCalendarEventId(id: string): Set<string> {
   saveCalendarEventIds(set);
   return new Set(set);
 }
+// ─── 発見タブ: 閲覧済み（スクロールで画面に入った）イベントID ──────
+// 端末ごと。新着＝未閲覧の判定に使う。
+const SEEN_EVENTS_KEY = 'fan_seen_event_ids';
+export function loadSeenEventIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(SEEN_EVENTS_KEY);
+    return raw !== null ? new Set(JSON.parse(raw) as string[]) : new Set();
+  } catch { return new Set(); }
+}
+export function saveSeenEventIds(ids: Set<string>): void {
+  try {
+    // 肥大化防止に直近5000件だけ保持
+    const arr = [...ids];
+    localStorage.setItem(SEEN_EVENTS_KEY, JSON.stringify(arr.slice(-5000)));
+  } catch { /* 容量超過等は無視 */ }
+}
+
 export function removeCalendarEventId(id: string): Set<string> {
   const set = loadCalendarEventIds();
   set.delete(id);

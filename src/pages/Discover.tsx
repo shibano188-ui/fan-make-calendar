@@ -28,6 +28,7 @@ import {
   loadCategoryFilters, saveCategoryFilters,
   loadLikedEventIds, addLikedEventId,
   loadCalendarEventIds, addCalendarEventId, saveCalendarEventIds,
+  loadSeenEventIds, saveSeenEventIds,
   parseCategories,
   GOODS_SUBCATEGORIES,
   loadRegionFilter, saveRegionFilter, type FilterMode,
@@ -119,6 +120,30 @@ export default function Discover() {
   const [calendarEventIds, setCalendarEventIds] = useState<Set<string>>(loadCalendarEventIds);
   // セッション開始時点の追加済みID（タブ内で追加してもすぐ消えないよう初期値を固定）
   const initialCalendarIds = useRef(loadCalendarEventIds());
+
+  // 閲覧済み（スクロールで画面に入った）イベントID。
+  // initialSeenIds = 開いた時点のスナップショット（新着/閲覧済みの区分はこれで固定し、
+  // スクロール中に既読化しても“その場では”下に飛ばない）。seenIdsRef は随時更新して保存。
+  const initialSeenIds = useRef(loadSeenEventIds());
+  const seenIdsRef = useRef(loadSeenEventIds());
+  // カードが画面に半分入ったら閲覧済みにする IntersectionObserver（描画前に生成）
+  const seenObserverRef = useRef<IntersectionObserver | null>(null);
+  if (!seenObserverRef.current && typeof window !== 'undefined' && 'IntersectionObserver' in window) {
+    seenObserverRef.current = new IntersectionObserver(entries => {
+      let changed = false;
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const id = (entry.target as HTMLElement).dataset.eventId;
+        if (id && !seenIdsRef.current.has(id)) { seenIdsRef.current.add(id); changed = true; }
+        seenObserverRef.current?.unobserve(entry.target);
+      }
+      if (changed) saveSeenEventIds(seenIdsRef.current);
+    }, { threshold: 0.5 });
+  }
+  useEffect(() => () => seenObserverRef.current?.disconnect(), []);
+  const observeSeen = useCallback((node: HTMLDivElement | null) => {
+    if (node) seenObserverRef.current?.observe(node);
+  }, []);
 
   // いいねクールダウン
   const [lockedLikeIds, setLockedLikeIds] = useState<Set<string>>(() => {
@@ -383,9 +408,13 @@ export default function Discover() {
         return activeFilterPrefs.has(pref);
       });
     }
-    // 終了済みの予定は非表示（期間中・未来終了は表示・日付なしは残す）
+    // 終了済みの予定は非表示。残すのは「日付なし」「発売日/終了日が未来」「受付中（受付終了日が未来）」のみ。
+    // 受付終了日が無く発売日も過去のものは（予約受付中タブと同様）非表示にする。
     const todayStr = new Date().toISOString().slice(0, 10);
-    evts = evts.filter(e => !e.date || (e.endDate ?? e.date) >= todayStr);
+    evts = evts.filter(e =>
+      !e.date || (e.endDate ?? e.date) >= todayStr
+      || (e.isOrderMade && !!e.preorderEnd && e.preorderEnd >= todayStr),
+    );
     // Calendar一覧と同じく日付昇順（nullは末尾）
     evts = [...evts].sort((a, b) => {
       if (!a.date && !b.date) return 0;
@@ -395,6 +424,17 @@ export default function Discover() {
     });
     return evts;
   }, [events, hiddenWorkIds, categoryFilters, user, activeFilterPrefs, reportedEventIds]);
+
+  // 新着（未閲覧）/ 閲覧済み に分割。区分は「開いた時点のスナップショット」で固定する。
+  const { unseenEvents, seenEvents } = useMemo(() => {
+    const snap = initialSeenIds.current;
+    const unseen: CalendarEvent[] = [];
+    const seen: CalendarEvent[] = [];
+    for (const e of visibleEvents) (snap.has(e.id) ? seen : unseen).push(e);
+    return { unseenEvents: unseen, seenEvents: seen };
+  }, [visibleEvents]);
+  // 新着・閲覧済みの両方があるときだけ見出しで区切る
+  const showSeenSections = unseenEvents.length > 0 && seenEvents.length > 0;
 
   const toggleWork = (wId: string) =>
     setHiddenWorkIds(prev => {
@@ -475,6 +515,47 @@ export default function Discover() {
     });
     setOpenReactionPickerId(null);
     if (user) setReaction(eventId, user.id, isToggleOff ? null : type).catch(() => {});
+  };
+
+  // 新着 / 閲覧済み の区切り見出し
+  const SectionLabel = ({ label }: { label: string }) => (
+    <div className="flex items-center gap-2 px-1 pt-1 pb-0.5">
+      <span className="text-[12px] font-bold text-label-tertiary whitespace-nowrap">{label}</span>
+      <span className="flex-1 h-px" style={{ background: 'var(--fill-tertiary)' }} />
+    </div>
+  );
+
+  // 1件のイベントカード（observeSeen で画面に入ったら閲覧済みにする）
+  const renderEventCard = (event: CalendarEvent) => {
+    const color = event.workId ? (workColorMap.get(event.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
+    const isLiked = likedEventIds.has(event.id);
+    const isInCalendar = calendarEventIds.has(event.id);
+    const showReAdd = (isLiked || (!!user && event.authorId === user.id)) && !isInCalendar;
+    const isLocked = lockedLikeIds.has(event.id);
+    const isOwn = !!user && event.authorId === user.id;
+    const canEditInfo = !!event.workId && participatedWorks.some(w => w.id === event.workId);
+    return (
+      <div key={event.id} id={`discover-event-${event.id}`} ref={observeSeen} data-event-id={event.id}>
+        <EventTile
+          event={event}
+          workColor={color}
+          showImages={showImagesDiscover}
+          highlighted={highlightedId === event.id}
+          liked={isLiked}
+          likeLocked={isLocked || !user}
+          onLike={el => { handleHeartPress(event); triggerLike(el); }}
+          calendarStatus={isInCalendar ? 'in' : showReAdd ? 'readd' : null}
+          onCalendarStatusClick={() => { if (isInCalendar) navigate('/calendar'); else handleReAddToCalendar(event.id); }}
+          myReaction={myReactions[event.id] ?? null}
+          onReact={() => setOpenReactionPickerId(prev => prev === event.id ? null : event.id)}
+          isOwn={isOwn}
+          onDelete={() => handleDeleteEvent(event.id, event.title)}
+          onReport={user ? () => handleReportEvent(event.id, event.title) : undefined}
+          onInfoEdit={canEditInfo ? () => setPreorderEditEvent(event) : undefined}
+          onAuthorClick={event.authorId ? () => setViewingUserId(event.authorId!) : undefined}
+        />
+      </div>
+    );
   };
 
   return (
@@ -633,37 +714,10 @@ export default function Discover() {
             )
           ) : (
             <div className="flex flex-col gap-3">
-              {visibleEvents.map(event => {
-                const color = event.workId ? (workColorMap.get(event.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
-                const isLiked = likedEventIds.has(event.id);
-                const isInCalendar = calendarEventIds.has(event.id);
-                const showReAdd = (isLiked || (!!user && event.authorId === user.id)) && !isInCalendar;
-                const isLocked = lockedLikeIds.has(event.id);
-                const isOwn = !!user && event.authorId === user.id;
-                const canEditInfo = !!event.workId && participatedWorks.some(w => w.id === event.workId);
-                return (
-                  <div key={event.id} id={`discover-event-${event.id}`}>
-                    <EventTile
-                      event={event}
-                      workColor={color}
-                      showImages={showImagesDiscover}
-                      highlighted={highlightedId === event.id}
-                      liked={isLiked}
-                      likeLocked={isLocked || !user}
-                      onLike={el => { handleHeartPress(event); triggerLike(el); }}
-                      calendarStatus={isInCalendar ? 'in' : showReAdd ? 'readd' : null}
-                      onCalendarStatusClick={() => { if (isInCalendar) navigate('/calendar'); else handleReAddToCalendar(event.id); }}
-                      myReaction={myReactions[event.id] ?? null}
-                      onReact={() => setOpenReactionPickerId(prev => prev === event.id ? null : event.id)}
-                      isOwn={isOwn}
-                      onDelete={() => handleDeleteEvent(event.id, event.title)}
-                      onReport={user ? () => handleReportEvent(event.id, event.title) : undefined}
-                      onInfoEdit={canEditInfo ? () => setPreorderEditEvent(event) : undefined}
-                      onAuthorClick={event.authorId ? () => setViewingUserId(event.authorId!) : undefined}
-                    />
-                  </div>
-                );
-              })}
+              {showSeenSections && <SectionLabel label="新着" />}
+              {unseenEvents.map(renderEventCard)}
+              {showSeenSections && <SectionLabel label="閲覧済み" />}
+              {seenEvents.map(renderEventCard)}
             </div>
           )}
         </div>

@@ -37,11 +37,12 @@ const CURRENT_YEAR = new Date().getFullYear();
 const BASE_RULES = `
 【現在の年】今年は${CURRENT_YEAR}年です。年が明示されていない場合は${CURRENT_YEAR}年として扱う。過去の年（例: 2023年、2024年）は絶対に使わない。
 【終了日・終了時刻の抽出ルール】
-- 「〜」「-」「まで」などで期間が示されている場合は必ずendDateを設定する
+- 「〜」「-」「まで」などで期間が示されている場合は、date（開始日）と endDate（終了日）の両方を必ず設定する（開始日を空＝nullにしない）
 - 例: 「7/15〜7/20」→ date: "${CURRENT_YEAR}-07-15", endDate: "${CURRENT_YEAR}-07-20"
 - 例: 「14:00〜17:00」→ time: "14:00", endTime: "17:00"
 - 例: 「〜8月31日」→ endDate: "${CURRENT_YEAR}-08-31"
 - 開始日のみ明記で終了日が不明な場合はendDate: null
+- 【前後関係・絶対厳守】endDate は date より前の日付にしてはいけない（終了日は必ず開始日以降）。年が省略された終了日は date と同じ年として扱い、終了月が開始月より小さいときだけ翌年にする。開始日と違う年の終了日を勝手に作らない。同様に preorderEnd は preorderStart 以降にする
 【曖昧な日付の扱い（dateLabel）】
 - 「8月上旬」→ date: "${CURRENT_YEAR}-08-05", dateLabel: "上旬"
 - 「8月中旬」→ date: "${CURRENT_YEAR}-08-15", dateLabel: "中旬"
@@ -58,12 +59,21 @@ const BASE_RULES = `
 - 日付の情報が全くない → date: null, dateLabel: null
 【「本日」「今日」の扱い】
 テキストに「ツイート投稿日: 〇年〇月〇日」が含まれる場合、「本日」「今日」はその日付として解釈する。
-【受注生産・予約フラグのルール】
-- テキストに「受注」という文字が含まれる場合は必ず isOrderMade: true
-- isOrderMade=true の場合: preorderStart = 受付開始日, preorderEnd = 受付終了日
-- date には「お渡し予定」「発送予定」「発売予定」などの実際のイベント日（受付期間とは別）を入れる
+【受注・予約・受付期間のルール（検出を強化すること）】
+- 次のいずれかの表現があれば必ず isOrderMade: true にする（「受注」に限らない）:
+  受注 / 受注生産 / 受注販売 / 原作受注 / 受付期間 / 受付開始 / 予約受付 / 予約期間 / 予約販売 / 事前予約 / 事前受注 / 抽選販売 / 抽選受付 / 抽選予約 / 事後通販 / お申し込み期間 / 申込期間
+- isOrderMade=true の場合: preorderStart = 受付（予約・抽選・申込）開始日, preorderEnd = 受付（予約・抽選・申込）終了日
+- date には「お渡し予定」「発送予定」「発売予定」など実際の商品受け取り日（受付期間とは別）を入れる。お渡し日が不明なら date は null でよい（受付期間だけでも可）
 - 受付開始日・終了日が不明な場合は preorderStart/preorderEnd を null にする
-- isOrderMade=false の通常イベントでは preorderStart/preorderEnd は null`;
+- 「ご予約受付中」「予約はこちら」など申込制を示す表現があれば、具体的な期間が無くても isOrderMade: true（期間不明なら preorderStart/End は null）
+- isOrderMade=false の通常イベントでは preorderStart/preorderEnd は null
+【抽出例（必ず参考にする）】
+(1) 期間イベント — 入力:「『POP UP STORE』長野で開催決定！ 会場: ながの東急百貨店 開催期間: ${CURRENT_YEAR}年7月10日(金)〜${CURRENT_YEAR}年7月20日(月)」
+→ 出力(抜粋): [{"title":"POP UP STORE 長野","date":"${CURRENT_YEAR}-07-10","endDate":"${CURRENT_YEAR}-07-20","prefecture":"長野","categories":["イベント"]}]
+※ 開催期間があるので date(開始日) と endDate(終了日) を必ず両方入れる。date を null にしない。
+(2) 受注/予約 — 入力:「受注販売！ 受付期間: ${CURRENT_YEAR}年6月17日〜6月22日 / ${CURRENT_YEAR}年10月発売予定」
+→ 出力(抜粋): [{"title":"...","isOrderMade":true,"preorderStart":"${CURRENT_YEAR}-06-17","preorderEnd":"${CURRENT_YEAR}-06-22","date":"${CURRENT_YEAR}-10-31","dateLabel":"中","endDate":null}]
+※ 受付期間は preorderStart/preorderEnd。発売(お渡し)日は date。endDate は date より前にしない（不明なら null）。`;
 
 const SCHEMA = (memoDesc: string) => `[
   {
@@ -357,6 +367,18 @@ function parseRawText(rawText: string): unknown[] {
     if (year < currentYear - 1) return `${currentYear}-${m[2]}`;
     return dateStr;
   };
+  // 終了日が開始日より前（＝AIが誤った年を入れた）場合に年だけ補正して end >= start を保証する
+  const fixEndAfterStart = (start: unknown, end: unknown): unknown => {
+    if (typeof start !== 'string' || typeof end !== 'string') return end;
+    const ms = start.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const me = end.match(/^(\d{4})-\d{2}-\d{2}$/);
+    if (!ms || !me || end >= start) return end;
+    const startYear = parseInt(ms[1], 10);
+    const tail = end.slice(4); // "-MM-DD"
+    // まず開始日と同じ年に合わせ、それでも前なら翌年（期間が年をまたぐケース）
+    const sameYear = `${startYear}${tail}`;
+    return sameYear >= start ? sameYear : `${startYear + 1}${tail}`;
+  };
 
   return arr.map(item => {
     if (item && typeof item === 'object') {
@@ -374,20 +396,44 @@ function parseRawText(rawText: string): unknown[] {
       const dateLabel = rawDateLabel && validLabels.includes(rawDateLabel) ? rawDateLabel : null;
       const rawIsOrderMade = obj.isOrderMade;
       const isOrderMade = rawIsOrderMade === true || rawIsOrderMade === 'true';
+      const date = fixYear(obj.date);
+      const preorderStart = fixYear(obj.preorderStart);
       return {
         ...obj,
         link: normalizedLink,
-        date: fixYear(obj.date),
+        date,
         dateLabel,
-        endDate: fixYear(obj.endDate),
+        // 終了日が開始日より前にならないよう年を補正
+        endDate: fixEndAfterStart(date, fixYear(obj.endDate)),
         memo: cleanMemo(obj.memo),
         isOrderMade,
-        preorderStart: fixYear(obj.preorderStart),
-        preorderEnd: fixYear(obj.preorderEnd),
+        preorderStart,
+        preorderEnd: fixEndAfterStart(preorderStart, fixYear(obj.preorderEnd)),
       };
     }
     return item;
   });
+}
+
+// 全イベントが日付情報を一切持たない（＝抽出に失敗した可能性が高い）か
+function allDatesEmpty(events: unknown[]): boolean {
+  if (events.length === 0) return true;
+  return events.every(e => {
+    const o = e as Record<string, unknown>;
+    return !o.date && !o.endDate && !o.dateLabel && !o.preorderStart && !o.preorderEnd;
+  });
+}
+
+// claudeComplete + parseRawText。日付が全く取れなければ1回だけ再試行（Haikuのばらつき対策）
+async function extractWithRetry(systemPrompt: string, content: string, maxTokens: number): Promise<unknown[]> {
+  const first = parseRawText(await claudeComplete(systemPrompt, content, maxTokens));
+  if (!allDatesEmpty(first)) return first;
+  try {
+    const second = parseRawText(await claudeComplete(systemPrompt, content, maxTokens));
+    return allDatesEmpty(second) ? first : second;
+  } catch {
+    return first; // 再試行のパース失敗時は初回結果を使う
+  }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -463,31 +509,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const tweetContext = sharedText
         ? `ポスト本文（X アプリより直接）: ${sharedText}\n\n${pageText}`
         : pageText;
-      const rawText = await claudeComplete(EXTRACT_PROMPT_TWEET, tweetContext, 800);
       let parsed: unknown[];
       try {
-        parsed = parseRawText(rawText);
+        parsed = await extractWithRetry(EXTRACT_PROMPT_TWEET, tweetContext, 800);
       } catch {
         return res.status(422).json({ error: 'Could not parse response' });
       }
-      // テキストに「受注」があれば全イベントをisOrderMade=trueに強制設定
-      if (/受注/.test(tweetContext)) {
+      // 受注・予約・受付期間を示す表現があれば全イベントをisOrderMade=trueに強制設定
+      if (/受注|受付期間|受付開始|予約受付|予約期間|予約販売|事前予約|事前受注|抽選販売|抽選受付|抽選予約|事後通販|申込期間|お申し込み期間/.test(tweetContext)) {
         parsed.forEach(e => { (e as Record<string, unknown>).isOrderMade = true; });
       }
       if (tweetImageUrl) {
         parsed.forEach(e => { (e as Record<string, unknown>).imageUrl = tweetImageUrl; });
-        // 受注生産で受付終了日不明なら画像から取得
+        // 受注・予約で「受付終了日(preorderEnd)」がテキストから取れないときだけ画像の締切日を補完。
+        // 画像から取るのは受付締切＝preorderEnd であり、endDate（イベント終了日）ではない点に注意。
         const needsFallback = parsed.some(e => {
           const ev = e as Record<string, unknown>;
-          return ev.isOrderMade === true && !ev.endDate;
+          return ev.isOrderMade === true && !ev.preorderEnd;
         });
         if (needsFallback) {
-          const endDate = await fetchReservationEndFromImage(tweetImageUrl);
-          if (endDate) {
+          const deadline = await fetchReservationEndFromImage(tweetImageUrl);
+          if (deadline) {
             parsed.forEach(e => {
               const ev = e as Record<string, unknown>;
-              if (ev.isOrderMade === true && !ev.endDate) {
-                ev.endDate = endDate;
+              if (ev.isOrderMade === true && !ev.preorderEnd) {
+                // 締切は受付開始日以降のときだけ採用（誤検出した過去日は捨てる）
+                const ps = ev.preorderStart as string | null;
+                if (!ps || deadline >= ps) ev.preorderEnd = deadline;
               }
             });
           }
@@ -498,9 +546,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // 通常URL
     const pageText = await fetchPageText(processUrl);
-    const rawText2 = await claudeComplete(EXTRACT_PROMPT, pageText, 768);
     try {
-      const parsed = parseRawText(rawText2);
+      const parsed = await extractWithRetry(EXTRACT_PROMPT, pageText, 768);
       return res.status(200).json(parsed);
     } catch {
       return res.status(422).json({ error: 'Could not parse response' });

@@ -138,6 +138,38 @@ function rowToEvent(e: Record<string, unknown>): CalendarEvent {
   };
 }
 
+// event_date 未設定（お渡し日不明で受付情報のみ）の受注イベントで、受付が終了していないものを取得。
+// これらは event_date を条件にする通常クエリ（カレンダー/一覧/発見）から漏れるため補完する。
+// 実日付は null のまま（＝日付なし扱いで表示）。お渡し日を持つ受注は通常クエリでその発売月に
+// 出るので、ここでは扱わない（将来月の予約を当月フィードに詰め込まない）。
+async function listUndatedActivePreorders(workIds: string[]): Promise<CalendarEvent[]> {
+  if (workIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('events')
+    .select('*, works(name)')
+    .in('work_id', workIds)
+    .eq('pool', 0)
+    .eq('is_order_made', true)
+    .is('event_date', null);
+  if (error) return [];
+  const today = new Date().toISOString().slice(0, 10);
+  return (data ?? [])
+    .map(e => {
+      const ev = rowToEvent(e as Record<string, unknown>);
+      const works = (e as Record<string, unknown>).works as { name: string } | null;
+      return { ...ev, workId: (e as Record<string, unknown>).work_id as string, workName: works?.name ?? undefined };
+    })
+    // 受付終了日が過ぎたものは除外（終了日なしは受付中として残す）
+    .filter(e => !(e.preorderEnd && e.preorderEnd < today));
+}
+
+const byDateAsc = (a: CalendarEvent, b: CalendarEvent) => (a.date ?? '').localeCompare(b.date ?? '');
+// id 重複を除いて受注イベントを合流（メインクエリに既に含まれるものは足さない）
+function mergeDedup(main: CalendarEvent[], extra: CalendarEvent[]): CalendarEvent[] {
+  const ids = new Set(main.map(e => e.id));
+  return [...main, ...extra.filter(e => !ids.has(e.id))].sort(byDateAsc);
+}
+
 // 期間（from〜to, どちらも 'YYYY-MM-DD'）で1作品の予定を取得。期間に重なる予定を含む。
 export async function listEventsRange(workId: string, from: string, to: string): Promise<CalendarEvent[]> {
   const { data, error } = await supabase
@@ -150,7 +182,9 @@ export async function listEventsRange(workId: string, from: string, to: string):
     .order('event_date', { ascending: true });
 
   if (error) throw error;
-  return resolveAuthorNames((data ?? []).map(rowToEvent));
+  const main = (data ?? []).map(rowToEvent);
+  const undated = await listUndatedActivePreorders([workId]);
+  return resolveAuthorNames(mergeDedup(main, undated));
 }
 
 export async function listEvents(workId: string, year: number, month: number): Promise<CalendarEvent[]> {
@@ -169,6 +203,7 @@ export async function listEventsByDate(workId: string, date: string, userId?: st
     .order('event_time', { ascending: true, nullsFirst: true });
 
   if (error) throw error;
+  // 日付なし（お渡し日不明）の受注はこの日付に該当しないため、ここでは合流しない
   let events = (data ?? []).map(rowToEvent);
 
   // 投稿者の表示名を一括取得
@@ -735,7 +770,10 @@ export async function listAllParticipatedWorkEventsRange(
     workId: e.work_id as string,
     workName: workMap[e.work_id as string] ?? '',
   }));
-  return resolveAuthorNames(events);
+  // お渡し日が無い受注（通常クエリから漏れる）だけ日付なしとして合流。発売月のある受注はその月に出る。
+  const undated = (await listUndatedActivePreorders(workIds))
+    .map(e => ({ ...e, workName: e.workName ?? workMap[e.workId as string] ?? '' }));
+  return resolveAuthorNames(mergeDedup(events, undated));
 }
 
 export async function listAllParticipatedWorkEvents(
