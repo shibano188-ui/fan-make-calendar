@@ -524,7 +524,7 @@ export default function Discover() {
   // 新着 / 閲覧済み の区切り見出し
   const SectionLabel = ({ label }: { label: string }) => (
     <div className="flex items-center gap-2 px-1 pt-1 pb-0.5">
-      <span className="text-[12px] font-bold text-label-tertiary whitespace-nowrap">{label}</span>
+      <span className="text-[13px] font-bold text-label-secondary whitespace-nowrap">{label}</span>
       <span className="flex-1 h-px" style={{ background: 'var(--fill-tertiary)' }} />
     </div>
   );
