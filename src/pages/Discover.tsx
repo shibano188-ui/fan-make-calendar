@@ -13,7 +13,7 @@ import BottomTab from '../components/BottomTab';
 import Header from '../components/Header';
 import SettingsMenuButton from '../components/SettingsMenuButton';
 import {
-  listAllParticipatedWorkEvents, listRecentWorks,
+  listAllParticipatedWorkEventsRange, listRecentWorks,
   setReaction, getMyReactionsBatch, addLikeTap,
   getHomePrefecture, getDisplayName, saveHomePrefecture, saveDisplayName,
   deleteEvent, listPreorderEvents, reportEvent,
@@ -76,6 +76,23 @@ function loadMyReactions(): Record<string, ReactionType> {
 
 
 
+// ─── 期間スコープ（全期間 / 月 / 週 / 日）ヘルパー ──────────────────
+type Scope = 'all' | 'month' | 'week' | 'day';
+const DAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
+const fmtLocal = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+// scope と基準日から [from,to] を計算（週=日〜土・月=その月）
+function rangeForScope(scope: Exclude<Scope, 'all'>, anchor: string): [string, string] {
+  const d = new Date(anchor + 'T00:00:00');
+  if (scope === 'day') return [anchor, anchor];
+  if (scope === 'week') {
+    const sun = new Date(d); sun.setDate(d.getDate() - d.getDay());
+    const sat = new Date(sun); sat.setDate(sun.getDate() + 6);
+    return [fmtLocal(sun), fmtLocal(sat)];
+  }
+  return [fmtLocal(new Date(d.getFullYear(), d.getMonth(), 1)), fmtLocal(new Date(d.getFullYear(), d.getMonth() + 1, 0))];
+}
+
 // ─── コンポーネント ────────────────────────────────────────────────
 
 export default function Discover() {
@@ -88,12 +105,32 @@ export default function Discover() {
   const showToast = useToast();
 
   const [showImagesDiscover] = useState(() => loadImageVisibility().discover);
-  // 月送り（カレンダーと同じ year/month。month は0始まり）
-  const today = new Date();
-  const [year, setYear] = useState(today.getFullYear());
-  const [month, setMonth] = useState(today.getMonth());
-  const prevMonth = () => { if (month === 0) { setYear(y => y - 1); setMonth(11); } else setMonth(m => m - 1); };
-  const nextMonth = () => { if (month === 11) { setYear(y => y + 1); setMonth(0); } else setMonth(m => m + 1); };
+  // 期間スコープ。デフォルトは全期間（今日以降すべて）。月/週/日は排他、同じボタン再押下で全期間に戻る。
+  const todayStr = useMemo(() => fmtLocal(new Date()), []);
+  const [scope, setScope] = useState<Scope>('all');
+  const [anchor, setAnchor] = useState<string>(todayStr);
+  const [showUnseenOnly, setShowUnseenOnly] = useState(false);
+  const [from, to] = useMemo<[string, string]>(
+    () => (scope === 'all' ? [todayStr, '2999-12-31'] : rangeForScope(scope, anchor)),
+    [scope, anchor, todayStr],
+  );
+  const toggleScope = (s: Exclude<Scope, 'all'>) => {
+    setScope(prev => (prev === s ? 'all' : s));
+    setAnchor(todayStr); // スコープ切替時は今日基準にリセット
+  };
+  const shiftAnchor = (dir: number) => {
+    const d = new Date(anchor + 'T00:00:00');
+    if (scope === 'month') d.setMonth(d.getMonth() + dir);
+    else d.setDate(d.getDate() + dir * (scope === 'week' ? 7 : 1));
+    setAnchor(fmtLocal(d));
+  };
+  const periodLabel = useMemo(() => {
+    if (scope === 'all') return '';
+    const fd = new Date(from + 'T00:00:00');
+    if (scope === 'day') return `${fd.getMonth() + 1}月${fd.getDate()}日（${DAY_LABELS[fd.getDay()]}）`;
+    if (scope === 'week') { const td = new Date(to + 'T00:00:00'); return `${fd.getMonth() + 1}/${fd.getDate()}〜${td.getMonth() + 1}/${td.getDate()}`; }
+    return `${fd.getFullYear()}年${fd.getMonth() + 1}月`;
+  }, [scope, from, to]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -226,10 +263,10 @@ export default function Discover() {
 
   const reload = useCallback(async () => {
     if (!user) return;
-    const key = `discover:${user.id}:${year}-${month}`;
+    const key = `discover:${user.id}:${scope}:${from}_${to}`;
     try {
       const [evts, works] = await Promise.all([
-        listAllParticipatedWorkEvents(user.id, year, month),
+        listAllParticipatedWorkEventsRange(user.id, from, to),
         listRecentWorks(user.id),
       ]);
       setEvents(evts);
@@ -242,7 +279,7 @@ export default function Discover() {
         setError('読み込めませんでした。下に引っぱって再読み込みできます');
       }
     }
-  }, [user?.id, year, month]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id, from, to, scope]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // いいね数・削除などのローカル変更をタブ離脱時に現在の月キーへ反映
   const eventsRef = useRef<CalendarEvent[]>([]);
@@ -250,7 +287,7 @@ export default function Discover() {
   const cacheKeyRef = useRef('');
   eventsRef.current = events;
   worksRef.current = participatedWorks;
-  cacheKeyRef.current = user ? `discover:${user.id}:${year}-${month}` : '';
+  cacheKeyRef.current = user ? `discover:${user.id}:${scope}:${from}_${to}` : '';
   useEffect(() => {
     if (!user) return;
     return () => {
@@ -262,7 +299,7 @@ export default function Discover() {
 
   useEffect(() => {
     if (!user) return;
-    const cached = getCached<{ evts: CalendarEvent[]; works: Work[] }>(`discover:${user.id}:${year}-${month}`);
+    const cached = getCached<{ evts: CalendarEvent[]; works: Work[] }>(`discover:${user.id}:${scope}:${from}_${to}`);
     if (cached) {
       // キャッシュを即表示し、裏で再取得して最新化（スケルトンなし）
       setEvents(cached.evts);
@@ -273,7 +310,7 @@ export default function Discover() {
       setLoading(true);
       reload().finally(() => setLoading(false));
     }
-  }, [user?.id, year, month, reload]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id, from, to, scope, reload]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // プルトゥリフレッシュ（スクロール先頭で80px以上引っ張る・preventDefaultしない安全実装）
   const [refreshing, setRefreshing] = useState(false);
@@ -295,7 +332,8 @@ export default function Discover() {
       swipeStartY.current = null;
       if (Math.abs(sdx) >= 60 && Math.abs(sdx) >= Math.abs(sdy) * 1.5) {
         pullStartY.current = null;
-        if (sdx < 0) nextMonth(); else prevMonth();
+        // 期間スコープ選択中のみ左右スワイプで期間送り（全期間時は無効）
+        if (scope !== 'all') shiftAnchor(sdx < 0 ? 1 : -1);
         return;
       }
     }
@@ -415,13 +453,8 @@ export default function Discover() {
         return activeFilterPrefs.has(pref);
       });
     }
-    // 終了済みの予定は非表示。残すのは「日付なし」「発売日/終了日が未来」「受付中（受付終了日が未来）」のみ。
-    // 受付終了日が無く発売日も過去のものは（予約受付中タブと同様）非表示にする。
-    const todayStr = new Date().toISOString().slice(0, 10);
-    evts = evts.filter(e =>
-      !e.date || (e.endDate ?? e.date) >= todayStr
-      || (e.isOrderMade && !!e.preorderEnd && e.preorderEnd >= todayStr),
-    );
+    // 期間の絞り込みは取得クエリ側で行う（全期間=今日以降、月/週/日=その範囲）。
+    // ここでは過去/未来の追加フィルタはしない（予定一覧と同じく範囲内をそのまま表示）。
     // Calendar一覧と同じく日付昇順（nullは末尾）
     evts = [...evts].sort((a, b) => {
       if (!a.date && !b.date) return 0;
@@ -571,12 +604,7 @@ export default function Discover() {
         <Header
           compact
           leftNode={
-            <div className="flex items-center gap-1">
-              <span className="text-base font-semibold text-label-primary mr-1">発見</span>
-              <button onClick={prevMonth} aria-label="前の月" className="w-8 h-8 flex items-center justify-center rounded-lg pressable tap-44" style={{ color: 'var(--accent-color)' }}><ChevronLeft size={20} /></button>
-              <button onClick={() => { const t = new Date(); setYear(t.getFullYear()); setMonth(t.getMonth()); }} aria-label="今月へ戻る" className="text-base font-bold text-label-primary pressable">{year}年{month + 1}月</button>
-              <button onClick={nextMonth} aria-label="次の月" className="w-8 h-8 flex items-center justify-center rounded-lg pressable tap-44" style={{ color: 'var(--accent-color)' }}><ChevronRight size={20} /></button>
-            </div>
+            <span className="text-base font-semibold text-label-primary">発見</span>
           }
           rightAction={
             <div className="flex items-center gap-1">
@@ -671,6 +699,35 @@ export default function Discover() {
           </div>
         )}
 
+        {/* 期間スコープ（全期間/月/週/日）＋新着のみ */}
+        <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex rounded-lg p-0.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+              {(['month', 'week', 'day'] as const).map(s => (
+                <button key={s} onClick={() => toggleScope(s)}
+                  className="px-3 py-1 text-[12px] font-medium rounded-md transition-colors pressable"
+                  style={{ backgroundColor: scope === s ? 'var(--bg-primary)' : 'transparent', color: scope === s ? 'var(--label-primary)' : 'var(--label-tertiary)' }}>
+                  {s === 'month' ? '月' : s === 'week' ? '週' : '日'}
+                </button>
+              ))}
+            </div>
+            {scope !== 'all' && (
+              <div className="flex items-center gap-0.5 min-w-0">
+                <button onClick={() => shiftAnchor(-1)} aria-label="前へ" className="w-6 h-6 flex items-center justify-center rounded-lg pressable flex-shrink-0" style={{ color: 'var(--accent-color)' }}><ChevronLeft size={16} /></button>
+                <button onClick={() => setAnchor(todayStr)} className="text-[12px] font-bold text-label-primary text-center pressable truncate" style={{ minWidth: 78 }}>{periodLabel}</button>
+                <button onClick={() => shiftAnchor(1)} aria-label="次へ" className="w-6 h-6 flex items-center justify-center rounded-lg pressable flex-shrink-0" style={{ color: 'var(--accent-color)' }}><ChevronRight size={16} /></button>
+              </div>
+            )}
+          </div>
+          <button onClick={() => setShowUnseenOnly(v => !v)}
+            className="ml-auto flex-shrink-0 px-3 py-1 text-[12px] font-medium rounded-full border transition-colors pressable"
+            style={showUnseenOnly
+              ? { background: 'var(--accent-color)', color: 'var(--accent-text)', borderColor: 'var(--accent-color)' }
+              : { background: 'transparent', color: 'var(--label-secondary)', borderColor: 'var(--border-subtle)' }}>
+            新着のみ
+          </button>
+        </div>
+
         {/* 地域フィルターインジケーター */}
         {filterActive && (
           <div className="flex-shrink-0 flex items-center gap-2 px-4 py-1.5">
@@ -709,7 +766,7 @@ export default function Discover() {
             ) : (
               <EmptyState
                 icon={<CalendarDays size={48} strokeWidth={1.2} />}
-                title={`${year}年${month + 1}月の予定はまだありません`}
+                title={scope === 'all' ? '予定はまだありません' : `${periodLabel}の予定はまだありません`}
                 description="見つけた予定を投稿すると、同じ作品のファンに届きます"
                 actionLabel="予定を投稿する"
                 onAction={() => navigate('/calendar')}
@@ -722,10 +779,14 @@ export default function Discover() {
               {unseenEvents.length > 0
                 ? unseenEvents.map(renderEventCard)
                 : <p className="text-[12px] text-label-tertiary px-1 py-1">新着の予定はありません</p>}
-              <SectionLabel label="閲覧済み" />
-              {seenEvents.length > 0
-                ? seenEvents.map(renderEventCard)
-                : <p className="text-[12px] text-label-tertiary px-1 py-1">閲覧済みの予定はありません</p>}
+              {!showUnseenOnly && (
+                <>
+                  <SectionLabel label="閲覧済み" />
+                  {seenEvents.length > 0
+                    ? seenEvents.map(renderEventCard)
+                    : <p className="text-[12px] text-label-tertiary px-1 py-1">閲覧済みの予定はありません</p>}
+                </>
+              )}
             </div>
           )}
         </div>
