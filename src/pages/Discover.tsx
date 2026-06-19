@@ -122,9 +122,10 @@ export default function Discover() {
   const initialCalendarIds = useRef(loadCalendarEventIds());
 
   // 閲覧済み（スクロールで画面に入った）イベントID。
-  // initialSeenIds = 開いた時点のスナップショット（新着/閲覧済みの区分はこれで固定し、
-  // スクロール中に既読化しても“その場では”下に飛ばない）。seenIdsRef は随時更新して保存。
-  const initialSeenIds = useRef(loadSeenEventIds());
+  // seenSnapshot = 新着/閲覧済みの区分を固定するスナップショット（スクロール中に既読化しても
+  // “その場では”下に飛ばない）。タブに入り直す（location.key 変化）たびに取り直して反映する。
+  // seenIdsRef は随時更新して localStorage に保存する“生”の集合。
+  const [seenSnapshot, setSeenSnapshot] = useState<Set<string>>(loadSeenEventIds);
   const seenIdsRef = useRef(loadSeenEventIds());
   // カードが画面に半分入ったら閲覧済みにする IntersectionObserver（描画前に生成）
   const seenObserverRef = useRef<IntersectionObserver | null>(null);
@@ -144,6 +145,12 @@ export default function Discover() {
   const observeSeen = useCallback((node: HTMLDivElement | null) => {
     if (node) seenObserverRef.current?.observe(node);
   }, []);
+  // タブに入り直すたびに最新の既読を読み直してスナップショット更新（リロード不要で反映）
+  useEffect(() => {
+    const latest = loadSeenEventIds();
+    seenIdsRef.current = latest;
+    setSeenSnapshot(new Set(latest));
+  }, [location.key]);
 
   // いいねクールダウン
   const [lockedLikeIds, setLockedLikeIds] = useState<Set<string>>(() => {
@@ -425,16 +432,13 @@ export default function Discover() {
     return evts;
   }, [events, hiddenWorkIds, categoryFilters, user, activeFilterPrefs, reportedEventIds]);
 
-  // 新着（未閲覧）/ 閲覧済み に分割。区分は「開いた時点のスナップショット」で固定する。
+  // 新着（未閲覧）/ 閲覧済み に分割。区分はスナップショットで固定する。
   const { unseenEvents, seenEvents } = useMemo(() => {
-    const snap = initialSeenIds.current;
     const unseen: CalendarEvent[] = [];
     const seen: CalendarEvent[] = [];
-    for (const e of visibleEvents) (snap.has(e.id) ? seen : unseen).push(e);
+    for (const e of visibleEvents) (seenSnapshot.has(e.id) ? seen : unseen).push(e);
     return { unseenEvents: unseen, seenEvents: seen };
-  }, [visibleEvents]);
-  // 新着・閲覧済みの両方があるときだけ見出しで区切る
-  const showSeenSections = unseenEvents.length > 0 && seenEvents.length > 0;
+  }, [visibleEvents, seenSnapshot]);
 
   const toggleWork = (wId: string) =>
     setHiddenWorkIds(prev => {
@@ -714,10 +718,14 @@ export default function Discover() {
             )
           ) : (
             <div className="flex flex-col gap-3">
-              {showSeenSections && <SectionLabel label="新着" />}
-              {unseenEvents.map(renderEventCard)}
-              {showSeenSections && <SectionLabel label="閲覧済み" />}
-              {seenEvents.map(renderEventCard)}
+              <SectionLabel label="新着" />
+              {unseenEvents.length > 0
+                ? unseenEvents.map(renderEventCard)
+                : <p className="text-[12px] text-label-tertiary px-1 py-1">新着の予定はありません</p>}
+              <SectionLabel label="閲覧済み" />
+              {seenEvents.length > 0
+                ? seenEvents.map(renderEventCard)
+                : <p className="text-[12px] text-label-tertiary px-1 py-1">閲覧済みの予定はありません</p>}
             </div>
           )}
         </div>
