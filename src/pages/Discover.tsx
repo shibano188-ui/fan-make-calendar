@@ -85,10 +85,10 @@ const fmtLocal = (d: Date) =>
 function rangeForScope(scope: Exclude<Scope, 'all'>, anchor: string): [string, string] {
   const d = new Date(anchor + 'T00:00:00');
   if (scope === 'day') return [anchor, anchor];
+  // 週は「基準日から7日間」（発見は今日以降を見る場所なので暦週ではなく基準日起点）
   if (scope === 'week') {
-    const sun = new Date(d); sun.setDate(d.getDate() - d.getDay());
-    const sat = new Date(sun); sat.setDate(sun.getDate() + 6);
-    return [fmtLocal(sun), fmtLocal(sat)];
+    const end = new Date(d); end.setDate(d.getDate() + 6);
+    return [anchor, fmtLocal(end)];
   }
   return [fmtLocal(new Date(d.getFullYear(), d.getMonth(), 1)), fmtLocal(new Date(d.getFullYear(), d.getMonth() + 1, 0))];
 }
@@ -453,8 +453,12 @@ export default function Discover() {
         return activeFilterPrefs.has(pref);
       });
     }
-    // 期間の絞り込みは取得クエリ側で行う（全期間=今日以降、月/週/日=その範囲）。
-    // ここでは過去/未来の追加フィルタはしない（予定一覧と同じく範囲内をそのまま表示）。
+    // 完全に終わった予定は隠す。イベント期間(date〜endDate)か予約期間(〜preorderEnd)が
+    // 少しでも今日以降に被るもの・日付なしは残す。
+    evts = evts.filter(e =>
+      !e.date || (e.endDate ?? e.date) >= todayStr
+      || (e.isOrderMade && !!e.preorderEnd && e.preorderEnd >= todayStr),
+    );
     // Calendar一覧と同じく日付昇順（nullは末尾）
     evts = [...evts].sort((a, b) => {
       if (!a.date && !b.date) return 0;
@@ -463,7 +467,7 @@ export default function Discover() {
       return a.date.localeCompare(b.date);
     });
     return evts;
-  }, [events, hiddenWorkIds, categoryFilters, user, activeFilterPrefs, reportedEventIds]);
+  }, [events, hiddenWorkIds, categoryFilters, user, activeFilterPrefs, reportedEventIds, todayStr]);
 
   // 新着（未閲覧）/ 閲覧済み に分割。区分はスナップショットで固定する。
   const { unseenEvents, seenEvents } = useMemo(() => {
@@ -722,7 +726,7 @@ export default function Discover() {
           <button onClick={() => setShowUnseenOnly(v => !v)}
             className="ml-auto flex-shrink-0 px-3 py-1 text-[12px] font-medium rounded-full border transition-colors pressable"
             style={showUnseenOnly
-              ? { background: 'var(--accent-color)', color: 'var(--accent-text)', borderColor: 'var(--accent-color)' }
+              ? { background: 'color-mix(in srgb, var(--accent-color) 15%, transparent)', color: 'var(--accent-color)', borderColor: 'var(--accent-color)' }
               : { background: 'transparent', color: 'var(--label-secondary)', borderColor: 'var(--border-subtle)' }}>
             新着のみ
           </button>
