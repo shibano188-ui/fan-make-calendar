@@ -183,7 +183,9 @@ export async function listEventsRange(workId: string, from: string, to: string):
 
   if (error) throw error;
   const main = (data ?? []).map(rowToEvent);
-  const undated = await listUndatedActivePreorders([workId]);
+  // 日付なし受注は「現在〜未来」を見ているときだけ合流（過去月ビューには出さない）
+  const today = new Date().toISOString().slice(0, 10);
+  const undated = to >= today ? await listUndatedActivePreorders([workId]) : [];
   return resolveAuthorNames(mergeDedup(main, undated));
 }
 
@@ -771,8 +773,11 @@ export async function listAllParticipatedWorkEventsRange(
     workName: workMap[e.work_id as string] ?? '',
   }));
   // お渡し日が無い受注（通常クエリから漏れる）だけ日付なしとして合流。発売月のある受注はその月に出る。
-  const undated = (await listUndatedActivePreorders(workIds))
-    .map(e => ({ ...e, workName: e.workName ?? workMap[e.workId as string] ?? '' }));
+  // 現在〜未来を見ているときだけ合流（過去月ビューには出さない）。
+  const today = new Date().toISOString().slice(0, 10);
+  const undated = to >= today
+    ? (await listUndatedActivePreorders(workIds)).map(e => ({ ...e, workName: e.workName ?? workMap[e.workId as string] ?? '' }))
+    : [];
   return resolveAuthorNames(mergeDedup(events, undated));
 }
 
