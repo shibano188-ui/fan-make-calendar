@@ -187,7 +187,7 @@ function newInlineCard(date: string): InlineCard {
     date,
     dateLabel: '',
     time: '',
-    endDate: '',
+    endDate: date, // 終了日は既定で開始日と同じ（空の yyyy/mm/dd を見せない）
     endTime: '',
     categories: [],
     prefecture: '',
@@ -432,7 +432,7 @@ function InlineCardItem({
                 {/* 開始 */}
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-label-tertiary w-7 flex-shrink-0">開始</span>
-                  <input type="date" value={card.date} onChange={e => onChange({ date: e.target.value })} className={`${dtInputCls} flex-1 min-w-0`} />
+                  <input type="date" value={card.date} onChange={e => { const v = e.target.value; onChange({ date: v, ...((!card.endDate || card.endDate === card.date) ? { endDate: v } : {}) }); }} className={`${dtInputCls} flex-1 min-w-0`} />
                   {showTime && <input type="time" value={card.time} onChange={e => onChange({ time: e.target.value })} className={`${dtInputCls} w-[92px] flex-shrink-0`} />}
                 </div>
                 {/* 終了 */}
@@ -507,9 +507,11 @@ function InlineCardItem({
                 onClick={() => {
                   const next = !card.isOrderMade;
                   const today = new Date().toISOString().slice(0, 10);
+                  const ps = next && !card.preorderStart ? today : card.preorderStart;
                   onChange({
                     isOrderMade: next,
-                    preorderStart: next && !card.preorderStart ? today : card.preorderStart,
+                    preorderStart: ps,
+                    preorderEnd: next && !card.preorderEnd ? ps : card.preorderEnd,
                   });
                 }}
                 className="flex-shrink-0 w-9 h-5 rounded-full relative transition-colors"
@@ -524,7 +526,7 @@ function InlineCardItem({
                 {/* 受付開始 */}
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-label-tertiary w-12 flex-shrink-0">受付開始</span>
-                  <input type="date" value={card.preorderStart} onChange={e => onChange({ preorderStart: e.target.value })} className={`${dtInputCls} flex-1 min-w-0`} />
+                  <input type="date" value={card.preorderStart} onChange={e => { const v = e.target.value; onChange({ preorderStart: v, ...((!card.preorderEnd || card.preorderEnd === card.preorderStart) ? { preorderEnd: v } : {}) }); }} className={`${dtInputCls} flex-1 min-w-0`} />
                   <input type="time" value={card.preorderStartTime} onChange={e => onChange({ preorderStartTime: e.target.value })} className={`${dtInputCls} w-[92px] flex-shrink-0`} />
                 </div>
                 {/* 受付終了 */}
@@ -1440,7 +1442,7 @@ export default function Calendar() {
       date:           parsed.date           ?? base.date,
       dateLabel:      parsed.dateLabel      ?? base.dateLabel,
       time:           parsed.time           ?? base.time,
-      endDate:        parsed.endDate        ?? base.endDate,
+      endDate:        parsed.endDate        ?? parsed.date ?? base.endDate,
       endTime:        parsed.endTime        ?? base.endTime,
       categories:     normalizeGoodsCategories([...new Set([...base.categories, ...parseCategories(parsed.category)])]),
       prefecture:     parsed.prefecture     ?? base.prefecture,
@@ -1670,7 +1672,7 @@ export default function Calendar() {
 
     const toEventPayload = (c: InlineCard) => ({
       title: c.title.trim() + (titleSuffixes.get(c.id) ?? ''), date: c.date || null, dateLabel: c.dateLabel || undefined, time: c.time || undefined,
-      endDate: c.endDate || undefined, endTime: c.endTime || undefined,
+      endDate: (c.endDate && c.endDate !== c.date) ? c.endDate : undefined, endTime: c.endTime || undefined,
       category: serializeCategories(c.categories),
       link: serializeLinks(c.links), memo: c.memo || undefined,
       prefecture: c.prefecture || undefined,
@@ -1688,7 +1690,7 @@ export default function Calendar() {
     const toPersonalEvent = (c: InlineCard): PersonalEvent => ({
       id: crypto.randomUUID(), title: c.title.trim(), date: c.date,
       ...(c.time && { time: c.time }),
-      ...(c.endDate && { endDate: c.endDate }),
+      ...(c.endDate && c.endDate !== c.date && { endDate: c.endDate }),
       ...(c.endTime && { endTime: c.endTime }),
       ...(serializeCategories(c.categories) && { category: serializeCategories(c.categories) }),
       ...(c.prefecture && { prefecture: c.prefecture }),
