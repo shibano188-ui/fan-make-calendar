@@ -5,7 +5,7 @@ import { useReportedEventIds } from '../hooks/useReportedEventIds';
 import UserProfileModal from '../components/UserProfileModal';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Palette, Plus, MoreVertical, Link2, LogOut, MapPin, FileText, CalendarDays, Tag,
+  Palette, Plus, MoreVertical, Link2, LogOut, MapPin, FileText, Tag,
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight, X, Settings, Map as MapIcon, ExternalLink, SlidersHorizontal, Star, Inbox, Check, Clock,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
@@ -251,8 +251,8 @@ function InlineCardItem({
   const showLoc = revealed.has('loc') || card.prefecture.length > 0;
   const showLink = revealed.has('link') || card.links.some(l => l.trim() !== '');
   const showMemo = revealed.has('memo') || card.memo.trim() !== '';
-  // 時間の表示（終日トグルの逆）。時刻が入っていれば自動で開く。
-  const [timeOpen, setTimeOpen] = useState(false);
+  // 時間の表示（終日トグルの逆）。デフォルトは終日OFF＝時間欄を表示。
+  const [timeOpen, setTimeOpen] = useState(true);
   const showTime = timeOpen || !!card.time || !!card.endTime;
   return (
     <div className="bg-bg-secondary rounded-xl overflow-hidden">
@@ -324,13 +324,12 @@ function InlineCardItem({
               className="w-full bg-transparent text-xl font-bold text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border-b border-faint focus:border-strong pb-2" />
           </div>
 
-          {/* 日時（TimeTree風カード） */}
-          <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border-subtle)' }}>
-            {/* 日付未定（◯月頃）トグル */}
-            <div className="flex items-center justify-between px-3 py-2.5">
-              <span className="flex items-center gap-2 text-sm text-label-primary"><CalendarDays size={15} className="text-label-tertiary" />日付未定（◯月頃）</span>
+          {/* 日時 */}
+          <div className="flex flex-col gap-2.5">
+            {/* 日付未定・終日トグル（横並び） */}
+            <div className="flex items-center gap-6">
               <button
-                type="button" role="switch" aria-checked={!!card.dateLabel}
+                type="button"
                 onClick={() => {
                   if (card.dateLabel) {
                     onChange({ dateLabel: '' });
@@ -339,15 +338,29 @@ function InlineCardItem({
                     onChange({ dateLabel: '中旬', date: `${ym}-15` });
                   }
                 }}
-                className="relative w-10 h-6 rounded-full transition-colors flex-shrink-0"
-                style={{ background: card.dateLabel ? 'var(--accent-color)' : 'var(--fill-tertiary)' }}
+                className="flex items-center gap-2 active:opacity-70"
               >
-                <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all" style={{ left: card.dateLabel ? 'calc(100% - 22px)' : '2px' }} />
+                <span className="text-sm text-label-primary">日付未定</span>
+                <span className="relative w-9 h-5 rounded-full transition-colors flex-shrink-0" style={{ background: card.dateLabel ? 'var(--accent-color)' : 'var(--fill-tertiary)' }}>
+                  <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all" style={{ left: card.dateLabel ? 'calc(100% - 18px)' : '2px' }} />
+                </span>
               </button>
+              {!card.dateLabel && (
+                <button
+                  type="button"
+                  onClick={() => { if (showTime) { setTimeOpen(false); onChange({ time: '', endTime: '' }); } else { setTimeOpen(true); } }}
+                  className="flex items-center gap-2 active:opacity-70"
+                >
+                  <span className="text-sm text-label-primary">終日</span>
+                  <span className="relative w-9 h-5 rounded-full transition-colors flex-shrink-0" style={{ background: !showTime ? 'var(--accent-color)' : 'var(--fill-tertiary)' }}>
+                    <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all" style={{ left: !showTime ? 'calc(100% - 18px)' : '2px' }} />
+                  </span>
+                </button>
+              )}
             </div>
             {card.dateLabel ? (
               /* 曖昧日付UI（年/月/区分） */
-              <div className="flex flex-col gap-2 px-3 py-2.5 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
+              <div className="flex flex-col gap-2">
                 <div className="flex gap-2">
                   <select
                     value={card.date ? card.date.slice(0, 4) : ''}
@@ -412,36 +425,20 @@ function InlineCardItem({
                 </select>
               </div>
             ) : (
-              <>
-                {/* 終日トグル */}
-                <div className="flex items-center justify-between px-3 py-2.5 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
-                  <span className="flex items-center gap-2 text-sm text-label-primary"><Clock size={15} className="text-label-tertiary" />終日</span>
-                  <button
-                    type="button" role="switch" aria-checked={!showTime}
-                    onClick={() => { if (showTime) { setTimeOpen(false); onChange({ time: '', endTime: '' }); } else { setTimeOpen(true); } }}
-                    className="relative w-10 h-6 rounded-full transition-colors flex-shrink-0"
-                    style={{ background: !showTime ? 'var(--accent-color)' : 'var(--fill-tertiary)' }}
-                  >
-                    <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all" style={{ left: !showTime ? 'calc(100% - 22px)' : '2px' }} />
-                  </button>
-                </div>
+              <div className="flex flex-col gap-2">
                 {/* 開始 */}
-                <div className="flex items-center justify-between gap-2 px-3 py-2 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
-                  <span className="text-sm text-label-secondary flex-shrink-0">開始</span>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <input type="date" value={card.date} onChange={e => onChange({ date: e.target.value })} className="bg-transparent text-sm text-label-primary text-right outline-none" />
-                    {showTime && <input type="time" value={card.time} onChange={e => onChange({ time: e.target.value })} className="bg-transparent text-sm text-label-primary text-right outline-none" />}
-                  </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-label-tertiary w-7 flex-shrink-0">開始</span>
+                  <input type="date" value={card.date} onChange={e => onChange({ date: e.target.value })} className={`${inputCls} flex-1 min-w-0`} />
+                  {showTime && <input type="time" value={card.time} onChange={e => onChange({ time: e.target.value })} className={`${inputCls} w-[108px] flex-shrink-0`} />}
                 </div>
                 {/* 終了 */}
-                <div className="flex items-center justify-between gap-2 px-3 py-2 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
-                  <span className="text-sm text-label-secondary flex-shrink-0">終了</span>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <input type="date" value={card.endDate} min={card.date || undefined} onChange={e => onChange({ endDate: e.target.value })} className="bg-transparent text-sm text-label-primary text-right outline-none" />
-                    {showTime && <input type="time" value={card.endTime} onChange={e => onChange({ endTime: e.target.value })} className="bg-transparent text-sm text-label-primary text-right outline-none" />}
-                  </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-label-tertiary w-7 flex-shrink-0">終了</span>
+                  <input type="date" value={card.endDate} min={card.date || undefined} onChange={e => onChange({ endDate: e.target.value })} className={`${inputCls} flex-1 min-w-0`} />
+                  {showTime && <input type="time" value={card.endTime} onChange={e => onChange({ endTime: e.target.value })} className={`${inputCls} w-[108px] flex-shrink-0`} />}
                 </div>
-              </>
+              </div>
             )}
           </div>
 
