@@ -251,6 +251,9 @@ function InlineCardItem({
   const showLoc = revealed.has('loc') || card.prefecture.length > 0;
   const showLink = revealed.has('link') || card.links.some(l => l.trim() !== '');
   const showMemo = revealed.has('memo') || card.memo.trim() !== '';
+  // 時間の表示（終日トグルの逆）。時刻が入っていれば自動で開く。
+  const [timeOpen, setTimeOpen] = useState(false);
+  const showTime = timeOpen || !!card.time || !!card.endTime;
   return (
     <div className="bg-bg-secondary rounded-xl overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 cursor-pointer select-none" onClick={onToggle}>
@@ -321,14 +324,13 @@ function InlineCardItem({
               className="w-full bg-transparent text-xl font-bold text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border-b border-faint focus:border-strong pb-2" />
           </div>
 
-          <div className="flex flex-col gap-2">
-            {/* 開始日ヘッダー + 日付未定トグル */}
-            <div className="flex items-center justify-between">
-              <label className="text-label-tertiary text-xs flex items-center gap-1">
-                <CalendarDays size={12} />開始日{!card.dateLabel && <span className="text-red-400"> *</span>}
-              </label>
+          {/* 日時（TimeTree風カード） */}
+          <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border-subtle)' }}>
+            {/* 日付未定（◯月頃）トグル */}
+            <div className="flex items-center justify-between px-3 py-2.5">
+              <span className="flex items-center gap-2 text-sm text-label-primary"><CalendarDays size={15} className="text-label-tertiary" />日付未定（◯月頃）</span>
               <button
-                type="button"
+                type="button" role="switch" aria-checked={!!card.dateLabel}
                 onClick={() => {
                   if (card.dateLabel) {
                     onChange({ dateLabel: '' });
@@ -337,17 +339,15 @@ function InlineCardItem({
                     onChange({ dateLabel: '中旬', date: `${ym}-15` });
                   }
                 }}
-                className="text-xs px-2 py-0.5 rounded-full border transition-colors"
-                style={card.dateLabel
-                  ? { borderColor: 'var(--accent-color)', color: 'var(--accent-color)' }
-                  : { borderColor: 'var(--border-default)', color: 'var(--label-tertiary)' }}
+                className="relative w-10 h-6 rounded-full transition-colors flex-shrink-0"
+                style={{ background: card.dateLabel ? 'var(--accent-color)' : 'var(--fill-tertiary)' }}
               >
-                日付未定
+                <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all" style={{ left: card.dateLabel ? 'calc(100% - 22px)' : '2px' }} />
               </button>
             </div>
             {card.dateLabel ? (
-              /* 曖昧日付UI */
-              <div className="flex flex-col gap-2">
+              /* 曖昧日付UI（年/月/区分） */
+              <div className="flex flex-col gap-2 px-3 py-2.5 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
                 <div className="flex gap-2">
                   <select
                     value={card.date ? card.date.slice(0, 4) : ''}
@@ -412,24 +412,36 @@ function InlineCardItem({
                 </select>
               </div>
             ) : (
-              /* 通常の日付ピッカー */
-              <input type="date" value={card.date} onChange={e => onChange({ date: e.target.value })} className={inputCls} />
-            )}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-label-tertiary text-xs mb-1.5 block">開始時間</label>
-                <input type="time" value={card.time} onChange={e => onChange({ time: e.target.value })} className={inputCls} />
-              </div>
-              <div>
-                <label className="text-label-tertiary text-xs mb-1.5 block">終了時間</label>
-                <input type="time" value={card.endTime} onChange={e => onChange({ endTime: e.target.value })} className={inputCls} />
-              </div>
-            </div>
-            {!card.dateLabel && (
-              <div>
-                <label className="text-label-tertiary text-xs mb-1.5 block">終了日（任意）</label>
-                <input type="date" value={card.endDate} min={card.date || undefined} onChange={e => onChange({ endDate: e.target.value })} className={inputCls} />
-              </div>
+              <>
+                {/* 終日トグル */}
+                <div className="flex items-center justify-between px-3 py-2.5 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
+                  <span className="flex items-center gap-2 text-sm text-label-primary"><Clock size={15} className="text-label-tertiary" />終日</span>
+                  <button
+                    type="button" role="switch" aria-checked={!showTime}
+                    onClick={() => { if (showTime) { setTimeOpen(false); onChange({ time: '', endTime: '' }); } else { setTimeOpen(true); } }}
+                    className="relative w-10 h-6 rounded-full transition-colors flex-shrink-0"
+                    style={{ background: !showTime ? 'var(--accent-color)' : 'var(--fill-tertiary)' }}
+                  >
+                    <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all" style={{ left: !showTime ? 'calc(100% - 22px)' : '2px' }} />
+                  </button>
+                </div>
+                {/* 開始 */}
+                <div className="flex items-center justify-between gap-2 px-3 py-2 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
+                  <span className="text-sm text-label-secondary flex-shrink-0">開始</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <input type="date" value={card.date} onChange={e => onChange({ date: e.target.value })} className="bg-transparent text-sm text-label-primary text-right outline-none" />
+                    {showTime && <input type="time" value={card.time} onChange={e => onChange({ time: e.target.value })} className="bg-transparent text-sm text-label-primary text-right outline-none" />}
+                  </div>
+                </div>
+                {/* 終了 */}
+                <div className="flex items-center justify-between gap-2 px-3 py-2 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
+                  <span className="text-sm text-label-secondary flex-shrink-0">終了</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <input type="date" value={card.endDate} min={card.date || undefined} onChange={e => onChange({ endDate: e.target.value })} className="bg-transparent text-sm text-label-primary text-right outline-none" />
+                    {showTime && <input type="time" value={card.endTime} onChange={e => onChange({ endTime: e.target.value })} className="bg-transparent text-sm text-label-primary text-right outline-none" />}
+                  </div>
+                </div>
+              </>
             )}
           </div>
 
@@ -2619,51 +2631,39 @@ export default function Calendar() {
       {/* 予定追加フォームパネル（絶対配置スクロール方式） */}
       {postPanelOpen && (
         <div
-          className="fixed inset-x-0 max-w-app mx-auto z-[160] rounded-t-[18px] overflow-hidden"
+          className="fixed inset-0 max-w-app mx-auto z-[200] flex flex-col overflow-hidden"
           style={{
-            bottom: BOTTOM_TAB_H,
-            height: 380,
             backgroundColor: 'var(--bg-primary)',
             animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both',
-            position: 'fixed',
+            paddingTop: 36,
           }}
         >
-          {/* ヘッダー：絶対配置でtop固定 */}
-          <div
-            className="absolute inset-x-0 top-0 z-10 rounded-t-[18px]"
-            style={{ backgroundColor: 'var(--bg-primary)' }}
-          >
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="w-9 h-[5px] rounded-full" style={{ backgroundColor: 'var(--fill-primary)' }} />
-            </div>
-            <div className="px-4 pb-2 flex items-center justify-between">
+          {/* ヘッダー（全画面） */}
+          <div className="flex-shrink-0 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
+            <div className="px-3 py-2 flex items-center justify-between gap-2">
+              <button onClick={closePostForm} aria-label="閉じる" className="w-9 h-9 flex items-center justify-center rounded-lg text-label-secondary active:opacity-60 flex-shrink-0">
+                <X size={22} />
+              </button>
               <div className="flex rounded-lg p-0.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
                 {(['ai', 'manual'] as const).map(m => (
                   <button key={m} onClick={() => setPostMode(m)}
-                    className="px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors"
+                    className="px-3 py-1 text-[12px] font-medium rounded-md transition-colors"
                     style={{ backgroundColor: postMode === m ? 'var(--bg-primary)' : 'transparent', color: postMode === m ? 'var(--label-primary)' : 'var(--label-tertiary)' }}>
                     {m === 'ai' ? '✨ AIで入力' : '予定を投稿'}
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-2">
-                <button onClick={closePostForm} className="text-xs text-label-tertiary px-3 py-1.5 rounded-lg active:opacity-60">キャンセル</button>
-                <button onClick={() => void handlePostSubmit()} disabled={postSubmitting || !!duplicateWarning} className="text-xs font-semibold px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
-                  {postSubmitting ? '送信中…' : workId && user ? '投稿' : '保存'}
-                </button>
-              </div>
+              <button onClick={() => void handlePostSubmit()} disabled={postSubmitting || !!duplicateWarning} className="text-sm font-bold px-3 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40 flex-shrink-0" style={{ color: 'var(--accent-color)' }}>
+                {postSubmitting ? '送信中…' : workId && user ? '投稿' : '保存'}
+              </button>
             </div>
             {postError && <p className="text-red-400 text-xs px-4 pb-1">{postError}</p>}
           </div>
 
-          {/* スクロールエリア：top:60px から bottom:0 の絶対配置 */}
+          {/* 本文スクロール */}
           <div
-            className="absolute inset-x-0 bottom-0"
-            style={{
-              top: 60,
-              overflowY: 'scroll',
-              WebkitOverflowScrolling: 'touch',
-            } as React.CSSProperties}
+            className="flex-1 overflow-y-auto"
+            style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
           >
             <div className="px-4 pt-2 pb-8 flex flex-col gap-3">
               {duplicateWarning && (
