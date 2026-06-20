@@ -811,8 +811,7 @@ export default function Calendar() {
   const shareInitDate = shareData?.date ?? todayStr;
   const [postPanelOpen, setPostPanelOpen] = useState(!!shareData);
   // 投稿の入力モード（AI入力 or 手入力）と、＋押下時のチューザー
-  const [postMode, setPostMode] = useState<'ai' | 'manual'>('ai');
-  const [postChooserOpen, setPostChooserOpen] = useState(false);
+  const [postMode, setPostMode] = useState<'ai' | 'manual'>('manual');
   const [postDate, setPostDate] = useState(shareInitDate);
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [personalEvents, setPersonalEvents] = useState<PersonalEvent[]>([]);
@@ -2534,43 +2533,16 @@ export default function Calendar() {
         <button
           onClick={() => {
             if (postPanelOpen) { closePostForm(); }
-            else if (postChooserOpen) { setPostChooserOpen(false); }
-            else { setPostChooserOpen(true); }
+            else { setPostMode('manual'); openPostForm(selectedDate); }
           }}
           className="fixed bottom-[72px] right-4 w-14 h-14 rounded-full flex items-center justify-center shadow-xl z-40 active:opacity-80"
           style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
-          aria-label={postPanelOpen || postChooserOpen ? '閉じる' : '予定を追加'}
+          aria-label={postPanelOpen ? '閉じる' : '予定を追加'}
         >
-          <div style={{ transition: 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)', transform: (postPanelOpen || postChooserOpen) ? 'rotate(45deg)' : 'rotate(0deg)' }}>
+          <div style={{ transition: 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)', transform: postPanelOpen ? 'rotate(45deg)' : 'rotate(0deg)' }}>
             <Plus size={22} strokeWidth={2.5} />
           </div>
         </button>
-      )}
-
-      {/* ＋ の入力方法チューザー（AI入力 / 手入力） */}
-      {postChooserOpen && (
-        <>
-          <div className="fixed inset-0 z-[150]" onClick={() => setPostChooserOpen(false)} />
-          <div className="fixed inset-x-0 max-w-app mx-auto z-[160]" style={{ bottom: BOTTOM_TAB_H + 76 }}>
-            <div className="ml-auto mr-4 w-[208px] bg-bg-primary rounded-[14px] shadow-xl overflow-hidden p-1.5 flex flex-col gap-0.5"
-              style={{ animation: 'slideUpIn 0.22s cubic-bezier(0.32, 0.72, 0, 1) both' }}>
-              <button
-                onClick={() => { setPostMode('ai'); setPostChooserOpen(false); openPostForm(selectedDate); }}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-[10px] active:opacity-60 text-left"
-              >
-                <span className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[13px]" style={{ background: 'color-mix(in srgb, var(--accent-color) 18%, transparent)', color: 'var(--accent-color)' }}>✨</span>
-                <span className="text-sm font-medium text-label-primary">AIで入力</span>
-              </button>
-              <button
-                onClick={() => { setPostMode('manual'); setPostChooserOpen(false); openPostForm(selectedDate); }}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-[10px] active:opacity-60 text-left"
-              >
-                <span className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--fill-tertiary)', color: 'var(--label-secondary)' }}><Plus size={15} /></span>
-                <span className="text-sm font-medium text-label-primary">予定を投稿</span>
-              </button>
-            </div>
-          </div>
-        </>
       )}
 
       {/* リアクションピッカー */}
