@@ -807,6 +807,9 @@ export default function Calendar() {
 
   const shareInitDate = shareData?.date ?? todayStr;
   const [postPanelOpen, setPostPanelOpen] = useState(!!shareData);
+  // 投稿の入力モード（AI入力 or 手入力）と、＋押下時のチューザー
+  const [postMode, setPostMode] = useState<'ai' | 'manual'>('ai');
+  const [postChooserOpen, setPostChooserOpen] = useState(false);
   const [postDate, setPostDate] = useState(shareInitDate);
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [personalEvents, setPersonalEvents] = useState<PersonalEvent[]>([]);
@@ -2528,16 +2531,49 @@ export default function Calendar() {
         <button
           onClick={() => {
             if (postPanelOpen) { closePostForm(); }
-            else { openPostForm(selectedDate); }
+            else if (postChooserOpen) { setPostChooserOpen(false); }
+            else { setPostChooserOpen(true); }
           }}
           className="fixed bottom-[72px] right-4 w-14 h-14 rounded-full flex items-center justify-center shadow-xl z-40 active:opacity-80"
           style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
-          aria-label={postPanelOpen ? '閉じる' : '予定を追加'}
+          aria-label={postPanelOpen || postChooserOpen ? '閉じる' : '予定を追加'}
         >
-          <div style={{ transition: 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)', transform: postPanelOpen ? 'rotate(45deg)' : 'rotate(0deg)' }}>
+          <div style={{ transition: 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)', transform: (postPanelOpen || postChooserOpen) ? 'rotate(45deg)' : 'rotate(0deg)' }}>
             <Plus size={22} strokeWidth={2.5} />
           </div>
         </button>
+      )}
+
+      {/* ＋ の入力方法チューザー（AI入力 / 手入力） */}
+      {postChooserOpen && (
+        <>
+          <div className="fixed inset-0 z-[150]" onClick={() => setPostChooserOpen(false)} />
+          <div className="fixed inset-x-0 max-w-app mx-auto z-[160]" style={{ bottom: BOTTOM_TAB_H + 80 }}>
+            <div className="mx-4 bg-bg-primary rounded-[18px] shadow-xl overflow-hidden p-2 flex flex-col gap-1"
+              style={{ animation: 'slideUpIn 0.25s cubic-bezier(0.32, 0.72, 0, 1) both' }}>
+              <button
+                onClick={() => { setPostMode('ai'); setPostChooserOpen(false); openPostForm(selectedDate); }}
+                className="flex items-center gap-3 px-4 py-3 rounded-[14px] active:opacity-60 text-left"
+              >
+                <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--accent-color) 18%, transparent)', color: 'var(--accent-color)' }}>✨</span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-label-primary">AIで入力</span>
+                  <span className="block text-xs text-label-tertiary">Xのポスト/URL/画像から自動で読み取る</span>
+                </span>
+              </button>
+              <button
+                onClick={() => { setPostMode('manual'); setPostChooserOpen(false); openPostForm(selectedDate); }}
+                className="flex items-center gap-3 px-4 py-3 rounded-[14px] active:opacity-60 text-left"
+              >
+                <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--fill-tertiary)', color: 'var(--label-secondary)' }}><FileText size={16} /></span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-label-primary">手入力</span>
+                  <span className="block text-xs text-label-tertiary">自分でタイトルや日付を入力する</span>
+                </span>
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
       {/* リアクションピッカー */}
@@ -2606,7 +2642,15 @@ export default function Calendar() {
               <div className="w-9 h-[5px] rounded-full" style={{ backgroundColor: 'var(--fill-primary)' }} />
             </div>
             <div className="px-4 pb-2 flex items-center justify-between">
-              <p className="text-label-secondary text-xs">予定を追加</p>
+              <div className="flex rounded-lg p-0.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+                {(['ai', 'manual'] as const).map(m => (
+                  <button key={m} onClick={() => setPostMode(m)}
+                    className="px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors"
+                    style={{ backgroundColor: postMode === m ? 'var(--bg-primary)' : 'transparent', color: postMode === m ? 'var(--label-primary)' : 'var(--label-tertiary)' }}>
+                    {m === 'ai' ? '✨ AI入力' : '手入力'}
+                  </button>
+                ))}
+              </div>
               <div className="flex items-center gap-2">
                 <button onClick={closePostForm} className="text-xs text-label-tertiary px-3 py-1.5 rounded-lg active:opacity-60">キャンセル</button>
                 <button onClick={() => void handlePostSubmit()} disabled={postSubmitting || !!duplicateWarning} className="text-xs font-semibold px-4 py-1.5 rounded-lg active:opacity-70 disabled:opacity-40" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
@@ -2693,7 +2737,7 @@ export default function Calendar() {
                   </div>
                 </div>
               )}
-              <SmartInputPanel onApply={applyParsedToPost} />
+              {postMode === 'ai' && <SmartInputPanel onApply={applyParsedToPost} />}
               {postCards.map((card, i) => (
                 <div key={card.id} className="flex flex-col gap-1.5">
                   {liveDups[card.id] && duplicateWarning?.cardId !== card.id && (
