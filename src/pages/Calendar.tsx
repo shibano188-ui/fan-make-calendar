@@ -5,7 +5,7 @@ import { useReportedEventIds } from '../hooks/useReportedEventIds';
 import UserProfileModal from '../components/UserProfileModal';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Palette, Plus, MoreVertical, Link2, LogOut,
+  Palette, Plus, MoreVertical, Link2, LogOut, MapPin, FileText,
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight, X, Settings, Map as MapIcon, ExternalLink, SlidersHorizontal, Star, Inbox, Check, Clock,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
@@ -245,6 +245,12 @@ function InlineCardItem({
     if (!card.categories.includes(v)) onChange({ categories: [...card.categories, v] });
     setCustomInput('');
   };
+  // 任意フィールドは「+」チップで段階表示（内容があれば最初から表示）
+  const [revealed, setRevealed] = useState<Set<string>>(new Set());
+  const reveal = (k: string) => setRevealed(prev => new Set(prev).add(k));
+  const showLoc = revealed.has('loc') || card.prefecture.length > 0;
+  const showLink = revealed.has('link') || card.links.some(l => l.trim() !== '');
+  const showMemo = revealed.has('memo') || card.memo.trim() !== '';
   return (
     <div className="bg-bg-secondary rounded-xl overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 cursor-pointer select-none" onClick={onToggle}>
@@ -530,8 +536,9 @@ function InlineCardItem({
             )}
           </div>
 
+          {showLoc && (
           <div>
-            <label className="text-label-tertiary text-xs mb-1.5 block">場所（任意）</label>
+            <label className="text-label-tertiary text-xs mb-1.5 block flex items-center gap-1"><MapPin size={12} />場所（任意）</label>
             <select
               value={card.prefecture}
               onChange={e => onChange({ prefecture: e.target.value })}
@@ -549,9 +556,11 @@ function InlineCardItem({
               </div>
             )}
           </div>
+          )}
 
+          {showLink && (
           <div>
-            <label className="text-label-tertiary text-xs mb-1.5 block">リンク（任意・複数可）</label>
+            <label className="text-label-tertiary text-xs mb-1.5 block flex items-center gap-1"><Link2 size={12} />リンク（任意・複数可）</label>
             <div className="flex flex-col gap-2">
               {card.links.map((lnk, i) => (
                 <div key={i} className="flex items-center gap-2">
@@ -581,11 +590,22 @@ function InlineCardItem({
               )}
             </div>
           </div>
+          )}
 
+          {showMemo && (
           <div>
-            <label className="text-label-tertiary text-xs mb-1.5 block">メモ（任意）</label>
+            <label className="text-label-tertiary text-xs mb-1.5 block flex items-center gap-1"><FileText size={12} />メモ（任意）</label>
             <textarea value={card.memo} onChange={e => onChange({ memo: e.target.value })} placeholder="補足情報" rows={3} className={`${inputCls} resize-none`} />
           </div>
+          )}
+
+          {(!showLoc || !showLink || !showMemo) && (
+            <div className="flex flex-wrap gap-2 pt-0.5">
+              {!showLoc && (<button type="button" onClick={() => reveal('loc')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs border border-default text-label-secondary active:opacity-60"><Plus size={12} /><MapPin size={12} />場所</button>)}
+              {!showLink && (<button type="button" onClick={() => reveal('link')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs border border-default text-label-secondary active:opacity-60"><Plus size={12} /><Link2 size={12} />リンク</button>)}
+              {!showMemo && (<button type="button" onClick={() => reveal('memo')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs border border-default text-label-secondary active:opacity-60"><Plus size={12} /><FileText size={12} />メモ</button>)}
+            </div>
+          )}
         </div>
       )}
     </div>
