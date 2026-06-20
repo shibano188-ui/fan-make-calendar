@@ -5,7 +5,7 @@ import { useReportedEventIds } from '../hooks/useReportedEventIds';
 import UserProfileModal from '../components/UserProfileModal';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Palette, Plus, MoreVertical, Link2, LogOut, MapPin, FileText,
+  Palette, Plus, MoreVertical, Link2, LogOut, MapPin, FileText, CalendarDays, Tag,
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight, X, Settings, Map as MapIcon, ExternalLink, SlidersHorizontal, Star, Inbox, Check, Clock,
 } from 'lucide-react';
 import BottomTab from '../components/BottomTab';
@@ -315,16 +315,17 @@ function InlineCardItem({
               </div>
             )}
           </div>
+          {/* タイトル（大きく・TimeTree風） */}
           <div>
-            <label className="text-label-tertiary text-xs mb-1.5 block">タイトル <span className="text-red-400">*</span></label>
-            <input type="text" value={card.title} onChange={e => onChange({ title: e.target.value })} placeholder="例：単行本 第15巻 発売" enterKeyHint="next" className={inputCls} />
+            <input type="text" value={card.title} onChange={e => onChange({ title: e.target.value })} placeholder="タイトル" enterKeyHint="next"
+              className="w-full bg-transparent text-xl font-bold text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border-b border-faint focus:border-strong pb-2" />
           </div>
 
           <div className="flex flex-col gap-2">
             {/* 開始日ヘッダー + 日付未定トグル */}
             <div className="flex items-center justify-between">
-              <label className="text-label-tertiary text-xs">
-                開始日{!card.dateLabel && <span className="text-red-400"> *</span>}
+              <label className="text-label-tertiary text-xs flex items-center gap-1">
+                <CalendarDays size={12} />開始日{!card.dateLabel && <span className="text-red-400"> *</span>}
               </label>
               <button
                 type="button"
@@ -433,7 +434,7 @@ function InlineCardItem({
           </div>
 
           <div>
-            <label className="text-label-tertiary text-xs mb-1.5 block">カテゴリ（複数選択可）</label>
+            <label className="text-label-tertiary text-xs mb-1.5 block flex items-center gap-1"><Tag size={12} />カテゴリ（複数選択可）</label>
             <div className="flex flex-wrap gap-2 mb-2">
               {POST_CATEGORIES.map(cat => (
                 <button
@@ -2548,28 +2549,22 @@ export default function Calendar() {
       {postChooserOpen && (
         <>
           <div className="fixed inset-0 z-[150]" onClick={() => setPostChooserOpen(false)} />
-          <div className="fixed inset-x-0 max-w-app mx-auto z-[160]" style={{ bottom: BOTTOM_TAB_H + 80 }}>
-            <div className="mx-4 bg-bg-primary rounded-[18px] shadow-xl overflow-hidden p-2 flex flex-col gap-1"
-              style={{ animation: 'slideUpIn 0.25s cubic-bezier(0.32, 0.72, 0, 1) both' }}>
+          <div className="fixed inset-x-0 max-w-app mx-auto z-[160]" style={{ bottom: BOTTOM_TAB_H + 76 }}>
+            <div className="ml-auto mr-4 w-[208px] bg-bg-primary rounded-[14px] shadow-xl overflow-hidden p-1.5 flex flex-col gap-0.5"
+              style={{ animation: 'slideUpIn 0.22s cubic-bezier(0.32, 0.72, 0, 1) both' }}>
               <button
                 onClick={() => { setPostMode('ai'); setPostChooserOpen(false); openPostForm(selectedDate); }}
-                className="flex items-center gap-3 px-4 py-3 rounded-[14px] active:opacity-60 text-left"
+                className="flex items-center gap-2.5 px-3 py-2 rounded-[10px] active:opacity-60 text-left"
               >
-                <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--accent-color) 18%, transparent)', color: 'var(--accent-color)' }}>✨</span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-semibold text-label-primary">AIで入力</span>
-                  <span className="block text-xs text-label-tertiary">Xのポスト/URL/画像から自動で読み取る</span>
-                </span>
+                <span className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[13px]" style={{ background: 'color-mix(in srgb, var(--accent-color) 18%, transparent)', color: 'var(--accent-color)' }}>✨</span>
+                <span className="text-sm font-medium text-label-primary">AIで入力</span>
               </button>
               <button
                 onClick={() => { setPostMode('manual'); setPostChooserOpen(false); openPostForm(selectedDate); }}
-                className="flex items-center gap-3 px-4 py-3 rounded-[14px] active:opacity-60 text-left"
+                className="flex items-center gap-2.5 px-3 py-2 rounded-[10px] active:opacity-60 text-left"
               >
-                <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--fill-tertiary)', color: 'var(--label-secondary)' }}><FileText size={16} /></span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-semibold text-label-primary">手入力</span>
-                  <span className="block text-xs text-label-tertiary">自分でタイトルや日付を入力する</span>
-                </span>
+                <span className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--fill-tertiary)', color: 'var(--label-secondary)' }}><Plus size={15} /></span>
+                <span className="text-sm font-medium text-label-primary">予定を投稿</span>
               </button>
             </div>
           </div>
@@ -2647,7 +2642,7 @@ export default function Calendar() {
                   <button key={m} onClick={() => setPostMode(m)}
                     className="px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors"
                     style={{ backgroundColor: postMode === m ? 'var(--bg-primary)' : 'transparent', color: postMode === m ? 'var(--label-primary)' : 'var(--label-tertiary)' }}>
-                    {m === 'ai' ? '✨ AI入力' : '手入力'}
+                    {m === 'ai' ? '✨ AIで入力' : '予定を投稿'}
                   </button>
                 ))}
               </div>
@@ -2923,7 +2918,7 @@ export default function Calendar() {
                 </div>
                 {/* カテゴリ（複数選択可） */}
                 <div>
-                  <label className="text-label-tertiary text-xs mb-1.5 block">カテゴリ（複数選択可）</label>
+                  <label className="text-label-tertiary text-xs mb-1.5 block flex items-center gap-1"><Tag size={12} />カテゴリ（複数選択可）</label>
                   <div className="flex flex-wrap gap-2 mb-2">
                     {POST_CATEGORIES.map(cat => {
                       const selected = (editForm.categories ?? []).includes(cat);
