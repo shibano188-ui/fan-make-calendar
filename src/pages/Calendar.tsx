@@ -121,6 +121,9 @@ function buildTweetUrl(title: string, workName: string | null | undefined, displ
 
 const inputCls =
   'w-full bg-bg-primary rounded-lg px-3 py-2 text-sm text-label-primary caret-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong';
+// 日時の行用（w-full を含めない＝固定幅やflex-1と衝突させない）
+const dtInputCls =
+  'bg-bg-primary rounded-lg px-2.5 py-2 text-sm text-label-primary caret-label-primary outline-none border border-faint focus:border-strong';
 
 const BOTTOM_TAB_H = 56;
 
@@ -429,14 +432,14 @@ function InlineCardItem({
                 {/* 開始 */}
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-label-tertiary w-7 flex-shrink-0">開始</span>
-                  <input type="date" value={card.date} onChange={e => onChange({ date: e.target.value })} className={`${inputCls} flex-1 min-w-0`} />
-                  {showTime && <input type="time" value={card.time} onChange={e => onChange({ time: e.target.value })} className={`${inputCls} w-[108px] flex-shrink-0`} />}
+                  <input type="date" value={card.date} onChange={e => onChange({ date: e.target.value })} className={`${dtInputCls} flex-1 min-w-0`} />
+                  {showTime && <input type="time" value={card.time} onChange={e => onChange({ time: e.target.value })} className={`${dtInputCls} w-[92px] flex-shrink-0`} />}
                 </div>
                 {/* 終了 */}
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-label-tertiary w-7 flex-shrink-0">終了</span>
-                  <input type="date" value={card.endDate} min={card.date || undefined} onChange={e => onChange({ endDate: e.target.value })} className={`${inputCls} flex-1 min-w-0`} />
-                  {showTime && <input type="time" value={card.endTime} onChange={e => onChange({ endTime: e.target.value })} className={`${inputCls} w-[108px] flex-shrink-0`} />}
+                  <input type="date" value={card.endDate} min={card.date || undefined} onChange={e => onChange({ endDate: e.target.value })} className={`${dtInputCls} flex-1 min-w-0`} />
+                  {showTime && <input type="time" value={card.endTime} onChange={e => onChange({ endTime: e.target.value })} className={`${dtInputCls} w-[92px] flex-shrink-0`} />}
                 </div>
               </div>
             )}
@@ -518,29 +521,17 @@ function InlineCardItem({
             </div>
             {card.isOrderMade && (
               <div className="flex flex-col gap-2 mt-2">
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <label className="text-[10px] text-label-tertiary block mb-1">予約開始日</label>
-                    <input type="date" value={card.preorderStart} onChange={e => onChange({ preorderStart: e.target.value })}
-                      className="w-full bg-bg-primary rounded-lg px-2 py-1.5 text-xs text-label-primary outline-none border border-faint focus:border-strong" />
-                  </div>
-                  <div className="flex-1">
-                    <label className="text-[10px] text-label-tertiary block mb-1">開始時間（任意）</label>
-                    <input type="time" value={card.preorderStartTime} onChange={e => onChange({ preorderStartTime: e.target.value })}
-                      className="w-full bg-bg-primary rounded-lg px-2 py-1.5 text-xs text-label-primary outline-none border border-faint focus:border-strong" />
-                  </div>
+                {/* 受付開始 */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-label-tertiary w-12 flex-shrink-0">受付開始</span>
+                  <input type="date" value={card.preorderStart} onChange={e => onChange({ preorderStart: e.target.value })} className={`${dtInputCls} flex-1 min-w-0`} />
+                  <input type="time" value={card.preorderStartTime} onChange={e => onChange({ preorderStartTime: e.target.value })} className={`${dtInputCls} w-[92px] flex-shrink-0`} />
                 </div>
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <label className="text-[10px] text-label-tertiary block mb-1">予約終了日</label>
-                    <input type="date" value={card.preorderEnd} min={card.preorderStart || undefined} onChange={e => onChange({ preorderEnd: e.target.value })}
-                      className="w-full bg-bg-primary rounded-lg px-2 py-1.5 text-xs text-label-primary outline-none border border-faint focus:border-strong" />
-                  </div>
-                  <div className="flex-1">
-                    <label className="text-[10px] text-label-tertiary block mb-1">終了時間（任意）</label>
-                    <input type="time" value={card.preorderEndTime} onChange={e => onChange({ preorderEndTime: e.target.value })}
-                      className="w-full bg-bg-primary rounded-lg px-2 py-1.5 text-xs text-label-primary outline-none border border-faint focus:border-strong" />
-                  </div>
+                {/* 受付終了 */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-label-tertiary w-12 flex-shrink-0">受付終了</span>
+                  <input type="date" value={card.preorderEnd} min={card.preorderStart || undefined} onChange={e => onChange({ preorderEnd: e.target.value })} className={`${dtInputCls} flex-1 min-w-0`} />
+                  <input type="time" value={card.preorderEndTime} onChange={e => onChange({ preorderEndTime: e.target.value })} className={`${dtInputCls} w-[92px] flex-shrink-0`} />
                 </div>
               </div>
             )}

@@ -10,7 +10,7 @@ export const SHOW_ONBOARDING = false;
 
 // ─── グッズのサブ種別（入れ子。グッズ選択時のみ表示・任意） ─────────────
 export const GOODS_PARENT = 'グッズ';
-export const GOODS_SUBCATEGORIES = ['くじ', 'ガチャ', 'プライズ', '食玩', 'ぬい', 'アクスタ', '缶バッジ', 'キーホルダー', 'フィギュア', 'ステッカー', 'アパレル', '雑貨'] as const;
+export const GOODS_SUBCATEGORIES = ['くじ', 'ガチャ', 'プライズ', '食玩', 'ぬい', 'アクスタ', '缶バッジ', 'キーホルダー', 'フィギュア', 'ステッカー', 'アパレル', '文房具', 'カード', '雑貨'] as const;
 export function isGoodsSubcategory(c: string): boolean {
   return (GOODS_SUBCATEGORIES as readonly string[]).includes(c);
 }
