@@ -66,7 +66,8 @@ export default function Home() {
   }, [homePref]);
 
   const sections = useMemo(() => {
-    const all = items ?? [];
+    // フォロー中の作品の予定だけ
+    const all = (items ?? []).filter((e) => e.workId && followIds.has(e.workId));
     const preorderSoon = all.filter((e) => deriveStatus(e) === 'preorder_soon')
       .sort((a, b) => (a.preorderStart ?? '9999').localeCompare(b.preorderStart ?? '9999')).slice(0, 12);
     const followNew = all.filter((e) => e.workId && followIds.has(e.workId))

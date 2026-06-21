@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowDownToLine, Search, SlidersHorizontal } from 'lucide-react';
+import { ArrowDownToLine, Search, SlidersHorizontal, X } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import FilterPanel, { type Facet } from '../components/item/FilterPanel';
 import Chip from '../components/ui/Chip';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveItemType, deriveStatus, todayStr, STATUS, type ItemStatus, type ItemType } from '../design/tokens';
-import { listExploreEvents, getHomePrefecture } from '../lib/api';
+import { listExploreEvents, getHomePrefecture, searchWorks, listAllParticipatedWorks, upsertParticipation, leaveCalendar, type Work } from '../lib/api';
 import { parseCategories } from '../lib/constants';
 import { resolveBuy } from '../lib/affiliate';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
@@ -33,12 +33,14 @@ export default function Explore() {
   const [items, setItems] = useState<CalendarEvent[] | null>(null);
   const [query, setQuery] = useState(searchParams.get('q') ?? '');
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
-  const [selectedWorks, setSelectedWorks] = useState<Set<string>>(new Set());
+  const [excludedWorks, setExcludedWorks] = useState<Set<string>>(new Set());
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
   const [selectedPrefs, setSelectedPrefs] = useState<Set<string>>(new Set());
   const [selectedRegions, setSelectedRegions] = useState<Set<string>>(new Set());
   const [neighborActive, setNeighborActive] = useState(false);
   const [homePref, setHomePref] = useState<string | null>(null);
+  const [followed, setFollowed] = useState<Set<string>>(new Set());
+  const [workMatches, setWorkMatches] = useState<Work[]>([]);
   const [filterOpen, setFilterOpen] = useState(false);
   const todayRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -68,7 +70,30 @@ export default function Explore() {
 
   useEffect(() => { if (user) getHomePrefecture(user.id).then(setHomePref).catch(() => {}); }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const modeItems = useMemo(() => (items ?? []).filter((e) => deriveItemType(e) === mode), [items, mode]);
+  useEffect(() => { if (user) listAllParticipatedWorks(user.id).then((ws) => setFollowed(new Set(ws.map((w) => w.id)))).catch(() => {}); }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 検索語が作品にヒットしたら、フォロー切替パネルを上部に出す
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) { setWorkMatches([]); return; }
+    let alive = true;
+    const t = setTimeout(() => { searchWorks(q).then((r) => alive && setWorkMatches(r.slice(0, 3))).catch(() => {}); }, 300);
+    return () => { alive = false; clearTimeout(t); };
+  }, [query]);
+
+  const toggleFollowWork = async (w: Work) => {
+    haptic.select();
+    if (!user) return;
+    const has = followed.has(w.id);
+    setFollowed((prev) => { const n = new Set(prev); has ? n.delete(w.id) : n.add(w.id); return n; });
+    try { if (has) await leaveCalendar(w.id, user.id); else await upsertParticipation(w.id, user.id); } catch { /* noop */ }
+  };
+
+  // フォロー中の作品の予定だけ表示（新作品は検索→作品パネルからフォロー）
+  const modeItems = useMemo(
+    () => (items ?? []).filter((e) => deriveItemType(e) === mode && e.workId && followed.has(e.workId)),
+    [items, mode, followed],
+  );
 
   const queryItems = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -92,8 +117,8 @@ export default function Explore() {
       const f = m.get(e.workId);
       if (f) f.count++; else m.set(e.workId, { key: e.workId, label: e.workName || '作品', count: 1 });
     }
-    return [...m.values()].sort((a, b) => b.count - a.count);
-  }, [queryItems]);
+    return [...m.values()].sort((a, b) => (followed.has(b.key) ? 1 : 0) - (followed.has(a.key) ? 1 : 0) || b.count - a.count);
+  }, [queryItems, followed]);
 
   const categoryFacets: Facet[] = useMemo(() => {
     const m = new Map<string, Facet>();
@@ -134,15 +159,21 @@ export default function Explore() {
     return s;
   }, [selectedRegions, selectedPrefs, neighborActive, homePref]);
 
+  // 作品チップは「除外モデル」: 既定は全部ON(オレンジ)＝全表示、押すと除外(その作品を非表示)
+  const includedWorks = useMemo(
+    () => new Set(workFacets.filter((f) => !excludedWorks.has(f.key)).map((f) => f.key)),
+    [workFacets, excludedWorks],
+  );
+
   const visible = useMemo(() => {
     return queryItems.filter((e) => {
       if (selectedStatuses.size && !selectedStatuses.has(deriveStatus(e))) return false;
-      if (selectedWorks.size && (!e.workId || !selectedWorks.has(e.workId))) return false;
+      if (e.workId && excludedWorks.has(e.workId)) return false;
       if (selectedCategories.size && !parseCategories(e.category).some((c) => selectedCategories.has(c))) return false;
       if (allowedPrefs.size && (!e.prefecture || !allowedPrefs.has(e.prefecture))) return false;
       return true;
     });
-  }, [queryItems, selectedStatuses, selectedWorks, selectedCategories, allowedPrefs]);
+  }, [queryItems, selectedStatuses, excludedWorks, selectedCategories, allowedPrefs]);
 
   // 今日起点: 過去（上）／これから（下）に分割（並びは取得順=日付昇順のまま）
   const { past, upcoming } = useMemo(() => {
@@ -170,10 +201,10 @@ export default function Explore() {
 
   const clearFilters = () => {
     haptic.select();
-    setSelectedStatuses(new Set()); setSelectedWorks(new Set()); setSelectedCategories(new Set());
+    setSelectedStatuses(new Set()); setExcludedWorks(new Set()); setSelectedCategories(new Set());
     setSelectedPrefs(new Set()); setSelectedRegions(new Set()); setNeighborActive(false);
   };
-  const activeCount = selectedStatuses.size + selectedWorks.size + selectedCategories.size + selectedPrefs.size + selectedRegions.size + (neighborActive ? 1 : 0);
+  const activeCount = selectedStatuses.size + excludedWorks.size + selectedCategories.size + selectedPrefs.size + selectedRegions.size + (neighborActive ? 1 : 0);
 
   const onBuy = (e: CalendarEvent) => {
     haptic.select();
@@ -200,6 +231,11 @@ export default function Explore() {
               className="flex-1 bg-transparent py-2 text-[14px] outline-none"
               style={{ color: 'var(--input-text)' }}
             />
+            {query && (
+              <button onClick={() => setQuery('')} aria-label="クリア" className="pressable text-label-tertiary flex-shrink-0">
+                <X size={16} />
+              </button>
+            )}
           </div>
           <button
             onClick={() => { haptic.select(); setFilterOpen((v) => !v); }}
@@ -219,12 +255,25 @@ export default function Explore() {
           <Chip active={mode === 'event'} onClick={() => { haptic.select(); setMode('event'); }}>イベント</Chip>
         </div>
 
+        {/* 検索が未フォロー作品にヒット → フォロー導線（検索バー直下で常に見える） */}
+        {workMatches.some((w) => !followed.has(w.id)) && (
+          <div className="mt-2 flex flex-col gap-1.5">
+            {workMatches.filter((w) => !followed.has(w.id)).map((w) => (
+              <div key={w.id} className="flex items-center justify-between gap-2 rounded-[10px] border border-subtle px-3 py-2" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                <span className="text-[13px] font-semibold truncate">{w.name}<span className="text-[11px] text-label-tertiary"> ・未フォロー</span></span>
+                <button onClick={() => toggleFollowWork(w)} className="pressable text-[12px] px-3 py-1 rounded-full font-medium flex-shrink-0"
+                  style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>＋フォロー</button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {filterOpen && (
           <FilterPanel
             statuses={statusFacets} works={workFacets} categories={categoryFacets} prefectures={prefFacets} regions={regionFacets}
-            selectedStatuses={selectedStatuses} selectedWorks={selectedWorks} selectedCategories={selectedCategories} selectedPrefs={selectedPrefs} selectedRegions={selectedRegions}
+            selectedStatuses={selectedStatuses} selectedWorks={includedWorks} selectedCategories={selectedCategories} selectedPrefs={selectedPrefs} selectedRegions={selectedRegions}
             onToggleStatus={(k) => toggleIn(setSelectedStatuses, k)}
-            onToggleWork={(k) => toggleIn(setSelectedWorks, k)}
+            onToggleWork={(k) => toggleIn(setExcludedWorks, k)}
             onToggleCategory={(k) => toggleIn(setSelectedCategories, k)}
             onTogglePref={(k) => toggleIn(setSelectedPrefs, k)}
             onToggleRegion={(k) => toggleIn(setSelectedRegions, k)}

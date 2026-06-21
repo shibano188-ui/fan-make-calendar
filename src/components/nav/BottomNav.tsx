@@ -6,7 +6,7 @@ const tabs: { label: string; icon: LucideIcon; path: string }[] = [
   { label: 'ホーム', icon: Home,     path: '/' },
   { label: '探す',   icon: Search,   path: '/explore' },
   { label: 'いいね', icon: Bookmark, path: '/saved' },
-  { label: 'マイ',   icon: User,     path: '/mypage' },
+  { label: 'マイページ', icon: User,  path: '/mypage' },
 ];
 
 function isActive(path: string, pathname: string): boolean {
@@ -64,7 +64,7 @@ function TabButton({ label, icon: Icon, active, onClick }: { label: string; icon
         strokeWidth={active ? 2.5 : 1.8}
       />
       <span
-        className={`text-[11px] leading-none ${active ? '' : 'text-label-tertiary'}`}
+        className={`text-[10px] leading-none whitespace-nowrap ${active ? '' : 'text-label-tertiary'}`}
         style={active ? { color: 'var(--accent-color)' } : {}}
       >
         {label}

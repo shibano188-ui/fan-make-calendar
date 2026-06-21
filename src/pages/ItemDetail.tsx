@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Smile, Share2, X } from 'lucide-react';
 import type { CalendarEvent } from '../types';
-import { getEventById, getWorkById, getDisplayName, toggleLike, setReaction, getReactionData, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
+import { getEventById, getWorkById, getDisplayName, toggleLike, setReaction, getReactionData, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
 import EventEditForm from '../components/item/EventEditForm';
+import { downloadICS } from '../lib/ics';
+import { useToast } from '../components/ui/Toast';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor } from '../lib/constants';
 import { deriveStatus, deriveItemType, itemDateLines } from '../design/tokens';
 import { resolveBuy, getOffers, buildOffer } from '../lib/affiliate';
@@ -26,6 +28,7 @@ export default function ItemDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const toast = useToast();
 
   const [ev, setEv] = useState<CalendarEvent | null | undefined>(undefined); // undefined=loading
   const [workName, setWorkName] = useState('');
@@ -47,6 +50,7 @@ export default function ItemDetail() {
   const [edits, setEdits] = useState<EventEdit[]>([]);
   const [editing, setEditing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [following, setFollowing] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   // 開いたら最上部から表示（前ページのスクロール位置を引き継がない）。
@@ -75,6 +79,7 @@ export default function ItemDetail() {
       if (!e) return;
       setLikeCount(e.likes ?? 0);
       if (e.workId) getWorkById(e.workId).then((w) => alive && setWorkName(w?.name ?? ''));
+      if (e.workId && user) listAllParticipatedWorks(user.id).then((ws) => alive && setFollowing(ws.some((w) => w.id === e.workId))).catch(() => {});
       if (e.authorId) getDisplayName(e.authorId).then((n) => alive && setAuthorName(n));
       getReactionData(id, user?.id).then((r) => { if (alive) { setCounts(r.counts); setMyReaction(r.myReaction); } });
       getCalendarAddData(id, user?.id).then((c) => { if (alive) { setCalCount(c.count); setCalAdded(c.added); } });
@@ -139,7 +144,22 @@ export default function ItemDetail() {
     if (!user) return;
     const prev = calAdded;
     setCalAdded(!prev); setCalCount((c) => c + (prev ? -1 : 1));
+    if (!prev) {
+      // 追加時: 端末カレンダー(Google/Apple)へ .ics で書き出し
+      if (!downloadICS(eff)) toast('日付未定のためカレンダーに追加できません');
+    }
     try { const r = await toggleCalendarAdd(event.id, user.id); setCalAdded(r.added); setCalCount(r.count); } catch { setCalAdded(prev); }
+  };
+  const onFollow = async () => {
+    haptic.select();
+    if (!user || !event.workId) return;
+    const prev = following;
+    setFollowing(!prev);
+    try {
+      if (prev) await leaveCalendar(event.workId, user.id);
+      else await upsertParticipation(event.workId, user.id);
+      toast(prev ? 'フォローを解除しました' : 'フォローしました');
+    } catch { setFollowing(prev); }
   };
   const openBuy = () => { haptic.select(); if (buyUrl) window.open(buyUrl, '_blank', 'noopener'); };
   const onShare = () => {
@@ -215,11 +235,19 @@ export default function ItemDetail() {
           </div>
 
           <div className="px-4 pt-3">
-            {/* 作品・カテゴリ */}
-            <div className="flex items-center gap-1.5 text-[12px] text-label-secondary flex-wrap">
-              {workName && <span>{workName}</span>}
-              {catColor && <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: catColor }} />}
-              {cats.length > 0 && <span>{cats.join(' ・ ')}</span>}
+            {/* 作品・カテゴリ＋フォロー */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 text-[12px] text-label-secondary">
+                {workName && <span>{workName}</span>}
+                {catColor && <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: catColor }} />}
+                {cats.length > 0 && <span>{cats.join(' ・ ')}</span>}
+              </div>
+              {event.workId && (
+                <button onClick={onFollow} className="pressable text-[11px] px-2.5 py-0.5 rounded-full font-medium"
+                  style={following ? { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-secondary)' } : { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+                  {following ? 'フォロー中' : '＋フォロー'}
+                </button>
+              )}
             </div>
 
             {/* タイトル */}
