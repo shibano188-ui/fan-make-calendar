@@ -12,14 +12,13 @@ import { initAdMob } from './lib/admob';
 import { listWorks, upsertParticipation } from './lib/api';
 import { DEFAULT_WORK_NAMES, SHOW_ONBOARDING } from './lib/constants';
 
-const WorkSelect      = lazy(() => import('./pages/WorkSelect'));
-const Calendar        = lazy(() => import('./pages/Calendar'));
-const Discover        = lazy(() => import('./pages/Discover'));
-const DateDetail      = lazy(() => import('./pages/DateDetail'));
-const PostCreate      = lazy(() => import('./pages/PostCreate'));
-const Customize       = lazy(() => import('./pages/Customize'));
-const Profile         = lazy(() => import('./pages/Profile'));
-const Preorders       = lazy(() => import('./pages/Preorders'));
+// ピボット後IA（feat/pivot-rebuild）。旧 Calendar 中心の画面は順次置換。
+const AppShell        = lazy(() => import('./components/AppShell'));
+const Home            = lazy(() => import('./pages/Home'));
+const Explore         = lazy(() => import('./pages/Explore'));
+const Saved           = lazy(() => import('./pages/Saved'));
+const MyPage          = lazy(() => import('./pages/MyPage'));
+const PostNew         = lazy(() => import('./pages/PostNew'));
 const WidgetCountdown = lazy(() => import('./pages/WidgetCountdown'));
 const WidgetToday     = lazy(() => import('./pages/WidgetToday'));
 const WidgetMonth     = lazy(() => import('./pages/WidgetMonth'));
@@ -110,22 +109,19 @@ export default function App() {
               <Route path="/widget/month/:workId"     element={<WidgetMonth />} />
               <Route path="/share"                    element={<ShareTarget />} />
 
-              {/* メインアプリ */}
+              {/* メインアプリ（新IA: ホーム/探す/いいね/マイページ ＋ 中央＋） */}
               <Route path="/*" element={
                 <PhoneFrame>
                   {SHOW_ONBOARDING && <Onboarding />}
                   <Routes>
-                    <Route path="/"                               element={<Calendar />} />
-                    <Route path="/select"                          element={<WorkSelect />} />
-                    <Route path="/discover"                        element={<Discover />} />
-                    <Route path="/calendar"                       element={<Calendar />} />
-                    <Route path="/calendar/:workId"               element={<Calendar />} />
-                    <Route path="/calendar/:workId/date/:date"    element={<DateDetail />} />
-                    <Route path="/calendar/:workId/post"          element={<PostCreate />} />
-                    <Route path="/customize"                      element={<Customize />} />
-                    <Route path="/profile"                        element={<Profile />} />
-                    <Route path="/preorders"                      element={<Preorders />} />
-                    <Route path="*"                               element={<NotFound />} />
+                    <Route element={<AppShell />}>
+                      <Route path="/"        element={<Home />} />
+                      <Route path="/explore" element={<Explore />} />
+                      <Route path="/saved"   element={<Saved />} />
+                      <Route path="/mypage"  element={<MyPage />} />
+                    </Route>
+                    <Route path="/post" element={<PostNew />} />
+                    <Route path="*"     element={<NotFound />} />
                   </Routes>
                 </PhoneFrame>
               } />

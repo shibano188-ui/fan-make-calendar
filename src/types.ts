@@ -26,4 +26,12 @@ export type CalendarEvent = {
   preorderEnd?: string;   // 'YYYY-MM-DD' 予約締切日
   preorderStartTime?: string; // 'HH:mm' 予約開始時間（任意）
   preorderEndTime?: string;   // 'HH:mm' 予約締切時間（任意）
+
+  // ─ ピボット拡張（既存行は未設定=event扱いで動く）─
+  type?: 'event' | 'goods'; // 既定は event（DBは default 'event'）
+  price?: number;           // グッズ価格（円）
+  stockNote?: string;       // 在庫コメント（最新の追記ログ要約など）
+  retailer?: string;        // 販路名（animate / あみあみ / プレバン 等）
+  affiliateUrl?: string;    // アフィリンク化後のURL
+  hasAffiliate?: boolean;   // アフィ対応販路か（false=B2B送客対象）
 };
