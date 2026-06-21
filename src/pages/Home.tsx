@@ -5,8 +5,11 @@ import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveStatus, deriveItemType, todayStr } from '../design/tokens';
-import { listExploreEvents, getHomePrefecture, listAllParticipatedWorks } from '../lib/api';
+import { loadSeenEventIds, isNewItem } from '../lib/constants';
+import { listExploreEvents, getHomePrefecture, listAllParticipatedWorks, toggleLike, toggleCalendarAdd, listLikedEventIds } from '../lib/api';
 import { resolveBuy } from '../lib/affiliate';
+import { addToCalendar } from '../lib/googleCalendar';
+import { useToast } from '../components/ui/Toast';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { useAuth } from '../contexts/AuthContext';
 import { haptic } from '../lib/haptics';
@@ -17,9 +20,10 @@ function shiftMonths(base: string, n: number): string {
   return todayStr(d);
 }
 
-function Section({ title, items, onOpen, onBuy }: {
-  title: string; items: CalendarEvent[];
+function Section({ title, items, seen, likedIds, onOpen, onBuy, onLike, onCalendar }: {
+  title: string; items: CalendarEvent[]; seen: Set<string>; likedIds: Set<string>;
   onOpen: (e: CalendarEvent) => void; onBuy: (e: CalendarEvent) => void;
+  onLike: (e: CalendarEvent) => void | Promise<{ liked: boolean; count: number } | void>; onCalendar: (e: CalendarEvent) => void;
 }) {
   if (items.length === 0) return null;
   return (
@@ -28,7 +32,7 @@ function Section({ title, items, onOpen, onBuy }: {
       <div className="flex gap-2 overflow-x-auto no-scrollbar px-3">
         {items.map((e) => (
           <div key={e.id} className="w-36 flex-shrink-0">
-            <ItemCard event={e} layout="grid" onOpen={() => onOpen(e)} onLike={() => haptic.select()} onCalendar={() => haptic.select()} onBuy={() => onBuy(e)} />
+            <ItemCard event={e} layout="grid" isNew={isNewItem(e.id, e.createdAt, seen)} likedInit={likedIds.has(e.id)} onOpen={() => onOpen(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onBuy={() => onBuy(e)} />
           </div>
         ))}
       </div>
@@ -39,9 +43,11 @@ function Section({ title, items, onOpen, onBuy }: {
 export default function Home() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const toast = useToast();
   const [items, setItems] = useState<CalendarEvent[] | null>(null);
   const [followIds, setFollowIds] = useState<Set<string>>(new Set());
   const [homePref, setHomePref] = useState<string | null>(null);
+  const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
   const today = todayStr();
 
@@ -55,6 +61,7 @@ export default function Home() {
     if (!user) return;
     listAllParticipatedWorks(user.id).then((ws) => setFollowIds(new Set(ws.map((w) => w.id)))).catch(() => {});
     getHomePrefecture(user.id).then(setHomePref).catch(() => {});
+    listLikedEventIds(user.id).then(setLikedIds).catch(() => {});
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const nearPrefs = useMemo(() => {
@@ -79,8 +86,16 @@ export default function Home() {
     return { preorderSoon, followNew, nearby, popular };
   }, [items, followIds, nearPrefs]);
 
+  const seen = useMemo(() => loadSeenEventIds(), [items]);
   const onOpen = (e: CalendarEvent) => navigate(`/item/${e.id}`);
   const onBuy = (e: CalendarEvent) => { haptic.select(); const { url } = resolveBuy(e); if (url) window.open(url, '_blank', 'noopener'); };
+  const onLike = async (e: CalendarEvent) => { haptic.select(); return user ? toggleLike(e.id, user.id) : undefined; };
+  const onCalendar = async (e: CalendarEvent) => {
+    haptic.select();
+    const r = await addToCalendar(e);
+    if (r !== 'fail' && user) toggleCalendarAdd(e.id, user.id).catch(() => {});
+    toast(r === 'google' ? 'Googleカレンダーに追加しました' : r === 'ics' ? 'カレンダーに追加しました' : '日付未定のため追加できません');
+  };
   const onSearch = () => { if (query.trim()) navigate(`/explore?q=${encodeURIComponent(query.trim())}`); };
 
   const empty = items && sections.preorderSoon.length === 0 && sections.followNew.length === 0 && sections.nearby.length === 0 && sections.popular.length === 0;
@@ -108,10 +123,10 @@ export default function Home() {
         <p className="text-center text-label-secondary text-[13px] py-20">おすすめがまだありません。<br />「探す」から見てみてください。</p>
       ) : (
         <div className="pb-4">
-          <Section title="もうすぐ受付開始" items={sections.preorderSoon} onOpen={onOpen} onBuy={onBuy} />
-          <Section title="フォロー作品の新着" items={sections.followNew} onOpen={onOpen} onBuy={onBuy} />
-          <Section title="近くのイベント" items={sections.nearby} onOpen={onOpen} onBuy={onBuy} />
-          <Section title="人気" items={sections.popular} onOpen={onOpen} onBuy={onBuy} />
+          <Section title="もうすぐ受付開始" items={sections.preorderSoon} seen={seen} likedIds={likedIds} onOpen={onOpen} onBuy={onBuy} onLike={onLike} onCalendar={onCalendar} />
+          <Section title="フォロー作品の新着" items={sections.followNew} seen={seen} likedIds={likedIds} onOpen={onOpen} onBuy={onBuy} onLike={onLike} onCalendar={onCalendar} />
+          <Section title="近くのイベント" items={sections.nearby} seen={seen} likedIds={likedIds} onOpen={onOpen} onBuy={onBuy} onLike={onLike} onCalendar={onCalendar} />
+          <Section title="人気" items={sections.popular} seen={seen} likedIds={likedIds} onOpen={onOpen} onBuy={onBuy} onLike={onLike} onCalendar={onCalendar} />
         </div>
       )}
     </div>

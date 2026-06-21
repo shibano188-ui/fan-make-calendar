@@ -7,9 +7,11 @@ import FilterPanel, { type Facet } from '../components/item/FilterPanel';
 import Chip from '../components/ui/Chip';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveItemType, deriveStatus, todayStr, STATUS, type ItemStatus, type ItemType } from '../design/tokens';
-import { listExploreEvents, getHomePrefecture, searchWorks, listAllParticipatedWorks, upsertParticipation, leaveCalendar, type Work } from '../lib/api';
-import { parseCategories } from '../lib/constants';
+import { listExploreEvents, getHomePrefecture, searchWorks, listAllParticipatedWorks, upsertParticipation, leaveCalendar, toggleLike, toggleCalendarAdd, listLikedEventIds, type Work } from '../lib/api';
+import { parseCategories, loadSeenEventIds, isNewItem } from '../lib/constants';
 import { resolveBuy } from '../lib/affiliate';
+import { addToCalendar } from '../lib/googleCalendar';
+import { useToast } from '../components/ui/Toast';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { useAuth } from '../contexts/AuthContext';
 import { haptic } from '../lib/haptics';
@@ -29,6 +31,7 @@ export default function Explore() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
+  const toast = useToast();
   const [mode, setMode] = useState<ItemType>('goods');
   const [items, setItems] = useState<CalendarEvent[] | null>(null);
   const [query, setQuery] = useState(searchParams.get('q') ?? '');
@@ -41,6 +44,7 @@ export default function Explore() {
   const [homePref, setHomePref] = useState<string | null>(null);
   const [followed, setFollowed] = useState<Set<string>>(new Set());
   const [workMatches, setWorkMatches] = useState<Work[]>([]);
+  const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [filterOpen, setFilterOpen] = useState(false);
   const todayRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -71,6 +75,8 @@ export default function Explore() {
   useEffect(() => { if (user) getHomePrefecture(user.id).then(setHomePref).catch(() => {}); }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (user) listAllParticipatedWorks(user.id).then((ws) => setFollowed(new Set(ws.map((w) => w.id)))).catch(() => {}); }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { if (user) listLikedEventIds(user.id).then(setLikedIds).catch(() => {}); }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 検索語が作品にヒットしたら、フォロー切替パネルを上部に出す
   useEffect(() => {
@@ -212,10 +218,19 @@ export default function Explore() {
     if (url) window.open(url, '_blank', 'noopener');
   };
 
+  const onLikeTile = async (e: CalendarEvent) => { haptic.select(); return user ? toggleLike(e.id, user.id) : undefined; };
+  const onCalendarTile = async (e: CalendarEvent) => {
+    haptic.select();
+    const r = await addToCalendar(e);
+    if (r !== 'fail' && user) toggleCalendarAdd(e.id, user.id).catch(() => {});
+    toast(r === 'google' ? 'Googleカレンダーに追加しました' : r === 'ics' ? 'カレンダーに追加しました' : '日付未定のため追加できません');
+  };
+
+  const seen = useMemo(() => loadSeenEventIds(), [items]);
   const gridClass = mode === 'goods' ? 'grid grid-cols-2 gap-2 items-stretch' : 'flex flex-col gap-2';
   const renderCard = (e: CalendarEvent) => (
-    <ItemCard key={e.id} event={e} layout={mode === 'goods' ? 'grid' : 'list'}
-      onOpen={() => navigate(`/item/${e.id}`)} onLike={() => haptic.select()} onCalendar={() => haptic.select()} onBuy={() => onBuy(e)} />
+    <ItemCard key={e.id} event={e} layout={mode === 'goods' ? 'grid' : 'list'} isNew={isNewItem(e.id, e.createdAt, seen)} likedInit={likedIds.has(e.id)}
+      onOpen={() => navigate(`/item/${e.id}`)} onLike={() => onLikeTile(e)} onCalendar={() => onCalendarTile(e)} onBuy={() => onBuy(e)} />
   );
 
   return (

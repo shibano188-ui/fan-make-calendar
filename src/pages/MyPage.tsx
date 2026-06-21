@@ -7,6 +7,7 @@ import {
 } from '../lib/api';
 import { calcTitle, calcRadarData, calcGrade, type AchievementStats } from '../lib/achievements';
 import { REGIONS } from '../lib/prefectures';
+import { loadNotifyLeadDays, saveNotifyLeadDays } from '../lib/constants';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
 import { haptic } from '../lib/haptics';
@@ -22,6 +23,7 @@ export default function MyPage() {
   const [homePref, setHomePref] = useState('');
   const [works, setWorks] = useState<Work[]>([]);
   const [worksOpen, setWorksOpen] = useState(false);
+  const [leadDays, setLeadDays] = useState(loadNotifyLeadDays());
 
   useEffect(() => {
     if (!user) return;
@@ -97,11 +99,14 @@ export default function MyPage() {
             {ALL_PREFS.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
         </div>
-        {/* 通知（Phase6） */}
-        <div className="flex items-center gap-2 px-3 py-2.5 opacity-50">
+        {/* 通知リードタイム */}
+        <div className="flex items-center gap-2 px-3 py-2.5">
           <Bell size={16} className="text-label-secondary" />
-          <span className="text-[14px] flex-1">通知</span>
-          <span className="text-[11px] text-label-tertiary">近日</span>
+          <span className="text-[14px] flex-1">通知（受付開始・発売の前に）</span>
+          <select value={leadDays} onChange={(e) => { const d = Number(e.target.value); setLeadDays(d); saveNotifyLeadDays(d); }}
+            className="bg-transparent text-[14px] outline-none" style={{ color: 'var(--input-text)' }}>
+            {[1, 2, 3, 5, 7].map((d) => <option key={d} value={d}>{d}日前</option>)}
+          </select>
         </div>
         {/* カレンダー連携（後） */}
         <div className="flex items-center gap-2 px-3 py-2.5 opacity-50">

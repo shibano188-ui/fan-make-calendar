@@ -4,9 +4,9 @@ import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDay
 import type { CalendarEvent } from '../types';
 import { getEventById, getWorkById, getDisplayName, toggleLike, setReaction, getReactionData, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
 import EventEditForm from '../components/item/EventEditForm';
-import { downloadICS } from '../lib/ics';
+import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
-import { parseImageUrls, parseCategories, getPrimaryCategoryColor } from '../lib/constants';
+import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId } from '../lib/constants';
 import { deriveStatus, deriveItemType, itemDateLines } from '../design/tokens';
 import { resolveBuy, getOffers, buildOffer } from '../lib/affiliate';
 import { REACTIONS } from '../lib/reactions';
@@ -81,6 +81,7 @@ export default function ItemDetail() {
       if (e.workId) getWorkById(e.workId).then((w) => alive && setWorkName(w?.name ?? ''));
       if (e.workId && user) listAllParticipatedWorks(user.id).then((ws) => alive && setFollowing(ws.some((w) => w.id === e.workId))).catch(() => {});
       if (e.authorId) getDisplayName(e.authorId).then((n) => alive && setAuthorName(n));
+      addSeenEventId(id); // 閲覧済み＝新着判定から外す
       getReactionData(id, user?.id).then((r) => { if (alive) { setCounts(r.counts); setMyReaction(r.myReaction); } });
       getCalendarAddData(id, user?.id).then((c) => { if (alive) { setCalCount(c.count); setCalAdded(c.added); } });
       listOfferContribs(id).then((cs) => { if (alive) setContribs(cs); });
@@ -145,8 +146,8 @@ export default function ItemDetail() {
     const prev = calAdded;
     setCalAdded(!prev); setCalCount((c) => c + (prev ? -1 : 1));
     if (!prev) {
-      // 追加時: 端末カレンダー(Google/Apple)へ .ics で書き出し
-      if (!downloadICS(eff)) toast('日付未定のためカレンダーに追加できません');
+      const r = await addToCalendar(eff);
+      toast(r === 'google' ? 'Googleカレンダーに追加しました' : r === 'ics' ? 'カレンダーに追加しました' : '日付未定のため追加できません');
     }
     try { const r = await toggleCalendarAdd(event.id, user.id); setCalAdded(r.added); setCalCount(r.count); } catch { setCalAdded(prev); }
   };

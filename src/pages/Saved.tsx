@@ -5,9 +5,11 @@ import ItemCard from '../components/item/ItemCard';
 import Chip from '../components/ui/Chip';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { todayStr } from '../design/tokens';
-import { listSavedEvents, toggleLike } from '../lib/api';
+import { listSavedEvents, toggleLike, toggleCalendarAdd } from '../lib/api';
 import { resolveBuy } from '../lib/affiliate';
+import { addToCalendar } from '../lib/googleCalendar';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../components/ui/Toast';
 import { haptic } from '../lib/haptics';
 
 type Tab = 'all' | 'liked' | 'mine';
@@ -15,6 +17,7 @@ type Tab = 'all' | 'liked' | 'mine';
 export default function Saved() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const toast = useToast();
   const [items, setItems] = useState<CalendarEvent[] | null>(null);
   const [tab, setTab] = useState<Tab>('all');
   const today = todayStr();
@@ -65,6 +68,12 @@ export default function Saved() {
   }, [items, tab, user?.id, today]);
 
   const onBuy = (e: CalendarEvent) => { haptic.select(); const { url } = resolveBuy(e); if (url) window.open(url, '_blank', 'noopener'); };
+  const onCalendar = async (e: CalendarEvent) => {
+    haptic.select();
+    const r = await addToCalendar(e);
+    if (r !== 'fail' && user) toggleCalendarAdd(e.id, user.id).catch(() => {});
+    toast(r === 'google' ? 'Googleカレンダーに追加しました' : r === 'ics' ? 'カレンダーに追加しました' : '日付未定のため追加できません');
+  };
 
   return (
     <div ref={rootRef} className="px-3 pt-3">
@@ -84,8 +93,8 @@ export default function Saved() {
       ) : (
         <div className="flex flex-col gap-2 pb-4">
           {visible.map((e) => (
-            <ItemCard key={e.id} event={e} layout="list"
-              onOpen={() => navigate(`/item/${e.id}`)} onLike={() => onLike(e)} onCalendar={() => haptic.select()} onBuy={() => onBuy(e)} />
+            <ItemCard key={e.id} event={e} layout="list" likedInit={e.likedByMe}
+              onOpen={() => navigate(`/item/${e.id}`)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onBuy={() => onBuy(e)} />
           ))}
         </div>
       )}

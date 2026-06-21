@@ -923,6 +923,12 @@ export async function listAllParticipatedWorkEvents(
   return listAllParticipatedWorkEventsRange(userId, `${year}-${m}-01`, `${year}-${m}-${String(lastDay).padStart(2, '0')}`);
 }
 
+// 自分がいいね済みの event_id 一覧（タイルの♡塗り反映用）。
+export async function listLikedEventIds(userId: string): Promise<Set<string>> {
+  const { data } = await supabase.from('likes').select('event_id').eq('user_id', userId);
+  return new Set((data ?? []).map((r) => r.event_id as string));
+}
+
 // いいね（保存）タブ: 自分がいいねした予定 ＋ 自分が投稿した予定 を取得（重複排除）。
 export async function listSavedEvents(userId: string): Promise<CalendarEvent[]> {
   const { data: likeRows } = await supabase.from('likes').select('event_id').eq('user_id', userId);
