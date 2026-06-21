@@ -7,6 +7,22 @@ export interface ProductCandidate {
   hasAffiliate: boolean;
 }
 
+// 入力タイトルが候補タイトルにどれだけ含まれるか（0〜1）。誤商品の登録防止用ガード。
+function normForMatch(s: string): string {
+  return s.replace(/[\s　]/g, '').toLowerCase();
+}
+export function titleMatchScore(entered: string, candidate: string): number {
+  const a = normForMatch(entered);
+  const b = normForMatch(candidate);
+  if (a.length < 2 || b.length < 2) return 0;
+  const grams = (s: string) => { const set = new Set<string>(); for (let i = 0; i < s.length - 1; i++) set.add(s.slice(i, i + 2)); return set; };
+  const A = grams(a);
+  const B = grams(b);
+  let inter = 0;
+  for (const g of A) if (B.has(g)) inter++;
+  return inter / A.size; // 入力(A)が候補(B)にどれだけ含まれるか
+}
+
 // 商品候補を検索（リンク無し/価格不明の補完用）。サーバー側の楽天検索を叩く。
 export async function searchProductCandidates(keyword: string): Promise<ProductCandidate[]> {
   const base = (import.meta.env.VITE_API_BASE as string | undefined) ?? '';

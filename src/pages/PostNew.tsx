@@ -6,7 +6,7 @@ import { searchWorks, getOrCreateWork, createEvents, upsertParticipation, findDu
 import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES } from '../lib/constants';
 import { affiliatize } from '../lib/affiliate';
 import { parseEventsApi, fileToBase64, type ParsedEvent } from '../lib/parseEvents';
-import { searchProductCandidates, type ProductCandidate } from '../lib/searchProduct';
+import { searchProductCandidates, titleMatchScore, type ProductCandidate } from '../lib/searchProduct';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
 import { haptic } from '../lib/haptics';
@@ -481,17 +481,25 @@ export default function PostNew() {
               <p className="text-[12px] text-label-tertiary mt-1">候補が見つかりませんでした</p>
             ) : (
               <div className="mt-2 flex flex-col gap-1.5 rounded-[10px] border border-subtle p-2" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                {candidates.map((c, i) => (
-                  <button key={i} onClick={() => pickCandidate(c)} className="pressable flex items-center gap-2 text-left p-1 rounded-[8px]">
-                    <div className="w-12 h-12 flex-shrink-0 rounded-[6px] overflow-hidden bg-fill-3">
-                      {c.image && <img src={c.image} alt="" className="w-full h-full object-cover" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[12px] line-clamp-2 leading-snug">{c.title}</div>
-                      <div className="text-[12px] font-bold" style={{ color: 'var(--accent-text)' }}>¥{c.price?.toLocaleString()} <span className="font-normal text-label-tertiary">{c.shop}</span></div>
-                    </div>
-                  </button>
-                ))}
+                <p className="text-[11px] text-label-tertiary">タイトルに一致する候補だけ選べます</p>
+                {candidates.map((c, i) => {
+                  const ok = titleMatchScore(`${workName || workQuery} ${title}`, c.title) >= 0.5;
+                  return (
+                    <button key={i} disabled={!ok} onClick={() => pickCandidate(c)}
+                      className={`flex items-center gap-2 text-left p-1 rounded-[8px] ${ok ? 'pressable' : 'opacity-40 cursor-not-allowed'}`}>
+                      <div className="w-12 h-12 flex-shrink-0 rounded-[6px] overflow-hidden bg-fill-3">
+                        {c.image && <img src={c.image} alt="" className="w-full h-full object-cover" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[12px] line-clamp-2 leading-snug">{c.title}</div>
+                        <div className="text-[12px] font-bold" style={{ color: 'var(--accent-text)' }}>
+                          ¥{c.price?.toLocaleString()} <span className="font-normal text-label-tertiary">{c.shop}</span>
+                          {!ok && <span className="font-normal text-label-tertiary">・タイトル不一致</span>}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )
           )}
