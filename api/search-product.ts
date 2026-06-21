@@ -9,13 +9,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(204).end();
 
-  const appId = process.env.RAKUTEN_APP_ID;
-  if (!appId) return res.status(200).json({ disabled: true, items: [] });
+  // 2026新API: applicationId(UUID) ＋ accessKey の二重認証が必須
+  const appId = process.env.RAKUTEN_APP_ID?.trim();
+  const accessKey = process.env.RAKUTEN_ACCESS_KEY?.trim();
+  if (!appId || !accessKey) return res.status(200).json({ disabled: true, items: [] });
 
   const keyword = (req.query.keyword as string | undefined)?.trim();
   if (!keyword) return res.status(400).json({ error: 'keyword required' });
 
-  const affiliateId = process.env.RAKUTEN_AFFILIATE_ID || '';
+  const affiliateId = (process.env.RAKUTEN_AFFILIATE_ID || '').trim();
   const params = new URLSearchParams({
     applicationId: appId,
     keyword,
@@ -26,10 +28,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   });
 
   try {
-    // 楽天は「許可されたWebサイト」以外からのリクエストを弾くため、登録ドメインを Referer で送る
     const referer = process.env.RAKUTEN_REFERER || 'https://fan-make-calendar.vercel.app/';
-    const r = await fetch(`https://app.rakuten.co.jp/services/api/IchibaItem/Search/20220601?${params.toString()}`, {
-      headers: { Referer: referer },
+    const r = await fetch(`https://openapi.rakuten.co.jp/ichibams/api/IchibaItem/Search/20260401?${params.toString()}`, {
+      headers: { accessKey, Referer: referer, Origin: referer.replace(/\/$/, '') },
       signal: AbortSignal.timeout(8000),
     });
     if (!r.ok) return res.status(200).json({ items: [] });
