@@ -244,7 +244,7 @@ export async function listEventsByDate(workId: string, date: string, userId?: st
 
 export async function createEvents(
   workId: string,
-  events: Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'imageUrl' | 'sourceUrl' | 'isOrderMade' | 'preorderStart' | 'preorderEnd' | 'preorderStartTime' | 'preorderEndTime'>[],
+  events: Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'imageUrl' | 'sourceUrl' | 'isOrderMade' | 'preorderStart' | 'preorderEnd' | 'preorderStartTime' | 'preorderEndTime' | 'type' | 'price' | 'stockNote' | 'retailer' | 'affiliateUrl' | 'hasAffiliate'>[],
   authorId: string,
 ): Promise<string[]> {
   const rows = await Promise.all(events.map(async e => {
@@ -281,6 +281,12 @@ export async function createEvents(
       preorder_end_date: e.preorderEnd ?? null,
       preorder_start_time: e.preorderStartTime ?? null,
       preorder_end_time: e.preorderEndTime ?? null,
+      type: e.type ?? 'event',
+      price: e.price ?? null,
+      stock_note: e.stockNote ?? null,
+      retailer: e.retailer ?? null,
+      affiliate_url: e.affiliateUrl ?? null,
+      has_affiliate: e.hasAffiliate ?? false,
       author_id: authorId,
       pool,
     };
