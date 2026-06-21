@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import type { CalendarEvent } from '../types';
@@ -50,6 +50,18 @@ export default function Home() {
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
   const today = todayStr();
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // 開いたら最上部から表示（タブ移動でスクロール位置を引き継がない）
+  useEffect(() => {
+    let el = rootRef.current?.parentElement as HTMLElement | null;
+    while (el) {
+      const oy = getComputedStyle(el).overflowY;
+      if (oy === 'auto' || oy === 'scroll') el.scrollTop = 0;
+      el = el.parentElement;
+    }
+    window.scrollTo(0, 0);
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -101,7 +113,7 @@ export default function Home() {
   const empty = items && sections.preorderSoon.length === 0 && sections.followNew.length === 0 && sections.nearby.length === 0 && sections.popular.length === 0;
 
   return (
-    <div>
+    <div ref={rootRef}>
       <div className="px-3 pt-3 pb-1 sticky top-0 z-20" style={{ backgroundColor: 'var(--bg-primary)' }}>
         <button onClick={() => navigate('/explore')} className="w-full flex items-center gap-2 px-3 py-2 rounded-[10px]" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
           <Search size={16} className="text-label-tertiary" />
