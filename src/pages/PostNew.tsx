@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { X, Plus, Check, Sparkles, Camera, Link2, Loader2 } from 'lucide-react';
+import { X, Plus, Check, Sparkles, Camera, Link2, Loader2, Search } from 'lucide-react';
 import Chip from '../components/ui/Chip';
 import { searchWorks, getOrCreateWork, createEvents, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, type Work } from '../lib/api';
 import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES } from '../lib/constants';
 import { affiliatize } from '../lib/affiliate';
 import { parseEventsApi, fileToBase64, type ParsedEvent } from '../lib/parseEvents';
+import { searchProductCandidates, type ProductCandidate } from '../lib/searchProduct';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
 import { haptic } from '../lib/haptics';
@@ -71,6 +72,9 @@ export default function PostNew() {
   // ライブ重複検知
   const [dupMatches, setDupMatches] = useState<{ id: string; title: string }[]>([]);
   const [dupDismissed, setDupDismissed] = useState(false);
+  // 販売先候補検索
+  const [candidates, setCandidates] = useState<ProductCandidate[] | null>(null);
+  const [searchingProduct, setSearchingProduct] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -202,6 +206,24 @@ export default function PostNew() {
     if (!file) return;
     const { data, mime } = await fileToBase64(file);
     runParse({ imageBase64: data, mimeType: mime });
+  };
+
+  // 販売先候補を検索（リンク無し/価格不明の補完）
+  const onSearchProduct = async () => {
+    const kw = `${workName || workQuery} ${title}`.trim();
+    if (!kw) return;
+    haptic.select();
+    setSearchingProduct(true); setCandidates(null);
+    const items = await searchProductCandidates(kw);
+    setSearchingProduct(false);
+    setCandidates(items);
+  };
+  const pickCandidate = (c: ProductCandidate) => {
+    haptic.select();
+    setLink(c.url);
+    if (!price && c.price) setPrice(String(c.price));
+    if (!imageUrl && c.image) setImageUrl(c.image);
+    setCandidates(null);
   };
 
   const linkInfo = link.trim() ? affiliatize(link.trim()) : null;
@@ -448,6 +470,31 @@ export default function PostNew() {
           {/* リンク */}
           <div className={labelCls}>リンク（購入・予約ページ）</div>
           <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://..." inputMode="url" className={inputCls} style={inputStyle} />
+
+          {/* 販売先を探す（リンク補完・価格取得） */}
+          <button onClick={onSearchProduct} disabled={searchingProduct || !title.trim()}
+            className="pressable mt-2 flex items-center gap-1.5 text-[13px]" style={{ color: 'var(--accent-text)' }}>
+            {searchingProduct ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />} 販売先を探す
+          </button>
+          {candidates && (
+            candidates.length === 0 ? (
+              <p className="text-[12px] text-label-tertiary mt-1">候補が見つかりませんでした</p>
+            ) : (
+              <div className="mt-2 flex flex-col gap-1.5 rounded-[10px] border border-subtle p-2" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                {candidates.map((c, i) => (
+                  <button key={i} onClick={() => pickCandidate(c)} className="pressable flex items-center gap-2 text-left p-1 rounded-[8px]">
+                    <div className="w-12 h-12 flex-shrink-0 rounded-[6px] overflow-hidden bg-fill-3">
+                      {c.image && <img src={c.image} alt="" className="w-full h-full object-cover" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12px] line-clamp-2 leading-snug">{c.title}</div>
+                      <div className="text-[12px] font-bold" style={{ color: 'var(--accent-text)' }}>¥{c.price?.toLocaleString()} <span className="font-normal text-label-tertiary">{c.shop}</span></div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )
+          )}
           {import.meta.env.DEV && linkInfo && (
             <div className="text-[12px] mt-1" style={{ color: linkInfo.hasAffiliate ? 'var(--color-success)' : 'var(--label-secondary)' }}>
               {linkInfo.hasAffiliate ? `✓ ${linkInfo.retailer}（アフィ対応）` : `${linkInfo.retailer || 'リンク'}（アフィ非対応・B2B送客）`}
