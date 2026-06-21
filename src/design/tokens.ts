@@ -1,24 +1,40 @@
 // ピボット後デザインシステムの中核トークン。
 // 調査（メルカリ=清潔/高密度・四角画像、Airbnb=しぼり込み、Duolingo=達成演出、Fantastical=日時）を反映。
 import type { CalendarEvent } from '../types';
+import { parseCategories, isGoodsSubcategory } from '../lib/constants';
 
 export type ItemType = 'event' | 'goods';
 
+// カテゴリ→種別の親分類（既存データの判定に使う）
+const GOODS_PARENT = ['グッズ', 'グルメ', '書籍'];
+const EVENT_PARENT = ['イベント', 'アニメ・映画', '誕生日', 'キャンペーン'];
+
+/** グッズ/イベントの判定。既存データは type 列が無い/既定なのでカテゴリから導出。
+ *  イベント系カテゴリを優先（POP UP等はグッズ種別が付いていてもイベント扱いで混ざりを防ぐ）。 */
+export function deriveItemType(e: Pick<CalendarEvent, 'type' | 'category'>): ItemType {
+  const cats = parseCategories(e.category);
+  if (cats.some((c) => EVENT_PARENT.includes(c))) return 'event';
+  if (cats.some((c) => GOODS_PARENT.includes(c) || isGoodsSubcategory(c))) return 'goods';
+  return e.type === 'goods' ? 'goods' : 'event';
+}
+
 export type ItemStatus =
-  | 'preorder_soon' // もうすぐ予約・受注開始 🔵
-  | 'preorder'      // 予約・受注中 🟠
-  | 'sale_soon'     // 発売予定 🟣
-  | 'onsale'        // 発売中・開催中 🟢
-  | 'ended';        // 発売済み・終了 ⚪
+  | 'preorder_soon'  // もうすぐ予約・受注開始 🔵
+  | 'preorder'       // 予約・受注中 🟠
+  | 'preorder_ended' // 受付終了 ⚪
+  | 'sale_soon'      // 発売予定 🟣
+  | 'onsale'         // 発売中・開催中 🟢
+  | 'ended';         // 終了（イベント期間後）⚪
 
 type StatusMeta = { color: string; goodsLabel: string; eventLabel: string };
 
 export const STATUS: Record<ItemStatus, StatusMeta> = {
-  preorder_soon: { color: 'var(--status-info)',     goodsLabel: 'もうすぐ予約開始', eventLabel: 'もうすぐ受付開始' },
-  preorder:      { color: 'var(--status-preorder)', goodsLabel: '予約・受注中',     eventLabel: '受付中' },
-  sale_soon:     { color: 'var(--status-upcoming)', goodsLabel: '発売予定',         eventLabel: '開催予定' },
-  onsale:        { color: 'var(--status-onsale)',   goodsLabel: '発売中',           eventLabel: '開催中' },
-  ended:         { color: 'var(--status-ended)',    goodsLabel: '販売終了',         eventLabel: '終了' },
+  preorder_soon:  { color: 'var(--status-info)',     goodsLabel: 'もうすぐ予約開始', eventLabel: 'もうすぐ受付開始' },
+  preorder:       { color: 'var(--status-preorder)', goodsLabel: '予約・受注中',     eventLabel: '受付中' },
+  preorder_ended: { color: 'var(--status-ended)',    goodsLabel: '受付終了',         eventLabel: '受付終了' },
+  sale_soon:      { color: 'var(--status-upcoming)', goodsLabel: '発売予定',         eventLabel: '開催予定' },
+  onsale:         { color: 'var(--status-onsale)',   goodsLabel: '発売中',           eventLabel: '開催中' },
+  ended:          { color: 'var(--status-ended)',    goodsLabel: '終了',             eventLabel: '終了' },
 };
 
 export function statusLabel(status: ItemStatus, type: ItemType = 'event'): string {
@@ -33,22 +49,32 @@ export function todayStr(d = new Date()): string {
   return `${y}-${m}-${day}`;
 }
 
-/** 日付情報から現在の状態を導出（5段階）。YYYY-MM-DD の文字列比較で判定。 */
+/** 現在の状態を導出。種別対応：グッズは発売日を過ぎても「発売中」（"販売終了"を出さない）、
+ *  イベントは期間後「終了」、受注は受付後「受付終了」。YYYY-MM-DD の文字列比較。 */
 export function deriveStatus(
-  e: Pick<CalendarEvent, 'date' | 'endDate' | 'preorderStart' | 'preorderEnd'>,
+  e: Pick<CalendarEvent, 'date' | 'endDate' | 'preorderStart' | 'preorderEnd' | 'type' | 'category'>,
   today = todayStr(),
 ): ItemStatus {
+  const type = deriveItemType(e);
   const { date, endDate, preorderStart, preorderEnd } = e;
-  if (preorderStart && today < preorderStart) return 'preorder_soon';
-  if (preorderStart && preorderEnd && preorderStart <= today && today <= preorderEnd) return 'preorder';
-  if (!preorderStart && preorderEnd && today <= preorderEnd) return 'preorder';
+
+  // 受注・予約の受付ウィンドウ
+  if (preorderStart || preorderEnd) {
+    if (preorderStart && today < preorderStart) return 'preorder_soon';
+    const inWindow = (!preorderStart || preorderStart <= today) && (!preorderEnd || today <= preorderEnd);
+    if (inWindow) return 'preorder';
+    // 受付終了後: 発売日があればそちらの状態へ、無ければ受付終了
+    if (preorderEnd && today > preorderEnd && !date) return 'preorder_ended';
+  }
+
   if (date) {
     const end = endDate || date;
     if (today < date) return 'sale_soon';
     if (today <= end) return 'onsale';
-    return 'ended';
+    return type === 'event' ? 'ended' : 'onsale'; // グッズは発売日を過ぎても発売中扱い
   }
-  if (preorderEnd && today > preorderEnd) return 'ended';
+
+  if (preorderEnd && today > preorderEnd) return 'preorder_ended';
   return 'sale_soon'; // 日付未定は予定扱い
 }
 

@@ -17,6 +17,14 @@
     transform: scale(0.96);
     opacity: 0.7;
   }
+  /* 横スクロールのスクロールバーを隠す（チップ行など） */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
   /* アイコンのみボタンのタップ領域を44pxに拡張（視覚サイズは不変） */
   .tap-44 {
     position: relative;

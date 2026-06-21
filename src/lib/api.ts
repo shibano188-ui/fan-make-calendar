@@ -135,6 +135,13 @@ function rowToEvent(e: Record<string, unknown>): CalendarEvent {
     preorderEnd: (e.preorder_end_date as string | null) ?? undefined,
     preorderStartTime: ((e.preorder_start_time as string | null) ?? undefined)?.slice(0, 5),
     preorderEndTime: ((e.preorder_end_time as string | null) ?? undefined)?.slice(0, 5),
+    // ピボット拡張カラム
+    type: (e.type as 'event' | 'goods' | null) ?? undefined,
+    price: (e.price as number | null) ?? undefined,
+    stockNote: (e.stock_note as string | null) ?? undefined,
+    retailer: (e.retailer as string | null) ?? undefined,
+    affiliateUrl: (e.affiliate_url as string | null) ?? undefined,
+    hasAffiliate: (e.has_affiliate as boolean | null) ?? undefined,
   };
 }
 
@@ -787,6 +794,24 @@ export async function listAllParticipatedWorkEvents(
   const m = String(month + 1).padStart(2, '0');
   const lastDay = new Date(year, month + 1, 0).getDate();
   return listAllParticipatedWorkEventsRange(userId, `${year}-${m}-01`, `${year}-${m}-${String(lastDay).padStart(2, '0')}`);
+}
+
+// 探す（横断フィード）: 全作品の予定を期間ウィンドウで取得。works名を結合。
+// 過去も含めて取得し、UI側で「今日起点」に並べる。type はUI側で category から導出して振り分ける。
+export async function listExploreEvents(from: string, to: string): Promise<CalendarEvent[]> {
+  const { data, error } = await supabase
+    .from('events')
+    .select('*, works(name)')
+    .eq('pool', 0)
+    .lte('event_date', to)
+    .or(`end_date.gte.${from},and(end_date.is.null,event_date.gte.${from})`)
+    .order('event_date', { ascending: true });
+  if (error) throw error;
+  const events = (data ?? []).map((e) => {
+    const works = (e as Record<string, unknown>).works as { name: string } | null;
+    return { ...rowToEvent(e as Record<string, unknown>), workName: works?.name ?? '' };
+  });
+  return resolveAuthorNames(events);
 }
 
 // ─── イベント編集 ─────────────────────────────────────────────────
