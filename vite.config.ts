@@ -18,7 +18,7 @@ export default defineConfig({
         orientation: 'portrait',
         start_url: '/',
         share_target: {
-          action: '/share',
+          action: '/post',
           method: 'GET',
           params: { title: 'title', text: 'text', url: 'url' },
         },

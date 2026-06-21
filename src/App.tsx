@@ -55,7 +55,7 @@ function AndroidShareHandler() {
         if (url)   params.set('url',   url);
         if (text)  params.set('text',  text);
         if (title) params.set('title', title);
-        navigate(`/share?${params.toString()}`, { replace: true });
+        navigate(`/post?${params.toString()}`, { replace: true });
       } catch (e) { console.error('[ShareHandler]', e); }
     };
 

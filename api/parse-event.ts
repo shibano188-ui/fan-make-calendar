@@ -65,6 +65,7 @@ const BASE_RULES = `
 - isOrderMade=true の場合: preorderStart = 受付（予約・抽選・申込）開始日, preorderEnd = 受付（予約・抽選・申込）終了日
 - date には「お渡し予定」「発送予定」「発売予定」など実際の商品受け取り日（受付期間とは別）を入れる。お渡し日が不明なら date は null でよい（受付期間だけでも可）
 - 受付開始日・終了日が不明な場合は preorderStart/preorderEnd を null にする
+- 【絶対厳守・推測禁止】preorderStart / preorderEnd は「受付期間・予約期間・申込期間」として日付が文中に明記されている時だけ設定する。発売日・お渡し日・発送日・イベント開催日・その他の日付を予約期間に流用・推測してはいけない。受付期間の記載が無ければ必ず両方 null（勝手に日付を作らない）
 - 「ご予約受付中」「予約はこちら」など申込制を示す表現があれば、具体的な期間が無くても isOrderMade: true（期間不明なら preorderStart/End は null）
 - isOrderMade=false の通常イベントでは preorderStart/preorderEnd は null
 【抽出例（必ず参考にする）】

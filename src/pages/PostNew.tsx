@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { X, Plus, Check, Sparkles, Camera, Link2, Loader2 } from 'lucide-react';
 import Chip from '../components/ui/Chip';
 import { searchWorks, getOrCreateWork, createEvents, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, type Work } from '../lib/api';
@@ -28,6 +28,7 @@ function readDraft(): Record<string, any> | null {
 
 export default function PostNew() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const toast = useToast();
 
@@ -93,6 +94,23 @@ export default function PostNew() {
   });
   const clearDraft = () => sessionStorage.removeItem(DRAFT_KEY);
   const onClose = () => { clearDraft(); navigate(-1); };
+
+  // 共有シートから来た内容（?url / ?text）を受けて自動でAI解析
+  useEffect(() => {
+    const urlParam = searchParams.get('url') || '';
+    const textParam = searchParams.get('text') || '';
+    if (!urlParam && !textParam) return;
+    const firstUrl = (s: string) => s.match(/https?:\/\/\S+/)?.[0] ?? '';
+    const sharedUrl = urlParam.startsWith('http') ? urlParam
+      : textParam.startsWith('http') ? textParam
+      : firstUrl(textParam) || firstUrl(urlParam) || urlParam || textParam;
+    const sharedText = (() => {
+      if (!urlParam.startsWith('http')) return '';
+      const s = textParam.replace(/https?:\/\/\S+/g, '').trim();
+      return s.length > 5 ? s : '';
+    })();
+    if (sharedUrl) { setAiText(sharedUrl); runParse({ url: sharedUrl, sharedText: sharedText || undefined }); }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 作品オートコンプリート（名寄せ簡易版: 既存検索＋新規作成）
   useEffect(() => {
@@ -165,7 +183,7 @@ export default function PostNew() {
     setParsedList(null);
   };
 
-  const runParse = async (body: { url?: string; imageBase64?: string; mimeType?: string }) => {
+  const runParse = async (body: { url?: string; imageBase64?: string; mimeType?: string; sharedText?: string }) => {
     setAiLoading(true); setAiError(''); setParsedList(null);
     try {
       const events = await parseEventsApi(body);
