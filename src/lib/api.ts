@@ -730,6 +730,24 @@ export async function deleteSharedTheme(themeId: string): Promise<void> {
 
 // ─── ウィジェット用 ────────────────────────────────────────────────
 
+// ＋（カレンダーに追加）の件数・自分の追加状態。テーブル未作成でも落ちないよう安全側に倒す。
+export async function getCalendarAddData(eventId: string, userId?: string): Promise<{ count: number; added: boolean }> {
+  const { data, error } = await supabase.from('calendar_adds').select('user_id').eq('event_id', eventId);
+  if (error) return { count: 0, added: false };
+  const rows = data ?? [];
+  return { count: rows.length, added: !!(userId && rows.some((r) => r.user_id === userId)) };
+}
+
+export async function toggleCalendarAdd(eventId: string, userId: string): Promise<{ added: boolean; count: number }> {
+  const { data: existing } = await supabase
+    .from('calendar_adds').select('id').eq('event_id', eventId).eq('user_id', userId).maybeSingle();
+  if (existing) await supabase.from('calendar_adds').delete().eq('id', existing.id);
+  else await supabase.from('calendar_adds').insert({ event_id: eventId, user_id: userId });
+  const { count } = await supabase
+    .from('calendar_adds').select('*', { count: 'exact', head: true }).eq('event_id', eventId);
+  return { added: !existing, count: count ?? 0 };
+}
+
 export async function getEventById(eventId: string): Promise<CalendarEvent | null> {
   const { data, error } = await supabase.from('events').select('*').eq('id', eventId).single();
   if (error) return null;

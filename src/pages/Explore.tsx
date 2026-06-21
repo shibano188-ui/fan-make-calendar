@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ArrowDownToLine, Search, SlidersHorizontal } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
@@ -24,6 +25,7 @@ function shiftMonths(base: string, n: number): string {
 }
 
 export default function Explore() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [mode, setMode] = useState<ItemType>('goods');
   const [items, setItems] = useState<CalendarEvent[] | null>(null);
@@ -180,7 +182,7 @@ export default function Explore() {
   const gridClass = mode === 'goods' ? 'grid grid-cols-2 gap-2 items-stretch' : 'flex flex-col gap-2';
   const renderCard = (e: CalendarEvent) => (
     <ItemCard key={e.id} event={e} layout={mode === 'goods' ? 'grid' : 'list'}
-      onOpen={() => haptic.select()} onLike={() => haptic.select()} onCalendar={() => haptic.select()} onBuy={() => onBuy(e)} />
+      onOpen={() => navigate(`/item/${e.id}`)} onLike={() => haptic.select()} onCalendar={() => haptic.select()} onBuy={() => onBuy(e)} />
   );
 
   return (

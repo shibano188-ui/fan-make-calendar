@@ -19,6 +19,7 @@ const Explore         = lazy(() => import('./pages/Explore'));
 const Saved           = lazy(() => import('./pages/Saved'));
 const MyPage          = lazy(() => import('./pages/MyPage'));
 const PostNew         = lazy(() => import('./pages/PostNew'));
+const ItemDetail      = lazy(() => import('./pages/ItemDetail'));
 const WidgetCountdown = lazy(() => import('./pages/WidgetCountdown'));
 const WidgetToday     = lazy(() => import('./pages/WidgetToday'));
 const WidgetMonth     = lazy(() => import('./pages/WidgetMonth'));
@@ -120,8 +121,9 @@ export default function App() {
                       <Route path="/saved"   element={<Saved />} />
                       <Route path="/mypage"  element={<MyPage />} />
                     </Route>
-                    <Route path="/post" element={<PostNew />} />
-                    <Route path="*"     element={<NotFound />} />
+                    <Route path="/post"     element={<PostNew />} />
+                    <Route path="/item/:id" element={<ItemDetail />} />
+                    <Route path="*"         element={<NotFound />} />
                   </Routes>
                 </PhoneFrame>
               } />

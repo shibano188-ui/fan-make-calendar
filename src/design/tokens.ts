@@ -104,24 +104,24 @@ export function formatItemDate(
   return '日付未定';
 }
 
-/** 日付/時間を最大2行で返す（予約・受注＋発売・開催が両方あれば両方）。タイル上部の日付欄用。 */
+/** 日付/時間を最大2行で返す（予約・受注＋発売・開催が両方あれば両方）。
+ *  予約・受注＝「予約・受注 …」、イベント＝「開催 …」、グッズの発売＝ラベルなしで日付のみ。 */
 export function itemDateLines(
-  e: Pick<CalendarEvent, 'date' | 'endDate' | 'time' | 'endTime' | 'preorderStart' | 'preorderEnd' | 'preorderStartTime' | 'preorderEndTime' | 'type' | 'dateLabel' | 'isOrderMade'>,
+  e: Pick<CalendarEvent, 'date' | 'endDate' | 'time' | 'endTime' | 'preorderStart' | 'preorderEnd' | 'preorderStartTime' | 'preorderEndTime' | 'type' | 'category' | 'dateLabel' | 'isOrderMade'>,
 ): string[] {
+  const type = deriveItemType(e);
   const lines: string[] = [];
   // 予約・受注
   if (e.preorderStart || e.preorderEnd) {
-    const head = e.isOrderMade ? '受注' : '予約';
-    if (e.preorderStart && e.preorderEnd) lines.push(`${head} ${md(e.preorderStart)}〜${md(e.preorderEnd)}`);
-    else if (e.preorderEnd) lines.push(`${head} 〜${md(e.preorderEnd)}`);
-    else if (e.preorderStart) lines.push(`${head} ${md(e.preorderStart)}〜`);
+    if (e.preorderStart && e.preorderEnd) lines.push(`予約・受注 ${md(e.preorderStart)}〜${md(e.preorderEnd)}`);
+    else if (e.preorderEnd) lines.push(`予約・受注 〜${md(e.preorderEnd)}`);
+    else if (e.preorderStart) lines.push(`予約・受注 ${md(e.preorderStart)}〜`);
   }
-  // 発売・開催
+  // 発売（グッズ＝ラベルなし）・開催（イベント）
   if (e.date) {
     const period = e.endDate && e.endDate !== e.date ? `${md(e.date)}〜${md(e.endDate)}` : md(e.date);
-    const head = e.type === 'goods' ? '発売' : '開催';
     const time = e.time ? ` ${e.time}` : '';
-    lines.push(`${head} ${period}${time}`);
+    lines.push(type === 'goods' ? `${period}${time}` : `開催 ${period}${time}`);
   } else if (e.dateLabel) {
     lines.push(e.dateLabel);
   }
