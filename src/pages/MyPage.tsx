@@ -8,6 +8,7 @@ import {
 import { calcTitle, calcRadarData, calcGrade, type AchievementStats } from '../lib/achievements';
 import { REGIONS } from '../lib/prefectures';
 import { loadNotifyLeadDays, saveNotifyLeadDays } from '../lib/constants';
+import { isGoogleConfigured, isGoogleLinked, linkGoogle, unlinkGoogle } from '../lib/googleCalendar';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
 import { haptic } from '../lib/haptics';
@@ -24,6 +25,15 @@ export default function MyPage() {
   const [works, setWorks] = useState<Work[]>([]);
   const [worksOpen, setWorksOpen] = useState(false);
   const [leadDays, setLeadDays] = useState(loadNotifyLeadDays());
+  const [gcalLinked, setGcalLinked] = useState(isGoogleLinked());
+
+  const onLinkGoogle = async () => {
+    haptic.select();
+    if (gcalLinked) { unlinkGoogle(); setGcalLinked(false); toast('連携を解除しました'); return; }
+    const ok = await linkGoogle();
+    setGcalLinked(ok);
+    toast(ok ? 'Googleカレンダーと連携しました' : '連携に失敗しました');
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -108,12 +118,23 @@ export default function MyPage() {
             {[1, 2, 3, 5, 7].map((d) => <option key={d} value={d}>{d}日前</option>)}
           </select>
         </div>
-        {/* カレンダー連携（後） */}
-        <div className="flex items-center gap-2 px-3 py-2.5 opacity-50">
-          <CalendarSync size={16} className="text-label-secondary" />
-          <span className="text-[14px] flex-1">外部カレンダー連携</span>
-          <span className="text-[11px] text-label-tertiary">近日</span>
-        </div>
+        {/* Googleカレンダー連携 */}
+        {isGoogleConfigured() ? (
+          <div className="flex items-center gap-2 px-3 py-2.5">
+            <CalendarSync size={16} className="text-label-secondary" />
+            <span className="text-[14px] flex-1">Googleカレンダー連携</span>
+            <button onClick={onLinkGoogle} className="pressable text-[12px] font-semibold px-3 py-1 rounded-full"
+              style={gcalLinked ? { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-secondary)' } : { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+              {gcalLinked ? '連携済み（解除）' : '連携する'}
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 px-3 py-2.5 opacity-50">
+            <CalendarSync size={16} className="text-label-secondary" />
+            <span className="text-[14px] flex-1">外部カレンダー連携</span>
+            <span className="text-[11px] text-label-tertiary">近日</span>
+          </div>
+        )}
         {/* プレミアム */}
         <div className="flex items-center gap-2 px-3 py-2.5 opacity-50">
           <Crown size={16} style={{ color: 'var(--accent-color)' }} />

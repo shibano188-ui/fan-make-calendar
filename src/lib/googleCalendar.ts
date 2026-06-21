@@ -12,6 +12,25 @@ export function isGoogleConfigured(): boolean {
   return !!CLIENT_ID;
 }
 
+const LINK_KEY = 'google_calendar_linked';
+export function isGoogleLinked(): boolean {
+  return isGoogleConfigured() && localStorage.getItem(LINK_KEY) === '1';
+}
+/** 連携する: 認可ポップアップを出してトークンを取得＋連携フラグを保存。 */
+export async function linkGoogle(): Promise<boolean> {
+  if (!isGoogleConfigured()) return false;
+  try { await getToken(); localStorage.setItem(LINK_KEY, '1'); return true; } catch { return false; }
+}
+/** 連携解除: トークンを失効＋フラグ削除。 */
+export function unlinkGoogle(): void {
+  try {
+    const w = window as any;
+    if (cachedToken && w.google?.accounts?.oauth2?.revoke) w.google.accounts.oauth2.revoke(cachedToken, () => {});
+  } catch { /* noop */ }
+  cachedToken = ''; cachedExp = 0;
+  localStorage.removeItem(LINK_KEY);
+}
+
 let cachedToken = '';
 let cachedExp = 0;
 
