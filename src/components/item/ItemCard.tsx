@@ -3,9 +3,8 @@ import { Heart, CalendarPlus, ShoppingCart, ExternalLink, ImageOff } from 'lucid
 import type { CalendarEvent } from '../../types';
 import { deriveStatus, deriveItemType } from '../../design/tokens';
 import { parseCategories, getPrimaryCategoryColor, parseImageUrls } from '../../lib/constants';
+import { resolveBuy, type BuyMode } from '../../lib/affiliate';
 import StatusBadge from '../ui/StatusBadge';
-
-type BuyMode = 'cart' | 'link' | 'none';
 
 interface Props {
   event: CalendarEvent;
@@ -38,8 +37,8 @@ export default function ItemCard({ event, layout = 'grid', onOpen, onLike, onCal
   const type = deriveItemType(event);
   const status = deriveStatus(event);
   const price = yen(event.price);
-  // アフィリンクがあれば「購入(カート)」、無くて公式リンクのみなら「リンク」、何も無ければ非表示
-  const buyMode: BuyMode = event.affiliateUrl || event.hasAffiliate ? 'cart' : event.link ? 'link' : 'none';
+  // 販路を判定: アフィ対応＝カート / 公式リンクのみ＝リンク / 無＝非表示
+  const buyMode: BuyMode = resolveBuy(event).mode;
   const [imgError, setImgError] = useState(false);
   const firstImg = parseImageUrls(event.imageUrl)[0];
   const showImg = !!firstImg && !imgError;

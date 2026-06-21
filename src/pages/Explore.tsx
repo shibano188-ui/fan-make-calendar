@@ -9,6 +9,7 @@ import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveItemType, deriveStatus, todayStr, STATUS, type ItemStatus, type ItemType } from '../design/tokens';
 import { listExploreEvents, getHomePrefecture } from '../lib/api';
 import { parseCategories } from '../lib/constants';
+import { resolveBuy } from '../lib/affiliate';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { useAuth } from '../contexts/AuthContext';
 import { haptic } from '../lib/haptics';
@@ -175,7 +176,7 @@ export default function Explore() {
 
   const onBuy = (e: CalendarEvent) => {
     haptic.select();
-    const url = e.affiliateUrl || e.link;
+    const { url } = resolveBuy(e);
     if (url) window.open(url, '_blank', 'noopener');
   };
 

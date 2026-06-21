@@ -5,6 +5,7 @@ import type { CalendarEvent } from '../types';
 import { getEventById, getWorkById, getDisplayName, toggleLike, setReaction, getReactionData, getCalendarAddData, toggleCalendarAdd } from '../lib/api';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor } from '../lib/constants';
 import { deriveStatus, deriveItemType, itemDateLines } from '../design/tokens';
+import { resolveBuy } from '../lib/affiliate';
 import { REACTIONS } from '../lib/reactions';
 import { useAuth } from '../contexts/AuthContext';
 import { haptic } from '../lib/haptics';
@@ -81,8 +82,10 @@ export default function ItemDetail() {
   if (cats.length > 1) cats = cats.filter((c) => c !== 'グッズ');
   const catColor = getPrimaryCategoryColor(event.category);
   const dateLines = itemDateLines(event);
-  const buyMode = event.affiliateUrl || event.hasAffiliate ? 'cart' : event.link ? 'link' : 'none';
-  const buyUrl = event.affiliateUrl || event.link;
+  const buy = resolveBuy(event);
+  const buyMode = buy.mode;
+  const buyUrl = buy.url;
+  const retailer = buy.retailer;
 
   const onLike = async () => {
     haptic.select();
@@ -243,7 +246,7 @@ export default function ItemDetail() {
             <button onClick={openBuy} className="pressable w-full py-3 rounded-[10px] font-semibold flex items-center justify-center gap-2"
               style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
               {buyMode === 'cart' ? <ShoppingCart size={18} /> : <ExternalLink size={18} />}
-              {buyMode === 'cart' ? `購入する${event.retailer ? `（${event.retailer}）` : ''}` : '公式サイトを開く'}
+              {buyMode === 'cart' ? `購入する${retailer ? `（${retailer}）` : ''}` : '公式サイトを開く'}
             </button>
           </div>
         )}
