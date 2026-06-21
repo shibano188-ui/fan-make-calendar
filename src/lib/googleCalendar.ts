@@ -6,7 +6,10 @@ import { downloadICS } from './ics';
 // Google Identity Services のトークンモデル（client_idのみ・secret不要・クライアント完結）。
 // 「📅押す→Google認可→自分のGoogleカレンダーへ直接登録」。短命トークン(約1h)はキャッシュ、切れたら再ポップ。
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+// OAuthクライアントIDは公開値（安全境界は Google 側の「承認済みJavaScript生成元」）。
+// env優先・無ければ公開IDをフォールバックして、どのデプロイでも有効化する。
+const CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)
+  ?? '237162120701-ummv7jdacb5env21p424poecb513ts13.apps.googleusercontent.com';
 
 export function isGoogleConfigured(): boolean {
   return !!CLIENT_ID;
