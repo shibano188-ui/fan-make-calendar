@@ -121,7 +121,7 @@ export function itemDateLines(
   if (e.date) {
     const period = e.endDate && e.endDate !== e.date ? `${md(e.date)}〜${md(e.endDate)}` : md(e.date);
     const time = e.time ? ` ${e.time}` : '';
-    lines.push(type === 'goods' ? `${period}${time}` : `開催 ${period}${time}`);
+    lines.push(type === 'goods' ? `発売 ${period}${time}` : `開催 ${period}${time}`);
   } else if (e.dateLabel) {
     lines.push(e.dateLabel);
   }

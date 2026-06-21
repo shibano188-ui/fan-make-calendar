@@ -505,6 +505,36 @@ export async function findDuplicateEvents(
   return { byUrl, byTitle, byDateKeyword };
 }
 
+// 作品未確定時のフォールバック: 全作品横断でタイトルがほぼ一致する予定を探す（保守的＝正規化完全一致）。
+export async function findDuplicatesByTitleGlobal(title: string): Promise<DuplicateMatch[]> {
+  const norm = normalizeTitleForDup(title);
+  if (!norm) return [];
+  const { data } = await supabase
+    .from('events')
+    .select('id, title, event_date, end_date, prefecture, source_url, author_id')
+    .eq('pool', 0)
+    .ilike('title', `${title}%`)
+    .limit(50);
+  const out: DuplicateMatch[] = [];
+  const seen = new Set<string>();
+  for (const row of data ?? []) {
+    const id = row.id as string;
+    if (seen.has(id) || !row.event_date) continue;
+    if (normalizeTitleForDup(row.title as string) !== norm) continue;
+    seen.add(id);
+    out.push({
+      id,
+      title: row.title as string,
+      date: row.event_date as string,
+      endDate: (row.end_date as string | null) ?? null,
+      prefecture: normalizePrefecture(row.prefecture as string | null) ?? null,
+      sourceUrl: row.source_url as string | null,
+      authorId: (row.author_id as string | null) ?? null,
+    });
+  }
+  return out;
+}
+
 // ─── いいね ────────────────────────────────────────────────────────
 
 // 1タップ = +1（10回連打対応）

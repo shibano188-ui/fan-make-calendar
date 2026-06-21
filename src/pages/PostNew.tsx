@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Plus, Check } from 'lucide-react';
+import { X, Plus, Check, Sparkles, Camera, Link2, Loader2 } from 'lucide-react';
 import Chip from '../components/ui/Chip';
-import { searchWorks, getOrCreateWork, createEvents, upsertParticipation, type Work } from '../lib/api';
-import { serializeCategories, GOODS_SUBCATEGORIES } from '../lib/constants';
+import { searchWorks, getOrCreateWork, createEvents, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, type Work } from '../lib/api';
+import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES } from '../lib/constants';
 import { affiliatize } from '../lib/affiliate';
+import { parseEventsApi, fileToBase64, type ParsedEvent } from '../lib/parseEvents';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
 import { haptic } from '../lib/haptics';
-import { todayStr, type ItemType } from '../design/tokens';
+import { todayStr, deriveItemType, type ItemType } from '../design/tokens';
 
 const GOODS_CATS = [...GOODS_SUBCATEGORIES, 'グルメ', '書籍'];
 const EVENT_CATS = ['イベント', 'アニメ・映画', '誕生日', 'キャンペーン'];
@@ -19,39 +20,58 @@ const timeCls = 'rounded-[10px] px-3 py-2.5 text-[14px] outline-none';
 const inputStyle = { backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' };
 const labelCls = 'text-[12px] text-label-secondary mb-1 mt-4';
 
+const DRAFT_KEY = 'fanhive_post_draft';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function readDraft(): Record<string, any> | null {
+  try { return JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null'); } catch { return null; }
+}
+
 export default function PostNew() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const toast = useToast();
 
-  const [type, setType] = useState<ItemType>('goods');
-  const [workId, setWorkId] = useState<string | null>(null);
-  const [workName, setWorkName] = useState('');
-  const [workQuery, setWorkQuery] = useState('');
-  const [workResults, setWorkResults] = useState<Work[]>([]);
-  const [title, setTitle] = useState('');
-  const [cats, setCats] = useState<Set<string>>(new Set());
+  const draft0 = useRef(readDraft()).current;
   const today = todayStr();
-  const [allDay, setAllDay] = useState(true);
-  const [dateTBD, setDateTBD] = useState(false);
-  const [date, setDate] = useState(today);
-  const [endDate, setEndDate] = useState(today);
-  const [time, setTime] = useState('');
-  const [endTime, setEndTime] = useState('');
-  const [isOrder, setIsOrder] = useState(false);
-  const [preAllDay, setPreAllDay] = useState(true);
-  const [preStart, setPreStart] = useState(today);
-  const [preEnd, setPreEnd] = useState(today);
-  const [preStartTime, setPreStartTime] = useState('');
-  const [preEndTime, setPreEndTime] = useState('');
-  const [price, setPrice] = useState('');
-  const [link, setLink] = useState('');
-  const [showExtra, setShowExtra] = useState(false);
-  const [stockNote, setStockNote] = useState('');
-  const [memo, setMemo] = useState('');
+  const [type, setType] = useState<ItemType>(draft0?.type ?? 'goods');
+  const [workId, setWorkId] = useState<string | null>(draft0?.workId ?? null);
+  const [workName, setWorkName] = useState<string>(draft0?.workName ?? '');
+  const [workQuery, setWorkQuery] = useState<string>(draft0?.workQuery ?? '');
+  const [workResults, setWorkResults] = useState<Work[]>([]);
+  const [title, setTitle] = useState<string>(draft0?.title ?? '');
+  const [cats, setCats] = useState<Set<string>>(new Set(draft0?.cats ?? []));
+  const [allDay, setAllDay] = useState<boolean>(draft0?.allDay ?? true);
+  const [dateTBD, setDateTBD] = useState<boolean>(draft0?.dateTBD ?? false);
+  const [date, setDate] = useState<string>(draft0?.date ?? today);
+  const [endDate, setEndDate] = useState<string>(draft0?.endDate ?? today);
+  const [time, setTime] = useState<string>(draft0?.time ?? '');
+  const [endTime, setEndTime] = useState<string>(draft0?.endTime ?? '');
+  const [isOrder, setIsOrder] = useState<boolean>(draft0?.isOrder ?? false);
+  const [preAllDay, setPreAllDay] = useState<boolean>(draft0?.preAllDay ?? true);
+  const [preStart, setPreStart] = useState<string>(draft0?.preStart ?? today);
+  const [preEnd, setPreEnd] = useState<string>(draft0?.preEnd ?? today);
+  const [preStartTime, setPreStartTime] = useState<string>(draft0?.preStartTime ?? '');
+  const [preEndTime, setPreEndTime] = useState<string>(draft0?.preEndTime ?? '');
+  const [price, setPrice] = useState<string>(draft0?.price ?? '');
+  const [link, setLink] = useState<string>(draft0?.link ?? '');
+  const [showExtra, setShowExtra] = useState<boolean>(draft0?.showExtra ?? false);
+  const [stockNote, setStockNote] = useState<string>(draft0?.stockNote ?? '');
+  const [memo, setMemo] = useState<string>(draft0?.memo ?? '');
+  const [imageUrl, setImageUrl] = useState<string>(draft0?.imageUrl ?? '');
+  const [prefecture, setPrefecture] = useState<string>(draft0?.prefecture ?? '');
+  const [locationDetail, setLocationDetail] = useState<string>(draft0?.locationDetail ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // AI入力
+  const [aiText, setAiText] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [parsedList, setParsedList] = useState<ParsedEvent[] | null>(null);
+  // ライブ重複検知
+  const [dupMatches, setDupMatches] = useState<{ id: string; title: string }[]>([]);
+  const [dupDismissed, setDupDismissed] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   // 開いたら最上部から（前ページのスクロール位置を引き継がない）
   useEffect(() => {
@@ -64,6 +84,16 @@ export default function PostNew() {
     window.scrollTo(0, 0);
   }, []);
 
+  // 下書き保持（確認のため離れて戻っても内容を復元）。毎レンダーで保存。
+  useEffect(() => {
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
+      type, workId, workName, workQuery, title, cats: [...cats], allDay, dateTBD, date, endDate, time, endTime,
+      isOrder, preAllDay, preStart, preEnd, preStartTime, preEndTime, price, link, showExtra, stockNote, memo, imageUrl, prefecture, locationDetail,
+    }));
+  });
+  const clearDraft = () => sessionStorage.removeItem(DRAFT_KEY);
+  const onClose = () => { clearDraft(); navigate(-1); };
+
   // 作品オートコンプリート（名寄せ簡易版: 既存検索＋新規作成）
   useEffect(() => {
     const q = workQuery.trim();
@@ -73,10 +103,87 @@ export default function PostNew() {
     return () => { alive = false; clearTimeout(t); };
   }, [workQuery, workId]);
 
+  // ライブ重複検知（タイトル＋作品が分かれば。作品は未選択でも名前から既存を解決）
+  useEffect(() => {
+    if (!title.trim()) { setDupMatches([]); return; }
+    let alive = true;
+    const t = setTimeout(async () => {
+      let wid = workId;
+      if (!wid && workQuery.trim()) {
+        const rs = await searchWorks(workQuery.trim()).catch(() => [] as Work[]);
+        wid = rs.find((w) => w.name === workQuery.trim())?.id ?? null;
+      }
+      const seen = new Map<string, string>();
+      if (wid) {
+        const catStr = cats.size ? serializeCategories([...cats]) : null;
+        const dup = await findDuplicateEvents(wid, title.trim(), null, catStr ?? null, {
+          date: dateTBD ? null : (date || null), endDate: dateTBD ? null : (endDate || null),
+          workName: workName || workQuery.trim() || null, prefecture: type === 'event' ? (prefecture || null) : null,
+        }).catch(() => ({ byUrl: [], byTitle: [], byDateKeyword: [] }));
+        for (const m of [...dup.byUrl, ...dup.byTitle, ...dup.byDateKeyword]) if (!seen.has(m.id)) seen.set(m.id, m.title);
+      } else {
+        // 作品未確定でもタイトルで全体検知（保守的・正規化完全一致）
+        const g = await findDuplicatesByTitleGlobal(title.trim()).catch(() => []);
+        for (const m of g) if (!seen.has(m.id)) seen.set(m.id, m.title);
+      }
+      if (!alive) return;
+      setDupMatches([...seen].map(([id, t2]) => ({ id, title: t2 })));
+      setDupDismissed(false);
+    }, 500);
+    return () => { alive = false; clearTimeout(t); };
+  }, [workId, workQuery, title, date, endDate, dateTBD, prefecture, type]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const catList = type === 'goods' ? GOODS_CATS : EVENT_CATS;
   const toggleCat = (c: string) => {
     haptic.select();
     setCats((prev) => { const n = new Set(prev); n.has(c) ? n.delete(c) : n.add(c); return n; });
+  };
+
+  // 解析結果をフォームに反映
+  const applyParsed = (p: ParsedEvent) => {
+    setType(deriveItemType({ category: p.category ?? undefined }));
+    if (p.title) setTitle(p.title);
+    if (p.work) {
+      // 作品の名寄せ: 既存に完全一致があれば確定、無ければ入力欄に入れて確認/新規作成
+      const name = p.work;
+      setWorkId(null); setWorkName(''); setWorkQuery(name);
+      searchWorks(name).then((rs) => {
+        const exact = rs.find((w) => w.name === name);
+        if (exact) { setWorkId(exact.id); setWorkName(exact.name); }
+      }).catch(() => {});
+    }
+    if (p.price != null) setPrice(String(p.price));
+    if (p.category) setCats(new Set(parseCategories(p.category)));
+    if (p.date) { setDateTBD(false); setDate(p.date); setEndDate(p.endDate || p.date); }
+    if (p.time) { setAllDay(false); setTime(p.time); if (p.endTime) setEndTime(p.endTime); }
+    if (p.isOrderMade) { setIsOrder(true); if (p.preorderStart) setPreStart(p.preorderStart); if (p.preorderEnd) setPreEnd(p.preorderEnd); }
+    if (p.link) setLink(p.link);
+    if (p.prefecture) setPrefecture(p.prefecture);
+    if (p.locationDetail) setLocationDetail(p.locationDetail);
+    if (p.imageUrl) setImageUrl(p.imageUrl);
+    if (p.memo) { setShowExtra(true); setMemo(p.memo); }
+    setParsedList(null);
+  };
+
+  const runParse = async (body: { url?: string; imageBase64?: string; mimeType?: string }) => {
+    setAiLoading(true); setAiError(''); setParsedList(null);
+    try {
+      const events = await parseEventsApi(body);
+      if (events.length === 0) { setAiError('情報を読み取れませんでした'); }
+      else if (events.length === 1) { applyParsed(events[0]); toast('AIが入力しました'); }
+      else { setParsedList(events); }
+    } catch (e) {
+      setAiError(e instanceof Error && e.message === 'rate_limited' ? '混雑しています。少し待って再試行' : '解析に失敗しました');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const onAnalyzeText = () => { if (aiText.trim()) runParse({ url: aiText.trim() }); };
+  const onPickPhoto = async (file: File | undefined) => {
+    if (!file) return;
+    const { data, mime } = await fileToBase64(file);
+    runParse({ imageBase64: data, mimeType: mime });
   };
 
   const linkInfo = link.trim() ? affiliatize(link.trim()) : null;
@@ -109,9 +216,13 @@ export default function PostNew() {
         preorderEndTime: isOrder && !preAllDay ? (preEndTime || undefined) : undefined,
         stockNote: stockNote.trim() || undefined,
         memo: memo.trim() || undefined,
+        imageUrl: imageUrl || undefined,
+        prefecture: type === 'event' ? (prefecture.trim() || undefined) : undefined,
+        locationDetail: type === 'event' ? (locationDetail.trim() || undefined) : undefined,
       }], user.id);
       await upsertParticipation(wid, user.id).catch(() => {}); // 投稿で自動フォロー
       haptic.select();
+      clearDraft();
       toast('投稿しました');
       navigate(-1);
     } catch (e) {
@@ -125,7 +236,7 @@ export default function PostNew() {
       <div className="mx-auto w-full max-w-app">
         {/* ヘッダー */}
         <div className="sticky top-0 z-20 flex items-center justify-between px-3 py-2.5 border-b border-subtle" style={{ backgroundColor: 'var(--bg-primary)' }}>
-          <button onClick={() => navigate(-1)} aria-label="閉じる" className="pressable tap-44 p-1"><X size={22} /></button>
+          <button onClick={onClose} aria-label="閉じる" className="pressable tap-44 p-1"><X size={22} /></button>
           <span className="font-semibold">投稿</span>
           <button onClick={onSubmit} disabled={!canSave}
             className="pressable px-3 py-1.5 rounded-full text-[13px] font-semibold"
@@ -135,8 +246,79 @@ export default function PostNew() {
         </div>
 
         <div className="px-4 pb-24">
+          {/* AI入力（ヒーロー） */}
+          <div className="mt-3 rounded-[12px] border border-subtle p-3" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+            <div className="flex items-center gap-1.5 mb-2">
+              <Sparkles size={15} style={{ color: 'var(--accent-color)' }} />
+              <span className="text-[13px] font-semibold">AIで入力</span>
+            </div>
+            {!parsedList ? (
+              <>
+                <div className="flex gap-2">
+                  <div className="flex-1 relative">
+                    <Link2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary pointer-events-none" />
+                    <input value={aiText} onChange={(e) => setAiText(e.target.value)} placeholder="X や 商品ページのURL / テキストを貼り付け"
+                      onKeyDown={(e) => e.key === 'Enter' && onAnalyzeText()}
+                      className="w-full rounded-[10px] pl-8 pr-3 py-2.5 text-[13px] outline-none" style={inputStyle} />
+                  </div>
+                  <button onClick={onAnalyzeText} disabled={aiLoading || !aiText.trim()}
+                    className="pressable px-3 rounded-[10px] text-[13px] font-semibold flex items-center"
+                    style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+                    {aiLoading ? <Loader2 size={16} className="animate-spin" /> : '解析'}
+                  </button>
+                </div>
+                <button onClick={() => fileRef.current?.click()} disabled={aiLoading} className="pressable mt-2 flex items-center gap-1.5 text-[13px]" style={{ color: 'var(--accent-text)' }}>
+                  <Camera size={16} /> 写真から読み取る
+                </button>
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => onPickPhoto(e.target.files?.[0] || undefined)} />
+                {aiError && <p className="text-[12px] mt-2" style={{ color: 'var(--color-destructive)' }}>{aiError}</p>}
+              </>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[12px] text-label-secondary">{parsedList.length}件見つかりました。1つ選んで反映：</p>
+                {parsedList.map((p, i) => (
+                  <button key={i} onClick={() => { applyParsed(p); toast('AIが入力しました'); }} className="pressable text-left px-3 py-2 rounded-[10px] text-[13px]" style={{ backgroundColor: 'var(--bg-primary)' }}>
+                    <div className="font-medium truncate">{p.title ?? '（タイトルなし）'}</div>
+                    {(p.date || p.prefecture) && <div className="text-[11px] text-label-tertiary">{[p.date?.slice(5).replace('-', '/'), p.prefecture].filter(Boolean).join(' ')}</div>}
+                  </button>
+                ))}
+                <button onClick={() => setParsedList(null)} className="text-[12px] text-label-tertiary mt-1 pressable">キャンセル</button>
+              </div>
+            )}
+          </div>
+
+          {/* 画像プレビュー（AIが自動取得・全枚数） */}
+          {imageUrl && (
+            <div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar">
+              {parseImageUrls(imageUrl).map((src, i) => (
+                <div key={i} className="relative w-24 h-24 flex-shrink-0 rounded-[10px] overflow-hidden">
+                  <img src={src} alt="" className="w-full h-full object-cover" />
+                  <button
+                    onClick={() => setImageUrl(serializeImageUrls(parseImageUrls(imageUrl).filter((_, j) => j !== i)) ?? '')}
+                    aria-label="画像を削除" className="absolute top-1 right-1 rounded-full p-0.5" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
+                    <X size={14} color="#fff" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 重複検知バナー（ライブ） */}
+          {dupMatches.length > 0 && !dupDismissed && (
+            <div className="mt-3 rounded-[12px] p-3" style={{ border: '1px solid var(--color-warning)', backgroundColor: 'var(--bg-secondary)' }}>
+              <div className="text-[13px] font-semibold mb-1.5">似た投稿があります</div>
+              {dupMatches.map((m) => (
+                <div key={m.id} className="text-[13px] py-0.5">「{m.title}」</div>
+              ))}
+              <div className="flex gap-2 mt-2">
+                <button onClick={() => navigate(`/item/${dupMatches[0].id}`)} className="pressable flex-1 py-2 rounded-[8px] text-[12px] font-semibold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>投稿を確認</button>
+                <button onClick={() => setDupDismissed(true)} className="pressable flex-1 py-2 rounded-[8px] text-[12px]" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>違う予定として投稿</button>
+              </div>
+            </div>
+          )}
+
           {/* 種別 */}
-          <div className="flex gap-2 mt-3">
+          <div className="flex gap-2 mt-4">
             <Chip active={type === 'goods'} onClick={() => { haptic.select(); setType('goods'); setCats(new Set()); }}>グッズ</Chip>
             <Chip active={type === 'event'} onClick={() => { haptic.select(); setType('event'); setCats(new Set()); }}>イベント</Chip>
           </div>
@@ -234,10 +416,21 @@ export default function PostNew() {
             </div>
           )}
 
+          {/* 会場・地域（イベント） */}
+          {type === 'event' && (
+            <>
+              <div className={labelCls}>会場・地域（任意）</div>
+              <div className="flex gap-2">
+                <input value={prefecture} onChange={(e) => setPrefecture(e.target.value)} placeholder="都道府県" className={dateCls} style={inputStyle} />
+                <input value={locationDetail} onChange={(e) => setLocationDetail(e.target.value)} placeholder="会場名" className="flex-[2] rounded-[10px] px-3 py-2.5 text-[14px] outline-none" style={inputStyle} />
+              </div>
+            </>
+          )}
+
           {/* リンク */}
           <div className={labelCls}>リンク（購入・予約ページ）</div>
           <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://..." inputMode="url" className={inputCls} style={inputStyle} />
-          {linkInfo && (
+          {import.meta.env.DEV && linkInfo && (
             <div className="text-[12px] mt-1" style={{ color: linkInfo.hasAffiliate ? 'var(--color-success)' : 'var(--label-secondary)' }}>
               {linkInfo.hasAffiliate ? `✓ ${linkInfo.retailer}（アフィ対応）` : `${linkInfo.retailer || 'リンク'}（アフィ非対応・B2B送客）`}
             </div>
