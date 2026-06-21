@@ -1,16 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Smile, Share2 } from 'lucide-react';
+import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Smile, Share2, X } from 'lucide-react';
 import type { CalendarEvent } from '../types';
-import { getEventById, getWorkById, getDisplayName, toggleLike, setReaction, getReactionData, getCalendarAddData, toggleCalendarAdd } from '../lib/api';
+import { getEventById, getWorkById, getDisplayName, toggleLike, setReaction, getReactionData, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
+import EventEditForm from '../components/item/EventEditForm';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor } from '../lib/constants';
 import { deriveStatus, deriveItemType, itemDateLines } from '../design/tokens';
-import { resolveBuy, getOffers } from '../lib/affiliate';
+import { resolveBuy, getOffers, buildOffer } from '../lib/affiliate';
 import { REACTIONS } from '../lib/reactions';
 import { useAuth } from '../contexts/AuthContext';
 import { haptic } from '../lib/haptics';
 import StatusBadge from '../components/ui/StatusBadge';
 import ImageCarousel from '../components/item/ImageCarousel';
+
+function summarizePatch(p: EventPatch): string {
+  const parts: string[] = [];
+  if ('date' in p) parts.push(`日付 ${p.date ? p.date.slice(5).replace('-', '/') : '未定'}`);
+  if (p.endDate) parts.push(`〜${p.endDate.slice(5).replace('-', '/')}`);
+  if (p.time) parts.push(p.time);
+  if (p.isOrderMade) parts.push(`予約${p.preorderStart ? ` ${p.preorderStart.slice(5).replace('-', '/')}〜${p.preorderEnd ? p.preorderEnd.slice(5).replace('-', '/') : ''}` : ''}`);
+  return parts.join(' ') || '変更';
+}
 
 export default function ItemDetail() {
   const { id } = useParams<{ id: string }>();
@@ -27,6 +37,16 @@ export default function ItemDetail() {
   const [calCount, setCalCount] = useState(0);
   const [calAdded, setCalAdded] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [contribs, setContribs] = useState<OfferContrib[]>([]);
+  const [addUrl, setAddUrl] = useState('');
+  const [addingLink, setAddingLink] = useState(false);
+  const [stockReports, setStockReports] = useState<StockReport[]>([]);
+  const [stockInput, setStockInput] = useState('');
+  const [addingStock, setAddingStock] = useState(false);
+  const [reported, setReported] = useState(false);
+  const [edits, setEdits] = useState<EventEdit[]>([]);
+  const [editing, setEditing] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   // 開いたら最上部から表示（前ページのスクロール位置を引き継がない）。
@@ -58,6 +78,9 @@ export default function ItemDetail() {
       if (e.authorId) getDisplayName(e.authorId).then((n) => alive && setAuthorName(n));
       getReactionData(id, user?.id).then((r) => { if (alive) { setCounts(r.counts); setMyReaction(r.myReaction); } });
       getCalendarAddData(id, user?.id).then((c) => { if (alive) { setCalCount(c.count); setCalAdded(c.added); } });
+      listOfferContribs(id).then((cs) => { if (alive) setContribs(cs); });
+      listStockReports(id).then((rs) => { if (alive) setStockReports(rs); });
+      listEventEdits(id).then((es) => { if (alive) setEdits(es); });
     })();
     return () => { alive = false; };
   }, [id, user?.id]);
@@ -75,13 +98,14 @@ export default function ItemDetail() {
   }
 
   const event = ev;
-  const type = deriveItemType(event);
-  const status = deriveStatus(event);
+  const eff = applyEdits(event, edits); // 編集パッチを重ねた実効値
+  const type = deriveItemType(eff);
+  const status = deriveStatus(eff);
   const images = parseImageUrls(event.imageUrl);
   let cats = parseCategories(event.category);
   if (cats.length > 1) cats = cats.filter((c) => c !== 'グッズ');
   const catColor = getPrimaryCategoryColor(event.category);
-  const dateLines = itemDateLines(event);
+  const dateLines = itemDateLines(eff);
   const buy = resolveBuy(event);
   const buyMode = buy.mode;
   const buyUrl = buy.url;
@@ -125,6 +149,50 @@ export default function ItemDetail() {
     window.open(`https://twitter.com/intent/tweet?text=${text}${url ? `&url=${encodeURIComponent(url)}` : ''}`, '_blank', 'noopener');
   };
   const myReactionImg = REACTIONS.find((r) => r.type === myReaction)?.image;
+
+  const onAddLink = async () => {
+    const u = addUrl.trim();
+    if (!u || !user || addingLink) return;
+    setAddingLink(true);
+    const c = await addOfferContrib(event.id, buildOffer(u), user.id);
+    if (c) setContribs((prev) => [...prev, c]);
+    setAddUrl(''); setAddingLink(false); haptic.select();
+  };
+  const onRemoveContrib = async (cid: string) => {
+    haptic.select();
+    setContribs((prev) => prev.filter((c) => c.id !== cid));
+    await removeOfferContrib(cid);
+  };
+  const onAddStock = async () => {
+    const n = stockInput.trim();
+    if (!n || !user || addingStock) return;
+    setAddingStock(true);
+    const r = await addStockReport(event.id, n, user.id);
+    if (r) setStockReports((prev) => [r, ...prev]);
+    setStockInput(''); setAddingStock(false); haptic.select();
+  };
+  const onRemoveStock = async (rid: string) => {
+    haptic.select();
+    setStockReports((prev) => prev.filter((r) => r.id !== rid));
+    await removeStockReport(rid);
+  };
+  const onReport = async () => {
+    if (!user || reported) return;
+    haptic.select();
+    setReported(true);
+    await reportEvent(event.id, user.id, 'user_report').catch(() => {});
+  };
+  const onSaveEdit = async (patch: EventPatch) => {
+    if (!user) return;
+    setEditing(false);
+    const ed = await addEventEdit(event.id, patch, user.id);
+    if (ed) setEdits((prev) => [...prev, ed]);
+  };
+  const onRevertEdit = async (eid: string) => {
+    haptic.select();
+    setEdits((prev) => prev.filter((e) => e.id !== eid));
+    await removeEventEdit(eid);
+  };
 
   return (
     <div ref={rootRef} className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--bg-primary)' }}>
@@ -181,6 +249,32 @@ export default function ItemDetail() {
               </div>
             )}
 
+            {/* 日時/予約の共同編集（即反映＋履歴で戻せる） */}
+            {!editing ? (
+              <button onClick={() => { haptic.select(); setEditing(true); }} className="pressable mt-2 text-[12px]" style={{ color: 'var(--accent-text)' }}>日時・予約を編集</button>
+            ) : (
+              <EventEditForm event={eff} onClose={() => setEditing(false)} onSave={onSaveEdit} />
+            )}
+            {edits.length > 0 && (
+              <div className="mt-2">
+                <button onClick={() => setHistoryOpen((v) => !v)} className="pressable text-[12px] text-label-tertiary">
+                  編集履歴（{edits.length}）{historyOpen ? ' ▲' : ' ▼'}
+                </button>
+                {historyOpen && (
+                  <div className="mt-1 flex flex-col gap-1">
+                    {[...edits].reverse().map((ed) => (
+                      <div key={ed.id} className="flex items-center justify-between gap-2 text-[11px] text-label-secondary">
+                        <span className="truncate">{ed.createdAt.slice(5, 10).replace('-', '/')} {summarizePatch(ed.patch)}</span>
+                        {user && (ed.createdBy === user.id || event.authorId === user.id) && (
+                          <button onClick={() => onRevertEdit(ed.id)} className="pressable flex-shrink-0" style={{ color: 'var(--accent-text)' }}>戻す</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* 在庫 */}
             {event.stockNote && (
               <div className="mt-2 flex items-start gap-2">
@@ -192,21 +286,36 @@ export default function ItemDetail() {
             {/* メモ */}
             {event.memo && <p className="text-[14px] text-label-secondary whitespace-pre-wrap mt-3">{event.memo}</p>}
 
-            {/* 販路（買えるところ） */}
-            {getOffers(event).length > 0 && (
-              <div className="mt-4">
-                <div className="text-[12px] text-label-secondary mb-1.5">購入リンク</div>
-                <div className="flex flex-col gap-1.5">
-                  {getOffers(event).map((o, i) => (
-                    <a key={i} href={o.affiliateUrl || o.url} target="_blank" rel="noopener" onClick={() => haptic.select()}
-                      className="pressable flex items-center justify-between gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-                      <span className="text-[13px] truncate">{o.retailer || 'リンク'}{o.shop ? `（${o.shop}）` : ''}</span>
-                      <span className="text-[13px] font-bold flex-shrink-0" style={{ color: 'var(--accent-text)' }}>{o.price ? `¥${o.price.toLocaleString()}` : '開く ↗'}</span>
+            {/* 購入リンク（共同編集で追記可・発売に向けて増える） */}
+            <div className="mt-4">
+              <div className="text-[12px] text-label-secondary mb-1.5">購入リンク</div>
+              <div className="flex flex-col gap-1.5">
+                {getOffers(event).map((o, i) => (
+                  <a key={`b${i}`} href={o.affiliateUrl || o.url} target="_blank" rel="noopener" onClick={() => haptic.select()}
+                    className="pressable flex items-center justify-between gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+                    <span className="text-[13px] truncate">{o.retailer || 'リンク'}{o.shop ? `（${o.shop}）` : ''}</span>
+                    <span className="text-[13px] font-bold flex-shrink-0" style={{ color: 'var(--accent-text)' }}>{o.price ? `¥${o.price.toLocaleString()}` : '開く ↗'}</span>
+                  </a>
+                ))}
+                {contribs.map((c) => (
+                  <div key={c.id} className="flex items-center gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+                    <a href={c.offer.affiliateUrl || c.offer.url} target="_blank" rel="noopener" onClick={() => haptic.select()} className="pressable flex-1 min-w-0 flex items-center justify-between gap-2">
+                      <span className="text-[13px] truncate">{c.offer.retailer || 'リンク'}{c.offer.shop ? `（${c.offer.shop}）` : ''}<span className="text-[10px] text-label-tertiary"> ・ユーザー追加</span></span>
+                      <span className="text-[13px] font-bold flex-shrink-0" style={{ color: 'var(--accent-text)' }}>{c.offer.price ? `¥${c.offer.price.toLocaleString()}` : '開く ↗'}</span>
                     </a>
-                  ))}
-                </div>
+                    {user && c.createdBy === user.id && (
+                      <button onClick={() => onRemoveContrib(c.id)} aria-label="削除" className="pressable tap-44 text-label-tertiary flex-shrink-0"><X size={15} /></button>
+                    )}
+                  </div>
+                ))}
               </div>
-            )}
+              <div className="flex gap-2 mt-2">
+                <input value={addUrl} onChange={(e) => setAddUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onAddLink()}
+                  placeholder="購入リンクを追加（URL）" inputMode="url"
+                  className="flex-1 rounded-[10px] px-3 py-2 text-[13px] outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
+                <button onClick={onAddLink} disabled={!addUrl.trim() || addingLink} className="pressable px-3 rounded-[10px] text-[13px] font-semibold flex-shrink-0" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>追加</button>
+              </div>
+            </div>
 
             {/* アクション: いいね・リアクション・カレンダー・共有 */}
             <div className="relative mt-5">
@@ -250,8 +359,37 @@ export default function ItemDetail() {
               </div>
             </div>
 
+            {/* 在庫情報（共同編集・追記ログ） */}
+            <div className="mt-4">
+              <div className="text-[12px] text-label-secondary mb-1.5">在庫情報</div>
+              {stockReports.length > 0 && (
+                <div className="flex flex-col gap-1.5 mb-2">
+                  {stockReports.map((r) => (
+                    <div key={r.id} className="flex items-start gap-2 rounded-[10px] px-3 py-2" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13px]">{r.note}</div>
+                        <div className="text-[10px] text-label-tertiary">{r.createdAt.slice(5, 10).replace('-', '/')}</div>
+                      </div>
+                      {user && r.createdBy === user.id && <button onClick={() => onRemoveStock(r.id)} aria-label="削除" className="pressable tap-44 text-label-tertiary flex-shrink-0"><X size={15} /></button>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <input value={stockInput} onChange={(e) => setStockInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onAddStock()}
+                  placeholder="在庫情報を追加（例: 池袋本店 残りわずか）"
+                  className="flex-1 rounded-[10px] px-3 py-2 text-[13px] outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
+                <button onClick={onAddStock} disabled={!stockInput.trim() || addingStock} className="pressable px-3 rounded-[10px] text-[13px] font-semibold flex-shrink-0" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>追加</button>
+              </div>
+            </div>
+
             {/* 投稿者 */}
             {authorName && <div className="text-[12px] text-label-tertiary mt-4">投稿: {authorName}</div>}
+
+            {/* 通報 */}
+            <button onClick={onReport} disabled={reported} className="pressable mt-4 text-[12px] text-label-tertiary">
+              {reported ? '通報しました' : '通報する'}
+            </button>
           </div>
         </div>
 

@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { CalendarEvent } from '../types';
+import type { CalendarEvent, Offer } from '../types';
 import { parseCategories } from './constants';
 
 /** 2つのカテゴリ値（単一文字列 or JSON配列文字列）が完全に重ならない場合 true。
@@ -784,6 +784,77 @@ export async function toggleCalendarAdd(eventId: string, userId: string): Promis
   const { count } = await supabase
     .from('calendar_adds').select('*', { count: 'exact', head: true }).eq('event_id', eventId);
   return { added: !existing, count: count ?? 0 };
+}
+
+// ── 共同編集: 購入リンクの追記（append-only） ──
+export type OfferContrib = { id: string; offer: Offer; createdBy: string | null };
+
+export async function listOfferContribs(eventId: string): Promise<OfferContrib[]> {
+  const { data, error } = await supabase
+    .from('event_offer_contribs').select('id, offer, created_by').eq('event_id', eventId).order('created_at');
+  if (error) return [];
+  return (data ?? []).map((r) => ({ id: r.id as string, offer: r.offer as Offer, createdBy: (r.created_by as string | null) ?? null }));
+}
+
+export async function addOfferContrib(eventId: string, offer: Offer, userId: string): Promise<OfferContrib | null> {
+  const { data, error } = await supabase
+    .from('event_offer_contribs').insert({ event_id: eventId, offer, created_by: userId }).select('id, offer, created_by').single();
+  if (error) return null;
+  return { id: data.id as string, offer: data.offer as Offer, createdBy: (data.created_by as string | null) ?? null };
+}
+
+export async function removeOfferContrib(id: string): Promise<void> {
+  await supabase.from('event_offer_contribs').delete().eq('id', id);
+}
+
+// ── 共同編集: 日時/状態の編集パッチ ──
+export type EventPatch = Partial<Pick<CalendarEvent, 'date' | 'endDate' | 'time' | 'isOrderMade' | 'preorderStart' | 'preorderEnd'>>;
+export type EventEdit = { id: string; patch: EventPatch; createdBy: string | null; createdAt: string };
+
+export async function listEventEdits(eventId: string): Promise<EventEdit[]> {
+  const { data, error } = await supabase
+    .from('event_edits').select('id, patch, created_by, created_at').eq('event_id', eventId).order('created_at', { ascending: true });
+  if (error) return [];
+  return (data ?? []).map((r) => ({ id: r.id as string, patch: (r.patch as EventPatch) ?? {}, createdBy: (r.created_by as string | null) ?? null, createdAt: r.created_at as string }));
+}
+
+export async function addEventEdit(eventId: string, patch: EventPatch, userId: string): Promise<EventEdit | null> {
+  const { data, error } = await supabase
+    .from('event_edits').insert({ event_id: eventId, patch, created_by: userId }).select('id, patch, created_by, created_at').single();
+  if (error) return null;
+  return { id: data.id as string, patch: (data.patch as EventPatch) ?? {}, createdBy: (data.created_by as string | null) ?? null, createdAt: data.created_at as string };
+}
+
+export async function removeEventEdit(id: string): Promise<void> {
+  await supabase.from('event_edits').delete().eq('id', id);
+}
+
+/** base イベントに編集パッチを古い順に重ねた「実効値」を返す。 */
+export function applyEdits<T extends CalendarEvent>(event: T, edits: EventEdit[]): T {
+  let e = { ...event };
+  for (const ed of edits) e = { ...e, ...ed.patch };
+  return e;
+}
+
+// ── 共同編集: 在庫情報の追記ログ ──
+export type StockReport = { id: string; note: string; createdBy: string | null; createdAt: string };
+
+export async function listStockReports(eventId: string): Promise<StockReport[]> {
+  const { data, error } = await supabase
+    .from('stock_reports').select('id, note, created_by, created_at').eq('event_id', eventId).order('created_at', { ascending: false });
+  if (error) return [];
+  return (data ?? []).map((r) => ({ id: r.id as string, note: r.note as string, createdBy: (r.created_by as string | null) ?? null, createdAt: r.created_at as string }));
+}
+
+export async function addStockReport(eventId: string, note: string, userId: string): Promise<StockReport | null> {
+  const { data, error } = await supabase
+    .from('stock_reports').insert({ event_id: eventId, note, created_by: userId }).select('id, note, created_by, created_at').single();
+  if (error) return null;
+  return { id: data.id as string, note: data.note as string, createdBy: (data.created_by as string | null) ?? null, createdAt: data.created_at as string };
+}
+
+export async function removeStockReport(id: string): Promise<void> {
+  await supabase.from('stock_reports').delete().eq('id', id);
 }
 
 export async function getEventById(eventId: string): Promise<CalendarEvent | null> {

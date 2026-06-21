@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Heart, CalendarPlus, ShoppingCart, ExternalLink, ImageOff } from 'lucide-react';
 import type { CalendarEvent } from '../../types';
-import { deriveStatus, deriveItemType } from '../../design/tokens';
+import { deriveStatus, deriveItemType, itemDateLines } from '../../design/tokens';
 import { parseCategories, getPrimaryCategoryColor, parseImageUrls } from '../../lib/constants';
 import { resolveBuy, type BuyMode } from '../../lib/affiliate';
 import StatusBadge from '../ui/StatusBadge';
@@ -74,6 +74,7 @@ export default function ItemCard({ event, layout = 'grid', onOpen, onLike, onCal
             {event.workName && <div className="text-[11px] text-label-secondary truncate">{event.workName}</div>}
             <div className="text-[14px] font-semibold leading-snug line-clamp-2">{event.title}</div>
             <CategoryLine event={event} />
+            <div className="text-[12px] text-label-secondary mt-0.5">{itemDateLines(event).join(' / ')}</div>
             {price && <div className="text-[15px] font-bold mt-1" style={{ color: 'var(--accent-text)' }}>{price}</div>}
           </button>
           <div className="mt-auto pt-1.5"><CardActions onLike={onLike} onCalendar={onCalendar} onBuy={onBuy} buyMode={buyMode} /></div>
