@@ -4,9 +4,10 @@ import { X, Plus, Check, Sparkles, Camera, Link2, Loader2, Search } from 'lucide
 import Chip from '../components/ui/Chip';
 import { searchWorks, getOrCreateWork, createEvents, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, type Work } from '../lib/api';
 import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES } from '../lib/constants';
-import { affiliatize } from '../lib/affiliate';
+import { affiliatize, buildOffer, primaryOffer } from '../lib/affiliate';
 import { parseEventsApi, fileToBase64, type ParsedEvent } from '../lib/parseEvents';
-import { searchProductCandidates, titleMatchScore, type ProductCandidate } from '../lib/searchProduct';
+import { searchProductCandidates, titleMatchScore, cleanShopTitle, retailerSearchUrls, type ProductCandidate } from '../lib/searchProduct';
+import type { Offer } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
 import { haptic } from '../lib/haptics';
@@ -25,6 +26,10 @@ const DRAFT_KEY = 'fanhive_post_draft';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function readDraft(): Record<string, any> | null {
   try { return JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null'); } catch { return null; }
+}
+// 販路をURL重複なしで追加
+function addOffer(list: Offer[], o: Offer): Offer[] {
+  return o.url && !list.some((x) => x.url === o.url) ? [...list, o] : list;
 }
 
 export default function PostNew() {
@@ -56,6 +61,7 @@ export default function PostNew() {
   const [preEndTime, setPreEndTime] = useState<string>(draft0?.preEndTime ?? '');
   const [price, setPrice] = useState<string>(draft0?.price ?? '');
   const [link, setLink] = useState<string>(draft0?.link ?? '');
+  const [offers, setOffers] = useState<Offer[]>(draft0?.offers ?? []);
   const [showExtra, setShowExtra] = useState<boolean>(draft0?.showExtra ?? false);
   const [stockNote, setStockNote] = useState<string>(draft0?.stockNote ?? '');
   const [memo, setMemo] = useState<string>(draft0?.memo ?? '');
@@ -93,7 +99,7 @@ export default function PostNew() {
   useEffect(() => {
     sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
       type, workId, workName, workQuery, title, cats: [...cats], allDay, dateTBD, date, endDate, time, endTime,
-      isOrder, preAllDay, preStart, preEnd, preStartTime, preEndTime, price, link, showExtra, stockNote, memo, imageUrl, prefecture, locationDetail,
+      isOrder, preAllDay, preStart, preEnd, preStartTime, preEndTime, price, link, offers, showExtra, stockNote, memo, imageUrl, prefecture, locationDetail,
     }));
   });
   const clearDraft = () => sessionStorage.removeItem(DRAFT_KEY);
@@ -179,7 +185,7 @@ export default function PostNew() {
     if (p.date) { setDateTBD(false); setDate(p.date); setEndDate(p.endDate || p.date); }
     if (p.time) { setAllDay(false); setTime(p.time); if (p.endTime) setEndTime(p.endTime); }
     if (p.isOrderMade) { setIsOrder(true); if (p.preorderStart) setPreStart(p.preorderStart); if (p.preorderEnd) setPreEnd(p.preorderEnd); }
-    if (p.link) setLink(p.link);
+    if (p.link) setOffers((prev) => addOffer(prev, buildOffer(p.link!, p.price ?? undefined)));
     if (p.prefecture) setPrefecture(p.prefecture);
     if (p.locationDetail) setLocationDetail(p.locationDetail);
     if (p.imageUrl) setImageUrl(p.imageUrl);
@@ -220,11 +226,22 @@ export default function PostNew() {
   };
   const pickCandidate = (c: ProductCandidate) => {
     haptic.select();
-    setLink(c.url);
+    setOffers((prev) => addOffer(prev, { retailer: c.retailer || '楽天', shop: c.retailer === '楽天' ? c.shop : undefined, url: c.url, affiliateUrl: c.url, hasAffiliate: c.hasAffiliate, price: c.price }));
+    setTitle(cleanShopTitle(c.title));
     if (!price && c.price) setPrice(String(c.price));
     if (!imageUrl && c.image) setImageUrl(c.image);
     setCandidates(null);
+    toast('購入リンクを追加しました');
   };
+  const addManualLink = () => {
+    const u = link.trim();
+    if (!u) return;
+    haptic.select();
+    setOffers((prev) => addOffer(prev, buildOffer(u, price ? Number(price) : undefined)));
+    setLink('');
+    toast('購入リンクを追加しました');
+  };
+  const removeOffer = (url: string) => setOffers((prev) => prev.filter((o) => o.url !== url));
 
   const linkInfo = link.trim() ? affiliatize(link.trim()) : null;
   const canSave = !!title.trim() && (!!workId || !!workQuery.trim()) && !saving;
@@ -235,7 +252,9 @@ export default function PostNew() {
     try {
       let wid = workId;
       if (!wid) { const w = await getOrCreateWork(workQuery.trim()); wid = w.id; }
-      const info = link.trim() ? affiliatize(link.trim()) : null;
+      // 販路: 追加済み offers ＋ 入力欄に残ったURL。代表販路を旧フィールドにも要約保存（後方互換）
+      const allOffers = link.trim() ? addOffer(offers, buildOffer(link.trim(), price ? Number(price) : undefined)) : offers;
+      const prim = primaryOffer(allOffers);
       await createEvents(wid, [{
         title: title.trim(),
         type,
@@ -245,10 +264,11 @@ export default function PostNew() {
         endTime: allDay || dateTBD ? undefined : (endTime || undefined),
         category: cats.size ? serializeCategories([...cats]) : undefined,
         price: type === 'goods' && price ? Number(price) : undefined,
-        link: link.trim() || undefined,
-        affiliateUrl: info?.url,
-        hasAffiliate: info?.hasAffiliate,
-        retailer: info?.retailer,
+        offers: allOffers,
+        link: prim?.url,
+        affiliateUrl: prim?.affiliateUrl,
+        hasAffiliate: prim?.hasAffiliate,
+        retailer: prim?.retailer,
         isOrderMade: isOrder,
         preorderStart: isOrder ? (preStart || undefined) : undefined,
         preorderEnd: isOrder ? (preEnd || undefined) : undefined,
@@ -467,15 +487,45 @@ export default function PostNew() {
             </>
           )}
 
-          {/* リンク */}
-          <div className={labelCls}>リンク（購入・予約ページ）</div>
-          <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://..." inputMode="url" className={inputCls} style={inputStyle} />
+          {/* 購入リンク（複数可。発売に向けて随時追加できる） */}
+          <div className={labelCls}>購入リンク</div>
+          <div className="flex gap-2">
+            <input value={link} onChange={(e) => setLink(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addManualLink()}
+              placeholder="購入・予約ページのURL" inputMode="url" className={inputCls} style={inputStyle} />
+            <button onClick={addManualLink} disabled={!link.trim()}
+              className="pressable px-3 rounded-[10px] text-[13px] font-semibold flex-shrink-0" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>追加</button>
+          </div>
 
-          {/* 販売先を探す（リンク補完・価格取得） */}
+          {/* 追加済みの販路 */}
+          {offers.length > 0 && (
+            <div className="mt-2 flex flex-col gap-1.5">
+              {offers.map((o) => (
+                <div key={o.url} className="flex items-center gap-2 rounded-[10px] px-3 py-2" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] truncate">{o.retailer || o.url}{o.shop ? `（${o.shop}）` : ''}</div>
+                    <div className="text-[11px] text-label-tertiary">
+                      {o.price ? `¥${o.price.toLocaleString()}` : ''}{import.meta.env.DEV && o.hasAffiliate ? ' ・アフィ対応' : ''}
+                    </div>
+                  </div>
+                  <button onClick={() => removeOffer(o.url)} aria-label="削除" className="pressable tap-44 text-label-secondary"><X size={16} /></button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 販売先を探す（候補→販路に追加・価格/画像も補完） */}
           <button onClick={onSearchProduct} disabled={searchingProduct || !title.trim()}
             className="pressable mt-2 flex items-center gap-1.5 text-[13px]" style={{ color: 'var(--accent-text)' }}>
-            {searchingProduct ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />} 販売先を探す
+            {searchingProduct ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />} 販売先を探す（楽天）
           </button>
+          {title.trim() && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]">
+              <span className="text-label-tertiary">各店で探す:</span>
+              {retailerSearchUrls(`${workName || workQuery} ${title}`.trim()).map((r) => (
+                <a key={r.retailer} href={r.url} target="_blank" rel="noopener" onClick={() => haptic.select()} className="pressable" style={{ color: 'var(--accent-text)' }}>{r.retailer} ↗</a>
+              ))}
+            </div>
+          )}
           {candidates && (
             candidates.length === 0 ? (
               <p className="text-[12px] text-label-tertiary mt-1">候補が見つかりませんでした</p>
@@ -493,7 +543,7 @@ export default function PostNew() {
                       <div className="flex-1 min-w-0">
                         <div className="text-[12px] line-clamp-2 leading-snug">{c.title}</div>
                         <div className="text-[12px] font-bold" style={{ color: 'var(--accent-text)' }}>
-                          ¥{c.price?.toLocaleString()} <span className="font-normal text-label-tertiary">{c.shop}</span>
+                          ¥{c.price?.toLocaleString()} <span className="font-normal text-label-tertiary">{c.retailer}{c.retailer === '楽天' && c.shop ? `（${c.shop}）` : ''}</span>
                           {!ok && <span className="font-normal text-label-tertiary">・タイトル不一致</span>}
                         </div>
                       </div>

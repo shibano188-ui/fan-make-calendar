@@ -142,6 +142,7 @@ function rowToEvent(e: Record<string, unknown>): CalendarEvent {
     retailer: (e.retailer as string | null) ?? undefined,
     affiliateUrl: (e.affiliate_url as string | null) ?? undefined,
     hasAffiliate: (e.has_affiliate as boolean | null) ?? undefined,
+    offers: Array.isArray(e.offers) ? (e.offers as CalendarEvent['offers']) : undefined,
   };
 }
 
@@ -244,7 +245,7 @@ export async function listEventsByDate(workId: string, date: string, userId?: st
 
 export async function createEvents(
   workId: string,
-  events: Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'imageUrl' | 'sourceUrl' | 'isOrderMade' | 'preorderStart' | 'preorderEnd' | 'preorderStartTime' | 'preorderEndTime' | 'type' | 'price' | 'stockNote' | 'retailer' | 'affiliateUrl' | 'hasAffiliate'>[],
+  events: Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'imageUrl' | 'sourceUrl' | 'isOrderMade' | 'preorderStart' | 'preorderEnd' | 'preorderStartTime' | 'preorderEndTime' | 'type' | 'price' | 'stockNote' | 'retailer' | 'affiliateUrl' | 'hasAffiliate' | 'offers'>[],
   authorId: string,
 ): Promise<string[]> {
   const rows = await Promise.all(events.map(async e => {
@@ -287,6 +288,7 @@ export async function createEvents(
       retailer: e.retailer ?? null,
       affiliate_url: e.affiliateUrl ?? null,
       has_affiliate: e.hasAffiliate ?? false,
+      offers: e.offers ?? [],
       author_id: authorId,
       pool,
     };

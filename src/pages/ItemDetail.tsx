@@ -5,7 +5,7 @@ import type { CalendarEvent } from '../types';
 import { getEventById, getWorkById, getDisplayName, toggleLike, setReaction, getReactionData, getCalendarAddData, toggleCalendarAdd } from '../lib/api';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor } from '../lib/constants';
 import { deriveStatus, deriveItemType, itemDateLines } from '../design/tokens';
-import { resolveBuy } from '../lib/affiliate';
+import { resolveBuy, getOffers } from '../lib/affiliate';
 import { REACTIONS } from '../lib/reactions';
 import { useAuth } from '../contexts/AuthContext';
 import { haptic } from '../lib/haptics';
@@ -191,6 +191,22 @@ export default function ItemDetail() {
 
             {/* メモ */}
             {event.memo && <p className="text-[14px] text-label-secondary whitespace-pre-wrap mt-3">{event.memo}</p>}
+
+            {/* 販路（買えるところ） */}
+            {getOffers(event).length > 0 && (
+              <div className="mt-4">
+                <div className="text-[12px] text-label-secondary mb-1.5">購入リンク</div>
+                <div className="flex flex-col gap-1.5">
+                  {getOffers(event).map((o, i) => (
+                    <a key={i} href={o.affiliateUrl || o.url} target="_blank" rel="noopener" onClick={() => haptic.select()}
+                      className="pressable flex items-center justify-between gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+                      <span className="text-[13px] truncate">{o.retailer || 'リンク'}{o.shop ? `（${o.shop}）` : ''}</span>
+                      <span className="text-[13px] font-bold flex-shrink-0" style={{ color: 'var(--accent-text)' }}>{o.price ? `¥${o.price.toLocaleString()}` : '開く ↗'}</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* アクション: いいね・リアクション・カレンダー・共有 */}
             <div className="relative mt-5">
