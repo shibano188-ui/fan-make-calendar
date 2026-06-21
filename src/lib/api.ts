@@ -923,6 +923,30 @@ export async function listAllParticipatedWorkEvents(
   return listAllParticipatedWorkEventsRange(userId, `${year}-${m}-01`, `${year}-${m}-${String(lastDay).padStart(2, '0')}`);
 }
 
+// いいね（保存）タブ: 自分がいいねした予定 ＋ 自分が投稿した予定 を取得（重複排除）。
+export async function listSavedEvents(userId: string): Promise<CalendarEvent[]> {
+  const { data: likeRows } = await supabase.from('likes').select('event_id').eq('user_id', userId);
+  const likedIds = (likeRows ?? []).map((r) => r.event_id as string);
+  const queries = [
+    supabase.from('events').select('*, works(name)').eq('pool', 0).eq('author_id', userId),
+  ];
+  if (likedIds.length) queries.push(supabase.from('events').select('*, works(name)').eq('pool', 0).in('id', likedIds));
+  const results = await Promise.all(queries);
+  const map = new Map<string, CalendarEvent>();
+  for (const { data } of results) {
+    for (const row of data ?? []) {
+      const r = row as Record<string, unknown>;
+      const id = r.id as string;
+      if (map.has(id)) continue;
+      const works = r.works as { name: string } | null;
+      const ev = { ...rowToEvent(r), workName: works?.name ?? '' };
+      ev.likedByMe = likedIds.includes(id);
+      map.set(id, ev);
+    }
+  }
+  return resolveAuthorNames([...map.values()]);
+}
+
 // 探す（横断フィード）: 全作品の予定を期間ウィンドウで取得。works名を結合。
 // 過去も含めて取得し、UI側で「今日起点」に並べる。type はUI側で category から導出して振り分ける。
 export async function listExploreEvents(from: string, to: string): Promise<CalendarEvent[]> {

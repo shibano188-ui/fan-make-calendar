@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowDownToLine, Search, SlidersHorizontal } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
@@ -27,10 +27,11 @@ function shiftMonths(base: string, n: number): string {
 
 export default function Explore() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const [mode, setMode] = useState<ItemType>('goods');
   const [items, setItems] = useState<CalendarEvent[] | null>(null);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(searchParams.get('q') ?? '');
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
   const [selectedWorks, setSelectedWorks] = useState<Set<string>>(new Set());
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
