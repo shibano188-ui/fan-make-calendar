@@ -27,25 +27,43 @@ function shiftMonths(base: string, n: number): string {
   return todayStr(d);
 }
 
+function loadExploreSession() {
+  try { return JSON.parse(sessionStorage.getItem('explore_filters') ?? '{}'); } catch { return {}; }
+}
+
 export default function Explore() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const toast = useToast();
-  const [mode, setMode] = useState<ItemType>('goods');
+  const _ss = loadExploreSession();
+  const [mode, setMode] = useState<ItemType>(_ss.mode ?? 'goods');
   const [items, setItems] = useState<CalendarEvent[] | null>(null);
-  const [query, setQuery] = useState(searchParams.get('q') ?? '');
-  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
-  const [excludedWorks, setExcludedWorks] = useState<Set<string>>(new Set());
-  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
-  const [selectedPrefs, setSelectedPrefs] = useState<Set<string>>(new Set());
-  const [selectedRegions, setSelectedRegions] = useState<Set<string>>(new Set());
-  const [neighborActive, setNeighborActive] = useState(false);
+  const [query, setQuery] = useState(searchParams.get('q') ?? _ss.query ?? '');
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set(_ss.statuses ?? []));
+  const [excludedWorks, setExcludedWorks] = useState<Set<string>>(new Set(_ss.excludedWorks ?? []));
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set(_ss.categories ?? []));
+  const [selectedPrefs, setSelectedPrefs] = useState<Set<string>>(new Set(_ss.prefs ?? []));
+  const [selectedRegions, setSelectedRegions] = useState<Set<string>>(new Set(_ss.regions ?? []));
+  const [neighborActive, setNeighborActive] = useState<boolean>(_ss.neighborActive ?? false);
   const [homePref, setHomePref] = useState<string | null>(null);
   const [followed, setFollowed] = useState<Set<string>>(new Set());
   const [workMatches, setWorkMatches] = useState<Work[]>([]);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
-  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState<boolean>(_ss.filterOpen ?? false);
+
+  // フィルター状態をsessionStorageに同期
+  useEffect(() => {
+    sessionStorage.setItem('explore_filters', JSON.stringify({
+      mode, query,
+      statuses: [...selectedStatuses],
+      excludedWorks: [...excludedWorks],
+      categories: [...selectedCategories],
+      prefs: [...selectedPrefs],
+      regions: [...selectedRegions],
+      neighborActive, filterOpen,
+    }));
+  }, [mode, query, selectedStatuses, excludedWorks, selectedCategories, selectedPrefs, selectedRegions, neighborActive, filterOpen]);
   const todayRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
 
@@ -192,9 +210,22 @@ export default function Explore() {
     return { past: p, upcoming: u };
   }, [visible, today]);
 
+  // データ取得後: 詳細ページから戻った場合は保存位置へ、初回は今日へ
+  useEffect(() => {
+    if (!items) return;
+    const saved = sessionStorage.getItem('explore_scroll');
+    if (saved) {
+      sessionStorage.removeItem('explore_scroll');
+      requestAnimationFrame(() => window.scrollTo(0, parseInt(saved, 10)));
+    } else {
+      requestAnimationFrame(() => scrollToToday(false));
+    }
+  }, [items]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // モード切り替え時は今日へ
   useEffect(() => {
     if (items) requestAnimationFrame(() => scrollToToday(false));
-  }, [items, mode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleIn = <T,>(setter: React.Dispatch<React.SetStateAction<Set<T>>>, v: T) => {
     haptic.select();
@@ -230,7 +261,7 @@ export default function Explore() {
   const gridClass = mode === 'goods' ? 'grid grid-cols-2 gap-2 items-stretch' : 'flex flex-col gap-2';
   const renderCard = (e: CalendarEvent) => (
     <ItemCard key={e.id} event={e} layout={mode === 'goods' ? 'grid' : 'list'} isNew={isNewItem(e.id, e.createdAt, seen)} likedInit={likedIds.has(e.id)}
-      onOpen={() => navigate(`/item/${e.id}`)} onLike={() => onLikeTile(e)} onCalendar={() => onCalendarTile(e)} onBuy={() => onBuy(e)} />
+      onOpen={() => { sessionStorage.setItem('explore_scroll', String(window.scrollY)); navigate(`/item/${e.id}`); }} onLike={() => onLikeTile(e)} onCalendar={() => onCalendarTile(e)} onBuy={() => onBuy(e)} />
   );
 
   return (
