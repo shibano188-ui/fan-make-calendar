@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from 'recharts';
-import { ChevronRight, Bell, Crown, CalendarSync } from 'lucide-react';
+import { ChevronRight, Bell, Crown, CalendarSync, Moon } from 'lucide-react';
 import {
   getUserPublicProfile, getHomePrefecture, saveHomePrefecture, saveDisplayName,
   listAllParticipatedWorks, leaveCalendar, type Work,
@@ -9,6 +9,7 @@ import { calcTitle, calcRadarData, calcGrade, type AchievementStats } from '../l
 import { REGIONS } from '../lib/prefectures';
 import { loadNotifyLeadDays, saveNotifyLeadDays } from '../lib/constants';
 import { isGoogleConfigured, isGoogleLinked, linkGoogle, unlinkGoogle } from '../lib/googleCalendar';
+import { useTheme, type ThemeMode } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
 import { haptic } from '../lib/haptics';
@@ -26,6 +27,7 @@ export default function MyPage() {
   const [worksOpen, setWorksOpen] = useState(false);
   const [leadDays, setLeadDays] = useState(loadNotifyLeadDays());
   const [gcalLinked, setGcalLinked] = useState(isGoogleLinked());
+  const { settings, updateSettings } = useTheme();
 
   const onLinkGoogle = async () => {
     haptic.select();
@@ -107,6 +109,17 @@ export default function MyPage() {
           <select value={homePref} onChange={(e) => onChangePref(e.target.value)} className="flex-1 bg-transparent text-[14px] outline-none" style={{ color: 'var(--input-text)' }}>
             <option value="">未設定</option>
             {ALL_PREFS.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </div>
+        {/* カラーモード */}
+        <div className="flex items-center gap-2 px-3 py-2.5">
+          <Moon size={16} className="text-label-secondary" />
+          <span className="text-[14px] flex-1">カラーモード</span>
+          <select value={settings.theme} onChange={(e) => updateSettings({ theme: e.target.value as ThemeMode })}
+            className="bg-transparent text-[14px] outline-none" style={{ color: 'var(--input-text)' }}>
+            <option value="system">システム</option>
+            <option value="simple">ライト</option>
+            <option value="dark">ダーク</option>
           </select>
         </div>
         {/* 通知リードタイム */}
