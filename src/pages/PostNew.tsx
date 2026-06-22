@@ -16,6 +16,23 @@ import { todayStr, deriveItemType, type ItemType } from '../design/tokens';
 const GOODS_CATS = [...GOODS_SUBCATEGORIES, 'グルメ', '書籍'];
 const EVENT_CATS = ['イベント', 'アニメ・映画', '誕生日', 'キャンペーン'];
 
+// 曖昧日付（日付未定）の選択肢と代表日計算。並び替え用に date も持たせる。
+const SEASON_LABELS = ['春頃', '夏頃', '秋頃', '冬頃'];
+const SEASON_MONTH: Record<string, string> = { '春頃': '04', '夏頃': '08', '秋頃': '11', '冬頃': '02' };
+const LABEL_DAY: Record<string, string> = { '上旬': '05', '中旬': '15', '下旬': '25' };
+const DATE_LABEL_OPTIONS: [string, string][] = [
+  ['上旬', '上旬'], ['中旬', '中旬'], ['下旬', '下旬'], ['月のみ', '中'],
+  ['春頃', '春頃'], ['夏頃', '夏頃'], ['秋頃', '秋頃'], ['冬頃', '冬頃'],
+];
+// 年/月/区分から代表日(YYYY-MM-DD)を算出。季節は月固定・月のみは末日・上中下旬は5/15/25。
+function ambiguousDate(year: string, month: string, label: string): string {
+  if (SEASON_MONTH[label]) return `${year}-${SEASON_MONTH[label]}-15`;
+  const day = label === '中'
+    ? String(new Date(Number(year), Number(month), 0).getDate()).padStart(2, '0')
+    : (LABEL_DAY[label] ?? '15');
+  return `${year}-${month}-${day}`;
+}
+
 const inputCls = 'w-full rounded-[10px] px-3 py-2.5 text-[14px] outline-none';
 const dateCls = 'flex-1 rounded-[10px] px-3 py-2.5 text-[14px] outline-none';
 const timeCls = 'rounded-[10px] px-3 py-2.5 text-[14px] outline-none';
@@ -49,6 +66,7 @@ export default function PostNew() {
   const [cats, setCats] = useState<Set<string>>(new Set(draft0?.cats ?? []));
   const [allDay, setAllDay] = useState<boolean>(draft0?.allDay ?? true);
   const [dateTBD, setDateTBD] = useState<boolean>(draft0?.dateTBD ?? false);
+  const [dateLabel, setDateLabel] = useState<string>(draft0?.dateLabel ?? ''); // 上旬/中旬/下旬/中/春頃…
   const [date, setDate] = useState<string>(draft0?.date ?? today);
   const [endDate, setEndDate] = useState<string>(draft0?.endDate ?? today);
   const [time, setTime] = useState<string>(draft0?.time ?? '');
@@ -98,7 +116,7 @@ export default function PostNew() {
   // 下書き保持（確認のため離れて戻っても内容を復元）。毎レンダーで保存。
   useEffect(() => {
     sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
-      type, workId, workName, workQuery, title, cats: [...cats], allDay, dateTBD, date, endDate, time, endTime,
+      type, workId, workName, workQuery, title, cats: [...cats], allDay, dateTBD, dateLabel, date, endDate, time, endTime,
       isOrder, preAllDay, preStart, preEnd, preStartTime, preEndTime, price, link, offers, showExtra, stockNote, memo, imageUrl, prefecture, locationDetail,
     }));
   });
@@ -182,8 +200,14 @@ export default function PostNew() {
     }
     if (p.price != null) setPrice(String(p.price));
     if (p.category) setCats(new Set(parseCategories(p.category)));
-    if (p.date) { setDateTBD(false); setDate(p.date); setEndDate(p.endDate || p.date); }
-    if (p.time) { setAllDay(false); setTime(p.time); if (p.endTime) setEndTime(p.endTime); }
+    if (p.dateLabel) {
+      // 曖昧日付（上旬・春頃・月のみ等）: ラベルを保持し、代表日も入れる
+      setDateTBD(true); setDateLabel(p.dateLabel);
+      if (p.date) { setDate(p.date); setEndDate(p.date); }
+    } else if (p.date) {
+      setDateTBD(false); setDateLabel(''); setDate(p.date); setEndDate(p.endDate || p.date);
+    }
+    if (p.time && !p.dateLabel) { setAllDay(false); setTime(p.time); if (p.endTime) setEndTime(p.endTime); }
     if (p.isOrderMade) { setIsOrder(true); if (p.preorderStart) setPreStart(p.preorderStart); if (p.preorderEnd) setPreEnd(p.preorderEnd); }
     if (p.link) setOffers((prev) => addOffer(prev, buildOffer(p.link!, p.price ?? undefined)));
     if (p.prefecture) setPrefecture(p.prefecture);
@@ -258,8 +282,10 @@ export default function PostNew() {
       await createEvents(wid, [{
         title: title.trim(),
         type,
-        date: dateTBD ? null : (date || null),
+        // 曖昧日付は代表日(並び替え用)＋dateLabel(表示用)を保存。具体日のときは dateLabel=null
+        date: date || null,
         endDate: dateTBD ? undefined : (endDate || date || undefined),
+        dateLabel: dateTBD ? (dateLabel || null) : null,
         time: allDay || dateTBD ? undefined : (time || undefined),
         endTime: allDay || dateTBD ? undefined : (endTime || undefined),
         category: cats.size ? serializeCategories([...cats]) : undefined,
@@ -296,7 +322,8 @@ export default function PostNew() {
       <div className="mx-auto w-full max-w-app">
         {/* ヘッダー */}
         <div className="sticky top-0 z-20 flex items-center justify-between px-3 py-2.5 border-b border-subtle" style={{ backgroundColor: 'var(--bg-primary)' }}>
-          <button onClick={onClose} aria-label="閉じる" className="pressable tap-44 p-1"><X size={22} /></button>
+          {/* 入力中(キーボード表示中)は最初のタップがblurに食われて閉じないため pointerDown で確実に閉じる */}
+          <button onPointerDown={(e) => { e.preventDefault(); onClose(); }} aria-label="閉じる" className="pressable tap-44 p-1"><X size={22} /></button>
           <span className="font-semibold">投稿</span>
           <button onClick={onSubmit} disabled={!canSave}
             className="pressable px-3 py-1.5 rounded-full text-[13px] font-semibold"
@@ -431,10 +458,18 @@ export default function PostNew() {
           {/* 日程 */}
           <div className={labelCls}>{type === 'goods' ? '発売日' : '開催日'}</div>
           <div className="flex gap-2 mb-2">
-            <Chip active={allDay} onClick={() => { haptic.select(); setAllDay((v) => !v); }}>終日</Chip>
-            <Chip active={dateTBD} onClick={() => { haptic.select(); setDateTBD((v) => !v); }}>日付未定</Chip>
+            {!dateTBD && <Chip active={allDay} onClick={() => { haptic.select(); setAllDay((v) => !v); }}>終日</Chip>}
+            <Chip active={dateTBD} onClick={() => {
+              haptic.select();
+              if (dateTBD) { setDateTBD(false); setDateLabel(''); }
+              else {
+                // 日付未定ON: 既定で「中旬」。代表日も当月15日にしておく
+                const ym = (date || today).slice(0, 7);
+                setDateTBD(true); setDateLabel('中旬'); setDate(`${ym}-15`);
+              }
+            }}>日付未定</Chip>
           </div>
-          {!dateTBD && (
+          {!dateTBD ? (
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
                 <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={dateCls} style={inputStyle} />
@@ -445,6 +480,34 @@ export default function PostNew() {
                 <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={dateCls} style={inputStyle} />
                 {!allDay && <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={timeCls} style={inputStyle} />}
               </div>
+            </div>
+          ) : (
+            /* 曖昧日付UI（年 / 月 / 区分）。上旬・中旬・下旬・月のみ・春頃… */
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                <select value={date ? date.slice(0, 4) : String(new Date().getFullYear())}
+                  onChange={(e) => setDate(ambiguousDate(e.target.value, date.slice(5, 7) || '01', dateLabel))}
+                  className={dateCls} style={inputStyle}>
+                  {[0, 1, 2].map((o) => { const y = new Date().getFullYear() + o; return <option key={y} value={y}>{y}年</option>; })}
+                </select>
+                {!SEASON_LABELS.includes(dateLabel) && (
+                  <select value={date ? date.slice(5, 7) : '01'}
+                    onChange={(e) => setDate(ambiguousDate(date.slice(0, 4) || String(new Date().getFullYear()), e.target.value, dateLabel))}
+                    className={dateCls} style={inputStyle}>
+                    {Array.from({ length: 12 }, (_, i) => { const m = String(i + 1).padStart(2, '0'); return <option key={m} value={m}>{i + 1}月</option>; })}
+                  </select>
+                )}
+              </div>
+              <select value={dateLabel}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const year = date ? date.slice(0, 4) : String(new Date().getFullYear());
+                  const month = date ? date.slice(5, 7) : String(new Date().getMonth() + 1).padStart(2, '0');
+                  setDateLabel(val); setDate(ambiguousDate(year, month, val));
+                }}
+                className={inputCls} style={inputStyle}>
+                {DATE_LABEL_OPTIONS.map(([label, val]) => <option key={val} value={val}>{label}</option>)}
+              </select>
             </div>
           )}
 

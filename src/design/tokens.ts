@@ -84,6 +84,15 @@ function md(d?: string): string {
   return parts.length === 3 ? `${Number(parts[1])}/${Number(parts[2])}` : d;
 }
 
+const SEASON_LABELS = ['春頃', '夏頃', '秋頃', '冬頃'];
+/** 曖昧日付(dateLabel)を表示用に整形。上旬→"4月上旬" / 中(月のみ)→"4月" / 春頃→"春頃" */
+function formatDateLabel(date: string | undefined | null, dateLabel: string): string {
+  if (SEASON_LABELS.includes(dateLabel)) return dateLabel;
+  const m = date ? Number(date.slice(5, 7)) : 0;
+  if (dateLabel === '中') return m ? `${m}月` : '月内';
+  return m ? `${m}月${dateLabel}` : dateLabel;
+}
+
 /** タイル/詳細に出す日付ラベルを状態に応じて出し分ける。 */
 export function formatItemDate(
   e: Pick<CalendarEvent, 'date' | 'endDate' | 'time' | 'preorderStart' | 'preorderEnd' | 'type' | 'dateLabel'>,
@@ -94,13 +103,17 @@ export function formatItemDate(
     if (e.preorderEnd) return `受付〜${md(e.preorderEnd)}`;
     if (e.preorderStart) return `受付 ${md(e.preorderStart)}〜`;
   }
+  // 曖昧日付は具体日(並び替え用)より dateLabel を優先表示
+  if (e.dateLabel) {
+    const prefix = e.type === 'goods' ? '発売 ' : '';
+    return `${prefix}${formatDateLabel(e.date, e.dateLabel)}`;
+  }
   if (e.date) {
     const period = e.endDate && e.endDate !== e.date ? `${md(e.date)}〜${md(e.endDate)}` : md(e.date);
     const prefix = e.type === 'goods' ? '発売 ' : '';
     const time = e.time ? ` ${e.time}` : '';
     return `${prefix}${period}${time}`;
   }
-  if (e.dateLabel) return e.dateLabel;
   return '日付未定';
 }
 
@@ -117,13 +130,14 @@ export function itemDateLines(
     else if (e.preorderEnd) lines.push(`予約・受注 〜${md(e.preorderEnd)}`);
     else if (e.preorderStart) lines.push(`予約・受注 ${md(e.preorderStart)}〜`);
   }
-  // 発売（グッズ＝ラベルなし）・開催（イベント）
-  if (e.date) {
+  // 発売（グッズ）・開催（イベント）。曖昧日付は dateLabel を優先表示
+  if (e.dateLabel) {
+    const label = formatDateLabel(e.date, e.dateLabel);
+    lines.push(type === 'goods' ? `発売 ${label}` : `開催 ${label}`);
+  } else if (e.date) {
     const period = e.endDate && e.endDate !== e.date ? `${md(e.date)}〜${md(e.endDate)}` : md(e.date);
     const time = e.time ? ` ${e.time}` : '';
     lines.push(type === 'goods' ? `発売 ${period}${time}` : `開催 ${period}${time}`);
-  } else if (e.dateLabel) {
-    lines.push(e.dateLabel);
   }
   if (lines.length === 0) lines.push('日付未定');
   return lines;
