@@ -68,14 +68,25 @@ export default function Explore() {
   const headerRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
 
-  // PhoneFrame(PC)は overflow-y-auto の独自コンテナを持つ。window ではなくそれを使う。
-  const getScrollEl = (): Element => {
-    let el: Element | null = pageRef.current?.parentElement ?? null;
-    while (el && el !== document.documentElement) {
-      if (['auto', 'scroll'].includes(getComputedStyle(el).overflowY)) return el;
+  // スクロール対象を解決する。PhoneFrame(PC)は overflow-y-auto の独自コンテナ、
+  // スマホ実機はフレームなし＝window。祖先を辿って最初のスクロールコンテナを返す。
+  const resolveScroller = (): HTMLElement | Window => {
+    let el: HTMLElement | null = pageRef.current;
+    while (el) {
+      const oy = getComputedStyle(el).overflowY;
+      if (oy === 'auto' || oy === 'scroll') return el;
       el = el.parentElement;
     }
-    return document.documentElement;
+    return window;
+  };
+  const getScrollTop = (): number => {
+    const s = resolveScroller();
+    return s === window ? window.scrollY : (s as HTMLElement).scrollTop;
+  };
+  const setScrollTop = (top: number) => {
+    const s = resolveScroller();
+    if (s === window) window.scrollTo(0, top);
+    else (s as HTMLElement).scrollTo(0, top);
   };
 
   // スティッキーヘッダーの高さぶんオフセットして「今日」を上端に合わせる
@@ -225,10 +236,16 @@ export default function Explore() {
   useEffect(() => {
     if (!items) return;
     const saved = sessionStorage.getItem('explore_scroll');
-    if (saved) {
+    if (saved != null) {
       sessionStorage.removeItem('explore_scroll');
       const top = parseInt(saved, 10);
-      requestAnimationFrame(() => getScrollEl().scrollTo({ top }));
+      // 画像読み込みで高さが伸びるため、目標に届くまで数フレーム再試行する
+      let tries = 0;
+      const tryScroll = () => {
+        setScrollTop(top);
+        if (++tries < 8 && Math.abs(getScrollTop() - top) > 2) requestAnimationFrame(tryScroll);
+      };
+      requestAnimationFrame(tryScroll);
     } else {
       requestAnimationFrame(() => scrollToToday(false));
     }
@@ -273,7 +290,7 @@ export default function Explore() {
   const gridClass = mode === 'goods' ? 'grid grid-cols-2 gap-2 items-stretch' : 'flex flex-col gap-2';
   const renderCard = (e: CalendarEvent) => (
     <ItemCard key={e.id} event={e} layout={mode === 'goods' ? 'grid' : 'list'} isNew={isNewItem(e.id, e.createdAt, seen)} likedInit={likedIds.has(e.id)}
-      onOpen={() => { sessionStorage.setItem('explore_scroll', String(getScrollEl().scrollTop)); navigate(`/item/${e.id}`); }} onLike={() => onLikeTile(e)} onCalendar={() => onCalendarTile(e)} onBuy={() => onBuy(e)} />
+      onOpen={() => { sessionStorage.setItem('explore_scroll', String(getScrollTop())); navigate(`/item/${e.id}`); }} onLike={() => onLikeTile(e)} onCalendar={() => onCalendarTile(e)} onBuy={() => onBuy(e)} />
   );
 
   return (
@@ -356,7 +373,13 @@ export default function Explore() {
         )}
       </div>
 
-      <div className="px-3 pb-4">
+      <div
+        className="px-3 pb-4"
+        onClickCapture={(e) => {
+          // 絞り込みパネルを開いたまま下の予定をタップしたら、まずパネルを畳む（タップは詳細に伝播させない）
+          if (filterOpen) { e.stopPropagation(); haptic.select(); setFilterOpen(false); }
+        }}
+      >
         {items === null ? (
           <SkeletonList count={4} />
         ) : visible.length === 0 ? (
