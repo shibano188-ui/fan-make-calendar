@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useNavigationType } from 'react-router-dom';
 import { ArrowDownToLine, Search, SlidersHorizontal, X } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
@@ -33,6 +33,7 @@ function loadExploreSession() {
 
 export default function Explore() {
   const navigate = useNavigate();
+  const navType = useNavigationType(); // POP=戻る(復元) / PUSH=新規遷移(今日へ)
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const toast = useToast();
@@ -239,16 +240,16 @@ export default function Explore() {
 
   // 初回スクロール制御を1度だけ行うためのガード（フォロー作品の非同期ロードで
   // visible が後から埋まるため、内容が出揃ってから復元/今日への移動を実行する）
+  // 初回スクロール制御。visible が出揃ってから1度だけ実行する。
+  // 戻る(POP)なら保存位置へ復元、新規遷移(PUSH/REPLACE)なら今日へ。
+  // 保存値は削除しない（再マウントしても navType=POP のまま復元できる）。
   const didInitScroll = useRef(false);
   useEffect(() => {
     if (!items || didInitScroll.current) return;
-    // visible が空（=フォロー作品やデータ未到着でスクロール不可）の間は待機し、
-    // 内容が出た次の再評価で実行する。
-    if (visible.length === 0) return;
-    const saved = sessionStorage.getItem('explore_scroll');
+    if (visible.length === 0) return; // 内容が出るまで待機（次の再評価で実行）
     didInitScroll.current = true;
-    if (saved != null) {
-      sessionStorage.removeItem('explore_scroll');
+    const saved = sessionStorage.getItem('explore_scroll');
+    if (navType === 'POP' && saved != null) {
       const top = parseInt(saved, 10);
       // 画像読み込み/レイアウト確定で高さが伸びるため、目標に届くまで最大2秒間再適用する。
       const start = performance.now();
@@ -262,7 +263,7 @@ export default function Explore() {
     } else {
       requestAnimationFrame(() => scrollToToday(false));
     }
-  }, [items, visible.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [items, visible.length, navType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // モード切り替え時は今日へ（初回マウントのガードとは別系統）
   const modeMountRef = useRef(true);
