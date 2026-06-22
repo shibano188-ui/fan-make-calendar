@@ -97,6 +97,11 @@ export default function Explore() {
     el.scrollIntoView({ block: 'start', behavior: smooth ? 'smooth' : 'auto' });
   };
 
+  // ブラウザ標準のスクロール復元を無効化（自前の復元と競合させない・SPA全体で維持）
+  useEffect(() => {
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  }, []);
+
   const today = todayStr();
 
   useEffect(() => {
@@ -239,11 +244,14 @@ export default function Explore() {
     if (saved != null) {
       sessionStorage.removeItem('explore_scroll');
       const top = parseInt(saved, 10);
-      // 画像読み込みで高さが伸びるため、目標に届くまで数フレーム再試行する
-      let tries = 0;
+      // 画像読み込み/レイアウト確定で高さが伸びるうえ、Androidのブラウザ標準スクロール復元が
+      // こちらのscrollToを上書きするため、目標に届くまで最大1秒間フレームごとに再適用する。
+      const start = performance.now();
       const tryScroll = () => {
         setScrollTop(top);
-        if (++tries < 8 && Math.abs(getScrollTop() - top) > 2) requestAnimationFrame(tryScroll);
+        if (Math.abs(getScrollTop() - top) > 2 && performance.now() - start < 1000) {
+          requestAnimationFrame(tryScroll);
+        }
       };
       requestAnimationFrame(tryScroll);
     } else {
