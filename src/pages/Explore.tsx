@@ -66,6 +66,17 @@ export default function Explore() {
   }, [mode, query, selectedStatuses, excludedWorks, selectedCategories, selectedPrefs, selectedRegions, neighborActive, filterOpen]);
   const todayRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
+
+  // PhoneFrame(PC)は overflow-y-auto の独自コンテナを持つ。window ではなくそれを使う。
+  const getScrollEl = (): Element => {
+    let el: Element | null = pageRef.current?.parentElement ?? null;
+    while (el && el !== document.documentElement) {
+      if (['auto', 'scroll'].includes(getComputedStyle(el).overflowY)) return el;
+      el = el.parentElement;
+    }
+    return document.documentElement;
+  };
 
   // スティッキーヘッダーの高さぶんオフセットして「今日」を上端に合わせる
   const scrollToToday = (smooth = false) => {
@@ -216,7 +227,8 @@ export default function Explore() {
     const saved = sessionStorage.getItem('explore_scroll');
     if (saved) {
       sessionStorage.removeItem('explore_scroll');
-      requestAnimationFrame(() => window.scrollTo(0, parseInt(saved, 10)));
+      const top = parseInt(saved, 10);
+      requestAnimationFrame(() => getScrollEl().scrollTo({ top }));
     } else {
       requestAnimationFrame(() => scrollToToday(false));
     }
@@ -261,11 +273,11 @@ export default function Explore() {
   const gridClass = mode === 'goods' ? 'grid grid-cols-2 gap-2 items-stretch' : 'flex flex-col gap-2';
   const renderCard = (e: CalendarEvent) => (
     <ItemCard key={e.id} event={e} layout={mode === 'goods' ? 'grid' : 'list'} isNew={isNewItem(e.id, e.createdAt, seen)} likedInit={likedIds.has(e.id)}
-      onOpen={() => { sessionStorage.setItem('explore_scroll', String(window.scrollY)); navigate(`/item/${e.id}`); }} onLike={() => onLikeTile(e)} onCalendar={() => onCalendarTile(e)} onBuy={() => onBuy(e)} />
+      onOpen={() => { sessionStorage.setItem('explore_scroll', String(getScrollEl().scrollTop)); navigate(`/item/${e.id}`); }} onLike={() => onLikeTile(e)} onCalendar={() => onCalendarTile(e)} onBuy={() => onBuy(e)} />
   );
 
   return (
-    <div className="relative">
+    <div ref={pageRef} className="relative">
       <div ref={headerRef} className="px-3 pt-3 pb-2 sticky top-0 z-20" style={{ backgroundColor: 'var(--bg-primary)' }}>
         <div className="flex items-center gap-2">
           <div className="flex-1 flex items-center gap-2 px-3 rounded-[10px]" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
@@ -296,9 +308,24 @@ export default function Explore() {
           </button>
         </div>
 
-        <div className="flex gap-2 mt-2">
+        <div className="flex items-center gap-2 mt-2">
           <Chip active={mode === 'goods'} onClick={() => { haptic.select(); setMode('goods'); }}>グッズ</Chip>
           <Chip active={mode === 'event'} onClick={() => { haptic.select(); setMode('event'); }}>イベント</Chip>
+          {/* フィルターアクティブ時: パネルを開かずに確認・全クリアできるチップ */}
+          {activeCount > 0 && !filterOpen && (
+            <div className="ml-auto flex items-center gap-1 rounded-full border overflow-hidden flex-shrink-0"
+              style={{ background: 'color-mix(in srgb, var(--accent-color) 12%, transparent)', borderColor: 'var(--accent-color)' }}>
+              <button onClick={() => { haptic.select(); setFilterOpen(true); }}
+                className="pl-2.5 pr-1 py-1 text-[11px] font-medium pressable"
+                style={{ color: 'var(--accent-color)' }}>
+                絞り込み中 {activeCount}件
+              </button>
+              <button onClick={() => { haptic.select(); clearFilters(); }}
+                className="pr-2 py-1 text-[13px] font-medium pressable leading-none"
+                style={{ color: 'var(--accent-color)' }}
+                aria-label="絞り込みをクリア">×</button>
+            </div>
+          )}
         </div>
 
         {/* 検索が未フォロー作品にヒット → フォロー導線（検索バー直下で常に見える） */}
