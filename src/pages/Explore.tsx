@@ -237,19 +237,24 @@ export default function Explore() {
     return { past: p, upcoming: u };
   }, [visible, today]);
 
-  // データ取得後: 詳細ページから戻った場合は保存位置へ、初回は今日へ
+  // 初回スクロール制御を1度だけ行うためのガード（フォロー作品の非同期ロードで
+  // visible が後から埋まるため、内容が出揃ってから復元/今日への移動を実行する）
+  const didInitScroll = useRef(false);
   useEffect(() => {
-    if (!items) return;
+    if (!items || didInitScroll.current) return;
+    // visible が空（=フォロー作品やデータ未到着でスクロール不可）の間は待機し、
+    // 内容が出た次の再評価で実行する。
+    if (visible.length === 0) return;
     const saved = sessionStorage.getItem('explore_scroll');
+    didInitScroll.current = true;
     if (saved != null) {
       sessionStorage.removeItem('explore_scroll');
       const top = parseInt(saved, 10);
-      // 画像読み込み/レイアウト確定で高さが伸びるうえ、Androidのブラウザ標準スクロール復元が
-      // こちらのscrollToを上書きするため、目標に届くまで最大1秒間フレームごとに再適用する。
+      // 画像読み込み/レイアウト確定で高さが伸びるため、目標に届くまで最大2秒間再適用する。
       const start = performance.now();
       const tryScroll = () => {
         setScrollTop(top);
-        if (Math.abs(getScrollTop() - top) > 2 && performance.now() - start < 1000) {
+        if (Math.abs(getScrollTop() - top) > 2 && performance.now() - start < 2000) {
           requestAnimationFrame(tryScroll);
         }
       };
@@ -257,10 +262,12 @@ export default function Explore() {
     } else {
       requestAnimationFrame(() => scrollToToday(false));
     }
-  }, [items]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [items, visible.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // モード切り替え時は今日へ
+  // モード切り替え時は今日へ（初回マウントのガードとは別系統）
+  const modeMountRef = useRef(true);
   useEffect(() => {
+    if (modeMountRef.current) { modeMountRef.current = false; return; }
     if (items) requestAnimationFrame(() => scrollToToday(false));
   }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
