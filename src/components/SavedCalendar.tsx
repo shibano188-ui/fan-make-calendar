@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays, CalendarCheck } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from './item/ItemCard';
 import { deriveStatus, todayStr, STATUS } from '../design/tokens';
@@ -96,10 +96,10 @@ function NavHeader({ label, onPrev, onNext, onToday }: { label: string; onPrev: 
       <button onClick={() => { haptic.select(); onNext(); }} aria-label="次へ" className="pressable p-2 rounded-full">
         <ChevronRight size={20} />
       </button>
-      <button onClick={() => { haptic.select(); onToday(); }}
-        className="pressable text-[12px] font-semibold rounded-full px-3 py-1.5"
+      <button onClick={() => { haptic.select(); onToday(); }} aria-label="今日へ" title="今日へ"
+        className="pressable rounded-full p-2"
         style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
-        今日
+        <CalendarCheck size={18} />
       </button>
     </div>
   );
