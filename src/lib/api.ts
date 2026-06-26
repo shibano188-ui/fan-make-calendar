@@ -143,6 +143,7 @@ function rowToEvent(e: Record<string, unknown>): CalendarEvent {
     affiliateUrl: (e.affiliate_url as string | null) ?? undefined,
     hasAffiliate: (e.has_affiliate as boolean | null) ?? undefined,
     offers: Array.isArray(e.offers) ? (e.offers as CalendarEvent['offers']) : undefined,
+    relatedEventId: (e.related_event_id as string | null) ?? undefined,
   };
 }
 
@@ -245,7 +246,7 @@ export async function listEventsByDate(workId: string, date: string, userId?: st
 
 export async function createEvents(
   workId: string,
-  events: Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'imageUrl' | 'sourceUrl' | 'isOrderMade' | 'preorderStart' | 'preorderEnd' | 'preorderStartTime' | 'preorderEndTime' | 'type' | 'price' | 'stockNote' | 'retailer' | 'affiliateUrl' | 'hasAffiliate' | 'offers'>[],
+  events: Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'imageUrl' | 'sourceUrl' | 'isOrderMade' | 'preorderStart' | 'preorderEnd' | 'preorderStartTime' | 'preorderEndTime' | 'type' | 'price' | 'stockNote' | 'retailer' | 'affiliateUrl' | 'hasAffiliate' | 'offers' | 'relatedEventId'>[],
   authorId: string,
 ): Promise<string[]> {
   const rows = await Promise.all(events.map(async e => {
@@ -289,6 +290,7 @@ export async function createEvents(
       affiliate_url: e.affiliateUrl ?? null,
       has_affiliate: e.hasAffiliate ?? false,
       offers: e.offers ?? [],
+      ...(e.relatedEventId ? { related_event_id: e.relatedEventId } : {}),
       author_id: authorId,
       pool,
     };
@@ -969,6 +971,20 @@ export async function listExploreEvents(from: string, to: string): Promise<Calen
     return { ...rowToEvent(e as Record<string, unknown>), workName: works?.name ?? '' };
   });
   return resolveAuthorNames(events);
+}
+
+// イベント詳細用: そのイベントに紐付く販売グッズ（related_event_id）を取得。
+export async function listGoodsForEvent(eventId: string): Promise<CalendarEvent[]> {
+  const { data } = await supabase
+    .from('events')
+    .select('*, works(name)')
+    .eq('pool', 0)
+    .eq('related_event_id', eventId);
+  const events = (data ?? []).map((e) => {
+    const works = (e as Record<string, unknown>).works as { name: string } | null;
+    return { ...rowToEvent(e as Record<string, unknown>), workName: works?.name ?? '' };
+  });
+  return events;
 }
 
 // ─── イベント編集 ─────────────────────────────────────────────────
