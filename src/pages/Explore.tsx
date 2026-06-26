@@ -258,19 +258,18 @@ export default function Explore() {
     });
   }, [queryItems, selectedStatuses, excludedWorks, selectedCategories, allowedPrefs]);
 
-  // 新着（未閲覧）/ 閲覧済み に分割。新着内はさらに今日起点で過去（上）／これから（下）へ。
-  // 区分はスナップショットで固定（スクロール中に動かない）。
-  const { past, upcoming, seenList } = useMemo(() => {
+  // 今日起点: 過去（上）／これから（下）に分割（並びは取得順=日付昇順のまま）。
+  // 「新着のみ」ON のときは閲覧済み（スナップショット）を除外する。
+  const { past, upcoming } = useMemo(() => {
     const p: CalendarEvent[] = [];
     const u: CalendarEvent[] = [];
-    const s: CalendarEvent[] = [];
     for (const e of visible) {
-      if (seenSnapshot.has(e.id)) { s.push(e); continue; }
+      if (showUnseenOnly && seenSnapshot.has(e.id)) continue; // 新着のみ＝未閲覧に絞る
       const ref = e.endDate || e.date || '';
       (ref && ref < today ? p : u).push(e);
     }
-    return { past: p, upcoming: u, seenList: s };
-  }, [visible, today, seenSnapshot]);
+    return { past: p, upcoming: u };
+  }, [visible, today, showUnseenOnly, seenSnapshot]);
 
   // 初回スクロール制御を1度だけ行うためのガード（フォロー作品の非同期ロードで
   // visible が後から埋まるため、内容が出揃ってから復元/今日への移動を実行する）
@@ -438,8 +437,6 @@ export default function Explore() {
           <p className="text-center text-label-secondary text-[13px] py-16">該当する{mode === 'goods' ? 'グッズ' : 'イベント'}がありません</p>
         ) : (
           <>
-            {/* 新着（未閲覧）。閲覧済みが下にある時だけ見出しを出す */}
-            {!showUnseenOnly && seenList.length > 0 && <SectionLabel label="新着" />}
             {past.length > 0 && <div className={gridClass}>{past.map(renderCard)}</div>}
             <div ref={todayRef} className="flex items-center gap-2 py-3">
               <div className="flex-1 h-px" style={{ backgroundColor: 'var(--separator)' }} />
@@ -449,14 +446,6 @@ export default function Explore() {
             {upcoming.length > 0
               ? <div className={gridClass}>{upcoming.map(renderCard)}</div>
               : <p className="text-center text-label-tertiary text-[12px] py-6">これからの{mode === 'goods' ? 'グッズ' : 'イベント'}はありません</p>}
-
-            {/* 閲覧済み（新着のみOFF時のみ）。淡く表示してストレスを下げる */}
-            {!showUnseenOnly && seenList.length > 0 && (
-              <>
-                <SectionLabel label="閲覧済み" muted />
-                <div className={`${gridClass} opacity-60`}>{seenList.map(renderCard)}</div>
-              </>
-            )}
           </>
         )}
       </div>
@@ -471,16 +460,6 @@ export default function Explore() {
           <ArrowDownToLine size={20} />
         </button>
       )}
-    </div>
-  );
-}
-
-/** 新着 / 閲覧済み の区切り見出し。 */
-function SectionLabel({ label, muted = false }: { label: string; muted?: boolean }) {
-  return (
-    <div className="flex items-center gap-2 pt-4 pb-2">
-      <span className="text-[13px] font-bold" style={{ color: muted ? 'var(--label-tertiary)' : 'var(--label-primary)' }}>{label}</span>
-      <div className="flex-1 h-px" style={{ backgroundColor: 'var(--separator)' }} />
     </div>
   );
 }
