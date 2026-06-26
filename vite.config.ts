@@ -9,8 +9,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg'],
       manifest: {
-        name: 'FanHive',
-        short_name: 'FanHive',
+        name: 'FanHive-α',
+        short_name: 'FanHive-α',
         description: 'ファン同士で作る共有カレンダー',
         theme_color: '#0e0e10',
         background_color: '#0e0e10',
@@ -18,7 +18,7 @@ export default defineConfig({
         orientation: 'portrait',
         start_url: '/',
         share_target: {
-          action: '/share',
+          action: '/post',
           method: 'GET',
           params: { title: 'title', text: 'text', url: 'url' },
         },

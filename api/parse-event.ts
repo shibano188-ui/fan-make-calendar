@@ -65,6 +65,7 @@ const BASE_RULES = `
 - isOrderMade=true の場合: preorderStart = 受付（予約・抽選・申込）開始日, preorderEnd = 受付（予約・抽選・申込）終了日
 - date には「お渡し予定」「発送予定」「発売予定」など実際の商品受け取り日（受付期間とは別）を入れる。お渡し日が不明なら date は null でよい（受付期間だけでも可）
 - 受付開始日・終了日が不明な場合は preorderStart/preorderEnd を null にする
+- 【絶対厳守・推測禁止】preorderStart / preorderEnd は「受付期間・予約期間・申込期間」として日付が文中に明記されている時だけ設定する。発売日・お渡し日・発送日・イベント開催日・その他の日付を予約期間に流用・推測してはいけない。受付期間の記載が無ければ必ず両方 null（勝手に日付を作らない）
 - 「ご予約受付中」「予約はこちら」など申込制を示す表現があれば、具体的な期間が無くても isOrderMade: true（期間不明なら preorderStart/End は null）
 - isOrderMade=false の通常イベントでは preorderStart/preorderEnd は null
 【抽出例（必ず参考にする）】
@@ -78,6 +79,8 @@ const BASE_RULES = `
 const SCHEMA = (memoDesc: string) => `[
   {
     "title": "イベントのタイトル（必須、簡潔に）",
+    "work": "作品名・シリーズ名（例: ちいかわ, ハイキュー!!, ブルーロック, 呪術廻戦）。略称は正式名称に直す。不明ならnull",
+    "price": "税込価格を数値のみで（円。例: 1320）。複数価格や不明はnull",
     "date": "実際のイベント日・発売日・お渡し日をYYYY-MM-DD形式で or null（予約受付期間とは別）",
     "dateLabel": "'上旬'|'中旬'|'下旬'|'中'|'春頃'|'夏頃'|'秋頃'|'冬頃'（曖昧な日付の場合）or null",
     "time": "開始時刻をHH:mm形式で or null",
@@ -90,6 +93,7 @@ const SCHEMA = (memoDesc: string) => `[
     "isOrderMade": "「受注」という言葉が含まれる場合はtrue（受注生産・受注販売・受注商品・原作受注など）、それ以外はfalse",
     "preorderStart": "isOrderMade=trueの場合のみ: 予約・受付開始日をYYYY-MM-DD形式で or null",
     "preorderEnd": "isOrderMade=trueの場合のみ: 予約・受付終了日をYYYY-MM-DD形式で or null",
+    "sellsGoods": "イベント・展示・コラボ・カフェ・POP UP等で、会場や関連でグッズ・物販が販売されることが読み取れる場合はtrue（『物販』『グッズ販売』『限定グッズ』『会場限定』『グッズ受注』等）。商品そのものの投稿（categoriesがグッズ）や物販の言及が無い場合はfalse",
     "memo": "${memoDesc}"
   }
 ]`;
@@ -518,6 +522,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // 受注・予約・受付期間を示す表現があれば全イベントをisOrderMade=trueに強制設定
       if (/受注|受付期間|受付開始|予約受付|予約期間|予約販売|事前予約|事前受注|抽選販売|抽選受付|抽選予約|事後通販|申込期間|お申し込み期間/.test(tweetContext)) {
         parsed.forEach(e => { (e as Record<string, unknown>).isOrderMade = true; });
+      }
+      // 会場物販を示す強い表現があれば sellsGoods=true に補完（イベント側のみ。クライアントで種別判定）
+      if (/物販|グッズ販売|販売グッズ|限定グッズ|会場限定グッズ|グッズ受注/.test(tweetContext)) {
+        parsed.forEach(e => { if ((e as Record<string, unknown>).sellsGoods == null) (e as Record<string, unknown>).sellsGoods = true; });
       }
       if (tweetImageUrl) {
         parsed.forEach(e => { (e as Record<string, unknown>).imageUrl = tweetImageUrl; });

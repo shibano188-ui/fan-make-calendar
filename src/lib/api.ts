@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { CalendarEvent } from '../types';
+import type { CalendarEvent, Offer } from '../types';
 import { parseCategories } from './constants';
 
 /** 2つのカテゴリ値（単一文字列 or JSON配列文字列）が完全に重ならない場合 true。
@@ -135,6 +135,15 @@ function rowToEvent(e: Record<string, unknown>): CalendarEvent {
     preorderEnd: (e.preorder_end_date as string | null) ?? undefined,
     preorderStartTime: ((e.preorder_start_time as string | null) ?? undefined)?.slice(0, 5),
     preorderEndTime: ((e.preorder_end_time as string | null) ?? undefined)?.slice(0, 5),
+    // ピボット拡張カラム
+    type: (e.type as 'event' | 'goods' | null) ?? undefined,
+    price: (e.price as number | null) ?? undefined,
+    stockNote: (e.stock_note as string | null) ?? undefined,
+    retailer: (e.retailer as string | null) ?? undefined,
+    affiliateUrl: (e.affiliate_url as string | null) ?? undefined,
+    hasAffiliate: (e.has_affiliate as boolean | null) ?? undefined,
+    offers: Array.isArray(e.offers) ? (e.offers as CalendarEvent['offers']) : undefined,
+    relatedEventId: (e.related_event_id as string | null) ?? undefined,
   };
 }
 
@@ -237,7 +246,7 @@ export async function listEventsByDate(workId: string, date: string, userId?: st
 
 export async function createEvents(
   workId: string,
-  events: Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'imageUrl' | 'sourceUrl' | 'isOrderMade' | 'preorderStart' | 'preorderEnd' | 'preorderStartTime' | 'preorderEndTime'>[],
+  events: Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'imageUrl' | 'sourceUrl' | 'isOrderMade' | 'preorderStart' | 'preorderEnd' | 'preorderStartTime' | 'preorderEndTime' | 'type' | 'price' | 'stockNote' | 'retailer' | 'affiliateUrl' | 'hasAffiliate' | 'offers' | 'relatedEventId'>[],
   authorId: string,
 ): Promise<string[]> {
   const rows = await Promise.all(events.map(async e => {
@@ -274,6 +283,14 @@ export async function createEvents(
       preorder_end_date: e.preorderEnd ?? null,
       preorder_start_time: e.preorderStartTime ?? null,
       preorder_end_time: e.preorderEndTime ?? null,
+      type: e.type ?? 'event',
+      price: e.price ?? null,
+      stock_note: e.stockNote ?? null,
+      retailer: e.retailer ?? null,
+      affiliate_url: e.affiliateUrl ?? null,
+      has_affiliate: e.hasAffiliate ?? false,
+      offers: e.offers ?? [],
+      ...(e.relatedEventId ? { related_event_id: e.relatedEventId } : {}),
       author_id: authorId,
       pool,
     };
@@ -490,6 +507,36 @@ export async function findDuplicateEvents(
   }
 
   return { byUrl, byTitle, byDateKeyword };
+}
+
+// 作品未確定時のフォールバック: 全作品横断でタイトルがほぼ一致する予定を探す（保守的＝正規化完全一致）。
+export async function findDuplicatesByTitleGlobal(title: string): Promise<DuplicateMatch[]> {
+  const norm = normalizeTitleForDup(title);
+  if (!norm) return [];
+  const { data } = await supabase
+    .from('events')
+    .select('id, title, event_date, end_date, prefecture, source_url, author_id')
+    .eq('pool', 0)
+    .ilike('title', `${title}%`)
+    .limit(50);
+  const out: DuplicateMatch[] = [];
+  const seen = new Set<string>();
+  for (const row of data ?? []) {
+    const id = row.id as string;
+    if (seen.has(id) || !row.event_date) continue;
+    if (normalizeTitleForDup(row.title as string) !== norm) continue;
+    seen.add(id);
+    out.push({
+      id,
+      title: row.title as string,
+      date: row.event_date as string,
+      endDate: (row.end_date as string | null) ?? null,
+      prefecture: normalizePrefecture(row.prefecture as string | null) ?? null,
+      sourceUrl: row.source_url as string | null,
+      authorId: (row.author_id as string | null) ?? null,
+    });
+  }
+  return out;
 }
 
 // ─── いいね ────────────────────────────────────────────────────────
@@ -723,6 +770,95 @@ export async function deleteSharedTheme(themeId: string): Promise<void> {
 
 // ─── ウィジェット用 ────────────────────────────────────────────────
 
+// ＋（カレンダーに追加）の件数・自分の追加状態。テーブル未作成でも落ちないよう安全側に倒す。
+export async function getCalendarAddData(eventId: string, userId?: string): Promise<{ count: number; added: boolean }> {
+  const { data, error } = await supabase.from('calendar_adds').select('user_id').eq('event_id', eventId);
+  if (error) return { count: 0, added: false };
+  const rows = data ?? [];
+  return { count: rows.length, added: !!(userId && rows.some((r) => r.user_id === userId)) };
+}
+
+export async function toggleCalendarAdd(eventId: string, userId: string): Promise<{ added: boolean; count: number }> {
+  const { data: existing } = await supabase
+    .from('calendar_adds').select('id').eq('event_id', eventId).eq('user_id', userId).maybeSingle();
+  if (existing) await supabase.from('calendar_adds').delete().eq('id', existing.id);
+  else await supabase.from('calendar_adds').insert({ event_id: eventId, user_id: userId });
+  const { count } = await supabase
+    .from('calendar_adds').select('*', { count: 'exact', head: true }).eq('event_id', eventId);
+  return { added: !existing, count: count ?? 0 };
+}
+
+// ── 共同編集: 購入リンクの追記（append-only） ──
+export type OfferContrib = { id: string; offer: Offer; createdBy: string | null };
+
+export async function listOfferContribs(eventId: string): Promise<OfferContrib[]> {
+  const { data, error } = await supabase
+    .from('event_offer_contribs').select('id, offer, created_by').eq('event_id', eventId).order('created_at');
+  if (error) return [];
+  return (data ?? []).map((r) => ({ id: r.id as string, offer: r.offer as Offer, createdBy: (r.created_by as string | null) ?? null }));
+}
+
+export async function addOfferContrib(eventId: string, offer: Offer, userId: string): Promise<OfferContrib | null> {
+  const { data, error } = await supabase
+    .from('event_offer_contribs').insert({ event_id: eventId, offer, created_by: userId }).select('id, offer, created_by').single();
+  if (error) return null;
+  return { id: data.id as string, offer: data.offer as Offer, createdBy: (data.created_by as string | null) ?? null };
+}
+
+export async function removeOfferContrib(id: string): Promise<void> {
+  await supabase.from('event_offer_contribs').delete().eq('id', id);
+}
+
+// ── 共同編集: 日時/状態の編集パッチ ──
+export type EventPatch = Partial<Pick<CalendarEvent, 'date' | 'endDate' | 'time' | 'isOrderMade' | 'preorderStart' | 'preorderEnd'>>;
+export type EventEdit = { id: string; patch: EventPatch; createdBy: string | null; createdAt: string };
+
+export async function listEventEdits(eventId: string): Promise<EventEdit[]> {
+  const { data, error } = await supabase
+    .from('event_edits').select('id, patch, created_by, created_at').eq('event_id', eventId).order('created_at', { ascending: true });
+  if (error) return [];
+  return (data ?? []).map((r) => ({ id: r.id as string, patch: (r.patch as EventPatch) ?? {}, createdBy: (r.created_by as string | null) ?? null, createdAt: r.created_at as string }));
+}
+
+export async function addEventEdit(eventId: string, patch: EventPatch, userId: string): Promise<EventEdit | null> {
+  const { data, error } = await supabase
+    .from('event_edits').insert({ event_id: eventId, patch, created_by: userId }).select('id, patch, created_by, created_at').single();
+  if (error) return null;
+  return { id: data.id as string, patch: (data.patch as EventPatch) ?? {}, createdBy: (data.created_by as string | null) ?? null, createdAt: data.created_at as string };
+}
+
+export async function removeEventEdit(id: string): Promise<void> {
+  await supabase.from('event_edits').delete().eq('id', id);
+}
+
+/** base イベントに編集パッチを古い順に重ねた「実効値」を返す。 */
+export function applyEdits<T extends CalendarEvent>(event: T, edits: EventEdit[]): T {
+  let e = { ...event };
+  for (const ed of edits) e = { ...e, ...ed.patch };
+  return e;
+}
+
+// ── 共同編集: 在庫情報の追記ログ ──
+export type StockReport = { id: string; note: string; createdBy: string | null; createdAt: string };
+
+export async function listStockReports(eventId: string): Promise<StockReport[]> {
+  const { data, error } = await supabase
+    .from('stock_reports').select('id, note, created_by, created_at').eq('event_id', eventId).order('created_at', { ascending: false });
+  if (error) return [];
+  return (data ?? []).map((r) => ({ id: r.id as string, note: r.note as string, createdBy: (r.created_by as string | null) ?? null, createdAt: r.created_at as string }));
+}
+
+export async function addStockReport(eventId: string, note: string, userId: string): Promise<StockReport | null> {
+  const { data, error } = await supabase
+    .from('stock_reports').insert({ event_id: eventId, note, created_by: userId }).select('id, note, created_by, created_at').single();
+  if (error) return null;
+  return { id: data.id as string, note: data.note as string, createdBy: (data.created_by as string | null) ?? null, createdAt: data.created_at as string };
+}
+
+export async function removeStockReport(id: string): Promise<void> {
+  await supabase.from('stock_reports').delete().eq('id', id);
+}
+
 export async function getEventById(eventId: string): Promise<CalendarEvent | null> {
   const { data, error } = await supabase.from('events').select('*').eq('id', eventId).single();
   if (error) return null;
@@ -787,6 +923,54 @@ export async function listAllParticipatedWorkEvents(
   const m = String(month + 1).padStart(2, '0');
   const lastDay = new Date(year, month + 1, 0).getDate();
   return listAllParticipatedWorkEventsRange(userId, `${year}-${m}-01`, `${year}-${m}-${String(lastDay).padStart(2, '0')}`);
+}
+
+// 自分がいいね済みの event_id 一覧（タイルの♡塗り反映用）。
+export async function listLikedEventIds(userId: string): Promise<Set<string>> {
+  const { data } = await supabase.from('likes').select('event_id').eq('user_id', userId);
+  return new Set((data ?? []).map((r) => r.event_id as string));
+}
+
+// いいね（保存）タブ: 自分がいいねした予定 ＋ 自分が投稿した予定 を取得（重複排除）。
+export async function listSavedEvents(userId: string): Promise<CalendarEvent[]> {
+  const { data: likeRows } = await supabase.from('likes').select('event_id').eq('user_id', userId);
+  const likedIds = (likeRows ?? []).map((r) => r.event_id as string);
+  const queries = [
+    supabase.from('events').select('*, works(name)').eq('pool', 0).eq('author_id', userId),
+  ];
+  if (likedIds.length) queries.push(supabase.from('events').select('*, works(name)').eq('pool', 0).in('id', likedIds));
+  const results = await Promise.all(queries);
+  const map = new Map<string, CalendarEvent>();
+  for (const { data } of results) {
+    for (const row of data ?? []) {
+      const r = row as Record<string, unknown>;
+      const id = r.id as string;
+      if (map.has(id)) continue;
+      const works = r.works as { name: string } | null;
+      const ev = { ...rowToEvent(r), workName: works?.name ?? '' };
+      ev.likedByMe = likedIds.includes(id);
+      map.set(id, ev);
+    }
+  }
+  return resolveAuthorNames([...map.values()]);
+}
+
+// 探す（横断フィード）: 全作品の予定を期間ウィンドウで取得。works名を結合。
+// 過去も含めて取得し、UI側で「今日起点」に並べる。type はUI側で category から導出して振り分ける。
+export async function listExploreEvents(from: string, to: string): Promise<CalendarEvent[]> {
+  const { data, error } = await supabase
+    .from('events')
+    .select('*, works(name)')
+    .eq('pool', 0)
+    .lte('event_date', to)
+    .or(`end_date.gte.${from},and(end_date.is.null,event_date.gte.${from})`)
+    .order('event_date', { ascending: true });
+  if (error) throw error;
+  const events = (data ?? []).map((e) => {
+    const works = (e as Record<string, unknown>).works as { name: string } | null;
+    return { ...rowToEvent(e as Record<string, unknown>), workName: works?.name ?? '' };
+  });
+  return resolveAuthorNames(events);
 }
 
 // ─── イベント編集 ─────────────────────────────────────────────────

@@ -107,9 +107,12 @@ export default function Discover() {
   const [showImagesDiscover] = useState(() => loadImageVisibility().discover);
   // 期間スコープ。デフォルトは全期間（今日以降すべて）。月/週/日は排他、同じボタン再押下で全期間に戻る。
   const todayStr = useMemo(() => fmtLocal(new Date()), []);
-  const [scope, setScope] = useState<Scope>('all');
-  const [anchor, setAnchor] = useState<string>(todayStr);
-  const [showUnseenOnly, setShowUnseenOnly] = useState(false);
+  const [scope, setScope] = useState<Scope>(() => (sessionStorage.getItem('discover_scope') as Scope | null) ?? 'all');
+  const [anchor, setAnchor] = useState<string>(() => sessionStorage.getItem('discover_anchor') ?? fmtLocal(new Date()));
+  const [showUnseenOnly, setShowUnseenOnly] = useState(() => sessionStorage.getItem('discover_unseen') === '1');
+  useEffect(() => { sessionStorage.setItem('discover_scope', scope); }, [scope]);
+  useEffect(() => { sessionStorage.setItem('discover_anchor', anchor); }, [anchor]);
+  useEffect(() => { sessionStorage.setItem('discover_unseen', showUnseenOnly ? '1' : '0'); }, [showUnseenOnly]);
   const [from, to] = useMemo<[string, string]>(
     () => (scope === 'all' ? [todayStr, '2999-12-31'] : rangeForScope(scope, anchor)),
     [scope, anchor, todayStr],
@@ -613,14 +616,6 @@ export default function Discover() {
           rightAction={
             <div className="flex items-center gap-1">
               <button
-                onClick={() => setShowRegionPanel(true)}
-                aria-label="地域で絞り込む"
-                className="relative w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary active:opacity-60"
-              >
-                <MapIcon size={16} style={filterActive ? { color: 'var(--accent-color)' } : {}} />
-                {filterActive && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent-color)' }} />}
-              </button>
-              <button
                 onClick={() => navigate('/customize')}
                 aria-label="カスタマイズ"
                 className="w-8 h-8 flex items-center justify-center rounded-lg bg-bg-secondary text-label-secondary active:opacity-60"
@@ -703,9 +698,9 @@ export default function Discover() {
           </div>
         )}
 
-        {/* 期間スコープ（全期間/月/週/日）＋新着のみ */}
+        {/* 期間スコープ（全期間/月/週/日）＋地域＋新着のみ */}
         <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             <div className="flex rounded-lg p-0.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
               {(['month', 'week', 'day'] as const).map(s => (
                 <button key={s} onClick={() => toggleScope(s)}
@@ -723,26 +718,39 @@ export default function Discover() {
               </div>
             )}
           </div>
+          {/* 地域フィルターチップ */}
+          {filterActive ? (
+            <div className="flex-shrink-0 flex items-center rounded-full border overflow-hidden"
+              style={{ background: 'color-mix(in srgb, var(--accent-color) 15%, transparent)', borderColor: 'var(--accent-color)' }}>
+              <button onClick={() => setShowRegionPanel(true)}
+                className="flex items-center gap-1 pl-2.5 pr-1 py-1 text-[12px] font-medium pressable"
+                style={{ color: 'var(--accent-color)' }}>
+                <MapIcon size={11} />
+                <span>{filterLabel}</span>
+              </button>
+              <button
+                onClick={() => { setFilterMode('none'); setFilterValue(null); setIncludeAdjacent(false); saveRegionFilter({ filterMode: 'none', filterValue: null, includeAdjacent: false }); }}
+                className="px-2 py-1 text-[13px] font-medium pressable leading-none"
+                style={{ color: 'var(--accent-color)' }}
+                aria-label="地域フィルターを解除">×</button>
+            </div>
+          ) : (
+            <button onClick={() => setShowRegionPanel(true)}
+              className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 text-[12px] font-medium rounded-full border pressable"
+              style={{ background: 'transparent', color: 'var(--label-secondary)', borderColor: 'var(--border-subtle)' }}>
+              <MapIcon size={11} />
+              <span>地域</span>
+            </button>
+          )}
+          {/* 新着のみ */}
           <button onClick={() => setShowUnseenOnly(v => !v)}
-            className="ml-auto flex-shrink-0 px-3 py-1 text-[12px] font-medium rounded-full border transition-colors pressable"
+            className="flex-shrink-0 px-3 py-1 text-[12px] font-medium rounded-full border transition-colors pressable"
             style={showUnseenOnly
               ? { background: 'color-mix(in srgb, var(--accent-color) 15%, transparent)', color: 'var(--accent-color)', borderColor: 'var(--accent-color)' }
               : { background: 'transparent', color: 'var(--label-secondary)', borderColor: 'var(--border-subtle)' }}>
             新着のみ
           </button>
         </div>
-
-        {/* 地域フィルターインジケーター */}
-        {filterActive && (
-          <div className="flex-shrink-0 flex items-center gap-2 px-4 py-1.5">
-            <span className="text-[11px] text-label-tertiary">絞り込み：</span>
-            <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)', color: 'var(--accent-color)' }}>{filterLabel}</span>
-            <button
-              onClick={() => { setFilterMode('none'); setFilterValue(null); setIncludeAdjacent(false); saveRegionFilter({ filterMode: 'none', filterValue: null, includeAdjacent: false }); }}
-              className="text-[11px] text-label-tertiary pressable"
-            >解除</button>
-          </div>
-        )}
 
 
         {/* フィード */}

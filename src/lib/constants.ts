@@ -8,6 +8,9 @@ export const SHOW_POPULAR_CALENDARS = false;
 // 初回起動時のオンボーディング案内。再度出すなら true に戻す
 export const SHOW_ONBOARDING = false;
 
+// イベントで物販あり＝このカテゴリを付ける。探す→グッズ一覧にもそのイベントを出す。
+export const GOODS_TAG = 'グッズあり';
+
 // ─── グッズのサブ種別（入れ子。グッズ選択時のみ表示・任意） ─────────────
 export const GOODS_PARENT = 'グッズ';
 export const GOODS_SUBCATEGORIES = ['くじ', 'ガチャ', 'プライズ', '食玩', 'ぬい', 'アクスタ', '缶バッジ', 'キーホルダー', 'フィギュア', 'ステッカー', 'アパレル', '文房具', 'カード', '雑貨'] as const;
@@ -218,6 +221,28 @@ export function loadSeenEventIds(): Set<string> {
     const raw = localStorage.getItem(SEEN_EVENTS_KEY);
     return raw !== null ? new Set(JSON.parse(raw) as string[]) : new Set();
   } catch { return new Set(); }
+}
+// 通知リードタイム（何日前に通知するか）。一括設定。
+const NOTIFY_LEAD_KEY = 'fan_notify_lead_days';
+export function loadNotifyLeadDays(): number {
+  const v = Number(localStorage.getItem(NOTIFY_LEAD_KEY));
+  return Number.isFinite(v) && v > 0 ? v : 3;
+}
+export function saveNotifyLeadDays(days: number): void {
+  try { localStorage.setItem(NOTIFY_LEAD_KEY, String(days)); } catch { /* noop */ }
+}
+
+export function addSeenEventId(id: string): void {
+  const s = loadSeenEventIds();
+  if (s.has(id)) return;
+  s.add(id);
+  saveSeenEventIds(s);
+}
+/** 未閲覧かつ直近7日以内に作成された＝新着。 */
+export function isNewItem(id: string, createdAt: string | undefined, seen: Set<string>): boolean {
+  if (!createdAt || seen.has(id)) return false;
+  const t = new Date(createdAt).getTime();
+  return Number.isFinite(t) && Date.now() - t < 7 * 86400000;
 }
 export function saveSeenEventIds(ids: Set<string>): void {
   try {

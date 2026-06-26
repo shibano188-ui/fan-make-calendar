@@ -31,6 +31,13 @@ export default {
         destructive: 'var(--color-destructive)',
         success:     'var(--color-success)',
         warning:     'var(--color-warning)',
+        status: {
+          info:     'var(--status-info)',
+          preorder: 'var(--status-preorder)',
+          upcoming: 'var(--status-upcoming)',
+          onsale:   'var(--status-onsale)',
+          ended:    'var(--status-ended)',
+        },
       },
       borderColor: {
         subtle:    'var(--border-subtle)',

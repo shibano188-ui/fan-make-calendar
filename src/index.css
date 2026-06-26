@@ -17,6 +17,14 @@
     transform: scale(0.96);
     opacity: 0.7;
   }
+  /* 横スクロールのスクロールバーを隠す（チップ行など） */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
   /* アイコンのみボタンのタップ領域を44pxに拡張（視覚サイズは不変） */
   .tap-44 {
     position: relative;
@@ -72,6 +80,13 @@
   --color-destructive: #ff453a;
   --color-success:     #30d158;
   --color-warning:     #ffd60a;
+
+  /* ─ アイテム状態色（5段階／ピボット）─ */
+  --status-info:     #3b82f6; /* もうすぐ予約・受注開始 */
+  --status-preorder: #f97316; /* 予約・受注中 */
+  --status-upcoming: #a855f7; /* 発売予定 */
+  --status-onsale:   #22c55e; /* 発売中・開催中 */
+  --status-ended:    #9ca3af; /* 発売済み・終了 */
 
   /* ─ calendar ─ */
   --cal-weekday-color:    var(--label-primary);
@@ -133,7 +148,8 @@ body {
   margin: 0;
   background-color: var(--bg-primary);
   color: var(--label-primary);
-  font-family: 'M PLUS 1p', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN",
+    "Yu Gothic", YuGothic, "Noto Sans JP", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
