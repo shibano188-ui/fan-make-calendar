@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { X, Plus, Check, Sparkles, Camera, Link2, Loader2, Search } from 'lucide-react';
 import Chip from '../components/ui/Chip';
 import { searchWorks, getOrCreateWork, createEvents, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, type Work } from '../lib/api';
-import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES } from '../lib/constants';
+import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES, GOODS_TAG } from '../lib/constants';
 import { affiliatize, buildOffer, primaryOffer } from '../lib/affiliate';
 import { parseEventsApi, fileToBase64, type ParsedEvent } from '../lib/parseEvents';
 import { searchProductCandidates, titleMatchScore, cleanShopTitle, retailerSearchUrls, type ProductCandidate } from '../lib/searchProduct';
@@ -14,9 +14,7 @@ import { haptic } from '../lib/haptics';
 import { todayStr, deriveItemType, type ItemType } from '../design/tokens';
 
 const GOODS_CATS = [...GOODS_SUBCATEGORIES, 'グルメ', '書籍'];
-const EVENT_CATS = ['イベント', 'アニメ・映画', '誕生日', 'キャンペーン', 'グッズあり'];
-// イベントでの物販を表すカテゴリ（選ぶと販売グッズ欄が出る／カテゴリ欄にも表示・絞り込み可）
-const GOODS_TAG = 'グッズあり';
+const EVENT_CATS = ['イベント', 'アニメ・映画', '誕生日', 'キャンペーン', GOODS_TAG];
 
 // 曖昧日付（日付未定）の選択肢と代表日計算。並び替え用に date も持たせる。
 const SEASON_LABELS = ['春頃', '夏頃', '秋頃', '冬頃'];
@@ -88,11 +86,6 @@ export default function PostNew() {
   const [imageUrl, setImageUrl] = useState<string>(draft0?.imageUrl ?? '');
   const [prefecture, setPrefecture] = useState<string>(draft0?.prefecture ?? '');
   const [locationDetail, setLocationDetail] = useState<string>(draft0?.locationDetail ?? '');
-  // 販売グッズ（イベント限定物販。カテゴリ「グッズあり」で有効化し、投稿時にグッズも連動生成して相互リンク）
-  const [goodsTitle, setGoodsTitle] = useState<string>(draft0?.goodsTitle ?? '');
-  const [goodsImage, setGoodsImage] = useState<string>(draft0?.goodsImage ?? '');
-  const [goodsPrice, setGoodsPrice] = useState<string>(draft0?.goodsPrice ?? '');
-  const [goodsLink, setGoodsLink] = useState<string>(draft0?.goodsLink ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   // AI入力
@@ -125,7 +118,6 @@ export default function PostNew() {
     sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
       type, workId, workName, workQuery, title, cats: [...cats], allDay, dateTBD, dateLabel, date, endDate, time, endTime,
       isOrder, preAllDay, preStart, preEnd, preStartTime, preEndTime, price, link, offers, showExtra, stockNote, memo, imageUrl, prefecture, locationDetail,
-      goodsTitle, goodsImage, goodsPrice, goodsLink,
     }));
   });
   const clearDraft = () => sessionStorage.removeItem(DRAFT_KEY);
@@ -208,17 +200,12 @@ export default function PostNew() {
       }).catch(() => {});
     }
     if (p.price != null) setPrice(String(p.price));
-    // カテゴリ。イベントで物販あり（AI検出）なら「グッズあり」を付与して販売グッズ欄を出す
-    const sells = parsedType === 'event' && (p.sellsGoods || !!p.goodsName);
+    // カテゴリ。イベントで物販あり（AI検出）なら「グッズあり」を付与（グッズ一覧にも出る）
+    const sells = parsedType === 'event' && !!p.sellsGoods;
     if (p.category || sells) {
       const finalCats = new Set(p.category ? parseCategories(p.category) : []);
       if (sells) finalCats.add(GOODS_TAG);
       setCats(finalCats);
-    }
-    if (sells) {
-      if (p.goodsName) setGoodsTitle(p.goodsName);
-      if (p.price != null) setGoodsPrice(String(p.price));
-      if (p.link) { try { const a = JSON.parse(p.link); setGoodsLink(Array.isArray(a) ? (a[0] ?? '') : p.link); } catch { setGoodsLink(p.link); } }
     }
     if (p.dateLabel) {
       // 曖昧日付（上旬・春頃・月のみ等）: ラベルを保持し、代表日も入れる
@@ -289,12 +276,6 @@ export default function PostNew() {
 
   const linkInfo = link.trim() ? affiliatize(link.trim()) : null;
   const canSave = !!title.trim() && (!!workId || !!workQuery.trim()) && !saving;
-  // 「グッズあり」カテゴリ＝イベントで物販あり。これで販売グッズ欄を出す
-  const sellsGoods = type === 'event' && cats.has(GOODS_TAG);
-  const toggleGoodsTag = () => {
-    haptic.select();
-    setCats((prev) => { const n = new Set(prev); n.has(GOODS_TAG) ? n.delete(GOODS_TAG) : n.add(GOODS_TAG); return n; });
-  };
 
   const onSubmit = async () => {
     if (!user || !canSave) return;
@@ -305,7 +286,7 @@ export default function PostNew() {
       // 販路: 追加済み offers ＋ 入力欄に残ったURL。代表販路を旧フィールドにも要約保存（後方互換）
       const allOffers = link.trim() ? addOffer(offers, buildOffer(link.trim(), price ? Number(price) : undefined)) : offers;
       const prim = primaryOffer(allOffers);
-      const ids = await createEvents(wid, [{
+      await createEvents(wid, [{
         title: title.trim(),
         type,
         // 曖昧日付は代表日(並び替え用)＋dateLabel(表示用)を保存。具体日のときは dateLabel=null
@@ -332,33 +313,6 @@ export default function PostNew() {
         prefecture: type === 'event' ? (prefecture.trim() || undefined) : undefined,
         locationDetail: type === 'event' ? (locationDetail.trim() || undefined) : undefined,
       }], user.id);
-
-      // イベント＋販売グッズ: グッズを独立アイテムとして連動生成し、親イベントへ紐付ける。
-      // → グッズ一覧にも出つつ、両画面で相互リンクできる（案1.5）。
-      const eventId = ids[0];
-      const goodsFilled = goodsTitle.trim() || goodsLink.trim() || goodsImage.trim() || goodsPrice;
-      if (type === 'event' && sellsGoods && goodsFilled && eventId) {
-        const gOffers = goodsLink.trim() ? [buildOffer(goodsLink.trim(), goodsPrice ? Number(goodsPrice) : undefined)] : [];
-        const gPrim = primaryOffer(gOffers);
-        await createEvents(wid, [{
-          title: goodsTitle.trim() || `${title.trim()}（グッズ）`,
-          type: 'goods',
-          date: date || null,
-          endDate: dateTBD ? undefined : (endDate || date || undefined),
-          dateLabel: dateTBD ? (dateLabel || null) : null,
-          category: serializeCategories(['グッズ']),
-          price: goodsPrice ? Number(goodsPrice) : undefined,
-          offers: gOffers,
-          link: gPrim?.url,
-          affiliateUrl: gPrim?.affiliateUrl,
-          hasAffiliate: gPrim?.hasAffiliate,
-          retailer: gPrim?.retailer,
-          imageUrl: goodsImage.trim() || imageUrl || undefined,
-          prefecture: prefecture.trim() || undefined,
-          locationDetail: locationDetail.trim() || undefined,
-          relatedEventId: eventId,
-        }], user.id);
-      }
 
       await upsertParticipation(wid, user.id).catch(() => {}); // 投稿で自動フォロー
       haptic.select();
@@ -604,27 +558,6 @@ export default function PostNew() {
             </>
           )}
 
-          {/* 販売グッズ（カテゴリ「グッズあり」で有効化。投稿するとグッズ一覧にも出て相互リンク） */}
-          {sellsGoods && (
-            <div className="mt-5 rounded-[12px] border border-subtle p-3" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="text-[13px] font-semibold">販売グッズ</div>
-                  <div className="text-[11px] text-label-tertiary mt-0.5">会場で売る物。グッズ一覧にも出て、相互にリンクします</div>
-                </div>
-                <button onClick={toggleGoodsTag} className="pressable text-[12px] flex-shrink-0" style={{ color: 'var(--label-tertiary)' }}>外す</button>
-              </div>
-              <div className="mt-3 flex flex-col gap-2">
-                <input value={goodsTitle} onChange={(e) => setGoodsTitle(e.target.value)} placeholder="グッズ名（例: 会場限定アクスタ）" className={inputCls} style={inputStyle} />
-                <div className="flex gap-2">
-                  <input value={goodsPrice} onChange={(e) => setGoodsPrice(e.target.value.replace(/[^0-9]/g, ''))} inputMode="numeric" placeholder="価格（円・任意）" className={dateCls} style={inputStyle} />
-                  <input value={goodsImage} onChange={(e) => setGoodsImage(e.target.value)} inputMode="url" placeholder="画像URL（任意）" className="flex-[2] rounded-[10px] px-3 py-2.5 text-[14px] outline-none" style={inputStyle} />
-                </div>
-                <input value={goodsLink} onChange={(e) => setGoodsLink(e.target.value)} inputMode="url" placeholder="購入・通販リンク（任意）" className={inputCls} style={inputStyle} />
-                <p className="text-[11px] text-label-tertiary">画像が無いときはイベントの画像を使います</p>
-              </div>
-            </div>
-          )}
 
           {/* 購入リンク（複数可。発売に向けて随時追加できる） */}
           <div className={labelCls}>購入リンク</div>

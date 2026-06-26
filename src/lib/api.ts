@@ -973,20 +973,6 @@ export async function listExploreEvents(from: string, to: string): Promise<Calen
   return resolveAuthorNames(events);
 }
 
-// イベント詳細用: そのイベントに紐付く販売グッズ（related_event_id）を取得。
-export async function listGoodsForEvent(eventId: string): Promise<CalendarEvent[]> {
-  const { data } = await supabase
-    .from('events')
-    .select('*, works(name)')
-    .eq('pool', 0)
-    .eq('related_event_id', eventId);
-  const events = (data ?? []).map((e) => {
-    const works = (e as Record<string, unknown>).works as { name: string } | null;
-    return { ...rowToEvent(e as Record<string, unknown>), workName: works?.name ?? '' };
-  });
-  return events;
-}
-
 // ─── イベント編集 ─────────────────────────────────────────────────
 
 export async function updateEvent(

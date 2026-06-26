@@ -8,7 +8,7 @@ import Chip from '../components/ui/Chip';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveItemType, deriveStatus, todayStr, STATUS, type ItemStatus, type ItemType } from '../design/tokens';
 import { listExploreEvents, getHomePrefecture, searchWorks, listAllParticipatedWorks, upsertParticipation, leaveCalendar, toggleLike, toggleCalendarAdd, listLikedEventIds, type Work } from '../lib/api';
-import { parseCategories, loadSeenEventIds, saveSeenEventIds, isNewItem } from '../lib/constants';
+import { parseCategories, loadSeenEventIds, saveSeenEventIds, isNewItem, GOODS_TAG } from '../lib/constants';
 import { resolveBuy } from '../lib/affiliate';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
@@ -172,9 +172,14 @@ export default function Explore() {
     try { if (has) await leaveCalendar(w.id, user.id); else await upsertParticipation(w.id, user.id); } catch { /* noop */ }
   };
 
-  // フォロー中の作品の予定だけ表示（新作品は検索→作品パネルからフォロー）
+  // フォロー中の作品の予定だけ表示（新作品は検索→作品パネルからフォロー）。
+  // グッズ表示では「グッズあり」カテゴリのイベントも一緒に出す（物販あり＝グッズ一覧にも載せる）。
   const modeItems = useMemo(
-    () => (items ?? []).filter((e) => deriveItemType(e) === mode && e.workId && followed.has(e.workId)),
+    () => (items ?? []).filter((e) => {
+      if (!e.workId || !followed.has(e.workId)) return false;
+      if (mode === 'goods') return deriveItemType(e) === 'goods' || parseCategories(e.category).includes(GOODS_TAG);
+      return deriveItemType(e) === 'event';
+    }),
     [items, mode, followed],
   );
 

@@ -2,9 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Smile, Share2, X } from 'lucide-react';
 import type { CalendarEvent } from '../types';
-import { getEventById, getWorkById, getDisplayName, toggleLike, setReaction, getReactionData, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listGoodsForEvent, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
+import { getEventById, getWorkById, getDisplayName, toggleLike, setReaction, getReactionData, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
 import EventEditForm from '../components/item/EventEditForm';
-import ItemCard from '../components/item/ItemCard';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId } from '../lib/constants';
@@ -55,8 +54,6 @@ export default function ItemDetail() {
   const [editing, setEditing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [following, setFollowing] = useState(false);
-  const [linkedGoods, setLinkedGoods] = useState<CalendarEvent[]>([]); // このイベントで販売されるグッズ
-  const [parentEvent, setParentEvent] = useState<CalendarEvent | null>(null); // グッズが販売される親イベント
   const rootRef = useRef<HTMLDivElement>(null);
 
   // 開いたら最上部から表示（前ページのスクロール位置を引き継がない）。
@@ -93,10 +90,6 @@ export default function ItemDetail() {
       listOfferContribs(id).then((cs) => { if (alive) setContribs(cs); });
       listStockReports(id).then((rs) => { if (alive) setStockReports(rs); });
       listEventEdits(id).then((es) => { if (alive) setEdits(es); });
-      // イベント⇄グッズの相互リンク
-      listGoodsForEvent(id).then((gs) => { if (alive) setLinkedGoods(gs); }).catch(() => {});
-      if (e.relatedEventId) getEventById(e.relatedEventId).then((p) => { if (alive) setParentEvent(p); }).catch(() => {});
-      else setParentEvent(null);
     })();
     return () => { alive = false; };
   }, [id, user?.id]);
@@ -288,19 +281,6 @@ export default function ItemDetail() {
               </div>
             )}
 
-            {/* 販売される親イベントへのリンク（グッズ詳細） */}
-            {parentEvent && (
-              <button onClick={() => { haptic.select(); navigate(`/item/${parentEvent.id}`); }}
-                className="pressable mt-3 w-full flex items-center gap-2 rounded-[10px] px-3 py-2.5 text-left" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-                <MapPin size={16} className="text-label-secondary flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-[11px] text-label-tertiary">このグッズを販売</div>
-                  <div className="text-[13px] font-medium truncate">{parentEvent.title}</div>
-                </div>
-                <span className="text-[12px] flex-shrink-0" style={{ color: 'var(--accent-text)' }}>見る ›</span>
-              </button>
-            )}
-
             {/* 日時/予約の共同編集（即反映＋履歴で戻せる） */}
             {!editing ? (
               <button onClick={() => { haptic.select(); setEditing(true); }} className="pressable mt-2 text-[12px]" style={{ color: 'var(--accent-text)' }}>日時・予約を編集</button>
@@ -368,26 +348,6 @@ export default function ItemDetail() {
                 <button onClick={onAddLink} disabled={!addUrl.trim() || addingLink} className="pressable px-3 rounded-[10px] text-[13px] font-semibold flex-shrink-0" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>追加</button>
               </div>
             </div>
-
-            {/* このイベントで販売するグッズ（相互リンク・グッズ一覧にも出る） */}
-            {linkedGoods.length > 0 && (
-              <div className="mt-5">
-                <div className="flex items-center gap-1.5 mb-2">
-                  <Package size={15} className="text-label-secondary" />
-                  <span className="text-[14px] font-bold">ここで販売するグッズ</span>
-                </div>
-                <div className="flex gap-2 overflow-x-auto no-scrollbar">
-                  {linkedGoods.map((g) => (
-                    <div key={g.id} className="w-36 flex-shrink-0">
-                      <ItemCard event={g} layout="grid"
-                        onOpen={() => navigate(`/item/${g.id}`)}
-                        onLike={() => (user ? toggleLike(g.id, user.id) : undefined)}
-                        onBuy={() => { haptic.select(); const { url } = resolveBuy(g); if (url) window.open(url, '_blank', 'noopener'); }} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* アクション: いいね・リアクション・カレンダー・共有 */}
             <div className="relative mt-5">

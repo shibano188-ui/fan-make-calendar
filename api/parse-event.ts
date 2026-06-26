@@ -94,7 +94,6 @@ const SCHEMA = (memoDesc: string) => `[
     "preorderStart": "isOrderMade=trueの場合のみ: 予約・受付開始日をYYYY-MM-DD形式で or null",
     "preorderEnd": "isOrderMade=trueの場合のみ: 予約・受付終了日をYYYY-MM-DD形式で or null",
     "sellsGoods": "イベント・展示・コラボ・カフェ・POP UP等で、会場や関連でグッズ・物販が販売されることが読み取れる場合はtrue（『物販』『グッズ販売』『限定グッズ』『会場限定』『グッズ受注』等）。商品そのものの投稿（categoriesがグッズ）や物販の言及が無い場合はfalse",
-    "goodsName": "sellsGoods=trueのとき、販売されるグッズの代表的な名称・種類（例: 限定アクリルスタンド, トレーディング缶バッジ）。不明ならnull",
     "memo": "${memoDesc}"
   }
 ]`;

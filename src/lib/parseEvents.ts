@@ -20,8 +20,7 @@ export type ParsedEvent = {
   isOrderMade?: boolean;
   preorderStart?: string | null;
   preorderEnd?: string | null;
-  sellsGoods?: boolean;        // イベントで物販がある（会場/関連でグッズ販売）
-  goodsName?: string | null;   // 販売グッズの名称・種類（分かれば）
+  sellsGoods?: boolean;        // イベントで物販がある（会場/関連でグッズ販売）→「グッズあり」カテゴリ付与
 };
 
 function clean(v: unknown): string | null {
@@ -50,7 +49,6 @@ function rawToParsed(raw: Record<string, unknown>): ParsedEvent {
     preorderStart: clean(raw.preorderStart),
     preorderEnd: clean(raw.preorderEnd),
     sellsGoods: raw.sellsGoods === true || raw.sellsGoods === 'true',
-    goodsName: clean(raw.goodsName),
   };
 }
 

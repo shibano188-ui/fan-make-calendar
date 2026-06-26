@@ -8,6 +8,9 @@ export const SHOW_POPULAR_CALENDARS = false;
 // 初回起動時のオンボーディング案内。再度出すなら true に戻す
 export const SHOW_ONBOARDING = false;
 
+// イベントで物販あり＝このカテゴリを付ける。探す→グッズ一覧にもそのイベントを出す。
+export const GOODS_TAG = 'グッズあり';
+
 // ─── グッズのサブ種別（入れ子。グッズ選択時のみ表示・任意） ─────────────
 export const GOODS_PARENT = 'グッズ';
 export const GOODS_SUBCATEGORIES = ['くじ', 'ガチャ', 'プライズ', '食玩', 'ぬい', 'アクスタ', '缶バッジ', 'キーホルダー', 'フィギュア', 'ステッカー', 'アパレル', '文房具', 'カード', '雑貨'] as const;
