@@ -8,7 +8,7 @@ import SavedCalendar from '../components/SavedCalendar';
 import FilterPanel, { type Facet } from '../components/item/FilterPanel';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveStatus, todayStr, STATUS, type ItemStatus } from '../design/tokens';
-import { listExploreEvents, listSavedEvents, listLikedEventIds, getHomePrefecture, toggleLike, toggleCalendarAdd } from '../lib/api';
+import { listSavedEvents, getHomePrefecture, toggleLike, toggleCalendarAdd } from '../lib/api';
 import { parseCategories } from '../lib/constants';
 import { resolveBuy } from '../lib/affiliate';
 import { addToCalendar } from '../lib/googleCalendar';
@@ -32,12 +32,6 @@ const STATUS_ORDER: ItemStatus[] = ['preorder_soon', 'preorder', 'sale_soon', 'o
 const PREF_TO_REGION: Record<string, string> = {};
 for (const r of REGIONS) for (const p of r.prefectures) PREF_TO_REGION[p] = r.name;
 
-function shiftMonths(base: string, n: number): string {
-  const d = new Date(base + 'T00:00:00');
-  d.setMonth(d.getMonth() + n);
-  return todayStr(d);
-}
-
 function loadSavedSession() {
   try { return JSON.parse(sessionStorage.getItem('saved_filters') ?? '{}'); } catch { return {}; }
 }
@@ -48,7 +42,6 @@ export default function Saved() {
   const toast = useToast();
   const _ss = loadSavedSession();
   const [items, setItems] = useState<CalendarEvent[] | null>(null);
-  const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<Tab>(_ss.tab ?? 'all');
   const [view, setView] = useState<View>(_ss.view ?? 'month');
 
@@ -86,50 +79,45 @@ export default function Saved() {
     window.scrollTo(0, 0);
   }, [items === null]);
 
-  // 全予定（探すと同じ横断取得）＋ 保存分（未定/範囲外いいねを取りこぼさないため）をマージ
+  // 表示するのは「いいね＋自分の投稿」のみ（カレンダーは保存した予定のカレンダー）
   useEffect(() => {
     if (!user) return;
     let alive = true;
-    (async () => {
-      try {
-        const [all, saved, lids, hp] = await Promise.all([
-          listExploreEvents(shiftMonths(today, -12), shiftMonths(today, 18)),
-          listSavedEvents(user.id),
-          listLikedEventIds(user.id),
-          getHomePrefecture(user.id).catch(() => null),
-        ]);
-        if (!alive) return;
-        const map = new Map<string, CalendarEvent>();
-        for (const e of all) map.set(e.id, e);
-        for (const e of saved) if (!map.has(e.id)) map.set(e.id, e);
-        setItems([...map.values()]);
-        setLikedIds(lids);
-        setHomePref(hp);
-      } catch {
-        if (alive) setItems([]);
-      }
-    })();
+    Promise.all([
+      listSavedEvents(user.id),
+      getHomePrefecture(user.id).catch(() => null),
+    ]).then(([d, hp]) => {
+      if (!alive) return;
+      setItems(d);
+      setHomePref(hp);
+    }).catch(() => alive && setItems([]));
     return () => { alive = false; };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // いいねトグル: 予定はカレンダーから消さず、いいね状態と件数だけ更新（liked スコープ時のみ絞り込みで外れる）
+  // いいねトグル: 解除したら（自分の投稿でなければ）一覧から外す
   const onLike = async (e: CalendarEvent) => {
     haptic.select();
     if (!user) return;
     const r = await toggleLike(e.id, user.id);
-    setLikedIds((prev) => { const n = new Set(prev); r.liked ? n.add(e.id) : n.delete(e.id); return n; });
-    setItems((prev) => prev?.map((it) => (it.id === e.id ? { ...it, likes: r.count } : it)) ?? prev);
+    setItems((prev) => {
+      if (!prev) return prev;
+      return prev.flatMap((it) => {
+        if (it.id !== e.id) return [it];
+        if (!r.liked && it.authorId !== user.id) return [];
+        return [{ ...it, likedByMe: r.liked, likes: r.count }];
+      });
+    });
   };
 
   // スコープ（すべて / いいね / 自分の投稿）→ 検索語 で絞った集合
   const scopeItems = useMemo(() => {
     let list = items ?? [];
-    if (tab === 'liked') list = list.filter((e) => likedIds.has(e.id));
+    if (tab === 'liked') list = list.filter((e) => e.likedByMe);
     if (tab === 'mine') list = list.filter((e) => e.authorId === user?.id);
     const q = query.trim().toLowerCase();
     if (q) list = list.filter((e) => `${e.title} ${e.workName ?? ''} ${e.category ?? ''}`.toLowerCase().includes(q));
     return list;
-  }, [items, tab, likedIds, user?.id, query]);
+  }, [items, tab, user?.id, query]);
 
   // ファセット件数（探すと同じ算出）
   const statusFacets: Facet[] = useMemo(() => {
@@ -193,18 +181,16 @@ export default function Saved() {
     [workFacets, excludedWorks],
   );
 
-  // 絞り込み適用＋いいね状態を反映した最終集合（カレンダー/リスト共通）
+  // 絞り込み適用後の最終集合（カレンダー/リスト共通）
   const filtered = useMemo(() => {
-    return scopeItems
-      .filter((e) => {
-        if (selectedStatuses.size && !selectedStatuses.has(deriveStatus(e))) return false;
-        if (e.workId && excludedWorks.has(e.workId)) return false;
-        if (selectedCategories.size && !parseCategories(e.category).some((c) => selectedCategories.has(c))) return false;
-        if (allowedPrefs.size && (!e.prefecture || !allowedPrefs.has(e.prefecture))) return false;
-        return true;
-      })
-      .map((e) => ({ ...e, likedByMe: likedIds.has(e.id) }));
-  }, [scopeItems, selectedStatuses, excludedWorks, selectedCategories, allowedPrefs, likedIds]);
+    return scopeItems.filter((e) => {
+      if (selectedStatuses.size && !selectedStatuses.has(deriveStatus(e))) return false;
+      if (e.workId && excludedWorks.has(e.workId)) return false;
+      if (selectedCategories.size && !parseCategories(e.category).some((c) => selectedCategories.has(c))) return false;
+      if (allowedPrefs.size && (!e.prefecture || !allowedPrefs.has(e.prefecture))) return false;
+      return true;
+    });
+  }, [scopeItems, selectedStatuses, excludedWorks, selectedCategories, allowedPrefs]);
 
   // リスト表示: 近い順（これから昇順 → 過去降順）
   const listItems = useMemo(() => {
@@ -233,7 +219,7 @@ export default function Saved() {
     toast(r === 'google' ? 'Googleカレンダーに追加しました' : r === 'ics' ? 'カレンダーに追加しました' : '日付未定のため追加できません');
   };
 
-  const emptyMsg = tab === 'mine' ? 'まだ投稿がありません' : tab === 'liked' ? 'まだ保存がありません' : '予定がありません';
+  const emptyMsg = tab === 'mine' ? 'まだ投稿がありません' : tab === 'liked' ? 'まだ保存がありません' : '保存した予定がありません';
 
   return (
     <div ref={rootRef} className="px-3 pt-3">
@@ -242,7 +228,7 @@ export default function Saved() {
         <div className="flex items-center gap-2 mb-2">
           <div className="flex-1 flex items-center gap-2 px-3 rounded-[10px]" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
             <Search size={16} className="text-label-tertiary flex-shrink-0" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="グッズ・イベントを検索"
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="保存した予定を検索"
               className="flex-1 bg-transparent py-2 text-[14px] outline-none" style={{ color: 'var(--input-text)' }} />
             {query && (
               <button onClick={() => setQuery('')} aria-label="クリア" className="pressable text-label-tertiary flex-shrink-0"><X size={16} /></button>
@@ -302,14 +288,14 @@ export default function Saved() {
       {items === null ? (
         <SkeletonList count={4} />
       ) : view !== 'list' ? (
-        filtered.length === 0 ? (
-          <p className="text-center text-label-secondary text-[13px] py-20">{emptyMsg}</p>
-        ) : (
-          <SavedCalendar events={filtered} scope={view}
-            onOpen={(e) => navigate(`/item/${e.id}`)} onLike={onLike} onCalendar={onCalendar} onBuy={onBuy} />
-        )
+        // カレンダー（月/週/日）は予定が0件でも枠を表示する
+        <SavedCalendar events={filtered} scope={view}
+          onOpen={(e) => navigate(`/item/${e.id}`)} onLike={onLike} onCalendar={onCalendar} onBuy={onBuy} />
       ) : listItems.length === 0 ? (
-        <p className="text-center text-label-secondary text-[13px] py-20">{emptyMsg}</p>
+        <p className="text-center text-label-secondary text-[13px] py-20">
+          {emptyMsg}<br />
+          気になるグッズ・イベントに ♡ を押すとここに溜まります
+        </p>
       ) : (
         <div className="flex flex-col gap-2 pb-4">
           {listItems.map((e) => (
