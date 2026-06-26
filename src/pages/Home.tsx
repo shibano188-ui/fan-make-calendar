@@ -6,7 +6,7 @@ import ItemCard from '../components/item/ItemCard';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveStatus, deriveItemType, todayStr } from '../design/tokens';
 import { loadSeenEventIds, isNewItem } from '../lib/constants';
-import { listExploreEvents, getHomePrefecture, listAllParticipatedWorks, toggleLike, toggleCalendarAdd, listLikedEventIds } from '../lib/api';
+import { listExploreEvents, getHomePrefecture, listAllParticipatedWorks, toggleLike, toggleCalendarAdd, listLikedEventIds, type Work } from '../lib/api';
 import { resolveBuy } from '../lib/affiliate';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
@@ -45,6 +45,7 @@ export default function Home() {
   const { user } = useAuth();
   const toast = useToast();
   const [items, setItems] = useState<CalendarEvent[] | null>(null);
+  const [follows, setFollows] = useState<Work[]>([]);
   const [followIds, setFollowIds] = useState<Set<string>>(new Set());
   const [homePref, setHomePref] = useState<string | null>(null);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
@@ -71,7 +72,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!user) return;
-    listAllParticipatedWorks(user.id).then((ws) => setFollowIds(new Set(ws.map((w) => w.id)))).catch(() => {});
+    listAllParticipatedWorks(user.id).then((ws) => { setFollows(ws); setFollowIds(new Set(ws.map((w) => w.id))); }).catch(() => {});
     getHomePrefecture(user.id).then(setHomePref).catch(() => {});
     listLikedEventIds(user.id).then(setLikedIds).catch(() => {});
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -128,6 +129,25 @@ export default function Home() {
           />
         </button>
       </div>
+
+      {/* フォロー中の作品（確認用・常時表示）。タップでその作品の予定へ。 */}
+      {follows.length > 0 && (
+        <div className="pt-2">
+          <div className="px-3 flex items-center justify-between mb-1.5">
+            <span className="text-[12px] text-label-secondary">フォロー中（{follows.length}）</span>
+            <button onClick={() => { haptic.select(); navigate('/mypage'); }} className="pressable text-[11px] font-medium" style={{ color: 'var(--accent-text)' }}>管理</button>
+          </div>
+          <div className="flex gap-2 overflow-x-auto no-scrollbar px-3">
+            {follows.map((w) => (
+              <button key={w.id} onClick={() => { haptic.select(); navigate(`/explore?q=${encodeURIComponent(w.name)}`); }}
+                className="pressable flex-shrink-0 px-3 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap"
+                style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
+                {w.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {items === null ? (
         <div className="px-3 pt-3"><SkeletonList count={3} /></div>
