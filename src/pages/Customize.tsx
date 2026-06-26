@@ -330,11 +330,23 @@ export default function Customize() {
   const { settings, updateSettings, currentWorkId } = useTheme();
   const { user } = useAuth();
   const currentWorkName = localStorage.getItem('last_calendar_work_name') ?? '';
+  const rootRef          = useRef<HTMLDivElement>(null);
   const fontInputRef     = useRef<HTMLInputElement>(null);
   const bgInputRef       = useRef<HTMLInputElement>(null);
   const calColorWrapperRef  = useRef<HTMLDivElement>(null);
   const calBtnRefs       = useRef<(HTMLButtonElement | null)[]>([null, null, null, null, null]);
   const calCustomInputRef = useRef<HTMLInputElement>(null);
+
+  // 開いたら最上部から（前ページ＝マイページのスクロール位置を引き継がない）
+  useEffect(() => {
+    let el = rootRef.current?.parentElement as HTMLElement | null;
+    while (el) {
+      const oy = getComputedStyle(el).overflowY;
+      if (oy === 'auto' || oy === 'scroll') el.scrollTop = 0;
+      el = el.parentElement;
+    }
+    window.scrollTo(0, 0);
+  }, []);
 
   const [showCommunityModal, setShowCommunityModal] = useState(false);
   const [calColorOpen, setCalColorOpen]   = useState(false);
@@ -457,14 +469,14 @@ export default function Customize() {
   const calColorPreviewDots = CAL_COLOR_FIELDS.map(f => settings[f.key] as string).filter(Boolean);
 
   return (
-    <Layout>
+    <Layout hideBottomTab>
       <Header
         title="カスタマイズ"
         subtitle={currentWorkId && currentWorkName ? `「${currentWorkName}」の設定` : undefined}
         rightAction={<SettingsMenuButton />}
       />
 
-      <div className="px-4 pt-4 pb-8 flex flex-col gap-6">
+      <div ref={rootRef} className="px-4 pt-4 pb-8 flex flex-col gap-6">
 
         {/* テーマ */}
         <section>

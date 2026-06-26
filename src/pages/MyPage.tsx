@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from 'recharts';
-import { ChevronRight, Bell, Crown, CalendarSync, Moon } from 'lucide-react';
+import { ChevronRight, Bell, Crown, CalendarSync, Moon, Palette } from 'lucide-react';
 import {
   getUserPublicProfile, getHomePrefecture, saveHomePrefecture, saveDisplayName,
   listAllParticipatedWorks, leaveCalendar, type Work,
@@ -19,6 +20,7 @@ const ALL_PREFS = REGIONS.flatMap((r) => r.prefectures);
 export default function MyPage() {
   const { user } = useAuth();
   const toast = useToast();
+  const navigate = useNavigate();
   const [stats, setStats] = useState<AchievementStats | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -122,6 +124,12 @@ export default function MyPage() {
             <option value="dark">ダーク</option>
           </select>
         </div>
+        {/* カレンダーの配色・テーマ */}
+        <button onClick={() => { haptic.select(); navigate('/customize'); }} className="w-full flex items-center gap-2 px-3 py-2.5 pressable text-left">
+          <Palette size={16} className="text-label-secondary" />
+          <span className="text-[14px] flex-1">カレンダーの配色・テーマ</span>
+          <ChevronRight size={16} className="text-label-tertiary" />
+        </button>
         {/* 通知リードタイム */}
         <div className="flex items-center gap-2 px-3 py-2.5">
           <Bell size={16} className="text-label-secondary" />

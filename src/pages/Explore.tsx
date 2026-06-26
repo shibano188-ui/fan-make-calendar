@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams, useNavigationType } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useNavigate, useSearchParams, useNavigationType, useLocation } from 'react-router-dom';
 import { ArrowDownToLine, Search, SlidersHorizontal, X } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
@@ -8,7 +8,7 @@ import Chip from '../components/ui/Chip';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveItemType, deriveStatus, todayStr, STATUS, type ItemStatus, type ItemType } from '../design/tokens';
 import { listExploreEvents, getHomePrefecture, searchWorks, listAllParticipatedWorks, upsertParticipation, leaveCalendar, toggleLike, toggleCalendarAdd, listLikedEventIds, type Work } from '../lib/api';
-import { parseCategories, loadSeenEventIds, isNewItem } from '../lib/constants';
+import { parseCategories, loadSeenEventIds, saveSeenEventIds, isNewItem } from '../lib/constants';
 import { resolveBuy } from '../lib/affiliate';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
@@ -34,6 +34,7 @@ function loadExploreSession() {
 export default function Explore() {
   const navigate = useNavigate();
   const navType = useNavigationType(); // POP=戻る(復元) / PUSH=新規遷移(今日へ)
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const toast = useToast();
@@ -104,6 +105,36 @@ export default function Explore() {
   }, []);
 
   const today = todayStr();
+
+  // ── 新着 / 閲覧済み（main の Discover 機構を移植）──
+  // カードが画面に半分入ったら閲覧済みにして localStorage 保存。新着/閲覧済みの区分は
+  // スナップショットで固定し（スクロール中に消えない）、タブに入り直すたびに取り直す。
+  const [seenSnapshot, setSeenSnapshot] = useState<Set<string>>(loadSeenEventIds);
+  const seenIdsRef = useRef(loadSeenEventIds());
+  const seenObserverRef = useRef<IntersectionObserver | null>(null);
+  if (!seenObserverRef.current && typeof window !== 'undefined' && 'IntersectionObserver' in window) {
+    seenObserverRef.current = new IntersectionObserver((entries) => {
+      let changed = false;
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const id = (entry.target as HTMLElement).dataset.eventId;
+        if (id && !seenIdsRef.current.has(id)) { seenIdsRef.current.add(id); changed = true; }
+        seenObserverRef.current?.unobserve(entry.target);
+      }
+      if (changed) saveSeenEventIds(seenIdsRef.current);
+    }, { threshold: 0.5 });
+  }
+  useEffect(() => () => seenObserverRef.current?.disconnect(), []);
+  const observeSeen = useCallback((node: HTMLDivElement | null) => {
+    if (node) seenObserverRef.current?.observe(node);
+  }, []);
+  useEffect(() => {
+    const latest = loadSeenEventIds();
+    seenIdsRef.current = latest;
+    setSeenSnapshot(new Set(latest));
+  }, [location.key]);
+  const [showUnseenOnly, setShowUnseenOnly] = useState(() => sessionStorage.getItem('explore_unseen') === '1');
+  useEffect(() => { sessionStorage.setItem('explore_unseen', showUnseenOnly ? '1' : '0'); }, [showUnseenOnly]);
 
   useEffect(() => {
     let alive = true;
@@ -227,16 +258,19 @@ export default function Explore() {
     });
   }, [queryItems, selectedStatuses, excludedWorks, selectedCategories, allowedPrefs]);
 
-  // 今日起点: 過去（上）／これから（下）に分割（並びは取得順=日付昇順のまま）
-  const { past, upcoming } = useMemo(() => {
+  // 新着（未閲覧）/ 閲覧済み に分割。新着内はさらに今日起点で過去（上）／これから（下）へ。
+  // 区分はスナップショットで固定（スクロール中に動かない）。
+  const { past, upcoming, seenList } = useMemo(() => {
     const p: CalendarEvent[] = [];
     const u: CalendarEvent[] = [];
+    const s: CalendarEvent[] = [];
     for (const e of visible) {
+      if (seenSnapshot.has(e.id)) { s.push(e); continue; }
       const ref = e.endDate || e.date || '';
       (ref && ref < today ? p : u).push(e);
     }
-    return { past: p, upcoming: u };
-  }, [visible, today]);
+    return { past: p, upcoming: u, seenList: s };
+  }, [visible, today, seenSnapshot]);
 
   // 初回スクロール制御を1度だけ行うためのガード（フォロー作品の非同期ロードで
   // visible が後から埋まるため、内容が出揃ってから復元/今日への移動を実行する）
@@ -302,11 +336,12 @@ export default function Explore() {
     toast(r === 'google' ? 'Googleカレンダーに追加しました' : r === 'ics' ? 'カレンダーに追加しました' : '日付未定のため追加できません');
   };
 
-  const seen = useMemo(() => loadSeenEventIds(), [items]);
   const gridClass = mode === 'goods' ? 'grid grid-cols-2 gap-2 items-stretch' : 'flex flex-col gap-2';
   const renderCard = (e: CalendarEvent) => (
-    <ItemCard key={e.id} event={e} layout={mode === 'goods' ? 'grid' : 'list'} isNew={isNewItem(e.id, e.createdAt, seen)} likedInit={likedIds.has(e.id)}
-      onOpen={() => { sessionStorage.setItem('explore_scroll', String(getScrollTop())); navigate(`/item/${e.id}`); }} onLike={() => onLikeTile(e)} onCalendar={() => onCalendarTile(e)} onBuy={() => onBuy(e)} />
+    <div key={e.id} ref={observeSeen} data-event-id={e.id}>
+      <ItemCard event={e} layout={mode === 'goods' ? 'grid' : 'list'} isNew={isNewItem(e.id, e.createdAt, seenSnapshot)} likedInit={likedIds.has(e.id)}
+        onOpen={() => { sessionStorage.setItem('explore_scroll', String(getScrollTop())); navigate(`/item/${e.id}`); }} onLike={() => onLikeTile(e)} onCalendar={() => onCalendarTile(e)} onBuy={() => onBuy(e)} />
+    </div>
   );
 
   return (
@@ -344,6 +379,7 @@ export default function Explore() {
         <div className="flex items-center gap-2 mt-2">
           <Chip active={mode === 'goods'} onClick={() => { haptic.select(); setMode('goods'); }}>グッズ</Chip>
           <Chip active={mode === 'event'} onClick={() => { haptic.select(); setMode('event'); }}>イベント</Chip>
+          <Chip active={showUnseenOnly} onClick={() => { haptic.select(); setShowUnseenOnly((v) => !v); }}>新着のみ</Chip>
           {/* フィルターアクティブ時: パネルを開かずに確認・全クリアできるチップ */}
           {activeCount > 0 && !filterOpen && (
             <div className="ml-auto flex items-center gap-1 rounded-full border overflow-hidden flex-shrink-0"
@@ -402,6 +438,8 @@ export default function Explore() {
           <p className="text-center text-label-secondary text-[13px] py-16">該当する{mode === 'goods' ? 'グッズ' : 'イベント'}がありません</p>
         ) : (
           <>
+            {/* 新着（未閲覧）。閲覧済みが下にある時だけ見出しを出す */}
+            {!showUnseenOnly && seenList.length > 0 && <SectionLabel label="新着" />}
             {past.length > 0 && <div className={gridClass}>{past.map(renderCard)}</div>}
             <div ref={todayRef} className="flex items-center gap-2 py-3">
               <div className="flex-1 h-px" style={{ backgroundColor: 'var(--separator)' }} />
@@ -411,6 +449,14 @@ export default function Explore() {
             {upcoming.length > 0
               ? <div className={gridClass}>{upcoming.map(renderCard)}</div>
               : <p className="text-center text-label-tertiary text-[12px] py-6">これからの{mode === 'goods' ? 'グッズ' : 'イベント'}はありません</p>}
+
+            {/* 閲覧済み（新着のみOFF時のみ）。淡く表示してストレスを下げる */}
+            {!showUnseenOnly && seenList.length > 0 && (
+              <>
+                <SectionLabel label="閲覧済み" muted />
+                <div className={`${gridClass} opacity-60`}>{seenList.map(renderCard)}</div>
+              </>
+            )}
           </>
         )}
       </div>
@@ -425,6 +471,16 @@ export default function Explore() {
           <ArrowDownToLine size={20} />
         </button>
       )}
+    </div>
+  );
+}
+
+/** 新着 / 閲覧済み の区切り見出し。 */
+function SectionLabel({ label, muted = false }: { label: string; muted?: boolean }) {
+  return (
+    <div className="flex items-center gap-2 pt-4 pb-2">
+      <span className="text-[13px] font-bold" style={{ color: muted ? 'var(--label-tertiary)' : 'var(--label-primary)' }}>{label}</span>
+      <div className="flex-1 h-px" style={{ backgroundColor: 'var(--separator)' }} />
     </div>
   );
 }

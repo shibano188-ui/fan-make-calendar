@@ -20,6 +20,7 @@ const Saved           = lazy(() => import('./pages/Saved'));
 const MyPage          = lazy(() => import('./pages/MyPage'));
 const PostNew         = lazy(() => import('./pages/PostNew'));
 const ItemDetail      = lazy(() => import('./pages/ItemDetail'));
+const Customize       = lazy(() => import('./pages/Customize'));
 const WidgetCountdown = lazy(() => import('./pages/WidgetCountdown'));
 const WidgetToday     = lazy(() => import('./pages/WidgetToday'));
 const WidgetMonth     = lazy(() => import('./pages/WidgetMonth'));
@@ -123,6 +124,7 @@ export default function App() {
                     </Route>
                     <Route path="/post"     element={<PostNew />} />
                     <Route path="/item/:id" element={<ItemDetail />} />
+                    <Route path="/customize" element={<Customize />} />
                     <Route path="*"         element={<NotFound />} />
                   </Routes>
                 </PhoneFrame>

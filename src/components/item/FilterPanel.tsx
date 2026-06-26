@@ -1,5 +1,7 @@
-import { MapPin } from 'lucide-react';
+import { useState } from 'react';
+import { MapPin, ChevronDown } from 'lucide-react';
 import Chip from '../ui/Chip';
+import { REGIONS } from '../../lib/prefectures';
 
 export interface Facet {
   key: string;
@@ -46,6 +48,12 @@ export default function FilterPanel({
   onToggleStatus, onToggleWork, onToggleCategory, onTogglePref, onToggleRegion,
   homePref, neighborActive, onToggleNeighbor, onClear, resultCount,
 }: Props) {
+  const [prefOpen, setPrefOpen] = useState(false);
+  // 都道府県チップを地方ごとにグルーピング（結果に出る県のみ）。
+  const prefGroups = REGIONS
+    .map((r) => ({ region: r.name, prefs: prefectures.filter((p) => r.prefectures.includes(p.key)) }))
+    .filter((g) => g.prefs.length > 0);
+
   return (
     <div className="mt-2 rounded-[12px] border border-subtle" style={{ backgroundColor: 'var(--bg-secondary)' }}>
       <div className="max-h-[46vh] overflow-y-auto no-scrollbar px-3 py-3">
@@ -88,11 +96,37 @@ export default function FilterPanel({
                 {r.label} <span className="opacity-60">{r.count}</span>
               </Chip>
             ))}
-            {prefectures.map((p) => (
-              <Chip key={p.key} active={selectedPrefs.has(p.key)} onClick={() => onTogglePref(p.key)}>
-                {p.label} <span className="opacity-60">{p.count}</span>
-              </Chip>
-            ))}
+
+            {/* 都道府県は折りたたみ＋地方ごとにグルーピング（既定は地方チップだけでスッキリ） */}
+            {prefGroups.length > 0 && (
+              <div className="w-full mt-1">
+                <button
+                  onClick={() => setPrefOpen((o) => !o)}
+                  className="pressable flex items-center gap-1 text-[12px] font-medium px-2.5 py-1.5 rounded-full"
+                  style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}
+                >
+                  都道府県で絞る
+                  {selectedPrefs.size > 0 && <span style={{ color: 'var(--accent-text)' }}>{selectedPrefs.size}</span>}
+                  <ChevronDown size={14} className={`transition-transform ${prefOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {prefOpen && (
+                  <div className="mt-2 flex flex-col gap-2">
+                    {prefGroups.map((g) => (
+                      <div key={g.region}>
+                        <div className="text-[11px] text-label-tertiary mb-1">{g.region}</div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {g.prefs.map((p) => (
+                            <Chip key={p.key} active={selectedPrefs.has(p.key)} onClick={() => onTogglePref(p.key)}>
+                              {p.label} <span className="opacity-60">{p.count}</span>
+                            </Chip>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </Section>
         )}
       </div>
