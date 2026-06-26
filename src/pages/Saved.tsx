@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import Chip from '../components/ui/Chip';
+import SavedCalendar from '../components/SavedCalendar';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { todayStr } from '../design/tokens';
 import { listSavedEvents, toggleLike, toggleCalendarAdd } from '../lib/api';
@@ -13,6 +14,14 @@ import { useToast } from '../components/ui/Toast';
 import { haptic } from '../lib/haptics';
 
 type Tab = 'all' | 'liked' | 'mine';
+type View = 'list' | 'month' | 'week' | 'day';
+
+const VIEWS: { key: View; label: string }[] = [
+  { key: 'list', label: 'リスト' },
+  { key: 'month', label: '月' },
+  { key: 'week', label: '週' },
+  { key: 'day', label: '日' },
+];
 
 export default function Saved() {
   const navigate = useNavigate();
@@ -20,6 +29,7 @@ export default function Saved() {
   const toast = useToast();
   const [items, setItems] = useState<CalendarEvent[] | null>(null);
   const [tab, setTab] = useState<Tab>('all');
+  const [view, setView] = useState<View>('list');
   const today = todayStr();
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -77,14 +87,40 @@ export default function Saved() {
 
   return (
     <div ref={rootRef} className="px-3 pt-3">
-      <div className="flex gap-2 mb-3 sticky top-0 z-20 py-1" style={{ backgroundColor: 'var(--bg-primary)' }}>
-        <Chip active={tab === 'all'} onClick={() => { haptic.select(); setTab('all'); }}>すべて</Chip>
-        <Chip active={tab === 'liked'} onClick={() => { haptic.select(); setTab('liked'); }}>いいね</Chip>
-        <Chip active={tab === 'mine'} onClick={() => { haptic.select(); setTab('mine'); }}>自分の投稿</Chip>
+      {/* 表示切替: リスト / 月 / 週 / 日 */}
+      <div className="sticky top-0 z-20 py-1" style={{ backgroundColor: 'var(--bg-primary)' }}>
+        <div className="flex p-0.5 rounded-[10px] mb-2" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+          {VIEWS.map((v) => (
+            <button key={v.key} onClick={() => { haptic.select(); setView(v.key); }}
+              className="flex-1 text-[13px] font-semibold py-1.5 rounded-[8px] pressable transition-colors"
+              style={view === v.key
+                ? { backgroundColor: 'var(--bg-primary)', color: 'var(--label-primary)', boxShadow: '0 1px 2px rgba(0,0,0,0.12)' }
+                : { color: 'var(--label-secondary)' }}>
+              {v.label}
+            </button>
+          ))}
+        </div>
+        {view === 'list' && (
+          <div className="flex gap-2 pb-1">
+            <Chip active={tab === 'all'} onClick={() => { haptic.select(); setTab('all'); }}>すべて</Chip>
+            <Chip active={tab === 'liked'} onClick={() => { haptic.select(); setTab('liked'); }}>いいね</Chip>
+            <Chip active={tab === 'mine'} onClick={() => { haptic.select(); setTab('mine'); }}>自分の投稿</Chip>
+          </div>
+        )}
       </div>
 
       {items === null ? (
         <SkeletonList count={4} />
+      ) : view !== 'list' ? (
+        items.length === 0 ? (
+          <p className="text-center text-label-secondary text-[13px] py-20">
+            まだ保存がありません<br />
+            気になるグッズ・イベントに ♡ を押すとここに溜まります
+          </p>
+        ) : (
+          <SavedCalendar events={items} scope={view}
+            onOpen={(e) => navigate(`/item/${e.id}`)} onLike={onLike} onCalendar={onCalendar} onBuy={onBuy} />
+        )
       ) : visible.length === 0 ? (
         <p className="text-center text-label-secondary text-[13px] py-20">
           {tab === 'mine' ? 'まだ投稿がありません' : 'まだ保存がありません'}<br />
