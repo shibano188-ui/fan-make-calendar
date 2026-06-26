@@ -17,10 +17,10 @@ type Tab = 'all' | 'liked' | 'mine';
 type View = 'list' | 'month' | 'week' | 'day';
 
 const VIEWS: { key: View; label: string }[] = [
-  { key: 'list', label: 'リスト' },
   { key: 'month', label: '月' },
   { key: 'week', label: '週' },
   { key: 'day', label: '日' },
+  { key: 'list', label: 'リスト' },
 ];
 
 export default function Saved() {
@@ -29,7 +29,7 @@ export default function Saved() {
   const toast = useToast();
   const [items, setItems] = useState<CalendarEvent[] | null>(null);
   const [tab, setTab] = useState<Tab>('all');
-  const [view, setView] = useState<View>('list');
+  const [view, setView] = useState<View>('month');
   const today = todayStr();
   const rootRef = useRef<HTMLDivElement>(null);
 

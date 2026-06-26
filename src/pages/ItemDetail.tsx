@@ -15,6 +15,9 @@ import { haptic } from '../lib/haptics';
 import StatusBadge from '../components/ui/StatusBadge';
 import ImageCarousel from '../components/item/ImageCarousel';
 
+// 外部カレンダー連携（Google/ics への追加）は一旦保留。再開時は true に戻す。
+const EXTERNAL_CALENDAR_ENABLED = false;
+
 function summarizePatch(p: EventPatch): string {
   const parts: string[] = [];
   if ('date' in p) parts.push(`日付 ${p.date ? p.date.slice(5).replace('-', '/') : '未定'}`);
@@ -226,7 +229,7 @@ export default function ItemDetail() {
         <div className={`flex-1 ${buyMode !== 'none' ? 'pb-28' : 'pb-10'}`}>
           <div className="relative">
             <ImageCarousel images={images} alt={event.title} />
-            {calCount > 0 && (
+            {EXTERNAL_CALENDAR_ENABLED && calCount > 0 && (
               <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium"
                 style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff' }}>
                 <CalendarPlus size={12} />
@@ -377,10 +380,12 @@ export default function ItemDetail() {
                   {myReactionImg ? <img src={myReactionImg} alt="" className="w-[22px] h-[22px]" /> : <Smile size={22} className="text-label-secondary" />}
                   <span className="text-[10px] text-label-tertiary leading-none">リアクション</span>
                 </button>
-                <button onClick={onCalendar} className="pressable flex flex-col items-center gap-0.5" aria-label="カレンダーに追加">
-                  <CalendarPlus size={22} style={{ color: calAdded ? 'var(--accent-color)' : 'var(--label-secondary)' }} />
-                  <span className="text-[10px] text-label-tertiary leading-none">{calAdded ? '追加済み' : 'カレンダー'}</span>
-                </button>
+                {EXTERNAL_CALENDAR_ENABLED && (
+                  <button onClick={onCalendar} className="pressable flex flex-col items-center gap-0.5" aria-label="カレンダーに追加">
+                    <CalendarPlus size={22} style={{ color: calAdded ? 'var(--accent-color)' : 'var(--label-secondary)' }} />
+                    <span className="text-[10px] text-label-tertiary leading-none">{calAdded ? '追加済み' : 'カレンダー'}</span>
+                  </button>
+                )}
                 <button onClick={onShare} className="pressable flex flex-col items-center gap-0.5" aria-label="Xで共有">
                   <Share2 size={22} className="text-label-secondary" />
                   <span className="text-[10px] text-label-tertiary leading-none">共有</span>

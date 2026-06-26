@@ -1,11 +1,11 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, Search, Bookmark, User, Plus, type LucideIcon } from 'lucide-react';
+import { Home, Search, CalendarDays, User, Plus, type LucideIcon } from 'lucide-react';
 import { haptic } from '../../lib/haptics';
 
 const tabs: { label: string; icon: LucideIcon; path: string }[] = [
   { label: 'ホーム', icon: Home,     path: '/' },
   { label: '探す',   icon: Search,   path: '/explore' },
-  { label: 'いいね', icon: Bookmark, path: '/saved' },
+  { label: 'カレンダー', icon: CalendarDays, path: '/saved' },
   { label: 'マイページ', icon: User,  path: '/mypage' },
 ];
 
