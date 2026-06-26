@@ -14,7 +14,9 @@ import { haptic } from '../lib/haptics';
 import { todayStr, deriveItemType, type ItemType } from '../design/tokens';
 
 const GOODS_CATS = [...GOODS_SUBCATEGORIES, 'グルメ', '書籍'];
-const EVENT_CATS = ['イベント', 'アニメ・映画', '誕生日', 'キャンペーン'];
+const EVENT_CATS = ['イベント', 'アニメ・映画', '誕生日', 'キャンペーン', 'グッズあり'];
+// イベントでの物販を表すカテゴリ（選ぶと販売グッズ欄が出る／カテゴリ欄にも表示・絞り込み可）
+const GOODS_TAG = 'グッズあり';
 
 // 曖昧日付（日付未定）の選択肢と代表日計算。並び替え用に date も持たせる。
 const SEASON_LABELS = ['春頃', '夏頃', '秋頃', '冬頃'];
@@ -86,8 +88,7 @@ export default function PostNew() {
   const [imageUrl, setImageUrl] = useState<string>(draft0?.imageUrl ?? '');
   const [prefecture, setPrefecture] = useState<string>(draft0?.prefecture ?? '');
   const [locationDetail, setLocationDetail] = useState<string>(draft0?.locationDetail ?? '');
-  // 販売グッズ（イベント限定物販。投稿時にグッズも連動生成して相互リンク）
-  const [sellsGoods, setSellsGoods] = useState<boolean>(draft0?.sellsGoods ?? false);
+  // 販売グッズ（イベント限定物販。カテゴリ「グッズあり」で有効化し、投稿時にグッズも連動生成して相互リンク）
   const [goodsTitle, setGoodsTitle] = useState<string>(draft0?.goodsTitle ?? '');
   const [goodsImage, setGoodsImage] = useState<string>(draft0?.goodsImage ?? '');
   const [goodsPrice, setGoodsPrice] = useState<string>(draft0?.goodsPrice ?? '');
@@ -124,7 +125,7 @@ export default function PostNew() {
     sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
       type, workId, workName, workQuery, title, cats: [...cats], allDay, dateTBD, dateLabel, date, endDate, time, endTime,
       isOrder, preAllDay, preStart, preEnd, preStartTime, preEndTime, price, link, offers, showExtra, stockNote, memo, imageUrl, prefecture, locationDetail,
-      sellsGoods, goodsTitle, goodsImage, goodsPrice, goodsLink,
+      goodsTitle, goodsImage, goodsPrice, goodsLink,
     }));
   });
   const clearDraft = () => sessionStorage.removeItem(DRAFT_KEY);
@@ -194,7 +195,8 @@ export default function PostNew() {
 
   // 解析結果をフォームに反映
   const applyParsed = (p: ParsedEvent) => {
-    setType(deriveItemType({ category: p.category ?? undefined }));
+    const parsedType = deriveItemType({ category: p.category ?? undefined });
+    setType(parsedType);
     if (p.title) setTitle(p.title);
     if (p.work) {
       // 作品の名寄せ: 既存に完全一致があれば確定、無ければ入力欄に入れて確認/新規作成
@@ -206,7 +208,18 @@ export default function PostNew() {
       }).catch(() => {});
     }
     if (p.price != null) setPrice(String(p.price));
-    if (p.category) setCats(new Set(parseCategories(p.category)));
+    // カテゴリ。イベントで物販あり（AI検出）なら「グッズあり」を付与して販売グッズ欄を出す
+    const sells = parsedType === 'event' && (p.sellsGoods || !!p.goodsName);
+    if (p.category || sells) {
+      const finalCats = new Set(p.category ? parseCategories(p.category) : []);
+      if (sells) finalCats.add(GOODS_TAG);
+      setCats(finalCats);
+    }
+    if (sells) {
+      if (p.goodsName) setGoodsTitle(p.goodsName);
+      if (p.price != null) setGoodsPrice(String(p.price));
+      if (p.link) { try { const a = JSON.parse(p.link); setGoodsLink(Array.isArray(a) ? (a[0] ?? '') : p.link); } catch { setGoodsLink(p.link); } }
+    }
     if (p.dateLabel) {
       // 曖昧日付（上旬・春頃・月のみ等）: ラベルを保持し、代表日も入れる
       setDateTBD(true); setDateLabel(p.dateLabel);
@@ -276,6 +289,12 @@ export default function PostNew() {
 
   const linkInfo = link.trim() ? affiliatize(link.trim()) : null;
   const canSave = !!title.trim() && (!!workId || !!workQuery.trim()) && !saving;
+  // 「グッズあり」カテゴリ＝イベントで物販あり。これで販売グッズ欄を出す
+  const sellsGoods = type === 'event' && cats.has(GOODS_TAG);
+  const toggleGoodsTag = () => {
+    haptic.select();
+    setCats((prev) => { const n = new Set(prev); n.has(GOODS_TAG) ? n.delete(GOODS_TAG) : n.add(GOODS_TAG); return n; });
+  };
 
   const onSubmit = async () => {
     if (!user || !canSave) return;
@@ -585,31 +604,25 @@ export default function PostNew() {
             </>
           )}
 
-          {/* 販売グッズ（イベント限定物販。ONで投稿するとグッズ一覧にも出て相互リンク） */}
-          {type === 'event' && (
+          {/* 販売グッズ（カテゴリ「グッズあり」で有効化。投稿するとグッズ一覧にも出て相互リンク） */}
+          {sellsGoods && (
             <div className="mt-5 rounded-[12px] border border-subtle p-3" style={{ backgroundColor: 'var(--bg-secondary)' }}>
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="text-[13px] font-semibold">販売グッズ（任意）</div>
+                  <div className="text-[13px] font-semibold">販売グッズ</div>
                   <div className="text-[11px] text-label-tertiary mt-0.5">会場で売る物。グッズ一覧にも出て、相互にリンクします</div>
                 </div>
-                <button onClick={() => { haptic.select(); setSellsGoods((v) => !v); }} aria-label="販売グッズ"
-                  className="pressable w-12 h-7 rounded-full relative transition-colors flex-shrink-0"
-                  style={{ backgroundColor: sellsGoods ? 'var(--accent-color)' : 'var(--fill-tertiary)' }}>
-                  <span className="absolute top-0.5 w-6 h-6 rounded-full bg-white transition-all" style={{ left: sellsGoods ? 22 : 2 }} />
-                </button>
+                <button onClick={toggleGoodsTag} className="pressable text-[12px] flex-shrink-0" style={{ color: 'var(--label-tertiary)' }}>外す</button>
               </div>
-              {sellsGoods && (
-                <div className="mt-3 flex flex-col gap-2">
-                  <input value={goodsTitle} onChange={(e) => setGoodsTitle(e.target.value)} placeholder="グッズ名（例: 会場限定アクスタ）" className={inputCls} style={inputStyle} />
-                  <div className="flex gap-2">
-                    <input value={goodsPrice} onChange={(e) => setGoodsPrice(e.target.value.replace(/[^0-9]/g, ''))} inputMode="numeric" placeholder="価格（円・任意）" className={dateCls} style={inputStyle} />
-                    <input value={goodsImage} onChange={(e) => setGoodsImage(e.target.value)} inputMode="url" placeholder="画像URL（任意）" className="flex-[2] rounded-[10px] px-3 py-2.5 text-[14px] outline-none" style={inputStyle} />
-                  </div>
-                  <input value={goodsLink} onChange={(e) => setGoodsLink(e.target.value)} inputMode="url" placeholder="購入・通販リンク（任意）" className={inputCls} style={inputStyle} />
-                  <p className="text-[11px] text-label-tertiary">画像が無いときはイベントの画像を使います</p>
+              <div className="mt-3 flex flex-col gap-2">
+                <input value={goodsTitle} onChange={(e) => setGoodsTitle(e.target.value)} placeholder="グッズ名（例: 会場限定アクスタ）" className={inputCls} style={inputStyle} />
+                <div className="flex gap-2">
+                  <input value={goodsPrice} onChange={(e) => setGoodsPrice(e.target.value.replace(/[^0-9]/g, ''))} inputMode="numeric" placeholder="価格（円・任意）" className={dateCls} style={inputStyle} />
+                  <input value={goodsImage} onChange={(e) => setGoodsImage(e.target.value)} inputMode="url" placeholder="画像URL（任意）" className="flex-[2] rounded-[10px] px-3 py-2.5 text-[14px] outline-none" style={inputStyle} />
                 </div>
-              )}
+                <input value={goodsLink} onChange={(e) => setGoodsLink(e.target.value)} inputMode="url" placeholder="購入・通販リンク（任意）" className={inputCls} style={inputStyle} />
+                <p className="text-[11px] text-label-tertiary">画像が無いときはイベントの画像を使います</p>
+              </div>
             </div>
           )}
 

@@ -93,6 +93,8 @@ const SCHEMA = (memoDesc: string) => `[
     "isOrderMade": "「受注」という言葉が含まれる場合はtrue（受注生産・受注販売・受注商品・原作受注など）、それ以外はfalse",
     "preorderStart": "isOrderMade=trueの場合のみ: 予約・受付開始日をYYYY-MM-DD形式で or null",
     "preorderEnd": "isOrderMade=trueの場合のみ: 予約・受付終了日をYYYY-MM-DD形式で or null",
+    "sellsGoods": "イベント・展示・コラボ・カフェ・POP UP等で、会場や関連でグッズ・物販が販売されることが読み取れる場合はtrue（『物販』『グッズ販売』『限定グッズ』『会場限定』『グッズ受注』等）。商品そのものの投稿（categoriesがグッズ）や物販の言及が無い場合はfalse",
+    "goodsName": "sellsGoods=trueのとき、販売されるグッズの代表的な名称・種類（例: 限定アクリルスタンド, トレーディング缶バッジ）。不明ならnull",
     "memo": "${memoDesc}"
   }
 ]`;
@@ -521,6 +523,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // 受注・予約・受付期間を示す表現があれば全イベントをisOrderMade=trueに強制設定
       if (/受注|受付期間|受付開始|予約受付|予約期間|予約販売|事前予約|事前受注|抽選販売|抽選受付|抽選予約|事後通販|申込期間|お申し込み期間/.test(tweetContext)) {
         parsed.forEach(e => { (e as Record<string, unknown>).isOrderMade = true; });
+      }
+      // 会場物販を示す強い表現があれば sellsGoods=true に補完（イベント側のみ。クライアントで種別判定）
+      if (/物販|グッズ販売|販売グッズ|限定グッズ|会場限定グッズ|グッズ受注/.test(tweetContext)) {
+        parsed.forEach(e => { if ((e as Record<string, unknown>).sellsGoods == null) (e as Record<string, unknown>).sellsGoods = true; });
       }
       if (tweetImageUrl) {
         parsed.forEach(e => { (e as Record<string, unknown>).imageUrl = tweetImageUrl; });
