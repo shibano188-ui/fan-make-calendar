@@ -4,8 +4,9 @@ import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } fro
 import { ChevronRight, Bell, Crown, CalendarSync, Moon, Palette } from 'lucide-react';
 import {
   getUserPublicProfile, getHomePrefecture, saveHomePrefecture, saveDisplayName,
-  listAllParticipatedWorks, leaveCalendar, type Work,
+  listAllParticipatedWorks, leaveCalendar, listSavedEvents, type Work,
 } from '../lib/api';
+import { rescheduleAll } from '../lib/notifications';
 import { calcTitle, calcRadarData, calcGrade, type AchievementStats } from '../lib/achievements';
 import { REGIONS } from '../lib/prefectures';
 import { loadNotifyLeadDays, saveNotifyLeadDays, FEATURE_GOOGLE_CALENDAR, FEATURE_PREMIUM } from '../lib/constants';
@@ -133,8 +134,8 @@ export default function MyPage() {
         {/* 通知リードタイム */}
         <div className="flex items-center gap-2 px-3 py-2.5">
           <Bell size={16} className="text-label-secondary" />
-          <span className="text-[14px] flex-1">通知（受付開始・発売の前に）</span>
-          <select value={leadDays} onChange={(e) => { const d = Number(e.target.value); setLeadDays(d); saveNotifyLeadDays(d); }}
+          <span className="text-[14px] flex-1">通知（受付開始・締切・発売の前に）</span>
+          <select value={leadDays} onChange={(e) => { const d = Number(e.target.value); setLeadDays(d); saveNotifyLeadDays(d); if (user) listSavedEvents(user.id).then(rescheduleAll).catch(() => {}); }}
             className="bg-transparent text-[14px] outline-none" style={{ color: 'var(--input-text)' }}>
             {[1, 2, 3, 5, 7].map((d) => <option key={d} value={d}>{d}日前</option>)}
           </select>

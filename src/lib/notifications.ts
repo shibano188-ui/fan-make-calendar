@@ -5,7 +5,7 @@ import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import type { CalendarEvent } from '../types';
 import { deriveItemType } from '../design/tokens';
-import { loadNotifyEventIds } from './constants';
+import { loadNotifyEventIds, loadNotifyLeadDays } from './constants';
 
 // ローカル通知が使えるか（ネイティブ かつ プラグイン同梱の新APK）。
 // 旧APK/PWAでは false になり、機能ごと無効化される。
@@ -41,16 +41,17 @@ function triggersFor(e: CalendarEvent): Trigger[] {
   const tag = e.workName ? `【${e.workName}】` : '';
   const isGoods = deriveItemType(e) === 'goods';
   const onsaleWord = isGoods ? '発売' : '開催';
+  const lead = loadNotifyLeadDays(); // マイページの「◯日前」設定
 
   if (e.preorderStart) {
-    out.push({ kind: 'pstart', at: morningOf(e.preorderStart), title: `${tag}予約受付スタート`, body: `「${e.title}」の予約受付が始まります` });
+    out.push({ kind: 'pstart', at: morningOf(e.preorderStart, -lead), title: `${tag}受付開始まであと${lead}日`, body: `「${e.title}」の予約受付がもうすぐ始まります` });
   }
   if (e.preorderEnd) {
-    out.push({ kind: 'pend1', at: morningOf(e.preorderEnd, -1), title: `${tag}予約締切まであと1日`, body: `「${e.title}」の予約は明日まで` });
+    out.push({ kind: 'pend1', at: morningOf(e.preorderEnd, -lead), title: `${tag}予約締切まであと${lead}日`, body: `「${e.title}」の予約締切が近づいています` });
     out.push({ kind: 'pend0', at: morningOf(e.preorderEnd), title: `${tag}本日が予約締切`, body: `「${e.title}」の予約は本日までです` });
   }
   if (e.date) {
-    out.push({ kind: 'd1', at: morningOf(e.date, -1), title: `${tag}${onsaleWord}まであと1日`, body: `「${e.title}」は明日です` });
+    out.push({ kind: 'd1', at: morningOf(e.date, -lead), title: `${tag}${onsaleWord}まであと${lead}日`, body: `「${e.title}」の${onsaleWord}が近づいています` });
     out.push({ kind: 'd0', at: morningOf(e.date), title: `${tag}本日${onsaleWord}`, body: `「${e.title}」は本日です` });
   }
   return out;
