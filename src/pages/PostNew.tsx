@@ -551,9 +551,9 @@ export default function PostNew() {
           {type === 'event' && (
             <>
               <div className={labelCls}>会場・地域（任意）</div>
-              <div className="flex gap-2">
-                <input value={prefecture} onChange={(e) => setPrefecture(e.target.value)} placeholder="都道府県" className={dateCls} style={inputStyle} />
-                <input value={locationDetail} onChange={(e) => setLocationDetail(e.target.value)} placeholder="会場名" className="flex-[2] rounded-[10px] px-3 py-2.5 text-[14px] outline-none" style={inputStyle} />
+              <div className="flex flex-col gap-2">
+                <input value={prefecture} onChange={(e) => setPrefecture(e.target.value)} placeholder="都道府県" className={inputCls} style={inputStyle} />
+                <input value={locationDetail} onChange={(e) => setLocationDetail(e.target.value)} placeholder="会場名" className={inputCls} style={inputStyle} />
               </div>
             </>
           )}
