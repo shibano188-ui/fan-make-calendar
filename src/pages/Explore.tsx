@@ -9,6 +9,7 @@ import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveItemType, deriveStatus, todayStr, STATUS, type ItemStatus, type ItemType } from '../design/tokens';
 import { listExploreEvents, getHomePrefecture, searchWorks, listAllParticipatedWorks, upsertParticipation, leaveCalendar, toggleLike, toggleCalendarAdd, listLikedEventIds, type Work } from '../lib/api';
 import { parseCategories, loadSeenEventIds, saveSeenEventIds, isNewItem, GOODS_TAG } from '../lib/constants';
+import { getCached, setCached } from '../lib/swrCache';
 import { resolveBuy } from '../lib/affiliate';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
@@ -144,22 +145,34 @@ export default function Explore() {
 
   useEffect(() => {
     let alive = true;
-    (async () => {
-      try {
-        const data = await listExploreEvents(shiftMonths(today, -12), shiftMonths(today, 18));
-        if (alive) setItems(data);
-      } catch {
-        if (alive) setItems([]);
-      }
-    })();
+    const from = shiftMonths(today, -12), to = shiftMonths(today, 18);
+    const key = `explore-events:${from}_${to}`;
+    // キャッシュを即表示し、裏で再取得して最新化（Homeタブと共有）
+    const cached = getCached<CalendarEvent[]>(key);
+    if (cached) setItems(cached);
+    listExploreEvents(from, to)
+      .then((data) => { if (!alive) return; setItems(data); setCached(key, data); })
+      .catch(() => { if (alive) setItems((prev) => prev ?? []); });
     return () => { alive = false; };
   }, [today]);
 
   useEffect(() => { if (user) getHomePrefecture(user.id).then(setHomePref).catch(() => {}); }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { if (user) listAllParticipatedWorks(user.id).then((ws) => setFollowed(new Set(ws.map((w) => w.id)))).catch(() => {}); }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!user) return;
+    const fkey = `follows:${user.id}`;
+    const cachedF = getCached<Work[]>(fkey);
+    if (cachedF) setFollowed(new Set(cachedF.map((w) => w.id)));
+    listAllParticipatedWorks(user.id).then((ws) => { setFollowed(new Set(ws.map((w) => w.id))); setCached(fkey, ws); }).catch(() => {});
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { if (user) listLikedEventIds(user.id).then(setLikedIds).catch(() => {}); }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!user) return;
+    const lkey = `liked:${user.id}`;
+    const cachedL = getCached<string[]>(lkey);
+    if (cachedL) setLikedIds(new Set(cachedL));
+    listLikedEventIds(user.id).then((ids) => { setLikedIds(ids); setCached(lkey, [...ids]); }).catch(() => {});
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 検索語が作品にヒットしたら、フォロー切替パネルを上部に出す
   useEffect(() => {

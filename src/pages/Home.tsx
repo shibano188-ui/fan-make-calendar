@@ -7,6 +7,7 @@ import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveStatus, deriveItemType, todayStr } from '../design/tokens';
 import { loadSeenEventIds, isNewItem } from '../lib/constants';
 import { listExploreEvents, getHomePrefecture, listAllParticipatedWorks, toggleLike, toggleCalendarAdd, listLikedEventIds, type Work } from '../lib/api';
+import { getCached, setCached } from '../lib/swrCache';
 import { resolveBuy } from '../lib/affiliate';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
@@ -67,15 +68,27 @@ export default function Home() {
 
   useEffect(() => {
     let alive = true;
-    listExploreEvents(shiftMonths(today, -12), shiftMonths(today, 18)).then((d) => alive && setItems(d)).catch(() => alive && setItems([]));
+    const from = shiftMonths(today, -12), to = shiftMonths(today, 18);
+    const key = `explore-events:${from}_${to}`;
+    // キャッシュを即表示し、裏で再取得して最新化（Exploreタブと共有）
+    const cached = getCached<CalendarEvent[]>(key);
+    if (cached) setItems(cached);
+    listExploreEvents(from, to)
+      .then((d) => { if (!alive) return; setItems(d); setCached(key, d); })
+      .catch(() => { if (alive) setItems((prev) => prev ?? []); });
     return () => { alive = false; };
   }, [today]);
 
   useEffect(() => {
     if (!user) return;
-    listAllParticipatedWorks(user.id).then((ws) => { setFollows(ws); setFollowIds(new Set(ws.map((w) => w.id))); }).catch(() => {});
+    const fkey = `follows:${user.id}`, lkey = `liked:${user.id}`;
+    const cachedF = getCached<Work[]>(fkey);
+    if (cachedF) { setFollows(cachedF); setFollowIds(new Set(cachedF.map((w) => w.id))); }
+    const cachedL = getCached<string[]>(lkey);
+    if (cachedL) setLikedIds(new Set(cachedL));
+    listAllParticipatedWorks(user.id).then((ws) => { setFollows(ws); setFollowIds(new Set(ws.map((w) => w.id))); setCached(fkey, ws); }).catch(() => {});
     getHomePrefecture(user.id).then(setHomePref).catch(() => {});
-    listLikedEventIds(user.id).then(setLikedIds).catch(() => {});
+    listLikedEventIds(user.id).then((ids) => { setLikedIds(ids); setCached(lkey, [...ids]); }).catch(() => {});
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const nearPrefs = useMemo(() => {
