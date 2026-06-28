@@ -2,8 +2,9 @@ import { useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, CalendarDays, CalendarCheck } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from './item/ItemCard';
-import { deriveStatus, todayStr, STATUS } from '../design/tokens';
+import { todayStr } from '../design/tokens';
 import { haptic } from '../lib/haptics';
+import { buildWorkColorMap } from '../lib/workColors';
 
 type Scope = 'month' | 'week' | 'day';
 
@@ -26,10 +27,6 @@ function startOfWeek(s: string): string {
   const d = parse(s);
   return addDays(s, -d.getDay());
 }
-function dotColor(e: CalendarEvent): string {
-  return STATUS[deriveStatus(e)].color;
-}
-
 /** 横スワイプで前後ナビ。左→次・右→前。縦スクロールは阻害しない。 */
 function useSwipe(onPrev: () => void, onNext: () => void) {
   const start = useRef<{ x: number; y: number } | null>(null);
@@ -76,18 +73,28 @@ export default function SavedCalendar({ events, scope, onOpen, onLike, onCalenda
   // 日付未定の保存分（カレンダーに乗らないので別枠で件数表示）
   const undated = useMemo(() => events.filter((e) => !e.date), [events]);
 
+  // 作品色マップ（未割当はパレットから付与して永続化）→ ドット・タイルの色に使う
+  const workColorMap = useMemo(() => {
+    const works = Array.from(
+      new Map(events.filter((e) => e.workId).map((e) => [e.workId!, { id: e.workId! }])).values(),
+    );
+    return buildWorkColorMap(works);
+  }, [events]);
+  const colorOf = (e: CalendarEvent): string =>
+    e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
+
   return (
     <div className="pb-4">
       {scope === 'month' && (
-        <MonthView events={events} anchor={anchor} setAnchor={setAnchor} today={today}
+        <MonthView events={events} anchor={anchor} setAnchor={setAnchor} today={today} colorOf={colorOf}
           onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} onBuy={onBuy} />
       )}
       {scope === 'week' && (
-        <WeekView events={events} anchor={anchor} setAnchor={setAnchor} today={today}
+        <WeekView events={events} anchor={anchor} setAnchor={setAnchor} today={today} colorOf={colorOf}
           onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} onBuy={onBuy} />
       )}
       {scope === 'day' && (
-        <DayView events={events} anchor={anchor} setAnchor={setAnchor} today={today}
+        <DayView events={events} anchor={anchor} setAnchor={setAnchor} today={today} colorOf={colorOf}
           onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} onBuy={onBuy} />
       )}
 
@@ -96,7 +103,7 @@ export default function SavedCalendar({ events, scope, onOpen, onLike, onCalenda
           <div className="px-1 text-[12px] text-label-secondary mb-2">日付未定 {undated.length}件</div>
           <div className="flex flex-col gap-2">
             {undated.map((e) => (
-              <ItemCard key={e.id} event={e} layout="list" likedInit={e.likedByMe}
+              <ItemCard key={e.id} event={e} layout="list" likedInit={e.likedByMe} workColor={colorOf(e)}
                 onOpen={() => onOpen(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onBuy={() => onBuy(e)} />
             ))}
           </div>
@@ -131,13 +138,14 @@ type ViewProps = {
   anchor: string;
   setAnchor: (s: string) => void;
   today: string;
+  colorOf: (e: CalendarEvent) => string;
   onOpen: (e: CalendarEvent) => void;
   onLike: (e: CalendarEvent) => void;
   onCalendar: (e: CalendarEvent) => void;
   onBuy: (e: CalendarEvent) => void;
 };
 
-function MonthView({ events, anchor, setAnchor, today, onOpen, onLike, onCalendar, onBuy }: ViewProps) {
+function MonthView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, onCalendar, onBuy }: ViewProps) {
   const cur = parse(anchor);
   const year = cur.getFullYear();
   const month = cur.getMonth();
@@ -188,7 +196,7 @@ function MonthView({ events, anchor, setAnchor, today, onOpen, onLike, onCalenda
               </span>
               <div className="flex flex-wrap justify-center gap-[2px] mt-1 px-0.5">
                 {dayEvents.slice(0, 4).map((e) => (
-                  <span key={e.id} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: dotColor(e) }} />
+                  <span key={e.id} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: colorOf(e) }} />
                 ))}
               </div>
             </button>
@@ -199,13 +207,13 @@ function MonthView({ events, anchor, setAnchor, today, onOpen, onLike, onCalenda
       {/* 選択日の予定 */}
       <div className="mt-4">
         <DayHeading day={selected} count={selectedEvents.length} />
-        <DayList events={selectedEvents} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} onBuy={onBuy} />
+        <DayList events={selectedEvents} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} onBuy={onBuy} />
       </div>
     </div>
   );
 }
 
-function WeekView({ events, anchor, setAnchor, today, onOpen, onLike, onCalendar, onBuy }: ViewProps) {
+function WeekView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, onCalendar, onBuy }: ViewProps) {
   const weekStart = startOfWeek(anchor);
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const end = days[6];
@@ -222,7 +230,7 @@ function WeekView({ events, anchor, setAnchor, today, onOpen, onLike, onCalendar
         {days.map((day) => (
           <div key={day}>
             <DayHeading day={day} count={eventsOnDay(events, day).length} isToday={day === today} />
-            <DayList events={eventsOnDay(events, day)} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} onBuy={onBuy} />
+            <DayList events={eventsOnDay(events, day)} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} onBuy={onBuy} />
           </div>
         ))}
       </div>
@@ -230,7 +238,7 @@ function WeekView({ events, anchor, setAnchor, today, onOpen, onLike, onCalendar
   );
 }
 
-function DayView({ events, anchor, setAnchor, today, onOpen, onLike, onCalendar, onBuy }: ViewProps) {
+function DayView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, onCalendar, onBuy }: ViewProps) {
   const d = parse(anchor);
   const label = `${d.getMonth() + 1}月${d.getDate()}日（${WEEKDAYS[d.getDay()]}）`;
   const dayEvents = eventsOnDay(events, anchor);
@@ -242,7 +250,7 @@ function DayView({ events, anchor, setAnchor, today, onOpen, onLike, onCalendar,
       <NavHeader label={label}
         onPrev={goPrev} onNext={goNext}
         onToday={() => setAnchor(today)} />
-      <DayList events={dayEvents} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} onBuy={onBuy} />
+      <DayList events={dayEvents} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} onBuy={onBuy} />
     </div>
   );
 }
@@ -262,7 +270,7 @@ function DayHeading({ day, count, isToday }: { day: string; count: number; isTod
   );
 }
 
-function DayList({ events, onOpen, onLike, onCalendar, onBuy }: { events: CalendarEvent[] } & Pick<ViewProps, 'onOpen' | 'onLike' | 'onCalendar' | 'onBuy'>) {
+function DayList({ events, colorOf, onOpen, onLike, onCalendar, onBuy }: { events: CalendarEvent[] } & Pick<ViewProps, 'colorOf' | 'onOpen' | 'onLike' | 'onCalendar' | 'onBuy'>) {
   if (events.length === 0) {
     return (
       <div className="flex items-center gap-2 text-[12px] text-label-tertiary py-3 px-1">
@@ -273,7 +281,7 @@ function DayList({ events, onOpen, onLike, onCalendar, onBuy }: { events: Calend
   return (
     <div className="flex flex-col gap-2">
       {events.map((e) => (
-        <ItemCard key={e.id} event={e} layout="list" likedInit={e.likedByMe}
+        <ItemCard key={e.id} event={e} layout="list" likedInit={e.likedByMe} workColor={colorOf(e)}
           onOpen={() => onOpen(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onBuy={() => onBuy(e)} />
       ))}
     </div>
