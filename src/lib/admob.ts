@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
-import { AdMob, BannerAdSize, BannerAdPosition } from '@capacitor-community/admob';
+import type { PluginListenerHandle } from '@capacitor/core';
+import { AdMob, BannerAdSize, BannerAdPosition, BannerAdPluginEvents } from '@capacitor-community/admob';
 
 const BANNER_AD_ID = 'ca-app-pub-3561970163550872/2802130602';
 
@@ -22,4 +23,15 @@ export async function showBanner(margin = 0) {
 export async function hideBanner() {
   if (!Capacitor.isNativePlatform()) return;
   await AdMob.hideBanner();
+}
+
+/** アダプティブバナーの実測高さ(px)を購読する。Web版では何もしない。 */
+export async function onBannerSize(
+  cb: (height: number) => void,
+): Promise<PluginListenerHandle | null> {
+  if (!Capacitor.isNativePlatform()) return null;
+  return AdMob.addListener(
+    BannerAdPluginEvents.SizeChanged,
+    (info: { width: number; height: number }) => cb(info.height),
+  );
 }
