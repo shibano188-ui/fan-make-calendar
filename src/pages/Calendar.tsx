@@ -36,7 +36,7 @@ import {
   POST_CATEGORIES, GOODS_PARENT, GOODS_SUBCATEGORIES, isGoodsSubcategory, normalizeGoodsCategories,
   loadCategoryFilters, saveCategoryFilters,
   loadCalendarEventIds, saveCalendarEventIds, removeCalendarEventId,
-  parseLinks, serializeLinks, getPrimaryCategoryColor,
+  parseLinks, serializeLinks,
   parseCategories, serializeCategories,
   loadImportantEventIds, saveImportantEventIds, toggleImportantEventId,
   type FilterMode, saveRegionFilter, loadRegionFilter,
@@ -1791,9 +1791,9 @@ export default function Calendar() {
       map.set(d, arr);
     };
     for (const e of visibleEvents) {
-      // タイル色: 作品色、ドット色: カテゴリ色（なければ作品色）
+      // タイル色・ドット色とも作品色
       const workColor = e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
-      const dotColor = getPrimaryCategoryColor(e.category) ?? workColor;
+      const dotColor = workColor;
       const important = importantEventIds.has(e.id);
       if (e.dateLabel) continue;
       if (e.date && e.endDate && e.endDate > e.date) {
@@ -1812,7 +1812,7 @@ export default function Calendar() {
     if (!workId) {
       for (const pe of monthPersonalEvents) {
         if (pe.dateLabel) continue;
-        const dotColor = getPrimaryCategoryColor(pe.category) ?? '#888888';
+        const dotColor = '#888888';
         const important = importantEventIds.has(pe.id);
         if (pe.endDate && pe.endDate > pe.date) {
           let cur = pe.date;
@@ -1862,13 +1862,13 @@ export default function Calendar() {
     for (const e of visibleEvents) {
       if (e.date && e.endDate && e.endDate > e.date) {
         const workColor = e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
-        rawEvts.push({ eventId: e.id, startDate: e.date, endDate: e.endDate, title: e.title, color: workColor, dotColor: getPrimaryCategoryColor(e.category) ?? workColor, important: importantEventIds.has(e.id) });
+        rawEvts.push({ eventId: e.id, startDate: e.date, endDate: e.endDate, title: e.title, color: workColor, dotColor: workColor, important: importantEventIds.has(e.id) });
       }
     }
     if (!workId) {
       for (const pe of monthPersonalEvents) {
         if (pe.endDate && pe.endDate > pe.date) {
-          rawEvts.push({ eventId: pe.id, startDate: pe.date, endDate: pe.endDate, title: pe.title, color: '#888888', dotColor: getPrimaryCategoryColor(pe.category) ?? '#888888', important: importantEventIds.has(pe.id) });
+          rawEvts.push({ eventId: pe.id, startDate: pe.date, endDate: pe.endDate, title: pe.title, color: '#888888', dotColor: '#888888', important: importantEventIds.has(pe.id) });
         }
       }
     }
