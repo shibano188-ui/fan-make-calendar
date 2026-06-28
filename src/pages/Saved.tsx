@@ -10,6 +10,7 @@ import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveStatus, todayStr, STATUS, type ItemStatus } from '../design/tokens';
 import { listSavedEvents, getHomePrefecture, toggleLike, toggleCalendarAdd } from '../lib/api';
 import { parseCategories } from '../lib/constants';
+import { buildWorkColorMap } from '../lib/workColors';
 import { resolveBuy } from '../lib/affiliate';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useAuth } from '../contexts/AuthContext';
@@ -108,6 +109,14 @@ export default function Saved() {
       });
     });
   };
+
+  // 保存中の予定に出てくる作品の色マップ（未割当はパレットから付与して永続化）
+  const workColorMap = useMemo(() => {
+    const works = Array.from(
+      new Map((items ?? []).filter((e) => e.workId).map((e) => [e.workId!, { id: e.workId! }])).values(),
+    );
+    return buildWorkColorMap(works);
+  }, [items]);
 
   // スコープ（すべて / いいね / 自分の投稿）→ 検索語 で絞った集合
   const scopeItems = useMemo(() => {
@@ -300,6 +309,7 @@ export default function Saved() {
         <div className="flex flex-col gap-2 pb-4">
           {listItems.map((e) => (
             <ItemCard key={e.id} event={e} layout="list" likedInit={e.likedByMe}
+              workColor={e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)'}
               onOpen={() => navigate(`/item/${e.id}`)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onBuy={() => onBuy(e)} />
           ))}
         </div>

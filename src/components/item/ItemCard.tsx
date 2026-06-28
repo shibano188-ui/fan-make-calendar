@@ -12,6 +12,8 @@ interface Props {
   layout?: 'grid' | 'list';
   isNew?: boolean;
   likedInit?: boolean;
+  /** 作品ごとの色。カード左端の縦バーで示す。未指定なら表示しない。 */
+  workColor?: string;
   onOpen?: () => void;
   onLike?: () => void | Promise<{ liked: boolean; count: number } | void>;
   onCalendar?: () => void;
@@ -36,7 +38,7 @@ function CategoryLine({ event }: { event: CalendarEvent }) {
 }
 
 /** 探す/ホームの基本カード。メルカリ流＝画像が主役・価格を最強・枠線で区切り。 */
-export default function ItemCard({ event, layout = 'grid', isNew, likedInit, onOpen, onLike, onBuy }: Props) {
+export default function ItemCard({ event, layout = 'grid', isNew, likedInit, workColor, onOpen, onLike, onBuy }: Props) {
   const type = deriveItemType(event);
   const status = deriveStatus(event);
   const price = yen(event.price);
@@ -83,7 +85,8 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, onO
 
   if (layout === 'list') {
     return (
-      <div className="rounded-[12px] border border-subtle overflow-hidden bg-bg-secondary p-2 flex gap-3">
+      <div className="rounded-[12px] border border-subtle overflow-hidden bg-bg-secondary p-2 flex gap-3"
+        style={workColor ? { borderLeft: `3px solid ${workColor}` } : undefined}>
         <button onClick={onOpen} className="pressable flex-shrink-0 w-24 h-24 rounded-[8px] overflow-hidden">{Thumb}</button>
         <div className="flex-1 min-w-0 flex flex-col">
           <button onClick={onOpen} className="pressable text-left">
@@ -101,7 +104,8 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, onO
 
   // grid（枠線つきカード・画像は正方形で固定・アクションは必ず最下段）
   return (
-    <div className="flex flex-col h-full rounded-[12px] border border-subtle overflow-hidden bg-bg-secondary">
+    <div className="flex flex-col h-full rounded-[12px] border border-subtle overflow-hidden bg-bg-secondary"
+      style={workColor ? { borderLeft: `3px solid ${workColor}` } : undefined}>
       <button onClick={onOpen} className="pressable text-left flex flex-col">
         <div className="w-full aspect-square">{Thumb}</div>
         <div className="px-2 pt-1.5">

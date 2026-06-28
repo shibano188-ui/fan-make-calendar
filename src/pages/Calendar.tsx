@@ -57,12 +57,8 @@ import { haptic } from '../lib/haptics';
 const DAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
 
 // 作品ごとの識別カラー（先頭8色は従来通り。9作品目以降の同色衝突を避けるため追加色を後ろに足す）
-export const WORK_COLORS = [
-  '#FF6B6B', '#4FC3F7', '#81C784', '#FFB74D',
-  '#BA68C8', '#4DB6AC', '#F06292', '#A1887F',
-  '#7986CB', '#9CCC65', '#FF8A65', '#4DD0E1',
-  '#DCE775', '#BA8FD0', '#90A4AE', '#F48FB1',
-];
+import { WORK_COLORS, buildWorkColorMap } from '../lib/workColors';
+export { WORK_COLORS };
 
 const REACTIONS_KEY = 'fan_reactions';
 function loadMyReactions(): Record<string, ReactionType> {
@@ -1783,28 +1779,7 @@ export default function Calendar() {
   }, [personalEvents, year, month]);
 
   // 作品ID → カラーのマップ（localStorage の fan_work_colors を優先）
-  const workColorMap = useMemo(() => {
-    const saved: Record<string, string> = (() => {
-      try { return JSON.parse(localStorage.getItem('fan_work_colors') ?? '{}'); } catch { return {}; }
-    })();
-    const usedColors = new Set<string>(
-      participatedWorks.filter(w => saved[w.id]).map(w => saved[w.id]),
-    );
-    const updated = { ...saved };
-    let hasNew = false;
-    const m = new Map<string, string>();
-    participatedWorks.forEach(w => {
-      if (!updated[w.id]) {
-        const color = WORK_COLORS.find(c => !usedColors.has(c)) ?? WORK_COLORS[0];
-        updated[w.id] = color;
-        usedColors.add(color);
-        hasNew = true;
-      }
-      m.set(w.id, updated[w.id]);
-    });
-    if (hasNew) localStorage.setItem('fan_work_colors', JSON.stringify(updated));
-    return m;
-  }, [participatedWorks]);
+  const workColorMap = useMemo(() => buildWorkColorMap(participatedWorks), [participatedWorks]);
 
   // カレンダーセル用: 日付→{title, color, position?, eventId}[]
   type CellItem = { title: string; color: string; dotColor: string; position?: 'start' | 'middle' | 'end'; eventId: string; important?: boolean; fuzzy?: boolean };

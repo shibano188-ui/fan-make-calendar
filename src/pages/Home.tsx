@@ -8,6 +8,7 @@ import { deriveStatus, deriveItemType, todayStr } from '../design/tokens';
 import { loadSeenEventIds, isNewItem } from '../lib/constants';
 import { listExploreEvents, getHomePrefecture, listAllParticipatedWorks, toggleLike, toggleCalendarAdd, listLikedEventIds, type Work } from '../lib/api';
 import { getCached, setCached } from '../lib/swrCache';
+import { buildWorkColorMap } from '../lib/workColors';
 import { resolveBuy } from '../lib/affiliate';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
@@ -22,8 +23,8 @@ function shiftMonths(base: string, n: number): string {
   return todayStr(d);
 }
 
-function Section({ title, items, seen, likedIds, onOpen, onBuy, onLike, onCalendar }: {
-  title: string; items: CalendarEvent[]; seen: Set<string>; likedIds: Set<string>;
+function Section({ title, items, seen, likedIds, workColorMap, onOpen, onBuy, onLike, onCalendar }: {
+  title: string; items: CalendarEvent[]; seen: Set<string>; likedIds: Set<string>; workColorMap: Map<string, string>;
   onOpen: (e: CalendarEvent) => void; onBuy: (e: CalendarEvent) => void;
   onLike: (e: CalendarEvent) => void | Promise<{ liked: boolean; count: number } | void>; onCalendar: (e: CalendarEvent) => void;
 }) {
@@ -34,7 +35,7 @@ function Section({ title, items, seen, likedIds, onOpen, onBuy, onLike, onCalend
       <div className="flex gap-2 overflow-x-auto no-scrollbar px-3">
         {items.map((e) => (
           <div key={e.id} className="w-36 flex-shrink-0">
-            <ItemCard event={e} layout="grid" isNew={isNewItem(e.id, e.createdAt, seen)} likedInit={likedIds.has(e.id)} onOpen={() => onOpen(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onBuy={() => onBuy(e)} />
+            <ItemCard event={e} layout="grid" isNew={isNewItem(e.id, e.createdAt, seen)} likedInit={likedIds.has(e.id)} workColor={e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)'} onOpen={() => onOpen(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onBuy={() => onBuy(e)} />
           </div>
         ))}
       </div>
@@ -113,6 +114,7 @@ export default function Home() {
     return { preorderSoon, followNew, nearby, popular };
   }, [items, followIds, nearPrefs]);
 
+  const workColorMap = useMemo(() => buildWorkColorMap(follows), [follows]);
   const seen = useMemo(() => loadSeenEventIds(), [items]);
   const onOpen = (e: CalendarEvent) => navigate(`/item/${e.id}`);
   const onBuy = (e: CalendarEvent) => { haptic.select(); const { url } = resolveBuy(e); if (url) window.open(url, '_blank', 'noopener'); };
@@ -172,10 +174,10 @@ export default function Home() {
         <p className="text-center text-label-secondary text-[13px] py-20">おすすめがまだありません。<br />「探す」から見てみてください。</p>
       ) : (
         <div className="pb-4">
-          <Section title="もうすぐ受付開始" items={sections.preorderSoon} seen={seen} likedIds={likedIds} onOpen={onOpen} onBuy={onBuy} onLike={onLike} onCalendar={onCalendar} />
-          <Section title="フォロー作品の新着" items={sections.followNew} seen={seen} likedIds={likedIds} onOpen={onOpen} onBuy={onBuy} onLike={onLike} onCalendar={onCalendar} />
-          <Section title="近くのイベント" items={sections.nearby} seen={seen} likedIds={likedIds} onOpen={onOpen} onBuy={onBuy} onLike={onLike} onCalendar={onCalendar} />
-          <Section title="人気" items={sections.popular} seen={seen} likedIds={likedIds} onOpen={onOpen} onBuy={onBuy} onLike={onLike} onCalendar={onCalendar} />
+          <Section title="もうすぐ受付開始" items={sections.preorderSoon} seen={seen} likedIds={likedIds} workColorMap={workColorMap} onOpen={onOpen} onBuy={onBuy} onLike={onLike} onCalendar={onCalendar} />
+          <Section title="フォロー作品の新着" items={sections.followNew} seen={seen} likedIds={likedIds} workColorMap={workColorMap} onOpen={onOpen} onBuy={onBuy} onLike={onLike} onCalendar={onCalendar} />
+          <Section title="近くのイベント" items={sections.nearby} seen={seen} likedIds={likedIds} workColorMap={workColorMap} onOpen={onOpen} onBuy={onBuy} onLike={onLike} onCalendar={onCalendar} />
+          <Section title="人気" items={sections.popular} seen={seen} likedIds={likedIds} workColorMap={workColorMap} onOpen={onOpen} onBuy={onBuy} onLike={onLike} onCalendar={onCalendar} />
         </div>
       )}
     </div>
