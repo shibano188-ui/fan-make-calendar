@@ -28,12 +28,17 @@ export default function Header({ title, subtitle, subtitleNode, onBack, closeMod
   };
 
   const py = compact ? 'py-1' : 'py-2';
+  // ステータスバーへの被り防止（Android edge-to-edge）。py の基準値に env を加算。
+  const safeTopStyle: React.CSSProperties = {
+    ...headerStyle,
+    paddingTop: `calc(env(safe-area-inset-top) + ${compact ? 4 : 8}px)`,
+  };
 
   if (leftNode !== undefined) {
     return (
       <header
         className={`flex items-center justify-between px-4 ${py} border-b border-separator`}
-        style={headerStyle}
+        style={safeTopStyle}
       >
         <div className="flex-1 flex items-center min-w-0">
           {leftNode}
@@ -50,7 +55,7 @@ export default function Header({ title, subtitle, subtitleNode, onBack, closeMod
   return (
     <header
       className={`flex items-center px-4 ${py} border-b border-separator`}
-      style={headerStyle}
+      style={safeTopStyle}
     >
       <div className="flex-1 flex items-center">
         <button

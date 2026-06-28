@@ -222,7 +222,7 @@ export default function ItemDetail() {
     <div ref={rootRef} className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--bg-primary)' }}>
       <div className="mx-auto w-full max-w-app flex-1 flex flex-col">
         {/* ヘッダー */}
-        <div className="sticky top-0 z-20 flex items-center px-2 py-2" style={{ backgroundColor: 'color-mix(in srgb, var(--bg-primary) 88%, transparent)', backdropFilter: 'blur(20px)' }}>
+        <div className="sticky top-0 z-20 flex items-center px-2 py-2" style={{ backgroundColor: 'color-mix(in srgb, var(--bg-primary) 88%, transparent)', backdropFilter: 'blur(20px)', paddingTop: 'calc(env(safe-area-inset-top) + 8px)' }}>
           <button onClick={() => navigate(-1)} aria-label="戻る" className="pressable tap-44 p-2"><ArrowLeft size={22} /></button>
         </div>
 

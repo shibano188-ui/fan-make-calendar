@@ -8,7 +8,7 @@ import {
 } from '../lib/api';
 import { calcTitle, calcRadarData, calcGrade, type AchievementStats } from '../lib/achievements';
 import { REGIONS } from '../lib/prefectures';
-import { loadNotifyLeadDays, saveNotifyLeadDays } from '../lib/constants';
+import { loadNotifyLeadDays, saveNotifyLeadDays, FEATURE_GOOGLE_CALENDAR, FEATURE_PREMIUM } from '../lib/constants';
 import { isGoogleConfigured, isGoogleLinked, linkGoogle, unlinkGoogle } from '../lib/googleCalendar';
 import { useTheme, type ThemeMode } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -62,7 +62,7 @@ export default function MyPage() {
   const onLeave = async (workId: string) => { if (!user) return; haptic.select(); setWorks((prev) => prev.filter((w) => w.id !== workId)); await leaveCalendar(workId, user.id); };
 
   return (
-    <div className="px-4 pt-4 pb-4">
+    <div className="px-4 pt-4 pb-4" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 16px)' }}>
       {/* プロフィール */}
       <div className="flex items-center gap-3">
         <div className="w-16 h-16 rounded-full flex items-center justify-center text-[32px]" style={{ backgroundColor: 'var(--fill-tertiary)' }}>{avatar ?? '🐝'}</div>
@@ -139,8 +139,8 @@ export default function MyPage() {
             {[1, 2, 3, 5, 7].map((d) => <option key={d} value={d}>{d}日前</option>)}
           </select>
         </div>
-        {/* Googleカレンダー連携 */}
-        {isGoogleConfigured() ? (
+        {/* Googleカレンダー連携（実装完了まで「近日」固定） */}
+        {FEATURE_GOOGLE_CALENDAR && isGoogleConfigured() ? (
           <div className="flex items-center gap-2 px-3 py-2.5">
             <CalendarSync size={16} className="text-label-secondary" />
             <span className="text-[14px] flex-1">Googleカレンダー連携</span>
@@ -156,11 +156,13 @@ export default function MyPage() {
             <span className="text-[11px] text-label-tertiary">近日</span>
           </div>
         )}
-        {/* プレミアム */}
+        {/* プレミアム（実装完了まで「近日」固定・操作不可） */}
         <div className="flex items-center gap-2 px-3 py-2.5 opacity-50">
           <Crown size={16} style={{ color: 'var(--accent-color)' }} />
           <span className="text-[14px] flex-1">プレミアム</span>
-          <ChevronRight size={16} className="text-label-tertiary" />
+          {FEATURE_PREMIUM
+            ? <ChevronRight size={16} className="text-label-tertiary" />
+            : <span className="text-[11px] text-label-tertiary">近日</span>}
         </div>
       </div>
 
@@ -183,6 +185,9 @@ export default function MyPage() {
           </div>
         )
       )}
+
+      {/* ビルド刻印（キャッシュ判別用）。最新版が動いているか端末で確認できる。 */}
+      <p className="mt-8 text-center text-[10px] text-label-tertiary">build {__BUILD_TIME__}</p>
     </div>
   );
 }

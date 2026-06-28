@@ -73,6 +73,28 @@ function AdMobController() {
   return null;
 }
 
+// Androidの戻る（エッジスワイプ／ハードウェアキー）を購読し、
+// 履歴があれば前の画面へ戻る。ルートタブ（ホーム/探す/いいね/マイページ）では
+// 戻り先が無いのでアプリを終了する。未購読だと既定で即終了してしまうため必須。
+const ROOT_PATHS = ['/', '/explore', '/saved', '/mypage'];
+function BackButtonHandler() {
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let remove: (() => void) | undefined;
+    (async () => {
+      const { App } = await import('@capacitor/app');
+      const handle = await App.addListener('backButton', ({ canGoBack }) => {
+        const atRoot = ROOT_PATHS.includes(window.location.pathname);
+        if (!atRoot && canGoBack) window.history.back();
+        else App.exitApp();
+      });
+      remove = () => handle.remove();
+    })();
+    return () => { remove?.(); };
+  }, []);
+  return null;
+}
+
 // 初回起動時、デフォルト作品（ちいかわ・ハイキュー!!）に自動参加させる。
 // 端末ごとに1回だけ。以後ユーザーが脱退しても再追加はしない。
 function DefaultWorksJoiner() {
@@ -102,6 +124,7 @@ export default function App() {
         <ToastProvider>
           <AndroidShareHandler />
           <AdMobController />
+          <BackButtonHandler />
           <DefaultWorksJoiner />
           <Suspense fallback={<PageLoader />}>
             <Routes>

@@ -329,7 +329,7 @@ export default function PostNew() {
     <div ref={rootRef} className="min-h-screen" style={{ backgroundColor: 'var(--bg-primary)' }}>
       <div className="mx-auto w-full max-w-app">
         {/* ヘッダー */}
-        <div className="sticky top-0 z-20 flex items-center justify-between px-3 py-2.5 border-b border-subtle" style={{ backgroundColor: 'var(--bg-primary)' }}>
+        <div className="sticky top-0 z-20 flex items-center justify-between px-3 py-2.5 border-b border-subtle" style={{ backgroundColor: 'var(--bg-primary)', paddingTop: 'calc(env(safe-area-inset-top) + 10px)' }}>
           {/* 入力中(キーボード表示中)は最初のタップがblurに食われて閉じないため pointerDown で確実に閉じる */}
           <button onPointerDown={(e) => { e.preventDefault(); onClose(); }} aria-label="閉じる" className="pressable tap-44 p-1"><X size={22} /></button>
           <span className="font-semibold">投稿</span>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, CalendarDays, CalendarCheck } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from './item/ItemCard';
@@ -28,6 +28,27 @@ function startOfWeek(s: string): string {
 }
 function dotColor(e: CalendarEvent): string {
   return STATUS[deriveStatus(e)].color;
+}
+
+/** 横スワイプで前後ナビ。左→次・右→前。縦スクロールは阻害しない。 */
+function useSwipe(onPrev: () => void, onNext: () => void) {
+  const start = useRef<{ x: number; y: number } | null>(null);
+  return {
+    onTouchStart: (e: React.TouchEvent) => {
+      const t = e.touches[0];
+      start.current = { x: t.clientX, y: t.clientY };
+    },
+    onTouchEnd: (e: React.TouchEvent) => {
+      if (!start.current) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - start.current.x;
+      const dy = t.clientY - start.current.y;
+      start.current = null;
+      if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      haptic.select();
+      if (dx < 0) onNext(); else onPrev();
+    },
+  };
 }
 
 /** その日に掛かる予定（date〜endDate の範囲に含まれるもの）。 */
@@ -125,12 +146,14 @@ function MonthView({ events, anchor, setAnchor, today, onOpen, onLike, onCalenda
   const days = useMemo(() => Array.from({ length: 42 }, (_, i) => addDays(gridStart, i)), [gridStart]);
   const selected = anchor;
   const selectedEvents = useMemo(() => eventsOnDay(events, selected), [events, selected]);
+  const goPrev = () => setAnchor(addMonths(anchor, -1));
+  const goNext = () => setAnchor(addMonths(anchor, 1));
+  const swipe = useSwipe(goPrev, goNext);
 
   return (
-    <div>
+    <div {...swipe}>
       <NavHeader label={`${year}年${month + 1}月`}
-        onPrev={() => setAnchor(addMonths(anchor, -1))}
-        onNext={() => setAnchor(addMonths(anchor, 1))}
+        onPrev={goPrev} onNext={goNext}
         onToday={() => setAnchor(today)} />
 
       {/* 曜日見出し */}
@@ -187,11 +210,13 @@ function WeekView({ events, anchor, setAnchor, today, onOpen, onLike, onCalendar
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const end = days[6];
   const label = `${parse(weekStart).getMonth() + 1}/${parse(weekStart).getDate()}〜${parse(end).getMonth() + 1}/${parse(end).getDate()}`;
+  const goPrev = () => setAnchor(addDays(weekStart, -7));
+  const goNext = () => setAnchor(addDays(weekStart, 7));
+  const swipe = useSwipe(goPrev, goNext);
   return (
-    <div>
+    <div {...swipe}>
       <NavHeader label={label}
-        onPrev={() => setAnchor(addDays(weekStart, -7))}
-        onNext={() => setAnchor(addDays(weekStart, 7))}
+        onPrev={goPrev} onNext={goNext}
         onToday={() => setAnchor(today)} />
       <div className="flex flex-col gap-4">
         {days.map((day) => (
@@ -209,11 +234,13 @@ function DayView({ events, anchor, setAnchor, today, onOpen, onLike, onCalendar,
   const d = parse(anchor);
   const label = `${d.getMonth() + 1}月${d.getDate()}日（${WEEKDAYS[d.getDay()]}）`;
   const dayEvents = eventsOnDay(events, anchor);
+  const goPrev = () => setAnchor(addDays(anchor, -1));
+  const goNext = () => setAnchor(addDays(anchor, 1));
+  const swipe = useSwipe(goPrev, goNext);
   return (
-    <div>
+    <div {...swipe}>
       <NavHeader label={label}
-        onPrev={() => setAnchor(addDays(anchor, -1))}
-        onNext={() => setAnchor(addDays(anchor, 1))}
+        onPrev={goPrev} onNext={goNext}
         onToday={() => setAnchor(today)} />
       <DayList events={dayEvents} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} onBuy={onBuy} />
     </div>

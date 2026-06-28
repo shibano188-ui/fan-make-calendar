@@ -13,6 +13,7 @@ import { useToast } from '../components/ui/Toast';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { useAuth } from '../contexts/AuthContext';
 import { haptic } from '../lib/haptics';
+import { useAdBanner } from '../lib/useAdBanner';
 
 function shiftMonths(base: string, n: number): string {
   const d = new Date(base + 'T00:00:00');
@@ -113,9 +114,12 @@ export default function Home() {
 
   const empty = items && sections.preorderSoon.length === 0 && sections.followNew.length === 0 && sections.nearby.length === 0 && sections.popular.length === 0;
 
+  // 広告バナー: ステータスバー直下に表示し、ヘッダー余白をバナー高さ分広げて被りを防ぐ。
+  const adH = useAdBanner();
+
   return (
     <div ref={rootRef}>
-      <div className="px-3 pt-3 pb-1 sticky top-0 z-20" style={{ backgroundColor: 'var(--bg-primary)' }}>
+      <div className="px-3 pt-3 pb-1 sticky top-0 z-20" style={{ backgroundColor: 'var(--bg-primary)', paddingTop: `calc(env(safe-area-inset-top) + ${adH + 12}px)` }}>
         <button onClick={() => navigate('/explore')} className="w-full flex items-center gap-2 px-3 py-2 rounded-[10px]" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
           <Search size={16} className="text-label-tertiary" />
           <input

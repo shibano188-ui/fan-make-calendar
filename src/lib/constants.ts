@@ -8,6 +8,10 @@ export const SHOW_POPULAR_CALENDARS = false;
 // 初回起動時のオンボーディング案内。再度出すなら true に戻す
 export const SHOW_ONBOARDING = false;
 
+// 未完成機能は「近日」表示にして操作不可にする。実装が整ったら true に戻す。
+export const FEATURE_GOOGLE_CALENDAR = false;
+export const FEATURE_PREMIUM = false;
+
 // イベントで物販あり＝このカテゴリを付ける。探す→グッズ一覧にもそのイベントを出す。
 export const GOODS_TAG = 'グッズあり';
 

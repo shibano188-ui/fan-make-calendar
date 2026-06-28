@@ -3,6 +3,12 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  define: {
+    // どのビルドが動いているか端末で判別するための刻印（マイページ最下部に表示）
+    __BUILD_TIME__: JSON.stringify(
+      new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', hour12: false }),
+    ),
+  },
   plugins: [
     react(),
     VitePWA({
@@ -29,6 +35,9 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: '/index.html',
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
         globPatterns: ['**/*.{js,css,html,svg,ico,woff,woff2}'],
         runtimeCaching: [
           {

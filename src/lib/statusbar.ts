@@ -5,6 +5,9 @@ import { StatusBar, Style } from '@capacitor/status-bar';
 export async function syncStatusBar(isDark: boolean, bgColor: string) {
   if (!Capacitor.isNativePlatform()) return;
   try {
+    // WebView をステータスバーの下に配置する（Android 15 の edge-to-edge 強制で
+    // コンテンツがステータスバーに潜り込み、検索窓・戻る/閉じるボタンが被るのを防ぐ）
+    await StatusBar.setOverlaysWebView({ overlay: false });
     // Style.Dark = 暗い背景に白文字 / Style.Light = 明るい背景に黒文字
     await StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
     if (Capacitor.getPlatform() === 'android') {
