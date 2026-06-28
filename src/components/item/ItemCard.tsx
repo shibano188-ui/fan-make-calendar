@@ -6,6 +6,7 @@ import { parseCategories, getPrimaryCategoryColor, parseImageUrls } from '../../
 import { resolveBuy, type BuyMode } from '../../lib/affiliate';
 import StatusBadge from '../ui/StatusBadge';
 import ReactionButton from './ReactionButton';
+import NotifyBell from './NotifyBell';
 
 interface Props {
   event: CalendarEvent;
@@ -96,7 +97,7 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
             <div className="text-[12px] text-label-secondary mt-0.5">{itemDateLines(event).join(' / ')}</div>
             {price && <div className="text-[15px] font-bold mt-1" style={{ color: 'var(--accent-text)' }}>{price}</div>}
           </button>
-          <div className="mt-auto pt-1.5"><CardActions liked={liked} likeCount={likeCount} onLike={handleLike} eventId={event.id} onBuy={onBuy} buyMode={buyMode} /></div>
+          <div className="mt-auto pt-1.5"><CardActions liked={liked} likeCount={likeCount} onLike={handleLike} event={event} onBuy={onBuy} buyMode={buyMode} /></div>
         </div>
       </div>
     );
@@ -116,20 +117,21 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
         </div>
       </button>
       <div className="px-2 pb-2 pt-1 mt-auto">
-        <CardActions liked={liked} likeCount={likeCount} onLike={handleLike} eventId={event.id} onBuy={onBuy} buyMode={buyMode} />
+        <CardActions liked={liked} likeCount={likeCount} onLike={handleLike} event={event} onBuy={onBuy} buyMode={buyMode} />
       </div>
     </div>
   );
 }
 
-function CardActions({ liked, likeCount, onLike, eventId, onBuy, buyMode }: { liked?: boolean; likeCount?: number; onLike?: () => void; eventId: string; onBuy?: () => void; buyMode?: BuyMode }) {
+function CardActions({ liked, likeCount, onLike, event, onBuy, buyMode }: { liked?: boolean; likeCount?: number; onLike?: () => void; event: CalendarEvent; onBuy?: () => void; buyMode?: BuyMode }) {
   return (
     <div className="flex items-center gap-4">
       <button onClick={(e) => { e.stopPropagation(); onLike?.(); }} aria-label="いいね" className="pressable tap-44 flex items-center gap-1">
         <Heart size={18} fill={liked ? 'var(--accent-color)' : 'none'} style={{ color: liked ? 'var(--accent-color)' : 'var(--label-secondary)' }} />
         {!!likeCount && likeCount > 0 && <span className="text-[11px] text-label-secondary">{likeCount}</span>}
       </button>
-      <ReactionButton eventId={eventId} />
+      <ReactionButton eventId={event.id} />
+      <NotifyBell event={event} liked={!!liked} />
       {buyMode === 'cart' && <IconBtn label="購入する" onClick={onBuy}><ShoppingCart size={18} /></IconBtn>}
       {buyMode === 'link' && <IconBtn label="公式サイトを開く" onClick={onBuy}><ExternalLink size={18} /></IconBtn>}
     </div>

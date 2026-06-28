@@ -295,6 +295,26 @@ export function toggleImportantEventId(id: string): Set<string> {
   return new Set(set);
 }
 
+// ─── 通知ベルON/OFF（notifyEventIds）永続化 ───────────────────────────
+// いいね済み予定のうち、ユーザーがベルをONにした予定だけがローカル通知の対象。
+const NOTIFY_EVENTS_KEY = 'fan_notify_event_ids';
+export function loadNotifyEventIds(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(NOTIFY_EVENTS_KEY) ?? '[]') as string[]); }
+  catch { return new Set(); }
+}
+export function saveNotifyEventIds(ids: Set<string>): void {
+  localStorage.setItem(NOTIFY_EVENTS_KEY, JSON.stringify([...ids]));
+}
+export function isNotifyOn(id: string): boolean {
+  return loadNotifyEventIds().has(id);
+}
+export function setNotifyOn(id: string, on: boolean): Set<string> {
+  const set = loadNotifyEventIds();
+  if (on) set.add(id); else set.delete(id);
+  saveNotifyEventIds(set);
+  return new Set(set);
+}
+
 // ─── 作品表示ON/OFF（hiddenWorkIds）永続化 ─────────────────────────────
 const HIDDEN_WORK_IDS_KEY = 'fan_hidden_work_ids';
 export function loadHiddenWorkIds(): Set<string> {

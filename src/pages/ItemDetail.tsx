@@ -14,6 +14,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { haptic } from '../lib/haptics';
 import StatusBadge from '../components/ui/StatusBadge';
 import ImageCarousel from '../components/item/ImageCarousel';
+import NotifyBell from '../components/item/NotifyBell';
 
 // 外部カレンダー連携（Google/ics への追加）は一旦保留。再開時は true に戻す。
 const EXTERNAL_CALENDAR_ENABLED = false;
@@ -386,6 +387,7 @@ export default function ItemDetail() {
                     <span className="text-[10px] text-label-tertiary leading-none">{calAdded ? '追加済み' : 'カレンダー'}</span>
                   </button>
                 )}
+                <NotifyBell event={eff} liked={liked} variant="labeled" />
                 <button onClick={onShare} className="pressable flex flex-col items-center gap-0.5" aria-label="Xで共有">
                   <Share2 size={22} className="text-label-secondary" />
                   <span className="text-[10px] text-label-tertiary leading-none">共有</span>
