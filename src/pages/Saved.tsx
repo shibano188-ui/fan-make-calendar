@@ -9,7 +9,7 @@ import FilterPanel, { type Facet } from '../components/item/FilterPanel';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveStatus, todayStr, STATUS, type ItemStatus } from '../design/tokens';
 import { listSavedEvents, getHomePrefecture, toggleLike, toggleCalendarAdd } from '../lib/api';
-import { parseCategories } from '../lib/constants';
+import { parseCategories, isNotifyOn } from '../lib/constants';
 import { buildWorkColorMap } from '../lib/workColors';
 import { resolveBuy } from '../lib/affiliate';
 import { addToCalendar } from '../lib/googleCalendar';
@@ -18,7 +18,7 @@ import { useToast } from '../components/ui/Toast';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { haptic } from '../lib/haptics';
 
-type Tab = 'all' | 'liked' | 'mine';
+type Tab = 'all' | 'liked' | 'mine' | 'notify';
 type View = 'list' | 'month' | 'week' | 'day';
 
 const VIEWS: { key: View; label: string }[] = [
@@ -123,6 +123,7 @@ export default function Saved() {
     let list = items ?? [];
     if (tab === 'liked') list = list.filter((e) => e.likedByMe);
     if (tab === 'mine') list = list.filter((e) => e.authorId === user?.id);
+    if (tab === 'notify') list = list.filter((e) => isNotifyOn(e.id));
     const q = query.trim().toLowerCase();
     if (q) list = list.filter((e) => `${e.title} ${e.workName ?? ''} ${e.category ?? ''}`.toLowerCase().includes(q));
     return list;
@@ -265,11 +266,12 @@ export default function Saved() {
           ))}
         </div>
 
-        {/* スコープ: すべて / いいね / 自分の投稿（全ビューで有効） */}
-        <div className="flex items-center gap-2">
+        {/* スコープ: すべて / いいね / 自分の投稿 / 通知ON（全ビューで有効） */}
+        <div className="flex items-center flex-wrap gap-2">
           <Chip active={tab === 'all'} onClick={() => { haptic.select(); setTab('all'); }}>すべて</Chip>
           <Chip active={tab === 'liked'} onClick={() => { haptic.select(); setTab('liked'); }}>いいね</Chip>
           <Chip active={tab === 'mine'} onClick={() => { haptic.select(); setTab('mine'); }}>自分の投稿</Chip>
+          <Chip active={tab === 'notify'} onClick={() => { haptic.select(); setTab('notify'); }}>通知ON</Chip>
           {activeCount > 0 && !filterOpen && (
             <div className="ml-auto flex items-center gap-1 rounded-full border overflow-hidden flex-shrink-0"
               style={{ background: 'color-mix(in srgb, var(--accent-color) 12%, transparent)', borderColor: 'var(--accent-color)' }}>
