@@ -103,6 +103,8 @@ export default function Home() {
   const sections = useMemo(() => {
     // フォロー中の作品の予定だけ
     const all = (items ?? []).filter((e) => e.workId && followIds.has(e.workId));
+    const preorderOpen = all.filter((e) => deriveStatus(e) === 'preorder')
+      .sort((a, b) => (a.preorderEnd ?? '9999').localeCompare(b.preorderEnd ?? '9999')).slice(0, 12);
     const preorderSoon = all.filter((e) => deriveStatus(e) === 'preorder_soon')
       .sort((a, b) => (a.preorderStart ?? '9999').localeCompare(b.preorderStart ?? '9999')).slice(0, 12);
     const followNew = all.filter((e) => e.workId && followIds.has(e.workId))
@@ -111,7 +113,7 @@ export default function Home() {
       ? all.filter((e) => deriveItemType(e) === 'event' && e.prefecture && nearPrefs.has(e.prefecture)).slice(0, 12)
       : [];
     const popular = [...all].sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0)).filter((e) => (e.likes ?? 0) > 0).slice(0, 12);
-    return { preorderSoon, followNew, nearby, popular };
+    return { preorderOpen, preorderSoon, followNew, nearby, popular };
   }, [items, followIds, nearPrefs]);
 
   const workColorMap = useMemo(() => buildWorkColorMap(follows), [follows]);
@@ -127,7 +129,7 @@ export default function Home() {
   };
   const onSearch = () => { if (query.trim()) navigate(`/explore?q=${encodeURIComponent(query.trim())}`); };
 
-  const empty = items && sections.preorderSoon.length === 0 && sections.followNew.length === 0 && sections.nearby.length === 0 && sections.popular.length === 0;
+  const empty = items && sections.preorderOpen.length === 0 && sections.preorderSoon.length === 0 && sections.followNew.length === 0 && sections.nearby.length === 0 && sections.popular.length === 0;
 
   // 広告バナー: ステータスバー直下に表示し、ヘッダー余白をバナー高さ分広げて被りを防ぐ。
   const adH = useAdBanner();
@@ -174,6 +176,7 @@ export default function Home() {
         <p className="text-center text-label-secondary text-[13px] py-20">おすすめがまだありません。<br />「探す」から見てみてください。</p>
       ) : (
         <div className="pb-4">
+          <Section title="受付中" items={sections.preorderOpen} seen={seen} likedIds={likedIds} workColorMap={workColorMap} onOpen={onOpen} onBuy={onBuy} onLike={onLike} onCalendar={onCalendar} />
           <Section title="もうすぐ受付開始" items={sections.preorderSoon} seen={seen} likedIds={likedIds} workColorMap={workColorMap} onOpen={onOpen} onBuy={onBuy} onLike={onLike} onCalendar={onCalendar} />
           <Section title="フォロー作品の新着" items={sections.followNew} seen={seen} likedIds={likedIds} workColorMap={workColorMap} onOpen={onOpen} onBuy={onBuy} onLike={onLike} onCalendar={onCalendar} />
           <Section title="近くのイベント" items={sections.nearby} seen={seen} likedIds={likedIds} workColorMap={workColorMap} onOpen={onOpen} onBuy={onBuy} onLike={onLike} onCalendar={onCalendar} />
