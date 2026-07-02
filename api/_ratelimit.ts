@@ -7,12 +7,12 @@ const url = process.env.KV_REST_API_URL;
 const token = process.env.KV_REST_API_TOKEN;
 const redis = url && token ? new Redis({ url, token }) : null;
 
-// IP単位: 10回/分・50回/日。全体: 1000回/日（分散攻撃時のコスト上限）
+// IP単位: 20回/分・150回/日。全体: 3000回/日（分散攻撃時のコスト上限）
 const limiters = redis
   ? {
-      perMinute: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '1 m'), prefix: 'rl:parse:min' }),
-      perDay:    new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(50, '1 d'), prefix: 'rl:parse:day' }),
-      globalDay: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(1000, '1 d'), prefix: 'rl:parse:all' }),
+      perMinute: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(20, '1 m'), prefix: 'rl:parse:min' }),
+      perDay:    new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(150, '1 d'), prefix: 'rl:parse:day' }),
+      globalDay: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(3000, '1 d'), prefix: 'rl:parse:all' }),
     }
   : null;
 
