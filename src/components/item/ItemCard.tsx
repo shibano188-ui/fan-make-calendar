@@ -26,6 +26,39 @@ function yen(n?: number): string {
   return n != null ? `¥${n.toLocaleString()}` : '';
 }
 
+const SEASON_KANJI: Record<string, string> = { 春頃: '春', 夏頃: '夏', 秋頃: '秋', 冬頃: '冬' };
+
+// 日めくりバッジの上段(月)・下段(日 or ラベル)を決める。予約日を最優先。
+function badgeDate(e: CalendarEvent): { top: string; bottom: string } {
+  const pre = e.preorderStart ?? e.preorderEnd ?? null;
+  if (pre) { const [, m, d] = pre.split('-'); return { top: `${+m}月`, bottom: `${+d}` }; }
+  if (e.dateLabel) {
+    if (SEASON_KANJI[e.dateLabel]) return { top: SEASON_KANJI[e.dateLabel], bottom: '頃' };
+    const m = e.date ? +e.date.split('-')[1] : null;
+    // 「中」＝月のみ（日部分なし）は月だけ表示。上旬/中旬/下旬は月＋ラベル。
+    if (e.dateLabel === '中') return { top: '', bottom: m ? `${m}月` : '未定' };
+    return { top: m ? `${m}月` : '', bottom: e.dateLabel };
+  }
+  if (e.date) { const [, m, d] = e.date.split('-'); return { top: `${+m}月`, bottom: `${+d}` }; }
+  return { top: '', bottom: '未定' };
+}
+
+/** 画像右下に重ねる日めくりカレンダー風の日付バッジ。 */
+function DateBadge({ event }: { event: CalendarEvent }) {
+  const { top, bottom } = badgeDate(event);
+  const bottomBig = /^\d+$/.test(bottom); // 数字の日は大きく、ラベルは小さく
+  return (
+    <div className="absolute bottom-1.5 right-1.5 w-10 rounded-[6px] overflow-hidden shadow-md" style={{ backgroundColor: '#fff' }}>
+      {top ? (
+        <div className="text-center text-[10px] font-bold leading-none py-[3px]" style={{ backgroundColor: 'var(--color-destructive)', color: '#fff' }}>{top}</div>
+      ) : null}
+      <div className={`text-center font-bold leading-none py-1 ${bottomBig ? 'text-[18px]' : 'text-[12px]'}`} style={{ color: '#1a1a1a' }}>
+        {bottom}
+      </div>
+    </div>
+  );
+}
+
 /** カテゴリのドット色＋ラベル。複数サブカテゴリは全部表示（親「グッズ」は種別がある時だけ省く）。 */
 function CategoryLine({ event }: { event: CalendarEvent }) {
   let cats = parseCategories(event.category);
@@ -110,12 +143,11 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
     <div className="flex flex-col h-full rounded-[12px] border border-subtle overflow-hidden bg-bg-secondary"
       style={workColor ? { borderLeft: `3px solid ${workColor}` } : undefined}>
       <button onClick={onOpen} className="pressable text-left flex flex-col">
-        <div className="w-full aspect-square">{Thumb}</div>
+        <div className="w-full aspect-square relative">{Thumb}<DateBadge event={event} /></div>
         <div className="px-2 pt-1.5">
           <div className="text-[11px] text-label-secondary truncate min-h-[1.25em]">{event.workName ?? ''}</div>
           <div className="text-[13px] font-medium leading-snug line-clamp-2 min-h-[2.75em]">{event.title}</div>
           <CategoryLine event={event} />
-          <div className="text-[12px] text-label-secondary mt-0.5 truncate min-h-[1.25em]">{itemDateLines(event).join(' / ')}</div>
           <div className="text-[15px] font-bold mt-0.5 min-h-[1.4em]" style={{ color: 'var(--accent-text)' }}>{price}</div>
         </div>
       </button>
