@@ -316,12 +316,7 @@ export default function ItemDetail() {
 
             {/* 行く日（期間イベントのみ）。登録すると自分のカレンダーはその日だけ表示する */}
             {type === 'event' && !!eff.endDate && eff.endDate !== eff.date && (
-              <div className="mt-3 rounded-[12px] border border-subtle p-3" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <Pin size={15} style={{ color: 'var(--accent-color)' }} />
-                  <span className="text-[13px] font-semibold">ここ行く！</span>
-                  <span className="text-[11px] text-label-tertiary">登録した日だけカレンダーに出ます</span>
-                </div>
+              <div className="mt-3">
                 {visits.length > 0 && (
                   <div className="flex flex-col gap-1.5 mb-2">
                     {visits.map((v) => (
@@ -333,9 +328,12 @@ export default function ItemDetail() {
                   </div>
                 )}
                 {!visitOpen ? (
-                  <button onClick={openVisitPicker} className="pressable flex items-center gap-1.5 px-3 py-2 rounded-[10px] text-[13px] font-semibold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
-                    <Pin size={15} /> {visits.length > 0 ? '別の日も追加' : 'ここ行く！'}
-                  </button>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button onClick={openVisitPicker} className="pressable flex items-center gap-1.5 px-3 py-2 rounded-[10px] text-[13px] font-semibold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+                      <Pin size={15} /> {visits.length > 0 ? '別の日も追加' : 'ここ行く！'}
+                    </button>
+                    {visits.length === 0 && <span className="text-[11px] text-label-tertiary">登録した日だけカレンダーに表示</span>}
+                  </div>
                 ) : (
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-2 text-[13px]">
