@@ -12,6 +12,7 @@ import { resolveBuy, getOffers, buildOffer } from '../lib/affiliate';
 import { REACTIONS } from '../lib/reactions';
 import { useAuth } from '../contexts/AuthContext';
 import { haptic } from '../lib/haptics';
+import { useLike, setLike, getLike } from '../lib/likeStore';
 import StatusBadge from '../components/ui/StatusBadge';
 import ImageCarousel from '../components/item/ImageCarousel';
 import NotifyBell from '../components/item/NotifyBell';
@@ -37,8 +38,8 @@ export default function ItemDetail() {
   const [ev, setEv] = useState<CalendarEvent | null | undefined>(undefined); // undefined=loading
   const [workName, setWorkName] = useState('');
   const [authorName, setAuthorName] = useState<string | null>(null);
-  const [liked, setLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(0);
+  // タイルと共有するいいねストア。fallback は読み込んだ予定の値。
+  const { liked, count: likeCount } = useLike(id ?? '', { liked: !!ev?.likedByMe, count: ev?.likes ?? 0 });
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [myReaction, setMyReaction] = useState<string | null>(null);
   const [calCount, setCalCount] = useState(0);
@@ -81,8 +82,8 @@ export default function ItemDetail() {
       if (!alive) return;
       setEv(e);
       if (!e) return;
-      setLikeCount(e.likes ?? 0);
-      setLiked(!!e.likedByMe);
+      // まだ操作されていなければDBの値でストアを初期化（既存状態は保持）
+      if (getLike(e.id) === undefined) setLike(e.id, { liked: !!e.likedByMe, count: e.likes ?? 0 });
       if (e.workId) getWorkById(e.workId).then((w) => alive && setWorkName(w?.name ?? ''));
       if (e.workId && user) listAllParticipatedWorks(user.id).then((ws) => alive && setFollowing(ws.some((w) => w.id === e.workId))).catch(() => {});
       if (e.authorId) getDisplayName(e.authorId).then((n) => alive && setAuthorName(n));
@@ -125,9 +126,10 @@ export default function ItemDetail() {
   const onLike = async () => {
     haptic.select();
     if (!user) return;
-    const prev = liked;
-    setLiked(!prev); setLikeCount((c) => c + (prev ? -1 : 1));
-    try { const r = await toggleLike(event.id, user.id); setLiked(r.liked); setLikeCount(r.count); } catch { setLiked(prev); }
+    const prev = { liked, count: likeCount };
+    setLike(event.id, { liked: !prev.liked, count: prev.count + (prev.liked ? -1 : 1) });
+    try { const r = await toggleLike(event.id, user.id); setLike(event.id, { liked: r.liked, count: r.count }); }
+    catch { setLike(event.id, prev); }
   };
 
   const onReact = async (t: string) => {

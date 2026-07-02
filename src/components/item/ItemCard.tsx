@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Heart, ShoppingCart, ExternalLink, ImageOff } from 'lucide-react';
 import type { CalendarEvent } from '../../types';
+import { useLike, setLike } from '../../lib/likeStore';
 import { deriveStatus, deriveItemType, itemDateLines } from '../../design/tokens';
 import { parseCategories, getPrimaryCategoryColor, parseImageUrls } from '../../lib/constants';
 import { resolveBuy, type BuyMode } from '../../lib/affiliate';
@@ -46,15 +47,16 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
   // 販路を判定: アフィ対応＝カート / 公式リンクのみ＝リンク / 無＝非表示
   const buyMode: BuyMode = resolveBuy(event).mode;
   const [imgError, setImgError] = useState(false);
-  const [liked, setLiked] = useState(likedInit ?? !!event.likedByMe);
-  const [likeCount, setLikeCount] = useState(event.likes ?? 0);
-  useEffect(() => { if (likedInit !== undefined) setLiked(likedInit); }, [likedInit]);
-  useEffect(() => { setLikeCount(event.likes ?? 0); }, [event.likes]);
+  // 共有ストアで状態を持ち、詳細ページや他タイルと同期する
+  const { liked, count: likeCount } = useLike(event.id, {
+    liked: likedInit ?? !!event.likedByMe,
+    count: event.likes ?? 0,
+  });
   const handleLike = async () => {
-    const prev = liked; const prevC = likeCount;
-    setLiked(!prev); setLikeCount(prevC + (prev ? -1 : 1));
-    try { const r = await onLike?.(); if (r && typeof r === 'object') { setLiked(r.liked); setLikeCount(r.count); } }
-    catch { setLiked(prev); setLikeCount(prevC); }
+    const prev = { liked, count: likeCount };
+    setLike(event.id, { liked: !prev.liked, count: prev.count + (prev.liked ? -1 : 1) });
+    try { const r = await onLike?.(); if (r && typeof r === 'object') setLike(event.id, { liked: r.liked, count: r.count }); }
+    catch { setLike(event.id, prev); }
   };
   const firstImg = parseImageUrls(event.imageUrl)[0];
   const showImg = !!firstImg && !imgError;
