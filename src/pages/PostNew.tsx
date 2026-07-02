@@ -320,7 +320,10 @@ export default function PostNew() {
       toast('投稿しました');
       navigate(-1);
     } catch (e) {
-      setError('投稿に失敗しました。時間をおいて再度お試しください。');
+      const timedOut = e instanceof DOMException && e.name === 'AbortError';
+      setError(timedOut
+        ? '通信が不安定です。投稿されている場合があるので、ホームで確認してから再度お試しください。'
+        : '投稿に失敗しました。時間をおいて再度お試しください。');
       setSaving(false);
     }
   };
