@@ -115,6 +115,7 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
           <div className="text-[11px] text-label-secondary truncate min-h-[1.25em]">{event.workName ?? ''}</div>
           <div className="text-[13px] font-medium leading-snug line-clamp-2 min-h-[2.75em]">{event.title}</div>
           <CategoryLine event={event} />
+          <div className="text-[12px] text-label-secondary mt-0.5 truncate min-h-[1.25em]">{itemDateLines(event).join(' / ')}</div>
           <div className="text-[15px] font-bold mt-0.5 min-h-[1.4em]" style={{ color: 'var(--accent-text)' }}>{price}</div>
         </div>
       </button>
