@@ -36,7 +36,13 @@ export type CalendarEvent = {
   hasAffiliate?: boolean;   // アフィ対応販路か（false=B2B送客対象）※offers[0]の要約
   offers?: Offer[];         // 販路リスト（買えるところ。発売に向けて随時増える）
   relatedEventId?: string;  // 紐付く親イベントのid（イベントで販売されるグッズが持つ）
+
+  // ─ 個人の「行く日」（本人のみ・保存カレンダーの表示絞り込み用。共有データではない）─
+  visits?: EventVisit[];
 };
+
+// 個人の来店予定（1件1来店。単日は start=end）
+export type EventVisit = { id: string; start: string; end: string };
 
 // 販路（どこで・いくらで買えるか）。1商品に複数ぶら下げる。
 export type Offer = {

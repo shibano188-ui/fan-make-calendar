@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { CalendarEvent, Offer } from '../types';
+import type { CalendarEvent, EventVisit, Offer } from '../types';
 import { parseCategories } from './constants';
 
 /** 2つのカテゴリ値（単一文字列 or JSON配列文字列）が完全に重ならない場合 true。
@@ -788,6 +788,39 @@ export async function toggleCalendarAdd(eventId: string, userId: string): Promis
   return { added: !existing, count: count ?? 0 };
 }
 
+// ── 個人の「行く日（来店予定）」。本人のみ読み書き。events は書き換えない ──
+export async function listEventVisits(eventId: string, userId: string): Promise<EventVisit[]> {
+  const { data } = await supabase
+    .from('event_visits').select('id, start_date, end_date')
+    .eq('event_id', eventId).eq('user_id', userId).order('start_date');
+  return (data ?? []).map((r) => ({ id: r.id as string, start: r.start_date as string, end: r.end_date as string }));
+}
+
+export async function addEventVisit(eventId: string, userId: string, start: string, end: string): Promise<EventVisit | null> {
+  const { data, error } = await supabase
+    .from('event_visits').insert({ event_id: eventId, user_id: userId, start_date: start, end_date: end })
+    .select('id, start_date, end_date').single();
+  if (error || !data) return null;
+  // 「行く」登録＝自分のカレンダーに出したいので、いいねも確保（案①）
+  await likeEvent(eventId, userId).catch(() => {});
+  return { id: data.id as string, start: data.start_date as string, end: data.end_date as string };
+}
+
+export async function removeEventVisit(visitId: string): Promise<void> {
+  await supabase.from('event_visits').delete().eq('id', visitId);
+}
+
+// いいねを冪等に付与（無ければ追加して like_count 更新）。toggleLike と違い解除しない。
+export async function likeEvent(eventId: string, userId: string): Promise<void> {
+  const { data: existing } = await supabase
+    .from('likes').select('id').eq('event_id', eventId).eq('user_id', userId).maybeSingle();
+  if (existing) return;
+  await supabase.from('likes').insert({ event_id: eventId, user_id: userId });
+  const { count } = await supabase
+    .from('likes').select('*', { count: 'exact', head: true }).eq('event_id', eventId);
+  await supabase.from('events').update({ like_count: count ?? 0 }).eq('id', eventId);
+}
+
 // ── 共同編集: 購入リンクの追記（append-only） ──
 export type OfferContrib = { id: string; offer: Offer; createdBy: string | null };
 
@@ -957,6 +990,14 @@ export async function listSavedEvents(userId: string): Promise<CalendarEvent[]> 
       ev.likedByMe = likedIds.includes(id);
       map.set(id, ev);
     }
+  }
+  // 個人の来店予定を結合（保存カレンダーの表示絞り込み・通知の基準に使う）
+  const { data: visitRows } = await supabase
+    .from('event_visits').select('id, event_id, start_date, end_date').eq('user_id', userId);
+  for (const r of visitRows ?? []) {
+    const ev = map.get(r.event_id as string);
+    if (!ev) continue;
+    (ev.visits ??= []).push({ id: r.id as string, start: r.start_date as string, end: r.end_date as string });
   }
   return resolveAuthorNames([...map.values()]);
 }

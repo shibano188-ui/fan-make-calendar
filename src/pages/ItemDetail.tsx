@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Smile, Share2, X } from 'lucide-react';
-import type { CalendarEvent } from '../types';
-import { getEventById, getWorkById, getDisplayName, toggleLike, setReaction, getReactionData, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
+import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Pin, Smile, Share2, X } from 'lucide-react';
+import type { CalendarEvent, EventVisit } from '../types';
+import { getEventById, getWorkById, getDisplayName, toggleLike, setReaction, getReactionData, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, addEventVisit, removeEventVisit, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
 import EventEditForm from '../components/item/EventEditForm';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
@@ -56,6 +56,10 @@ export default function ItemDetail() {
   const [editing, setEditing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [following, setFollowing] = useState(false);
+  const [visits, setVisits] = useState<EventVisit[]>([]);
+  const [visitOpen, setVisitOpen] = useState(false);
+  const [visitStart, setVisitStart] = useState('');
+  const [visitEnd, setVisitEnd] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
 
   // 開いたら最上部から表示（前ページのスクロール位置を引き継がない）。
@@ -93,6 +97,7 @@ export default function ItemDetail() {
       listOfferContribs(id).then((cs) => { if (alive) setContribs(cs); });
       listStockReports(id).then((rs) => { if (alive) setStockReports(rs); });
       listEventEdits(id).then((es) => { if (alive) setEdits(es); });
+      if (user) listEventVisits(id, user.id).then((vs) => { if (alive) setVisits(vs); }).catch(() => {});
     })();
     return () => { alive = false; };
   }, [id, user?.id]);
@@ -157,6 +162,30 @@ export default function ItemDetail() {
       toast(r === 'google' ? 'Googleカレンダーに追加しました' : r === 'ics' ? 'カレンダーに追加しました' : '日付未定のため追加できません');
     }
     try { const r = await toggleCalendarAdd(event.id, user.id); setCalAdded(r.added); setCalCount(r.count); } catch { setCalAdded(prev); }
+  };
+  // 「ここ行く！」: 期間内の日/期間を登録。登録時に自動でいいねし保存カレンダーに出す。
+  const openVisitPicker = () => {
+    haptic.select();
+    setVisitStart(eff.date ?? '');
+    setVisitEnd(eff.date ?? '');
+    setVisitOpen(true);
+  };
+  const onAddVisit = async () => {
+    if (!user || !visitStart) return;
+    haptic.select();
+    const end = visitEnd && visitEnd >= visitStart ? visitEnd : visitStart;
+    const v = await addEventVisit(event.id, user.id, visitStart, end);
+    if (v) {
+      setVisits((vs) => [...vs, v].sort((a, b) => a.start.localeCompare(b.start)));
+      if (!liked) setLike(event.id, { liked: true, count: likeCount + 1 }); // 自動いいね
+      setVisitOpen(false);
+      toast('行く日に追加しました');
+    }
+  };
+  const onRemoveVisit = async (visitId: string) => {
+    haptic.select();
+    setVisits((vs) => vs.filter((v) => v.id !== visitId));
+    await removeEventVisit(visitId).catch(() => {});
   };
   const onFollow = async () => {
     haptic.select();
@@ -282,6 +311,45 @@ export default function ItemDetail() {
               <div className="mt-2 flex items-start gap-2">
                 <MapPin size={16} className="text-label-secondary mt-0.5 flex-shrink-0" />
                 <div className="text-[14px]">{[event.prefecture, event.locationDetail].filter(Boolean).join(' ')}</div>
+              </div>
+            )}
+
+            {/* 行く日（期間イベントのみ）。登録すると自分のカレンダーはその日だけ表示する */}
+            {type === 'event' && !!eff.endDate && eff.endDate !== eff.date && (
+              <div className="mt-3 rounded-[12px] border border-subtle p-3" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Pin size={15} style={{ color: 'var(--accent-color)' }} />
+                  <span className="text-[13px] font-semibold">ここ行く！</span>
+                  <span className="text-[11px] text-label-tertiary">登録した日だけカレンダーに出ます</span>
+                </div>
+                {visits.length > 0 && (
+                  <div className="flex flex-col gap-1.5 mb-2">
+                    {visits.map((v) => (
+                      <div key={v.id} className="flex items-center justify-between rounded-[8px] px-3 py-1.5 text-[13px]" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+                        <span>{v.start.slice(5).replace('-', '/')}{v.end !== v.start ? `〜${v.end.slice(5).replace('-', '/')}` : ''} に行く</span>
+                        <button onClick={() => onRemoveVisit(v.id)} aria-label="削除" className="pressable tap-44 text-label-secondary"><X size={16} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {!visitOpen ? (
+                  <button onClick={openVisitPicker} className="pressable flex items-center gap-1.5 px-3 py-2 rounded-[10px] text-[13px] font-semibold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+                    <Pin size={15} /> {visits.length > 0 ? '別の日も追加' : 'ここ行く！'}
+                  </button>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2 text-[13px]">
+                      <input type="date" value={visitStart} min={eff.date ?? undefined} max={eff.endDate} onChange={(e) => setVisitStart(e.target.value)} className="flex-1 rounded-[10px] px-3 py-2 outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
+                      <span className="text-label-secondary">〜</span>
+                      <input type="date" value={visitEnd} min={visitStart || eff.date || undefined} max={eff.endDate} onChange={(e) => setVisitEnd(e.target.value)} className="flex-1 rounded-[10px] px-3 py-2 outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={onAddVisit} disabled={!visitStart} className="pressable flex-1 py-2 rounded-[10px] text-[13px] font-semibold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>追加</button>
+                      <button onClick={() => setVisitOpen(false)} className="pressable px-4 py-2 rounded-[10px] text-[13px]" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>キャンセル</button>
+                    </div>
+                    <p className="text-[11px] text-label-tertiary">単日なら開始だけでOK（終了は同じ日にできます）</p>
+                  </div>
+                )}
               </div>
             )}
 

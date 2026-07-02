@@ -48,9 +48,13 @@ function useSwipe(onPrev: () => void, onNext: () => void) {
   };
 }
 
-/** その日に掛かる予定（date〜endDate の範囲に含まれるもの）。 */
+/** その日に掛かる予定。
+ *  個人の来店予定(visits)があればその日/期間だけに絞る。無ければ date〜endDate。 */
 function eventsOnDay(events: CalendarEvent[], day: string): CalendarEvent[] {
   return events.filter((e) => {
+    if (e.visits && e.visits.length > 0) {
+      return e.visits.some((v) => v.start <= day && day <= v.end);
+    }
     if (!e.date) return false;
     const end = e.endDate || e.date;
     return e.date <= day && day <= end;
