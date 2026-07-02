@@ -77,11 +77,12 @@ export default function ItemDetail() {
     let alive = true;
     (async () => {
       if (!id) return;
-      const e = await getEventById(id);
+      const e = await getEventById(id, user?.id);
       if (!alive) return;
       setEv(e);
       if (!e) return;
       setLikeCount(e.likes ?? 0);
+      setLiked(!!e.likedByMe);
       if (e.workId) getWorkById(e.workId).then((w) => alive && setWorkName(w?.name ?? ''));
       if (e.workId && user) listAllParticipatedWorks(user.id).then((ws) => alive && setFollowing(ws.some((w) => w.id === e.workId))).catch(() => {});
       if (e.authorId) getDisplayName(e.authorId).then((n) => alive && setAuthorName(n));

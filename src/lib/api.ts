@@ -859,10 +859,16 @@ export async function removeStockReport(id: string): Promise<void> {
   await supabase.from('stock_reports').delete().eq('id', id);
 }
 
-export async function getEventById(eventId: string): Promise<CalendarEvent | null> {
+export async function getEventById(eventId: string, userId?: string): Promise<CalendarEvent | null> {
   const { data, error } = await supabase.from('events').select('*').eq('id', eventId).single();
   if (error) return null;
-  return rowToEvent(data as Record<string, unknown>);
+  const ev = rowToEvent(data as Record<string, unknown>);
+  if (userId) {
+    const { data: like } = await supabase
+      .from('likes').select('id').eq('event_id', eventId).eq('user_id', userId).maybeSingle();
+    ev.likedByMe = !!like;
+  }
+  return ev;
 }
 
 export async function listUpcomingEvents(workId: string, from: string, limit = 5): Promise<CalendarEvent[]> {
