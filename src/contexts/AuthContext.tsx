@@ -14,15 +14,18 @@ const AuthContext = createContext<AuthContextValue>({ user: null, loading: true 
 // 初回起動時、デフォルト作品（ちいかわ・ハイキュー!!）へ自動参加させる。端末ごとに1回だけ。
 // user を公開する前にこれを await して完了させることで、Home 等が「参加0件」を先読みして
 // フォロー0のままキャッシュしてしまうレースを防ぐ。以後ユーザーが脱退しても再追加はしない。
+// v2: 旧レース条件でフォロー0のまま詰まった既存端末を回復させるためキーをバージョンアップ。
+// 未設定の端末（新規／旧フラグのみ持つ端末）で一度だけ再参加する。
+const DEFAULT_JOINED_KEY = 'fan_default_joined_v2';
 let defaultJoinPromise: Promise<void> | null = null;
 function ensureDefaultJoined(userId: string): Promise<void> {
-  if (localStorage.getItem('fan_default_joined')) return Promise.resolve();
+  if (localStorage.getItem(DEFAULT_JOINED_KEY)) return Promise.resolve();
   if (!defaultJoinPromise) {
     defaultJoinPromise = (async () => {
       try {
         const defaults = await getWorksByNames(DEFAULT_WORK_NAMES);
         await Promise.all(defaults.map((w) => upsertParticipation(w.id, userId)));
-        localStorage.setItem('fan_default_joined', '1');
+        localStorage.setItem(DEFAULT_JOINED_KEY, '1');
       } catch (e) {
         console.error('[ensureDefaultJoined]', e);
         defaultJoinPromise = null; // 失敗時は次回リトライできるようクリア
