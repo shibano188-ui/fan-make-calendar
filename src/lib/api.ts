@@ -29,6 +29,16 @@ export async function listWorks(): Promise<Work[]> {
   return (data ?? []).map(w => ({ id: w.id, name: w.name, participantCount: w.participant_count }));
 }
 
+// 名前で作品を取得（デフォルト自動フォロー用。listWorks の上位20件制限に依存しない）
+export async function getWorksByNames(names: string[]): Promise<Work[]> {
+  const { data, error } = await supabase
+    .from('works')
+    .select('id, name, participant_count')
+    .in('name', names);
+  if (error) throw error;
+  return (data ?? []).map(w => ({ id: w.id, name: w.name, participantCount: w.participant_count }));
+}
+
 export async function searchWorks(query: string): Promise<Work[]> {
   const { data, error } = await supabase
     .from('works')

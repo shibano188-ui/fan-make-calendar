@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AuthProvider } from './contexts/AuthContext';
 import { ConfirmProvider } from './components/ui/ConfirmDialog';
 import { ActionSheetProvider } from './components/ui/ActionSheet';
 import { ToastProvider } from './components/ui/Toast';
@@ -9,8 +9,7 @@ import PhoneFrame from './components/PhoneFrame';
 import Onboarding from './components/Onboarding';
 import { Capacitor } from '@capacitor/core';
 import { initAdMob } from './lib/admob';
-import { listWorks, upsertParticipation } from './lib/api';
-import { DEFAULT_WORK_NAMES, SHOW_ONBOARDING } from './lib/constants';
+import { SHOW_ONBOARDING } from './lib/constants';
 
 // ピボット後IA（feat/pivot-rebuild）。旧 Calendar 中心の画面は順次置換。
 const AppShell        = lazy(() => import('./components/AppShell'));
@@ -95,25 +94,6 @@ function BackButtonHandler() {
   return null;
 }
 
-// 初回起動時、デフォルト作品（ちいかわ・ハイキュー!!）に自動参加させる。
-// 端末ごとに1回だけ。以後ユーザーが脱退しても再追加はしない。
-function DefaultWorksJoiner() {
-  const { user } = useAuth();
-  useEffect(() => {
-    if (!user) return;
-    if (localStorage.getItem('fan_default_joined')) return;
-    (async () => {
-      try {
-        const works = await listWorks();
-        const defaults = works.filter(w => DEFAULT_WORK_NAMES.includes(w.name));
-        await Promise.all(defaults.map(w => upsertParticipation(w.id, user.id)));
-        localStorage.setItem('fan_default_joined', '1');
-      } catch (e) { console.error('[DefaultWorksJoiner]', e); }
-    })();
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  return null;
-}
-
 export default function App() {
   return (
     <BrowserRouter>
@@ -125,7 +105,6 @@ export default function App() {
           <AndroidShareHandler />
           <AdMobController />
           <BackButtonHandler />
-          <DefaultWorksJoiner />
           <Suspense fallback={<PageLoader />}>
             <Routes>
               {/* ウィジェット・共有ターゲット（PhoneFrameなし） */}
