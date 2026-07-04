@@ -5,6 +5,7 @@ import { useLike, setLike } from '../../lib/likeStore';
 import { deriveStatus, deriveItemType, itemDateLines } from '../../design/tokens';
 import { parseCategories, getPrimaryCategoryColor, parseImageUrls } from '../../lib/constants';
 import { resolveBuy, type BuyMode } from '../../lib/affiliate';
+import { likeEffect } from '../../lib/likeEffect';
 import StatusBadge from '../ui/StatusBadge';
 import OptImg from '../ui/OptImg';
 import ReactionButton from './ReactionButton';
@@ -98,6 +99,7 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
     liked: likedInit ?? !!event.likedByMe,
     count: event.likes ?? 0,
   });
+  // 「いいね＝カレンダーに追加」は likeEffect のサーキットライン（タブへ走る線）が毎回教える
   const handleLike = async () => {
     const prev = { liked, count: likeCount };
     setLike(event.id, { liked: !prev.liked, count: prev.count + (prev.liked ? -1 : 1) });
@@ -175,7 +177,7 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
 function CardActions({ liked, likeCount, onLike, event, onBuy, buyMode }: { liked?: boolean; likeCount?: number; onLike?: () => void; event: CalendarEvent; onBuy?: () => void; buyMode?: BuyMode }) {
   return (
     <div className="flex items-center gap-4">
-      <button onClick={(e) => { e.stopPropagation(); onLike?.(); }} aria-label="いいね" className="pressable tap-44 flex items-center gap-1">
+      <button onClick={(e) => { e.stopPropagation(); if (!liked) likeEffect(e.currentTarget); onLike?.(); }} aria-label="いいね" className="pressable tap-44 flex items-center gap-1">
         <Heart size={18} fill={liked ? 'var(--accent-color)' : 'none'} style={{ color: liked ? 'var(--accent-color)' : 'var(--label-secondary)' }} />
         {!!likeCount && likeCount > 0 && <span className="text-[11px] text-label-secondary">{likeCount}</span>}
       </button>

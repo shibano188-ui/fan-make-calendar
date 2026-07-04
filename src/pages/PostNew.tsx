@@ -10,6 +10,7 @@ import { searchProductCandidates, titleMatchScore, cleanShopTitle, retailerSearc
 import type { Offer } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
+import LineLoader from '../components/ui/LineLoader';
 import { haptic } from '../lib/haptics';
 import { todayStr, deriveItemType, type ItemType } from '../design/tokens';
 
@@ -362,9 +363,10 @@ export default function PostNew() {
                   <button onClick={onAnalyzeText} disabled={aiLoading || !aiText.trim()}
                     className="pressable px-3 rounded-[10px] text-[13px] font-semibold flex items-center"
                     style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
-                    {aiLoading ? <Loader2 size={16} className="animate-spin" /> : '解析'}
+                    解析
                   </button>
                 </div>
+                {aiLoading && <div className="mt-3 py-1"><LineLoader label="AIが読み取っています…" /></div>}
                 <button onClick={() => fileRef.current?.click()} disabled={aiLoading} className="pressable mt-2 flex items-center gap-1.5 text-[13px]" style={{ color: 'var(--accent-text)' }}>
                   <Camera size={16} /> 写真から読み取る
                 </button>

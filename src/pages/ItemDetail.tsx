@@ -12,10 +12,12 @@ import { resolveBuy, getOffers, buildOffer } from '../lib/affiliate';
 import { REACTIONS } from '../lib/reactions';
 import { useAuth } from '../contexts/AuthContext';
 import { haptic } from '../lib/haptics';
+import { likeEffect } from '../lib/likeEffect';
 import { useLike, setLike, getLike } from '../lib/likeStore';
 import StatusBadge from '../components/ui/StatusBadge';
 import ImageCarousel from '../components/item/ImageCarousel';
 import NotifyBell from '../components/item/NotifyBell';
+import LineLoader from '../components/ui/LineLoader';
 
 // 外部カレンダー連携（Google/ics への追加）は一旦保留。再開時は true に戻す。
 const EXTERNAL_CALENDAR_ENABLED = false;
@@ -104,7 +106,7 @@ export default function ItemDetail() {
 
   if (ev === undefined) {
     return <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg-primary)' }}>
-      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: 'var(--label-tertiary)', borderTopColor: 'var(--label-primary)' }} />
+      <LineLoader />
     </div>;
   }
   if (ev === null) {
@@ -442,7 +444,7 @@ export default function ItemDetail() {
                 </>
               )}
               <div className="flex items-center justify-around py-2 rounded-[12px] border border-subtle" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                <button onClick={onLike} className="pressable flex flex-col items-center gap-0.5" aria-label="いいね">
+                <button onClick={(e) => { if (!liked) likeEffect(e.currentTarget); onLike(); }} className="pressable flex flex-col items-center gap-0.5" aria-label="いいね">
                   <Heart size={22} fill={liked ? 'var(--accent-color)' : 'none'} style={{ color: liked ? 'var(--accent-color)' : 'var(--label-secondary)' }} />
                   <span className="text-[10px] text-label-tertiary leading-none">{likeCount > 0 ? likeCount : 'いいね'}</span>
                 </button>

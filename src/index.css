@@ -144,6 +144,12 @@
   100% { transform: scale(3.5); opacity: 0; }
 }
 
+/* LineLoader: pathLength=100 で正規化済みのダッシュが走り続ける */
+@keyframes lineChain {
+  from { stroke-dashoffset: 30; }
+  to   { stroke-dashoffset: -100; }
+}
+
 body {
   margin: 0;
   background-color: var(--bg-primary);

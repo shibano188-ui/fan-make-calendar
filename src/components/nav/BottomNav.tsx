@@ -54,9 +54,10 @@ export default function BottomNav() {
   );
 }
 
-function TabButton({ label, icon: Icon, active, onClick }: { label: string; icon: LucideIcon; active: boolean; onClick: () => void }) {
+function TabButton({ label, icon: Icon, active, onClick, path }: { label: string; icon: LucideIcon; active: boolean; onClick: () => void; path: string }) {
   return (
-    <button onClick={onClick} className="flex-1 flex flex-col items-center gap-[3px] py-2 pressable" aria-label={label}>
+    // data-nav-cal: いいね演出（likeEffect）がカレンダータブへの線の到達点として参照する
+    <button onClick={onClick} data-nav-cal={path === '/saved' ? '' : undefined} className="flex-1 flex flex-col items-center gap-[3px] py-2 pressable" aria-label={label}>
       <Icon
         size={22}
         className={active ? '' : 'text-label-tertiary'}
