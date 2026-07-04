@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, SlidersHorizontal, X } from 'lucide-react';
+import { Search, SlidersHorizontal, X, Bell } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import Chip from '../components/ui/Chip';
@@ -59,6 +59,14 @@ export default function Saved() {
 
   const today = todayStr();
   const rootRef = useRef<HTMLDivElement>(null);
+
+  // 通知機能の案内バナー。「通知が欲しい」との声が多い＝🔔に気づかれていないため、
+  // ×で消すまで表示する（トーストだと見逃す）。ネイティブ＆予定ありのときだけ。
+  const [notifyHintDismissed, setNotifyHintDismissed] = useState(() => !!localStorage.getItem('fan_tip_notify_banner'));
+  const dismissNotifyHint = () => {
+    localStorage.setItem('fan_tip_notify_banner', '1');
+    setNotifyHintDismissed(true);
+  };
 
   // フィルター状態を sessionStorage に同期（詳細から戻っても維持）
   useEffect(() => {
@@ -295,6 +303,19 @@ export default function Saved() {
           />
         )}
       </div>
+
+      {!notifyHintDismissed && !!items?.length && (
+        <div className="flex items-center gap-2.5 rounded-[12px] px-3 py-2.5 mb-2"
+          style={{ background: 'color-mix(in srgb, var(--accent-color) 12%, transparent)' }}>
+          <Bell size={18} className="flex-shrink-0" style={{ color: 'var(--accent-text)' }} />
+          <p className="flex-1 text-[12px] leading-relaxed" style={{ color: 'var(--label-primary)' }}>
+            予定の <Bell size={12} className="inline align-[-1px]" /> をタップすると、発売日や予約締切の前に通知が届きます
+          </p>
+          <button onClick={dismissNotifyHint} aria-label="閉じる" className="pressable tap-44 text-label-tertiary flex-shrink-0">
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {items === null ? (
         <SkeletonList count={4} />

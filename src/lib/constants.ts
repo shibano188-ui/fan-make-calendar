@@ -6,7 +6,18 @@ export const DEFAULT_WORK_NAMES = ['ちいかわ', 'ハイキュー!!'];
 // 作品タブの「人気のカレンダー」表示。作品が増えたら true に戻す
 export const SHOW_POPULAR_CALENDARS = false;
 // 初回起動時のオンボーディング案内。再度出すなら true に戻す
-export const SHOW_ONBOARDING = false;
+export const SHOW_ONBOARDING = true;
+
+// ─── 一度きりのヒント（コンテキスト内チュートリアル用） ─────────────────
+// 初めて呼ばれたときだけ true（＝ヒントを出す）。以後は false。端末ごと・localStorage。
+export function oneShotTip(key: string): boolean {
+  const k = `fan_tip_${key}`;
+  try {
+    if (localStorage.getItem(k)) return false;
+    localStorage.setItem(k, '1');
+    return true;
+  } catch { return false; }
+}
 
 // 未完成機能は「近日」表示にして操作不可にする。実装が整ったら true に戻す。
 export const FEATURE_GOOGLE_CALENDAR = false;

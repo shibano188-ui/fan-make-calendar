@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Bell, BellRing } from 'lucide-react';
 import type { CalendarEvent } from '../../types';
-import { isNotifyOn, setNotifyOn } from '../../lib/constants';
+import { isNotifyOn, setNotifyOn, loadNotifyLeadDays } from '../../lib/constants';
 import { ensurePermission, scheduleForEvent, cancelForEvent, notificationsSupported } from '../../lib/notifications';
 import { useToast } from '../ui/Toast';
 import { haptic } from '../../lib/haptics';
@@ -23,21 +23,24 @@ export default function NotifyBell({ event, liked, size = 18, variant = 'icon' }
     }
   }, [liked, event.id]);
 
-  // いいね済み かつ ローカル通知対応環境（新APK）のときだけ表示
-  if (!liked || !notificationsSupported()) return null;
+  // いいね済みのときだけ表示。Web版でも見せる（ON状態は保存されるが、通知の配信はアプリ版のみ）
+  if (!liked) return null;
 
   const toggle = async (e: React.MouseEvent) => {
     e.stopPropagation();
     haptic.light();
     const next = !on;
-    if (next) {
+    const supported = notificationsSupported();
+    if (next && supported) {
       const ok = await ensurePermission();
       if (!ok) { toast('通知が許可されていません。端末の設定から許可してください'); return; }
     }
     setOn(next);
     setNotifyOn(event.id, next);
-    if (next) { await scheduleForEvent(event); toast('発売・締切日にお知らせします'); }
-    else { await cancelForEvent(event.id); }
+    if (next) {
+      if (supported) { await scheduleForEvent(event); toast(`${loadNotifyLeadDays()}日前と当日の朝にお知らせします`); }
+      else { toast('設定を保存しました。通知の配信はアプリ版のみです'); }
+    } else { await cancelForEvent(event.id); }
   };
 
   const Icon = on

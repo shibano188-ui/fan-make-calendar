@@ -1,54 +1,46 @@
-import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { CalendarDays, Heart, Share2 } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { listRecentWorks } from '../lib/api';
+import { useRef, useState } from 'react';
+import { CalendarDays, Heart, Bell, Sparkles } from 'lucide-react';
 
-// 初回オンボーディング（Phase G-1）
-// 表示条件: fan_onboarding_done なし かつ 参加作品 0 件。既存ユーザーには出ない。
+// 初回オンボーディング（現IA: ホーム/探す/＋投稿/カレンダー/マイページ 版）
+// 表示条件: フラグ未設定のみ。キーを v2 に更新し、旧カードを見た人にも一度だけ出す
+// （「いいね＝カレンダー追加」「通知がある」が伝わっていないため）。
 
-const ONBOARDING_KEY = 'fan_onboarding_done';
+const ONBOARDING_KEY = 'fan_onboarding_done_v2';
 
+// 本文はワンセンテンス厳守（長いと読まれない）。改行は入れず折り返しに任せる。
 const CARDS = [
   {
     icon: CalendarDays,
     title: '推しの予定、ぜんぶここに',
-    body: 'イベント・グッズ・アニメ・誕生日。\nファンが見つけた予定が、作品ごとのカレンダーに集まります。',
+    body: 'ファンが見つけたイベントやグッズの予定が「探す」に集まります。',
   },
   {
     icon: Heart,
-    title: 'いいねで自分のカレンダーへ',
-    body: '発見タブでみんなの投稿を眺めて、\n気になる予定はいいねするだけで追加されます。',
+    title: 'いいねでカレンダーに追加',
+    body: '気になる予定は ♡ を押すだけ。「カレンダー」タブに入ります。',
   },
   {
-    icon: Share2,
+    icon: Bell,
+    title: '通知で買い逃しを防ぐ',
+    body: '追加した予定の 🔔 をONにすると、発売日や締切の前にお知らせ。',
+  },
+  {
+    icon: Sparkles,
     title: 'Xで見つけたら、共有するだけ',
-    body: '共有メニューから FanHive を選ぶと、\nAIがポストを読み取って予定を自動入力します。',
+    body: '共有先に FanHive を選ぶと、AIが予定を自動入力します。',
   },
 ] as const;
 
 export default function Onboarding() {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const [show, setShow] = useState(false);
+  const [show, setShow] = useState(() => !localStorage.getItem(ONBOARDING_KEY));
   const [page, setPage] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (localStorage.getItem(ONBOARDING_KEY)) return;
-    if (!user) return;
-    listRecentWorks(user.id).then(ws => {
-      if (ws.length === 0) setShow(true);
-      else localStorage.setItem(ONBOARDING_KEY, '1'); // 既存ユーザーは以後表示しない
-    }).catch(() => {});
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
   if (!show) return null;
 
-  const finish = (toSelect: boolean) => {
+  const finish = () => {
     localStorage.setItem(ONBOARDING_KEY, '1');
     setShow(false);
-    if (toSelect) navigate('/select');
   };
 
   const onScroll = () => {
@@ -61,7 +53,7 @@ export default function Onboarding() {
     <div className="fixed inset-0 z-[300] max-w-app mx-auto flex flex-col" style={{ backgroundColor: 'var(--bg-primary)' }}>
       {/* スキップ */}
       <div className="flex justify-end px-4 pt-4" style={{ paddingTop: 'max(16px, env(safe-area-inset-top))' }}>
-        <button onClick={() => finish(false)} className="text-[13px] text-label-tertiary px-3 py-2 pressable">
+        <button onClick={finish} className="text-[13px] text-label-tertiary px-3 py-2 pressable">
           スキップ
         </button>
       </div>
@@ -86,7 +78,7 @@ export default function Onboarding() {
               <Icon size={44} style={{ color: 'var(--accent-text)' }} strokeWidth={1.6} />
             </div>
             <p className="text-[22px] font-bold text-label-primary leading-snug">{title}</p>
-            <p className="text-[14px] text-label-secondary leading-relaxed whitespace-pre-line">{body}</p>
+            <p className="text-[14px] text-label-secondary leading-relaxed max-w-[280px]">{body}</p>
           </div>
         ))}
       </div>
@@ -104,11 +96,11 @@ export default function Onboarding() {
         </div>
         {page === CARDS.length - 1 ? (
           <button
-            onClick={() => finish(true)}
+            onClick={finish}
             className="w-full py-3.5 rounded-full text-[15px] font-semibold pressable"
             style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
           >
-            作品を選んではじめる
+            はじめる
           </button>
         ) : (
           <button
