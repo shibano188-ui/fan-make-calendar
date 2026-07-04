@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ImageOff } from 'lucide-react';
+import OptImg from '../ui/OptImg';
 
 /** 詳細画面の画像カルーセル。複数画像は横スワイプ＋ドット。詳細では全体を見せたいので object-contain。 */
 export default function ImageCarousel({ images, alt }: { images: string[]; alt: string }) {
@@ -23,7 +24,7 @@ export default function ImageCarousel({ images, alt }: { images: string[]; alt: 
         }}
       >
         {images.map((src, i) => (
-          <img key={i} src={src} alt={alt} className="w-full h-full object-contain flex-shrink-0 snap-center" />
+          <OptImg key={i} src={src} w={828} alt={alt} className="w-full h-full object-contain flex-shrink-0 snap-center" />
         ))}
       </div>
       {images.length > 1 && (

@@ -1,4 +1,11 @@
 {
+  "images": {
+    "sizes": [192, 384, 640, 828],
+    "remotePatterns": [{ "protocol": "https", "hostname": "^.*$" }],
+    "qualities": [75],
+    "formats": ["image/webp"],
+    "minimumCacheTTL": 2678400
+  },
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
   "headers": [
     {

@@ -6,6 +6,7 @@ import { deriveStatus, deriveItemType, itemDateLines } from '../../design/tokens
 import { parseCategories, getPrimaryCategoryColor, parseImageUrls } from '../../lib/constants';
 import { resolveBuy, type BuyMode } from '../../lib/affiliate';
 import StatusBadge from '../ui/StatusBadge';
+import OptImg from '../ui/OptImg';
 import ReactionButton from './ReactionButton';
 import NotifyBell from './NotifyBell';
 
@@ -109,8 +110,9 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
   const Thumb = (
     <div className="relative w-full h-full bg-fill-3 flex items-center justify-center overflow-hidden">
       {showImg ? (
-        <img
+        <OptImg
           src={firstImg}
+          w={384}
           alt={event.title}
           loading="lazy"
           onError={() => setImgError(true)}

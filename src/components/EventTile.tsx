@@ -3,6 +3,7 @@ import { Heart, Smile, Flag, Trash2, Pencil, Star, Share2, ExternalLink, X } fro
 import CategoryChips from './CategoryChips';
 import MemoText from './MemoText';
 import SourceBadge from './SourceBadge';
+import OptImg from './ui/OptImg';
 import { getPrimaryCategoryColor, parseImageUrls, parseLinks } from '../lib/constants';
 import { safeHref } from '../lib/url';
 import { REACTIONS, type ReactionType } from '../lib/reactions';
@@ -191,14 +192,14 @@ export default function EventTile(props: EventTileProps) {
           {/* 画像 */}
           {imgs.length === 1 && (
             <div className="flex justify-center">
-              <img src={imgs[0]} alt="" loading="lazy" decoding="async" className="rounded-lg block" style={{ maxHeight: 220, maxWidth: '100%', height: 'auto', width: 'auto' }} />
+              <OptImg src={imgs[0]} w={640} alt="" loading="lazy" decoding="async" className="rounded-lg block" style={{ maxHeight: 220, maxWidth: '100%', height: 'auto', width: 'auto' }} />
             </div>
           )}
           {imgs.length > 1 && (
             <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollSnapType: 'x mandatory' }}
               onTouchStart={e => e.stopPropagation()}>
               {imgs.map((src, i) => (
-                <img key={i} src={src} alt="" loading="lazy" decoding="async" className="rounded-lg flex-shrink-0 block" style={{ height: 130, width: 'auto', scrollSnapAlign: 'start' }} />
+                <OptImg key={i} src={src} w={384} alt="" loading="lazy" decoding="async" className="rounded-lg flex-shrink-0 block" style={{ height: 130, width: 'auto', scrollSnapAlign: 'start' }} />
               ))}
             </div>
           )}

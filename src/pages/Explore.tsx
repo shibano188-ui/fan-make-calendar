@@ -363,8 +363,11 @@ export default function Explore() {
   const gridClass = mode === 'goods' ? 'grid grid-cols-2 gap-2 items-stretch' : 'flex flex-col gap-2';
   const workColorMap = useMemo(() => buildWorkColorMap([...followed].map((id) => ({ id }))), [followed]);
 
+  // content-visibility: 画面外カードの描画・レイアウト計算をスキップして長いリストを軽くする。
+  // containIntrinsicSize は未描画時の高さの見積もり（スクロールバー・復元位置の安定用）。
   const renderCard = (e: CalendarEvent) => (
-    <div key={e.id} ref={observeSeen} data-event-id={e.id}>
+    <div key={e.id} ref={observeSeen} data-event-id={e.id}
+      style={{ contentVisibility: 'auto', containIntrinsicSize: mode === 'goods' ? 'auto 250px' : 'auto 114px' }}>
       <ItemCard event={e} layout={mode === 'goods' ? 'grid' : 'list'} isNew={isNewItem(e.id, e.createdAt, seenSnapshot)} likedInit={likedIds.has(e.id)}
         workColor={e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)'}
         onOpen={() => { sessionStorage.setItem('explore_scroll', String(getScrollTop())); navigate(`/item/${e.id}`); }} onLike={() => onLikeTile(e)} onCalendar={() => onCalendarTile(e)} onBuy={() => onBuy(e)} />
