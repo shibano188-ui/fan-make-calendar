@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from 'recharts';
-import { ChevronRight, Bell, Crown, CalendarSync, Moon, Palette } from 'lucide-react';
+import { ChevronRight, Bell, Crown, CalendarSync, Moon, Palette, Pencil } from 'lucide-react';
 import {
-  getUserPublicProfile, getHomePrefecture, saveHomePrefecture, saveDisplayName,
+  getUserPublicProfile, getHomePrefecture, saveHomePrefecture, saveDisplayName, saveAvatarEmoji,
   listAllParticipatedWorks, leaveCalendar, listSavedEvents, type Work,
 } from '../lib/api';
+import { useConfirm } from '../components/ui/ConfirmDialog';
 import { rescheduleAll } from '../lib/notifications';
 import { calcTitle, calcRadarData, calcGrade, type AchievementStats } from '../lib/achievements';
 import { REGIONS } from '../lib/prefectures';
@@ -14,9 +15,15 @@ import { isGoogleConfigured, isGoogleLinked, linkGoogle, unlinkGoogle } from '..
 import { useTheme, type ThemeMode } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
-import { haptic } from '../lib/haptics';
+import { haptic, hapticsDebug } from '../lib/haptics';
 
 const ALL_PREFS = REGIONS.flatMap((r) => r.prefectures);
+
+const ANIMAL_AVATARS = [
+  '🐝', '🦊', '🐱', '🐼', '🐻', '🐰', '🐨', '🐯',
+  '🐶', '🦁', '🐮', '🐷', '🐸', '🦋', '🐬', '🐧',
+  '🦄', '🐙', '🦜', '🦅', '🦖', '🐳', '🦓', '🐢',
+];
 
 export default function MyPage() {
   const { user } = useAuth();
@@ -28,6 +35,8 @@ export default function MyPage() {
   const [homePref, setHomePref] = useState('');
   const [works, setWorks] = useState<Work[]>([]);
   const [worksOpen, setWorksOpen] = useState(false);
+  const [avatarOpen, setAvatarOpen] = useState(false);
+  const confirm = useConfirm();
   const [leadDays, setLeadDays] = useState(loadNotifyLeadDays());
   const [gcalLinked, setGcalLinked] = useState(isGoogleLinked());
   const { settings, updateSettings } = useTheme();
@@ -60,29 +69,66 @@ export default function MyPage() {
 
   const onSaveName = async () => { if (!user) return; await saveDisplayName(user.id, name.trim()); haptic.select(); toast('表示名を保存しました'); };
   const onChangePref = async (p: string) => { setHomePref(p); if (user) { await saveHomePrefecture(user.id, p || null); toast('ホーム県を保存しました'); } };
-  const onLeave = async (workId: string) => { if (!user) return; haptic.select(); setWorks((prev) => prev.filter((w) => w.id !== workId)); await leaveCalendar(workId, user.id); };
+  const onPickAvatar = async (emoji: string) => {
+    haptic.select();
+    setAvatar(emoji);
+    setAvatarOpen(false);
+    if (user) saveAvatarEmoji(user.id, emoji).catch(() => {});
+  };
+  const onLeave = async (w: Work) => {
+    if (!user) return;
+    haptic.select();
+    const ok = await confirm({ title: `「${w.name}」のフォローを解除しますか？`, message: '探すタブにこの作品の予定が表示されなくなります', confirmLabel: '解除する', destructive: true });
+    if (!ok) return;
+    setWorks((prev) => prev.filter((x) => x.id !== w.id));
+    await leaveCalendar(w.id, user.id);
+  };
 
   return (
     <div className="px-4 pt-4 pb-4" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 16px)' }}>
       {/* プロフィール */}
       <div className="flex items-center gap-3">
-        <div className="w-16 h-16 rounded-full flex items-center justify-center text-[32px]" style={{ backgroundColor: 'var(--fill-tertiary)' }}>{avatar ?? '🐝'}</div>
+        <button onClick={() => { haptic.select(); setAvatarOpen((v) => !v); }} aria-label="アバターを変更"
+          className="pressable relative w-16 h-16 rounded-full flex items-center justify-center text-[32px] flex-shrink-0"
+          style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+          {avatar ?? '🐝'}
+          <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center"
+            style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+            <Pencil size={11} />
+          </span>
+        </button>
         <div className="min-w-0">
           <div className="text-[17px] font-bold truncate">{name || '名無しのファン'}</div>
           <div className="text-[13px]" style={{ color: 'var(--accent-text)' }}>{title}・グレード {grade}</div>
         </div>
       </div>
 
+      {/* アバターピッカー（アバタータップで開閉） */}
+      {avatarOpen && (
+        <div className="mt-3 rounded-[14px] border border-subtle p-3 grid grid-cols-8 gap-1.5" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+          {ANIMAL_AVATARS.map((emoji) => (
+            <button key={emoji} onClick={() => onPickAvatar(emoji)} aria-label={`アバター ${emoji}`}
+              className="pressable aspect-square rounded-[10px] flex items-center justify-center text-[22px]"
+              style={emoji === avatar ? { backgroundColor: 'color-mix(in srgb, var(--accent-color) 22%, transparent)' } : { backgroundColor: 'var(--fill-tertiary)' }}>
+              {emoji}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* ファンスター */}
       <div className="mt-4 rounded-[14px] border border-subtle p-2" style={{ backgroundColor: 'var(--bg-secondary)' }}>
         <div className="text-[12px] text-label-secondary px-2 pt-1">ファンスター</div>
-        <ResponsiveContainer width="100%" height={220}>
-          <RadarChart data={radar} outerRadius="70%">
-            <PolarGrid stroke="var(--separator)" />
-            <PolarAngleAxis dataKey="axis" tick={{ fontSize: 11, fill: 'var(--label-secondary)' }} />
-            <Radar dataKey="value" stroke="var(--accent-color)" fill="var(--accent-color)" fillOpacity={0.4} />
-          </RadarChart>
-        </ResponsiveContainer>
+        {/* accessibilityLayer=false: SVGがフォーカス可能になりタップでフォーカスリング（四角）が出るのを防ぐ */}
+        <div style={{ outline: 'none' }} className="[&_svg]:outline-none [&_*]:focus:outline-none">
+          <ResponsiveContainer width="100%" height={220}>
+            <RadarChart data={radar} outerRadius="70%" accessibilityLayer={false}>
+              <PolarGrid stroke="var(--separator)" />
+              <PolarAngleAxis dataKey="axis" tick={{ fontSize: 11, fill: 'var(--label-secondary)' }} />
+              <Radar dataKey="value" stroke="var(--accent-color)" fill="var(--accent-color)" fillOpacity={0.4} />
+            </RadarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
       {/* 統計 */}
@@ -180,15 +226,15 @@ export default function MyPage() {
             {works.map((w) => (
               <div key={w.id} className="flex items-center justify-between gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
                 <span className="text-[14px] truncate">{w.name}</span>
-                <button onClick={() => onLeave(w.id)} className="pressable text-[12px] text-label-secondary flex-shrink-0">解除</button>
+                <button onClick={() => onLeave(w)} className="pressable text-[12px] text-label-secondary flex-shrink-0">解除</button>
               </div>
             ))}
           </div>
         )
       )}
 
-      {/* ビルド刻印（キャッシュ判別用）。最新版が動いているか端末で確認できる。 */}
-      <p className="mt-8 text-center text-[10px] text-label-tertiary">build {__BUILD_TIME__}</p>
+      {/* ビルド刻印（キャッシュ判別用）。タップで隠しハプティクス診断（バイブしない端末の切り分け用） */}
+      <p className="mt-8 text-center text-[10px] text-label-tertiary" onClick={() => hapticsDebug(toast)}>build {__BUILD_TIME__}</p>
     </div>
   );
 }
