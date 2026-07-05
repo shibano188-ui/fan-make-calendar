@@ -18,7 +18,7 @@ import { useToast } from '../components/ui/Toast';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { haptic } from '../lib/haptics';
 
-type Tab = 'all' | 'liked' | 'mine' | 'notify';
+type Tab = 'all' | 'preorder' | 'mine' | 'notify';
 type View = 'list' | 'month' | 'week' | 'day';
 
 const VIEWS: { key: View; label: string }[] = [
@@ -43,7 +43,7 @@ export default function Saved() {
   const toast = useToast();
   const _ss = loadSavedSession();
   const [items, setItems] = useState<CalendarEvent[] | null>(null);
-  const [tab, setTab] = useState<Tab>(_ss.tab ?? 'all');
+  const [tab, setTab] = useState<Tab>(['all', 'preorder', 'mine', 'notify'].includes(_ss.tab) ? _ss.tab : 'all');
   const [view, setView] = useState<View>(_ss.view ?? 'month');
 
   // 探すと同じ絞り込み
@@ -129,7 +129,7 @@ export default function Saved() {
   // スコープ（すべて / いいね / 自分の投稿）→ 検索語 で絞った集合
   const scopeItems = useMemo(() => {
     let list = items ?? [];
-    if (tab === 'liked') list = list.filter((e) => e.likedByMe);
+    if (tab === 'preorder') list = list.filter((e) => deriveStatus(e) === 'preorder');
     if (tab === 'mine') list = list.filter((e) => e.authorId === user?.id);
     if (tab === 'notify') list = list.filter((e) => isNotifyOn(e.id));
     const q = query.trim().toLowerCase();
@@ -237,7 +237,7 @@ export default function Saved() {
     toast(r === 'google' ? 'Googleカレンダーに追加しました' : r === 'ics' ? 'カレンダーに追加しました' : '日付未定のため追加できません');
   };
 
-  const emptyMsg = tab === 'mine' ? 'まだ投稿がありません' : tab === 'liked' ? 'まだ保存がありません' : '保存した予定がありません';
+  const emptyMsg = tab === 'mine' ? 'まだ投稿がありません' : tab === 'preorder' ? '予約・受注中の予定はありません' : '保存した予定がありません';
 
   return (
     <div ref={rootRef} className="px-3 pt-3">
@@ -277,7 +277,7 @@ export default function Saved() {
         {/* スコープ: すべて / いいね / 自分の投稿 / 通知ON（全ビューで有効） */}
         <div className="flex items-center flex-wrap gap-2">
           <Chip active={tab === 'all'} onClick={() => { haptic.select(); setTab('all'); }}>すべて</Chip>
-          <Chip active={tab === 'liked'} onClick={() => { haptic.select(); setTab('liked'); }}>いいね</Chip>
+          <Chip active={tab === 'preorder'} onClick={() => { haptic.select(); setTab('preorder'); }}>予約・受注中</Chip>
           <Chip active={tab === 'mine'} onClick={() => { haptic.select(); setTab('mine'); }}>自分の投稿</Chip>
           <Chip active={tab === 'notify'} onClick={() => { haptic.select(); setTab('notify'); }}>通知ON</Chip>
           {activeCount > 0 && !filterOpen && (

@@ -29,15 +29,19 @@ function clean(v: unknown): string | null {
 }
 
 function rawToParsed(raw: Record<string, unknown>): ParsedEvent {
+  // 不変条件: 曖昧日付（dateLabel あり）に期間・時刻は持たせない。
+  // AIは「発売は7月中・お届けは10月」のようなポストで dateLabel と endDate を両方返すことがあり、
+  // そのまま保存すると「7/31〜10/31 の期間予定」として描画が壊れる（実例あり）。
+  const dateLabel = clean(raw.dateLabel);
   return {
     title: clean(raw.title),
     work: clean(raw.work),
     price: raw.price != null && !isNaN(Number(raw.price)) ? Number(raw.price) : null,
     date: clean(raw.date),
-    dateLabel: clean(raw.dateLabel),
-    time: clean(raw.time),
-    endDate: clean(raw.endDate),
-    endTime: clean(raw.endTime),
+    dateLabel,
+    time: dateLabel ? null : clean(raw.time),
+    endDate: dateLabel ? null : clean(raw.endDate),
+    endTime: dateLabel ? null : clean(raw.endTime),
     category: categoriesFromRaw(raw),
     prefecture: clean(raw.prefecture),
     locationDetail: clean(raw.locationDetail),

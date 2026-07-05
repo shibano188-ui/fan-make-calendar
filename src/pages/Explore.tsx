@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams, useNavigationType, useLocation } from 'react-router-dom';
-import { ArrowDownToLine, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ArrowDownToLine, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import FilterPanel, { type Facet } from '../components/item/FilterPanel';
+import WorkFollowSheet from '../components/WorkFollowSheet';
 import Chip from '../components/ui/Chip';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveItemType, deriveStatus, todayStr, STATUS, type ItemStatus, type ItemType } from '../design/tokens';
@@ -53,6 +54,7 @@ export default function Explore() {
   const [neighborActive, setNeighborActive] = useState<boolean>(_ss.neighborActive ?? false);
   const [homePref, setHomePref] = useState<string | null>(null);
   const [followed, setFollowed] = useState<Set<string>>(new Set());
+  const [followSheetOpen, setFollowSheetOpen] = useState(false);
   const [workMatches, setWorkMatches] = useState<Work[]>([]);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [filterOpen, setFilterOpen] = useState<boolean>(_ss.filterOpen ?? false);
@@ -159,13 +161,14 @@ export default function Explore() {
 
   useEffect(() => { if (user) getHomePrefecture(user.id).then(setHomePref).catch(() => {}); }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
+  const reloadFollows = () => {
     if (!user) return;
     const fkey = `follows:${user.id}`;
     const cachedF = getCached<Work[]>(fkey);
     if (cachedF) setFollowed(new Set(cachedF.map((w) => w.id)));
     listAllParticipatedWorks(user.id).then((ws) => { setFollowed(new Set(ws.map((w) => w.id))); setCached(fkey, ws); }).catch(() => {});
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  };
+  useEffect(() => { reloadFollows(); }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!user) return;
@@ -410,6 +413,11 @@ export default function Explore() {
           <Chip active={mode === 'goods'} onClick={() => { haptic.select(); setMode('goods'); }}>グッズ</Chip>
           <Chip active={mode === 'event'} onClick={() => { haptic.select(); setMode('event'); }}>イベント</Chip>
           <Chip active={showUnseenOnly} onClick={() => { haptic.select(); setShowUnseenOnly((v) => !v); }}>新着のみ</Chip>
+          <button onClick={() => { haptic.select(); setFollowSheetOpen(true); }}
+            className="pressable flex items-center gap-1 px-3 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap border border-dashed flex-shrink-0"
+            style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-text)' }}>
+            <Plus size={14} /> 作品
+          </button>
           {/* フィルターアクティブ時: パネルを開かずに確認・全クリアできるチップ */}
           {activeCount > 0 && !filterOpen && (
             <div className="ml-auto flex items-center gap-1 rounded-full border overflow-hidden flex-shrink-0"
@@ -465,7 +473,18 @@ export default function Explore() {
         {items === null ? (
           <SkeletonList count={4} />
         ) : visible.length === 0 ? (
-          <p className="text-center text-label-secondary text-[13px] py-16">該当する{mode === 'goods' ? 'グッズ' : 'イベント'}がありません</p>
+          followed.size === 0 ? (
+            <div className="text-center py-16">
+              <p className="text-label-secondary text-[13px]">まずは好きな作品をフォローすると、<br />みんなの投稿した予定がここに表示されます</p>
+              <button onClick={() => { haptic.select(); setFollowSheetOpen(true); }}
+                className="pressable mt-4 inline-flex items-center gap-1 px-4 py-2 rounded-full text-[14px] font-semibold"
+                style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+                <Plus size={16} /> 作品をフォロー
+              </button>
+            </div>
+          ) : (
+            <p className="text-center text-label-secondary text-[13px] py-16">該当する{mode === 'goods' ? 'グッズ' : 'イベント'}がありません</p>
+          )
         ) : (
           <>
             {past.length > 0 && <div className={gridClass}>{past.map(renderCard)}</div>}
@@ -491,6 +510,8 @@ export default function Explore() {
           <ArrowDownToLine size={20} />
         </button>
       )}
+
+      <WorkFollowSheet open={followSheetOpen} onClose={() => setFollowSheetOpen(false)} onChanged={reloadFollows} />
     </div>
   );
 }

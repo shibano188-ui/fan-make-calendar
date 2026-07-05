@@ -18,6 +18,8 @@ import StatusBadge from '../components/ui/StatusBadge';
 import ImageCarousel from '../components/item/ImageCarousel';
 import NotifyBell from '../components/item/NotifyBell';
 import LineLoader from '../components/ui/LineLoader';
+import UserProfileModal from '../components/UserProfileModal';
+import { useConfirm } from '../components/ui/ConfirmDialog';
 
 // 外部カレンダー連携（Google/ics への追加）は一旦保留。再開時は true に戻す。
 const EXTERNAL_CALENDAR_ENABLED = false;
@@ -40,6 +42,7 @@ export default function ItemDetail() {
   const [ev, setEv] = useState<CalendarEvent | null | undefined>(undefined); // undefined=loading
   const [workName, setWorkName] = useState('');
   const [authorName, setAuthorName] = useState<string | null>(null);
+  const [viewingUserId, setViewingUserId] = useState<string | null>(null);
   // タイルと共有するいいねストア。fallback は読み込んだ予定の値。
   const { liked, count: likeCount } = useLike(id ?? '', { liked: !!ev?.likedByMe, count: ev?.likes ?? 0 });
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -54,6 +57,7 @@ export default function ItemDetail() {
   const [stockInput, setStockInput] = useState('');
   const [addingStock, setAddingStock] = useState(false);
   const [reported, setReported] = useState(false);
+  const confirm = useConfirm();
   const [edits, setEdits] = useState<EventEdit[]>([]);
   const [editing, setEditing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -238,6 +242,8 @@ export default function ItemDetail() {
   const onReport = async () => {
     if (!user || reported) return;
     haptic.select();
+    const ok = await confirm({ title: 'この投稿を通報しますか？', message: '不適切な内容・誤情報として運営に報告します', confirmLabel: '通報する', destructive: true });
+    if (!ok) return;
     setReported(true);
     await reportEvent(event.id, user.id, 'user_report').catch(() => {});
   };
@@ -490,13 +496,26 @@ export default function ItemDetail() {
               </div>
             </div>
 
-            {/* 投稿者 */}
-            {authorName && <div className="text-[12px] text-label-tertiary mt-4">投稿: {authorName}</div>}
+            {/* 投稿者（タップでプロフィール表示） */}
+            {authorName && (
+              <div className="mt-4">
+                {eff.authorId ? (
+                  <button onClick={() => { haptic.select(); setViewingUserId(eff.authorId!); }}
+                    className="pressable text-[12px] text-label-tertiary underline underline-offset-2 decoration-dotted">
+                    投稿: {authorName}
+                  </button>
+                ) : (
+                  <span className="text-[12px] text-label-tertiary">投稿: {authorName}</span>
+                )}
+              </div>
+            )}
 
-            {/* 通報 */}
-            <button onClick={onReport} disabled={reported} className="pressable mt-4 text-[12px] text-label-tertiary">
-              {reported ? '通報しました' : '通報する'}
-            </button>
+            {/* 通報（確認ダイアログあり） */}
+            <div className="mt-3">
+              <button onClick={onReport} disabled={reported} className="pressable text-[12px] text-label-tertiary">
+                {reported ? '通報しました' : '通報する'}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -512,6 +531,8 @@ export default function ItemDetail() {
           </div>
         )}
       </div>
+
+      {viewingUserId && <UserProfileModal userId={viewingUserId} onClose={() => setViewingUserId(null)} />}
     </div>
   );
 }

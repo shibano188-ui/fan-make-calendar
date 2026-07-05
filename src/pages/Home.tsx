@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { Search, Plus } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import { SkeletonList } from '../components/ui/Skeleton';
@@ -16,6 +16,7 @@ import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { useAuth } from '../contexts/AuthContext';
 import { haptic } from '../lib/haptics';
 import { useAdBanner } from '../lib/useAdBanner';
+import WorkFollowSheet from '../components/WorkFollowSheet';
 
 function shiftMonths(base: string, n: number): string {
   const d = new Date(base + 'T00:00:00');
@@ -50,6 +51,7 @@ export default function Home() {
   const [items, setItems] = useState<CalendarEvent[] | null>(null);
   const [follows, setFollows] = useState<Work[]>([]);
   const [followIds, setFollowIds] = useState<Set<string>>(new Set());
+  const [followSheetOpen, setFollowSheetOpen] = useState(false);
   const [homePref, setHomePref] = useState<string | null>(null);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
@@ -80,14 +82,20 @@ export default function Home() {
     return () => { alive = false; };
   }, [today]);
 
-  useEffect(() => {
+  const reloadFollows = () => {
     if (!user) return;
-    const fkey = `follows:${user.id}`, lkey = `liked:${user.id}`;
+    const fkey = `follows:${user.id}`;
     const cachedF = getCached<Work[]>(fkey);
     if (cachedF) { setFollows(cachedF); setFollowIds(new Set(cachedF.map((w) => w.id))); }
+    listAllParticipatedWorks(user.id).then((ws) => { setFollows(ws); setFollowIds(new Set(ws.map((w) => w.id))); setCached(fkey, ws); }).catch(() => {});
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    const lkey = `liked:${user.id}`;
+    reloadFollows();
     const cachedL = getCached<string[]>(lkey);
     if (cachedL) setLikedIds(new Set(cachedL));
-    listAllParticipatedWorks(user.id).then((ws) => { setFollows(ws); setFollowIds(new Set(ws.map((w) => w.id))); setCached(fkey, ws); }).catch(() => {});
     getHomePrefecture(user.id).then(setHomePref).catch(() => {});
     listLikedEventIds(user.id).then((ids) => { setLikedIds(ids); setCached(lkey, [...ids]); }).catch(() => {});
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -101,13 +109,18 @@ export default function Home() {
   }, [homePref]);
 
   const sections = useMemo(() => {
-    // フォロー中の作品の予定だけ
-    const all = (items ?? []).filter((e) => e.workId && followIds.has(e.workId));
+    // フォロー中の作品の予定だけ。終了済み（終了/発売済み/受付終了）はホームに出さない
+    // （終わった予定を見せてもがっかりさせるだけ。過去分は探す・カレンダーで見られる）。
+    const all = (items ?? []).filter((e) => {
+      if (!e.workId || !followIds.has(e.workId)) return false;
+      const st = deriveStatus(e);
+      return st !== 'ended' && st !== 'preorder_ended';
+    });
     const preorderOpen = all.filter((e) => deriveStatus(e) === 'preorder')
       .sort((a, b) => (a.preorderEnd ?? '9999').localeCompare(b.preorderEnd ?? '9999')).slice(0, 12);
     const preorderSoon = all.filter((e) => deriveStatus(e) === 'preorder_soon')
       .sort((a, b) => (a.preorderStart ?? '9999').localeCompare(b.preorderStart ?? '9999')).slice(0, 12);
-    const followNew = all.filter((e) => e.workId && followIds.has(e.workId))
+    const followNew = [...all]
       .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? '')).slice(0, 12);
     const nearby = nearPrefs.size
       ? all.filter((e) => deriveItemType(e) === 'event' && e.prefecture && nearPrefs.has(e.prefecture)).slice(0, 12)
@@ -151,24 +164,28 @@ export default function Home() {
         </button>
       </div>
 
-      {/* フォロー中の作品（確認用・常時表示）。タップでその作品の予定へ。 */}
-      {follows.length > 0 && (
-        <div className="pt-2">
-          <div className="px-3 flex items-center justify-between mb-1.5">
-            <span className="text-[12px] text-label-secondary">フォロー中（{follows.length}）</span>
-            <button onClick={() => { haptic.select(); navigate('/mypage'); }} className="pressable text-[11px] font-medium" style={{ color: 'var(--accent-text)' }}>管理</button>
-          </div>
-          <div className="flex gap-2 overflow-x-auto no-scrollbar px-3">
-            {follows.map((w) => (
-              <button key={w.id} onClick={() => { haptic.select(); navigate(`/explore?q=${encodeURIComponent(w.name)}`); }}
-                className="pressable flex-shrink-0 px-3 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap"
-                style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
-                {w.name}
-              </button>
-            ))}
-          </div>
+      {/* フォロー中の作品（0件でも表示＝フォロー導線を常設）。タップでその作品の予定へ。 */}
+      <div className="pt-2">
+        <div className="px-3 flex items-center justify-between mb-1.5">
+          <span className="text-[12px] text-label-secondary">フォロー中（{follows.length}）</span>
+          <button onClick={() => { haptic.select(); setFollowSheetOpen(true); }} className="pressable text-[11px] font-medium" style={{ color: 'var(--accent-text)' }}>管理</button>
         </div>
-      )}
+        <div className="flex gap-2 overflow-x-auto no-scrollbar px-3">
+          {follows.map((w) => (
+            <button key={w.id} onClick={() => { haptic.select(); navigate(`/explore?q=${encodeURIComponent(w.name)}`); }}
+              className="pressable flex-shrink-0 px-3 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap"
+              style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
+              {w.name}
+            </button>
+          ))}
+          <button onClick={() => { haptic.select(); setFollowSheetOpen(true); }}
+            className="pressable flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap border border-dashed"
+            style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-text)' }}>
+            <Plus size={14} /> {follows.length === 0 ? '作品をフォロー' : '追加'}
+          </button>
+        </div>
+      </div>
+      <WorkFollowSheet open={followSheetOpen} onClose={() => setFollowSheetOpen(false)} onChanged={reloadFollows} />
 
       {items === null ? (
         <div className="px-3 pt-3"><SkeletonList count={3} /></div>

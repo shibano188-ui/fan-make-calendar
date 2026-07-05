@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from 'recharts';
-import { ChevronRight, Bell, Crown, CalendarSync, Moon, Palette, Pencil } from 'lucide-react';
+import { ChevronRight, Bell, Crown, CalendarSync, Moon, Palette, Pencil, Plus, Droplet, Check, MessageCircle, MapPin } from 'lucide-react';
+import { getContrastText } from '../lib/color';
+
+// アクセント色の選択肢（先頭=デフォルトの黄色）
+const MYPAGE_ACCENTS = ['#FBBF00', '#D85A30', '#1D9E75', '#378ADD', '#D4537E'] as const;
 import {
   getUserPublicProfile, getHomePrefecture, saveHomePrefecture, saveDisplayName, saveAvatarEmoji,
-  listAllParticipatedWorks, leaveCalendar, listSavedEvents, type Work,
+  listAllParticipatedWorks, leaveCalendar, listSavedEvents, getProfileExtras, saveProfileExtras, type Work,
 } from '../lib/api';
 import { useConfirm } from '../components/ui/ConfirmDialog';
+import WorkFollowSheet from '../components/WorkFollowSheet';
+import FanStarChart from '../components/FanStarChart';
 import { rescheduleAll } from '../lib/notifications';
 import { calcTitle, calcRadarData, calcGrade, type AchievementStats } from '../lib/achievements';
 import { REGIONS } from '../lib/prefectures';
@@ -18,6 +23,15 @@ import { useToast } from '../components/ui/Toast';
 import { haptic, hapticsDebug } from '../lib/haptics';
 
 const ALL_PREFS = REGIONS.flatMap((r) => r.prefectures);
+
+type EditableField = 'name' | 'bio' | 'oshi' | 'fav' | 'pref';
+const FIELD_META: Record<EditableField, { label: string; placeholder: string; max: number }> = {
+  name: { label: '表示名', placeholder: '名前', max: 20 },
+  bio:  { label: '一言コメント', placeholder: '', max: 40 },
+  oshi: { label: '推し', placeholder: '', max: 30 },
+  fav:  { label: '好きな作品', placeholder: '', max: 60 },
+  pref: { label: 'ホーム県', placeholder: '', max: 0 },
+};
 
 const ANIMAL_AVATARS = [
   '🐝', '🦊', '🐱', '🐼', '🐻', '🐰', '🐨', '🐯',
@@ -33,9 +47,14 @@ export default function MyPage() {
   const [avatar, setAvatar] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [homePref, setHomePref] = useState('');
+  const [bio, setBio] = useState('');
+  const [oshi, setOshi] = useState('');
+  const [favWorks, setFavWorks] = useState('');
   const [works, setWorks] = useState<Work[]>([]);
   const [worksOpen, setWorksOpen] = useState(false);
+  const [followSheetOpen, setFollowSheetOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
+  const [editingField, setEditingField] = useState<EditableField | null>(null);
   const confirm = useConfirm();
   const [leadDays, setLeadDays] = useState(loadNotifyLeadDays());
   const [gcalLinked, setGcalLinked] = useState(isGoogleLinked());
@@ -60,15 +79,27 @@ export default function MyPage() {
     }).catch(() => {});
     getHomePrefecture(user.id).then((p) => alive && setHomePref(p ?? '')).catch(() => {});
     listAllParticipatedWorks(user.id).then((ws) => alive && setWorks(ws)).catch(() => {});
+    getProfileExtras(user.id).then((x) => { if (!alive) return; setBio(x.bio ?? ''); setOshi(x.oshi ?? ''); setFavWorks(x.favWorks ?? ''); }).catch(() => {});
     return () => { alive = false; };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // インライン編集の保存（フィールドごとに対応するAPIへ）
+  const onSaveField = async () => {
+    if (!user || !editingField) return;
+    haptic.select();
+    const field = editingField;
+    setEditingField(null);
+    try {
+      if (field === 'name') { await saveDisplayName(user.id, name.trim()); toast('表示名を保存しました'); }
+      else if (field === 'pref') { await saveHomePrefecture(user.id, homePref || null); toast('ホーム県を保存しました'); }
+      else { await saveProfileExtras(user.id, { bio, oshi, favWorks }); toast('プロフィールを保存しました'); }
+    } catch { toast('保存に失敗しました'); }
+  };
 
   const radar = stats ? calcRadarData(stats) : [];
   const title = stats ? calcTitle(stats) : '';
   const grade = stats ? calcGrade(stats) : 0;
 
-  const onSaveName = async () => { if (!user) return; await saveDisplayName(user.id, name.trim()); haptic.select(); toast('表示名を保存しました'); };
-  const onChangePref = async (p: string) => { setHomePref(p); if (user) { await saveHomePrefecture(user.id, p || null); toast('ホーム県を保存しました'); } };
   const onPickAvatar = async (emoji: string) => {
     haptic.select();
     setAvatar(emoji);
@@ -86,9 +117,9 @@ export default function MyPage() {
 
   return (
     <div className="px-4 pt-4 pb-4" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 16px)' }}>
-      {/* プロフィール */}
+      {/* プロフィール（各項目はその場で編集: アバター=タップ / 一言=吹き出し / 名前・チップ=タップ） */}
       <div className="flex items-center gap-3">
-        <button onClick={() => { haptic.select(); setAvatarOpen((v) => !v); }} aria-label="アバターを変更"
+        <button onClick={() => { haptic.select(); setAvatarOpen((v) => !v); setEditingField(null); }} aria-label="アバターを変更"
           className="pressable relative w-16 h-16 rounded-full flex items-center justify-center text-[32px] flex-shrink-0"
           style={{ backgroundColor: 'var(--fill-tertiary)' }}>
           {avatar ?? '🐝'}
@@ -96,12 +127,95 @@ export default function MyPage() {
             style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
             <Pencil size={11} />
           </span>
+          {/* 一言コメントの吹き出し */}
+          <span onClick={(e) => { e.stopPropagation(); haptic.select(); setAvatarOpen(false); setEditingField('bio'); }}
+            role="button" aria-label="一言コメントを編集"
+            className="pressable absolute -top-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center border"
+            style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-subtle)', color: 'var(--accent-text)' }}>
+            <MessageCircle size={13} />
+          </span>
         </button>
-        <div className="min-w-0">
-          <div className="text-[17px] font-bold truncate">{name || '名無しのファン'}</div>
-          <div className="text-[13px]" style={{ color: 'var(--accent-text)' }}>{title}・グレード {grade}</div>
+        <div className="min-w-0 flex-1">
+          <button onClick={() => { haptic.select(); setEditingField('name'); }} className="pressable flex items-center gap-1.5 max-w-full">
+            <span className="text-[17px] font-bold truncate">{name || '名無しのファン'}</span>
+            <Pencil size={12} className="text-label-tertiary flex-shrink-0" />
+          </button>
+          <div className="mt-1 flex items-center gap-2">
+            {title && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[13px] font-bold"
+                style={{ background: 'linear-gradient(135deg, var(--accent-color), color-mix(in srgb, var(--accent-color) 55%, #ff8a00))', color: 'var(--accent-on)', boxShadow: '0 1px 6px color-mix(in srgb, var(--accent-color) 45%, transparent)' }}>
+                <Crown size={13} strokeWidth={2.5} /> {title}
+              </span>
+            )}
+            {stats && <span className="text-[12px] text-label-tertiary">Gr.{grade}</span>}
+          </div>
+          {bio && (
+            <button onClick={() => { haptic.select(); setEditingField('bio'); }} className="pressable mt-1 max-w-full text-left">
+              <span className="text-[12px] text-label-secondary line-clamp-1">💬 {bio}</span>
+            </button>
+          )}
         </div>
       </div>
+      {/* 推し・好きな作品・ホーム県（タップで編集。未設定はゴーストチップ） */}
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <button onClick={() => { haptic.select(); setEditingField('oshi'); }}
+          className="pressable px-2.5 py-1 rounded-full text-[11px]"
+          style={oshi
+            ? { backgroundColor: 'color-mix(in srgb, var(--accent-color) 16%, transparent)', color: 'var(--accent-text)' }
+            : { border: '1px dashed var(--border-default)', color: 'var(--label-tertiary)' }}>
+          推し: {oshi || '未設定'}
+        </button>
+        <button onClick={() => { haptic.select(); setEditingField('fav'); }}
+          className="pressable px-2.5 py-1 rounded-full text-[11px]"
+          style={favWorks
+            ? { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-secondary)' }
+            : { border: '1px dashed var(--border-default)', color: 'var(--label-tertiary)' }}>
+          好きな作品: {favWorks || '未設定'}
+        </button>
+        <button onClick={() => { haptic.select(); setEditingField('pref'); }}
+          className="pressable px-2.5 py-1 rounded-full text-[11px] inline-flex items-center gap-0.5"
+          style={homePref
+            ? { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-secondary)' }
+            : { border: '1px dashed var(--border-default)', color: 'var(--label-tertiary)' }}>
+          <MapPin size={11} /> {homePref || 'ホーム県'}
+        </button>
+      </div>
+
+      {/* インライン編集パネル */}
+      {editingField && (
+        <div className="mt-3 rounded-[12px] border border-subtle p-3" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+          <div className="text-[12px] text-label-secondary mb-1.5">{FIELD_META[editingField].label}</div>
+          {editingField === 'pref' ? (
+            <select value={homePref} onChange={(e) => setHomePref(e.target.value)} autoFocus
+              className="w-full rounded-[10px] px-3 py-2.5 text-[14px] outline-none"
+              style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }}>
+              <option value="">未設定</option>
+              {ALL_PREFS.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          ) : (
+            <input
+              value={editingField === 'name' ? name : editingField === 'bio' ? bio : editingField === 'oshi' ? oshi : favWorks}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (editingField === 'name') setName(v);
+                else if (editingField === 'bio') setBio(v);
+                else if (editingField === 'oshi') setOshi(v);
+                else setFavWorks(v);
+              }}
+              maxLength={FIELD_META[editingField].max} placeholder={FIELD_META[editingField].placeholder} autoFocus
+              className="w-full rounded-[10px] px-3 py-2.5 text-[14px] outline-none"
+              style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
+          )}
+          <div className="flex gap-2 mt-2.5">
+            <button onClick={() => { haptic.select(); setEditingField(null); }}
+              className="pressable flex-1 py-2 rounded-[10px] text-[13px]"
+              style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>キャンセル</button>
+            <button onClick={onSaveField}
+              className="pressable flex-1 py-2 rounded-[10px] text-[13px] font-semibold"
+              style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>保存</button>
+          </div>
+        </div>
+      )}
 
       {/* アバターピッカー（アバタータップで開閉） */}
       {avatarOpen && (
@@ -116,19 +230,12 @@ export default function MyPage() {
         </div>
       )}
 
-      {/* ファンスター */}
-      <div className="mt-4 rounded-[14px] border border-subtle p-2" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-        <div className="text-[12px] text-label-secondary px-2 pt-1">ファンスター</div>
-        {/* accessibilityLayer=false: SVGがフォーカス可能になりタップでフォーカスリング（四角）が出るのを防ぐ */}
-        <div style={{ outline: 'none' }} className="[&_svg]:outline-none [&_*]:focus:outline-none">
-          <ResponsiveContainer width="100%" height={220}>
-            <RadarChart data={radar} outerRadius="70%" accessibilityLayer={false}>
-              <PolarGrid stroke="var(--separator)" />
-              <PolarAngleAxis dataKey="axis" tick={{ fontSize: 11, fill: 'var(--label-secondary)' }} />
-              <Radar dataKey="value" stroke="var(--accent-color)" fill="var(--accent-color)" fillOpacity={0.4} />
-            </RadarChart>
-          </ResponsiveContainer>
-        </div>
+      {/* ファンスター（星形チャート: 実績が育つと星が大きくなる） */}
+      <div className="mt-4 rounded-[14px] border border-subtle px-2 py-1.5 mx-auto" style={{ backgroundColor: 'var(--bg-secondary)', maxWidth: 240 }}>
+        <div className="text-[11px] text-label-secondary px-1">ファンスター</div>
+        {radar.length > 0
+          ? <FanStarChart data={radar} size={190} />
+          : <div className="h-[150px]" />}
       </div>
 
       {/* 統計 */}
@@ -146,20 +253,6 @@ export default function MyPage() {
       {/* 設定 */}
       <div className="mt-5 text-[12px] text-label-secondary mb-1">設定</div>
       <div className="rounded-[12px] border border-subtle divide-y" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-subtle)' }}>
-        {/* 表示名 */}
-        <div className="flex items-center gap-2 px-3 py-2.5">
-          <span className="text-[13px] text-label-secondary w-16 flex-shrink-0">表示名</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="名前" className="flex-1 bg-transparent text-[14px] outline-none" style={{ color: 'var(--input-text)' }} />
-          <button onClick={onSaveName} className="pressable text-[12px] font-semibold" style={{ color: 'var(--accent-text)' }}>保存</button>
-        </div>
-        {/* ホーム県 */}
-        <div className="flex items-center gap-2 px-3 py-2.5">
-          <span className="text-[13px] text-label-secondary w-16 flex-shrink-0">ホーム県</span>
-          <select value={homePref} onChange={(e) => onChangePref(e.target.value)} className="flex-1 bg-transparent text-[14px] outline-none" style={{ color: 'var(--input-text)' }}>
-            <option value="">未設定</option>
-            {ALL_PREFS.map((p) => <option key={p} value={p}>{p}</option>)}
-          </select>
-        </div>
         {/* カラーモード */}
         <div className="flex items-center gap-2 px-3 py-2.5">
           <Moon size={16} className="text-label-secondary" />
@@ -170,6 +263,21 @@ export default function MyPage() {
             <option value="simple">ライト</option>
             <option value="dark">ダーク</option>
           </select>
+        </div>
+        {/* アクセントカラー */}
+        <div className="flex items-center gap-2 px-3 py-2.5">
+          <Droplet size={16} className="text-label-secondary" />
+          <span className="text-[14px] flex-1">アクセントカラー</span>
+          <div className="flex items-center gap-1.5">
+            {MYPAGE_ACCENTS.map((c) => (
+              <button key={c} onClick={() => { haptic.select(); updateSettings({ accentColor: c }); }}
+                aria-label={`アクセントカラー ${c}`}
+                className="pressable w-6 h-6 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: c, boxShadow: settings.accentColor === c ? '0 0 0 2px var(--bg-primary), 0 0 0 4px var(--label-primary)' : 'none' }}>
+                {settings.accentColor === c && <Check size={13} style={{ color: getContrastText(c) }} strokeWidth={3} />}
+              </button>
+            ))}
+          </div>
         </div>
         {/* カレンダーの配色・テーマ */}
         <button onClick={() => { haptic.select(); navigate('/customize'); }} className="w-full flex items-center gap-2 px-3 py-2.5 pressable text-left">
@@ -214,13 +322,19 @@ export default function MyPage() {
       </div>
 
       {/* フォロー作品（ドロップダウン） */}
-      <button onClick={() => setWorksOpen((v) => !v)} className="pressable w-full flex items-center justify-between mt-5 mb-1">
-        <span className="text-[12px] text-label-secondary">フォロー作品（{works.length}）</span>
-        <ChevronRight size={16} className="text-label-tertiary" style={{ transform: worksOpen ? 'rotate(90deg)' : 'none' }} />
-      </button>
+      <div className="w-full flex items-center justify-between mt-5 mb-1">
+        <button onClick={() => setWorksOpen((v) => !v)} className="pressable flex-1 flex items-center justify-between">
+          <span className="text-[12px] text-label-secondary">フォロー作品（{works.length}）</span>
+          <ChevronRight size={16} className="text-label-tertiary" style={{ transform: worksOpen ? 'rotate(90deg)' : 'none' }} />
+        </button>
+        <button onClick={() => { haptic.select(); setFollowSheetOpen(true); }}
+          className="pressable ml-3 flex items-center gap-0.5 text-[12px] font-medium flex-shrink-0" style={{ color: 'var(--accent-text)' }}>
+          <Plus size={14} /> 追加
+        </button>
+      </div>
       {worksOpen && (
         works.length === 0 ? (
-          <p className="text-[13px] text-label-tertiary">フォロー中の作品はありません</p>
+          <p className="text-[13px] text-label-tertiary">フォロー中の作品はありません。「＋追加」から作品を探せます</p>
         ) : (
           <div className="flex flex-col gap-1.5 max-h-[40vh] overflow-y-auto no-scrollbar">
             {works.map((w) => (
@@ -232,6 +346,9 @@ export default function MyPage() {
           </div>
         )
       )}
+
+      <WorkFollowSheet open={followSheetOpen} onClose={() => setFollowSheetOpen(false)}
+        onChanged={() => { if (user) listAllParticipatedWorks(user.id).then(setWorks).catch(() => {}); }} />
 
       {/* ビルド刻印（キャッシュ判別用）。タップで隠しハプティクス診断（バイブしない端末の切り分け用） */}
       <p className="mt-8 text-center text-[10px] text-label-tertiary" onClick={() => hapticsDebug(toast)}>build {__BUILD_TIME__}</p>

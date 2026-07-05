@@ -119,14 +119,18 @@ function normalizePrefecture(p: string | null | undefined): string | undefined {
 }
 
 function rowToEvent(e: Record<string, unknown>): CalendarEvent {
+  // 不変条件: 曖昧日付（date_label あり）の date は「代表日」であり、期間・時刻は意味を持たない。
+  // AI解析が dateLabel と endDate を同時に返して保存された過去の不整合データがあるため、
+  // 読み込み時にも end_date / 時刻を無視して表示を守る（書き込み側のガードは createEvents / updateEvent）。
+  const ambiguous = !!(e.date_label as string | null);
   return {
     id: e.id as string,
     title: e.title as string,
     date: (e.event_date as string | null) ?? null,
     dateLabel: (e.date_label as string | null) ?? undefined,
-    time: ((e.event_time as string | null) ?? undefined)?.slice(0, 5),
-    endDate: (e.end_date as string | null) ?? undefined,
-    endTime: ((e.end_time as string | null) ?? undefined)?.slice(0, 5),
+    time: ambiguous ? undefined : ((e.event_time as string | null) ?? undefined)?.slice(0, 5),
+    endDate: ambiguous ? undefined : ((e.end_date as string | null) ?? undefined),
+    endTime: ambiguous ? undefined : ((e.end_time as string | null) ?? undefined)?.slice(0, 5),
     category: (e.category as string | null) ?? undefined,
     link: (e.link_url as string | null) ?? undefined,
     memo: (e.memo as string | null) ?? undefined,
@@ -277,9 +281,10 @@ export async function createEvents(
       title: e.title,
       event_date: e.date || null,
       date_label: e.dateLabel ?? null,
-      event_time: e.time ?? null,
-      end_date: e.endDate ?? null,
-      end_time: e.endTime ?? null,
+      // 不変条件: 曖昧日付（dateLabel あり）に期間・時刻は持たせない（AI解析が両方返しても落とす）
+      event_time: e.dateLabel ? null : (e.time ?? null),
+      end_date: e.dateLabel ? null : (e.endDate ?? null),
+      end_time: e.dateLabel ? null : (e.endTime ?? null),
       category: e.category ?? null,
       link_url: e.link ?? null,
       memo: e.memo ?? null,
@@ -683,6 +688,37 @@ export async function saveXUrl(userId: string, xUrl: string | null): Promise<voi
     );
 }
 
+// プロフィール追加項目（一言コメント・推し・好きな作品）。
+// 要SQL: ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS bio TEXT, ADD COLUMN IF NOT EXISTS oshi TEXT, ADD COLUMN IF NOT EXISTS fav_works TEXT;
+// カラム未追加でもアプリが壊れないよう、取得は分離してベストエフォートにする。
+export type ProfileExtras = { bio: string | null; oshi: string | null; favWorks: string | null };
+
+export async function getProfileExtras(userId: string): Promise<ProfileExtras> {
+  const empty: ProfileExtras = { bio: null, oshi: null, favWorks: null };
+  try {
+    const { data, error } = await supabase
+      .from('user_settings')
+      .select('bio, oshi, fav_works')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error || !data) return empty;
+    return {
+      bio: (data.bio as string | null) ?? null,
+      oshi: (data.oshi as string | null) ?? null,
+      favWorks: (data.fav_works as string | null) ?? null,
+    };
+  } catch { return empty; }
+}
+
+export async function saveProfileExtras(userId: string, extras: Partial<ProfileExtras>): Promise<void> {
+  const row: Record<string, unknown> = { user_id: userId, updated_at: new Date().toISOString() };
+  if ('bio' in extras) row.bio = extras.bio?.trim() || null;
+  if ('oshi' in extras) row.oshi = extras.oshi?.trim() || null;
+  if ('favWorks' in extras) row.fav_works = extras.favWorks?.trim() || null;
+  const { error } = await supabase.from('user_settings').upsert(row, { onConflict: 'user_id' });
+  if (error) throw error;
+}
+
 export async function getUserPublicProfile(userId: string): Promise<{
   displayName: string | null;
   xUrl: string | null;
@@ -853,7 +889,7 @@ export async function removeOfferContrib(id: string): Promise<void> {
 }
 
 // ── 共同編集: 日時/状態の編集パッチ ──
-export type EventPatch = Partial<Pick<CalendarEvent, 'date' | 'endDate' | 'time' | 'isOrderMade' | 'preorderStart' | 'preorderEnd'>>;
+export type EventPatch = Partial<Pick<CalendarEvent, 'date' | 'dateLabel' | 'endDate' | 'time' | 'isOrderMade' | 'preorderStart' | 'preorderEnd'>>;
 export type EventEdit = { id: string; patch: EventPatch; createdBy: string | null; createdAt: string };
 
 export async function listEventEdits(eventId: string): Promise<EventEdit[]> {
@@ -1043,6 +1079,8 @@ export async function updateEvent(
   if ('time' in data) row.event_time = data.time || null;
   if ('endDate' in data) row.end_date = data.endDate || null;
   if ('endTime' in data) row.end_time = data.endTime || null;
+  // 不変条件: 曖昧日付（dateLabel あり）に期間・時刻は持たせない
+  if (data.dateLabel) { row.event_time = null; row.end_date = null; row.end_time = null; }
   if ('category' in data) row.category = data.category || null;
   if ('link' in data) row.link_url = data.link || null;
   if ('memo' in data) row.memo = data.memo || null;

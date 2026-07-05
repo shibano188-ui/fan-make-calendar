@@ -81,12 +81,22 @@ function run(cx: number, cy: number): void {
     { duration: 420, easing: 'ease-out', fill: 'both' },
   );
 
-  // ③ カレンダータブへのサーキットライン（直角に折れて走る）＋光点＋到着でタブが弾む
+  // ③ カレンダータブへのサーキットライン（直角に折れて走る）＋光点＋到着でタブが弾む。
+  // タブが無い画面（詳細ページ等）でも、タブがあるべき位置へ線を走らせてミニカレンダーを出す
+  // （「いいね＝カレンダーに追加」の教育を全画面で一貫させる）。
   const tab = document.querySelector<HTMLElement>('[data-nav-cal]');
   const tr = tab?.getBoundingClientRect();
-  if (tab && tr && tr.width > 0) {
-    const tx = tr.left + tr.width / 2;
-    const ty = tr.top + 8;
+  {
+    let tx: number, ty: number;
+    if (tab && tr && tr.width > 0) {
+      tx = tr.left + tr.width / 2;
+      ty = tr.top + 8;
+    } else {
+      // BottomNav のレイアウト（max-w-app=480px 中央寄せ・5等分の4列目）からタブ位置を再現
+      const navW = Math.min(vw, 480);
+      tx = (vw - navW) / 2 + navW * 0.7;
+      ty = vh - 44;
+    }
     const my = ty - 26; // タブ手前で水平に曲がる高さ
     const d = `M ${cx} ${cy} L ${cx} ${my} L ${tx} ${my} L ${tx} ${ty}`;
     const p = document.createElementNS(SVG_NS, 'path');
@@ -105,7 +115,9 @@ function run(cx: number, cy: number): void {
       { duration: 520, delay: 60, easing: 'cubic-bezier(0.4,0,0.2,1)', fill: 'both' },
     );
 
-    // 光点: SMIL の animateMotion でパス上を走らせる（座標系の食い違いが起きない）
+    // 光点: SMIL の animateMotion でパス上を走らせる（座標系の食い違いが起きない）。
+    // begin は文書タイムライン基準の絶対時刻なので "0.06s" 固定だと常に過去＝走らない。
+    // begin="indefinite" にして挿入後に beginElementAt で相対開始する。
     const dot = document.createElementNS(SVG_NS, 'circle');
     dot.setAttribute('r', '3');
     dot.setAttribute('fill', color);
@@ -113,13 +125,14 @@ function run(cx: number, cy: number): void {
     const motion = document.createElementNS(SVG_NS, 'animateMotion');
     motion.setAttribute('path', d);
     motion.setAttribute('dur', '0.52s');
-    motion.setAttribute('begin', '0.06s');
+    motion.setAttribute('begin', 'indefinite');
     motion.setAttribute('fill', 'freeze');
     motion.setAttribute('keySplines', '0.4 0 0.2 1');
     motion.setAttribute('keyTimes', '0;1');
     motion.setAttribute('calcMode', 'spline');
     dot.appendChild(motion);
     svg.appendChild(dot);
+    try { (motion as SVGAnimateMotionElement & { beginElementAt: (t: number) => void }).beginElementAt(0.06); } catch { /* SMIL非対応環境では光点なし */ }
     dot.animate(
       [
         { opacity: 0 },
@@ -130,12 +143,46 @@ function run(cx: number, cy: number): void {
       { duration: 520, delay: 60, fill: 'both' },
     );
 
-    setTimeout(() => {
-      tab.animate(
-        [{ transform: 'scale(1)' }, { transform: 'scale(1.22)' }, { transform: 'scale(1)' }],
-        { duration: 300, easing: 'cubic-bezier(0.34,1.56,0.64,1)' },
+    if (tab && tr && tr.width > 0) {
+      // 到着でタブが弾む
+      setTimeout(() => {
+        tab.animate(
+          [{ transform: 'scale(1)' }, { transform: 'scale(1.22)' }, { transform: 'scale(1)' }],
+          { duration: 300, easing: 'cubic-bezier(0.34,1.56,0.64,1)' },
+        );
+      }, 500);
+    } else {
+      // タブが無い画面: 到着点にミニカレンダーをポップさせて「カレンダーに入った」ことを示す
+      const g = document.createElementNS(SVG_NS, 'g');
+      const box = document.createElementNS(SVG_NS, 'rect');
+      box.setAttribute('x', `${tx - 9}`); box.setAttribute('y', `${ty - 7}`);
+      box.setAttribute('width', '18'); box.setAttribute('height', '16');
+      box.setAttribute('rx', '3');
+      box.setAttribute('fill', 'none'); box.setAttribute('stroke', color); box.setAttribute('stroke-width', '1.8');
+      const top = document.createElementNS(SVG_NS, 'line');
+      top.setAttribute('x1', `${tx - 9}`); top.setAttribute('y1', `${ty - 2.5}`);
+      top.setAttribute('x2', `${tx + 9}`); top.setAttribute('y2', `${ty - 2.5}`);
+      top.setAttribute('stroke', color); top.setAttribute('stroke-width', '1.4');
+      for (const dx of [-4.5, 4.5]) {
+        const pin = document.createElementNS(SVG_NS, 'line');
+        pin.setAttribute('x1', `${tx + dx}`); pin.setAttribute('y1', `${ty - 10}`);
+        pin.setAttribute('x2', `${tx + dx}`); pin.setAttribute('y2', `${ty - 6}`);
+        pin.setAttribute('stroke', color); pin.setAttribute('stroke-width', '1.8'); pin.setAttribute('stroke-linecap', 'round');
+        g.appendChild(pin);
+      }
+      g.appendChild(box); g.appendChild(top);
+      g.style.transformOrigin = `${tx}px ${ty}px`;
+      svg.appendChild(g);
+      g.animate(
+        [
+          { opacity: 0, transform: 'scale(0.4)' },
+          { opacity: 1, transform: 'scale(1.15)', offset: 0.55 },
+          { opacity: 1, transform: 'scale(1)', offset: 0.75 },
+          { opacity: 0, transform: 'scale(1)' },
+        ],
+        { duration: 560, delay: 480, easing: 'cubic-bezier(0.34,1.56,0.64,1)', fill: 'both' },
       );
-    }, 500);
+    }
   }
 
   setTimeout(() => svg.remove(), 1100);

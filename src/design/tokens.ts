@@ -34,7 +34,7 @@ export const STATUS: Record<ItemStatus, StatusMeta> = {
   preorder_ended: { color: 'var(--status-ended)',    goodsLabel: '受付終了',         eventLabel: '受付終了' },
   sale_soon:      { color: 'var(--status-upcoming)', goodsLabel: '発売予定',         eventLabel: '開催予定' },
   onsale:         { color: 'var(--status-onsale)',   goodsLabel: '発売中',           eventLabel: '開催中' },
-  ended:          { color: 'var(--status-ended)',    goodsLabel: '終了',             eventLabel: '終了' },
+  ended:          { color: 'var(--status-ended)',    goodsLabel: '発売済み',         eventLabel: '終了' },
 };
 
 export function statusLabel(status: ItemStatus, type: ItemType = 'event'): string {
@@ -49,29 +49,30 @@ export function todayStr(d = new Date()): string {
   return `${y}-${m}-${day}`;
 }
 
-/** 現在の状態を導出。種別対応：グッズは発売日を過ぎても「発売中」（"販売終了"を出さない）、
- *  イベントは期間後「終了」、受注は受付後「受付終了」。YYYY-MM-DD の文字列比較。 */
+/** 現在の状態を導出。イベントは期間後「終了」、グッズは期間後「発売済み」（ラベルで出し分け）、
+ *  受注は受付後「受付終了」。受付終了日が無い場合は発売日を暗黙の締切とみなす。YYYY-MM-DD の文字列比較。 */
 export function deriveStatus(
   e: Pick<CalendarEvent, 'date' | 'endDate' | 'preorderStart' | 'preorderEnd' | 'type' | 'category'>,
   today = todayStr(),
 ): ItemStatus {
-  const type = deriveItemType(e);
   const { date, endDate, preorderStart, preorderEnd } = e;
 
-  // 受注・予約の受付ウィンドウ
+  // 受注・予約の受付ウィンドウ。終了日未入力の受注が永遠に「受付中」にならないよう、
+  // 終了日が無ければ 発売終了日→発売日 を暗黙の受付締切とみなす（受注は発売までに締まるのが通例）
   if (preorderStart || preorderEnd) {
     if (preorderStart && today < preorderStart) return 'preorder_soon';
-    const inWindow = (!preorderStart || preorderStart <= today) && (!preorderEnd || today <= preorderEnd);
+    const effectiveEnd = preorderEnd || endDate || date;
+    const inWindow = (!preorderStart || preorderStart <= today) && (!effectiveEnd || today <= effectiveEnd);
     if (inWindow) return 'preorder';
     // 受付終了後: 発売日があればそちらの状態へ、無ければ受付終了
-    if (preorderEnd && today > preorderEnd && !date) return 'preorder_ended';
+    if (!date) return 'preorder_ended';
   }
 
   if (date) {
     const end = endDate || date;
     if (today < date) return 'sale_soon';
     if (today <= end) return 'onsale';
-    return type === 'event' ? 'ended' : 'onsale'; // グッズは発売日を過ぎても発売中扱い
+    return 'ended'; // 期間終了後（グッズはラベル「発売済み」）
   }
 
   if (preorderEnd && today > preorderEnd) return 'preorder_ended';

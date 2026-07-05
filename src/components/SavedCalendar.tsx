@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, CalendarDays, CalendarCheck } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from './item/ItemCard';
-import { todayStr } from '../design/tokens';
+import { todayStr, deriveStatus } from '../design/tokens';
 import { haptic } from '../lib/haptics';
 import { buildWorkColorMap } from '../lib/workColors';
 
@@ -74,8 +74,13 @@ export default function SavedCalendar({ events, scope, onOpen, onLike, onCalenda
   const today = todayStr();
   const [anchor, setAnchor] = useState(today); // 基準日（選択日 / 表示中の日）
 
-  // 日付未定の保存分（カレンダーに乗らないので別枠で件数表示）
-  const undated = useMemo(() => events.filter((e) => !e.date), [events]);
+  // 日付未定の保存分（カレンダーに乗らないので別枠で件数表示）。
+  // 受付終了したものは消さずに残す（本人のいいね記録）が、後ろに回して薄く表示する
+  const undated = useMemo(() => {
+    const list = events.filter((e) => !e.date);
+    const isDone = (e: CalendarEvent) => deriveStatus(e) === 'preorder_ended';
+    return list.sort((a, b) => Number(isDone(a)) - Number(isDone(b)));
+  }, [events]);
 
   // 作品色マップ（未割当はパレットから付与して永続化）→ ドット・タイルの色に使う
   const workColorMap = useMemo(() => {
@@ -107,8 +112,10 @@ export default function SavedCalendar({ events, scope, onOpen, onLike, onCalenda
           <div className="px-1 text-[12px] text-label-secondary mb-2">日付未定 {undated.length}件</div>
           <div className="flex flex-col gap-2">
             {undated.map((e) => (
-              <ItemCard key={e.id} event={e} layout="list" likedInit={e.likedByMe} workColor={colorOf(e)}
-                onOpen={() => onOpen(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onBuy={() => onBuy(e)} />
+              <div key={e.id} className={deriveStatus(e) === 'preorder_ended' ? 'opacity-55' : undefined}>
+                <ItemCard event={e} layout="list" likedInit={e.likedByMe} workColor={colorOf(e)}
+                  onOpen={() => onOpen(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onBuy={() => onBuy(e)} />
+              </div>
             ))}
           </div>
         </div>

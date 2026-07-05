@@ -11,28 +11,14 @@ import type { Offer } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
 import LineLoader from '../components/ui/LineLoader';
+import WorkFollowSheet from '../components/WorkFollowSheet';
 import { haptic } from '../lib/haptics';
 import { todayStr, deriveItemType, type ItemType } from '../design/tokens';
+import { SEASON_LABELS, DATE_LABEL_OPTIONS, ambiguousDate } from '../lib/ambiguousDate';
 
 const GOODS_CATS = [...GOODS_SUBCATEGORIES, 'グルメ', '書籍'];
 const EVENT_CATS = ['イベント', 'アニメ・映画', '誕生日', 'キャンペーン', GOODS_TAG];
 
-// 曖昧日付（日付未定）の選択肢と代表日計算。並び替え用に date も持たせる。
-const SEASON_LABELS = ['春頃', '夏頃', '秋頃', '冬頃'];
-const SEASON_MONTH: Record<string, string> = { '春頃': '04', '夏頃': '08', '秋頃': '11', '冬頃': '02' };
-const LABEL_DAY: Record<string, string> = { '上旬': '05', '中旬': '15', '下旬': '25' };
-const DATE_LABEL_OPTIONS: [string, string][] = [
-  ['上旬', '上旬'], ['中旬', '中旬'], ['下旬', '下旬'], ['月のみ', '中'],
-  ['春頃', '春頃'], ['夏頃', '夏頃'], ['秋頃', '秋頃'], ['冬頃', '冬頃'],
-];
-// 年/月/区分から代表日(YYYY-MM-DD)を算出。季節は月固定・月のみは末日・上中下旬は5/15/25。
-function ambiguousDate(year: string, month: string, label: string): string {
-  if (SEASON_MONTH[label]) return `${year}-${SEASON_MONTH[label]}-15`;
-  const day = label === '中'
-    ? String(new Date(Number(year), Number(month), 0).getDate()).padStart(2, '0')
-    : (LABEL_DAY[label] ?? '15');
-  return `${year}-${month}-${day}`;
-}
 
 const inputCls = 'w-full rounded-[10px] px-3 py-2.5 text-[14px] outline-none';
 const dateCls = 'flex-1 rounded-[10px] px-3 py-2.5 text-[14px] outline-none';
@@ -63,6 +49,7 @@ export default function PostNew() {
   const [workName, setWorkName] = useState<string>(draft0?.workName ?? '');
   const [workQuery, setWorkQuery] = useState<string>(draft0?.workQuery ?? '');
   const [workResults, setWorkResults] = useState<Work[]>([]);
+  const [workSheetOpen, setWorkSheetOpen] = useState(false);
   const [title, setTitle] = useState<string>(draft0?.title ?? '');
   const [cats, setCats] = useState<Set<string>>(new Set(draft0?.cats ?? []));
   const [allDay, setAllDay] = useState<boolean>(draft0?.allDay ?? true);
@@ -424,7 +411,13 @@ export default function PostNew() {
           </div>
 
           {/* 作品 */}
-          <div className={labelCls}>作品 <span style={{ color: 'var(--color-destructive)' }}>*</span></div>
+          <div className="flex items-end justify-between">
+            <div className={labelCls}>作品 <span style={{ color: 'var(--color-destructive)' }}>*</span></div>
+            <button onClick={() => { haptic.select(); setWorkSheetOpen(true); }}
+              className="pressable flex items-center gap-0.5 text-[12px] font-medium mb-1" style={{ color: 'var(--accent-text)' }}>
+              <Search size={13} /> フォロー中から選ぶ
+            </button>
+          </div>
           {workId ? (
             <div className="flex items-center justify-between rounded-[10px] px-3 py-2.5" style={inputStyle}>
               <span className="text-[14px]">{workName}</span>
@@ -660,6 +653,9 @@ export default function PostNew() {
           </button>
         </div>
       </div>
+
+      <WorkFollowSheet open={workSheetOpen} onClose={() => setWorkSheetOpen(false)}
+        onPick={(w) => { setWorkId(w.id); setWorkName(w.name); setWorkQuery(''); setWorkResults([]); }} />
     </div>
   );
 }

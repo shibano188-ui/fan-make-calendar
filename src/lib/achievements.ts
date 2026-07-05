@@ -21,13 +21,16 @@ export function calcTitle(s: AchievementStats): string {
 }
 
 export function calcRadarData(s: AchievementStats) {
-  const sc = (val: number, max: number) => Math.max(5, Math.min(100, Math.round((val / max) * 100)));
+  // ゆるやかな成長カーブ: ベースライン15（デフォルトでも小さな星の形になる）から
+  // べき乗(0.8)でじわじわ 100 へ。一項目だけ一気に張り付いて星が歪になるのを防ぐ。
+  const sc = (val: number, max: number) =>
+    Math.min(100, Math.round(15 + 85 * Math.pow(Math.min(1, val / max), 0.8)));
   return [
-    { axis: '投稿力', value: sc(s.posted, 100) },
-    { axis: '影響力', value: sc(s.received, 500) },
-    { axis: '応援力', value: sc(s.likesGiven, 200) },
-    { axis: '収集力', value: sc(s.reactionsGiven, 50) },
-    { axis: '開拓力', value: sc(s.works, 10) },
+    { axis: '投稿力', value: sc(s.posted, 200) },
+    { axis: '影響力', value: sc(s.received, 1000) },
+    { axis: '応援力', value: sc(s.likesGiven, 500) },
+    { axis: '収集力', value: sc(s.reactionsGiven, 200) },
+    { axis: '開拓力', value: sc(s.works, 30) },
   ];
 }
 

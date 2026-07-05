@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { X, ExternalLink } from 'lucide-react';
-import { getUserPublicProfile } from '../lib/api';
-import { calcTitle, calcGrade, type AchievementStats } from '../lib/achievements';
+import { X, ExternalLink, Crown } from 'lucide-react';
+import { getUserPublicProfile, getProfileExtras, type ProfileExtras } from '../lib/api';
+import { calcTitle, calcGrade, calcRadarData, type AchievementStats } from '../lib/achievements';
+import FanStarChart from './FanStarChart';
 import { safeHref } from '../lib/url';
 
 interface Profile {
@@ -24,6 +25,7 @@ export default function UserProfileModal({
   onClose: () => void;
 }) {
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [extras, setExtras] = useState<ProfileExtras | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -31,6 +33,7 @@ export default function UserProfileModal({
       .then(setProfile)
       .catch(() => setProfile(null))
       .finally(() => setLoading(false));
+    getProfileExtras(userId).then(setExtras).catch(() => {});
   }, [userId]);
 
   const name = profile?.displayName ?? '匿名';
@@ -49,6 +52,7 @@ export default function UserProfileModal({
 
   const title = achStats ? calcTitle(achStats) : null;
   const grade = achStats ? calcGrade(achStats) : null;
+  const radar = achStats ? calcRadarData(achStats) : null;
 
   return (
     <div className="fixed inset-0 z-[500] flex items-center justify-center px-6">
@@ -77,32 +81,47 @@ export default function UserProfileModal({
           </div>
         ) : (
           <div className="p-6 pt-5">
-            {/* アバター＋名前 */}
+            {/* アバター（＋一言の吹き出し）＋名前 */}
             <div className="flex flex-col items-center gap-2 mb-4">
-              <div
-                className="w-16 h-16 rounded-full flex items-center justify-center"
-                style={{ backgroundColor: 'var(--accent-color)' }}
-              >
-                {profile?.avatarEmoji ? (
-                  <span className="text-3xl leading-none">{profile.avatarEmoji}</span>
-                ) : (
-                  <span className="text-xl font-bold" style={{ color: 'var(--accent-on)' }}>{initials}</span>
+              <div className={`flex items-center gap-3 ${extras?.bio ? 'self-stretch justify-center' : ''}`}>
+                <div
+                  className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: 'var(--accent-color)' }}
+                >
+                  {profile?.avatarEmoji ? (
+                    <span className="text-3xl leading-none">{profile.avatarEmoji}</span>
+                  ) : (
+                    <span className="text-xl font-bold" style={{ color: 'var(--accent-on)' }}>{initials}</span>
+                  )}
+                </div>
+                {/* 一言コメント: アイコンから生える吹き出し */}
+                {extras?.bio && (
+                  <div className="relative min-w-0 rounded-[14px] px-3 py-2"
+                    style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+                    <span className="absolute top-1/2 -left-[5px] -translate-y-1/2 w-2.5 h-2.5 rotate-45"
+                      style={{ backgroundColor: 'var(--fill-tertiary)' }} />
+                    <p className="relative text-[12px] leading-snug text-label-primary break-words">{extras.bio}</p>
+                  </div>
                 )}
               </div>
               <p className="text-label-primary font-semibold text-lg leading-tight">{name}</p>
 
-              {/* 称号・グレード */}
+              {/* 称号バッジ＋グレード */}
               {title && (
-                <div className="flex items-center gap-3 px-4 py-2 rounded-[14px] w-full" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                  <p className="flex-1 text-sm font-bold text-label-primary">⭐ {title}</p>
-                  {grade !== null && (
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-label-tertiary" style={{ fontSize: 11 }}>グレード</p>
-                      <p className="text-label-primary font-bold" style={{ fontSize: 15, lineHeight: 1.1 }}>
-                        {grade}<span className="text-label-tertiary font-normal" style={{ fontSize: 10 }}>/500</span>
-                      </p>
-                    </div>
-                  )}
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[13px] font-bold"
+                    style={{ background: 'linear-gradient(135deg, var(--accent-color), color-mix(in srgb, var(--accent-color) 55%, #ff8a00))', color: 'var(--accent-on)', boxShadow: '0 1px 6px color-mix(in srgb, var(--accent-color) 45%, transparent)' }}>
+                    <Crown size={13} strokeWidth={2.5} /> {title}
+                  </span>
+                  {grade !== null && <span className="text-[12px] text-label-tertiary">Gr.{grade}</span>}
+                </div>
+              )}
+
+              {/* 推し・好きな作品 */}
+              {(extras?.oshi || extras?.favWorks) && (
+                <div className="flex flex-wrap justify-center gap-1.5">
+                  {extras?.oshi && <span className="px-2 py-0.5 rounded-full text-[11px]" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 16%, transparent)', color: 'var(--accent-text)' }}>推し: {extras.oshi}</span>}
+                  {extras?.favWorks && <span className="px-2 py-0.5 rounded-full text-[11px]" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-secondary)' }}>好きな作品: {extras.favWorks}</span>}
                 </div>
               )}
 
@@ -118,6 +137,13 @@ export default function UserProfileModal({
                 </a>
               )}
             </div>
+
+            {/* ファンスター */}
+            {radar && (
+              <div className="rounded-[14px] mb-3 px-1 mx-auto w-full" style={{ backgroundColor: 'var(--bg-secondary)', maxWidth: 220 }}>
+                <FanStarChart data={radar} size={190} />
+              </div>
+            )}
 
             {/* 統計 */}
             <div className="grid grid-cols-2 gap-3">
