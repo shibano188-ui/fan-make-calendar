@@ -31,7 +31,7 @@ type StatusMeta = { color: string; goodsLabel: string; eventLabel: string };
 export const STATUS: Record<ItemStatus, StatusMeta> = {
   preorder_soon:  { color: 'var(--status-info)',     goodsLabel: 'もうすぐ予約開始', eventLabel: 'もうすぐ受付開始' },
   preorder:       { color: 'var(--status-preorder)', goodsLabel: '予約・受注中',     eventLabel: '受付中' },
-  preorder_ended: { color: 'var(--status-ended)',    goodsLabel: '受付終了',         eventLabel: '受付終了' },
+  preorder_ended: { color: 'var(--status-ended)',    goodsLabel: '予約・受注終了',   eventLabel: '受付終了' },
   sale_soon:      { color: 'var(--status-upcoming)', goodsLabel: '発売予定',         eventLabel: '開催予定' },
   onsale:         { color: 'var(--status-onsale)',   goodsLabel: '発売中',           eventLabel: '開催中' },
   ended:          { color: 'var(--status-ended)',    goodsLabel: '発売済み',         eventLabel: '終了' },
@@ -58,14 +58,13 @@ export function deriveStatus(
   const { date, endDate, preorderStart, preorderEnd } = e;
 
   // 受注・予約の受付ウィンドウ。終了日未入力の受注が永遠に「受付中」にならないよう、
-  // 終了日が無ければ 発売終了日→発売日 を暗黙の受付締切とみなす（受注は発売までに締まるのが通例）
+  // 終了日が無ければ発売日を暗黙の受付締切とみなす（発売日当日からは発売状態を優先）
   if (preorderStart || preorderEnd) {
     if (preorderStart && today < preorderStart) return 'preorder_soon';
-    const effectiveEnd = preorderEnd || endDate || date;
-    const inWindow = (!preorderStart || preorderStart <= today) && (!effectiveEnd || today <= effectiveEnd);
+    const inWindow = preorderEnd ? today <= preorderEnd : (!date || today < date);
     if (inWindow) return 'preorder';
-    // 受付終了後: 発売日があればそちらの状態へ、無ければ受付終了
-    if (!date) return 'preorder_ended';
+    // 受付終了後: 発売・開催が始まっていればその状態へ、まだ先なら「予約・受注終了」
+    if (!date || today < date) return 'preorder_ended';
   }
 
   if (date) {
@@ -75,7 +74,6 @@ export function deriveStatus(
     return 'ended'; // 期間終了後（グッズはラベル「発売済み」）
   }
 
-  if (preorderEnd && today > preorderEnd) return 'preorder_ended';
   return 'sale_soon'; // 日付未定は予定扱い
 }
 

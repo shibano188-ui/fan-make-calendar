@@ -111,10 +111,14 @@ export default function Home() {
   const sections = useMemo(() => {
     // フォロー中の作品の予定だけ。終了済み（終了/発売済み/受付終了）はホームに出さない
     // （終わった予定を見せてもがっかりさせるだけ。過去分は探す・カレンダーで見られる）。
+    const today = todayStr();
     const all = (items ?? []).filter((e) => {
       if (!e.workId || !followIds.has(e.workId)) return false;
       const st = deriveStatus(e);
-      return st !== 'ended' && st !== 'preorder_ended';
+      if (st === 'ended') return false;
+      // 受付終了でも発売・開催がこれからなら見せる（発売待ちはまだ「これからの予定」）
+      if (st === 'preorder_ended') return !!e.date && e.date > today;
+      return true;
     });
     const preorderOpen = all.filter((e) => deriveStatus(e) === 'preorder')
       .sort((a, b) => (a.preorderEnd ?? '9999').localeCompare(b.preorderEnd ?? '9999')).slice(0, 12);

@@ -63,6 +63,8 @@ export default function PostNew() {
   const [preAllDay, setPreAllDay] = useState<boolean>(draft0?.preAllDay ?? true);
   const [preStart, setPreStart] = useState<string>(draft0?.preStart ?? today);
   const [preEnd, setPreEnd] = useState<string>(draft0?.preEnd ?? today);
+  // 受付終了日を手動で触るまでは発売日に自動追従させる（下書き復元時は触った扱い）
+  const [preEndTouched, setPreEndTouched] = useState<boolean>(!!draft0);
   const [preStartTime, setPreStartTime] = useState<string>(draft0?.preStartTime ?? '');
   const [preEndTime, setPreEndTime] = useState<string>(draft0?.preEndTime ?? '');
   const [price, setPrice] = useState<string>(draft0?.price ?? '');
@@ -110,6 +112,11 @@ export default function PostNew() {
   });
   const clearDraft = () => sessionStorage.removeItem(DRAFT_KEY);
   const onClose = () => { clearDraft(); navigate(-1); };
+
+  // 受付終了日の既定値は発売日（日付未定なら空＝未定のまま）。手動で編集したら追従をやめる
+  useEffect(() => {
+    if (isOrder && !preEndTouched) setPreEnd(dateTBD ? '' : (date || ''));
+  }, [isOrder, date, dateTBD, preEndTouched]);
 
   // 共有シートから来た内容（?url / ?text）を受けて自動でAI解析
   useEffect(() => {
@@ -203,7 +210,7 @@ export default function PostNew() {
       setDateTBD(false); setDateLabel(''); setDate(p.date); setEndDate(p.endDate || p.date);
     }
     if (p.time && !p.dateLabel) { setAllDay(false); setTime(p.time); if (p.endTime) setEndTime(p.endTime); }
-    if (p.isOrderMade) { setIsOrder(true); if (p.preorderStart) setPreStart(p.preorderStart); if (p.preorderEnd) setPreEnd(p.preorderEnd); }
+    if (p.isOrderMade) { setIsOrder(true); if (p.preorderStart) setPreStart(p.preorderStart); if (p.preorderEnd) { setPreEnd(p.preorderEnd); setPreEndTouched(true); } }
     if (p.link) setOffers((prev) => addOffer(prev, buildOffer(p.link!, p.price ?? undefined)));
     if (p.prefecture) setPrefecture(p.prefecture);
     if (p.locationDetail) setLocationDetail(p.locationDetail);
@@ -538,7 +545,7 @@ export default function PostNew() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-[13px] text-label-secondary">〜</span>
-                  <input type="date" value={preEnd} onChange={(e) => setPreEnd(e.target.value)} className={dateCls} style={inputStyle} />
+                  <input type="date" value={preEnd} onChange={(e) => { setPreEnd(e.target.value); setPreEndTouched(true); }} className={dateCls} style={inputStyle} />
                   {!preAllDay && <input type="time" value={preEndTime} onChange={(e) => setPreEndTime(e.target.value)} className={timeCls} style={inputStyle} />}
                 </div>
               </div>

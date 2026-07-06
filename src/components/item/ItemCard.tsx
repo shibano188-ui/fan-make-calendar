@@ -36,8 +36,9 @@ function badgeDate(e: CalendarEvent): { top: string; bottom: string } {
   if (e.preorderStart || e.preorderEnd) {
     if (e.preorderStart) {
       const [, m, d] = e.preorderStart.split('-');
-      const range = !!e.preorderEnd && e.preorderEnd !== e.preorderStart;
-      return { top: `${+m}月`, bottom: `${+d}${range ? '〜' : ''}` };
+      // 終了日未入力でも受付は期間もの（発売日まで等）なので、単日受付でない限り「〜」を付ける
+      const single = e.preorderEnd === e.preorderStart;
+      return { top: `${+m}月`, bottom: `${+d}${single ? '' : '〜'}` };
     }
     const [, m, d] = e.preorderEnd!.split('-');
     return { top: `${+m}月`, bottom: `〜${+d}` };
