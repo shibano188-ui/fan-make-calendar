@@ -104,6 +104,21 @@ export default function Explore() {
     el.scrollIntoView({ block: 'start', behavior: smooth ? 'smooth' : 'auto' });
   };
 
+  // 初回表示用: 画像読み込み等でレイアウトが伸びて「今日」がずれるため、
+  // ヘッダー直下に揃うまで最大2秒間再適用する（保存位置の復元と同じ方式）。
+  const scrollToTodayStable = () => {
+    const start = performance.now();
+    const align = () => {
+      const el = todayRef.current;
+      const header = headerRef.current;
+      if (!el || !header) return;
+      const delta = el.getBoundingClientRect().top - (header.getBoundingClientRect().bottom + 6);
+      if (Math.abs(delta) > 2) setScrollTop(getScrollTop() + delta);
+      if (performance.now() - start < 2000) requestAnimationFrame(align);
+    };
+    requestAnimationFrame(align);
+  };
+
   // ブラウザ標準のスクロール復元を無効化（自前の復元と競合させない・SPA全体で維持）
   useEffect(() => {
     if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
@@ -322,7 +337,7 @@ export default function Explore() {
       };
       requestAnimationFrame(tryScroll);
     } else {
-      requestAnimationFrame(() => scrollToToday(false));
+      scrollToTodayStable();
     }
   }, [items, visible.length, navType]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -330,7 +345,7 @@ export default function Explore() {
   const modeMountRef = useRef(true);
   useEffect(() => {
     if (modeMountRef.current) { modeMountRef.current = false; return; }
-    if (items) requestAnimationFrame(() => scrollToToday(false));
+    if (items) scrollToTodayStable();
   }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleIn = <T,>(setter: React.Dispatch<React.SetStateAction<Set<T>>>, v: T) => {
