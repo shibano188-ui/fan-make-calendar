@@ -65,7 +65,7 @@ function TabButton({ label, icon: Icon, active, onClick, path }: { label: string
         strokeWidth={active ? 2.5 : 1.8}
       />
       <span
-        className={`text-[10px] leading-none whitespace-nowrap ${active ? '' : 'text-label-tertiary'}`}
+        className={`text-[10px] leading-none whitespace-nowrap ${active ? 'font-bold' : 'text-label-tertiary'}`}
         style={active ? { color: 'var(--accent-color)' } : {}}
       >
         {label}

@@ -187,7 +187,7 @@ export default function MyPage() {
           <div className="text-[12px] text-label-secondary mb-1.5">{FIELD_META[editingField].label}</div>
           {editingField === 'pref' ? (
             <select value={homePref} onChange={(e) => setHomePref(e.target.value)} autoFocus
-              className="w-full rounded-[10px] px-3 py-2.5 text-[14px] outline-none"
+              className="w-full rounded-full px-3 py-2.5 text-[14px] outline-none"
               style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }}>
               <option value="">未設定</option>
               {ALL_PREFS.map((p) => <option key={p} value={p}>{p}</option>)}
@@ -203,15 +203,15 @@ export default function MyPage() {
                 else setFavWorks(v);
               }}
               maxLength={FIELD_META[editingField].max} placeholder={FIELD_META[editingField].placeholder} autoFocus
-              className="w-full rounded-[10px] px-3 py-2.5 text-[14px] outline-none"
+              className="w-full rounded-full px-3 py-2.5 text-[14px] outline-none"
               style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
           )}
           <div className="flex gap-2 mt-2.5">
             <button onClick={() => { haptic.select(); setEditingField(null); }}
-              className="pressable flex-1 py-2 rounded-[10px] text-[13px]"
+              className="pressable flex-1 py-2 rounded-full text-[13px]"
               style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>キャンセル</button>
             <button onClick={onSaveField}
-              className="pressable flex-1 py-2 rounded-[10px] text-[13px] font-semibold"
+              className="pressable flex-1 py-2 rounded-full text-[13px] font-semibold"
               style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>保存</button>
           </div>
         </div>
@@ -222,7 +222,7 @@ export default function MyPage() {
         <div className="mt-3 rounded-[14px] border border-subtle p-3 grid grid-cols-8 gap-1.5" style={{ backgroundColor: 'var(--bg-secondary)' }}>
           {ANIMAL_AVATARS.map((emoji) => (
             <button key={emoji} onClick={() => onPickAvatar(emoji)} aria-label={`アバター ${emoji}`}
-              className="pressable aspect-square rounded-[10px] flex items-center justify-center text-[22px]"
+              className="pressable aspect-square rounded-full flex items-center justify-center text-[22px]"
               style={emoji === avatar ? { backgroundColor: 'color-mix(in srgb, var(--accent-color) 22%, transparent)' } : { backgroundColor: 'var(--fill-tertiary)' }}>
               {emoji}
             </button>
@@ -242,7 +242,7 @@ export default function MyPage() {
       {stats && (
         <div className="mt-3 grid grid-cols-3 gap-2 text-center">
           {[['投稿', stats.posted], ['もらったいいね', stats.received], ['フォロー作品', stats.works]].map(([label, v]) => (
-            <div key={label} className="rounded-[10px] py-2" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+            <div key={label} className="rounded-[8px] py-2" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
               <div className="text-[18px] font-bold">{v}</div>
               <div className="text-[11px] text-label-secondary">{label}</div>
             </div>
@@ -338,7 +338,7 @@ export default function MyPage() {
         ) : (
           <div className="flex flex-col gap-1.5 max-h-[40vh] overflow-y-auto no-scrollbar">
             {works.map((w) => (
-              <div key={w.id} className="flex items-center justify-between gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+              <div key={w.id} className="flex items-center justify-between gap-2 rounded-[8px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
                 <span className="text-[14px] truncate">{w.name}</span>
                 <button onClick={() => onLeave(w)} className="pressable text-[12px] text-label-secondary flex-shrink-0">解除</button>
               </div>

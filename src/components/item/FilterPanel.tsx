@@ -55,7 +55,7 @@ export default function FilterPanel({
     .filter((g) => g.prefs.length > 0);
 
   return (
-    <div className="mt-2 rounded-[12px] border border-subtle" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+    <div className="mt-2 rounded-[8px] shadow-elevated" style={{ backgroundColor: 'var(--bg-secondary)' }}>
       <div className="max-h-[46vh] overflow-y-auto no-scrollbar px-3 py-3">
         {statuses.length > 0 && (
           <Section title="状態">

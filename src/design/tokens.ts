@@ -142,10 +142,11 @@ export function itemDateLines(
   return lines;
 }
 
-// レイアウト規約（メルカリ流: 詰め・画像は四角・角丸はボタンのみ）
+// レイアウト規約（Spotify流ジオメトリ: ボタンはピル・カードは6〜8px。画像は四角のまま=メルカリ流を継続）
 export const RADIUS = {
   none: '0px', // 画像は四角
-  button: '10px',
+  card: '8px',
+  button: '999px', // ピル
   chip: '999px',
   sheet: '20px',
 } as const;

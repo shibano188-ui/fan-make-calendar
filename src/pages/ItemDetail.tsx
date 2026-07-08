@@ -337,7 +337,7 @@ export default function ItemDetail() {
                 )}
                 {!visitOpen ? (
                   <div className="flex items-center gap-2 flex-wrap">
-                    <button onClick={openVisitPicker} className="pressable flex items-center gap-1.5 px-3 py-2 rounded-[10px] text-[13px] font-semibold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+                    <button onClick={openVisitPicker} className="pressable flex items-center gap-1.5 px-3 py-2 rounded-full text-[13px] font-semibold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
                       <Pin size={15} /> {visits.length > 0 ? '別の日も追加' : 'ここ行く！'}
                     </button>
                     {visits.length === 0 && <span className="text-[11px] text-label-tertiary">登録した日だけカレンダーに表示</span>}
@@ -345,13 +345,13 @@ export default function ItemDetail() {
                 ) : (
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-2 text-[13px]">
-                      <input type="date" value={visitStart} min={eff.date ?? undefined} max={eff.endDate} onChange={(e) => setVisitStart(e.target.value)} className="flex-1 rounded-[10px] px-3 py-2 outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
+                      <input type="date" value={visitStart} min={eff.date ?? undefined} max={eff.endDate} onChange={(e) => setVisitStart(e.target.value)} className="flex-1 rounded-full px-3 py-2 outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
                       <span className="text-label-secondary">〜</span>
-                      <input type="date" value={visitEnd} min={visitStart || eff.date || undefined} max={eff.endDate} onChange={(e) => setVisitEnd(e.target.value)} className="flex-1 rounded-[10px] px-3 py-2 outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
+                      <input type="date" value={visitEnd} min={visitStart || eff.date || undefined} max={eff.endDate} onChange={(e) => setVisitEnd(e.target.value)} className="flex-1 rounded-full px-3 py-2 outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={onAddVisit} disabled={!visitStart} className="pressable flex-1 py-2 rounded-[10px] text-[13px] font-semibold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>追加</button>
-                      <button onClick={() => setVisitOpen(false)} className="pressable px-4 py-2 rounded-[10px] text-[13px]" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>キャンセル</button>
+                      <button onClick={onAddVisit} disabled={!visitStart} className="pressable flex-1 py-2 rounded-full text-[13px] font-semibold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>追加</button>
+                      <button onClick={() => setVisitOpen(false)} className="pressable px-4 py-2 rounded-full text-[13px]" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>キャンセル</button>
                     </div>
                     <p className="text-[11px] text-label-tertiary">単日なら開始だけでOK（終了は同じ日にできます）</p>
                   </div>
@@ -402,13 +402,13 @@ export default function ItemDetail() {
               <div className="flex flex-col gap-1.5">
                 {getOffers(event).map((o, i) => (
                   <a key={`b${i}`} href={o.affiliateUrl || o.url} target="_blank" rel="noopener" onClick={() => haptic.select()}
-                    className="pressable flex items-center justify-between gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+                    className="pressable flex items-center justify-between gap-2 rounded-[8px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
                     <span className="text-[13px] truncate">{o.retailer || 'リンク'}{o.shop ? `（${o.shop}）` : ''}</span>
                     <span className="text-[13px] font-bold flex-shrink-0" style={{ color: 'var(--accent-text)' }}>{o.price ? `¥${o.price.toLocaleString()}` : '開く ↗'}</span>
                   </a>
                 ))}
                 {contribs.map((c) => (
-                  <div key={c.id} className="flex items-center gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+                  <div key={c.id} className="flex items-center gap-2 rounded-[8px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
                     <a href={c.offer.affiliateUrl || c.offer.url} target="_blank" rel="noopener" onClick={() => haptic.select()} className="pressable flex-1 min-w-0 flex items-center justify-between gap-2">
                       <span className="text-[13px] truncate">{c.offer.retailer || 'リンク'}{c.offer.shop ? `（${c.offer.shop}）` : ''}<span className="text-[10px] text-label-tertiary"> ・ユーザー追加</span></span>
                       <span className="text-[13px] font-bold flex-shrink-0" style={{ color: 'var(--accent-text)' }}>{c.offer.price ? `¥${c.offer.price.toLocaleString()}` : '開く ↗'}</span>
@@ -422,8 +422,8 @@ export default function ItemDetail() {
               <div className="flex gap-2 mt-2">
                 <input value={addUrl} onChange={(e) => setAddUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onAddLink()}
                   placeholder="購入リンクを追加（URL）" inputMode="url"
-                  className="flex-1 rounded-[10px] px-3 py-2 text-[13px] outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
-                <button onClick={onAddLink} disabled={!addUrl.trim() || addingLink} className="pressable px-3 rounded-[10px] text-[13px] font-semibold flex-shrink-0" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>追加</button>
+                  className="flex-1 rounded-full px-3 py-2 text-[13px] outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
+                <button onClick={onAddLink} disabled={!addUrl.trim() || addingLink} className="pressable px-3 rounded-full text-[13px] font-semibold flex-shrink-0" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>追加</button>
               </div>
             </div>
 
@@ -478,7 +478,7 @@ export default function ItemDetail() {
               {stockReports.length > 0 && (
                 <div className="flex flex-col gap-1.5 mb-2">
                   {stockReports.map((r) => (
-                    <div key={r.id} className="flex items-start gap-2 rounded-[10px] px-3 py-2" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+                    <div key={r.id} className="flex items-start gap-2 rounded-[8px] px-3 py-2" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
                       <div className="flex-1 min-w-0">
                         <div className="text-[13px]">{r.note}</div>
                         <div className="text-[10px] text-label-tertiary">{r.createdAt.slice(5, 10).replace('-', '/')}</div>
@@ -491,8 +491,8 @@ export default function ItemDetail() {
               <div className="flex gap-2">
                 <input value={stockInput} onChange={(e) => setStockInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onAddStock()}
                   placeholder="在庫情報を追加（例: 池袋本店 残りわずか）"
-                  className="flex-1 rounded-[10px] px-3 py-2 text-[13px] outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
-                <button onClick={onAddStock} disabled={!stockInput.trim() || addingStock} className="pressable px-3 rounded-[10px] text-[13px] font-semibold flex-shrink-0" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>追加</button>
+                  className="flex-1 rounded-full px-3 py-2 text-[13px] outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
+                <button onClick={onAddStock} disabled={!stockInput.trim() || addingStock} className="pressable px-3 rounded-full text-[13px] font-semibold flex-shrink-0" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>追加</button>
               </div>
             </div>
 
@@ -523,7 +523,7 @@ export default function ItemDetail() {
         {buyMode !== 'none' && (
           <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-app border-t border-separator px-4 py-3"
             style={{ backgroundColor: 'color-mix(in srgb, var(--bg-primary) 92%, transparent)', backdropFilter: 'blur(20px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}>
-            <button onClick={openBuy} className="pressable w-full py-3 rounded-[10px] font-semibold flex items-center justify-center gap-2"
+            <button onClick={openBuy} className="pressable w-full py-3 rounded-full font-semibold flex items-center justify-center gap-2"
               style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
               {buyMode === 'cart' ? <ShoppingCart size={18} /> : <ExternalLink size={18} />}
               {buyMode === 'cart' ? `購入する${retailer ? `（${retailer}）` : ''}` : '公式サイトを開く'}

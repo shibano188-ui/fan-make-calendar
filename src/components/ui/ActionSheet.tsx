@@ -49,7 +49,7 @@ export function ActionSheetProvider({ children }: { children: ReactNode }) {
             onClick={e => e.stopPropagation()}
           >
             <div
-              className="rounded-[14px] overflow-hidden mb-2"
+              className="rounded-[14px] overflow-hidden mb-2 shadow-dialog"
               style={{ backgroundColor: 'var(--bg-secondary)', animation: 'slideUpIn 0.25s cubic-bezier(0.32,0.72,0,1) both' }}
             >
               {(opts.title || opts.message) && (

@@ -3,11 +3,26 @@
 @tailwind utilities;
 
 @layer utilities {
+  /* ダークUIでは影を濃くしないと見えない（Spotify流: 0.3〜0.5） */
   .shadow-card {
-    box-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 0 1px rgba(0,0,0,0.15);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35), 0 0 1px rgba(0,0,0,0.2);
   }
   [data-theme="light"] .shadow-card {
     box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 0 1px rgba(0,0,0,0.04);
+  }
+  /* ホバーカード・ドロップダウン用 */
+  .shadow-elevated {
+    box-shadow: 0 8px 8px rgba(0,0,0,0.3);
+  }
+  [data-theme="light"] .shadow-elevated {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.10);
+  }
+  /* モーダル・シート用（闇に浮かぶ） */
+  .shadow-dialog {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  }
+  [data-theme="light"] .shadow-dialog {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
   }
   .pressable {
     transition: transform 0.15s cubic-bezier(0.32,0.72,0,1), opacity 0.15s ease;
@@ -41,29 +56,29 @@
 }
 
 :root {
-  /* ─ 3-layer backgrounds (iOS semantic) ─ */
-  --bg-primary:        #0e0e10;
-  --bg-secondary:      #1c1c1e;
-  --bg-tertiary:       #2c2c2e;
+  /* ─ 3-layer backgrounds (Spotify流 炭色レイヤー: 深さは面の明度差で作る) ─ */
+  --bg-primary:        #121212;
+  --bg-secondary:      #181818;
+  --bg-tertiary:       #1f1f1f;
 
-  /* ─ labels ─ */
+  /* ─ labels (700/400 の太さ二値と組み合わせる) ─ */
   --label-primary:     #ffffff;
-  --label-secondary:   rgba(235,235,245,0.6);
-  --label-tertiary:    rgba(235,235,245,0.3);
+  --label-secondary:   #b3b3b3;
+  --label-tertiary:    rgba(255,255,255,0.36);
 
-  /* ─ borders ─ */
-  --border-faint:      rgba(255,255,255,0.05);
-  --border-subtle:     rgba(255,255,255,0.08);
+  /* ─ borders (カードは枠線なし・面と影で区切る。枠は入力等の機能箇所のみ) ─ */
+  --border-faint:      rgba(255,255,255,0.04);
+  --border-subtle:     rgba(255,255,255,0.06);
   --border-default:    rgba(255,255,255,0.15);
   --border-strong:     rgba(255,255,255,0.30);
   --border-selected:   rgba(255,255,255,0.60);
-  --separator:         rgba(84,84,88,0.65);
+  --separator:         rgba(255,255,255,0.07);
 
   /* ─ fills (for chips, toggles, overlays) ─ */
-  --fill-primary:      rgba(120,120,128,0.36);
-  --fill-secondary:    rgba(120,120,128,0.32);
-  --fill-tertiary:     rgba(118,118,128,0.24);
-  --fill-quaternary:   rgba(118,118,128,0.18);
+  --fill-primary:      rgba(255,255,255,0.14);
+  --fill-secondary:    rgba(255,255,255,0.12);
+  --fill-tertiary:     rgba(255,255,255,0.09);
+  --fill-quaternary:   rgba(255,255,255,0.06);
 
   /* ─ inputs ─ */
   --input-text:        #ffffff;

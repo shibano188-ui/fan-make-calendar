@@ -396,7 +396,7 @@ export default function Explore() {
     <div ref={pageRef} className="relative">
       <div ref={headerRef} className="px-3 pt-3 pb-2 sticky top-0 z-20" style={{ backgroundColor: 'var(--bg-primary)', paddingTop: `calc(env(safe-area-inset-top) + ${adH + 12}px)` }}>
         <div className="flex items-center gap-2">
-          <div className="flex-1 flex items-center gap-2 px-3 rounded-[10px]" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+          <div className="flex-1 flex items-center gap-2 px-3 rounded-full" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
             <Search size={16} className="text-label-tertiary flex-shrink-0" />
             <input
               value={query}
@@ -413,7 +413,7 @@ export default function Explore() {
           </div>
           <button
             onClick={() => { haptic.select(); setFilterOpen((v) => !v); }}
-            className="pressable flex items-center gap-1 px-3 py-2 rounded-[10px]"
+            className="pressable flex items-center gap-1 px-3 py-2 rounded-full"
             style={filterOpen || activeCount > 0
               ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }
               : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}
@@ -454,7 +454,7 @@ export default function Explore() {
         {workMatches.some((w) => !followed.has(w.id)) && (
           <div className="mt-2 flex flex-col gap-1.5">
             {workMatches.filter((w) => !followed.has(w.id)).map((w) => (
-              <div key={w.id} className="flex items-center justify-between gap-2 rounded-[10px] border border-subtle px-3 py-2" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+              <div key={w.id} className="flex items-center justify-between gap-2 rounded-[8px] px-3 py-2" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                 <span className="text-[13px] font-semibold truncate">{w.name}<span className="text-[11px] text-label-tertiary"> ・未フォロー</span></span>
                 <button onClick={() => toggleFollowWork(w)} className="pressable text-[12px] px-3 py-1 rounded-full font-medium flex-shrink-0"
                   style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>＋フォロー</button>
