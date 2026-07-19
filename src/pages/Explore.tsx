@@ -394,7 +394,7 @@ export default function Explore() {
 
   return (
     <div ref={pageRef} className="relative">
-      <div ref={headerRef} className="px-3 pt-3 pb-2 sticky top-0 z-20" style={{ backgroundColor: 'var(--bg-primary)', paddingTop: `calc(env(safe-area-inset-top) + ${adH + 12}px)` }}>
+      <div ref={headerRef} className="px-3 pt-3 pb-3 sticky top-0 z-20 material-bar scroll-edge" style={{ paddingTop: `calc(env(safe-area-inset-top) + ${adH + 12}px)` }}>
         <div className="flex items-center gap-2">
           <div className="flex-1 flex items-center gap-2 px-3 rounded-[10px]" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
             <Search size={16} className="text-label-tertiary flex-shrink-0" />
@@ -519,8 +519,8 @@ export default function Explore() {
         <button
           onClick={() => { haptic.select(); scrollToToday(true); }}
           aria-label="今日へ"
-          className="pressable fixed bottom-24 right-4 z-30 w-11 h-11 rounded-full flex items-center justify-center shadow-card"
-          style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--label-primary)' }}
+          className="pressable material-thick fixed right-4 z-30 w-11 h-11 rounded-full flex items-center justify-center shadow-float"
+          style={{ color: 'var(--label-primary)', bottom: 'calc(env(safe-area-inset-bottom) + 92px)' }}
         >
           <ArrowDownToLine size={20} />
         </button>

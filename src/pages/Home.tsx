@@ -153,7 +153,7 @@ export default function Home() {
 
   return (
     <div ref={rootRef}>
-      <div className="px-3 pt-3 pb-1 sticky top-0 z-20" style={{ backgroundColor: 'var(--bg-primary)', paddingTop: `calc(env(safe-area-inset-top) + ${adH + 12}px)` }}>
+      <div className="px-3 pt-3 pb-3 sticky top-0 z-20 material-bar scroll-edge" style={{ paddingTop: `calc(env(safe-area-inset-top) + ${adH + 12}px)` }}>
         <button onClick={() => navigate('/explore')} className="w-full flex items-center gap-2 px-3 py-2 rounded-[10px]" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
           <Search size={16} className="text-label-tertiary" />
           <input

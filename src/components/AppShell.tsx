@@ -8,7 +8,8 @@ export default function AppShell() {
   return (
     <div className="min-h-[100dvh]" style={{ backgroundColor: 'var(--bg-primary)' }}>
       <div className="mx-auto w-full max-w-app min-h-[100dvh] flex flex-col">
-        <main className="flex-1 pb-20">
+        {/* 下端は浮遊バーの下をコンテンツが流れる。バー高さ+余白ぶんの逃げを確保 */}
+        <main className="flex-1 pb-28">
           <Outlet />
         </main>
         <BottomNav />

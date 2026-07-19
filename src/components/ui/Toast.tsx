@@ -24,10 +24,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={show}>
       {children}
       {toast && createPortal(
-        <div className="fixed inset-x-0 z-[400] flex justify-center pointer-events-none" style={{ bottom: 56 + 12 }}>
+        <div className="fixed inset-x-0 z-[400] flex justify-center pointer-events-none" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 92px)' }}>
           <div
-            className="flex items-center gap-2 px-4 py-2.5 rounded-full shadow-card"
-            style={{ backgroundColor: 'var(--bg-tertiary)', animation: 'slideUpIn 0.25s cubic-bezier(0.32,0.72,0,1) both' }}
+            className="material-thick flex items-center gap-2 px-4 py-2.5 rounded-full shadow-card"
+            style={{ animation: 'toastIn 0.35s cubic-bezier(0.32,0.72,0,1) both' }}
           >
             {toast.type === 'success'
               ? <Check size={15} style={{ color: 'var(--color-success)' }} />

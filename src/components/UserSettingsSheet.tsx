@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
-import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import Sheet from './ui/Sheet';
 import { PREFECTURES } from '../lib/prefectures';
 import { loadImageVisibility, saveImageVisibility, type ImageVisibility } from '../lib/constants';
 import { supabase } from '../lib/supabase';
@@ -140,40 +140,9 @@ export default function UserSettingsSheet({
     setTimeout(() => { setSaved(false); onClose(); }, 700);
   };
 
-  // Header の backdrop-filter が fixed の基準になる（Chromium）ため body 直下に描画する
-  return createPortal(
-    <div className="fixed inset-0 z-[200] max-w-app mx-auto flex flex-col justify-end">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div
-        className="relative bg-bg-primary rounded-t-[18px]"
-        style={{
-          maxHeight: '85vh',
-          display: 'flex',
-          flexDirection: 'column',
-          animation: 'slideUpPanel 0.28s cubic-bezier(0.32, 0.72, 0, 1) both',
-        }}
-      >
-        {/* 固定ヘッダー */}
-        <div style={{ flexShrink: 0 }} className="pt-3 px-4 pb-3 border-b border-separator">
-          <div className="flex justify-center mb-2">
-            <div className="w-9 h-[5px] rounded-full" style={{ backgroundColor: 'var(--fill-primary)' }} />
-          </div>
-          <div className="flex items-center justify-between">
-            <p className="text-label-primary font-semibold text-sm">ユーザー設定</p>
-            <button onClick={onClose} className="text-xs text-label-secondary active:opacity-60">閉じる</button>
-          </div>
-        </div>
-
-        {/* スクロール可能コンテンツ */}
-        <div
-          style={{
-            flex: 1,
-            minHeight: 0,
-            overflowY: 'scroll',
-            WebkitOverflowScrolling: 'touch',
-            padding: '16px 16px 40px',
-          } as React.CSSProperties}
-        >
+  return (
+    <Sheet onClose={onClose} title="ユーザー設定" maxHeight="85dvh" zIndex={200} ariaLabel="ユーザー設定">
+      <div style={{ padding: '4px 16px 40px' }}>
           {/* 表示名 */}
           <div className="mb-5">
             <label className="text-label-tertiary text-xs mb-1.5 block">表示名（任意）</label>
@@ -268,9 +237,7 @@ export default function UserSettingsSheet({
               </div>
             )}
           </div>
-        </div>
       </div>
-    </div>,
-    document.body,
+    </Sheet>
   );
 }

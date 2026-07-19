@@ -39,12 +39,12 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
       {opts && createPortal(
         <div
           className="fixed inset-0 z-[500] flex items-center justify-center px-8"
-          style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
+          style={{ backgroundColor: 'rgba(0,0,0,0.4)', animation: 'fadeIn 0.2s ease both' }}
           onClick={() => { if (!opts.hideCancel) close(false); }}
         >
           <div
-            className="w-[270px] rounded-[14px] overflow-hidden"
-            style={{ backgroundColor: 'var(--bg-secondary)', animation: 'confirmIn 0.2s cubic-bezier(0.32,0.72,0,1) both' }}
+            className="material-thick w-[270px] rounded-[16px] overflow-hidden"
+            style={{ animation: 'confirmIn 0.24s cubic-bezier(0.34,1.2,0.64,1) both' }}
             onClick={e => e.stopPropagation()}
           >
             <div className="px-4 pt-5 pb-4 text-center">

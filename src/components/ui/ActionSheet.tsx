@@ -40,7 +40,7 @@ export function ActionSheetProvider({ children }: { children: ReactNode }) {
       {opts && createPortal(
         <div
           className="fixed inset-0 z-[500]"
-          style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
+          style={{ backgroundColor: 'rgba(0,0,0,0.4)', animation: 'fadeIn 0.2s ease both' }}
           onClick={() => close(null)}
         >
           <div
@@ -49,8 +49,8 @@ export function ActionSheetProvider({ children }: { children: ReactNode }) {
             onClick={e => e.stopPropagation()}
           >
             <div
-              className="rounded-[14px] overflow-hidden mb-2"
-              style={{ backgroundColor: 'var(--bg-secondary)', animation: 'slideUpIn 0.25s cubic-bezier(0.32,0.72,0,1) both' }}
+              className="material-thick rounded-[16px] overflow-hidden mb-2"
+              style={{ animation: 'slideUpIn 0.3s cubic-bezier(0.34,1.2,0.64,1) both' }}
             >
               {(opts.title || opts.message) && (
                 <div className="px-4 pt-3 pb-3 text-center border-b" style={{ borderColor: 'var(--separator)' }}>
@@ -71,8 +71,8 @@ export function ActionSheetProvider({ children }: { children: ReactNode }) {
             </div>
             <button
               onClick={() => close(null)}
-              className="w-full py-3.5 rounded-[14px] text-[17px] font-semibold pressable"
-              style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--accent-text)', animation: 'slideUpIn 0.25s cubic-bezier(0.32,0.72,0,1) both' }}
+              className="material-thick w-full py-3.5 rounded-[16px] text-[17px] font-semibold pressable"
+              style={{ color: 'var(--accent-text)', animation: 'slideUpIn 0.3s cubic-bezier(0.34,1.2,0.64,1) both' }}
             >
               キャンセル
             </button>

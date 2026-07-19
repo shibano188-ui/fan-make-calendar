@@ -9,13 +9,59 @@
   [data-theme="light"] .shadow-card {
     box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 0 1px rgba(0,0,0,0.04);
   }
+  /* 浮遊バー・大きめ面のための深い影（面積が大きいほど厚く見せる） */
+  .shadow-float {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.25);
+  }
+  [data-theme="light"] .shadow-float {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.14), 0 1px 2px rgba(0,0,0,0.08);
+  }
+  /* 押下は即時（タッチダウンで反応）・復帰はばね気味に戻す */
   .pressable {
-    transition: transform 0.15s cubic-bezier(0.32,0.72,0,1), opacity 0.15s ease;
+    transition: transform 0.35s cubic-bezier(0.175,0.885,0.32,1.1), opacity 0.3s ease;
     -webkit-tap-highlight-color: transparent;
   }
   .pressable:active {
     transform: scale(0.96);
-    opacity: 0.7;
+    opacity: 0.75;
+    transition-duration: 0.05s;
+  }
+
+  /* ─ マテリアル（半透明＋ぼかしの機能レイヤー。下をコンテンツが流れる） ─ */
+  .material-bar {
+    background-color: color-mix(in srgb, var(--bg-primary) 72%, transparent);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+  }
+  /* シートは面積が大きい＝厚く見せる（強いぼかし・不透明寄り） */
+  .material-sheet {
+    background-color: color-mix(in srgb, var(--bg-primary) 84%, transparent);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+  }
+  .material-thick {
+    background-color: color-mix(in srgb, var(--bg-secondary) 82%, transparent);
+    backdrop-filter: blur(32px) saturate(180%);
+    -webkit-backdrop-filter: blur(32px) saturate(180%);
+  }
+  /* 透明度を減らす設定・コントラスト強化の設定では磨りガラスをやめて塗りに */
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    .material-bar, .material-sheet { background-color: var(--bg-primary); backdrop-filter: none; -webkit-backdrop-filter: none; }
+    .material-thick { background-color: var(--bg-secondary); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  }
+
+  /* stickyヘッダーの下端: 1pxの境界線ではなく、ぼかしを溶かして消す */
+  .scroll-edge {
+    mask-image: linear-gradient(to bottom, black calc(100% - 8px), transparent);
+    -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 8px), transparent);
+  }
+
+  /* 大見出し: サイズに応じたトラッキング（大きい文字は詰める） */
+  .text-largetitle {
+    font-size: 28px;
+    line-height: 1.15;
+    font-weight: 800;
+    letter-spacing: -0.02em;
   }
   /* 横スクロールのスクロールバーを隠す（チップ行など） */
   .no-scrollbar {
@@ -120,6 +166,18 @@
 @keyframes slideUpPanel {
   from { transform: translateY(100%); }
   to   { transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* トースト: 下からわずかにオーバーシュートして着地（運動量の表現） */
+@keyframes toastIn {
+  0%   { transform: translateY(16px) scale(0.97); opacity: 0; }
+  60%  { transform: translateY(-2px) scale(1);    opacity: 1; }
+  100% { transform: translateY(0)    scale(1);    opacity: 1; }
 }
 
 @keyframes confirmIn {

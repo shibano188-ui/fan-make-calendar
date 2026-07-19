@@ -56,12 +56,12 @@ export default function UserProfileModal({
 
   return (
     <div className="fixed inset-0 z-[500] flex items-center justify-center px-6">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} style={{ animation: 'fadeIn 0.2s ease both' }} />
       <div
-        className="relative w-full max-w-sm rounded-[14px] overflow-hidden shadow-xl"
+        className="relative w-full max-w-sm rounded-[16px] overflow-hidden shadow-xl"
         style={{
           backgroundColor: 'var(--bg-primary)',
-          animation: 'slideUpIn 0.2s ease-out both',
+          animation: 'confirmIn 0.24s cubic-bezier(0.34,1.2,0.64,1) both',
         }}
       >
         <button

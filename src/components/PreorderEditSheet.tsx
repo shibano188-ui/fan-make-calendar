@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { X, Plus } from 'lucide-react';
+import Sheet from './ui/Sheet';
 import { updatePreorderInfo } from '../lib/api';
 import { parseLinks, serializeLinks } from '../lib/constants';
 import type { CalendarEvent } from '../types';
@@ -60,21 +61,9 @@ export default function PreorderEditSheet({ event, onClose, onSaved }: Props) {
   };
 
   return (
-    <>
-      <div className="fixed inset-0 z-[400]" onClick={onClose} />
-      <div
-        className="fixed inset-x-0 bottom-0 z-[410] max-w-app mx-auto rounded-t-[18px] flex flex-col"
-        style={{ backgroundColor: 'var(--bg-primary)', animation: 'slideUpPanel 0.22s cubic-bezier(0.32,0.72,0,1) both' }}
-      >
-        <div className="flex items-center justify-between px-4 pt-4 pb-2">
-          <span className="text-sm font-bold text-label-primary">情報を追加</span>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center text-label-tertiary active:opacity-60">
-            <X size={18} />
-          </button>
-        </div>
-        <p className="px-4 pb-3 text-xs text-label-tertiary truncate">{event.title}</p>
-
-        <div className="px-4 flex flex-col gap-4 pb-6">
+    <Sheet onClose={onClose} title="情報を追加" zIndex={400} ariaLabel="情報を追加"
+      fixed={<p className="px-4 pb-2 text-xs text-label-tertiary truncate">{event.title}</p>}>
+      <div className="px-4 flex flex-col gap-4 pb-6">
           {/* 日付 */}
           <div className="flex flex-col gap-1">
             <label className="text-xs text-label-tertiary">
@@ -174,8 +163,7 @@ export default function PreorderEditSheet({ event, onClose, onSaved }: Props) {
             style={{ background: 'var(--accent-color)', color: 'var(--accent-on)' }}>
             {saving ? '更新中…' : '更新'}
           </button>
-        </div>
       </div>
-    </>
+    </Sheet>
   );
 }
