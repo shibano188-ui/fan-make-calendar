@@ -104,11 +104,33 @@ export default function Explore() {
     el.scrollIntoView({ block: 'start', behavior: smooth ? 'smooth' : 'auto' });
   };
 
+  // 再適用ループの世代カウンタ。ユーザーが操作を始めたら／ページを離れたら
+  // カウンタを進めて走行中のループを即座に打ち切り、スクロールの主導権を返す。
+  // （中断しないと、最大2秒間ユーザーのスクロールと喧嘩する。さらにアンマウント後も
+  //   rAFが生き残り、移動先ページ（カレンダー等）のスクロールを引っ張るバグになる）
+  const scrollLoopGen = useRef(0);
+  const cancelScrollLoops = useCallback(() => { scrollLoopGen.current += 1; }, []);
+  useEffect(() => {
+    const opts: AddEventListenerOptions = { passive: true, capture: true };
+    const cancel = () => cancelScrollLoops();
+    window.addEventListener('wheel', cancel, opts);
+    window.addEventListener('touchstart', cancel, opts);
+    window.addEventListener('keydown', cancel, opts);
+    return () => {
+      window.removeEventListener('wheel', cancel, opts);
+      window.removeEventListener('touchstart', cancel, opts);
+      window.removeEventListener('keydown', cancel, opts);
+      cancelScrollLoops();
+    };
+  }, [cancelScrollLoops]);
+
   // 初回表示用: 画像読み込み等でレイアウトが伸びて「今日」がずれるため、
   // ヘッダー直下に揃うまで最大2秒間再適用する（保存位置の復元と同じ方式）。
   const scrollToTodayStable = () => {
     const start = performance.now();
+    const gen = scrollLoopGen.current;
     const align = () => {
+      if (gen !== scrollLoopGen.current) return; // ユーザー操作・離脱で中断
       const el = todayRef.current;
       const header = headerRef.current;
       if (!el || !header) return;
@@ -328,8 +350,11 @@ export default function Explore() {
     if (navType === 'POP' && saved != null) {
       const top = parseInt(saved, 10);
       // 画像読み込み/レイアウト確定で高さが伸びるため、目標に届くまで最大2秒間再適用する。
+      // ユーザー操作・アンマウントで即中断（gen guard）。
       const start = performance.now();
+      const gen = scrollLoopGen.current;
       const tryScroll = () => {
+        if (gen !== scrollLoopGen.current) return;
         setScrollTop(top);
         if (Math.abs(getScrollTop() - top) > 2 && performance.now() - start < 2000) {
           requestAnimationFrame(tryScroll);

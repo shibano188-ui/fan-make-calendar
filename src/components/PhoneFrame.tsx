@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import WidgetPreviewModal from './WidgetPreviewModal';
 
 function StatusBar() {
@@ -39,10 +39,25 @@ interface Props {
 export default function PhoneFrame({ children }: Props) {
   const [showPreview, setShowPreview] = useState(false);
 
+  // どちらの枝を出すかはJSで判定して「片方だけ」レンダリングする。
+  // CSSのhidden切り替えで両方マウントすると、アプリ全体が2重に動く
+  // （データ取得・通知・スクロール補正ループが2倍走り、非表示側の補正が
+  //   表示側のスクロールと喧嘩して「反発」バグを起こしていた）。
+  const [desktop, setDesktop] = useState(() => window.matchMedia('(min-width: 640px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 640px)');
+    const onChange = () => setDesktop(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  // スマホ実機: フレームなし、そのまま表示
+  if (!desktop) return <>{children}</>;
+
   return (
     <>
       {/* デスクトップ: スマホフレーム */}
-      <div className="hidden sm:flex min-h-screen items-center justify-center bg-[#0d0d0d] relative">
+      <div className="flex min-h-screen items-center justify-center bg-[#0d0d0d] relative">
         <div
           className="relative flex-shrink-0"
           style={{ width: 390, height: 'min(844px, calc(100vh - 48px))' }}
@@ -107,11 +122,6 @@ export default function PhoneFrame({ children }: Props) {
         </button>
 
         {showPreview && <WidgetPreviewModal onClose={() => setShowPreview(false)} />}
-      </div>
-
-      {/* スマホ実機: フレームなし、そのまま表示 */}
-      <div className="sm:hidden">
-        {children}
       </div>
     </>
   );
