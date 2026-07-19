@@ -11,7 +11,7 @@ import { deriveStatus, todayStr, STATUS, type ItemStatus } from '../design/token
 import { listSavedEvents, getHomePrefecture, toggleLike, toggleCalendarAdd } from '../lib/api';
 import { parseCategories, isNotifyOn } from '../lib/constants';
 import { buildWorkColorMap } from '../lib/workColors';
-import { resolveBuy } from '../lib/affiliate';
+import { openBuyLink } from '../lib/dataLogs';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
@@ -229,7 +229,7 @@ export default function Saved() {
   };
   const activeCount = selectedStatuses.size + excludedWorks.size + selectedCategories.size + selectedPrefs.size + selectedRegions.size + (neighborActive ? 1 : 0);
 
-  const onBuy = (e: CalendarEvent) => { haptic.select(); const { url } = resolveBuy(e); if (url) window.open(url, '_blank', 'noopener'); };
+  const onBuy = (e: CalendarEvent) => { haptic.select(); openBuyLink(e, 'saved', user?.id); };
   const onCalendar = async (e: CalendarEvent) => {
     haptic.select();
     const r = await addToCalendar(e);

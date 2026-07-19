@@ -9,6 +9,7 @@ import { useToast } from '../components/ui/Toast';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId } from '../lib/constants';
 import { deriveStatus, deriveItemType, itemDateLines } from '../design/tokens';
 import { resolveBuy, getOffers, buildOffer } from '../lib/affiliate';
+import { openBuyLink } from '../lib/dataLogs';
 import { REACTIONS } from '../lib/reactions';
 import { useAuth } from '../contexts/AuthContext';
 import { haptic } from '../lib/haptics';
@@ -204,7 +205,7 @@ export default function ItemDetail() {
       toast(prev ? 'フォローを解除しました' : 'フォローしました');
     } catch { setFollowing(prev); }
   };
-  const openBuy = () => { haptic.select(); if (buyUrl) window.open(buyUrl, '_blank', 'noopener'); };
+  const openBuy = () => { haptic.select(); if (buyUrl) openBuyLink(event, 'item', user?.id); };
   const onShare = () => {
     haptic.select();
     const text = encodeURIComponent(event.title);

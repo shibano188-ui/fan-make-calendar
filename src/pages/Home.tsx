@@ -9,7 +9,7 @@ import { loadSeenEventIds, isNewItem } from '../lib/constants';
 import { listExploreEvents, getHomePrefecture, listAllParticipatedWorks, toggleLike, toggleCalendarAdd, listLikedEventIds, type Work } from '../lib/api';
 import { getCached, setCached } from '../lib/swrCache';
 import { buildWorkColorMap } from '../lib/workColors';
-import { resolveBuy } from '../lib/affiliate';
+import { openBuyLink } from '../lib/dataLogs';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
@@ -136,7 +136,7 @@ export default function Home() {
   const workColorMap = useMemo(() => buildWorkColorMap(follows), [follows]);
   const seen = useMemo(() => loadSeenEventIds(), [items]);
   const onOpen = (e: CalendarEvent) => navigate(`/item/${e.id}`);
-  const onBuy = (e: CalendarEvent) => { haptic.select(); const { url } = resolveBuy(e); if (url) window.open(url, '_blank', 'noopener'); };
+  const onBuy = (e: CalendarEvent) => { haptic.select(); openBuyLink(e, 'home', user?.id); };
   const onLike = async (e: CalendarEvent) => { haptic.select(); return user ? toggleLike(e.id, user.id) : undefined; };
   const onCalendar = async (e: CalendarEvent) => {
     haptic.select();

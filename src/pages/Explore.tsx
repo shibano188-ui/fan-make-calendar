@@ -12,7 +12,7 @@ import { listExploreEvents, getHomePrefecture, searchWorks, listAllParticipatedW
 import { parseCategories, loadSeenEventIds, saveSeenEventIds, isNewItem, GOODS_TAG } from '../lib/constants';
 import { getCached, setCached } from '../lib/swrCache';
 import { buildWorkColorMap } from '../lib/workColors';
-import { resolveBuy } from '../lib/affiliate';
+import { openBuyLink } from '../lib/dataLogs';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
@@ -391,8 +391,7 @@ export default function Explore() {
 
   const onBuy = (e: CalendarEvent) => {
     haptic.select();
-    const { url } = resolveBuy(e);
-    if (url) window.open(url, '_blank', 'noopener');
+    openBuyLink(e, 'explore', user?.id);
   };
 
   const onLikeTile = async (e: CalendarEvent) => { haptic.select(); return user ? toggleLike(e.id, user.id) : undefined; };

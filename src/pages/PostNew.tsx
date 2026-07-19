@@ -6,6 +6,7 @@ import { searchWorks, getOrCreateWork, createEvents, upsertParticipation, findDu
 import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES, GOODS_TAG } from '../lib/constants';
 import { affiliatize, buildOffer, primaryOffer } from '../lib/affiliate';
 import { parseEventsApi, fileToBase64, type ParsedEvent } from '../lib/parseEvents';
+import { logAiExtraction } from '../lib/dataLogs';
 import { searchProductCandidates, titleMatchScore, cleanShopTitle, retailerSearchUrls, type ProductCandidate } from '../lib/searchProduct';
 import type { Offer } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -181,7 +182,13 @@ export default function PostNew() {
   };
 
   // 解析結果をフォームに反映
+  // AI教師データログ用: 直近の解析入力と、フォームに反映したAI出力を保持し、
+  // 投稿完了時に「入力×AI出力×最終保存値」をセットで記録する（データ資産化①）
+  const aiSourceRef = useRef<{ sourceUrl?: string; sourceText?: string; sourceKind: 'url' | 'image' | 'shared_text' } | null>(null);
+  const aiLogRef = useRef<{ sourceUrl?: string; sourceText?: string; sourceKind: 'url' | 'image' | 'shared_text'; output: ParsedEvent } | null>(null);
+
   const applyParsed = (p: ParsedEvent) => {
+    if (aiSourceRef.current) aiLogRef.current = { ...aiSourceRef.current, output: p };
     const parsedType = deriveItemType({ category: p.category ?? undefined });
     setType(parsedType);
     if (p.title) setTitle(p.title);
@@ -220,6 +227,14 @@ export default function PostNew() {
   };
 
   const runParse = async (body: { url?: string; imageBase64?: string; mimeType?: string; sharedText?: string }) => {
+    // 解析入力を記録（画像はbase64が巨大なので本体は保存しない）
+    aiSourceRef.current = body.imageBase64
+      ? { sourceKind: 'image' }
+      : body.sharedText
+        ? { sourceKind: 'shared_text', sourceUrl: body.url, sourceText: body.sharedText }
+        : /^https?:\/\//.test(body.url ?? '')
+          ? { sourceKind: 'url', sourceUrl: body.url }
+          : { sourceKind: 'url', sourceText: body.url };
     setAiLoading(true); setAiError(''); setParsedList(null);
     try {
       const events = await parseEventsApi(body);
@@ -281,7 +296,7 @@ export default function PostNew() {
       // 販路: 追加済み offers ＋ 入力欄に残ったURL。代表販路を旧フィールドにも要約保存（後方互換）
       const allOffers = link.trim() ? addOffer(offers, buildOffer(link.trim(), price ? Number(price) : undefined)) : offers;
       const prim = primaryOffer(allOffers);
-      await createEvents(wid, [{
+      const eventPayload = {
         title: title.trim(),
         type,
         // 曖昧日付は代表日(並び替え用)＋dateLabel(表示用)を保存。具体日のときは dateLabel=null
@@ -307,7 +322,21 @@ export default function PostNew() {
         imageUrl: imageUrl || undefined,
         prefecture: type === 'event' ? (prefecture.trim() || undefined) : undefined,
         locationDetail: type === 'event' ? (locationDetail.trim() || undefined) : undefined,
-      }], user.id);
+      };
+      await createEvents(wid, [eventPayload], user.id);
+
+      // AI入力を使った投稿なら教師データを記録（fire-and-forget）
+      if (aiLogRef.current) {
+        logAiExtraction({
+          userId: user.id,
+          sourceUrl: aiLogRef.current.sourceUrl,
+          sourceText: aiLogRef.current.sourceText,
+          sourceKind: aiLogRef.current.sourceKind,
+          aiOutput: aiLogRef.current.output,
+          finalSaved: { ...eventPayload, work: workName || workQuery.trim() },
+        });
+        aiLogRef.current = null;
+      }
 
       await upsertParticipation(wid, user.id).catch(() => {}); // 投稿で自動フォロー
       haptic.select();
