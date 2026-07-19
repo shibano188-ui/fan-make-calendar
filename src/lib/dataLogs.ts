@@ -26,6 +26,34 @@ export function logAiExtraction(entry: {
 }
 
 /**
+ * ②の素材: 検索クエリログ。ユーザーが実際に使う略称・呼び方（表記ゆれ辞書の一次資料）。
+ * picked あり＝「query と入力して picked を選んだ」別名ペア。
+ * 同じクエリの連続ログはコンテキストごとに1回に抑える（pickedありは常に記録）。
+ */
+const lastSearchLogged = new Map<string, string>();
+export function logSearch(
+  context: 'explore' | 'saved' | 'work_follow' | 'post_work',
+  query: string,
+  resultCount: number | null,
+  userId?: string | null,
+  picked?: string,
+): void {
+  const q = query.trim();
+  if (!q) return;
+  if (!picked) {
+    if (lastSearchLogged.get(context) === q) return;
+    lastSearchLogged.set(context, q);
+  }
+  void supabase.from('search_logs').insert({
+    user_id: userId ?? null,
+    context,
+    query: q,
+    result_count: resultCount,
+    picked: picked ?? null,
+  }).then(() => {}, () => {});
+}
+
+/**
  * ④購入リンクを開く＋クリックをログ（需要シグナル・リンク構造の学習素材）。
  * 各ページの onBuy はこれを呼ぶだけにする。
  */

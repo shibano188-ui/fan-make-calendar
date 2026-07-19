@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { X, Search, Plus, Check } from 'lucide-react';
 import Sheet from './ui/Sheet';
+import { logSearch } from '../lib/dataLogs';
 import { searchWorks, getOrCreateWork, upsertParticipation, leaveCalendar, listAllParticipatedWorks, type Work } from '../lib/api';
 import { getCached, setCached } from '../lib/swrCache';
 import { useAuth } from '../contexts/AuthContext';
@@ -48,11 +49,22 @@ export default function WorkFollowSheet({ open, onClose, onChanged, onPick }: Pr
     return () => { alive = false; clearTimeout(t); };
   }, [query, open]);
 
+  // 検索クエリログ（データ資産化②の素材）: 入力が落ち着いてからヒット件数つきで記録
+  useEffect(() => {
+    if (!open || results === null) return;
+    const q = query.trim();
+    if (!q) return;
+    const t = setTimeout(() => logSearch('work_follow', q, results.length, user?.id), 800);
+    return () => clearTimeout(t);
+  }, [results, query, open]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const followedIds = new Set(follows.map((w) => w.id));
 
   const follow = async (w: Work) => {
     if (!user || busyId) return;
     haptic.select();
+    // 「query と入力して w.name を選んだ」＝表記ゆれ辞書の別名ペア
+    if (query.trim() && w.name !== query.trim()) logSearch('work_follow', query, results?.length ?? null, user.id, w.name);
     setBusyId(w.id);
     const next = [w, ...follows.filter((x) => x.id !== w.id)];
     setFollows(next); syncCache(next);
@@ -92,7 +104,12 @@ export default function WorkFollowSheet({ open, onClose, onChanged, onPick }: Pr
     setBusyId(null);
   };
 
-  const pick = (w: Work) => { haptic.select(); onPick?.(w); onClose(); };
+  const pick = (w: Work) => {
+    haptic.select();
+    if (query.trim() && w.name !== query.trim()) logSearch('work_follow', query, results?.length ?? null, user?.id, w.name);
+    onPick?.(w);
+    onClose();
+  };
 
   const exactMatch = (results ?? []).some((w) => w.name === query.trim());
 

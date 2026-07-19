@@ -12,7 +12,7 @@ import { listExploreEvents, getHomePrefecture, searchWorks, listAllParticipatedW
 import { parseCategories, loadSeenEventIds, saveSeenEventIds, isNewItem, GOODS_TAG } from '../lib/constants';
 import { getCached, setCached } from '../lib/swrCache';
 import { buildWorkColorMap } from '../lib/workColors';
-import { openBuyLink } from '../lib/dataLogs';
+import { openBuyLink, logSearch } from '../lib/dataLogs';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
@@ -248,6 +248,16 @@ export default function Explore() {
     if (!q) return modeItems;
     return modeItems.filter((e) => `${e.title} ${e.workName ?? ''} ${e.category ?? ''}`.toLowerCase().includes(q));
   }, [modeItems, query]);
+
+  // 検索クエリログ（データ資産化②の素材）: 入力が1秒落ち着いたらヒット件数つきで記録
+  const queryCountRef = useRef(0);
+  queryCountRef.current = queryItems.length;
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) return;
+    const t = setTimeout(() => logSearch('explore', q, queryCountRef.current, user?.id), 1000);
+    return () => clearTimeout(t);
+  }, [query]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ファセット件数
   const statusFacets: Facet[] = useMemo(() => {

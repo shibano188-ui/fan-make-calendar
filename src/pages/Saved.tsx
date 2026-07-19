@@ -11,7 +11,7 @@ import { deriveStatus, todayStr, STATUS, type ItemStatus } from '../design/token
 import { listSavedEvents, getHomePrefecture, toggleLike, toggleCalendarAdd } from '../lib/api';
 import { parseCategories, isNotifyOn } from '../lib/constants';
 import { buildWorkColorMap } from '../lib/workColors';
-import { openBuyLink } from '../lib/dataLogs';
+import { openBuyLink, logSearch } from '../lib/dataLogs';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
@@ -136,6 +136,16 @@ export default function Saved() {
     if (q) list = list.filter((e) => `${e.title} ${e.workName ?? ''} ${e.category ?? ''}`.toLowerCase().includes(q));
     return list;
   }, [items, tab, user?.id, query]);
+
+  // 検索クエリログ（データ資産化②の素材）
+  const queryCountRef = useRef(0);
+  queryCountRef.current = scopeItems.length;
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) return;
+    const t = setTimeout(() => logSearch('saved', q, queryCountRef.current, user?.id), 1000);
+    return () => clearTimeout(t);
+  }, [query]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ファセット件数（探すと同じ算出）
   const statusFacets: Facet[] = useMemo(() => {
