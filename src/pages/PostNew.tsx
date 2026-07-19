@@ -112,7 +112,15 @@ export default function PostNew() {
     }));
   });
   const clearDraft = () => sessionStorage.removeItem(DRAFT_KEY);
-  const onClose = () => { clearDraft(); navigate(-1); };
+  // 共有インテント経由では /post が履歴の最初のページになり navigate(-1) が
+  // no-op になる（投稿後も画面が残り「投稿中…」のまま見える）。戻り先が
+  // 無ければホームへ置き換え遷移する。
+  const goBack = () => {
+    const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+    if (idx > 0) navigate(-1);
+    else navigate('/', { replace: true });
+  };
+  const onClose = () => { clearDraft(); goBack(); };
 
   // 受付終了日の既定値は発売日（日付未定なら空＝未定のまま）。手動で編集したら追従をやめる
   useEffect(() => {
@@ -342,7 +350,8 @@ export default function PostNew() {
       haptic.select();
       clearDraft();
       toast('投稿しました');
-      navigate(-1);
+      setSaving(false);
+      goBack();
     } catch (e) {
       const timedOut = e instanceof DOMException && e.name === 'AbortError';
       setError(timedOut
