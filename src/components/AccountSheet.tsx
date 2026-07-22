@@ -74,10 +74,10 @@ export default function AccountSheet({
               <ArrowLeft size={15} /> メール入力に戻る
             </button>
             <p className="text-[13px] text-label-secondary leading-relaxed mb-3">
-              <span className="font-semibold text-label-primary">{email}</span> に届いた6桁の確認コードを入力してください。
+              <span className="font-semibold text-label-primary">{email}</span> に届いた確認コードを入力してください。
             </p>
             <input
-              inputMode="numeric" autoComplete="one-time-code" autoFocus maxLength={6}
+              inputMode="numeric" autoComplete="one-time-code" autoFocus maxLength={10}
               value={code} onChange={(e) => { setCode(e.target.value.replace(/[^0-9]/g, '')); setErr(null); }}
               onKeyDown={(e) => e.key === 'Enter' && confirm()}
               placeholder="123456"
