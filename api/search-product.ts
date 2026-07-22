@@ -63,16 +63,26 @@ async function searchRakuten(keyword: string): Promise<Candidate[]> {
     ...shopCodes.map((sc, i) => delay(250 * (i + 1)).then(() => rakutenRequest(keyword, 3, sc))),
   ];
   const results = await Promise.all(jobs.map((p) => p.catch(() => [] as Candidate[])));
-  // 公式店の結果を優先し、URL重複を除去
+  // 公式店の結果を優先し、実商品URL基準で重複除去
+  // 注意: 楽天アフィリエイトURLのパスはショップ単位（商品単位でない）なので、pcパラメータ内の実商品URLをキーにする
   const seen = new Set<string>();
   const merged: Candidate[] = [];
   for (const c of [...results.slice(1).flat(), ...results[0]]) {
-    const key = c.url.split('?')[0];
+    const key = dedupeKey(c.url);
     if (seen.has(key)) continue;
     seen.add(key);
     merged.push(c);
   }
   return merged;
+}
+
+function dedupeKey(u: string): string {
+  try {
+    const url = new URL(u);
+    const pc = url.searchParams.get('pc');
+    if (pc) return decodeURIComponent(pc).split('?')[0];
+    return url.origin + url.pathname;
+  } catch { return u; }
 }
 
 async function searchYahoo(keyword: string): Promise<Candidate[]> {
