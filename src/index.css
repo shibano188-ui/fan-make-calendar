@@ -87,6 +87,12 @@
 }
 
 :root {
+  /* ステータスバー安全余白。既定は CSS env() だが、一部のAndroid端末(例: Nothing OS /
+   * Android 15 のWebView)では env(safe-area-inset-top) が 0 を返しヘッダーがステータスバーに
+   * 被る。ネイティブ(MainActivity)が起動時に WindowInsets の実測値でこの変数を上書きするため、
+   * アプリ内の上部バーは env() でなく var(--sat) を参照する。Web/PWA ではこの既定(env)が使われる。 */
+  --sat: env(safe-area-inset-top);
+
   /* ─ 3-layer backgrounds (iOS semantic) ─ */
   --bg-primary:        #0e0e10;
   --bg-secondary:      #1c1c1e;

@@ -116,7 +116,7 @@ export default function MyPage() {
   };
 
   return (
-    <div className="px-4 pt-4 pb-4" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 16px)' }}>
+    <div className="px-4 pt-4 pb-4" style={{ paddingTop: 'calc(var(--sat) + 16px)' }}>
       {/* プロフィール（各項目はその場で編集: アバター=タップ / 一言=吹き出し / 名前・チップ=タップ） */}
       <div className="flex items-center gap-3">
         <button onClick={() => { haptic.select(); setAvatarOpen((v) => !v); setEditingField(null); }} aria-label="アバターを変更"

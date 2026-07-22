@@ -52,7 +52,7 @@ export default function Onboarding() {
   return (
     <div className="fixed inset-0 z-[300] max-w-app mx-auto flex flex-col" style={{ backgroundColor: 'var(--bg-primary)' }}>
       {/* スキップ */}
-      <div className="flex justify-end px-4 pt-4" style={{ paddingTop: 'max(16px, env(safe-area-inset-top))' }}>
+      <div className="flex justify-end px-4 pt-4" style={{ paddingTop: 'max(16px, var(--sat))' }}>
         <button onClick={finish} className="text-[13px] text-label-tertiary px-3 py-2 pressable">
           スキップ
         </button>

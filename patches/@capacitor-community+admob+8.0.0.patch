@@ -1,0 +1,240 @@
+diff --git a/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/banner/BannerExecutor.java b/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/banner/BannerExecutor.java
+index c629139..08a6d27 100644
+--- a/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/banner/BannerExecutor.java
++++ b/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/banner/BannerExecutor.java
+@@ -9,10 +9,13 @@ import android.view.Gravity;
+ import android.view.View;
+ import android.view.ViewGroup;
+ import android.view.WindowManager;
++import android.widget.FrameLayout;
+ import android.widget.RelativeLayout;
+ import androidx.annotation.NonNull;
+ import androidx.coordinatorlayout.widget.CoordinatorLayout;
+ import androidx.core.util.Supplier;
++import androidx.core.view.ViewCompat;
++import androidx.core.view.WindowInsetsCompat;
+ import com.getcapacitor.JSObject;
+ import com.getcapacitor.PluginCall;
+ import com.getcapacitor.community.admob.helpers.AdViewIdHelper;
+@@ -30,7 +33,7 @@ import com.google.android.gms.common.util.BiConsumer;
+ public class BannerExecutor extends Executor {
+ 
+     private final JSObject emptyObject = new JSObject();
+-    private RelativeLayout mAdViewLayout;
++    private FrameLayout mAdViewLayout;
+     private AdView mAdView;
+     private ViewGroup mViewGroup;
+ 
+@@ -44,7 +47,7 @@ public class BannerExecutor extends Executor {
+     }
+ 
+     public void initialize() {
+-        mViewGroup = (ViewGroup) ((ViewGroup) activitySupplier.get().findViewById(android.R.id.content)).getChildAt(0);
++        mViewGroup = (ViewGroup) activitySupplier.get().getWindow().getDecorView();
+     }
+ 
+     public void showBanner(final PluginCall call) {
+@@ -80,69 +83,17 @@ public class BannerExecutor extends Executor {
+                 );
+             }
+ 
+-            // Setup AdView Layout
+-            mAdViewLayout = new RelativeLayout(contextSupplier.get());
+-            mAdViewLayout.setHorizontalGravity(Gravity.CENTER_HORIZONTAL);
+-            mAdViewLayout.setVerticalGravity(Gravity.BOTTOM);
++            int densityMargin = (int) (adOptions.margin * density);
+ 
+-            final CoordinatorLayout.LayoutParams mAdViewLayoutParams = new CoordinatorLayout.LayoutParams(
+-                CoordinatorLayout.LayoutParams.WRAP_CONTENT,
+-                CoordinatorLayout.LayoutParams.WRAP_CONTENT
++            // Full-screen transparent FrameLayout; mAdView gravity positions banner
++            mAdViewLayout = new FrameLayout(contextSupplier.get());
++            final FrameLayout.LayoutParams mAdViewLayoutParams = new FrameLayout.LayoutParams(
++                FrameLayout.LayoutParams.MATCH_PARENT,
++                FrameLayout.LayoutParams.MATCH_PARENT
+             );
+-
+-            // TODO: Make an enum like the AdSizeEnum?
+-            switch (adOptions.position) {
+-                case "TOP_CENTER":
+-                    mAdViewLayoutParams.gravity = Gravity.TOP;
+-                    break;
+-                case "CENTER":
+-                    mAdViewLayoutParams.gravity = Gravity.CENTER;
+-                    break;
+-                default:
+-                    mAdViewLayoutParams.gravity = Gravity.BOTTOM;
+-                    break;
+-            }
+-
+-            // set Safe Area only for Android 15+
+-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+-                View rootView = activitySupplier.get().getWindow().getDecorView();
+-                rootView.setOnApplyWindowInsetsListener((v, insets) -> {
+-                    int bottomInset = insets.getSystemWindowInsetBottom();
+-                    int topInset = insets.getSystemWindowInsetTop();
+-
+-                    if ("TOP_CENTER".equals(adOptions.position)) {
+-                        mAdViewLayoutParams.setMargins(0, topInset, 0, 0);
+-                    } else {
+-                        mAdViewLayoutParams.setMargins(0, 0, 0, bottomInset);
+-                    }
+-
+-                    mAdViewLayout.setLayoutParams(mAdViewLayoutParams);
+-                    return insets;
+-                });
+-            }
+-
+             mAdViewLayout.setLayoutParams(mAdViewLayoutParams);
+ 
+-            int densityMargin = (int) (adOptions.margin * density);
+-
+-            // Center Banner Ads
+-            int adWidth = (int) (adOptions.adSize.getSize().getWidth() * density);
+-
+-            if (adWidth <= 0 || adOptions.adSize.toString().equals("ADAPTIVE_BANNER")) {
+-                int margin = 0;
+-                if (fullscreen) {
+-                    margin = (realWidthPixels - defaultWidthPixels) / 2;
+-                }
+-                mAdViewLayoutParams.setMargins(margin, densityMargin, margin, densityMargin);
+-            } else {
+-                int sideMargin = ((int) defaultWidthPixels - adWidth) / 2;
+-                if (fullscreen) {
+-                    sideMargin = (realWidthPixels - adWidth) / 2;
+-                }
+-                mAdViewLayoutParams.setMargins(sideMargin, densityMargin, sideMargin, densityMargin);
+-            }
+-
+-            createNewAdView(adOptions);
++            createNewAdView(adOptions, densityMargin);
+ 
+             call.resolve();
+         } catch (Exception ex) {
+@@ -226,6 +177,11 @@ public class BannerExecutor extends Executor {
+         activitySupplier
+             .get()
+             .runOnUiThread(() -> {
++                // Restore visibility in case hideBanner() was called previously
++                if (mAdViewLayout != null) {
++                    mAdViewLayout.setVisibility(View.VISIBLE);
++                    mAdView.resume();
++                }
+                 final AdRequest adRequest = RequestHelper.createRequest(adOptions);
+                 mAdView.loadAd(adRequest);
+             });
+@@ -235,7 +191,7 @@ public class BannerExecutor extends Executor {
+      * Follow iOS method Name:
+      * https://developers.google.com/admob/ios/banner?hl=ja
+      */
+-    private void createNewAdView(AdOptions adOptions) {
++    private void createNewAdView(AdOptions adOptions, int densityMargin) {
+         // Run AdMob In Main UI Thread
+         activitySupplier
+             .get()
+@@ -243,14 +199,103 @@ public class BannerExecutor extends Executor {
+                 final AdRequest adRequest = RequestHelper.createRequest(adOptions);
+                 // Assign the correct id needed
+                 AdViewIdHelper.assignIdToAdView(mAdView, adOptions, adRequest, logTag, contextSupplier.get());
+-                // Add the AdView to the view hierarchy.
+-                mAdViewLayout.addView(mAdView);
++                // Position banner via FrameLayout child gravity
++                FrameLayout.LayoutParams adViewParams = new FrameLayout.LayoutParams(
++                    FrameLayout.LayoutParams.WRAP_CONTENT,
++                    FrameLayout.LayoutParams.WRAP_CONTENT
++                );
++                switch (adOptions.position) {
++                    case "TOP_CENTER":
++                        adViewParams.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
++                        adViewParams.topMargin = densityMargin;
++                        break;
++                    case "CENTER":
++                        adViewParams.gravity = Gravity.CENTER;
++                        break;
++                    default: // BOTTOM_CENTER
++                        adViewParams.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
++                        adViewParams.bottomMargin = densityMargin;
++                        break;
++                }
++                mAdViewLayout.addView(mAdView, adViewParams);
+                 // Start loading the ad.
+                 mAdView.loadAd(adRequest);
+                 mAdView.setAdListener(
+                     new AdListener() {
+                         @Override
+                         public void onAdLoaded() {
++                            // Force absolute Y position after ad loads (gravity may not work on DecorView)
++                            mAdView.post(() -> {
++                                int screenH = mViewGroup.getHeight();
++                                int screenW = mViewGroup.getWidth();
++                                int adH = mAdView.getHeight();
++                                int adW = mAdView.getWidth();
++                                if (adH == 0) {
++                                    adH = (int)(50 * contextSupplier.get().getResources().getDisplayMetrics().density);
++                                }
++                                float targetX = (screenW - adW) / 2.0f;
++                                float targetY;
++                                // CSS y=0 = bottom of status bar; statusBarHeight converts to DecorView-absolute Y.
++                                // Prefer the live WindowInsets (accounts for display cutouts / OEM status-bar
++                                // quirks that vary per device model, e.g. Nothing Phone's camera cutout) over
++                                // the legacy "status_bar_height" resource, which only reports the OS default and
++                                // can drift from the real inset on some devices/skins.
++                                int sbHeight = 0;
++                                WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(mViewGroup);
++                                if (insets != null) {
++                                    sbHeight = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
++                                }
++                                if (sbHeight <= 0) {
++                                    int sbResId = contextSupplier.get().getResources().getIdentifier("status_bar_height", "dimen", "android");
++                                    if (sbResId > 0) sbHeight = contextSupplier.get().getResources().getDimensionPixelSize(sbResId);
++                                }
++                                switch (adOptions.position) {
++                                    case "TOP_CENTER":
++                                        // margin is the extra gap below the status bar (may be negative to
++                                        // tuck the banner closer to/under it). sbHeight already carries the
++                                        // full device-specific status-bar/cutout offset, so it must not also
++                                        // be baked into the margin value passed from JS.
++                                        targetY = sbHeight + densityMargin;
++                                        break;
++                                    case "CENTER":
++                                        targetY = (screenH - adH) / 2.0f;
++                                        break;
++                                    default: // BOTTOM_CENTER
++                                        targetY = screenH - adH - densityMargin;
++                                        break;
++                                }
++                                mAdView.setX(targetX);
++                                mAdView.setY(targetY);
++
++                                // Tell the web layer exactly how much top space to reserve so its
++                                // sticky header never sits under the banner. We measure the banner's
++                                // real bottom edge relative to the WebView's own top, in CSS px, and
++                                // emit it. This is robust across devices where CSS
++                                // env(safe-area-inset-top) is unreliable (e.g. returns 0 despite an
++                                // edge-to-edge status bar on some Android 15 / OEM WebViews): the web
++                                // no longer has to infer the status-bar height at all.
++                                try {
++                                    int[] decorLoc = new int[2];
++                                    mViewGroup.getLocationOnScreen(decorLoc);
++                                    float bannerBottomScreen = decorLoc[1] + targetY + adH;
++
++                                    android.webkit.WebView webView =
++                                        ((com.getcapacitor.BridgeActivity) activitySupplier.get()).getBridge().getWebView();
++                                    int[] webLoc = new int[2];
++                                    webView.getLocationOnScreen(webLoc);
++
++                                    float density3 = contextSupplier.get().getResources().getDisplayMetrics().density;
++                                    float reserveCss = (bannerBottomScreen - webLoc[1]) / density3;
++
++                                    JSObject reserveInfo = new JSObject();
++                                    reserveInfo.put("reserveTop", reserveCss);
++                                    notifyListeners("bannerReserveTop", reserveInfo);
++                                } catch (Exception ignored) {
++                                    // If anything is unavailable, the web falls back to its
++                                    // env()-based reservation; no crash.
++                                }
++                            });
++
+                             final BannerAdSizeInfo sizeInfo = new BannerAdSizeInfo(mAdView);
+ 
+                             notifyListeners(BannerAdPluginEvents.SizeChanged.getWebEventName(), sizeInfo);

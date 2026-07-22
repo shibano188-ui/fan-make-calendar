@@ -31,7 +31,7 @@ export default function Header({ title, subtitle, subtitleNode, onBack, closeMod
   // ステータスバーへの被り防止（Android edge-to-edge）。py の基準値に env を加算。
   const safeTopStyle: React.CSSProperties = {
     ...headerStyle,
-    paddingTop: `calc(env(safe-area-inset-top) + ${compact ? 4 : 8}px)`,
+    paddingTop: `calc(var(--sat) + ${compact ? 4 : 8}px)`,
   };
 
   if (leftNode !== undefined) {

@@ -178,10 +178,10 @@ export default function Explore() {
   const [showUnseenOnly, setShowUnseenOnly] = useState(() => sessionStorage.getItem('explore_unseen') === '1');
   useEffect(() => { sessionStorage.setItem('explore_unseen', showUnseenOnly ? '1' : '0'); }, [showUnseenOnly]);
 
-  // 広告バナー: ステータスバー直下に表示。ヘッダーの paddingTop を
-  // env(safe-area-inset-top)+バナー高さ分広げ、不透明な余白の上にバナーを重ねる。
-  // sticky ヘッダーがスクロール時のコンテンツ被りを防ぐ。Web版は adH=0。
-  const adH = useAdBanner();
+  // 広告バナー: ステータスバー直下に表示。ヘッダーの paddingTop を、ネイティブが実測した
+  // バナー下端位置（env非依存）に合わせて広げ、不透明な余白の上にバナーを重ねる。
+  // sticky ヘッダーがスクロール時のコンテンツ被りを防ぐ。Web版はバナー無しの余白のみ。
+  const adPad = useAdBanner();
 
   useEffect(() => {
     let alive = true;
@@ -428,7 +428,7 @@ export default function Explore() {
 
   return (
     <div ref={pageRef} className="relative">
-      <div ref={headerRef} className="px-3 pt-3 pb-3 sticky top-0 z-20 material-bar scroll-edge" style={{ paddingTop: `calc(env(safe-area-inset-top) + ${adH + 12}px)` }}>
+      <div ref={headerRef} className="px-3 pt-3 pb-3 sticky top-0 z-20 material-bar scroll-edge" style={{ paddingTop: adPad }}>
         <div className="flex items-center gap-2">
           <div className="flex-1 flex items-center gap-2 px-3 rounded-[10px]" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
             <Search size={16} className="text-label-tertiary flex-shrink-0" />

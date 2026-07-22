@@ -149,11 +149,11 @@ export default function Home() {
   const empty = items && sections.preorderOpen.length === 0 && sections.preorderSoon.length === 0 && sections.followNew.length === 0 && sections.nearby.length === 0 && sections.popular.length === 0;
 
   // 広告バナー: ステータスバー直下に表示し、ヘッダー余白をバナー高さ分広げて被りを防ぐ。
-  const adH = useAdBanner();
+  const adPad = useAdBanner();
 
   return (
     <div ref={rootRef}>
-      <div className="px-3 pt-3 pb-3 sticky top-0 z-20 material-bar scroll-edge" style={{ paddingTop: `calc(env(safe-area-inset-top) + ${adH + 12}px)` }}>
+      <div className="px-3 pt-3 pb-3 sticky top-0 z-20 material-bar scroll-edge" style={{ paddingTop: adPad }}>
         <button onClick={() => navigate('/explore')} className="w-full flex items-center gap-2 px-3 py-2 rounded-[10px]" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
           <Search size={16} className="text-label-tertiary" />
           <input

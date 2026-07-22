@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "postinstall": "patch-package || true"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.102.0",
@@ -25,6 +26,7 @@
     "@vercel/analytics": "^2.0.1",
     "groq-sdk": "^1.2.0",
     "lucide-react": "^0.511.0",
+    "patch-package": "^8.0.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.30.0",

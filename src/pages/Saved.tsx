@@ -251,7 +251,7 @@ export default function Saved() {
 
   return (
     <div ref={rootRef} className="px-3 pt-3">
-      <div className="sticky top-0 z-20 -mx-3 px-3 pt-1 pb-3 material-bar scroll-edge" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 4px)' }}>
+      <div className="sticky top-0 z-20 -mx-3 px-3 pt-1 pb-3 material-bar scroll-edge" style={{ paddingTop: 'calc(var(--sat) + 4px)' }}>
         {/* 検索 ＋ 絞り込み（探すと同じ） */}
         <div className="flex items-center gap-2 mb-2">
           <div className="flex-1 flex items-center gap-2 px-3 rounded-[10px]" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
