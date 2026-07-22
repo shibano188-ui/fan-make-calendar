@@ -127,9 +127,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     searchRakuten(keyword).catch(() => [] as Candidate[]),
     searchYahoo(keyword).catch(() => [] as Candidate[]),
   ]);
-  // 公式店を先頭に（sortは安定なので同グループ内の順序は維持）
-  const items = [...rakuten, ...yahoo]
-    .sort((a, b) => Number(b.official ?? false) - Number(a.official ?? false))
-    .slice(0, 12);
+  // 公式店を先頭に（sortは安定なので同グループ内の順序は維持）。
+  // 1店舗あたり最大3件に制限（楽天ブックス等が枠を占拠して他販路が圧迫されるのを防ぐ）
+  const sorted = [...rakuten, ...yahoo]
+    .sort((a, b) => Number(b.official ?? false) - Number(a.official ?? false));
+  const perShop: Record<string, number> = {};
+  const items: Candidate[] = [];
+  for (const c of sorted) {
+    const k = `${c.retailer}:${c.shopCode || c.shop}`;
+    perShop[k] = (perShop[k] ?? 0) + 1;
+    if (perShop[k] > 3) continue;
+    items.push(c);
+    if (items.length >= 12) break;
+  }
   return res.status(200).json({ items });
 }
