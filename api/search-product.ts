@@ -9,25 +9,30 @@ interface Candidate {
   shopCode?: string; official?: boolean;
 }
 
-// 楽天/Yahoo!に公式出店しているホビー系ショップ（優先表示・「公式店」表示の対象）
+// 楽天/Yahoo!に公式出店しているホビー系ショップ（優先表示・「公式店」表示の対象）。
+// 全体検索だと転売系ショップが上位を埋めて公式店が圏外に沈むため、公式店は shopCode 指定で別途検索する。
 const RAKUTEN_OFFICIAL_SHOPS: Record<string, string> = {
   'amiami': 'あみあみ',
   'surugaya-a-too': '駿河屋',
   'acosbyanimate': 'アニメイト',
+  'book': '楽天ブックス', // 楽天直営
 };
 const YAHOO_OFFICIAL_SELLERS: Record<string, string> = {
   'suruga-ya': '駿河屋',
   'amiami': 'あみあみ',
 };
 
-async function searchRakuten(keyword: string): Promise<Candidate[]> {
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function rakutenRequest(keyword: string, hits: number, shopCode?: string): Promise<Candidate[]> {
   const appId = process.env.RAKUTEN_APP_ID?.trim();
   const accessKey = process.env.RAKUTEN_ACCESS_KEY?.trim();
   if (!appId || !accessKey) return [];
   const affiliateId = (process.env.RAKUTEN_AFFILIATE_ID || '').trim();
   const params = new URLSearchParams({
-    applicationId: appId, keyword, hits: '8', format: 'json', formatVersion: '2',
+    applicationId: appId, keyword, hits: String(hits), format: 'json', formatVersion: '2',
     ...(affiliateId ? { affiliateId } : {}),
+    ...(shopCode ? { shopCode } : {}),
   });
   const referer = process.env.RAKUTEN_REFERER || 'https://fan-make-calendar.vercel.app/';
   const r = await fetch(`https://openapi.rakuten.co.jp/ichibams/api/IchibaItem/Search/20260401?${params.toString()}`, {
@@ -48,6 +53,26 @@ async function searchRakuten(keyword: string): Promise<Candidate[]> {
     shopCode: it.shopCode as string | undefined,
     official: !!RAKUTEN_OFFICIAL_SHOPS[(it.shopCode as string) ?? ''],
   }));
+}
+
+async function searchRakuten(keyword: string): Promise<Candidate[]> {
+  // 全体検索＋公式店ごとのshopCode検索を少しずらして並列実行（レート制限429回避のためスタガー）
+  const shopCodes = Object.keys(RAKUTEN_OFFICIAL_SHOPS);
+  const jobs = [
+    rakutenRequest(keyword, 8),
+    ...shopCodes.map((sc, i) => delay(250 * (i + 1)).then(() => rakutenRequest(keyword, 3, sc))),
+  ];
+  const results = await Promise.all(jobs.map((p) => p.catch(() => [] as Candidate[])));
+  // 公式店の結果を優先し、URL重複を除去
+  const seen = new Set<string>();
+  const merged: Candidate[] = [];
+  for (const c of [...results.slice(1).flat(), ...results[0]]) {
+    const key = c.url.split('?')[0];
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(c);
+  }
+  return merged;
 }
 
 async function searchYahoo(keyword: string): Promise<Candidate[]> {
