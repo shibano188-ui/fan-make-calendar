@@ -282,7 +282,7 @@ export default function PostNew() {
   };
   const pickCandidate = (c: ProductCandidate) => {
     haptic.select();
-    setOffers((prev) => addOffer(prev, { retailer: c.retailer || '楽天', shop: c.retailer === '楽天' ? c.shop : undefined, url: c.url, affiliateUrl: c.url, hasAffiliate: c.hasAffiliate, price: c.price }));
+    setOffers((prev) => addOffer(prev, { retailer: c.retailer || '楽天', shop: c.shop || undefined, url: c.url, affiliateUrl: c.url, hasAffiliate: c.hasAffiliate, price: c.price }));
     setTitle(cleanShopTitle(c.title));
     if (!price && c.price) setPrice(String(c.price));
     if (!imageUrl && c.image) setImageUrl(c.image);
@@ -638,7 +638,7 @@ export default function PostNew() {
           {/* 販売先を探す（候補→販路に追加・価格/画像も補完） */}
           <button onClick={onSearchProduct} disabled={searchingProduct || !title.trim()}
             className="pressable mt-2 flex items-center gap-1.5 text-[13px]" style={{ color: 'var(--accent-text)' }}>
-            {searchingProduct ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />} 販売先を探す（楽天）
+            {searchingProduct ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />} 販売先を探す
           </button>
           {title.trim() && (
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]">
@@ -665,7 +665,8 @@ export default function PostNew() {
                       <div className="flex-1 min-w-0">
                         <div className="text-[12px] line-clamp-2 leading-snug">{c.title}</div>
                         <div className="text-[12px] font-bold" style={{ color: 'var(--accent-text)' }}>
-                          ¥{c.price?.toLocaleString()} <span className="font-normal text-label-tertiary">{c.retailer}{c.retailer === '楽天' && c.shop ? `（${c.shop}）` : ''}</span>
+                          ¥{c.price?.toLocaleString()} <span className="font-normal text-label-tertiary">{c.retailer}{c.shop ? `（${c.shop}）` : ''}</span>
+                          {c.official && <span className="font-normal" style={{ color: 'var(--color-success)' }}>・公式店</span>}
                           {!ok && <span className="font-normal text-label-tertiary">・タイトル不一致</span>}
                         </div>
                       </div>

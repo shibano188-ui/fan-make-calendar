@@ -6,6 +6,8 @@ export interface ProductCandidate {
   shop: string;
   retailer: string;
   hasAffiliate: boolean;
+  shopCode?: string;   // 楽天shopCode / Yahoo!sellerId
+  official?: boolean;  // あみあみ・駿河屋等の公式出店店舗（優先表示対象）
 }
 
 // 楽天等のショップタイトルからノイズ（送料無料・◯%OFF・【】囲み等）を軽く除去。
