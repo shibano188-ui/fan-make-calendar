@@ -7,6 +7,7 @@ import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrl
 import { affiliatize, buildOffer, primaryOffer } from '../lib/affiliate';
 import { parseEventsApi, fileToBase64, type ParsedEvent } from '../lib/parseEvents';
 import { logAiExtraction, logSearch } from '../lib/dataLogs';
+import { maybeAddWorkAlias } from '../lib/workAliases';
 import { searchProductCandidates, titleMatchScore, cleanShopTitle, retailerSearchUrls, type ProductCandidate } from '../lib/searchProduct';
 import type { Offer } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -481,7 +482,7 @@ export default function PostNew() {
               {(workResults.length > 0 || workQuery.trim()) && (
                 <div className="absolute left-0 right-0 mt-1 z-10 rounded-[10px] border border-subtle overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>
                   {workResults.map((w) => (
-                    <button key={w.id} onClick={() => { haptic.select(); if (workQuery.trim() && w.name !== workQuery.trim()) logSearch('post_work', workQuery, workResults.length, user?.id, w.name); setWorkId(w.id); setWorkName(w.name); setWorkResults([]); }}
+                    <button key={w.id} onClick={() => { haptic.select(); if (workQuery.trim() && w.name !== workQuery.trim()) { logSearch('post_work', workQuery, workResults.length, user?.id, w.name); maybeAddWorkAlias(w, workQuery); } setWorkId(w.id); setWorkName(w.name); setWorkResults([]); }}
                       className="pressable w-full text-left px-3 py-2.5 text-[14px] border-b border-subtle">{w.name}</button>
                   ))}
                   {workQuery.trim() && !workResults.some((w) => w.name === workQuery.trim()) && (

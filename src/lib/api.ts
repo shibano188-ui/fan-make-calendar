@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import type { CalendarEvent, EventVisit, Offer } from '../types';
 import { parseCategories } from './constants';
+import { searchWorksByAlias, findWorkByExactAlias } from './workAliases';
 
 /** 2つのカテゴリ値（単一文字列 or JSON配列文字列）が完全に重ならない場合 true。
  *  どちらかが空なら false（＝別イベントとは判定しない）。複数カテゴリの重複検知に使う。 */
@@ -40,14 +41,23 @@ export async function getWorksByNames(names: string[]): Promise<Work[]> {
 }
 
 export async function searchWorks(query: string): Promise<Work[]> {
-  const { data, error } = await supabase
-    .from('works')
-    .select('id, name, participant_count')
-    .ilike('name', `%${query}%`)
-    .order('participant_count', { ascending: false })
-    .limit(10);
-  if (error) throw error;
-  return (data ?? []).map(w => ({ id: w.id, name: w.name, participantCount: w.participant_count }));
+  // 名前の部分一致＋別名辞書（work_aliases）の両方から探して統合（名寄せ）
+  const [byName, byAlias] = await Promise.all([
+    supabase
+      .from('works')
+      .select('id, name, participant_count')
+      .ilike('name', `%${query}%`)
+      .order('participant_count', { ascending: false })
+      .limit(10),
+    searchWorksByAlias(query).catch(() => [] as Work[]),
+  ]);
+  if (byName.error) throw byName.error;
+  const out: Work[] = (byName.data ?? []).map(w => ({ id: w.id, name: w.name, participantCount: w.participant_count }));
+  const seen = new Set(out.map(w => w.id));
+  for (const w of byAlias) {
+    if (!seen.has(w.id)) { seen.add(w.id); out.push(w); }
+  }
+  return out.sort((a, b) => (b.participantCount ?? 0) - (a.participantCount ?? 0)).slice(0, 10);
 }
 
 export async function getWorkById(id: string): Promise<Work | null> {
@@ -70,6 +80,10 @@ export async function getOrCreateWork(name: string): Promise<Work> {
   if (existing) {
     return { id: existing.id, name: existing.name, participantCount: existing.participant_count };
   }
+
+  // 別名辞書に登録済みなら既存作品を返す（「転スラ」入力で新規作品が乱立するのを防ぐ）
+  const aliased = await findWorkByExactAlias(name).catch(() => null);
+  if (aliased) return aliased;
 
   const { data: created, error } = await supabase
     .from('works')
