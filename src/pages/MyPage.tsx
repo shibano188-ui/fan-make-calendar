@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Bell, Crown, CalendarSync, Moon, Palette, Pencil, Plus, Droplet, Check, MessageCircle, MapPin } from 'lucide-react';
+import { ChevronRight, Bell, Crown, CalendarSync, Moon, Palette, Pencil, Plus, Droplet, Check, MessageCircle, MapPin, UserRound } from 'lucide-react';
 import { getContrastText } from '../lib/color';
 
 // アクセント色の選択肢（先頭=デフォルトの黄色）
@@ -11,6 +11,8 @@ import {
 } from '../lib/api';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import WorkFollowSheet from '../components/WorkFollowSheet';
+import AccountSheet from '../components/AccountSheet';
+import { accountState, accountEmail } from '../lib/account';
 import FanStarChart from '../components/FanStarChart';
 import { rescheduleAll } from '../lib/notifications';
 import { calcTitle, calcRadarData, calcGrade, type AchievementStats } from '../lib/achievements';
@@ -58,7 +60,11 @@ export default function MyPage() {
   const confirm = useConfirm();
   const [leadDays, setLeadDays] = useState(loadNotifyLeadDays());
   const [gcalLinked, setGcalLinked] = useState(isGoogleLinked());
+  const [acctSheet, setAcctSheet] = useState<null | 'link' | 'signin'>(null);
   const { settings, updateSettings } = useTheme();
+
+  const acctState = accountState(user);
+  const acctEmail = accountEmail(user);
 
   const onLinkGoogle = async () => {
     haptic.select();
@@ -285,6 +291,33 @@ export default function MyPage() {
           <span className="text-[14px] flex-1">カレンダーの配色・テーマ</span>
           <ChevronRight size={16} className="text-label-tertiary" />
         </button>
+        {/* アカウント（デバイス間のデータ引き継ぎ） */}
+        {acctState === 'email' ? (
+          <div className="flex items-center gap-2 px-3 py-2.5">
+            <UserRound size={16} className="text-label-secondary" />
+            <div className="flex-1 min-w-0">
+              <div className="text-[14px]">アカウント</div>
+              <div className="text-[11px] text-label-tertiary truncate">{acctEmail} で引き継ぎ済み</div>
+            </div>
+            <Check size={16} style={{ color: 'var(--color-success)' }} />
+          </div>
+        ) : (
+          <div className="px-3 py-2.5">
+            <div className="flex items-center gap-2">
+              <UserRound size={16} className="text-label-secondary" />
+              <span className="text-[14px] flex-1">アカウント（データ引き継ぎ）</span>
+              <button onClick={() => { haptic.select(); setAcctSheet('link'); }}
+                className="pressable text-[12px] font-semibold px-3 py-1 rounded-full"
+                style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+                メールで登録
+              </button>
+            </div>
+            <button onClick={() => { haptic.select(); setAcctSheet('signin'); }}
+              className="pressable text-[11px] text-label-tertiary mt-1.5 ml-6">
+              別の端末で登録済み → ログイン
+            </button>
+          </div>
+        )}
         {/* 通知リードタイム */}
         <div className="flex items-center gap-2 px-3 py-2.5">
           <Bell size={16} className="text-label-secondary" />
@@ -349,6 +382,16 @@ export default function MyPage() {
 
       <WorkFollowSheet open={followSheetOpen} onClose={() => setFollowSheetOpen(false)}
         onChanged={() => { if (user) listAllParticipatedWorks(user.id).then(setWorks).catch(() => {}); }} />
+
+      {acctSheet && (
+        <AccountSheet mode={acctSheet} onClose={() => setAcctSheet(null)}
+          onDone={(email) => {
+            setAcctSheet(null);
+            toast(acctSheet === 'link' ? `${email} で引き継ぎを設定しました` : 'ログインしました');
+            // セッションが更新される（onAuthStateChange）ので、少し待ってから再読込
+            setTimeout(() => window.location.reload(), 600);
+          }} />
+      )}
 
       {/* ビルド刻印（キャッシュ判別用）。タップで隠しハプティクス診断（バイブしない端末の切り分け用） */}
       <p className="mt-8 text-center text-[10px] text-label-tertiary" onClick={() => hapticsDebug(toast)}>build {__BUILD_TIME__}</p>
