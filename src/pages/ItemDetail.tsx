@@ -399,7 +399,7 @@ export default function ItemDetail() {
 
             {/* 購入リンク（共同編集で追記可・発売に向けて増える） */}
             <div className="mt-4">
-              <div className="text-[12px] text-label-secondary mb-1.5">購入リンク</div>
+              <div className="text-[12px] text-label-secondary mb-1.5">購入リンク（広告を含みます）</div>
               <div className="flex flex-col gap-1.5">
                 {getOffers(event).map((o, i) => (
                   <a key={`b${i}`} href={o.affiliateUrl || o.url} target="_blank" rel="noopener" onClick={() => haptic.select()}
