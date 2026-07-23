@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { clearAccountScopedCache } from './constants';
 import type { User } from '@supabase/supabase-js';
 
 // アカウント連携（匿名→メール恒久化＋デバイス間引き継ぎ）。
@@ -55,13 +56,16 @@ export async function verifyEmailSignIn(email: string, code: string): Promise<Re
 }
 
 /**
- * この端末からログアウト（クラウド上のデータは残る）。
- * ローカルの端末内キャッシュ（いいね・保存・非表示など）は前アカウントのものが残ると
- * 次の匿名アカウントに引き継がれて見えてしまうため、main.tsx の ?reset=true で一括クリアする。
+ * この端末からログアウト（クラウド上のデータは残る。同じメールでログインすれば戻る）。
+ *
+ * サーバーのキャッシュ（いいね・カレンダー追加・リアクション）だけを捨て、
+ * 端末にしか無いデータ（重要フラグ・通知ベル・非表示作品・作品ごとの色）は残す。
+ * localStorage.clear() は後者まで消してしまい、再ログインしても復元できない。
  */
 export async function signOutAccount(): Promise<Result> {
   const { error } = await supabase.auth.signOut();
   if (error) return { ok: false, error: friendly(error.message) };
-  window.location.href = '/?reset=true';
+  clearAccountScopedCache();
+  window.location.href = '/';
   return { ok: true };
 }

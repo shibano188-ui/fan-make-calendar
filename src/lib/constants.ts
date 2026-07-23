@@ -161,6 +161,30 @@ export function saveCategoryFilters(filters: Record<string, string[]>): void {
   localStorage.setItem(CATEGORY_FILTERS_KEY, JSON.stringify(filters));
 }
 
+/**
+ * アカウントが変わるとき（ログアウト・別アカウントでログイン）に消すキャッシュ。
+ *
+ * 判断基準は「サーバーに正があるか」の一点。
+ *   消す  = サーバーの値のキャッシュ。前アカウントの値が残ると次のアカウントで嘘を表示する。
+ *           再ログインすればサーバーから復元される。
+ *   残す  = 端末にしか存在しないユーザーデータ（重要フラグ・通知ベル・非表示作品・
+ *           作品ごとの色・各種フィルタ）。消すと二度と戻らないので絶対に触らない。
+ *
+ * localStorage.clear() は後者まで巻き込むため、ログアウトでは使わないこと。
+ */
+const ACCOUNT_SCOPED_KEYS = [
+  'fan_liked_event_ids',    // likes テーブル
+  'fan_calendar_event_ids', // calendar_adds テーブル
+  'fan_reactions',          // reactions テーブル
+  'fan_default_joined_v2',  // 既定フォロー済みフラグ（新しい匿名ユーザーには再適用が要る）
+];
+
+export function clearAccountScopedCache(): void {
+  for (const k of ACCOUNT_SCOPED_KEYS) {
+    try { localStorage.removeItem(k); } catch { /* noop */ }
+  }
+}
+
 // ─── 発見タブ: ❤️いいね（ソーシャルいいね、削除しても残る） ─────────
 const LIKED_EVENTS_KEY = 'fan_liked_event_ids';
 export function loadLikedEventIds(): Set<string> {

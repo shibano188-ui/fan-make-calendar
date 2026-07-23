@@ -17,7 +17,7 @@ import FanStarChart from '../components/FanStarChart';
 import { rescheduleAll } from '../lib/notifications';
 import { calcTitle, calcRadarData, calcGrade, type AchievementStats } from '../lib/achievements';
 import { REGIONS } from '../lib/prefectures';
-import { loadNotifyLeadDays, saveNotifyLeadDays, FEATURE_GOOGLE_CALENDAR, FEATURE_PREMIUM } from '../lib/constants';
+import { loadNotifyLeadDays, saveNotifyLeadDays, clearAccountScopedCache, FEATURE_GOOGLE_CALENDAR, FEATURE_PREMIUM } from '../lib/constants';
 import { isGoogleConfigured, isGoogleLinked, linkGoogle, unlinkGoogle } from '../lib/googleCalendar';
 import { useTheme, type ThemeMode } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -312,7 +312,7 @@ export default function MyPage() {
             ) : (
               <div className="mt-2 ml-6 flex flex-col gap-1.5">
                 <p className="text-[11px] text-label-secondary">
-                  クラウド上のデータは残ります。同じメールでログインすれば元に戻せます。この端末の表示設定はリセットされます。
+                  投稿・いいね・保存した予定はクラウドに残ります。同じメールでログインすれば元に戻ります。この端末の設定（重要マーク・通知ベル・配色）はそのままです。
                 </p>
                 <div className="flex gap-2">
                   <button onClick={async () => { haptic.select(); setSigningOut(true); const r = await signOutAccount(); if (!r.ok) { setSigningOut(false); setSignOutConfirm(false); toast(r.error, 'error'); } }}
@@ -415,6 +415,9 @@ export default function MyPage() {
           onDone={(email) => {
             setAcctSheet(null);
             toast(acctSheet === 'link' ? `${email} で引き継ぎを設定しました` : 'ログインしました');
+            // 別アカウントに入る場合のみ、前アカウントのサーバーキャッシュを捨てる。
+            // link は同一uidの恒久化なので消さない（端末ローカルのデータもそのまま）。
+            if (acctSheet === 'signin') clearAccountScopedCache();
             // セッションが更新される（onAuthStateChange）ので、少し待ってから再読込
             setTimeout(() => window.location.reload(), 600);
           }} />
