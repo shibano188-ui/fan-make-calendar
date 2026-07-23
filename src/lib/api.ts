@@ -648,18 +648,29 @@ export async function saveDisplayName(userId: string, name: string): Promise<voi
     );
 }
 
+// 居住地は本人にしか見せない。user_settings は公開プロフィール用に他人もselectできるため、
+// 本人限定select の user_private に置く（sql/2026-07-23-home-prefecture-private.sql で移送）。
 export async function getHomePrefecture(userId: string): Promise<string | null> {
   const { data } = await supabase
+    .from('user_private')
+    .select('home_prefecture')
+    .eq('user_id', userId)
+    .maybeSingle();
+  const pref = (data?.home_prefecture as string | null | undefined) ?? null;
+  if (pref) return pref;
+  // 移行期間の互換: SQL適用前は旧列にしか値が無い。適用後は列が消えてエラー→null になるだけ。
+  // sql/2026-07-23-home-prefecture-private.sql の適用を確認したらこのブロックは削除してよい。
+  const { data: legacy } = await supabase
     .from('user_settings')
     .select('home_prefecture')
     .eq('user_id', userId)
     .maybeSingle();
-  return (data?.home_prefecture as string | null) ?? null;
+  return (legacy?.home_prefecture as string | null | undefined) ?? null;
 }
 
 export async function saveHomePrefecture(userId: string, prefecture: string | null): Promise<void> {
   await supabase
-    .from('user_settings')
+    .from('user_private')
     .upsert(
       { user_id: userId, home_prefecture: prefecture, updated_at: new Date().toISOString() },
       { onConflict: 'user_id' },
