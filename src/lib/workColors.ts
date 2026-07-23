@@ -1,3 +1,5 @@
+import { pushAppState } from './appState';
+
 // 作品ごとの色（カレンダー・各種タイルで共通利用）。
 // localStorage `fan_work_colors` を真実とし、未割当の作品にはパレットから
 // 重複しない色を割り当てて永続化する。割当済みの色は変更しない。
@@ -31,6 +33,9 @@ export function buildWorkColorMap(works: { id: string }[] = []): Map<string, str
       hasNew = true;
     }
   });
-  if (hasNew) localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  if (hasNew) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    pushAppState('work_colors', updated);
+  }
   return new Map(Object.entries(updated));
 }

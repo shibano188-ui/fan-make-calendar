@@ -46,6 +46,7 @@ import { haptic } from '../lib/haptics';
 import EmptyState from '../components/ui/EmptyState';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { getCached, setCached } from '../lib/swrCache';
+import { pushAppState } from '../lib/appState';
 
 // ─── 定数 ──────────────────────────────────────────────────────────
 
@@ -254,7 +255,7 @@ export default function Discover() {
       }
       m.set(w.id, updated[w.id]);
     });
-    if (hasNew) localStorage.setItem('fan_work_colors', JSON.stringify(updated));
+    if (hasNew) { localStorage.setItem('fan_work_colors', JSON.stringify(updated)); pushAppState('work_colors', updated); }
     return m;
   }, [participatedWorks]);
 

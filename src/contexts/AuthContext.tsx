@@ -3,6 +3,7 @@ import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { getWorksByNames, upsertParticipation } from '../lib/api';
 import { DEFAULT_WORK_NAMES } from '../lib/constants';
+import { setAppStateUser, syncAppState } from '../lib/appState';
 
 type AuthContextValue = {
   user: User | null;
@@ -42,9 +43,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
 
-    // user を公開する前にデフォルト参加を確定させる
+    // user を公開する前にデフォルト参加とアプリ状態の同期を確定させる。
+    // 同期はサーバーが遅い/落ちている場合に起動を止めないよう上限を切り、超えたらローカルのまま進む。
     const activate = async (u: User) => {
+      setAppStateUser(u.id);
       await ensureDefaultJoined(u.id);
+      await Promise.race([
+        syncAppState(u.id),
+        new Promise((resolve) => setTimeout(resolve, 4000)),
+      ]);
       if (cancelled) return;
       setUser(u);
       setLoading(false);

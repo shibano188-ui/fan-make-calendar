@@ -1,3 +1,5 @@
+import { pushAppState, clearSyncedAppState } from './appState';
+
 export const POST_CATEGORIES = ['書籍', 'グッズ', 'イベント', '誕生日', 'アニメ・映画', 'グルメ', 'キャンペーン'] as const;
 
 // ─── クローズドテスト中の暫定フラグ（作品2つフェーズ）─────────────────────
@@ -183,6 +185,9 @@ export function clearAccountScopedCache(): void {
   for (const k of ACCOUNT_SCOPED_KEYS) {
     try { localStorage.removeItem(k); } catch { /* noop */ }
   }
+  // 重要マーク・通知ベル・非表示作品・配色はサーバーに写しがある場合のみ捨てる
+  // （ログインし直せば戻る）。未同期なら端末に残す。
+  clearSyncedAppState();
 }
 
 // ─── 発見タブ: ❤️いいね（ソーシャルいいね、削除しても残る） ─────────
@@ -307,6 +312,7 @@ export function loadBellEventIds(): Set<string> {
 }
 export function saveBellEventIds(ids: Set<string>): void {
   localStorage.setItem(BELL_EVENTS_KEY, JSON.stringify([...ids]));
+  pushAppState('bell_event_ids', [...ids]);
 }
 export function toggleBellEventId(id: string): Set<string> {
   const set = loadBellEventIds();
@@ -322,6 +328,7 @@ export function loadImportantEventIds(): Set<string> {
 }
 export function saveImportantEventIds(ids: Set<string>): void {
   localStorage.setItem(IMPORTANT_EVENTS_KEY, JSON.stringify([...ids]));
+  pushAppState('important_event_ids', [...ids]);
 }
 export function toggleImportantEventId(id: string): Set<string> {
   const set = loadImportantEventIds();
@@ -339,6 +346,7 @@ export function loadNotifyEventIds(): Set<string> {
 }
 export function saveNotifyEventIds(ids: Set<string>): void {
   localStorage.setItem(NOTIFY_EVENTS_KEY, JSON.stringify([...ids]));
+  pushAppState('notify_event_ids', [...ids]);
 }
 export function isNotifyOn(id: string): boolean {
   return loadNotifyEventIds().has(id);
@@ -358,6 +366,7 @@ export function loadHiddenWorkIds(): Set<string> {
 }
 export function saveHiddenWorkIds(ids: Set<string>): void {
   localStorage.setItem(HIDDEN_WORK_IDS_KEY, JSON.stringify([...ids]));
+  pushAppState('hidden_work_ids', [...ids]);
 }
 
 // ─── 地域フィルター: Calendar ↔ Discover 間で共有 ─────────────────────

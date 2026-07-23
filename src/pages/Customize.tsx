@@ -8,6 +8,7 @@ import { listSharedThemes, shareTheme, incrementThemeUseCount, deleteSharedTheme
 import { useAuth } from '../contexts/AuthContext';
 import { WORK_COLORS } from './Calendar';
 import { useConfirm } from '../components/ui/ConfirmDialog';
+import { pushAppState } from '../lib/appState';
 
 const SYSTEM_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 
@@ -419,6 +420,7 @@ export default function Customize() {
     if (color === null) { delete updated[workId]; } else { updated[workId] = color; }
     setWorkColors(updated);
     localStorage.setItem('fan_work_colors', JSON.stringify(updated));
+    pushAppState('work_colors', updated);
     setOpenWorkColorKey(null);
   };
 
@@ -770,6 +772,7 @@ export default function Customize() {
                             const updated = { ...workColors, [openWorkColorKey]: e.target.value };
                             setWorkColors(updated);
                             localStorage.setItem('fan_work_colors', JSON.stringify(updated));
+                            pushAppState('work_colors', updated);
                           }}
                           className="absolute opacity-0 pointer-events-none"
                           style={{ width: 0, height: 0, top: 0, left: 0 }}
