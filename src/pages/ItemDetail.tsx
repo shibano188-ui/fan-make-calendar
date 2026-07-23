@@ -8,7 +8,7 @@ import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId } from '../lib/constants';
 import { deriveStatus, deriveItemType, itemDateLines } from '../design/tokens';
-import { resolveBuy, getOffers, buildOffer } from '../lib/affiliate';
+import { resolveBuy, getOffers, buildOffer, offerUrl } from '../lib/affiliate';
 import { openBuyLink } from '../lib/dataLogs';
 import { REACTIONS } from '../lib/reactions';
 import { useAuth } from '../contexts/AuthContext';
@@ -402,7 +402,7 @@ export default function ItemDetail() {
               <div className="text-[12px] text-label-secondary mb-1.5">購入リンク（広告を含みます）</div>
               <div className="flex flex-col gap-1.5">
                 {getOffers(event).map((o, i) => (
-                  <a key={`b${i}`} href={o.affiliateUrl || o.url} target="_blank" rel="noopener" onClick={() => haptic.select()}
+                  <a key={`b${i}`} href={offerUrl(o)} target="_blank" rel="noopener nofollow" onClick={() => haptic.select()}
                     className="pressable flex items-center justify-between gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
                     <span className="text-[13px] truncate">{o.retailer || 'リンク'}{o.shop ? `（${o.shop}）` : ''}</span>
                     <span className="text-[13px] font-bold flex-shrink-0" style={{ color: 'var(--accent-text)' }}>{o.price ? `¥${o.price.toLocaleString()}` : '開く ↗'}</span>
@@ -410,7 +410,7 @@ export default function ItemDetail() {
                 ))}
                 {contribs.map((c) => (
                   <div key={c.id} className="flex items-center gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-                    <a href={c.offer.affiliateUrl || c.offer.url} target="_blank" rel="noopener" onClick={() => haptic.select()} className="pressable flex-1 min-w-0 flex items-center justify-between gap-2">
+                    <a href={offerUrl(c.offer)} target="_blank" rel="noopener nofollow" onClick={() => haptic.select()} className="pressable flex-1 min-w-0 flex items-center justify-between gap-2">
                       <span className="text-[13px] truncate">{c.offer.retailer || 'リンク'}{c.offer.shop ? `（${c.offer.shop}）` : ''}<span className="text-[10px] text-label-tertiary"> ・ユーザー追加</span></span>
                       <span className="text-[13px] font-bold flex-shrink-0" style={{ color: 'var(--accent-text)' }}>{c.offer.price ? `¥${c.offer.price.toLocaleString()}` : '開く ↗'}</span>
                     </a>
