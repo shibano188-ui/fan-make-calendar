@@ -16,8 +16,9 @@ const VC_HOST = 'ck.jp.ap.valuecommerce.com';
 export const VC = {
   sid: '3776607',
   pid: {
-    yahoo: '892664375',   // Yahoo!ショッピング
-    animate: '892664379', // アニメイト
+    yahoo: '892664375',   // Yahoo!ショッピング（提携済み）
+    // アニメイト: 2026-07-23 にVC・A8とも審査落ち。提携していないプログラムのpidで包むと
+    // 成果が付かないうえ無駄なリダイレクトを挟むだけなので変換しない。再申請が通ったら復活させる。
   },
 } as const;
 
@@ -48,7 +49,7 @@ const RULES: Rule[] = [
   },
   // 楽天: 正式にはAPIでアフィURL生成。暫定はそのまま（LinkSwitch相当は後段）
   { name: '楽天', kind: 'affiliate', test: (h) => /(^|\.)rakuten\.co\.jp$/.test(h) || /(^|\.)r10\.to$/.test(h) },
-  { name: 'アニメイト', kind: 'affiliate', test: (h) => /(^|\.)animate(-onlineshop)?\.(co\.)?jp$/.test(h), wrap: (url) => vcLink(url, VC.pid.animate) },
+  { name: 'アニメイト', kind: 'affiliate', test: (h) => /(^|\.)animate(-onlineshop)?\.(co\.)?jp$/.test(h) },
   { name: 'あみあみ', kind: 'affiliate', test: (h) => /(^|\.)amiami\.(com|jp)$/.test(h) },
   { name: 'Yahoo!ショッピング', kind: 'affiliate', test: (h) => /(^|\.)shopping\.yahoo\.co\.jp$/.test(h) || /(^|\.)store\.shopping\.yahoo\.co\.jp$/.test(h), wrap: (url) => vcLink(url, VC.pid.yahoo) },
   { name: '駿河屋', kind: 'affiliate', test: (h) => /(^|\.)suruga-ya\.jp$/.test(h) },

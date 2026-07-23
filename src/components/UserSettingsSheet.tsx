@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import Sheet from './ui/Sheet';
 import { PREFECTURES } from '../lib/prefectures';
-import { loadImageVisibility, saveImageVisibility, type ImageVisibility } from '../lib/constants';
+import { loadImageVisibility, saveImageVisibility, clearAccountScopedCache, type ImageVisibility } from '../lib/constants';
 import { supabase } from '../lib/supabase';
 import { useToast } from './ui/Toast';
 
@@ -125,6 +125,8 @@ export default function UserSettingsSheet({
       });
       if (!res.ok) throw new Error('failed');
       await supabase.auth.signOut();
+      // 前アカウントのキャッシュを端末に残さない（次の匿名アカウントで嘘を表示しないため）
+      clearAccountScopedCache();
       window.location.href = '/';
     } catch {
       showToast('削除に失敗しました。しばらくして再試行してください', 'error');
