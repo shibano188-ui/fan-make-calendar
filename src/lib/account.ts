@@ -53,3 +53,15 @@ export async function verifyEmailSignIn(email: string, code: string): Promise<Re
   const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: 'email' });
   return error ? { ok: false, error: friendly(error.message) } : { ok: true };
 }
+
+/**
+ * この端末からログアウト（クラウド上のデータは残る）。
+ * ローカルの端末内キャッシュ（いいね・保存・非表示など）は前アカウントのものが残ると
+ * 次の匿名アカウントに引き継がれて見えてしまうため、main.tsx の ?reset=true で一括クリアする。
+ */
+export async function signOutAccount(): Promise<Result> {
+  const { error } = await supabase.auth.signOut();
+  if (error) return { ok: false, error: friendly(error.message) };
+  window.location.href = '/?reset=true';
+  return { ok: true };
+}

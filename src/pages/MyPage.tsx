@@ -12,7 +12,7 @@ import {
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import WorkFollowSheet from '../components/WorkFollowSheet';
 import AccountSheet from '../components/AccountSheet';
-import { accountState, accountEmail } from '../lib/account';
+import { accountState, accountEmail, signOutAccount } from '../lib/account';
 import FanStarChart from '../components/FanStarChart';
 import { rescheduleAll } from '../lib/notifications';
 import { calcTitle, calcRadarData, calcGrade, type AchievementStats } from '../lib/achievements';
@@ -61,6 +61,8 @@ export default function MyPage() {
   const [leadDays, setLeadDays] = useState(loadNotifyLeadDays());
   const [gcalLinked, setGcalLinked] = useState(isGoogleLinked());
   const [acctSheet, setAcctSheet] = useState<null | 'link' | 'signin'>(null);
+  const [signOutConfirm, setSignOutConfirm] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const { settings, updateSettings } = useTheme();
 
   const acctState = accountState(user);
@@ -293,13 +295,38 @@ export default function MyPage() {
         </button>
         {/* アカウント（デバイス間のデータ引き継ぎ） */}
         {acctState === 'email' ? (
-          <div className="flex items-center gap-2 px-3 py-2.5">
-            <UserRound size={16} className="text-label-secondary" />
-            <div className="flex-1 min-w-0">
-              <div className="text-[14px]">アカウント</div>
-              <div className="text-[11px] text-label-tertiary truncate">{acctEmail} で引き継ぎ済み</div>
+          <div className="px-3 py-2.5">
+            <div className="flex items-center gap-2">
+              <UserRound size={16} className="text-label-secondary" />
+              <div className="flex-1 min-w-0">
+                <div className="text-[14px]">アカウント</div>
+                <div className="text-[11px] text-label-tertiary truncate">{acctEmail} で引き継ぎ済み</div>
+              </div>
+              <Check size={16} style={{ color: 'var(--color-success)' }} />
             </div>
-            <Check size={16} style={{ color: 'var(--color-success)' }} />
+            {!signOutConfirm ? (
+              <button onClick={() => { haptic.select(); setSignOutConfirm(true); }}
+                className="pressable text-[11px] text-label-tertiary mt-1.5 ml-6">
+                この端末からログアウト
+              </button>
+            ) : (
+              <div className="mt-2 ml-6 flex flex-col gap-1.5">
+                <p className="text-[11px] text-label-secondary">
+                  クラウド上のデータは残ります。同じメールでログインすれば元に戻せます。この端末の表示設定はリセットされます。
+                </p>
+                <div className="flex gap-2">
+                  <button onClick={async () => { haptic.select(); setSigningOut(true); const r = await signOutAccount(); if (!r.ok) { setSigningOut(false); setSignOutConfirm(false); toast(r.error, 'error'); } }}
+                    disabled={signingOut}
+                    className="pressable text-[12px] font-semibold px-3 py-1 rounded-full disabled:opacity-40"
+                    style={{ backgroundColor: 'var(--color-destructive)', color: '#ffffff' }}>
+                    {signingOut ? 'ログアウト中…' : 'ログアウトする'}
+                  </button>
+                  <button onClick={() => setSignOutConfirm(false)} className="pressable text-[12px] text-label-secondary px-2">
+                    キャンセル
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="px-3 py-2.5">
