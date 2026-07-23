@@ -423,8 +423,15 @@ export default function MyPage() {
           }} />
       )}
 
+      {/* 規約類（審査・ストア要件で外部から辿れる必要がある。static HTMLなので通常のリンク） */}
+      <div className="mt-8 flex justify-center gap-4 text-[11px] text-label-tertiary">
+        <a href="/terms.html" className="pressable">利用規約</a>
+        <a href="/privacy.html" className="pressable">プライバシーポリシー</a>
+        <a href="/about.html" className="pressable">運営者情報</a>
+      </div>
+
       {/* ビルド刻印（キャッシュ判別用）。タップで隠しハプティクス診断（バイブしない端末の切り分け用） */}
-      <p className="mt-8 text-center text-[10px] text-label-tertiary" onClick={() => hapticsDebug(toast)}>build {__BUILD_TIME__}</p>
+      <p className="mt-3 text-center text-[10px] text-label-tertiary" onClick={() => hapticsDebug(toast)}>build {__BUILD_TIME__}</p>
     </div>
   );
 }
