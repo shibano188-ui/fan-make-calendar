@@ -656,16 +656,7 @@ export async function getHomePrefecture(userId: string): Promise<string | null> 
     .select('home_prefecture')
     .eq('user_id', userId)
     .maybeSingle();
-  const pref = (data?.home_prefecture as string | null | undefined) ?? null;
-  if (pref) return pref;
-  // 移行期間の互換: SQL適用前は旧列にしか値が無い。適用後は列が消えてエラー→null になるだけ。
-  // sql/2026-07-23-home-prefecture-private.sql の適用を確認したらこのブロックは削除してよい。
-  const { data: legacy } = await supabase
-    .from('user_settings')
-    .select('home_prefecture')
-    .eq('user_id', userId)
-    .maybeSingle();
-  return (legacy?.home_prefecture as string | null | undefined) ?? null;
+  return (data?.home_prefecture as string | null | undefined) ?? null;
 }
 
 export async function saveHomePrefecture(userId: string, prefecture: string | null): Promise<void> {
