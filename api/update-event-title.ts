@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { rateLimited } from './_ratelimit.js';
 
 const supabaseUrl = 'https://jsgidtwxhueqgtvshdku.supabase.co';
 
@@ -12,6 +13,7 @@ const PREFECTURES = [
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).end();
+  if (await rateLimited('title', req, res)) return;
 
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceRoleKey) return res.status(500).json({ error: 'Not configured' });

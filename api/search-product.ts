@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { rateLimited } from './_ratelimit.js';
 
 // 商品候補検索（購入リンク補完・価格取得）。複数販路を横断して候補を返す。
 // 楽天: 2026新API（RAKUTEN_APP_ID＋accessKey）。Yahoo!: 商品検索v3（YAHOO_APP_ID。未設定ならスキップ）。
@@ -119,6 +120,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(204).end();
+  if (await rateLimited('search', req, res)) return;
 
   const keyword = (req.query.keyword as string | undefined)?.trim();
   if (!keyword) return res.status(400).json({ error: 'keyword required' });

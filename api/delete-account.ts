@@ -1,8 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { rateLimited } from './_ratelimit.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (await rateLimited('delete', req, res)) return;
 
   const authHeader = req.headers.authorization ?? '';
   const token = authHeader.replace('Bearer ', '');
