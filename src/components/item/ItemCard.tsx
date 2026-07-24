@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { Heart, ShoppingCart, ExternalLink, ImageOff } from 'lucide-react';
+import { Heart, ImageOff } from 'lucide-react';
 import type { CalendarEvent } from '../../types';
 import { useLike, setLike } from '../../lib/likeStore';
 import { deriveStatus, deriveItemType, itemDateLines } from '../../design/tokens';
 import { parseCategories, getPrimaryCategoryColor, parseImageUrls } from '../../lib/constants';
-import { resolveBuy, type BuyMode } from '../../lib/affiliate';
 import { likeEffect } from '../../lib/likeEffect';
 import StatusBadge from '../ui/StatusBadge';
 import OptImg from '../ui/OptImg';
@@ -21,7 +20,6 @@ interface Props {
   onOpen?: () => void;
   onLike?: () => void | Promise<{ liked: boolean; count: number } | void>;
   onCalendar?: () => void;
-  onBuy?: () => void;
 }
 
 function yen(n?: number): string {
@@ -88,12 +86,11 @@ function CategoryLine({ event }: { event: CalendarEvent }) {
 }
 
 /** 探す/ホームの基本カード。メルカリ流＝画像が主役・価格を最強・枠線で区切り。 */
-export default function ItemCard({ event, layout = 'grid', isNew, likedInit, workColor, onOpen, onLike, onBuy }: Props) {
+export default function ItemCard({ event, layout = 'grid', isNew, likedInit, workColor, onOpen, onLike }: Props) {
   const type = deriveItemType(event);
   const status = deriveStatus(event);
   const price = yen(event.price);
-  // 販路を判定: アフィ対応＝カート / 公式リンクのみ＝リンク / 無＝非表示
-  const buyMode: BuyMode = resolveBuy(event).mode;
+  // 購入導線はカードに出さず詳細ページに一本化（PR表記＝「広告を含みます」を購入リンク直近に置くため）。
   const [imgError, setImgError] = useState(false);
   // 共有ストアで状態を持ち、詳細ページや他タイルと同期する
   const { liked, count: likeCount } = useLike(event.id, {
@@ -149,7 +146,7 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
             <div className="text-[12px] text-label-secondary mt-0.5">{itemDateLines(event).join(' / ')}</div>
             {price && <div className="text-[15px] font-bold mt-1" style={{ color: 'var(--accent-text)' }}>{price}</div>}
           </button>
-          <div className="mt-auto pt-1.5"><CardActions liked={liked} likeCount={likeCount} onLike={handleLike} event={event} onBuy={onBuy} buyMode={buyMode} /></div>
+          <div className="mt-auto pt-1.5"><CardActions liked={liked} likeCount={likeCount} onLike={handleLike} event={event} /></div>
         </div>
       </div>
     );
@@ -169,13 +166,13 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
         </div>
       </button>
       <div className="px-2 pb-2 pt-1 mt-auto">
-        <CardActions liked={liked} likeCount={likeCount} onLike={handleLike} event={event} onBuy={onBuy} buyMode={buyMode} />
+        <CardActions liked={liked} likeCount={likeCount} onLike={handleLike} event={event} />
       </div>
     </div>
   );
 }
 
-function CardActions({ liked, likeCount, onLike, event, onBuy, buyMode }: { liked?: boolean; likeCount?: number; onLike?: () => void; event: CalendarEvent; onBuy?: () => void; buyMode?: BuyMode }) {
+function CardActions({ liked, likeCount, onLike, event }: { liked?: boolean; likeCount?: number; onLike?: () => void; event: CalendarEvent }) {
   return (
     <div className="flex items-center gap-4">
       <button onClick={(e) => { e.stopPropagation(); if (!liked) likeEffect(e.currentTarget); onLike?.(); }} aria-label="いいね" className="pressable tap-44 flex items-center gap-1">
@@ -184,20 +181,6 @@ function CardActions({ liked, likeCount, onLike, event, onBuy, buyMode }: { like
       </button>
       <ReactionButton eventId={event.id} />
       <NotifyBell event={event} liked={!!liked} />
-      {buyMode === 'cart' && <IconBtn label="購入する" onClick={onBuy}><ShoppingCart size={18} /></IconBtn>}
-      {buyMode === 'link' && <IconBtn label="公式サイトを開く" onClick={onBuy}><ExternalLink size={18} /></IconBtn>}
     </div>
-  );
-}
-
-function IconBtn({ children, label, onClick }: { children: React.ReactNode; label: string; onClick?: () => void }) {
-  return (
-    <button
-      onClick={(e) => { e.stopPropagation(); onClick?.(); }}
-      aria-label={label}
-      className="pressable tap-44 text-label-secondary"
-    >
-      {children}
-    </button>
   );
 }

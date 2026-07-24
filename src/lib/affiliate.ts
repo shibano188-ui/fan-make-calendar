@@ -27,6 +27,21 @@ function vcLink(url: string, pid: string): string {
   return `https://${VC_HOST}/servlet/referral?sid=${VC.sid}&pid=${pid}&vc_url=${encodeURIComponent(url)}`;
 }
 
+// A8.net。a8mat=広告主ごとのマテリアルID（公開リンクに現れる値なので秘匿不要）。
+// 商品ページへのディープリンクは a8ejpredirect に遷移先を渡す（広告主が「リンク先URL変更」を
+// 許可している場合のみ成果計測される）。mat が空のうちは素のURLのまま（リンクは機能する）。
+const A8_HOST = 'px.a8.net';
+export const A8 = {
+  mat: {
+    amiami: '4B86H3+BBTY5U+NA2+614CY',  // あみあみ: 2026-07-24 承認・稼働
+  },
+} as const;
+
+function a8Link(url: string, mat: string): string {
+  if (!mat || hostOf(url) === A8_HOST) return url;
+  return `https://${A8_HOST}/svt/ejp?a8mat=${mat}&a8ejpredirect=${encodeURIComponent(url)}`;
+}
+
 type RetailerKind = 'affiliate' | 'b2b' | 'none';
 
 interface Rule {
@@ -50,7 +65,7 @@ const RULES: Rule[] = [
   // 楽天: 正式にはAPIでアフィURL生成。暫定はそのまま（LinkSwitch相当は後段）
   { name: '楽天', kind: 'affiliate', test: (h) => /(^|\.)rakuten\.co\.jp$/.test(h) || /(^|\.)r10\.to$/.test(h) },
   { name: 'アニメイト', kind: 'affiliate', test: (h) => /(^|\.)animate(-onlineshop)?\.(co\.)?jp$/.test(h) },
-  { name: 'あみあみ', kind: 'affiliate', test: (h) => /(^|\.)amiami\.(com|jp)$/.test(h) },
+  { name: 'あみあみ', kind: 'affiliate', test: (h) => /(^|\.)amiami\.(com|jp)$/.test(h), wrap: (url) => a8Link(url, A8.mat.amiami) },
   { name: 'Yahoo!ショッピング', kind: 'affiliate', test: (h) => /(^|\.)shopping\.yahoo\.co\.jp$/.test(h) || /(^|\.)store\.shopping\.yahoo\.co\.jp$/.test(h), wrap: (url) => vcLink(url, VC.pid.yahoo) },
   { name: '駿河屋', kind: 'affiliate', test: (h) => /(^|\.)suruga-ya\.jp$/.test(h) },
   { name: 'チケットぴあ', kind: 'affiliate', test: (h) => /(^|\.)t\.pia\.jp$/.test(h) || /(^|\.)pia\.jp$/.test(h) },

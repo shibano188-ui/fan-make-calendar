@@ -39,7 +39,7 @@ export function titleMatchScore(entered: string, candidate: string): number {
 export function retailerSearchUrls(keyword: string): { retailer: string; url: string }[] {
   const k = encodeURIComponent(keyword);
   return [
-    { retailer: 'あみあみ', url: `https://www.amiami.com/jp/search/list/?s_keywords=${k}` },
+    { retailer: 'あみあみ', url: `https://www.amiami.jp/top/search/list?s_keywords=${k}` },  // a8提携先は amiami.jp（.comは成果対象外の恐れ）
     { retailer: 'アニメイト', url: `https://www.animate-onlineshop.jp/products/list.php?search_word=${k}` },
     { retailer: 'Amazon', url: `https://www.amazon.co.jp/s?k=${k}` },
     { retailer: '楽天', url: `https://search.rakuten.co.jp/search/mall/${k}/` },

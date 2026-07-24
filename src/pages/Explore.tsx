@@ -12,7 +12,7 @@ import { listExploreEvents, getHomePrefecture, searchWorks, listAllParticipatedW
 import { parseCategories, loadSeenEventIds, saveSeenEventIds, isNewItem, GOODS_TAG } from '../lib/constants';
 import { getCached, setCached } from '../lib/swrCache';
 import { buildWorkColorMap } from '../lib/workColors';
-import { openBuyLink, logSearch } from '../lib/dataLogs';
+import { logSearch } from '../lib/dataLogs';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
@@ -399,11 +399,6 @@ export default function Explore() {
   };
   const activeCount = selectedStatuses.size + excludedWorks.size + selectedCategories.size + selectedPrefs.size + selectedRegions.size + (neighborActive ? 1 : 0);
 
-  const onBuy = (e: CalendarEvent) => {
-    haptic.select();
-    openBuyLink(e, 'explore', user?.id);
-  };
-
   const onLikeTile = async (e: CalendarEvent) => { haptic.select(); return user ? toggleLike(e.id, user.id) : undefined; };
   const onCalendarTile = async (e: CalendarEvent) => {
     haptic.select();
@@ -422,7 +417,7 @@ export default function Explore() {
       style={{ contentVisibility: 'auto', containIntrinsicSize: mode === 'goods' ? 'auto 250px' : 'auto 114px' }}>
       <ItemCard event={e} layout={mode === 'goods' ? 'grid' : 'list'} isNew={isNewItem(e.id, e.createdAt, seenSnapshot)} likedInit={likedIds.has(e.id)}
         workColor={e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)'}
-        onOpen={() => { sessionStorage.setItem('explore_scroll', String(getScrollTop())); navigate(`/item/${e.id}`); }} onLike={() => onLikeTile(e)} onCalendar={() => onCalendarTile(e)} onBuy={() => onBuy(e)} />
+        onOpen={() => { sessionStorage.setItem('explore_scroll', String(getScrollTop())); navigate(`/item/${e.id}`); }} onLike={() => onLikeTile(e)} onCalendar={() => onCalendarTile(e)} />
     </div>
   );
 

@@ -11,7 +11,7 @@ import { deriveStatus, todayStr, STATUS, type ItemStatus } from '../design/token
 import { listSavedEvents, getHomePrefecture, toggleLike, toggleCalendarAdd } from '../lib/api';
 import { parseCategories, isNotifyOn } from '../lib/constants';
 import { buildWorkColorMap } from '../lib/workColors';
-import { openBuyLink, logSearch } from '../lib/dataLogs';
+import { logSearch } from '../lib/dataLogs';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
@@ -239,7 +239,6 @@ export default function Saved() {
   };
   const activeCount = selectedStatuses.size + excludedWorks.size + selectedCategories.size + selectedPrefs.size + selectedRegions.size + (neighborActive ? 1 : 0);
 
-  const onBuy = (e: CalendarEvent) => { haptic.select(); openBuyLink(e, 'saved', user?.id); };
   const onCalendar = async (e: CalendarEvent) => {
     haptic.select();
     const r = await addToCalendar(e);
@@ -332,7 +331,7 @@ export default function Saved() {
       ) : view !== 'list' ? (
         // カレンダー（月/週/日）は予定が0件でも枠を表示する
         <SavedCalendar events={filtered} scope={view}
-          onOpen={(e) => navigate(`/item/${e.id}`)} onLike={onLike} onCalendar={onCalendar} onBuy={onBuy} />
+          onOpen={(e) => navigate(`/item/${e.id}`)} onLike={onLike} onCalendar={onCalendar} />
       ) : listItems.length === 0 ? (
         <p className="text-center text-label-secondary text-[13px] py-20">
           {emptyMsg}<br />
@@ -343,7 +342,7 @@ export default function Saved() {
           {listItems.map((e) => (
             <ItemCard key={e.id} event={e} layout="list" likedInit={e.likedByMe}
               workColor={e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)'}
-              onOpen={() => navigate(`/item/${e.id}`)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onBuy={() => onBuy(e)} />
+              onOpen={() => navigate(`/item/${e.id}`)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} />
           ))}
         </div>
       )}

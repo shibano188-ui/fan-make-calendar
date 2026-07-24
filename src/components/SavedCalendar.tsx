@@ -67,10 +67,9 @@ type Props = {
   onOpen: (e: CalendarEvent) => void;
   onLike: (e: CalendarEvent) => void;
   onCalendar: (e: CalendarEvent) => void;
-  onBuy: (e: CalendarEvent) => void;
 };
 
-export default function SavedCalendar({ events, scope, onOpen, onLike, onCalendar, onBuy }: Props) {
+export default function SavedCalendar({ events, scope, onOpen, onLike, onCalendar }: Props) {
   const today = todayStr();
   const [anchor, setAnchor] = useState(today); // 基準日（選択日 / 表示中の日）
 
@@ -96,15 +95,15 @@ export default function SavedCalendar({ events, scope, onOpen, onLike, onCalenda
     <div className="pb-4">
       {scope === 'month' && (
         <MonthView events={events} anchor={anchor} setAnchor={setAnchor} today={today} colorOf={colorOf}
-          onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} onBuy={onBuy} />
+          onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />
       )}
       {scope === 'week' && (
         <WeekView events={events} anchor={anchor} setAnchor={setAnchor} today={today} colorOf={colorOf}
-          onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} onBuy={onBuy} />
+          onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />
       )}
       {scope === 'day' && (
         <DayView events={events} anchor={anchor} setAnchor={setAnchor} today={today} colorOf={colorOf}
-          onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} onBuy={onBuy} />
+          onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />
       )}
 
       {undated.length > 0 && (
@@ -114,7 +113,7 @@ export default function SavedCalendar({ events, scope, onOpen, onLike, onCalenda
             {undated.map((e) => (
               <div key={e.id} className={deriveStatus(e) === 'preorder_ended' ? 'opacity-55' : undefined}>
                 <ItemCard event={e} layout="list" likedInit={e.likedByMe} workColor={colorOf(e)}
-                  onOpen={() => onOpen(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onBuy={() => onBuy(e)} />
+                  onOpen={() => onOpen(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} />
               </div>
             ))}
           </div>
@@ -153,10 +152,9 @@ type ViewProps = {
   onOpen: (e: CalendarEvent) => void;
   onLike: (e: CalendarEvent) => void;
   onCalendar: (e: CalendarEvent) => void;
-  onBuy: (e: CalendarEvent) => void;
 };
 
-function MonthView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, onCalendar, onBuy }: ViewProps) {
+function MonthView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, onCalendar }: ViewProps) {
   const cur = parse(anchor);
   const year = cur.getFullYear();
   const month = cur.getMonth();
@@ -218,13 +216,13 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, 
       {/* 選択日の予定 */}
       <div className="mt-4">
         <DayHeading day={selected} count={selectedEvents.length} />
-        <DayList events={selectedEvents} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} onBuy={onBuy} />
+        <DayList events={selectedEvents} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />
       </div>
     </div>
   );
 }
 
-function WeekView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, onCalendar, onBuy }: ViewProps) {
+function WeekView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, onCalendar }: ViewProps) {
   const weekStart = startOfWeek(anchor);
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const end = days[6];
@@ -241,7 +239,7 @@ function WeekView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, o
         {days.map((day) => (
           <div key={day}>
             <DayHeading day={day} count={eventsOnDay(events, day).length} isToday={day === today} />
-            <DayList events={eventsOnDay(events, day)} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} onBuy={onBuy} />
+            <DayList events={eventsOnDay(events, day)} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />
           </div>
         ))}
       </div>
@@ -249,7 +247,7 @@ function WeekView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, o
   );
 }
 
-function DayView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, onCalendar, onBuy }: ViewProps) {
+function DayView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, onCalendar }: ViewProps) {
   const d = parse(anchor);
   const label = `${d.getMonth() + 1}月${d.getDate()}日（${WEEKDAYS[d.getDay()]}）`;
   const dayEvents = eventsOnDay(events, anchor);
@@ -261,7 +259,7 @@ function DayView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, on
       <NavHeader label={label}
         onPrev={goPrev} onNext={goNext}
         onToday={() => setAnchor(today)} />
-      <DayList events={dayEvents} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} onBuy={onBuy} />
+      <DayList events={dayEvents} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />
     </div>
   );
 }
@@ -281,7 +279,7 @@ function DayHeading({ day, count, isToday }: { day: string; count: number; isTod
   );
 }
 
-function DayList({ events, colorOf, onOpen, onLike, onCalendar, onBuy }: { events: CalendarEvent[] } & Pick<ViewProps, 'colorOf' | 'onOpen' | 'onLike' | 'onCalendar' | 'onBuy'>) {
+function DayList({ events, colorOf, onOpen, onLike, onCalendar }: { events: CalendarEvent[] } & Pick<ViewProps, 'colorOf' | 'onOpen' | 'onLike' | 'onCalendar'>) {
   if (events.length === 0) {
     return (
       <div className="flex items-center gap-2 text-[12px] text-label-tertiary py-3 px-1">
@@ -293,7 +291,7 @@ function DayList({ events, colorOf, onOpen, onLike, onCalendar, onBuy }: { event
     <div className="flex flex-col gap-2">
       {events.map((e) => (
         <ItemCard key={e.id} event={e} layout="list" likedInit={e.likedByMe} workColor={colorOf(e)}
-          onOpen={() => onOpen(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onBuy={() => onBuy(e)} />
+          onOpen={() => onOpen(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} />
       ))}
     </div>
   );
