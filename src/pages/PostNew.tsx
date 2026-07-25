@@ -4,11 +4,11 @@ import { X, Plus, Check, Sparkles, Camera, Link2, Loader2, Search } from 'lucide
 import Chip from '../components/ui/Chip';
 import { searchWorks, getOrCreateWork, createEvents, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, type Work } from '../lib/api';
 import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES, GOODS_TAG } from '../lib/constants';
-import { affiliatize, buildOffer, primaryOffer, isAffiliateUrl, offerUrl } from '../lib/affiliate';
+import { affiliatize, buildOffer, primaryOffer, isAffiliateUrl, offerUrl, isNoiseLink } from '../lib/affiliate';
 import { parseEventsApi, fileToBase64, type ParsedEvent } from '../lib/parseEvents';
 import { logAiExtraction, logSearch } from '../lib/dataLogs';
 import { maybeAddWorkAlias } from '../lib/workAliases';
-import { searchProductCandidates, titleMatchScore, cleanShopTitle, retailerSearchUrls, highConfidenceCandidates, isSetTitle, type ProductCandidate } from '../lib/searchProduct';
+import { searchProductCandidates, titleMatchScore, retailerSearchUrls, highConfidenceCandidates, isSetTitle, type ProductCandidate } from '../lib/searchProduct';
 import type { Offer } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
@@ -38,13 +38,33 @@ function addOffer(list: Offer[], o: Offer): Offer[] {
   return o.url && !list.some((x) => x.url === o.url) ? [...list, o] : list;
 }
 
+// 共有インテント（X等の共有シート / PWA share_target）で渡された内容を取り出す。
+// X アプリは url=ツイートURL, text=本文 を送る場合と、url=空・text="本文 https://t.co/xxx" の場合がある。
+function readShare(sp: URLSearchParams): { url: string; text: string } {
+  const urlParam = sp.get('url') || '';
+  const textParam = sp.get('text') || '';
+  if (!urlParam && !textParam) return { url: '', text: '' };
+  const firstUrl = (s: string) => s.match(/https?:\/\/\S+/)?.[0] ?? '';
+  const url = urlParam.startsWith('http') ? urlParam
+    : textParam.startsWith('http') ? textParam
+    : firstUrl(textParam) || firstUrl(urlParam) || urlParam || textParam;
+  const text = (() => {
+    if (!urlParam.startsWith('http')) return '';
+    const s = textParam.replace(/https?:\/\/\S+/g, '').trim();
+    return s.length > 5 ? s : '';
+  })();
+  return { url, text };
+}
+
 export default function PostNew() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const toast = useToast();
 
-  const draft0 = useRef(readDraft()).current;
+  // 共有から来たときは「新しい予定」なので下書きを引き継がない（前の予定の入力が残るのを防ぐ）
+  const share = readShare(searchParams);
+  const draft0 = useRef(share.url ? null : readDraft()).current;
   const today = todayStr();
   const [type, setType] = useState<ItemType>(draft0?.type ?? 'goods');
   const [workId, setWorkId] = useState<string | null>(draft0?.workId ?? null);
@@ -128,22 +148,19 @@ export default function PostNew() {
     if (isOrder && !preEndTouched) setPreEnd(dateTBD ? '' : (date || ''));
   }, [isOrder, date, dateTBD, preEndTouched]);
 
-  // 共有シートから来た内容（?url / ?text）を受けて自動でAI解析
+  // 共有シートから来た内容（?url / ?text）を受けて自動でAI解析。
+  // アプリを閉じずに再度Xから共有すると、同じ /post に search だけ変えて遷移するので
+  // このコンポーネントは再マウントされない。共有内容が変わったらフォームを初期化してから解析する。
+  const shareKey = `${share.url} ${share.text}`;
+  const handledShare = useRef<string | null>(null);
   useEffect(() => {
-    const urlParam = searchParams.get('url') || '';
-    const textParam = searchParams.get('text') || '';
-    if (!urlParam && !textParam) return;
-    const firstUrl = (s: string) => s.match(/https?:\/\/\S+/)?.[0] ?? '';
-    const sharedUrl = urlParam.startsWith('http') ? urlParam
-      : textParam.startsWith('http') ? textParam
-      : firstUrl(textParam) || firstUrl(urlParam) || urlParam || textParam;
-    const sharedText = (() => {
-      if (!urlParam.startsWith('http')) return '';
-      const s = textParam.replace(/https?:\/\/\S+/g, '').trim();
-      return s.length > 5 ? s : '';
-    })();
-    if (sharedUrl) { setAiText(sharedUrl); runParse({ url: sharedUrl, sharedText: sharedText || undefined }); }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!share.url || handledShare.current === shareKey) return;
+    const isFirst = handledShare.current === null;
+    handledShare.current = shareKey;
+    if (!isFirst) resetForm(); // 2回目以降＝前の予定の入力が残っているので消す
+    setAiText(share.url);
+    runParse({ url: share.url, sharedText: share.text || undefined });
+  }, [shareKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 作品オートコンプリート（名寄せ簡易版: 既存検索＋新規作成）
   useEffect(() => {
@@ -203,6 +220,46 @@ export default function PostNew() {
   const aiSourceRef = useRef<{ sourceUrl?: string; sourceText?: string; sourceKind: 'url' | 'image' | 'shared_text' } | null>(null);
   const aiLogRef = useRef<{ sourceUrl?: string; sourceText?: string; sourceKind: 'url' | 'image' | 'shared_text'; output: ParsedEvent } | null>(null);
 
+  // フォームを初期状態へ戻す（別の予定を続けて入力するとき、前の内容を持ち越さない）
+  const resetForm = () => {
+    setType('goods'); setWorkId(null); setWorkName(''); setWorkQuery(''); setWorkResults([]);
+    setTitle(''); setCats(new Set()); setAllDay(true); setDateTBD(false); setDateLabel('');
+    setDate(today); setEndDate(today); setTime(''); setEndTime('');
+    setIsOrder(false); setPreAllDay(true); setPreStart(today); setPreEnd(today); setPreEndTouched(false);
+    setPreStartTime(''); setPreEndTime('');
+    setPrice(''); setLink(''); setOffers([]); setShowExtra(false); setStockNote(''); setMemo('');
+    setImageUrl(''); setPrefecture(''); setLocationDetail('');
+    setError(''); setAiError(''); setParsedList(null);
+    setCandidates(null); setSearchingProduct(false);
+    setDupMatches([]); setDupDismissed(false);
+    aiSourceRef.current = null; aiLogRef.current = null;
+    clearDraft();
+  };
+
+  // アフィリンクが取れていないグッズは、AI入力の画面でその場で販売先を探して添付する。
+  // 高信頼（公式店/高一致度）なら自動で追加、確度が足りなければ候補を出して手動で選んでもらう。
+  const autoFindOffers = async (t: string, w: string, current: Offer[]) => {
+    if (!t.trim() || current.some((o) => isAffiliateUrl(offerUrl(o)))) return;
+    setSearchingProduct(true); setCandidates(null);
+    try {
+      const items = await searchProductCandidates(`${w} ${t}`.trim());
+      const picks = highConfidenceCandidates(t, items);
+      if (picks.length) {
+        const now = new Date().toISOString();
+        setOffers((prev) => picks.reduce((acc, c) => addOffer(acc, {
+          retailer: c.retailer || '楽天', shop: c.shop || undefined, url: c.url, affiliateUrl: c.url,
+          hasAffiliate: c.hasAffiliate, price: c.price, fetchedAt: now, official: c.official, isSet: isSetTitle(c.title),
+        }), prev));
+        if (picks[0].price) setPrice((prev) => prev || String(picks[0].price));
+        if (picks[0].image) setImageUrl((prev) => prev || picks[0].image);
+        toast(`販売先を${picks.length}件見つけました`);
+      } else if (items.length) {
+        setCandidates(items);
+      }
+    } catch { /* 検索失敗は無視（「販売先を探す」で手動リトライできる） */ }
+    finally { setSearchingProduct(false); }
+  };
+
   const applyParsed = (p: ParsedEvent) => {
     if (aiSourceRef.current) aiLogRef.current = { ...aiSourceRef.current, output: p };
     const parsedType = deriveItemType({ category: p.category ?? undefined });
@@ -234,12 +291,18 @@ export default function PostNew() {
     }
     if (p.time && !p.dateLabel) { setAllDay(false); setTime(p.time); if (p.endTime) setEndTime(p.endTime); }
     if (p.isOrderMade) { setIsOrder(true); if (p.preorderStart) setPreStart(p.preorderStart); if (p.preorderEnd) { setPreEnd(p.preorderEnd); setPreEndTouched(true); } }
-    if (p.link) setOffers((prev) => addOffer(prev, buildOffer(p.link!, p.price ?? undefined)));
+    // まとめ記事・ニュース・SNSのURLは購入リンクではないので販路にしない（Xのまとめアカウント対策）
+    const parsedOffers = p.link && !isNoiseLink(p.link) ? [buildOffer(p.link, p.price ?? undefined)] : [];
+    if (parsedOffers.length) setOffers((prev) => parsedOffers.reduce(addOffer, prev));
     if (p.prefecture) setPrefecture(p.prefecture);
     if (p.locationDetail) setLocationDetail(p.locationDetail);
     if (p.imageUrl) setImageUrl(p.imageUrl);
     if (p.memo) { setShowExtra(true); setMemo(p.memo); }
     setParsedList(null);
+    // グッズで収益リンクが取れていなければ、この場で販売先を探す（投稿時まで待たない）
+    if (parsedType === 'goods' && p.title) {
+      void autoFindOffers(p.title, p.work || workName || workQuery, parsedOffers);
+    }
   };
 
   const runParse = async (body: { url?: string; imageBase64?: string; mimeType?: string; sharedText?: string }) => {
@@ -284,7 +347,7 @@ export default function PostNew() {
   const pickCandidate = (c: ProductCandidate) => {
     haptic.select();
     setOffers((prev) => addOffer(prev, { retailer: c.retailer || '楽天', shop: c.shop || undefined, url: c.url, affiliateUrl: c.url, hasAffiliate: c.hasAffiliate, price: c.price, fetchedAt: new Date().toISOString(), official: c.official, isSet: isSetTitle(c.title) }));
-    setTitle(cleanShopTitle(c.title));
+    // タイトルはユーザー/AIが決めたものを正とする（ショップの商品名で上書きしない）
     if (!price && c.price) setPrice(String(c.price));
     if (!imageUrl && c.image) setImageUrl(c.image);
     setCandidates(null);

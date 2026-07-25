@@ -110,8 +110,48 @@ async function searchYahoo(keyword: string): Promise<Candidate[]> {
   }));
 }
 
-// 注: あみあみ本店・駿河屋本店はCloudflareでサーバー403、アニメイト本店はAPI無し → 直接取得不可。
+// 注: あみあみ本店・駿河屋本店はCloudflareでサーバー403 → 直接取得不可。
 // 上記の公式出店店舗（楽天/Yahoo!）経由で取得し、それ以外は「各店で探す」リンクで対応する。
+
+// アニメイト本店。API は無いが検索ページ(list.php?smt=)はサーバーから取得できるので HTML を読む。
+// 楽天のアニメイト系店舗(acosbyanimate)はコスプレ中心で品揃えが本店と別物のため、本店を直接見る必要がある。
+// アフィリエイトは未提携(2026-07-23審査落ち)なので hasAffiliate=false。提携が通れば affiliate.ts の wrap だけで成果化する。
+const ANIMATE_ORIGIN = 'https://www.animate-onlineshop.jp';
+const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36';
+
+function decodeEntities(s: string): string {
+  return s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ');
+}
+
+async function searchAnimate(keyword: string): Promise<Candidate[]> {
+  const r = await fetch(`${ANIMATE_ORIGIN}/products/list.php?smt=${encodeURIComponent(keyword)}`, {
+    headers: { 'User-Agent': UA, 'Accept-Language': 'ja' },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!r.ok) return [];
+  const html = await r.text();
+  const out: Candidate[] = [];
+  // 検索結果は <div class="item_list_thumb"> 単位。1商品 = サムネ・h3タイトル・p.price。
+  for (const chunk of html.split('<div class="item_list_thumb">').slice(1)) {
+    const href = chunk.match(/<a href="(\/pn\/[^"]+\/pd\/\d+\/)"/)?.[1];
+    const title = chunk.match(/<h3><a [^>]*>([^<]+)<\/a><\/h3>/)?.[1];
+    const price = chunk.match(/<p class="price">(?:<font[^>]*>)?([\d,]+)<\/font>?円/)?.[1];
+    if (!href || !title || !price) continue;
+    const image = chunk.match(/<img src="([^"]+)"/)?.[1] ?? '';
+    out.push({
+      title: decodeEntities(title).trim(),
+      price: Number(price.replace(/,/g, '')),
+      url: `${ANIMATE_ORIGIN}${decodeEntities(href)}`,
+      image: decodeEntities(image),
+      shop: 'アニメイトオンラインショップ',
+      retailer: 'アニメイト',
+      hasAffiliate: false,
+      official: true,
+    });
+    if (out.length >= 3) break;
+  }
+  return out;
+}
 
 // 中古/セット判定（src/lib/searchProduct.ts と同期を保つこと）。
 export function isUsedTitle(t: string): boolean { return /中古|ユーズド/.test(t); }
@@ -119,14 +159,15 @@ export function isSetTitle(t: string): boolean { return /セット|まとめ(買
 
 /** キーワードで楽天/Yahoo!を横断検索し、中古除外・公式店優先・1店舗3件・最大12件に整形して返す。 */
 export async function searchCandidates(keyword: string): Promise<Candidate[]> {
-  const [rakuten, yahoo] = await Promise.all([
+  const [rakuten, yahoo, animate] = await Promise.all([
     searchRakuten(keyword).catch(() => [] as Candidate[]),
     searchYahoo(keyword).catch(() => [] as Candidate[]),
+    searchAnimate(keyword).catch(() => [] as Candidate[]),
   ]);
   // 中古品は除外（駿河屋等は中古が混じる。本人方針で自動添付対象外）。
   // 公式店を先頭に（sortは安定なので同グループ内の順序は維持）。
   // 1店舗あたり最大3件に制限（楽天ブックス等が枠を占拠して他販路が圧迫されるのを防ぐ）
-  const sorted = [...rakuten, ...yahoo]
+  const sorted = [...rakuten, ...yahoo, ...animate]
     .filter((c) => !isUsedTitle(c.title))
     .sort((a, b) => Number(b.official ?? false) - Number(a.official ?? false));
   const perShop: Record<string, number> = {};
@@ -157,12 +198,16 @@ export function scoreTitle(entered: string, candidate: string): number {
   return inter / A.size;
 }
 
-/** 自動添付してよい高信頼候補だけを返す（公式店0.55以上/非公式0.8以上・販路ごと1件・最大3件）。 */
+/** 自動添付してよい高信頼候補だけを返す（公式店0.55以上/非公式0.8以上・販路ごと1件・最大4件）。
+ * アフィ対応の販路を先に確保してから、アニメイト本店など非対応の公式店を足す。 */
 export function highConfidence(enteredTitle: string, items: Candidate[]): Candidate[] {
   const scored = items
     .map((c) => ({ c, score: scoreTitle(enteredTitle, c.title) }))
     .filter(({ c, score }) => (c.official ? score >= 0.55 : score >= 0.8))
-    .sort((a, b) => Number(b.c.official ?? false) - Number(a.c.official ?? false) || b.score - a.score);
+    .sort((a, b) =>
+      Number(b.c.hasAffiliate) - Number(a.c.hasAffiliate) ||
+      Number(b.c.official ?? false) - Number(a.c.official ?? false) ||
+      b.score - a.score);
   const seen = new Set<string>();
   const out: Candidate[] = [];
   for (const { c } of scored) {
@@ -170,7 +215,7 @@ export function highConfidence(enteredTitle: string, items: Candidate[]): Candid
     if (seen.has(k)) continue;
     seen.add(k);
     out.push(c);
-    if (out.length >= 3) break;
+    if (out.length >= 4) break;
   }
   return out;
 }

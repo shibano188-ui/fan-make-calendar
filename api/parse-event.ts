@@ -32,6 +32,27 @@ async function resolveUrl(url: string): Promise<string> {
   } catch { return url; }
 }
 
+// まとめ記事・ニュース記事・SNSは購入導線ではないので link 候補から外す。
+// Xのまとめアカウントの投稿は本文のリンクが大体これで、そのまま販路として保存するとノイズになる。
+// src/lib/affiliate.ts の NOISE_LINK_PATTERNS と同期を保つこと。
+const NOISE_LINK_HOSTS: RegExp[] = [
+  /(^|\.)togetter\.com$/, /(^|\.)matomedane\.jp$/, /(^|\.)matomame\.jp$/, /(^|\.)curazy\.com$/,
+  /(^|\.)blog\.jp$/, /(^|\.)livedoor\.(jp|biz)$/, /(^|\.)blog\.fc2\.com$/, /(^|\.)seesaa\.net$/,
+  /(^|\.)(alfalfalfa|hamusoku|jin115|yaraon-blog|esuteru|otakomu|anihatsu|animanch|nijimen)\.(com|jp|net)$/,
+  /(^|\.)(open2ch|5ch)\.net$/,
+  /(^|\.)natalie\.mu$/, /(^|\.)prtimes\.jp$/, /(^|\.)animeanime\.jp$/, /(^|\.)moca-news\.net$/,
+  /(^|\.)akiba-souken\.com$/, /(^|\.)itmedia\.co\.jp$/, /(^|\.)famitsu\.com$/, /(^|\.)4gamer\.net$/,
+  /(^|\.)dengekionline\.com$/, /(^|\.)impress\.co\.jp$/, /(^|\.)news\.yahoo\.co\.jp$/,
+  /(^|\.)(youtube\.com|youtu\.be|instagram\.com|tiktok\.com|facebook\.com|threads\.net)$/,
+  /(^|\.)(lit\.link|linktr\.ee|lnky\.jp|potofu\.me)$/,
+];
+function isNoiseLink(url: string): boolean {
+  try {
+    const h = new URL(url).host.toLowerCase();
+    return NOISE_LINK_HOSTS.some((re) => re.test(h));
+  } catch { return false; }
+}
+
 const CURRENT_YEAR = new Date().getFullYear();
 
 const BASE_RULES = `
@@ -260,7 +281,7 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
   if (fx?.tweet?.text) {
     const extLinks = (fx.tweet.links ?? [])
       .map(l => l.url || l.short_url)
-      .filter((u): u is string => !!u && !/twitter\.com|x\.com|t\.co/.test(u));
+      .filter((u): u is string => !!u && !/twitter\.com|x\.com|t\.co/.test(u) && !isNoiseLink(u));
     let text = `投稿者: ${fx.tweet.author?.name ?? ''}`;
     if (tweetDate) text += `\nツイート投稿日: ${tweetDate}`;
     text += `\n内容: ${fx.tweet.text}`;
@@ -274,7 +295,7 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
     const urlEntities = ((syn as { entities?: { urls?: Array<{ expanded_url?: string; display_url?: string }> } }).entities?.urls ?? []);
     const extLinks = urlEntities
       .map(u => u.expanded_url)
-      .filter((u): u is string => !!u && !/twitter\.com|x\.com|t\.co/.test(u));
+      .filter((u): u is string => !!u && !/twitter\.com|x\.com|t\.co/.test(u) && !isNoiseLink(u));
     let text = `投稿者: ${authorName}`;
     if (tweetDate) text += `\nツイート投稿日: ${tweetDate}`;
     text += `\n内容: ${tweetText}`;
@@ -300,7 +321,8 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
       const resolvedFinal = final.includes('t.co/')
         ? visibleClean ? `https://${visibleClean.replace(/^https?:\/\//, '')}` : ''
         : final;
-      if (!resolvedFinal || externalLinks.some(l => l.includes(resolvedFinal.split('?')[0]))) continue;
+      if (!resolvedFinal || isNoiseLink(resolvedFinal)) continue;
+      if (externalLinks.some(l => l.includes(resolvedFinal.split('?')[0]))) continue;
       externalLinks.push(visibleClean && visibleClean !== resolvedFinal ? `${visibleClean}（${resolvedFinal}）` : resolvedFinal);
     }
     const textContent = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -389,13 +411,11 @@ function parseRawText(rawText: string): unknown[] {
     if (item && typeof item === 'object') {
       const obj = item as Record<string, unknown>;
       // link が配列で返ってきた場合: 1件→文字列、複数→JSON文字列、空→null
+      // まとめ記事・ニュース・SNSのURLは購入リンクではないのでここで落とす
       const rawLink = obj.link;
-      const normalizedLink = Array.isArray(rawLink)
-        ? rawLink.filter((u): u is string => typeof u === 'string' && !!u).length === 0 ? null
-          : rawLink.filter((u): u is string => typeof u === 'string' && !!u).length === 1
-            ? rawLink.filter((u): u is string => typeof u === 'string' && !!u)[0]
-            : JSON.stringify(rawLink.filter((u): u is string => typeof u === 'string' && !!u))
-        : rawLink;
+      const links = (Array.isArray(rawLink) ? rawLink : [rawLink])
+        .filter((u): u is string => typeof u === 'string' && !!u && !isNoiseLink(u));
+      const normalizedLink = links.length === 0 ? null : links.length === 1 ? links[0] : JSON.stringify(links);
       const rawDateLabel = obj.dateLabel as string | null | undefined;
       const validLabels = ['上旬', '中旬', '下旬', '中', '春頃', '夏頃', '秋頃', '冬頃'];
       const dateLabel = rawDateLabel && validLabels.includes(rawDateLabel) ? rawDateLabel : null;

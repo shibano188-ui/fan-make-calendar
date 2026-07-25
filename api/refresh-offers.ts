@@ -57,7 +57,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!title) continue;
     const offers: OfferRow[] = Array.isArray(row.offers) ? [...(row.offers as OfferRow[])] : [];
     const hasAff = offers.some(isAff);
-    if (!hasAff && !doBackfill) continue; // 未取得グッズはバックフィル日だけ検索する（無駄打ち回避）
+    // 価格を再取得できる販路（楽天/Yahoo!/アニメイト本店）を1つでも持つなら毎日更新する。
+    // 1つも無い＝限定/イベント/プライズ品で検索に出ないので、再挑戦はバックフィル日だけ（無駄打ち回避）。
+    const refreshable = offers.some((o) => isAff(o) || /アニメイト|楽天|Yahoo/.test(o.retailer ?? ''));
+    if (!refreshable && !doBackfill) continue;
     scanned++;
     // works は多対一なので単一オブジェクト
     const workName = ((row.works as { name?: string } | null)?.name) || '';
@@ -73,8 +76,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // (1) 既存アフィ販路(楽天/Yahoo!)を最新化。同じ販路(できれば同じ店)で最もタイトル一致する候補に
     //     URL・店・価格・フラグを合わせる。候補は中古除外済みなので、過去に付いた中古URLの付け替え・
     //     失効URLの解消・価格とURLのズレ防止も兼ねる。
-    if (hasAff) for (const o of offers) {
-      if (!isAff(o)) continue;
+    for (const o of offers) {
       const rk = o.retailer || '';
       if (!rk) continue;
       const match = cands
@@ -105,8 +107,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (changed) {
-      // 代表価格 = 単品→公式店→最安（クライアントの primaryOffer と揃える。セットを代表にしない）
-      const rep = [...offers.filter(isAff)].sort((a, b) =>
+      // 代表価格 = 単品→公式店→最安（クライアントの primaryOffer と揃える。セットを代表にしない）。
+      // アフィ販路が無ければ全販路から選ぶ（アニメイト本店だけのグッズでも価格を出す）。
+      const affOffers = offers.filter(isAff);
+      const rep = [...(affOffers.length ? affOffers : offers)].sort((a, b) =>
         (Number(!!a.isSet) - Number(!!b.isSet)) ||
         (Number(isOfficial(b)) - Number(isOfficial(a))) ||
         ((a.price ?? Infinity) - (b.price ?? Infinity)),

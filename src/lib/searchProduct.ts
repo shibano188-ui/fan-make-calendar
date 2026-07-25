@@ -42,12 +42,16 @@ export function isSetTitle(t: string): boolean { return /セット|まとめ(買
 // 投稿時に「自動添付してよい高信頼候補」だけを絞る。
 // 公式店(あみあみ/駿河屋/アニメイト/楽天ブックス)はタイトル一致度0.55以上、
 // 非公式店(転売混在の恐れ)はより厳しく0.8以上。誤マッチを避けつつ手間ゼロで収益リンクを付ける。
-// 販路(retailer+shop)ごとに1件・最大3件。曖昧なものは自動添付せず候補提示に回す。
+// 販路(retailer+shop)ごとに1件・最大4件。アフィ対応の販路を先に確保してから、アニメイト本店など
+// 非対応の公式店を足す。曖昧なものは自動添付せず候補提示に回す。
 export function highConfidenceCandidates(enteredTitle: string, items: ProductCandidate[]): ProductCandidate[] {
   const scored = items
     .map((c) => ({ c, score: titleMatchScore(enteredTitle, c.title) }))
     .filter(({ c, score }) => (c.official ? score >= 0.55 : score >= 0.8))
-    .sort((a, b) => Number(b.c.official ?? false) - Number(a.c.official ?? false) || b.score - a.score);
+    .sort((a, b) =>
+      Number(b.c.hasAffiliate) - Number(a.c.hasAffiliate) ||
+      Number(b.c.official ?? false) - Number(a.c.official ?? false) ||
+      b.score - a.score);
   const seen = new Set<string>();
   const out: ProductCandidate[] = [];
   for (const { c } of scored) {
@@ -55,7 +59,7 @@ export function highConfidenceCandidates(enteredTitle: string, items: ProductCan
     if (seen.has(k)) continue;
     seen.add(k);
     out.push(c);
-    if (out.length >= 3) break;
+    if (out.length >= 4) break;
   }
   return out;
 }
@@ -65,7 +69,8 @@ export function retailerSearchUrls(keyword: string): { retailer: string; url: st
   const k = encodeURIComponent(keyword);
   return [
     { retailer: 'あみあみ', url: `https://www.amiami.jp/top/search/list?s_keywords=${k}` },  // a8提携先は amiami.jp（.comは成果対象外の恐れ）
-    { retailer: 'アニメイト', url: `https://www.animate-onlineshop.jp/products/list.php?search_word=${k}` },
+    // アニメイトの検索は smt=。search_word= はトップページへリダイレクトされる（＝検索されない）
+    { retailer: 'アニメイト', url: `https://www.animate-onlineshop.jp/products/list.php?smt=${k}` },
     { retailer: 'Amazon', url: `https://www.amazon.co.jp/s?k=${k}` },
     { retailer: '楽天', url: `https://search.rakuten.co.jp/search/mall/${k}/` },
   ];

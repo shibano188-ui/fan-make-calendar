@@ -99,6 +99,32 @@ export function isAffiliateUrl(url: string): boolean {
   return false;
 }
 
+// 「購入リンクとして扱ってはいけない」ドメイン。
+// Xのまとめアカウントが貼るリンクはまとめ記事・ニュース記事・SNSで、購入導線ではないのに
+// AIが link として拾ってしまう。販路として保存すると詳細ページの購入リンクがノイズだらけになるため弾く。
+// api/parse-event.ts の NOISE_LINK_HOSTS と同期を保つこと。
+const NOISE_LINK_PATTERNS: RegExp[] = [
+  // まとめ・キュレーション
+  /(^|\.)togetter\.com$/, /(^|\.)matomedane\.jp$/, /(^|\.)matomame\.jp$/, /(^|\.)curazy\.com$/,
+  /(^|\.)blog\.jp$/, /(^|\.)livedoor\.(jp|biz)$/, /(^|\.)blog\.fc2\.com$/, /(^|\.)seesaa\.net$/,
+  /(^|\.)(alfalfalfa|hamusoku|jin115|yaraon-blog|esuteru|otakomu|anihatsu|animanch|nijimen)\.(com|jp|net)$/,
+  /(^|\.)(open2ch|5ch)\.net$/,
+  // ニュース・情報サイト（情報源ではあるが購入先ではない）
+  /(^|\.)natalie\.mu$/, /(^|\.)prtimes\.jp$/, /(^|\.)animeanime\.jp$/, /(^|\.)moca-news\.net$/,
+  /(^|\.)akiba-souken\.com$/, /(^|\.)itmedia\.co\.jp$/, /(^|\.)famitsu\.com$/, /(^|\.)4gamer\.net$/,
+  /(^|\.)dengekionline\.com$/, /(^|\.)impress\.co\.jp$/, /(^|\.)news\.yahoo\.co\.jp$/,
+  // SNS・リンクまとめ
+  /(^|\.)(youtube\.com|youtu\.be|instagram\.com|tiktok\.com|facebook\.com|threads\.net)$/,
+  /(^|\.)(lit\.link|linktr\.ee|lnky\.jp|potofu\.me)$/,
+];
+
+/** 購入リンクにすべきでない（まとめ・ニュース・SNS）URLか。 */
+export function isNoiseLink(url: string): boolean {
+  const h = hostOf(url);
+  if (!h) return false;
+  return NOISE_LINK_PATTERNS.some((re) => re.test(h));
+}
+
 export interface AffiliateInfo {
   retailer: string;       // 販路名（不明ならホスト名）
   hasAffiliate: boolean;  // アフィ対応か（false=B2B送客 or 単なるリンク）
