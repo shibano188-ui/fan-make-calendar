@@ -177,7 +177,21 @@ async function searchAnimate(keyword: string): Promise<Candidate[]> {
 export function isUsedTitle(t: string): boolean { return /中古|ユーズド/.test(t); }
 export function isSetTitle(t: string): boolean { return /セット|まとめ(買|売)|コンプ|全\d+種|\d+個(入|セット)|\bBOX\b|1BOX/i.test(t); }
 
-/** キーワードで楽天/Yahoo!を横断検索し、中古除外・公式店優先・1店舗3件・最大12件に整形して返す。 */
+/** 店ごとにラウンドロビンで拾う（1巡目は各店1件、2巡目で2件目…）。
+ * 先頭から順に詰めると1店舗が上限枠を食い潰して他店が圏外に沈むのを防ぐ。 */
+function roundRobin(list: Candidate[], keyOf: (c: Candidate) => string, maxPerKey: number): Candidate[] {
+  const groups = new Map<string, Candidate[]>();
+  for (const c of list) {
+    const k = keyOf(c);
+    const g = groups.get(k);
+    if (g) g.push(c); else groups.set(k, [c]);
+  }
+  const out: Candidate[] = [];
+  for (let i = 0; i < maxPerKey; i++) for (const g of groups.values()) if (g[i]) out.push(g[i]);
+  return out;
+}
+
+/** キーワードで楽天/Yahoo!/アニメイト本店を横断検索し、中古除外・公式店優先・1店舗3件・最大12件に整形して返す。 */
 export async function searchCandidates(keyword: string): Promise<Candidate[]> {
   const [rakuten, yahoo, animate] = await Promise.all([
     searchRakuten(keyword).catch(() => [] as Candidate[]),
@@ -186,23 +200,18 @@ export async function searchCandidates(keyword: string): Promise<Candidate[]> {
   ]);
   // 中古品は除外（駿河屋等は中古が混じる。本人方針で自動添付対象外）。
   // タイトル正規表現に加え、Yahoo!の condition='used' も見る（stockLabel='中古'）。
-  // 在庫ありを先に、次に公式店（sortは安定なので同グループ内の順序は維持）。
-  // 1店舗あたり最大3件に制限（楽天ブックス等が枠を占拠して他販路が圧迫されるのを防ぐ）
+  // 在庫ありを先に（sortは安定なので同グループ内の元の順序は維持）。
   const sorted = [...rakuten, ...yahoo, ...animate]
     .filter((c) => !isUsedTitle(c.title) && c.stockLabel !== '中古')
-    .sort((a, b) =>
-      Number(b.inStock !== false) - Number(a.inStock !== false) ||
-      Number(b.official ?? false) - Number(a.official ?? false));
-  const perShop: Record<string, number> = {};
-  const items: Candidate[] = [];
-  for (const c of sorted) {
-    const k = `${c.retailer}:${c.shopCode || c.shop}`;
-    perShop[k] = (perShop[k] ?? 0) + 1;
-    if (perShop[k] > 3) continue;
-    items.push(c);
-    if (items.length >= 12) break;
-  }
-  return items;
+    .sort((a, b) => Number(b.inStock !== false) - Number(a.inStock !== false));
+
+  // 公式通販・公式出店店舗（アニメイト本店／楽天・Yahoo!のあみあみ・駿河屋・アニメイト・楽天ブックス）を
+  // 必ず先に出す。ここをまとめて後段の詰め込みに任せると、楽天の公式店だけで4店舗×3件＝12枠を埋めてしまい
+  // **アニメイト本店が上限からこぼれて表示されない**（本人指摘・2026-07-25）。
+  // 店ごとのラウンドロビンにして、各店に必ず1枠は回るようにする。
+  const officials = roundRobin(sorted.filter((c) => c.official), (c) => `${c.retailer}:${c.shopCode || c.shop}`, 3);
+  const others = roundRobin(sorted.filter((c) => !c.official), (c) => `${c.retailer}:${c.shopCode || c.shop}`, 3);
+  return [...officials, ...others].slice(0, 12);
 }
 
 // ── マッチング（src/lib/searchProduct.ts と同じロジック。両者は同期を保つこと）──
