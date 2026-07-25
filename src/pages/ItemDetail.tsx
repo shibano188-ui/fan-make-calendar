@@ -55,8 +55,8 @@ export default function ItemDetail() {
   const [contribs, setContribs] = useState<OfferContrib[]>([]);
   const [addUrl, setAddUrl] = useState('');
   const [addingLink, setAddingLink] = useState(false);
-  // 差し替え中の販路URL（開いている入力欄はひとつだけ）と入力値
-  const [replacingUrl, setReplacingUrl] = useState<string | null>(null);
+  // 「修正」パネルを開いている販路URL（同時に開くのはひとつだけ）と差し替え先の入力値
+  const [fixingUrl, setFixingUrl] = useState<string | null>(null);
   const [replaceUrl, setReplaceUrl] = useState('');
   const [replacing, setReplacing] = useState(false);
   const [stockReports, setStockReports] = useState<StockReport[]>([]);
@@ -239,7 +239,7 @@ export default function ItemDetail() {
     if (!(await confirm({ title: 'この購入リンクを取り消しますか？', message: '編集履歴から元に戻せます', confirmLabel: '取り消す', destructive: true }))) return;
     haptic.select();
     const ed = await addEventEdit(event.id, { removedOfferUrls: [url] }, user.id);
-    if (ed) { setEdits((prev) => [...prev, ed]); toast('購入リンクを取り消しました'); }
+    if (ed) { setEdits((prev) => [...prev, ed]); setFixingUrl(null); toast('購入リンクを取り消しました'); }
     else toast('取り消せませんでした');
   };
   // 購入リンクの差し替え（取り消し＋追加を1操作に）。リンクが誤っているときの
@@ -254,7 +254,7 @@ export default function ItemDetail() {
     setContribs((prev) => [...prev, c]);
     const ed = await addEventEdit(event.id, { removedOfferUrls: [oldUrl] }, user.id);
     if (ed) setEdits((prev) => [...prev, ed]);
-    setReplacingUrl(null); setReplaceUrl(''); setReplacing(false); haptic.select();
+    setFixingUrl(null); setReplaceUrl(''); setReplacing(false); haptic.select();
     toast(ed ? '購入リンクを差し替えました' : '新しいリンクを追加しました（元のリンクは取り消せませんでした）');
   };
   const onAddStock = async () => {
@@ -464,23 +464,25 @@ export default function ItemDetail() {
                         <span className="text-[13px] font-bold" style={{ color: 'var(--accent-text)' }}>{o.price ? `¥${o.price.toLocaleString()}` : '開く ↗'}</span>
                       </span>
                     </a>
+                    {/* 入口は「修正」ひとつだけ。アイコンを2つ並べると tap-44 の44px判定が重なって
+                        手前のボタンに食われるうえ、Xでは何が起きるか字で説明できない。
+                        この機能の動機は「リンクがおかしいから消したい」なので、パネルの先頭は取り消し。 */}
                     {user && (
-                      <>
-                        {/* アイコンを2つ並べると tap-44 の44px判定が重なって手前のXに食われるので、
-                            差し替えはテキストボタンにして押せる面積を確保する */}
-                        <button onClick={() => { haptic.select(); setReplaceUrl(''); setReplacingUrl((prev) => (prev === o.url ? null : o.url)); }}
-                          aria-label="購入リンクを差し替える" className="pressable flex-shrink-0 text-[11px] px-2 py-1.5 text-label-tertiary">直す</button>
-                        <button onClick={() => onRemoveOffer(o.url)} aria-label="取り消す" className="pressable tap-44 text-label-tertiary flex-shrink-0"><X size={15} /></button>
-                      </>
+                      <button onClick={() => { haptic.select(); setReplaceUrl(''); setFixingUrl((prev) => (prev === o.url ? null : o.url)); }}
+                        className="pressable flex-shrink-0 text-[11px] px-2 py-1.5 text-label-tertiary">{fixingUrl === o.url ? '閉じる' : '修正'}</button>
                     )}
                   </div>
-                  {replacingUrl === o.url && (
-                    <div className="flex gap-2 pl-3">
-                      <input value={replaceUrl} onChange={(e) => setReplaceUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onReplaceOffer(o.url)}
-                        placeholder="正しい購入リンク（URL）" inputMode="url" autoFocus
-                        className="flex-1 rounded-[10px] px-3 py-2 text-[13px] outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
-                      <button onClick={() => onReplaceOffer(o.url)} disabled={!replaceUrl.trim() || replacing}
-                        className="pressable px-3 rounded-[10px] text-[13px] font-semibold flex-shrink-0" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>差し替え</button>
+                  {fixingUrl === o.url && (
+                    <div className="flex flex-col gap-2 rounded-[10px] border border-subtle px-3 py-2.5" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                      <button onClick={() => onRemoveOffer(o.url)} className="pressable text-left text-[13px] font-semibold" style={{ color: 'var(--color-destructive)' }}>このリンクを取り消す</button>
+                      <div className="border-t border-subtle" />
+                      <div className="flex gap-2">
+                        <input value={replaceUrl} onChange={(e) => setReplaceUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onReplaceOffer(o.url)}
+                          placeholder="正しいリンク（URL）" inputMode="url"
+                          className="flex-1 rounded-[10px] px-3 py-2 text-[13px] outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
+                        <button onClick={() => onReplaceOffer(o.url)} disabled={!replaceUrl.trim() || replacing}
+                          className="pressable px-3 rounded-[10px] text-[13px] font-semibold flex-shrink-0" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>差し替え</button>
+                      </div>
                     </div>
                   )}
                   </div>
