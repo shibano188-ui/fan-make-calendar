@@ -432,7 +432,14 @@ export default function ItemDetail() {
                         {o.retailer || 'リンク'}{o.shop ? `（${o.shop}）` : ''}
                       </span>
                       <span className="flex items-center gap-1.5 flex-shrink-0">
-                        {o.inStock === false && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ color: 'var(--color-destructive)', background: 'var(--fill-secondary, rgba(120,120,128,0.16))' }}>在庫なし</span>}
+                        {/* 在庫は「あり/なし」の2値だけ出す（販路ごとに粒度が違うので生の表記は使わない）。
+                            未取得(undefined)のときは何も出さない＝Cronが更新するまで無表示 */}
+                        {o.inStock !== undefined && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                            style={{ color: o.inStock ? 'var(--color-success)' : 'var(--color-destructive)', background: 'var(--fill-secondary, rgba(120,120,128,0.16))' }}>
+                            {o.inStock ? '在庫あり' : '在庫なし'}
+                          </span>
+                        )}
                         {o.isSet && <span className="text-[10px] font-bold text-label-secondary px-1.5 py-0.5 rounded" style={{ background: 'var(--fill-secondary, rgba(120,120,128,0.16))' }}>セット</span>}
                         <span className="text-[13px] font-bold" style={{ color: 'var(--accent-text)' }}>{o.price ? `¥${o.price.toLocaleString()}` : '開く ↗'}</span>
                       </span>

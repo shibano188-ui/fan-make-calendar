@@ -95,6 +95,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         o.stockLabel = match.stockLabel;
         o.fetchedAt = now;
         changed = true;
+      } else if (/アニメイト|楽天|Yahoo/.test(rk) && o.inStock !== undefined) {
+        // 検索結果から消えた＝売切れ・掲載終了の可能性。古い「在庫あり」を出し続けると嘘になるので
+        // 不明(undefined)に戻してバッジを消す。翌日また見つかれば復活する。
+        delete o.inStock;
+        delete o.stockLabel;
+        changed = true;
       }
     }
 
