@@ -117,8 +117,17 @@ async function searchYahoo(keyword: string): Promise<Candidate[]> {
   }));
 }
 
-// 注: あみあみ本店・駿河屋本店はCloudflareでサーバー403 → 直接取得不可。
-// 上記の公式出店店舗（楽天/Yahoo!）経由で取得し、それ以外は「各店で探す」リンクで対応する。
+// ❌ あみあみ本店は直接取得できない（2026-07-25 に再検証・実装を試して撤回）。
+// 公式API `https://api.amiami.com/api/v1.0/items?s_keywords=…` は `X-User-Key: amiami_dev` を
+// 付ければ手元の回線から200で返り、商品名・価格(min_price)・画像・在庫(order_closed_flg)・
+// 中古判定(condition_flg)・発売日まで全部取れる。にもかかわらず使えない理由:
+//   - Vercelのサーバーからは Cloudflare が403。us-east(IAD)でも東京(NRT)でも同じで、
+//     ブラウザ相当のヘッダー一式を足しても変わらない ＝ データセンターIP側での遮断
+//   - `Origin` ヘッダーを付けると手元の回線でも403 ＝ ブラウザからの直接呼び出しも不可
+// あみあみ商品は楽天/Yahoo!のあみあみ出店店舗（RAKUTEN_OFFICIAL_SHOPS / YAHOO_OFFICIAL_SELLERS）
+// 経由なら取得でき、そちらはアフィリエイトも効く。本店直は「各店で探す」リンクで対応する。
+//
+// 駿河屋本店は 200 で取得できるが中古が過半でASP案件も無いため対象外にしている。
 
 // アニメイト本店。API は無いが検索ページ(list.php?smt=)はサーバーから取得できるので HTML を読む。
 // 楽天のアニメイト系店舗(acosbyanimate)はコスプレ中心で品揃えが本店と別物のため、本店を直接見る必要がある。
