@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { getWorksByNames, upsertParticipation } from '../lib/api';
 import { DEFAULT_WORK_NAMES } from '../lib/constants';
 import { setAppStateUser, syncAppState } from '../lib/appState';
+import { refreshPremium, clearPremium } from '../lib/premium';
 
 type AuthContextValue = {
   user: User | null;
@@ -55,6 +56,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (cancelled) return;
       setUser(u);
       setLoading(false);
+      // 会員状態は起動を待たせない（キャッシュで即答し、確定したらストア経由で切り替わる）
+      refreshPremium(u.id).catch(() => { /* 取れなければ無料のまま */ });
     };
 
     // 既存セッションを確認し、なければ匿名サインイン（成功時は onAuthStateChange 経由で activate）
@@ -78,11 +81,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setUser(null);
         setLoading(false);
+        clearPremium();   // 別アカウントに有料状態を持ち越さない
       }
     });
 
     return () => { cancelled = true; subscription.unsubscribe(); };
   }, []);
+
+  // アプリ復帰時に会員状態を読み直す（別端末での加入・解約や期限切れを拾う）。
+  // @capacitor/app の 'resume' はネイティブ限定なので、Web/WebView 共通の visibilitychange を使う。
+  useEffect(() => {
+    if (!user) return;
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refreshPremium(user.id).catch(() => { /* 維持 */ });
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { document.removeEventListener('visibilitychange', onVisible); };
+  }, [user]);
 
   return (
     <AuthContext.Provider value={{ user, loading }}>

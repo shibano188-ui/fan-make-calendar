@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { showBanner, hideBanner, onBannerSize, onBannerReserveTop } from './admob';
+import { useFeature } from './premium';
 
 // アダプティブ・アンカーバナーの最大高さ(dp)= 90。ネイティブ実測(reserveTop)が届くまでの
 // 暫定フォールバック用。SizeChanged が未発火/小さい値でも、最低これだけ確保しておく。
@@ -39,9 +40,13 @@ export function useAdBanner(): string {
   const [reserveTop, setReserveTop] = useState<number | null>(() =>
     Capacitor.isNativePlatform() ? loadCachedReserve() : null,
   );
+  // 有料会員はバナーを出さない（プレミアム特典「広告非表示」）。判定はキャッシュ即答なので
+  // 起動直後に一瞬バナーが出ることはない。あとからサーバー確定で有料に変わったときは
+  // 依存配列の変化でエフェクトが再実行され、クリーンアップの hideBanner() が効く。
+  const noAds = useFeature('noAds');
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
+    if (!Capacitor.isNativePlatform() || noAds) return;
     let alive = true;
     let sizeHandle: PluginListenerHandle | null = null;
     let reserveHandle: PluginListenerHandle | null = null;
@@ -61,9 +66,10 @@ export function useAdBanner(): string {
       reserveHandle?.remove();
       hideBanner();
     };
-  }, []);
+  }, [noAds]);
 
-  if (!Capacitor.isNativePlatform()) {
+  // 非ネイティブ（Web）と有料会員はバナーが無いので、ステータスバー分の余白だけ返す
+  if (!Capacitor.isNativePlatform() || noAds) {
     return `calc(var(--sat) + ${BANNER_GAP}px)`;
   }
   // ネイティブ実測（今回 or キャッシュ）が最優先。env非依存で機種差に強い。
