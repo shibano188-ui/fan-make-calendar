@@ -125,6 +125,29 @@ export function isNoiseLink(url: string): boolean {
   return NOISE_LINK_PATTERNS.some((re) => re.test(h));
 }
 
+// ECサイトの「検索結果・作品一覧」ページ。ドメインは正しい販路なのに商品が特定できないURL。
+// Xのまとめアカウントがアニメイトの検索リンクを貼ることがあり、AIが link として拾って保存されている
+// （2026-07-25 実測5件・いずれも価格も在庫も取れない）。商品ページではないので:
+//   - 代表販路(primaryOffer)に選ばない＝この価格・在庫でアイテムを代表させない
+//   - 毎日Cronの更新対象に数えない（何度検索しても商品が特定できず、予算を無駄に使う）
+//   - 表示では「（検索）」と明示して商品ページと区別する
+// 対象URLは searchProduct.ts の retailerSearchUrls（＝「各店で探す」で開く検索ページ）と同じ形。
+// api/refresh-offers.ts の isSearchPage と同期を保つこと。
+const SEARCH_PAGE_PATTERNS: RegExp[] = [
+  // 作品内検索 /sphone/animetitle/?kw= と検索結果 /products/list.php?smt=（sphone有無どちらも）
+  /animate-onlineshop\.jp\/(?:[^?]*\/)?(animetitle|products\/list)/i,
+  /(^|\/\/)search\.rakuten\.co\.jp\//i,
+  /shopping\.yahoo\.co\.jp\/search/i,
+  /amazon\.co\.jp\/s\?/i,
+  /amiami\.jp\/[^?]*\/search/i,
+  /suruga-ya\.jp\/search/i,
+];
+
+/** 商品ページではなく検索・一覧ページのURLか（販路としては不完全）。 */
+export function isSearchPageUrl(url: string): boolean {
+  return !!url && SEARCH_PAGE_PATTERNS.some((re) => re.test(url));
+}
+
 export interface AffiliateInfo {
   retailer: string;       // 販路名（不明ならホスト名）
   hasAffiliate: boolean;  // アフィ対応か（false=B2B送客 or 単なるリンク）
@@ -177,8 +200,11 @@ export function isOfficialOffer(o: Pick<Offer, 'official' | 'retailer' | 'shop'>
  * アフィ対応の判定は保存済み hasAffiliate ではなく変換後の実URLで行う。 */
 export function primaryOffer(offers: Offer[]): Offer | null {
   if (!offers.length) return null;
-  const aff = offers.filter((o) => isAffiliateUrl(offerUrl(o)));
-  const pool = aff.length ? aff : offers;
+  // 検索・一覧ページは商品が特定できない＝価格も在庫も名乗れないので、商品ページがある限り代表にしない
+  const products = offers.filter((o) => !isSearchPageUrl(o.url));
+  const base = products.length ? products : offers;
+  const aff = base.filter((o) => isAffiliateUrl(offerUrl(o)));
+  const pool = aff.length ? aff : base;
   return [...pool].sort((a, b) =>
     (Number(b.inStock !== false) - Number(a.inStock !== false)) ||
     (Number(!!a.isSet) - Number(!!b.isSet)) ||

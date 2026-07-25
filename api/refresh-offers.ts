@@ -20,6 +20,17 @@ function isAffiliateUrl(u: string): boolean {
   return false;
 }
 
+// ECの検索・一覧ページ（商品が特定できないURL）。src/lib/affiliate.ts の isSearchPageUrl と同期を保つこと。
+const SEARCH_PAGE_PATTERNS = [
+  /animate-onlineshop\.jp\/(?:[^?]*\/)?(animetitle|products\/list)/i,
+  /(^|\/\/)search\.rakuten\.co\.jp\//i,
+  /shopping\.yahoo\.co\.jp\/search/i,
+  /amazon\.co\.jp\/s\?/i,
+  /amiami\.jp\/[^?]*\/search/i,
+  /suruga-ya\.jp\/search/i,
+];
+const isSearchPage = (u: string) => !!u && SEARCH_PAGE_PATTERNS.some((re) => re.test(u));
+
 interface OfferRow { retailer?: string; shop?: string; url: string; affiliateUrl?: string; hasAffiliate?: boolean; price?: number; fetchedAt?: string; official?: boolean; isSet?: boolean; inStock?: boolean; stockLabel?: string; }
 const isAff = (o: OfferRow) => isAffiliateUrl(o.affiliateUrl || o.url) || isAffiliateUrl(o.url);
 // src/lib/affiliate.ts の isOfficialOffer と同じ（公式店/公式通販か）。代表選びを揃える。
@@ -43,6 +54,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .order('created_at', { ascending: true });
   if (error) return res.status(500).json({ error: error.message });
 
+  // 共同編集で取り消された購入リンク（src/lib/api.ts の applyEdits と同じ実効値の考え方）。
+  // events.offers は書き換えない設計なので、Cronもこれを読まないと取り消したリンクの価格を
+  // 更新し続け、代表価格(events.price)にも選んでしまう。
+  const removedByEvent = new Map<string, Set<string>>();
+  {
+    // 取り消しを含むパッチだけ引く（日付編集が増えても既定の行数上限に押し出されないように）
+    const { data: edits } = await db.from('event_edits').select('event_id, patch').not('patch->removedOfferUrls', 'is', null);
+    for (const e of edits ?? []) {
+      const urls = (e.patch as { removedOfferUrls?: string[] } | null)?.removedOfferUrls;
+      if (!urls?.length) continue;
+      const set = removedByEvent.get(e.event_id as string) ?? new Set<string>();
+      for (const u of urls) set.add(u);
+      removedByEvent.set(e.event_id as string, set);
+    }
+  }
+  const EMPTY: ReadonlySet<string> = new Set();
+
   const started = Date.now();
   const BUDGET_MS = 240_000; // 300s制限に対する安全余裕
   // アフィ販路が無いグッズ(=アニメイト限定/イベント/プライズ品で楽天・Yahoo!に無いことが多い)を
@@ -56,10 +84,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const title = ((row.title as string) || '').trim();
     if (!title) continue;
     const offers: OfferRow[] = Array.isArray(row.offers) ? [...(row.offers as OfferRow[])] : [];
-    const hasAff = offers.some(isAff);
+    // 取り消された販路は配列に残したまま（編集履歴から「戻す」ため）、更新・代表選び・アフィ有無の
+    // 判定からは外す。ここで除外しないと o.url が最新候補に張り替わり、URL基準の取り消しが外れる。
+    const removed = removedByEvent.get(row.id as string) ?? EMPTY;
+    const active = removed.size ? offers.filter((o) => !removed.has(o.url)) : offers;
+    const hasAff = active.some(isAff);
     // 価格を再取得できる販路（楽天/Yahoo!/アニメイト本店）を1つでも持つなら毎日更新する。
     // 1つも無い＝限定/イベント/プライズ品で検索に出ないので、再挑戦はバックフィル日だけ（無駄打ち回避）。
-    const refreshable = offers.some((o) => isAff(o) || /アニメイト|楽天|Yahoo/.test(o.retailer ?? ''));
+    // 検索・一覧ページしか無いグッズ（Xのまとめが貼ったアニメイト検索リンク等）も「毎日」からは外す。
+    // 商品が特定できないので毎日叩いても空振りする。バックフィル日には下の (1) で商品ページへの
+    // 張り替えを試すので、アニメイトに商品が載れば週1で自己修復する。
+    const refreshable = active.some((o) => !isSearchPage(o.url) && (isAff(o) || /アニメイト|楽天|Yahoo/.test(o.retailer ?? '')));
     if (!refreshable && !doBackfill) continue;
     scanned++;
     // works は多対一なので単一オブジェクト
@@ -76,7 +111,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // (1) 既存アフィ販路(楽天/Yahoo!)を最新化。同じ販路(できれば同じ店)で最もタイトル一致する候補に
     //     URL・店・価格・フラグを合わせる。候補は中古除外済みなので、過去に付いた中古URLの付け替え・
     //     失効URLの解消・価格とURLのズレ防止も兼ねる。
-    for (const o of offers) {
+    for (const o of active) {
       const rk = o.retailer || '';
       if (!rk) continue;
       // その販路の検索が生きているか（0件＝レート制限や一時エラーの可能性。後述の判定で使う）
@@ -115,6 +150,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // (2) アフィ販路が皆無なら高信頼候補をバックフィル（週1のバックフィル日のみ到達）
     if (!hasAff) {
+      // 取り消し済みのURLも existing に含める（取り消したリンクをバックフィルで復活させない）
       const existing = new Set(offers.map((o) => o.url));
       for (const c of highConfidence(title, cands)) {
         if (existing.has(c.url)) continue;
@@ -126,8 +162,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (changed) {
       // 代表価格 = 在庫あり→単品→公式店→最安（クライアントの primaryOffer と揃える）。
       // アフィ販路が無ければ全販路から選ぶ（アニメイト本店だけのグッズでも価格を出す）。
-      const affOffers = offers.filter(isAff);
-      const rep = [...(affOffers.length ? affOffers : offers)].sort((a, b) =>
+      // バックフィルで push した分も含めるため、取り消し分を除いた実効値をここで取り直す。
+      // 検索・一覧ページは商品が特定できないので代表にしない（クライアントの primaryOffer と揃える）。
+      const live = removed.size ? offers.filter((o) => !removed.has(o.url)) : offers;
+      const products = live.filter((o) => !isSearchPage(o.url));
+      const base = products.length ? products : live;
+      const affOffers = base.filter(isAff);
+      const rep = [...(affOffers.length ? affOffers : base)].sort((a, b) =>
         (Number(b.inStock !== false) - Number(a.inStock !== false)) ||
         (Number(!!a.isSet) - Number(!!b.isSet)) ||
         (Number(isOfficial(b)) - Number(isOfficial(a))) ||

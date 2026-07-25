@@ -8,7 +8,7 @@ import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId } from '../lib/constants';
 import { deriveStatus, deriveItemType, itemDateLines } from '../design/tokens';
-import { resolveBuy, getOffers, buildOffer, offerUrl, primaryOffer } from '../lib/affiliate';
+import { resolveBuy, getOffers, buildOffer, offerUrl, primaryOffer, isSearchPageUrl } from '../lib/affiliate';
 import { openBuyLink } from '../lib/dataLogs';
 import { REACTIONS } from '../lib/reactions';
 import { useAuth } from '../contexts/AuthContext';
@@ -55,6 +55,10 @@ export default function ItemDetail() {
   const [contribs, setContribs] = useState<OfferContrib[]>([]);
   const [addUrl, setAddUrl] = useState('');
   const [addingLink, setAddingLink] = useState(false);
+  // 差し替え中の販路URL（開いている入力欄はひとつだけ）と入力値
+  const [replacingUrl, setReplacingUrl] = useState<string | null>(null);
+  const [replaceUrl, setReplaceUrl] = useState('');
+  const [replacing, setReplacing] = useState(false);
   const [stockReports, setStockReports] = useState<StockReport[]>([]);
   const [stockInput, setStockInput] = useState('');
   const [addingStock, setAddingStock] = useState(false);
@@ -238,6 +242,21 @@ export default function ItemDetail() {
     if (ed) { setEdits((prev) => [...prev, ed]); toast('購入リンクを取り消しました'); }
     else toast('取り消せませんでした');
   };
+  // 購入リンクの差し替え（取り消し＋追加を1操作に）。リンクが誤っているときの
+  // 「取り消す→URLを貼り直す」2手を1手にする。先に新リンクを追加してから取り消すので、
+  // 途中で失敗しても購入リンクが1つも無い状態にはならない。
+  const onReplaceOffer = async (oldUrl: string) => {
+    const u = replaceUrl.trim();
+    if (!u || !user || replacing) return;
+    setReplacing(true);
+    const c = await addOfferContrib(event.id, buildOffer(u), user.id);
+    if (!c) { setReplacing(false); toast('差し替えられませんでした'); return; }
+    setContribs((prev) => [...prev, c]);
+    const ed = await addEventEdit(event.id, { removedOfferUrls: [oldUrl] }, user.id);
+    if (ed) setEdits((prev) => [...prev, ed]);
+    setReplacingUrl(null); setReplaceUrl(''); setReplacing(false); haptic.select();
+    toast(ed ? '購入リンクを差し替えました' : '新しいリンクを追加しました（元のリンクは取り消せませんでした）');
+  };
   const onAddStock = async () => {
     const n = stockInput.trim();
     if (!n || !user || addingStock) return;
@@ -313,12 +332,16 @@ export default function ItemDetail() {
             {/* 状態 */}
             <div className="mt-2"><StatusBadge status={status} type={type} size="md" /></div>
 
-            {/* 価格（セット品バッジ＋取得日「M/D時点」で価格の誤解を防ぐ） */}
-            {event.price != null && (() => {
-              const prim = primaryOffer(getOffers(event));
+            {/* 価格（セット品バッジ＋取得日「M/D時点」で価格の誤解を防ぐ）
+                代表は実効値(eff)から選ぶ。取り消されたリンクの価格・セット・取得日を出し続けると、
+                「リンクが違うから取り消した」のに誤った価格が残ってしまう。 */}
+            {(() => {
+              const prim = primaryOffer(getOffers(eff));
+              const price = prim?.price ?? event.price;
+              if (price == null) return null;
               return (
                 <div className="mt-2 flex items-baseline flex-wrap gap-2">
-                  <span className="text-[22px] font-bold" style={{ color: 'var(--accent-text)' }}>¥{event.price.toLocaleString()}</span>
+                  <span className="text-[22px] font-bold" style={{ color: 'var(--accent-text)' }}>¥{price.toLocaleString()}</span>
                   {prim?.isSet && <span className="text-[11px] font-bold text-label-secondary px-1.5 py-0.5 rounded" style={{ background: 'var(--fill-tertiary, rgba(120,120,128,0.12))' }}>セット</span>}
                   {prim?.fetchedAt && <span className="text-[11px] text-label-tertiary">{new Date(prim.fetchedAt).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}時点</span>}
                 </div>
@@ -420,11 +443,13 @@ export default function ItemDetail() {
               <div className="text-[12px] text-label-secondary mb-1.5">購入リンク（広告を含みます）</div>
               <div className="flex flex-col gap-1.5">
                 {getOffers(eff).map((o, i) => (
-                  <div key={`b${i}`} className="flex items-center gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+                  <div key={`b${i}`} className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
                     <a href={offerUrl(o)} target="_blank" rel="noopener nofollow" onClick={() => haptic.select()}
                       className="pressable flex-1 min-w-0 flex items-center justify-between gap-2">
+                      {/* 検索ページは商品ページと区別する（商品が特定できず価格も在庫も出ないため） */}
                       <span className="text-[13px] truncate" style={o.inStock === false ? { opacity: 0.55 } : undefined}>
-                        {o.retailer || 'リンク'}{o.shop ? `（${o.shop}）` : ''}
+                        {o.retailer || 'リンク'}{o.shop ? `（${o.shop}）` : ''}{isSearchPageUrl(o.url) ? '（検索）' : ''}
                       </span>
                       <span className="flex items-center gap-1.5 flex-shrink-0">
                         {/* 在庫は「あり/なし」の2値だけ出す（販路ごとに粒度が違うので生の表記は使わない）。
@@ -440,8 +465,24 @@ export default function ItemDetail() {
                       </span>
                     </a>
                     {user && (
-                      <button onClick={() => onRemoveOffer(o.url)} aria-label="取り消す" className="pressable tap-44 text-label-tertiary flex-shrink-0"><X size={15} /></button>
+                      <>
+                        {/* アイコンを2つ並べると tap-44 の44px判定が重なって手前のXに食われるので、
+                            差し替えはテキストボタンにして押せる面積を確保する */}
+                        <button onClick={() => { haptic.select(); setReplaceUrl(''); setReplacingUrl((prev) => (prev === o.url ? null : o.url)); }}
+                          aria-label="購入リンクを差し替える" className="pressable flex-shrink-0 text-[11px] px-2 py-1.5 text-label-tertiary">直す</button>
+                        <button onClick={() => onRemoveOffer(o.url)} aria-label="取り消す" className="pressable tap-44 text-label-tertiary flex-shrink-0"><X size={15} /></button>
+                      </>
                     )}
+                  </div>
+                  {replacingUrl === o.url && (
+                    <div className="flex gap-2 pl-3">
+                      <input value={replaceUrl} onChange={(e) => setReplaceUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onReplaceOffer(o.url)}
+                        placeholder="正しい購入リンク（URL）" inputMode="url" autoFocus
+                        className="flex-1 rounded-[10px] px-3 py-2 text-[13px] outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
+                      <button onClick={() => onReplaceOffer(o.url)} disabled={!replaceUrl.trim() || replacing}
+                        className="pressable px-3 rounded-[10px] text-[13px] font-semibold flex-shrink-0" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>差し替え</button>
+                    </div>
+                  )}
                   </div>
                 ))}
                 {contribs.map((c) => (
