@@ -20,7 +20,7 @@ function isAffiliateUrl(u: string): boolean {
   return false;
 }
 
-interface OfferRow { retailer?: string; shop?: string; url: string; affiliateUrl?: string; hasAffiliate?: boolean; price?: number; fetchedAt?: string; official?: boolean; isSet?: boolean; }
+interface OfferRow { retailer?: string; shop?: string; url: string; affiliateUrl?: string; hasAffiliate?: boolean; price?: number; fetchedAt?: string; official?: boolean; isSet?: boolean; inStock?: boolean; stockLabel?: string; }
 const isAff = (o: OfferRow) => isAffiliateUrl(o.affiliateUrl || o.url) || isAffiliateUrl(o.url);
 // src/lib/affiliate.ts の isOfficialOffer と同じ（公式店/公式通販か）。代表選びを揃える。
 const OFFICIAL_BRANDS = ['あみあみ', '駿河屋', 'アニメイト', '楽天ブックス'];
@@ -91,6 +91,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         o.price = match.price;
         o.official = match.official;
         o.isSet = isSetTitle(match.title);
+        o.inStock = match.inStock;
+        o.stockLabel = match.stockLabel;
         o.fetchedAt = now;
         changed = true;
       }
@@ -101,16 +103,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const existing = new Set(offers.map((o) => o.url));
       for (const c of highConfidence(title, cands)) {
         if (existing.has(c.url)) continue;
-        offers.push({ retailer: c.retailer || '楽天', shop: c.shop || undefined, url: c.url, affiliateUrl: c.url, hasAffiliate: c.hasAffiliate, price: c.price, fetchedAt: now, official: c.official, isSet: isSetTitle(c.title) });
+        offers.push({ retailer: c.retailer || '楽天', shop: c.shop || undefined, url: c.url, affiliateUrl: c.url, hasAffiliate: c.hasAffiliate, price: c.price, fetchedAt: now, official: c.official, isSet: isSetTitle(c.title), inStock: c.inStock, stockLabel: c.stockLabel });
         changed = true; backfilled++;
       }
     }
 
     if (changed) {
-      // 代表価格 = 単品→公式店→最安（クライアントの primaryOffer と揃える。セットを代表にしない）。
+      // 代表価格 = 在庫あり→単品→公式店→最安（クライアントの primaryOffer と揃える）。
       // アフィ販路が無ければ全販路から選ぶ（アニメイト本店だけのグッズでも価格を出す）。
       const affOffers = offers.filter(isAff);
       const rep = [...(affOffers.length ? affOffers : offers)].sort((a, b) =>
+        (Number(b.inStock !== false) - Number(a.inStock !== false)) ||
         (Number(!!a.isSet) - Number(!!b.isSet)) ||
         (Number(isOfficial(b)) - Number(isOfficial(a))) ||
         ((a.price ?? Infinity) - (b.price ?? Infinity)),

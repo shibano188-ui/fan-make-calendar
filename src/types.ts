@@ -55,4 +55,6 @@ export type Offer = {
   fetchedAt?: string;      // 価格を検索APIから取得した時刻(ISO)。鮮度表示「M/D時点」＋Cron更新に使う
   official?: boolean;      // 公式出店店舗（あみあみ/駿河屋/アニメイト等）か。代表販路選びで優先する
   isSet?: boolean;         // セット/BOX/コンプ品か。「セット」表示で価格の誤解を防ぐ
+  inStock?: boolean;       // false=売切れ。Cronで更新し、詳細ページで「在庫なし」と出す
+  stockLabel?: string;     // 販路の生の在庫表記（アニメイトの「予約受付中」等）
 };

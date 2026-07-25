@@ -171,7 +171,8 @@ export function isOfficialOffer(o: Pick<Offer, 'official' | 'retailer' | 'shop'>
   return OFFICIAL_BRANDS.some((b) => name.includes(b));
 }
 
-/** 代表の販路を選ぶ：アフィ対応を最優先 → 単品(非セット) → 公式店 → 価格が安い → 先頭。
+/** 代表の販路を選ぶ：アフィ対応を最優先 → 在庫あり → 単品(非セット) → 公式店 → 価格が安い → 先頭。
+ * 売切れを代表にしない（買えない販路の価格を代表価格として出さない）。
  * セットを代表にしない（単品より高く「高すぎ」と誤解されるのを防ぐ。セットはラベル付きで併記）。
  * アフィ対応の判定は保存済み hasAffiliate ではなく変換後の実URLで行う。 */
 export function primaryOffer(offers: Offer[]): Offer | null {
@@ -179,6 +180,7 @@ export function primaryOffer(offers: Offer[]): Offer | null {
   const aff = offers.filter((o) => isAffiliateUrl(offerUrl(o)));
   const pool = aff.length ? aff : offers;
   return [...pool].sort((a, b) =>
+    (Number(b.inStock !== false) - Number(a.inStock !== false)) ||
     (Number(!!a.isSet) - Number(!!b.isSet)) ||
     (Number(isOfficialOffer(b)) - Number(isOfficialOffer(a))) ||
     ((a.price ?? Infinity) - (b.price ?? Infinity)),

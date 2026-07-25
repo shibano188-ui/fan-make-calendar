@@ -8,7 +8,7 @@ import { affiliatize, buildOffer, primaryOffer, isAffiliateUrl, offerUrl, isNois
 import { parseEventsApi, fileToBase64, type ParsedEvent } from '../lib/parseEvents';
 import { logAiExtraction, logSearch } from '../lib/dataLogs';
 import { maybeAddWorkAlias } from '../lib/workAliases';
-import { searchProductCandidates, titleMatchScore, retailerSearchUrls, highConfidenceCandidates, isSetTitle, type ProductCandidate } from '../lib/searchProduct';
+import { searchProductCandidates, titleMatchScore, retailerSearchUrls, highConfidenceCandidates, offerFromCandidate, variantMismatch, type ProductCandidate } from '../lib/searchProduct';
 import type { Offer } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
@@ -151,7 +151,7 @@ export default function PostNew() {
   // 共有シートから来た内容（?url / ?text）を受けて自動でAI解析。
   // アプリを閉じずに再度Xから共有すると、同じ /post に search だけ変えて遷移するので
   // このコンポーネントは再マウントされない。共有内容が変わったらフォームを初期化してから解析する。
-  const shareKey = `${share.url} ${share.text}`;
+  const shareKey = `${share.url} | ${share.text}`;
   const handledShare = useRef<string | null>(null);
   useEffect(() => {
     if (!share.url || handledShare.current === shareKey) return;
@@ -246,10 +246,7 @@ export default function PostNew() {
       const picks = highConfidenceCandidates(t, items);
       if (picks.length) {
         const now = new Date().toISOString();
-        setOffers((prev) => picks.reduce((acc, c) => addOffer(acc, {
-          retailer: c.retailer || '楽天', shop: c.shop || undefined, url: c.url, affiliateUrl: c.url,
-          hasAffiliate: c.hasAffiliate, price: c.price, fetchedAt: now, official: c.official, isSet: isSetTitle(c.title),
-        }), prev));
+        setOffers((prev) => picks.reduce((acc, c) => addOffer(acc, offerFromCandidate(c, now)), prev));
         if (picks[0].price) setPrice((prev) => prev || String(picks[0].price));
         if (picks[0].image) setImageUrl((prev) => prev || picks[0].image);
         toast(`販売先を${picks.length}件見つけました`);
@@ -346,7 +343,7 @@ export default function PostNew() {
   };
   const pickCandidate = (c: ProductCandidate) => {
     haptic.select();
-    setOffers((prev) => addOffer(prev, { retailer: c.retailer || '楽天', shop: c.shop || undefined, url: c.url, affiliateUrl: c.url, hasAffiliate: c.hasAffiliate, price: c.price, fetchedAt: new Date().toISOString(), official: c.official, isSet: isSetTitle(c.title) }));
+    setOffers((prev) => addOffer(prev, offerFromCandidate(c)));
     // タイトルはユーザー/AIが決めたものを正とする（ショップの商品名で上書きしない）
     if (!price && c.price) setPrice(String(c.price));
     if (!imageUrl && c.image) setImageUrl(c.image);
@@ -382,7 +379,7 @@ export default function PostNew() {
         try {
           const picks = highConfidenceCandidates(title.trim(), await searchProductCandidates(kw));
           const now = new Date().toISOString();
-          for (const c of picks) autoOffers = addOffer(autoOffers, { retailer: c.retailer || '楽天', shop: c.shop || undefined, url: c.url, affiliateUrl: c.url, hasAffiliate: c.hasAffiliate, price: c.price, fetchedAt: now, official: c.official, isSet: isSetTitle(c.title) });
+          for (const c of picks) autoOffers = addOffer(autoOffers, offerFromCandidate(c, now));
           if (!imageUrl && picks[0]?.image) autoImage = picks[0].image;
         } catch { /* 検索失敗時はそのまま通常保存 */ }
       }
@@ -735,6 +732,9 @@ export default function PostNew() {
                 <p className="text-[11px] text-label-tertiary">タイトルに一致する候補だけ選べます</p>
                 {candidates.map((c, i) => {
                   const ok = titleMatchScore(`${workName || workQuery} ${title}`, c.title) >= 0.5;
+                  // 種類違い（vol/弾/①②）と売切れは、自動添付では弾いている。手動では選べるが理由を出す
+                  const variantNg = variantMismatch(title, c.title);
+                  const soldOut = c.inStock === false;
                   return (
                     <button key={i} disabled={!ok} onClick={() => pickCandidate(c)}
                       className={`flex items-center gap-2 text-left p-1 rounded-[8px] ${ok ? 'pressable' : 'opacity-40 cursor-not-allowed'}`}>
@@ -747,6 +747,9 @@ export default function PostNew() {
                           ¥{c.price?.toLocaleString()} <span className="font-normal text-label-tertiary">{c.retailer}{c.shop ? `（${c.shop}）` : ''}</span>
                           {c.official && <span className="font-normal" style={{ color: 'var(--color-success)' }}>・公式店</span>}
                           {!ok && <span className="font-normal text-label-tertiary">・タイトル不一致</span>}
+                          {variantNg && <span className="font-normal" style={{ color: 'var(--color-warning)' }}>・種類違い</span>}
+                          {soldOut && <span className="font-normal" style={{ color: 'var(--color-destructive)' }}>・売切れ</span>}
+                          {!soldOut && c.stockLabel && <span className="font-normal text-label-tertiary">・{c.stockLabel}</span>}
                         </div>
                       </div>
                     </button>

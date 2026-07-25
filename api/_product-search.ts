@@ -6,6 +6,8 @@
 export interface Candidate {
   title: string; price: number; url: string; image: string; shop: string; retailer: string; hasAffiliate: boolean;
   shopCode?: string; official?: boolean;
+  inStock?: boolean;    // 楽天 availability / Yahoo! inStock / アニメイト「販売状況」。false=売切れ
+  stockLabel?: string;  // アニメイトの生の表記（予約受付中・取り寄せ等）。表示用
 }
 
 // 楽天/Yahoo!に公式出店しているホビー系ショップ（優先表示・「公式店」表示の対象）。
@@ -51,6 +53,7 @@ async function rakutenRequest(keyword: string, hits: number, shopCode?: string):
     hasAffiliate: !!affiliateId,
     shopCode: it.shopCode as string | undefined,
     official: !!RAKUTEN_OFFICIAL_SHOPS[(it.shopCode as string) ?? ''],
+    inStock: it.availability !== 0, // 1=在庫あり / 0=在庫なし
   }));
 }
 
@@ -107,6 +110,9 @@ async function searchYahoo(keyword: string): Promise<Candidate[]> {
     hasAffiliate: !!vcAffiliateId,
     shopCode: it.seller?.sellerId as string | undefined,
     official: !!YAHOO_OFFICIAL_SELLERS[(it.seller?.sellerId as string) ?? ''],
+    inStock: it.inStock !== false,
+    // condition は 'new' | 'used'。タイトル正規表現より確実なので中古判定に使う
+    stockLabel: it.condition === 'used' ? '中古' : undefined,
   }));
 }
 
@@ -138,6 +144,8 @@ async function searchAnimate(keyword: string): Promise<Candidate[]> {
     const price = chunk.match(/<p class="price">(?:<font[^>]*>)?([\d,]+)<\/font>?円/)?.[1];
     if (!href || !title || !price) continue;
     const image = chunk.match(/<img src="([^"]+)"/)?.[1] ?? '';
+    // 販売状況: 在庫あり / 残りわずか / 予約受付中 / 取り寄せ / 通常N日以内に入荷 / 販売終了
+    const stock = chunk.match(/販売状況：<span[^>]*>([^<]+)<\/span>/)?.[1]?.trim();
     out.push({
       title: decodeEntities(title).trim(),
       price: Number(price.replace(/,/g, '')),
@@ -147,6 +155,8 @@ async function searchAnimate(keyword: string): Promise<Candidate[]> {
       retailer: 'アニメイト',
       hasAffiliate: false,
       official: true,
+      inStock: !stock || !/販売終了|品切|売切|在庫なし/.test(stock),
+      stockLabel: stock,
     });
     if (out.length >= 3) break;
   }
@@ -165,11 +175,14 @@ export async function searchCandidates(keyword: string): Promise<Candidate[]> {
     searchAnimate(keyword).catch(() => [] as Candidate[]),
   ]);
   // 中古品は除外（駿河屋等は中古が混じる。本人方針で自動添付対象外）。
-  // 公式店を先頭に（sortは安定なので同グループ内の順序は維持）。
+  // タイトル正規表現に加え、Yahoo!の condition='used' も見る（stockLabel='中古'）。
+  // 在庫ありを先に、次に公式店（sortは安定なので同グループ内の順序は維持）。
   // 1店舗あたり最大3件に制限（楽天ブックス等が枠を占拠して他販路が圧迫されるのを防ぐ）
   const sorted = [...rakuten, ...yahoo, ...animate]
-    .filter((c) => !isUsedTitle(c.title))
-    .sort((a, b) => Number(b.official ?? false) - Number(a.official ?? false));
+    .filter((c) => !isUsedTitle(c.title) && c.stockLabel !== '中古')
+    .sort((a, b) =>
+      Number(b.inStock !== false) - Number(a.inStock !== false) ||
+      Number(b.official ?? false) - Number(a.official ?? false));
   const perShop: Record<string, number> = {};
   const items: Candidate[] = [];
   for (const c of sorted) {
@@ -198,19 +211,56 @@ export function scoreTitle(entered: string, candidate: string): number {
   return inter / A.size;
 }
 
+/** タイトルから「種類マーカー」を取り出す（src/lib/searchProduct.ts と同期を保つこと）。
+ * 一致度スコアは2文字組の一致率なので vol.2 と vol.3 で0.9超になり見分けられない。
+ * 巻数・弾数・丸数字だけを別枠で取り出して照合する。
+ * 楽天は「(1)クリア」、アニメイトは「①クリア」と表記が割れるので同じ `no:N` に正規化する。 */
+export function variantKey(title: string): string[] {
+  const out = new Set<string>();
+  const push = (k: string, n: string) => out.add(`${k}:${Number(n)}`);
+  for (const m of title.matchAll(/vol\.?\s*(\d+)/gi)) push('vol', m[1]);
+  for (const m of title.matchAll(/ver\.?\s*(\d+)/gi)) push('ver', m[1]);
+  for (const m of title.matchAll(/part\.?\s*(\d+)/gi)) push('part', m[1]);
+  for (const m of title.matchAll(/第\s*(\d+)\s*([弾期巻話章])/g)) push(m[2], m[1]);
+  for (const m of title.matchAll(/[(（]\s*(\d+)\s*[)）]/g)) push('no', m[1]);
+  for (const ch of title) {
+    const c = ch.codePointAt(0) ?? 0;
+    if (c >= 0x2460 && c <= 0x2473) push('no', String(c - 0x2460 + 1)); // ①〜⑳
+  }
+  return [...out];
+}
+
+/** 入力と候補の種類マーカーが食い違うか。入力に指定が無いときは判定しない（別ルールで扱う）。 */
+export function variantMismatch(entered: string, candidate: string): boolean {
+  const a = variantKey(entered);
+  if (!a.length) return false;
+  const b = new Set(variantKey(candidate));
+  return !a.every((k) => b.has(k));
+}
+
 /** 自動添付してよい高信頼候補だけを返す（公式店0.55以上/非公式0.8以上・販路ごと1件・最大4件）。
- * アフィ対応の販路を先に確保してから、アニメイト本店など非対応の公式店を足す。 */
+ * アフィ対応の販路を先に確保してから、アニメイト本店など非対応の公式店を足す。
+ * 売切れ・種類違いは自動添付しない（候補としては残るので手動では選べる）。 */
 export function highConfidence(enteredTitle: string, items: Candidate[]): Candidate[] {
   const scored = items
     .map((c) => ({ c, score: scoreTitle(enteredTitle, c.title) }))
     .filter(({ c, score }) => (c.official ? score >= 0.55 : score >= 0.8))
+    .filter(({ c }) => c.inStock !== false)
+    .filter(({ c }) => !variantMismatch(enteredTitle, c.title));
+  // 入力に種類指定が無いのに候補が複数の種類に分かれている（①と②、vol.1とvol.2）場合、
+  // どれか1つを自動で貼ると「バリエーションがあるのに1種類だけリンクされる」ので添付しない。
+  if (!variantKey(enteredTitle).length) {
+    const kinds = new Set(scored.flatMap(({ c }) => variantKey(c.title)));
+    if (kinds.size >= 2) return [];
+  }
+  const ranked = [...scored]
     .sort((a, b) =>
       Number(b.c.hasAffiliate) - Number(a.c.hasAffiliate) ||
       Number(b.c.official ?? false) - Number(a.c.official ?? false) ||
       b.score - a.score);
   const seen = new Set<string>();
   const out: Candidate[] = [];
-  for (const { c } of scored) {
+  for (const { c } of ranked) {
     const k = `${c.retailer}:${c.shop || ''}`;
     if (seen.has(k)) continue;
     seen.add(k);

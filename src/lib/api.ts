@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import type { CalendarEvent, EventVisit, Offer } from '../types';
 import { parseCategories } from './constants';
 import { searchWorksByAlias, findWorkByExactAlias } from './workAliases';
+import { primaryOffer } from './affiliate';
 
 /** 2つのカテゴリ値（単一文字列 or JSON配列文字列）が完全に重ならない場合 true。
  *  どちらかが空なら false（＝別イベントとは判定しない）。複数カテゴリの重複検知に使う。 */
@@ -902,6 +903,27 @@ export async function addOfferContrib(eventId: string, offer: Offer, userId: str
 
 export async function removeOfferContrib(id: string): Promise<void> {
   await supabase.from('event_offer_contribs').delete().eq('id', id);
+}
+
+/** 投稿本体の販路リストを差し替える（投稿者のみ。RLS events_update_self で他人は0件更新になる）。
+ * 代表販路の要約フィールド（link_url/affiliate_url/retailer）も張り替える。空にしたときは
+ * getOffers の旧 link フォールバックで消したリンクが復活しないよう link 系も null にする。
+ * price は「商品の値段」であってリンクの属性ではないので触らない（手入力値を壊さない）。 */
+export async function updateEventOffers(eventId: string, offers: Offer[]): Promise<void> {
+  const prim = primaryOffer(offers);
+  const { data, error } = await supabase
+    .from('events')
+    .update({
+      offers,
+      link_url: prim?.url ?? null,
+      affiliate_url: prim?.affiliateUrl ?? null,
+      has_affiliate: prim?.hasAffiliate ?? false,
+      retailer: prim?.retailer ?? null,
+    })
+    .eq('id', eventId)
+    .select('id');
+  if (error) throw error;
+  if (!data || data.length === 0) throw new Error('not_permitted');
 }
 
 // ── 共同編集: 日時/状態の編集パッチ ──
