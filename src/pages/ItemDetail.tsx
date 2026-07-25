@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Pin, Smile, Share2, X } from 'lucide-react';
 import type { CalendarEvent, EventVisit } from '../types';
-import { getEventById, getWorkById, getDisplayName, toggleLike, setReaction, getReactionData, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, addEventVisit, removeEventVisit, updateEventOffers, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
+import { getEventById, getWorkById, getDisplayName, toggleLike, setReaction, getReactionData, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, addEventVisit, removeEventVisit, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
 import EventEditForm from '../components/item/EventEditForm';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
@@ -27,6 +27,7 @@ const EXTERNAL_CALENDAR_ENABLED = false;
 
 function summarizePatch(p: EventPatch): string {
   const parts: string[] = [];
+  if (p.removedOfferUrls?.length) parts.push(`購入リンクを取り消し（${p.removedOfferUrls.length}件）`);
   if ('date' in p) parts.push(`日付 ${p.date ? p.date.slice(5).replace('-', '/') : '未定'}`);
   if (p.endDate) parts.push(`〜${p.endDate.slice(5).replace('-', '/')}`);
   if (p.time) parts.push(p.time);
@@ -227,21 +228,15 @@ export default function ItemDetail() {
     setContribs((prev) => prev.filter((c) => c.id !== cid));
     await removeOfferContrib(cid);
   };
-  // 投稿本体の販路を削除（投稿者のみ）。AI・自動検索が付けた誤リンクを後から直せるようにする。
+  // 購入リンクの取り消し（誰でも可・共同編集）。events.offers は書き換えず日付編集と同じ
+  // パッチとして記録するので、編集履歴に残り「戻す」で復活できる。
   const onRemoveOffer = async (url: string) => {
-    if (!event || event.authorId !== user?.id) return;
-    if (!(await confirm({ title: 'この購入リンクを削除しますか？', confirmLabel: '削除', destructive: true }))) return;
+    if (!event || !user) return;
+    if (!(await confirm({ title: 'この購入リンクを取り消しますか？', message: '編集履歴から元に戻せます', confirmLabel: '取り消す', destructive: true }))) return;
     haptic.select();
-    const next = getOffers(event).filter((o) => o.url !== url);
-    const before = ev;
-    setEv((prev) => (prev ? { ...prev, offers: next, link: undefined, affiliateUrl: undefined } : prev));
-    try {
-      await updateEventOffers(event.id, next);
-      toast('購入リンクを削除しました');
-    } catch {
-      setEv(before);
-      toast('削除できませんでした');
-    }
+    const ed = await addEventEdit(event.id, { removedOfferUrls: [url] }, user.id);
+    if (ed) { setEdits((prev) => [...prev, ed]); toast('購入リンクを取り消しました'); }
+    else toast('取り消せませんでした');
   };
   const onAddStock = async () => {
     const n = stockInput.trim();
@@ -424,7 +419,7 @@ export default function ItemDetail() {
             <div className="mt-4">
               <div className="text-[12px] text-label-secondary mb-1.5">購入リンク（広告を含みます）</div>
               <div className="flex flex-col gap-1.5">
-                {getOffers(event).map((o, i) => (
+                {getOffers(eff).map((o, i) => (
                   <div key={`b${i}`} className="flex items-center gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
                     <a href={offerUrl(o)} target="_blank" rel="noopener nofollow" onClick={() => haptic.select()}
                       className="pressable flex-1 min-w-0 flex items-center justify-between gap-2">
@@ -444,8 +439,8 @@ export default function ItemDetail() {
                         <span className="text-[13px] font-bold" style={{ color: 'var(--accent-text)' }}>{o.price ? `¥${o.price.toLocaleString()}` : '開く ↗'}</span>
                       </span>
                     </a>
-                    {user && event.authorId === user.id && (
-                      <button onClick={() => onRemoveOffer(o.url)} aria-label="削除" className="pressable tap-44 text-label-tertiary flex-shrink-0"><X size={15} /></button>
+                    {user && (
+                      <button onClick={() => onRemoveOffer(o.url)} aria-label="取り消す" className="pressable tap-44 text-label-tertiary flex-shrink-0"><X size={15} /></button>
                     )}
                   </div>
                 ))}

@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import type { CalendarEvent, EventVisit, Offer } from '../types';
 import { parseCategories } from './constants';
 import { searchWorksByAlias, findWorkByExactAlias } from './workAliases';
-import { primaryOffer } from './affiliate';
+import { primaryOffer, getOffers } from './affiliate';
 
 /** 2つのカテゴリ値（単一文字列 or JSON配列文字列）が完全に重ならない場合 true。
  *  どちらかが空なら false（＝別イベントとは判定しない）。複数カテゴリの重複検知に使う。 */
@@ -927,7 +927,11 @@ export async function updateEventOffers(eventId: string, offers: Offer[]): Promi
 }
 
 // ── 共同編集: 日時/状態の編集パッチ ──
-export type EventPatch = Partial<Pick<CalendarEvent, 'date' | 'dateLabel' | 'endDate' | 'time' | 'isOrderMade' | 'preorderStart' | 'preorderEnd'>>;
+export type EventPatch = Partial<Pick<CalendarEvent, 'date' | 'dateLabel' | 'endDate' | 'time' | 'isOrderMade' | 'preorderStart' | 'preorderEnd'>> & {
+  /** 取り消された購入リンクのURL。events.offers は書き換えず、実効値の計算時に除外する。
+   * 日付編集と同じく履歴に残り「戻す」で復活できる（誰でも取り消せる＝共同編集）。 */
+  removedOfferUrls?: string[];
+};
 export type EventEdit = { id: string; patch: EventPatch; createdBy: string | null; createdAt: string };
 
 export async function listEventEdits(eventId: string): Promise<EventEdit[]> {
@@ -951,7 +955,18 @@ export async function removeEventEdit(id: string): Promise<void> {
 /** base イベントに編集パッチを古い順に重ねた「実効値」を返す。 */
 export function applyEdits<T extends CalendarEvent>(event: T, edits: EventEdit[]): T {
   let e = { ...event };
-  for (const ed of edits) e = { ...e, ...ed.patch };
+  const removed = new Set<string>();
+  for (const ed of edits) {
+    const { removedOfferUrls, ...rest } = ed.patch;
+    for (const u of removedOfferUrls ?? []) removed.add(u);
+    e = { ...e, ...rest };
+  }
+  if (removed.size) {
+    // getOffers は offers が空だと旧 link から1件合成するので、それも含めて除外する
+    const kept = getOffers(e).filter((o) => !removed.has(o.url));
+    const linkGone = !!e.link && (removed.has(e.link) || kept.length === 0);
+    e = { ...e, offers: kept, ...(linkGone ? { link: undefined, affiliateUrl: undefined } : {}) };
+  }
   return e;
 }
 
