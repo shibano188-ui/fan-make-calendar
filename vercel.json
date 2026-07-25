@@ -1,4 +1,6 @@
 {
+  "crons": [{ "path": "/api/refresh-offers", "schedule": "0 18 * * *" }],
+  "functions": { "api/refresh-offers.ts": { "maxDuration": 300 } },
   "images": {
     "sizes": [192, 384, 640, 828],
     "remotePatterns": [{ "protocol": "https", "hostname": "^.*$" }],

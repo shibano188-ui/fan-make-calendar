@@ -8,7 +8,7 @@ import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId } from '../lib/constants';
 import { deriveStatus, deriveItemType, itemDateLines } from '../design/tokens';
-import { resolveBuy, getOffers, buildOffer, offerUrl } from '../lib/affiliate';
+import { resolveBuy, getOffers, buildOffer, offerUrl, primaryOffer } from '../lib/affiliate';
 import { openBuyLink } from '../lib/dataLogs';
 import { REACTIONS } from '../lib/reactions';
 import { useAuth } from '../contexts/AuthContext';
@@ -302,10 +302,17 @@ export default function ItemDetail() {
             {/* 状態 */}
             <div className="mt-2"><StatusBadge status={status} type={type} size="md" /></div>
 
-            {/* 価格 */}
-            {event.price != null && (
-              <div className="text-[22px] font-bold mt-2" style={{ color: 'var(--accent-text)' }}>¥{event.price.toLocaleString()}</div>
-            )}
+            {/* 価格（セット品バッジ＋取得日「M/D時点」で価格の誤解を防ぐ） */}
+            {event.price != null && (() => {
+              const prim = primaryOffer(getOffers(event));
+              return (
+                <div className="mt-2 flex items-baseline flex-wrap gap-2">
+                  <span className="text-[22px] font-bold" style={{ color: 'var(--accent-text)' }}>¥{event.price.toLocaleString()}</span>
+                  {prim?.isSet && <span className="text-[11px] font-bold text-label-secondary px-1.5 py-0.5 rounded" style={{ background: 'var(--fill-tertiary, rgba(120,120,128,0.12))' }}>セット</span>}
+                  {prim?.fetchedAt && <span className="text-[11px] text-label-tertiary">{new Date(prim.fetchedAt).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}時点</span>}
+                </div>
+              );
+            })()}
 
             {/* 日程 */}
             <div className="mt-3 flex items-start gap-2">
@@ -405,7 +412,10 @@ export default function ItemDetail() {
                   <a key={`b${i}`} href={offerUrl(o)} target="_blank" rel="noopener nofollow" onClick={() => haptic.select()}
                     className="pressable flex items-center justify-between gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
                     <span className="text-[13px] truncate">{o.retailer || 'リンク'}{o.shop ? `（${o.shop}）` : ''}</span>
-                    <span className="text-[13px] font-bold flex-shrink-0" style={{ color: 'var(--accent-text)' }}>{o.price ? `¥${o.price.toLocaleString()}` : '開く ↗'}</span>
+                    <span className="flex items-center gap-1.5 flex-shrink-0">
+                      {o.isSet && <span className="text-[10px] font-bold text-label-secondary px-1.5 py-0.5 rounded" style={{ background: 'var(--fill-secondary, rgba(120,120,128,0.16))' }}>セット</span>}
+                      <span className="text-[13px] font-bold" style={{ color: 'var(--accent-text)' }}>{o.price ? `¥${o.price.toLocaleString()}` : '開く ↗'}</span>
+                    </span>
                   </a>
                 ))}
                 {contribs.map((c) => (

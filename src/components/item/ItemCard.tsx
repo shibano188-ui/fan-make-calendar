@@ -5,6 +5,7 @@ import { useLike, setLike } from '../../lib/likeStore';
 import { deriveStatus, deriveItemType, itemDateLines } from '../../design/tokens';
 import { parseCategories, getPrimaryCategoryColor, parseImageUrls } from '../../lib/constants';
 import { likeEffect } from '../../lib/likeEffect';
+import { primaryOffer, getOffers } from '../../lib/affiliate';
 import StatusBadge from '../ui/StatusBadge';
 import OptImg from '../ui/OptImg';
 import ReactionButton from './ReactionButton';
@@ -90,6 +91,8 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
   const type = deriveItemType(event);
   const status = deriveStatus(event);
   const price = yen(event.price);
+  const isSet = !!primaryOffer(getOffers(event))?.isSet;
+  const setTag = <span className="text-[9px] font-bold text-label-secondary px-1 py-px rounded flex-shrink-0" style={{ background: 'var(--fill-secondary, rgba(120,120,128,0.16))' }}>セット</span>;
   // 購入導線はカードに出さず詳細ページに一本化（PR表記＝「広告を含みます」を購入リンク直近に置くため）。
   const [imgError, setImgError] = useState(false);
   // 共有ストアで状態を持ち、詳細ページや他タイルと同期する
@@ -144,7 +147,7 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
             <div className="text-[14px] font-semibold leading-snug line-clamp-2">{event.title}</div>
             <CategoryLine event={event} />
             <div className="text-[12px] text-label-secondary mt-0.5">{itemDateLines(event).join(' / ')}</div>
-            {price && <div className="text-[15px] font-bold mt-1" style={{ color: 'var(--accent-text)' }}>{price}</div>}
+            {price && <div className="text-[15px] font-bold mt-1 flex items-center gap-1" style={{ color: 'var(--accent-text)' }}>{price}{isSet && setTag}</div>}
           </button>
           <div className="mt-auto pt-1.5"><CardActions liked={liked} likeCount={likeCount} onLike={handleLike} event={event} /></div>
         </div>
@@ -162,7 +165,7 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
           <div className="text-[11px] text-label-secondary truncate min-h-[1.25em]">{event.workName ?? ''}</div>
           <div className="text-[13px] font-medium leading-snug line-clamp-2 min-h-[2.75em]">{event.title}</div>
           <CategoryLine event={event} />
-          <div className="text-[15px] font-bold mt-0.5 min-h-[1.4em]" style={{ color: 'var(--accent-text)' }}>{price}</div>
+          <div className="text-[15px] font-bold mt-0.5 min-h-[1.4em] flex items-center gap-1" style={{ color: 'var(--accent-text)' }}>{price}{price && isSet && setTag}</div>
         </div>
       </button>
       <div className="px-2 pb-2 pt-1 mt-auto">

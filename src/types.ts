@@ -52,4 +52,7 @@ export type Offer = {
   affiliateUrl?: string;   // アフィリンク化後（無ければ url を使う）
   hasAffiliate?: boolean;  // アフィ対応か
   price?: number;          // 価格（円）
+  fetchedAt?: string;      // 価格を検索APIから取得した時刻(ISO)。鮮度表示「M/D時点」＋Cron更新に使う
+  official?: boolean;      // 公式出店店舗（あみあみ/駿河屋/アニメイト等）か。代表販路選びで優先する
+  isSet?: boolean;         // セット/BOX/コンプ品か。「セット」表示で価格の誤解を防ぐ
 };

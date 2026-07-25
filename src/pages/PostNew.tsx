@@ -4,11 +4,11 @@ import { X, Plus, Check, Sparkles, Camera, Link2, Loader2, Search } from 'lucide
 import Chip from '../components/ui/Chip';
 import { searchWorks, getOrCreateWork, createEvents, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, type Work } from '../lib/api';
 import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES, GOODS_TAG } from '../lib/constants';
-import { affiliatize, buildOffer, primaryOffer } from '../lib/affiliate';
+import { affiliatize, buildOffer, primaryOffer, isAffiliateUrl, offerUrl } from '../lib/affiliate';
 import { parseEventsApi, fileToBase64, type ParsedEvent } from '../lib/parseEvents';
 import { logAiExtraction, logSearch } from '../lib/dataLogs';
 import { maybeAddWorkAlias } from '../lib/workAliases';
-import { searchProductCandidates, titleMatchScore, cleanShopTitle, retailerSearchUrls, type ProductCandidate } from '../lib/searchProduct';
+import { searchProductCandidates, titleMatchScore, cleanShopTitle, retailerSearchUrls, highConfidenceCandidates, isSetTitle, type ProductCandidate } from '../lib/searchProduct';
 import type { Offer } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
@@ -283,7 +283,7 @@ export default function PostNew() {
   };
   const pickCandidate = (c: ProductCandidate) => {
     haptic.select();
-    setOffers((prev) => addOffer(prev, { retailer: c.retailer || '楽天', shop: c.shop || undefined, url: c.url, affiliateUrl: c.url, hasAffiliate: c.hasAffiliate, price: c.price }));
+    setOffers((prev) => addOffer(prev, { retailer: c.retailer || '楽天', shop: c.shop || undefined, url: c.url, affiliateUrl: c.url, hasAffiliate: c.hasAffiliate, price: c.price, fetchedAt: new Date().toISOString(), official: c.official, isSet: isSetTitle(c.title) }));
     setTitle(cleanShopTitle(c.title));
     if (!price && c.price) setPrice(String(c.price));
     if (!imageUrl && c.image) setImageUrl(c.image);
@@ -309,8 +309,23 @@ export default function PostNew() {
     try {
       let wid = workId;
       if (!wid) { const w = await getOrCreateWork(workQuery.trim()); wid = w.id; }
+
+      // グッズは投稿時に自動で販路を検索・添付（「販売先を探す」を押さなくても収益リンクが付く）。
+      // 既にアフィ販路がある（手動で探した/AIが拾った）なら二重検索しない。高信頼(公式店/高一致度)のみ自動添付。
+      let autoOffers = offers;
+      let autoImage: string | undefined;
+      if (type === 'goods' && title.trim() && !autoOffers.some((o) => isAffiliateUrl(offerUrl(o)))) {
+        const kw = `${workName || workQuery} ${title}`.trim();
+        try {
+          const picks = highConfidenceCandidates(title.trim(), await searchProductCandidates(kw));
+          const now = new Date().toISOString();
+          for (const c of picks) autoOffers = addOffer(autoOffers, { retailer: c.retailer || '楽天', shop: c.shop || undefined, url: c.url, affiliateUrl: c.url, hasAffiliate: c.hasAffiliate, price: c.price, fetchedAt: now, official: c.official, isSet: isSetTitle(c.title) });
+          if (!imageUrl && picks[0]?.image) autoImage = picks[0].image;
+        } catch { /* 検索失敗時はそのまま通常保存 */ }
+      }
+
       // 販路: 追加済み offers ＋ 入力欄に残ったURL。代表販路を旧フィールドにも要約保存（後方互換）
-      const allOffers = link.trim() ? addOffer(offers, buildOffer(link.trim(), price ? Number(price) : undefined)) : offers;
+      const allOffers = link.trim() ? addOffer(autoOffers, buildOffer(link.trim(), price ? Number(price) : undefined)) : autoOffers;
       const prim = primaryOffer(allOffers);
       const eventPayload = {
         title: title.trim(),
@@ -322,7 +337,7 @@ export default function PostNew() {
         time: allDay || dateTBD ? undefined : (time || undefined),
         endTime: allDay || dateTBD ? undefined : (endTime || undefined),
         category: cats.size ? serializeCategories([...cats]) : undefined,
-        price: type === 'goods' && price ? Number(price) : undefined,
+        price: type === 'goods' ? (price ? Number(price) : (prim?.price ?? undefined)) : undefined,
         offers: allOffers,
         link: prim?.url,
         affiliateUrl: prim?.affiliateUrl,
@@ -335,7 +350,7 @@ export default function PostNew() {
         preorderEndTime: isOrder && !preAllDay ? (preEndTime || undefined) : undefined,
         stockNote: stockNote.trim() || undefined,
         memo: memo.trim() || undefined,
-        imageUrl: imageUrl || undefined,
+        imageUrl: imageUrl || autoImage || undefined,
         prefecture: type === 'event' ? (prefecture.trim() || undefined) : undefined,
         locationDetail: type === 'event' ? (locationDetail.trim() || undefined) : undefined,
       };

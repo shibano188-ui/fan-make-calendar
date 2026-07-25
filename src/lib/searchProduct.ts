@@ -35,6 +35,31 @@ export function titleMatchScore(entered: string, candidate: string): number {
   return inter / A.size; // 入力(A)が候補(B)にどれだけ含まれるか
 }
 
+// セット/BOX/コンプ品か（api/_product-search.ts と同期を保つこと）。「セット」表示で価格の誤解を防ぐ。
+// 「ボックス」「まとめ」単体は誤検出(箱型グッズ等)が多いので、セットを示す強い語だけに絞る。
+export function isSetTitle(t: string): boolean { return /セット|まとめ(買|売)|コンプ|全\d+種|\d+個(入|セット)|\bBOX\b|1BOX/i.test(t); }
+
+// 投稿時に「自動添付してよい高信頼候補」だけを絞る。
+// 公式店(あみあみ/駿河屋/アニメイト/楽天ブックス)はタイトル一致度0.55以上、
+// 非公式店(転売混在の恐れ)はより厳しく0.8以上。誤マッチを避けつつ手間ゼロで収益リンクを付ける。
+// 販路(retailer+shop)ごとに1件・最大3件。曖昧なものは自動添付せず候補提示に回す。
+export function highConfidenceCandidates(enteredTitle: string, items: ProductCandidate[]): ProductCandidate[] {
+  const scored = items
+    .map((c) => ({ c, score: titleMatchScore(enteredTitle, c.title) }))
+    .filter(({ c, score }) => (c.official ? score >= 0.55 : score >= 0.8))
+    .sort((a, b) => Number(b.c.official ?? false) - Number(a.c.official ?? false) || b.score - a.score);
+  const seen = new Set<string>();
+  const out: ProductCandidate[] = [];
+  for (const { c } of scored) {
+    const k = `${c.retailer}:${c.shop || ''}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(c);
+    if (out.length >= 3) break;
+  }
+  return out;
+}
+
 // 各店の検索結果ページを開くURL（サーバー自動取得できない店は手動でここから探す）。
 export function retailerSearchUrls(keyword: string): { retailer: string; url: string }[] {
   const k = encodeURIComponent(keyword);
