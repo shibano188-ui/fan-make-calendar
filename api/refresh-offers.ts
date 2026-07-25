@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { searchCandidates, highConfidence, scoreTitle, isSetTitle, type Candidate } from './_product-search.js';
+import { searchCandidates, highConfidence, scoreTitle, isSetTitle, searchKeyword, variantMismatch, type Candidate } from './_product-search.js';
 
 // 毎日Cron: グッズの販路を最新化する。
 // (1) 既存のアフィ販路の価格を再取得して更新（鮮度維持）
@@ -64,7 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     scanned++;
     // works は多対一なので単一オブジェクト
     const workName = ((row.works as { name?: string } | null)?.name) || '';
-    const kw = `${workName} ${title}`.trim();
+    const kw = searchKeyword(workName, title);
 
     let cands: Candidate[];
     try { cands = await searchCandidates(kw); } catch { await delay(300); continue; }
@@ -79,11 +79,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     for (const o of offers) {
       const rk = o.retailer || '';
       if (!rk) continue;
-      const match = cands
-        .filter((c) => rk.includes(c.retailer) || c.retailer.includes(rk))
+      // その販路の検索が生きているか（0件＝レート制限や一時エラーの可能性。後述の判定で使う）
+      const sameRetailer = cands.filter((c) => rk.includes(c.retailer) || c.retailer.includes(rk));
+      // 同じ販路でタイトルが近い候補（種類マーカーは見ない）。「その店にまだ在るか」の判定に使う。
+      const loose = sameRetailer
         .map((c) => ({ c, s: scoreTitle(title, c.title) + (o.shop && c.shop === o.shop ? 0.5 : 0) }))
         .filter((x) => x.s >= 0.5)
-        .sort((a, b) => b.s - a.s)[0]?.c;
+        .sort((a, b) => b.s - a.s);
+      // 種類違い(vol.2↔vol.3・①↔②)へURLを張り替えてしまわないよう投稿時と同じ照合をかける
+      const match = loose.find((x) => !variantMismatch(title, x.c.title))?.c;
       if (match) {
         o.url = match.url;
         o.affiliateUrl = match.url;
@@ -95,9 +99,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         o.stockLabel = match.stockLabel;
         o.fetchedAt = now;
         changed = true;
-      } else if (/アニメイト|楽天|Yahoo/.test(rk) && o.inStock !== undefined) {
-        // 検索結果から消えた＝売切れ・掲載終了の可能性。古い「在庫あり」を出し続けると嘘になるので
-        // 不明(undefined)に戻してバッジを消す。翌日また見つかれば復活する。
+      } else if (sameRetailer.length > 0 && loose.length === 0 && o.inStock !== undefined) {
+        // その販路の検索結果から消えた＝売切れ・掲載終了の可能性。古い「在庫あり」を
+        // 出し続けると嘘になるので不明(undefined)に戻す。翌日また見つかれば復活する。
+        // 消してよい条件を厳しく2つ課している:
+        //  ① sameRetailer > 0 … その販路の検索自体は生きている。0件だと楽天のレート制限(429→[])と
+        //     区別が付かず、APIが詰まっただけで在庫表示が毎回削れていく（実際に45→38まで減った）
+        //  ② loose = 0 … 商品自体が見当たらない。loose があるのに match が無い場合は
+        //     種類マーカーの表記揺れ（②と2）で確定できないだけなので触らない
         delete o.inStock;
         delete o.stockLabel;
         changed = true;
@@ -128,7 +137,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { error: upErr } = await db.from('events').update({ offers, price: newPrice }).eq('id', row.id);
       if (!upErr) updated++;
     }
-    await delay(300); // 楽天/Yahoo! APIのレート制限に配慮
+    // 楽天は1件あたり5リクエスト（全体＋公式店4）投げるので、間隔を詰めると429で0件が返る。
+    // 0件は「掲載終了」と見分けが付かないため、レート制限は精度に直結する。
+    await delay(900);
   }
 
   return res.status(200).json({ doBackfill, scanned, backfilled, updated, total: (rows ?? []).length, tookMs: Date.now() - started });

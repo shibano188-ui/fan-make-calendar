@@ -62,7 +62,8 @@ async function searchRakuten(keyword: string): Promise<Candidate[]> {
   const shopCodes = Object.keys(RAKUTEN_OFFICIAL_SHOPS);
   const jobs = [
     rakutenRequest(keyword, 8),
-    ...shopCodes.map((sc, i) => delay(250 * (i + 1)).then(() => rakutenRequest(keyword, 3, sc))),
+    // 楽天APIは概ね1req/秒。詰めると429が返り items が空になる＝「掲載終了」と誤認されるので広めに割る
+    ...shopCodes.map((sc, i) => delay(450 * (i + 1)).then(() => rakutenRequest(keyword, 3, sc))),
   ];
   const results = await Promise.all(jobs.map((p) => p.catch(() => [] as Candidate[])));
   // 公式店の結果を優先し、実商品URL基準で重複除去
@@ -196,6 +197,20 @@ export async function searchCandidates(keyword: string): Promise<Candidate[]> {
 }
 
 // ── マッチング（src/lib/searchProduct.ts と同じロジック。両者は同期を保つこと）──
+
+/** 検索キーワードを組み立てる（src/lib/searchProduct.ts と同期を保つこと）。
+ * 「作品名 + タイトル」が基本だが、タイトルに既に作品名が入っていると
+ * 「ハイキュー!! ハイキュー!! 缶バッジ」と二重になり、**アニメイト検索が0件になる**
+ * （楽天/Yahoo!は耐えるが結果は劣化する）。重複するときは作品名を足さない。 */
+export function searchKeyword(workName: string, title: string): string {
+  const w = (workName || '').trim();
+  const t = (title || '').trim();
+  if (!w) return t;
+  if (!t) return w;
+  // NFKCで全角半角を揃える（作品名「ハイキュー!!」とタイトル内「ハイキュー！！」を同一視する）
+  const norm = (s: string) => s.normalize('NFKC').replace(/[\s　]/g, '').toLowerCase();
+  return norm(t).includes(norm(w)) ? t : `${w} ${t}`;
+}
 
 /** 入力タイトルが候補タイトルにどれだけ含まれるか（0〜1）。誤商品の防止用ガード。 */
 export function scoreTitle(entered: string, candidate: string): number {

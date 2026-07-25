@@ -43,6 +43,20 @@ export function titleMatchScore(entered: string, candidate: string): number {
 // 「ボックス」「まとめ」単体は誤検出(箱型グッズ等)が多いので、セットを示す強い語だけに絞る。
 export function isSetTitle(t: string): boolean { return /セット|まとめ(買|売)|コンプ|全\d+種|\d+個(入|セット)|\bBOX\b|1BOX/i.test(t); }
 
+/** 検索キーワードを組み立てる（api/_product-search.ts の searchKeyword と同期を保つこと）。
+ * 「作品名 + タイトル」が基本だが、タイトルに既に作品名が入っていると
+ * 「ハイキュー!! ハイキュー!! 缶バッジ」と二重になり、アニメイト検索が0件になる。
+ * 重複するときは作品名を足さない。 */
+export function searchKeyword(workName: string, title: string): string {
+  const w = (workName || '').trim();
+  const t = (title || '').trim();
+  if (!w) return t;
+  if (!t) return w;
+  // NFKCで全角半角を揃える（作品名「ハイキュー!!」とタイトル内「ハイキュー！！」を同一視する）
+  const norm = (s: string) => s.normalize('NFKC').replace(/[\s　]/g, '').toLowerCase();
+  return norm(t).includes(norm(w)) ? t : `${w} ${t}`;
+}
+
 // タイトルから「種類マーカー」を取り出す（api/_product-search.ts の variantKey と同期を保つこと）。
 // 一致度スコアは2文字組の一致率なので vol.2 と vol.3 で0.9超になり見分けられない。
 // 楽天は「(1)クリア」、アニメイトは「①クリア」と表記が割れるので同じ `no:N` に正規化する。

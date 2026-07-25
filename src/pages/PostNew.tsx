@@ -8,7 +8,7 @@ import { affiliatize, buildOffer, primaryOffer, isAffiliateUrl, offerUrl, isNois
 import { parseEventsApi, fileToBase64, type ParsedEvent } from '../lib/parseEvents';
 import { logAiExtraction, logSearch } from '../lib/dataLogs';
 import { maybeAddWorkAlias } from '../lib/workAliases';
-import { searchProductCandidates, titleMatchScore, retailerSearchUrls, highConfidenceCandidates, offerFromCandidate, variantMismatch, type ProductCandidate } from '../lib/searchProduct';
+import { searchProductCandidates, titleMatchScore, retailerSearchUrls, highConfidenceCandidates, offerFromCandidate, variantMismatch, searchKeyword, type ProductCandidate } from '../lib/searchProduct';
 import type { Offer } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
@@ -242,7 +242,7 @@ export default function PostNew() {
     if (!t.trim() || current.some((o) => isAffiliateUrl(offerUrl(o)))) return;
     setSearchingProduct(true); setCandidates(null);
     try {
-      const items = await searchProductCandidates(`${w} ${t}`.trim());
+      const items = await searchProductCandidates(searchKeyword(w, t));
       const picks = highConfidenceCandidates(t, items);
       if (picks.length) {
         const now = new Date().toISOString();
@@ -333,7 +333,7 @@ export default function PostNew() {
 
   // 販売先候補を検索（リンク無し/価格不明の補完）
   const onSearchProduct = async () => {
-    const kw = `${workName || workQuery} ${title}`.trim();
+    const kw = searchKeyword(workName || workQuery, title);
     if (!kw) return;
     haptic.select();
     setSearchingProduct(true); setCandidates(null);
@@ -375,7 +375,7 @@ export default function PostNew() {
       let autoOffers = offers;
       let autoImage: string | undefined;
       if (type === 'goods' && title.trim() && !autoOffers.some((o) => isAffiliateUrl(offerUrl(o)))) {
-        const kw = `${workName || workQuery} ${title}`.trim();
+        const kw = searchKeyword(workName || workQuery, title);
         try {
           const picks = highConfidenceCandidates(title.trim(), await searchProductCandidates(kw));
           const now = new Date().toISOString();
@@ -719,7 +719,7 @@ export default function PostNew() {
           {title.trim() && (
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]">
               <span className="text-label-tertiary">各店で探す:</span>
-              {retailerSearchUrls(`${workName || workQuery} ${title}`.trim()).map((r) => (
+              {retailerSearchUrls(searchKeyword(workName || workQuery, title)).map((r) => (
                 <a key={r.retailer} href={r.url} target="_blank" rel="noopener" onClick={() => haptic.select()} className="pressable" style={{ color: 'var(--accent-text)' }}>{r.retailer} ↗</a>
               ))}
             </div>
@@ -731,7 +731,8 @@ export default function PostNew() {
               <div className="mt-2 flex flex-col gap-1.5 rounded-[10px] border border-subtle p-2" style={{ backgroundColor: 'var(--bg-secondary)' }}>
                 <p className="text-[11px] text-label-tertiary">タイトルに一致する候補だけ選べます</p>
                 {candidates.map((c, i) => {
-                  const ok = titleMatchScore(`${workName || workQuery} ${title}`, c.title) >= 0.5;
+                  // 一致度は自動添付(highConfidenceCandidates)と揃えてタイトル基準で見る
+                  const ok = titleMatchScore(title, c.title) >= 0.5;
                   // 種類違い（vol/弾/①②）と売切れは、自動添付では弾いている。手動では選べるが理由を出す
                   const variantNg = variantMismatch(title, c.title);
                   const soldOut = c.inStock === false;
