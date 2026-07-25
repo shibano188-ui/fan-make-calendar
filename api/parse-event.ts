@@ -53,6 +53,22 @@ function isNoiseLink(url: string): boolean {
   } catch { return false; }
 }
 
+// ポスト本文に残った t.co 短縮URLを実URLへ展開する。
+// t.co のままではリンク先がまとめ記事かショップか判別できず isNoiseLink が効かないため、
+// 展開してから判定する。展開できない/ノイズなら本文から取り除き、AIが購入リンクとして拾えないようにする。
+// 正規の外部リンクは【ポスト内の外部リンク】として別に渡しているので、消しても情報は落ちない。
+async function expandShortLinks(text: string): Promise<string> {
+  const shorts = [...new Set(text.match(/https?:\/\/t\.co\/[A-Za-z0-9]+/g) ?? [])];
+  if (!shorts.length) return text;
+  const pairs = await Promise.all(shorts.map(async (s) => [s, await resolveUrl(s)] as const));
+  let out = text;
+  for (const [short, final] of pairs) {
+    const usable = final && !/t\.co\//.test(final) && !isNoiseLink(final);
+    out = out.split(short).join(usable ? final : '');
+  }
+  return out.replace(/[ \t]+/g, ' ').trim();
+}
+
 const CURRENT_YEAR = new Date().getFullYear();
 
 const BASE_RULES = `
@@ -284,7 +300,7 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
       .filter((u): u is string => !!u && !/twitter\.com|x\.com|t\.co/.test(u) && !isNoiseLink(u));
     let text = `投稿者: ${fx.tweet.author?.name ?? ''}`;
     if (tweetDate) text += `\nツイート投稿日: ${tweetDate}`;
-    text += `\n内容: ${fx.tweet.text}`;
+    text += `\n内容: ${await expandShortLinks(fx.tweet.text)}`;
     if (extLinks.length > 0) text += `\n【ポスト内の外部リンク】${extLinks.join(' / ')}`;
     return { text, imageUrl };
   }
@@ -298,7 +314,7 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
       .filter((u): u is string => !!u && !/twitter\.com|x\.com|t\.co/.test(u) && !isNoiseLink(u));
     let text = `投稿者: ${authorName}`;
     if (tweetDate) text += `\nツイート投稿日: ${tweetDate}`;
-    text += `\n内容: ${tweetText}`;
+    text += `\n内容: ${await expandShortLinks(tweetText)}`;
     if (extLinks.length > 0) text += `\n【ポスト内の外部リンク】${extLinks.join(' / ')}`;
     return { text, imageUrl };
   }
@@ -325,7 +341,7 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
       if (externalLinks.some(l => l.includes(resolvedFinal.split('?')[0]))) continue;
       externalLinks.push(visibleClean && visibleClean !== resolvedFinal ? `${visibleClean}（${resolvedFinal}）` : resolvedFinal);
     }
-    const textContent = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    const textContent = await expandShortLinks(html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
     let text = `投稿者: ${oe.author_name ?? ''}\n内容: ${textContent}`;
     if (externalLinks.length > 0) text += `\n【ポスト内の外部リンク】${externalLinks.join(' / ')}`;
     return { text, imageUrl };
@@ -532,7 +548,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { text: pageText, imageUrl: tweetImageUrl } = await fetchTweetContent(processUrl);
       // sharedText（X アプリが Web Share で送ってきたツイート本文）があれば先頭に追加
       const tweetContext = sharedText
-        ? `ポスト本文（X アプリより直接）: ${sharedText}\n\n${pageText}`
+        ? `ポスト本文（X アプリより直接）: ${await expandShortLinks(sharedText)}\n\n${pageText}`
         : pageText;
       let parsed: unknown[];
       try {
