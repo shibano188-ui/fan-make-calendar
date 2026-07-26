@@ -1408,3 +1408,63 @@ export async function countUserEventsByCategory(userId: string, category: string
   if (!data) return 0;
   return data.filter(r => parseCategories(r.category as string | null).includes(category)).length;
 }
+
+// ─── 値下げ・再入荷（プレミアム）───────────────────────────────
+// 検知しているのは毎日Cron（api/refresh-offers）で、price_changes に書けるのは service_role だけ。
+// 「誰に出すか」はテーブルに持たず、自分のいいねと突き合わせてここで決める。
+// プッシュ(FCM)はまだ無いので、アプリを開いたときに気づける形（案A）。
+
+export type PriceChangeKind = 'price_drop' | 'restock';
+export type PriceChange = {
+  id: string;
+  kind: PriceChangeKind;
+  oldPrice: number | null;
+  newPrice: number | null;
+  createdAt: string;
+  event: CalendarEvent;
+};
+
+/** 自分がいいねしたグッズの値下げ・再入荷。新しい順。
+ *  同じグッズの同じ種類は**最新の1件だけ**返す（毎日値が動く商品で埋め尽くされないように）。 */
+export async function listMyPriceChanges(userId: string, days = 30): Promise<PriceChange[]> {
+  const likedIds = [...(await listLikedEventIds(userId))];
+  if (!likedIds.length) return [];
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+  const { data } = await supabase
+    .from('price_changes')
+    .select('id, event_id, kind, old_price, new_price, created_at')
+    .in('event_id', likedIds)
+    .gte('created_at', since)
+    .order('created_at', { ascending: false });
+  if (!data?.length) return [];
+
+  const latest = new Map<string, Record<string, unknown>>();
+  for (const r of data) {
+    const key = `${r.event_id as string}:${r.kind as string}`;
+    if (!latest.has(key)) latest.set(key, r as Record<string, unknown>); // 並びが新しい順なので先勝ち
+  }
+  const rows = [...latest.values()];
+  const { data: evs } = await supabase
+    .from('events').select('*, works(name)').in('id', [...new Set(rows.map((r) => r.event_id as string))]);
+  const events = new Map<string, CalendarEvent>();
+  for (const e of evs ?? []) {
+    const r = e as Record<string, unknown>;
+    const works = r.works as { name: string } | null;
+    events.set(r.id as string, { ...rowToEvent(r), workName: works?.name ?? '' });
+  }
+  return rows
+    .map((r) => {
+      const event = events.get(r.event_id as string);
+      if (!event) return null; // 消された投稿
+      return {
+        id: r.id as string,
+        kind: r.kind as PriceChangeKind,
+        oldPrice: (r.old_price as number | null) ?? null,
+        newPrice: (r.new_price as number | null) ?? null,
+        createdAt: r.created_at as string,
+        event,
+      } satisfies PriceChange;
+    })
+    .filter((x): x is PriceChange => x !== null)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}

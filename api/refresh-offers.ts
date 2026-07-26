@@ -1,8 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { searchCandidates, highConfidence, scoreTitle, isSetTitle, searchKeyword, variantMismatch, type Candidate } from './_product-search.js';
 
 // 毎日Cron: グッズの販路を最新化する。
+// (0) ユーザーが追加した購入リンク(event_offer_contribs)を events.offers に昇格
 // (1) 既存のアフィ販路の価格を再取得して更新（鮮度維持）
 // (2) アフィ販路が1つも無いグッズに高信頼候補を自動バックフィル（過去投稿の取りこぼし回収）
 // Vercel Cron は CRON_SECRET 設定時に `Authorization: Bearer <secret>` を付けて呼ぶ。
@@ -37,6 +38,95 @@ const isAff = (o: OfferRow) => isAffiliateUrl(o.affiliateUrl || o.url) || isAffi
 const OFFICIAL_BRANDS = ['あみあみ', '駿河屋', 'アニメイト', '楽天ブックス'];
 const isOfficial = (o: OfferRow) => !!o.official || OFFICIAL_BRANDS.some((b) => `${o.retailer ?? ''} ${o.shop ?? ''}`.includes(b));
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Db = SupabaseClient<any>;
+
+/** ユーザーが追記した購入リンク(event_offer_contribs)を events.offers に移す。
+ *
+ *  `events.offers` は RLS `events_update_self` で投稿者しか書けないため、他人が足したリンクは
+ *  別テーブルに溜まる。その結果「追加・差し替えしたリンクは価格が更新されず、代表価格にも
+ *  ならず、カード・一覧にも出ない」という二級市民になっていた。service_role の Cron は RLS を
+ *  受けないので、ここで本体へ移して普通の販路にする（以後は価格・在庫が毎日入り、誰でも
+ *  取り消せる共同編集の対象になる）。移し終えた行は消す＝詳細ページでの二重表示を防ぐ。
+ *  反映は最大1日遅れ。 */
+async function promoteContribs(db: Db, removedByEvent: Map<string, Set<string>>): Promise<number> {
+  const { data: contribs } = await db
+    .from('event_offer_contribs')
+    .select('id, event_id, offer')
+    .order('created_at', { ascending: true });
+  if (!contribs?.length) return 0;
+
+  const byEvent = new Map<string, { id: string; offer: OfferRow }[]>();
+  for (const c of contribs) {
+    const eid = c.event_id as string;
+    const list = byEvent.get(eid) ?? [];
+    list.push({ id: c.id as string, offer: c.offer as OfferRow });
+    byEvent.set(eid, list);
+  }
+
+  const ids = [...byEvent.keys()];
+  const events = new Map<string, OfferRow[]>();
+  for (let i = 0; i < ids.length; i += 100) {
+    const { data } = await db.from('events').select('id, offers').in('id', ids.slice(i, i + 100));
+    for (const e of data ?? []) events.set(e.id as string, Array.isArray(e.offers) ? (e.offers as OfferRow[]) : []);
+  }
+
+  let moved = 0;
+  for (const [eventId, list] of byEvent) {
+    const offers = events.get(eventId);
+    if (!offers) continue; // 親イベントが消えている（cascade待ち）
+    const removed = removedByEvent.get(eventId) ?? new Set<string>();
+    const urls = new Set(offers.map((o) => o.url));
+    const done: string[] = [];
+    let added = 0;
+    for (const c of list) {
+      const url = c.offer?.url;
+      if (!url) { done.push(c.id); continue; }
+      // 既に本体にあるURLは移すものが無い＝行を消すだけ。ただし取り消し済みのURLだったら
+      // 「取り消された後に貼り直した」ケースなので触らない（消すとリンクごと消えてしまう）。
+      if (urls.has(url)) { if (!removed.has(url)) done.push(c.id); continue; }
+      offers.push(c.offer);
+      urls.add(url);
+      done.push(c.id);
+      added++;
+    }
+    if (added > 0) {
+      const { error } = await db.from('events').update({ offers }).eq('id', eventId);
+      if (error) continue; // 失敗したら行を残す（次回リトライ）
+      moved += added;
+    }
+    if (done.length) await db.from('event_offer_contribs').delete().in('id', done);
+  }
+  return moved;
+}
+
+/** 値下げ・再入荷を検知して price_changes に積む（プレミアムの「値下げ・再入荷アラート」の素）。
+ *
+ *  検知はサーバー側だけで完結する＝Androidの再ビルド無しで今日から動く。プッシュ(FCM)を
+ *  入れるまでは、アプリを開いたときにここを読んで「値下がりしたものがあります」を出す。
+ *  ノイズ対策で値下げは **100円以上かつ3%以上** に絞る（代表販路が別の店に移るだけで
+ *  数十円は普通に動くので、それを毎日「値下げ」と言うと通知の信頼が壊れる）。 */
+async function recordChanges(
+  db: Db, eventId: string,
+  beforePrice: number | null, afterPrice: number | null,
+  beforeStock: (boolean | undefined)[], after: OfferRow[],
+): Promise<number> {
+  const rows: { event_id: string; kind: string; old_price: number | null; new_price: number | null }[] = [];
+  if (beforePrice && afterPrice && afterPrice < beforePrice) {
+    const diff = beforePrice - afterPrice;
+    if (diff >= 100 && diff >= beforePrice * 0.03) {
+      rows.push({ event_id: eventId, kind: 'price_drop', old_price: beforePrice, new_price: afterPrice });
+    }
+  }
+  // 在庫なしと**分かっていた**販路が在庫ありに戻ったときだけ再入荷とする。
+  // undefined（未取得・掲載が消えていた）からの復帰は「初めて在庫が取れた」だけなので数えない。
+  const restocked = after.some((o, i) => beforeStock[i] === false && o.inStock === true);
+  if (restocked) rows.push({ event_id: eventId, kind: 'restock', old_price: null, new_price: afterPrice });
+  if (!rows.length) return 0;
+  const { error } = await db.from('price_changes').insert(rows);
+  return error ? 0 : rows.length;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const secret = process.env.CRON_SECRET;
   const auth = req.headers.authorization ?? '';
@@ -46,13 +136,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
   if (!supabaseUrl || !serviceKey) return res.status(500).json({ error: 'Server config error' });
   const db = createClient(supabaseUrl, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
-
-  const { data: rows, error } = await db
-    .from('events')
-    .select('id, title, price, offers, works(name)')
-    .eq('type', 'goods')
-    .order('created_at', { ascending: true });
-  if (error) return res.status(500).json({ error: error.message });
 
   // 共同編集で取り消された購入リンク（src/lib/api.ts の applyEdits と同じ実効値の考え方）。
   // events.offers は書き換えない設計なので、Cronもこれを読まないと取り消したリンクの価格を
@@ -71,13 +154,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   const EMPTY: ReadonlySet<string> = new Set();
 
+  // (0) ユーザーが追加した購入リンクを「一級市民」にする。下の価格更新より先にやるので、
+  //     昇格したリンクは同じ実行の中で価格・在庫が入り、代表価格にも選ばれる。
+  const promoted = await promoteContribs(db, removedByEvent);
+
+  const { data: rows, error } = await db
+    .from('events')
+    .select('id, title, price, offers, works(name)')
+    .eq('type', 'goods')
+    .order('created_at', { ascending: true });
+  if (error) return res.status(500).json({ error: error.message });
+
   const started = Date.now();
   const BUDGET_MS = 240_000; // 300s制限に対する安全余裕
   // アフィ販路が無いグッズ(=アニメイト限定/イベント/プライズ品で楽天・Yahoo!に無いことが多い)を
   // 毎日叩くのは無駄。既存アフィ販路の価格更新は毎日、未取得グッズのバックフィル再挑戦は週1(月曜UTC)だけ。
   // 手動で全件バックフィルしたいときは ?backfill=1 を付ける。
   const doBackfill = req.query.backfill === '1' || new Date().getUTCDay() === 1;
-  let scanned = 0, backfilled = 0, updated = 0;
+  let scanned = 0, backfilled = 0, updated = 0, detected = 0;
 
   for (const row of rows ?? []) {
     if (Date.now() - started > BUDGET_MS) break;
@@ -107,6 +201,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const now = new Date().toISOString();
     let changed = false;
+    // 値下げ・再入荷の検知用に「更新前」を控える。active の要素は下のループで直接書き換わるので、
+    // 更新後に同じ添字と見比べれば在庫が false→true に変わった販路が分かる。
+    const beforeStock = active.map((o) => o.inStock);
+    const beforePrice = typeof row.price === 'number' ? (row.price as number) : null;
 
     // (1) 既存アフィ販路(楽天/Yahoo!)を最新化。同じ販路(できれば同じ店)で最もタイトル一致する候補に
     //     URL・店・価格・フラグを合わせる。候補は中古除外済みなので、過去に付いた中古URLの付け替え・
@@ -176,12 +274,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       )[0];
       const newPrice = rep?.price ?? ((row.price as number | null) ?? null);
       const { error: upErr } = await db.from('events').update({ offers, price: newPrice }).eq('id', row.id);
-      if (!upErr) updated++;
+      if (!upErr) {
+        updated++;
+        detected += await recordChanges(db, row.id as string, beforePrice, newPrice, beforeStock, active);
+      }
     }
     // 楽天は1件あたり5リクエスト（全体＋公式店4）投げるので、間隔を詰めると429で0件が返る。
     // 0件は「掲載終了」と見分けが付かないため、レート制限は精度に直結する。
     await delay(900);
   }
 
-  return res.status(200).json({ doBackfill, scanned, backfilled, updated, total: (rows ?? []).length, tookMs: Date.now() - started });
+  return res.status(200).json({ doBackfill, promoted, scanned, backfilled, updated, detected, total: (rows ?? []).length, tookMs: Date.now() - started });
 }

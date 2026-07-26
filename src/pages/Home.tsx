@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus } from 'lucide-react';
+import { Search, Plus, TrendingDown, ChevronRight } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveStatus, deriveItemType, todayStr } from '../design/tokens';
 import { loadSeenEventIds, isNewItem } from '../lib/constants';
-import { listExploreEvents, getHomePrefecture, listAllParticipatedWorks, toggleLike, toggleCalendarAdd, listLikedEventIds, type Work } from '../lib/api';
+import { listExploreEvents, getHomePrefecture, listAllParticipatedWorks, toggleLike, toggleCalendarAdd, listLikedEventIds, listMyPriceChanges, type Work } from '../lib/api';
+import { useFeature } from '../lib/premium';
+import { unseenChanges } from '../lib/priceAlerts';
 import { getCached, setCached } from '../lib/swrCache';
 import { buildWorkColorMap } from '../lib/workColors';
 import { addToCalendar } from '../lib/googleCalendar';
@@ -99,6 +101,29 @@ export default function Home() {
     listLikedEventIds(user.id).then((ids) => { setLikedIds(ids); setCached(lkey, [...ids]); }).catch(() => {});
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 値下がり・再入荷（プレミアム）。1件ずつ知らせると煩わしいので、ここでは**件数だけ**出して
+  // 中身は専用ページ(/price-drops)に集める。未読は端末ローカルの既読時刻で判定する。
+  const priceAlerts = useFeature('priceAlerts');
+  const [alertCount, setAlertCount] = useState({ drop: 0, restock: 0 });
+  useEffect(() => {
+    if (!user || !priceAlerts) { setAlertCount({ drop: 0, restock: 0 }); return; }
+    let alive = true;
+    listMyPriceChanges(user.id)
+      .then((cs) => {
+        if (!alive) return;
+        const unseen = unseenChanges(cs);
+        setAlertCount({
+          drop: unseen.filter((c) => c.kind === 'price_drop').length,
+          restock: unseen.filter((c) => c.kind === 'restock').length,
+        });
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [user?.id, priceAlerts]); // eslint-disable-line react-hooks/exhaustive-deps
+  const alertTotal = alertCount.drop + alertCount.restock;
+  const alertLabel = alertCount.drop && alertCount.restock ? '値下がり・再入荷したものがあります'
+    : alertCount.restock ? '再入荷したものがあります' : '値下がりしたものがあります';
+
   const nearPrefs = useMemo(() => {
     if (!homePref) return new Set<string>();
     const s = new Set<string>([homePref]);
@@ -165,6 +190,19 @@ export default function Home() {
           />
         </button>
       </div>
+
+      {/* 値下がり・再入荷のまとめ導線（件数だけ・中身は専用ページ）。未読が0になると消える。 */}
+      {alertTotal > 0 && (
+        <div className="px-3 pt-2">
+          <button onClick={() => { haptic.select(); navigate('/price-drops'); }}
+            className="pressable w-full flex items-center gap-2 px-3 py-2.5 rounded-[12px] border"
+            style={{ borderColor: 'var(--color-success)', backgroundColor: 'var(--bg-secondary)' }}>
+            <TrendingDown size={16} style={{ color: 'var(--color-success)' }} />
+            <span className="flex-1 text-left text-[13px] font-semibold">{alertLabel}（{alertTotal}件）</span>
+            <ChevronRight size={16} className="text-label-tertiary" />
+          </button>
+        </div>
+      )}
 
       {/* フォロー中の作品（0件でも表示＝フォロー導線を常設）。タップでその作品の予定へ。 */}
       <div className="pt-2">
