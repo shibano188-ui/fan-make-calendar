@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, Bell, Crown, CalendarSync, Moon, Palette, Pencil, Plus, Droplet, Check, MessageCircle, MapPin, UserRound, Star } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 import { getContrastText } from '../lib/color';
 
 // アクセント色の選択肢（先頭=デフォルトの黄色）
@@ -8,7 +9,7 @@ const MYPAGE_ACCENTS = ['#FBBF00', '#D85A30', '#1D9E75', '#378ADD', '#D4537E'] a
 import {
   getUserPublicProfile, getHomePrefecture, saveHomePrefecture, saveDisplayName, saveAvatarEmoji,
   listAllParticipatedWorks, leaveCalendar, listSavedEvents, getProfileExtras, saveProfileExtras,
-  getOrCreateIcsToken, regenerateIcsToken, icsSubscribeUrl, type Work,
+  getOrCreateIcsToken, regenerateIcsToken, icsSubscribeUrl, icsWebcalUrl, type Work,
 } from '../lib/api';
 import { useFeature } from '../lib/premium';
 import { useConfirm } from '../components/ui/ConfirmDialog';
@@ -65,8 +66,11 @@ export default function MyPage() {
   const [acctSheet, setAcctSheet] = useState<null | 'link' | 'signin'>(null);
   // カレンダー自動同期（プレミアム）。URLは開いたときに初めて作る（使わない人の行を作らない）
   const calendarSync = useFeature('calendarAutoSync');
+  // Androidには webcal: を受けるアプリが無い（タップしても何も起きない）ので出さない
+  const isAndroid = Capacitor.getPlatform() === 'android' || /Android/i.test(navigator.userAgent);
   const [icsOpen, setIcsOpen] = useState(false);
   const [icsUrl, setIcsUrl] = useState<string | null>(null);
+  const [icsWebcal, setIcsWebcal] = useState<string | null>(null);
   const onToggleIcs = async () => {
     haptic.select();
     const next = !icsOpen;
@@ -74,6 +78,7 @@ export default function MyPage() {
     if (next && !icsUrl && user) {
       const t = await getOrCreateIcsToken(user.id);
       setIcsUrl(t ? icsSubscribeUrl(t) : null);
+      setIcsWebcal(t ? icsWebcalUrl(t) : null);
       if (!t) toast('URLを作れませんでした', 'error');
     }
   };
@@ -89,7 +94,7 @@ export default function MyPage() {
     const ok = await confirm({ title: 'URLを作り直しますか？', message: '今のURLで購読しているカレンダーは更新されなくなります', confirmLabel: '作り直す', destructive: true });
     if (!ok) return;
     const t = await regenerateIcsToken(user.id);
-    if (t) { setIcsUrl(icsSubscribeUrl(t)); toast('新しいURLを作りました'); }
+    if (t) { setIcsUrl(icsSubscribeUrl(t)); setIcsWebcal(icsWebcalUrl(t)); toast('新しいURLを作りました'); }
     else toast('作り直せませんでした', 'error');
   };
   const [signOutConfirm, setSignOutConfirm] = useState(false);
@@ -404,9 +409,16 @@ export default function MyPage() {
             {icsOpen && (
               <div className="mt-2 ml-6 flex flex-col gap-2">
                 <p className="text-[11px] text-label-secondary">
-                  このURLをGoogleカレンダーの「他のカレンダーを追加 → URLで追加」（iPhoneは「設定 → カレンダー → アカウント → カレンダー登録」）に貼ると、
-                  いいねした予定と自分の投稿が自動で入ります。締切は別の予定として入ります。
+                  いいねした予定と自分の投稿が、カレンダーに自動で入ります（締切は別の予定として入ります）。登録は1回だけ。
+                  Googleカレンダーは「他のカレンダーを追加 → URLで追加」に下のURLを貼ってください（スマホアプリからは登録できません）。
                 </p>
+                {icsWebcal && !isAndroid && (
+                  <a href={icsWebcal} onClick={() => haptic.select()}
+                    className="pressable inline-flex items-center justify-center gap-1 px-3 py-2 rounded-[10px] text-[12px] font-semibold"
+                    style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+                    iPhone・Macで追加（タップで購読）
+                  </a>
+                )}
                 <div className="flex gap-2">
                   <input readOnly value={icsUrl ?? '準備中…'} onFocus={(e) => e.currentTarget.select()}
                     className="flex-1 min-w-0 rounded-[10px] px-3 py-2 text-[11px] outline-none"
@@ -415,6 +427,9 @@ export default function MyPage() {
                     className="pressable px-3 rounded-[10px] text-[12px] font-semibold flex-shrink-0"
                     style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>コピー</button>
                 </div>
+                <p className="text-[11px] text-label-tertiary">
+                  反映はカレンダー側が取りに来たときです（Appleは更新間隔を5分〜1日から選べます。Googleは8〜24時間おき）。
+                </p>
                 <button onClick={onRegenIcs} className="pressable text-[11px] text-label-tertiary text-left">
                   URLを作り直す（今のURLは使えなくなります）
                 </button>

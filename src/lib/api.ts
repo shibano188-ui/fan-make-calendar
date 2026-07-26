@@ -1507,3 +1507,9 @@ export async function regenerateIcsToken(userId: string): Promise<string | null>
 export function icsSubscribeUrl(token: string): string {
   return `https://fanhive.jp/api/ics?t=${token}`;
 }
+
+/** iPhone・Macは webcal: を開くと購読ダイアログが出る（URLのコピペが要らない）。
+ *  Androidには webcal を受けるアプリが無いので、あちらはURLコピー＋ブラウザのGoogleカレンダーで登録する。 */
+export function icsWebcalUrl(token: string): string {
+  return `webcal://fanhive.jp/api/ics?t=${token}`;
+}
