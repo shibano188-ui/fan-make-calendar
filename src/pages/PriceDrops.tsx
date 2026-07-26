@@ -41,7 +41,7 @@ function Row({ c, onOpen, onMute }: { c: PriceChange; onOpen: () => void; onMute
             高い販路が下がっても買う人には関係がないので、そもそも記録していない。 */}
         {drop ? (
           <div className="mt-1 flex items-baseline gap-1.5 flex-wrap">
-            <span className="text-[11px] text-label-tertiary">最安</span>
+            <span className="text-[11px] text-label-tertiary">過去最安</span>
             <span className="text-[12px] text-label-tertiary line-through">{yen(c.oldPrice)}</span>
             <span className="text-[12px] text-label-tertiary">→</span>
             <span className="text-[16px] font-bold" style={{ color: 'var(--color-success)' }}>{yen(c.newPrice)}</span>
@@ -107,7 +107,7 @@ export default function PriceDrops() {
         </div>
 
         <div className="px-3 pb-8">
-          <div className="text-[12px] text-label-secondary mt-1 mb-1">いいねしたグッズのうち、最安値が下がったもの・在庫が戻ったものです（毎日1回チェック）</div>
+          <div className="text-[12px] text-label-secondary mt-1 mb-1">いいねしたグッズが、これまでで一番安くなったとき・在庫が戻ったときに出ます（毎日1回チェック）</div>
           {/* 対象が全グッズではない（限定・イベント・プライズ品は価格が取れない）ことを先に言っておく。
               「いいねしたのに来なかった」を不具合だと思われないように。 */}
           <div className="text-[11px] text-label-tertiary mb-3">

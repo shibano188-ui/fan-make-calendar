@@ -114,23 +114,27 @@ function cheapestAvailable(list: Pick<OfferRow, 'url' | 'price' | 'inStock' | 'i
  *
  *  検知はサーバー側だけで完結する＝Androidの再ビルド無しで今日から動く。プッシュ(FCM)を
  *  入れるまでは、アプリを開いたときにここを読んで「値下がりしたものがあります」を出す。
- *  ノイズ対策:
+ *  値下げと呼ぶ条件:
  *   - 見るのは**最安値**だけ（代表価格は在庫・単品・公式店を優先して選ぶので、店が入れ替わるだけで動く）
- *   - 下げ幅 **100円以上かつ3%以上**
+ *   - 前日より下がっていて、かつ **これまでの最安値以下**（＝過去最安の更新かタイ）。
+ *     金額のしきい値は置かない（1円でも過去最安なら知らせる価値がある・本人判断 2026-07-26）。
+ *     前日比だけで判定すると 2000→1800→2000→1800 の揺れで毎日「値下がり」になってしまうので、
+ *     過去最安を `event_price_lows` に持って、そこを更新したときだけにする。
  *   - 更新前に最安値が無い（初めて価格が取れた）ものは値下げにしない */
 async function recordChanges(
   db: Db, eventId: string,
   before: Pick<OfferRow, 'url' | 'price' | 'inStock' | 'isSet'>[],
   after: OfferRow[], liveAfter: OfferRow[],
+  recordLow: number | null,
 ): Promise<number> {
   const rows: { event_id: string; kind: string; old_price: number | null; new_price: number | null }[] = [];
   const beforeMin = cheapestAvailable(before);
   const afterMin = cheapestAvailable(liveAfter);
-  if (beforeMin && afterMin && afterMin < beforeMin) {
-    const diff = beforeMin - afterMin;
-    if (diff >= 100 && diff >= beforeMin * 0.03) {
-      rows.push({ event_id: eventId, kind: 'price_drop', old_price: beforeMin, new_price: afterMin });
-    }
+  if (afterMin && (recordLow === null || afterMin < recordLow)) {
+    await db.from('event_price_lows').upsert({ event_id: eventId, low_price: afterMin, updated_at: new Date().toISOString() }, { onConflict: 'event_id' });
+  }
+  if (beforeMin && afterMin && afterMin < beforeMin && (recordLow === null || afterMin <= recordLow)) {
+    rows.push({ event_id: eventId, kind: 'price_drop', old_price: beforeMin, new_price: afterMin });
   }
   // 在庫なしと**分かっていた**販路が在庫ありに戻ったときだけ再入荷とする。
   // undefined（未取得・掲載が消えていた）からの復帰は「初めて在庫が取れた」だけなので数えない。
@@ -171,6 +175,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // (0) ユーザーが追加した購入リンクを「一級市民」にする。下の価格更新より先にやるので、
   //     昇格したリンクは同じ実行の中で価格・在庫が入り、代表価格にも選ばれる。
   const promoted = await promoteContribs(db, removedByEvent);
+
+  // これまでの最安値（値下げ判定の基準）。1回で引いてメモリに置く。
+  const lows = new Map<string, number>();
+  {
+    const { data } = await db.from('event_price_lows').select('event_id, low_price');
+    for (const r of data ?? []) lows.set(r.event_id as string, r.low_price as number);
+  }
 
   const { data: rows, error } = await db
     .from('events')
@@ -289,7 +300,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { error: upErr } = await db.from('events').update({ offers, price: newPrice }).eq('id', row.id);
       if (!upErr) {
         updated++;
-        detected += await recordChanges(db, row.id as string, before, active, live);
+        detected += await recordChanges(db, row.id as string, before, active, live, lows.get(row.id as string) ?? null);
       }
     }
     // 楽天は1件あたり5リクエスト（全体＋公式店4）投げるので、間隔を詰めると429で0件が返る。
