@@ -71,9 +71,7 @@ export default function Follows() {
           </button>
         </div>
 
-        <div className="px-3 pb-8">
-          <div className="text-[12px] text-label-secondary mt-1 mb-2">ベルを消すと、その作品の値下がり・再入荷のお知らせが止まります（予定はそのまま表示されます）</div>
-
+        <div className="px-3 pt-2 pb-8">
           {follows === null ? (
             <div className="text-center text-[13px] text-label-tertiary py-16">読み込み中…</div>
           ) : follows.length === 0 ? (

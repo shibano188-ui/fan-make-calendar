@@ -348,7 +348,7 @@ export default function MyPage() {
             </div>
             <button onClick={() => { haptic.select(); setAcctSheet('signin'); }}
               className="pressable text-[11px] text-label-tertiary mt-1.5 ml-6">
-              別の端末で登録済み → ログイン
+              別の端末でログイン済みの場合は<span className="underline" style={{ color: 'var(--accent-text)' }}>こちら</span>
             </button>
           </div>
         )}
