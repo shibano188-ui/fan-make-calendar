@@ -121,6 +121,15 @@ function cheapestAvailable(list: Pick<OfferRow, 'url' | 'price' | 'inStock' | 'i
  *     前日比だけで判定すると 2000→1800→2000→1800 の揺れで毎日「値下がり」になってしまうので、
  *     過去最安を `event_price_lows` に持って、そこを更新したときだけにする。
  *   - 更新前に最安値が無い（初めて価格が取れた）ものは値下げにしない */
+/** 「値下がり」と呼ぶか。前日より下がっていて、かつ過去最安の更新（またはタイ）のときだけ。
+ *  金額のしきい値は置かない。純関数にしてあるのは、この判定が通知の信頼そのものだから
+ *  （Cronを回さずに条件だけ確かめられるようにしておく）。 */
+export function isDrop(beforeMin: number | null, afterMin: number | null, recordLow: number | null): boolean {
+  if (!beforeMin || !afterMin) return false;      // 初めて価格が取れた場合は値下げにしない
+  if (afterMin >= beforeMin) return false;         // 前日より下がっていない
+  return recordLow === null || afterMin <= recordLow; // 過去最安を更新（かタイ）
+}
+
 async function recordChanges(
   db: Db, eventId: string,
   before: Pick<OfferRow, 'url' | 'price' | 'inStock' | 'isSet'>[],
@@ -133,7 +142,7 @@ async function recordChanges(
   if (afterMin && (recordLow === null || afterMin < recordLow)) {
     await db.from('event_price_lows').upsert({ event_id: eventId, low_price: afterMin, updated_at: new Date().toISOString() }, { onConflict: 'event_id' });
   }
-  if (beforeMin && afterMin && afterMin < beforeMin && (recordLow === null || afterMin <= recordLow)) {
+  if (isDrop(beforeMin, afterMin, recordLow)) {
     rows.push({ event_id: eventId, kind: 'price_drop', old_price: beforeMin, new_price: afterMin });
   }
   // 在庫なしと**分かっていた**販路が在庫ありに戻ったときだけ再入荷とする。
