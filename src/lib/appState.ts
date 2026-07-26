@@ -59,9 +59,23 @@ function isEmpty(v: unknown): boolean {
 
 let currentUserId: string | null = null;
 let synced = false;
+let syncEnabled = false;
 
 export function setAppStateUser(userId: string | null): void {
   currentUserId = userId;
+}
+
+/**
+ * 端末設定のサーバー同期を使えるか（プレミアム）。
+ *
+ * 線引き: **アカウントのデータ（投稿・いいね・フォロー・行く日）はログインすれば無料で戻る**。
+ * ここで有料にしているのは「端末の設定」＝重要マーク・通知ベル・非表示作品・配色・通知ミュートで、
+ * 機種変や2台目に持っていけるかどうか。無効のあいだは localStorage だけで完結し、
+ * サーバーには一切書かない・読まない（＝今まで通り単体では普通に動く）。
+ */
+export function setAppStateSync(enabled: boolean): void {
+  syncEnabled = enabled;
+  if (!enabled) synced = false; // 同期していない＝ログアウト時にローカルを消してはいけない
 }
 
 /**
@@ -77,7 +91,7 @@ export function clearSyncedAppState(): void {
 
 /** 1項目をサーバーへ反映（fire-and-forget）。ローカル保存の直後に呼ぶ。 */
 export function pushAppState(col: AppStateColumn, value: unknown): void {
-  if (!currentUserId) return;
+  if (!currentUserId || !syncEnabled) return;
   void supabase
     .from(TABLE)
     .upsert({ user_id: currentUserId, [col]: value, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
@@ -90,6 +104,7 @@ export function pushAppState(col: AppStateColumn, value: unknown): void {
  */
 export async function syncAppState(userId: string): Promise<void> {
   currentUserId = userId;
+  if (!syncEnabled) return;
   try {
     // 列は KEYS から組み立てる（列を足したときに書き換え漏れが起きないように）。
     // ただし新しい列のSQLが未適用の環境では select ごと失敗するので、旧列だけで一度だけ retry する

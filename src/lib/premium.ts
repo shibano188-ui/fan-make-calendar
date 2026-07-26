@@ -117,6 +117,12 @@ export function clearPremium(): void {
   setPremium(false);
 }
 
+/** フック外から今の判定を読む（起動時の同期可否など、Reactの外で要るとき）。
+ *  キャッシュ即答なので、サーバー確定前は前回の判定を返す。 */
+export function isPremiumCached(): boolean {
+  return premium;
+}
+
 function subscribe(cb: () => void): () => void {
   listeners.add(cb);
   return () => { listeners.delete(cb); };

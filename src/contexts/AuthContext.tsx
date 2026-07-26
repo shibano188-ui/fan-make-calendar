@@ -3,8 +3,8 @@ import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { getWorksByNames, upsertParticipation } from '../lib/api';
 import { DEFAULT_WORK_NAMES } from '../lib/constants';
-import { setAppStateUser, syncAppState } from '../lib/appState';
-import { refreshPremium, clearPremium } from '../lib/premium';
+import { setAppStateUser, setAppStateSync, syncAppState } from '../lib/appState';
+import { refreshPremium, clearPremium, isPremiumCached } from '../lib/premium';
 
 type AuthContextValue = {
   user: User | null;
@@ -48,6 +48,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // 同期はサーバーが遅い/落ちている場合に起動を止めないよう上限を切り、超えたらローカルのまま進む。
     const activate = async (u: User) => {
       setAppStateUser(u.id);
+      // 端末設定の同期はプレミアム機能。起動を待たせないのでキャッシュで先に決め、
+      // サーバー確定後に開き直す（広告非表示と同じキャッシュファーストの扱い）。
+      setAppStateSync(isPremiumCached());
       await ensureDefaultJoined(u.id);
       await Promise.race([
         syncAppState(u.id),
@@ -57,7 +60,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(u);
       setLoading(false);
       // 会員状態は起動を待たせない（キャッシュで即答し、確定したらストア経由で切り替わる）
-      refreshPremium(u.id).catch(() => { /* 取れなければ無料のまま */ });
+      refreshPremium(u.id)
+        .then((active) => {
+          setAppStateSync(active);
+          // キャッシュが無料でサーバーが有料だったときは、ここで初めて同期する
+          if (active) syncAppState(u.id).catch(() => { /* 失敗してもローカルは無事 */ });
+        })
+        .catch(() => { /* 取れなければ無料のまま */ });
     };
 
     // 既存セッションを確認し、なければ匿名サインイン（成功時は onAuthStateChange 経由で activate）
@@ -81,7 +90,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setUser(null);
         setLoading(false);
-        clearPremium();   // 別アカウントに有料状態を持ち越さない
+        clearPremium();       // 別アカウントに有料状態を持ち越さない
+        setAppStateSync(false);
       }
     });
 
