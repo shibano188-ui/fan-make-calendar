@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from './ui/Toast';
 import { useConfirm } from './ui/ConfirmDialog';
 import { haptic } from '../lib/haptics';
+import { usePremium, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
 
 interface Props {
   open: boolean;
@@ -28,6 +29,13 @@ export default function WorkFollowSheet({ open, onClose, onChanged, onPick }: Pr
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Work[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const premium = usePremium();
+  // 上限に達していたら新規フォローだけ止める。**今フォロー中のものは触らない**（不利益変更にしない）
+  const blocked = () => {
+    if (canFollowMore(follows.length, premium)) return false;
+    toast(`フォローは${FREE_FOLLOW_LIMIT}作品までです。今フォロー中の作品はそのまま使えます`);
+    return true;
+  };
 
   const fkey = user ? `follows:${user.id}` : '';
   const syncCache = (ws: Work[]) => { if (fkey) setCached(fkey, ws); };
@@ -63,6 +71,7 @@ export default function WorkFollowSheet({ open, onClose, onChanged, onPick }: Pr
 
   const follow = async (w: Work) => {
     if (!user || busyId) return;
+    if (!followedIds.has(w.id) && blocked()) return;
     haptic.select();
     // 「query と入力して w.name を選んだ」＝表記ゆれ辞書の別名ペア
     if (query.trim() && w.name !== query.trim()) { logSearch('work_follow', query, results?.length ?? null, user.id, w.name); maybeAddWorkAlias(w, query); }
@@ -90,6 +99,7 @@ export default function WorkFollowSheet({ open, onClose, onChanged, onPick }: Pr
   const createAndFollow = async () => {
     const name = query.trim();
     if (!user || !name || busyId) return;
+    if (blocked()) return;
     haptic.select();
     setBusyId('create');
     try {

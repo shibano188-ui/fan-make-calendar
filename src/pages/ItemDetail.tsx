@@ -21,6 +21,7 @@ import NotifyBell from '../components/item/NotifyBell';
 import LineLoader from '../components/ui/LineLoader';
 import UserProfileModal from '../components/UserProfileModal';
 import { useConfirm } from '../components/ui/ConfirmDialog';
+import { usePremium, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
 
 // 外部カレンダー連携（Google/ics への追加）は一旦保留。再開時は true に戻す。
 const EXTERNAL_CALENDAR_ENABLED = false;
@@ -67,7 +68,9 @@ export default function ItemDetail() {
   const [edits, setEdits] = useState<EventEdit[]>([]);
   const [editing, setEditing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const premium = usePremium();
   const [following, setFollowing] = useState(false);
+  const [followCount, setFollowCount] = useState(0);
   const [visits, setVisits] = useState<EventVisit[]>([]);
   const [visitOpen, setVisitOpen] = useState(false);
   const [visitStart, setVisitStart] = useState('');
@@ -101,7 +104,7 @@ export default function ItemDetail() {
       // まだ操作されていなければDBの値でストアを初期化（既存状態は保持）
       if (getLike(e.id) === undefined) setLike(e.id, { liked: !!e.likedByMe, count: e.likes ?? 0 });
       if (e.workId) getWorkById(e.workId).then((w) => alive && setWorkName(w?.name ?? ''));
-      if (e.workId && user) listAllParticipatedWorks(user.id).then((ws) => alive && setFollowing(ws.some((w) => w.id === e.workId))).catch(() => {});
+      if (e.workId && user) listAllParticipatedWorks(user.id).then((ws) => { if (!alive) return; setFollowing(ws.some((w) => w.id === e.workId)); setFollowCount(ws.length); }).catch(() => {});
       if (e.authorId) getDisplayName(e.authorId).then((n) => alive && setAuthorName(n));
       addSeenEventId(id); // 閲覧済み＝新着判定から外す
       getReactionData(id, user?.id).then((r) => { if (alive) { setCounts(r.counts); setMyReaction(r.myReaction); } });
@@ -200,13 +203,18 @@ export default function ItemDetail() {
     await removeEventVisit(visitId).catch(() => {});
   };
   const onFollow = async () => {
-    haptic.select();
     if (!user || !event.workId) return;
+    // 解除は常に可。追加だけ無料プランの上限で止める（今フォロー中のものは取り上げない）
+    if (!following && !canFollowMore(followCount, premium)) {
+      toast(`フォローは${FREE_FOLLOW_LIMIT}作品までです。今フォロー中の作品はそのまま使えます`);
+      return;
+    }
+    haptic.select();
     const prev = following;
     setFollowing(!prev);
     try {
-      if (prev) await leaveCalendar(event.workId, user.id);
-      else await upsertParticipation(event.workId, user.id);
+      if (prev) { await leaveCalendar(event.workId, user.id); setFollowCount((n) => Math.max(0, n - 1)); }
+      else { await upsertParticipation(event.workId, user.id); setFollowCount((n) => n + 1); }
       toast(prev ? 'フォローを解除しました' : 'フォローしました');
     } catch { setFollowing(prev); }
   };

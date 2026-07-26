@@ -44,6 +44,17 @@ export const PREMIUM_FEATURES = {
 
 export type PremiumFeature = keyof typeof PREMIUM_FEATURES;
 
+/** 無料プランでフォローできる作品数。
+ *  2026-07-26時点の実データは 最大4作品・中央値2・作品マスタ13件なので、5なら**誰も引っかからない**。
+ *  作品が増えてから締める前提で、数字はここ1つだけを変える。
+ *  **既に上限を超えている人からは絶対に取り上げない**（追加が止まるだけ）。不利益変更にしないため。 */
+export const FREE_FOLLOW_LIMIT = 5;
+
+/** もう1作品フォローできるか。`count` は今フォローしている数。 */
+export function canFollowMore(count: number, premium: boolean): boolean {
+  return premium || count < FREE_FOLLOW_LIMIT;
+}
+
 /** 課金が有効か。'grace'（支払い猶予中）は使わせ続ける＝解約ではないため。 */
 export function isPremiumActive(sub: Subscription | null, now: Date = new Date()): boolean {
   if (!sub) return false;

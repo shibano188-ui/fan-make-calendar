@@ -18,6 +18,7 @@ import { useToast } from '../components/ui/Toast';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { useAuth } from '../contexts/AuthContext';
 import { haptic } from '../lib/haptics';
+import { usePremium, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
 import { useAdBanner } from '../lib/useAdBanner';
 
 const STATUS_ORDER: ItemStatus[] = ['preorder_soon', 'preorder', 'sale_soon', 'onsale', 'preorder_ended', 'ended'];
@@ -42,6 +43,7 @@ export default function Explore() {
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const toast = useToast();
+  const premium = usePremium();
   const _ss = loadExploreSession();
   const [mode, setMode] = useState<ItemType>(_ss.mode ?? 'goods');
   const [items, setItems] = useState<CalendarEvent[] | null>(null);
@@ -225,9 +227,14 @@ export default function Explore() {
   }, [query]);
 
   const toggleFollowWork = async (w: Work) => {
-    haptic.select();
     if (!user) return;
     const has = followed.has(w.id);
+    // 解除は常に可。追加だけ無料プランの上限で止める（今フォロー中のものは取り上げない）
+    if (!has && !canFollowMore(followed.size, premium)) {
+      toast(`フォローは${FREE_FOLLOW_LIMIT}作品までです。今フォロー中の作品はそのまま使えます`);
+      return;
+    }
+    haptic.select();
     setFollowed((prev) => { const n = new Set(prev); has ? n.delete(w.id) : n.add(w.id); return n; });
     try { if (has) await leaveCalendar(w.id, user.id); else await upsertParticipation(w.id, user.id); } catch { /* noop */ }
   };
