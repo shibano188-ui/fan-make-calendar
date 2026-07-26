@@ -100,28 +100,42 @@ async function promoteContribs(db: Db, removedByEvent: Map<string, Set<string>>)
   return moved;
 }
 
+/** 「今そのグッズを買える一番安い値段」。値下げの基準はこれ ＝ **最安値の更新だけを値下げと呼ぶ**。
+ *  高いほうの販路が少し下がっても買う人には関係がないので数えない（本人指摘・2026-07-26）。
+ *  除外するもの: 在庫なし（買えない）／セット（単品と値段の桁が違う）／検索・一覧ページ（商品が特定できない）。 */
+function cheapestAvailable(list: Pick<OfferRow, 'url' | 'price' | 'inStock' | 'isSet'>[]): number | null {
+  const prices = list
+    .filter((o) => o.inStock !== false && !o.isSet && !isSearchPage(o.url) && typeof o.price === 'number' && o.price > 0)
+    .map((o) => o.price as number);
+  return prices.length ? Math.min(...prices) : null;
+}
+
 /** 値下げ・再入荷を検知して price_changes に積む（プレミアムの「値下げ・再入荷アラート」の素）。
  *
  *  検知はサーバー側だけで完結する＝Androidの再ビルド無しで今日から動く。プッシュ(FCM)を
  *  入れるまでは、アプリを開いたときにここを読んで「値下がりしたものがあります」を出す。
- *  ノイズ対策で値下げは **100円以上かつ3%以上** に絞る（代表販路が別の店に移るだけで
- *  数十円は普通に動くので、それを毎日「値下げ」と言うと通知の信頼が壊れる）。 */
+ *  ノイズ対策:
+ *   - 見るのは**最安値**だけ（代表価格は在庫・単品・公式店を優先して選ぶので、店が入れ替わるだけで動く）
+ *   - 下げ幅 **100円以上かつ3%以上**
+ *   - 更新前に最安値が無い（初めて価格が取れた）ものは値下げにしない */
 async function recordChanges(
   db: Db, eventId: string,
-  beforePrice: number | null, afterPrice: number | null,
-  beforeStock: (boolean | undefined)[], after: OfferRow[],
+  before: Pick<OfferRow, 'url' | 'price' | 'inStock' | 'isSet'>[],
+  after: OfferRow[], liveAfter: OfferRow[],
 ): Promise<number> {
   const rows: { event_id: string; kind: string; old_price: number | null; new_price: number | null }[] = [];
-  if (beforePrice && afterPrice && afterPrice < beforePrice) {
-    const diff = beforePrice - afterPrice;
-    if (diff >= 100 && diff >= beforePrice * 0.03) {
-      rows.push({ event_id: eventId, kind: 'price_drop', old_price: beforePrice, new_price: afterPrice });
+  const beforeMin = cheapestAvailable(before);
+  const afterMin = cheapestAvailable(liveAfter);
+  if (beforeMin && afterMin && afterMin < beforeMin) {
+    const diff = beforeMin - afterMin;
+    if (diff >= 100 && diff >= beforeMin * 0.03) {
+      rows.push({ event_id: eventId, kind: 'price_drop', old_price: beforeMin, new_price: afterMin });
     }
   }
   // 在庫なしと**分かっていた**販路が在庫ありに戻ったときだけ再入荷とする。
   // undefined（未取得・掲載が消えていた）からの復帰は「初めて在庫が取れた」だけなので数えない。
-  const restocked = after.some((o, i) => beforeStock[i] === false && o.inStock === true);
-  if (restocked) rows.push({ event_id: eventId, kind: 'restock', old_price: null, new_price: afterPrice });
+  const restocked = after.some((o, i) => before[i]?.inStock === false && o.inStock === true);
+  if (restocked) rows.push({ event_id: eventId, kind: 'restock', old_price: null, new_price: afterMin });
   if (!rows.length) return 0;
   const { error } = await db.from('price_changes').insert(rows);
   return error ? 0 : rows.length;
@@ -202,9 +216,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const now = new Date().toISOString();
     let changed = false;
     // 値下げ・再入荷の検知用に「更新前」を控える。active の要素は下のループで直接書き換わるので、
-    // 更新後に同じ添字と見比べれば在庫が false→true に変わった販路が分かる。
-    const beforeStock = active.map((o) => o.inStock);
-    const beforePrice = typeof row.price === 'number' ? (row.price as number) : null;
+    // 値と添字をここで写しておかないと、更新後との比較ができない。
+    const before = active.map((o) => ({ url: o.url, price: o.price, inStock: o.inStock, isSet: o.isSet }));
 
     // (1) 既存アフィ販路(楽天/Yahoo!)を最新化。同じ販路(できれば同じ店)で最もタイトル一致する候補に
     //     URL・店・価格・フラグを合わせる。候補は中古除外済みなので、過去に付いた中古URLの付け替え・
@@ -276,7 +289,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { error: upErr } = await db.from('events').update({ offers, price: newPrice }).eq('id', row.id);
       if (!upErr) {
         updated++;
-        detected += await recordChanges(db, row.id as string, beforePrice, newPrice, beforeStock, active);
+        detected += await recordChanges(db, row.id as string, before, active, live);
       }
     }
     // 楽天は1件あたり5リクエスト（全体＋公式店4）投げるので、間隔を詰めると429で0件が返る。

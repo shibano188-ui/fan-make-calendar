@@ -33,8 +33,11 @@ function Row({ c, onOpen }: { c: PriceChange; onOpen: () => void }) {
         </div>
         {c.event.workName && <div className="text-[11px] text-label-secondary truncate">{c.event.workName}</div>}
         <div className="text-[14px] font-semibold leading-snug line-clamp-2">{c.event.title}</div>
+        {/* 出しているのは代表価格ではなく**最安値**（在庫あり・単品・商品ページの中の最安）。
+            高い販路が下がっても買う人には関係がないので、そもそも記録していない。 */}
         {drop ? (
-          <div className="mt-1 flex items-baseline gap-1.5">
+          <div className="mt-1 flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-[11px] text-label-tertiary">最安</span>
             <span className="text-[12px] text-label-tertiary line-through">{yen(c.oldPrice)}</span>
             <span className="text-[12px] text-label-tertiary">→</span>
             <span className="text-[16px] font-bold" style={{ color: 'var(--color-success)' }}>{yen(c.newPrice)}</span>
@@ -43,7 +46,12 @@ function Row({ c, onOpen }: { c: PriceChange; onOpen: () => void }) {
             )}
           </div>
         ) : (
-          c.newPrice != null && <div className="mt-1 text-[16px] font-bold" style={{ color: 'var(--accent-text)' }}>{yen(c.newPrice)}</div>
+          c.newPrice != null && (
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-[11px] text-label-tertiary">最安</span>
+              <span className="text-[16px] font-bold" style={{ color: 'var(--accent-text)' }}>{yen(c.newPrice)}</span>
+            </div>
+          )
         )}
         <div className="text-[11px] text-label-tertiary mt-0.5">{c.createdAt.slice(5, 10).replace('-', '/')} 時点</div>
       </div>
@@ -80,7 +88,7 @@ export default function PriceDrops() {
         </div>
 
         <div className="px-3 pb-8">
-          <div className="text-[12px] text-label-secondary mt-1 mb-3">いいねしたグッズの価格・在庫が変わったものです（毎日1回チェック）</div>
+          <div className="text-[12px] text-label-secondary mt-1 mb-3">いいねしたグッズのうち、最安値が下がったもの・在庫が戻ったものです（毎日1回チェック）</div>
           {changes === null ? (
             <SkeletonList />
           ) : changes.length === 0 ? (

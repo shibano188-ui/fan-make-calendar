@@ -7,8 +7,8 @@ create table if not exists public.price_changes (
   id         uuid primary key default gen_random_uuid(),
   event_id   uuid not null references public.events(id) on delete cascade,
   kind       text not null check (kind in ('price_drop', 'restock')),
-  old_price  integer,     -- 値下げのみ。再入荷は null
-  new_price  integer,
+  old_price  integer,     -- 値下げのみ。再入荷は null。**代表価格ではなく最安値**
+  new_price  integer,     -- 在庫あり・単品・商品ページの中の最安（買える一番安い値段）
   created_at timestamptz not null default now()
 );
 
