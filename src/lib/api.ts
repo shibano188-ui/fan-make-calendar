@@ -1473,3 +1473,37 @@ export async function listMyPriceChanges(userId: string, days = 30): Promise<Pri
     .filter((x): x is PriceChange => x !== null)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
+
+// ─── カレンダー自動同期（プレミアム）の購読URL ───────────────────
+// Google/Appleに「URLで購読」してもらう方式。配信は api/ics（service_role）。
+// トークンはここで作って自分の行に入れる（RLS ics_tokens_insert_own が user_id を強制する）。
+
+function newIcsToken(): string {
+  const hex = () => crypto.randomUUID().replace(/-/g, '');
+  return `${hex()}${hex().slice(0, 8)}`; // 40文字
+}
+
+export async function getOrCreateIcsToken(userId: string): Promise<string | null> {
+  const { data } = await supabase.from('ics_tokens').select('token').eq('user_id', userId).maybeSingle();
+  if (data?.token) return data.token as string;
+  const token = newIcsToken();
+  const { error } = await supabase.from('ics_tokens').insert({ user_id: userId, token });
+  if (error) {
+    // 競合（別端末が同時に作った）なら、その値を読み直す
+    const { data: again } = await supabase.from('ics_tokens').select('token').eq('user_id', userId).maybeSingle();
+    return (again?.token as string | null) ?? null;
+  }
+  return token;
+}
+
+/** URLが漏れたときに作り直す。前のURLはその瞬間に無効になる。 */
+export async function regenerateIcsToken(userId: string): Promise<string | null> {
+  const token = newIcsToken();
+  const { error } = await supabase.from('ics_tokens').update({ token }).eq('user_id', userId);
+  if (error) return null;
+  return token;
+}
+
+export function icsSubscribeUrl(token: string): string {
+  return `https://fanhive.jp/api/ics?t=${token}`;
+}

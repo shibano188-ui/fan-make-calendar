@@ -7,8 +7,10 @@ import { getContrastText } from '../lib/color';
 const MYPAGE_ACCENTS = ['#FBBF00', '#D85A30', '#1D9E75', '#378ADD', '#D4537E'] as const;
 import {
   getUserPublicProfile, getHomePrefecture, saveHomePrefecture, saveDisplayName, saveAvatarEmoji,
-  listAllParticipatedWorks, leaveCalendar, listSavedEvents, getProfileExtras, saveProfileExtras, type Work,
+  listAllParticipatedWorks, leaveCalendar, listSavedEvents, getProfileExtras, saveProfileExtras,
+  getOrCreateIcsToken, regenerateIcsToken, icsSubscribeUrl, type Work,
 } from '../lib/api';
+import { useFeature } from '../lib/premium';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import WorkFollowSheet from '../components/WorkFollowSheet';
 import AccountSheet from '../components/AccountSheet';
@@ -61,6 +63,35 @@ export default function MyPage() {
   const [leadDays, setLeadDays] = useState(loadNotifyLeadDays());
   const [gcalLinked, setGcalLinked] = useState(isGoogleLinked());
   const [acctSheet, setAcctSheet] = useState<null | 'link' | 'signin'>(null);
+  // カレンダー自動同期（プレミアム）。URLは開いたときに初めて作る（使わない人の行を作らない）
+  const calendarSync = useFeature('calendarAutoSync');
+  const [icsOpen, setIcsOpen] = useState(false);
+  const [icsUrl, setIcsUrl] = useState<string | null>(null);
+  const onToggleIcs = async () => {
+    haptic.select();
+    const next = !icsOpen;
+    setIcsOpen(next);
+    if (next && !icsUrl && user) {
+      const t = await getOrCreateIcsToken(user.id);
+      setIcsUrl(t ? icsSubscribeUrl(t) : null);
+      if (!t) toast('URLを作れませんでした', 'error');
+    }
+  };
+  const onCopyIcs = async () => {
+    if (!icsUrl) return;
+    haptic.select();
+    try { await navigator.clipboard.writeText(icsUrl); toast('URLをコピーしました'); }
+    catch { toast('コピーできませんでした。長押しで選択してください'); }
+  };
+  const onRegenIcs = async () => {
+    if (!user) return;
+    haptic.select();
+    const ok = await confirm({ title: 'URLを作り直しますか？', message: '今のURLで購読しているカレンダーは更新されなくなります', confirmLabel: '作り直す', destructive: true });
+    if (!ok) return;
+    const t = await regenerateIcsToken(user.id);
+    if (t) { setIcsUrl(icsSubscribeUrl(t)); toast('新しいURLを作りました'); }
+    else toast('作り直せませんでした', 'error');
+  };
   const [signOutConfirm, setSignOutConfirm] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const { settings, updateSettings } = useTheme();
@@ -361,6 +392,36 @@ export default function MyPage() {
             {[1, 2, 3, 5, 7].map((d) => <option key={d} value={d}>{d}日前</option>)}
           </select>
         </div>
+        {/* カレンダー自動同期（プレミアム）: 購読URLをGoogle/Appleに登録してもらう方式。
+            無料の人には出さない（購入導線ができるまで案内UIは出さない方針）。 */}
+        {calendarSync && (
+          <div className="px-3 py-2.5">
+            <button onClick={onToggleIcs} className="pressable w-full flex items-center gap-2 text-left">
+              <CalendarSync size={16} className="text-label-secondary" />
+              <span className="text-[14px] flex-1">カレンダー自動同期</span>
+              <ChevronRight size={16} className="text-label-tertiary" style={{ transform: icsOpen ? 'rotate(90deg)' : undefined }} />
+            </button>
+            {icsOpen && (
+              <div className="mt-2 ml-6 flex flex-col gap-2">
+                <p className="text-[11px] text-label-secondary">
+                  このURLをGoogleカレンダーの「他のカレンダーを追加 → URLで追加」（iPhoneは「設定 → カレンダー → アカウント → カレンダー登録」）に貼ると、
+                  いいねした予定と自分の投稿が自動で入ります。締切は別の予定として入ります。
+                </p>
+                <div className="flex gap-2">
+                  <input readOnly value={icsUrl ?? '準備中…'} onFocus={(e) => e.currentTarget.select()}
+                    className="flex-1 min-w-0 rounded-[10px] px-3 py-2 text-[11px] outline-none"
+                    style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
+                  <button onClick={onCopyIcs} disabled={!icsUrl}
+                    className="pressable px-3 rounded-[10px] text-[12px] font-semibold flex-shrink-0"
+                    style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>コピー</button>
+                </div>
+                <button onClick={onRegenIcs} className="pressable text-[11px] text-label-tertiary text-left">
+                  URLを作り直す（今のURLは使えなくなります）
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         {/* Googleカレンダー連携（実装完了まで「近日」固定） */}
         {FEATURE_GOOGLE_CALENDAR && isGoogleConfigured() ? (
           <div className="flex items-center gap-2 px-3 py-2.5">
