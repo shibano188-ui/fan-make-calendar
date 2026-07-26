@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Bell, Crown, CalendarSync, Moon, Palette, Pencil, Plus, Droplet, Check, MessageCircle, MapPin, UserRound } from 'lucide-react';
+import { ChevronRight, Bell, Crown, CalendarSync, Moon, Palette, Pencil, Plus, Droplet, Check, MessageCircle, MapPin, UserRound, Star } from 'lucide-react';
 import { getContrastText } from '../lib/color';
 
 // アクセント色の選択肢（先頭=デフォルトの黄色）
@@ -287,6 +287,13 @@ export default function MyPage() {
             ))}
           </div>
         </div>
+        {/* フォロー中の作品（フォロー解除・作品ごとの通知はここから） */}
+        <button onClick={() => { haptic.select(); navigate('/follows'); }} className="w-full flex items-center gap-2 px-3 py-2.5 pressable text-left">
+          <Star size={16} className="text-label-secondary" />
+          <span className="text-[14px] flex-1">フォロー中の作品</span>
+          <span className="text-[13px] text-label-tertiary">{works.length}作品</span>
+          <ChevronRight size={16} className="text-label-tertiary" />
+        </button>
         {/* カレンダーの配色・テーマ */}
         <button onClick={() => { haptic.select(); navigate('/customize'); }} className="w-full flex items-center gap-2 px-3 py-2.5 pressable text-left">
           <Palette size={16} className="text-label-secondary" />

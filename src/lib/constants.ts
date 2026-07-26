@@ -369,6 +369,35 @@ export function saveHiddenWorkIds(ids: Set<string>): void {
   pushAppState('hidden_work_ids', [...ids]);
 }
 
+// ─── 通知のミュート（値下げ・再入荷アラート）─────────────────────────
+// アラートは「いいねしたグッズは自動で対象」なので、止めたいものだけをここに入れる（オプトアウト）。
+// 作品ミュートは「非表示作品(hiddenWorkIds)」とは別物: あちらは一覧から消す、こちらは通知だけ止める。
+const MUTED_EVENTS_KEY = 'fan_muted_event_ids';
+export function loadMutedEventIds(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(MUTED_EVENTS_KEY) ?? '[]') as string[]); }
+  catch { return new Set(); }
+}
+export function toggleMutedEventId(id: string): Set<string> {
+  const set = loadMutedEventIds();
+  if (set.has(id)) set.delete(id); else set.add(id);
+  localStorage.setItem(MUTED_EVENTS_KEY, JSON.stringify([...set]));
+  pushAppState('muted_event_ids', [...set]);
+  return new Set(set);
+}
+
+const MUTED_WORKS_KEY = 'fan_muted_work_ids';
+export function loadMutedWorkIds(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(MUTED_WORKS_KEY) ?? '[]') as string[]); }
+  catch { return new Set(); }
+}
+export function toggleMutedWorkId(id: string): Set<string> {
+  const set = loadMutedWorkIds();
+  if (set.has(id)) set.delete(id); else set.add(id);
+  localStorage.setItem(MUTED_WORKS_KEY, JSON.stringify([...set]));
+  pushAppState('muted_work_ids', [...set]);
+  return new Set(set);
+}
+
 // ─── 地域フィルター: Calendar ↔ Discover 間で共有 ─────────────────────
 const REGION_FILTER_KEY = 'fan_region_filter';
 export type FilterMode = 'none' | 'pref' | 'region';

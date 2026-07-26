@@ -199,6 +199,7 @@ export default function Home() {
             style={{ borderColor: 'var(--color-success)', backgroundColor: 'var(--bg-secondary)' }}>
             <TrendingDown size={16} style={{ color: 'var(--color-success)' }} />
             <span className="flex-1 text-left text-[13px] font-semibold">{alertLabel}（{alertTotal}件）</span>
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded text-label-tertiary" style={{ background: 'var(--fill-secondary, rgba(120,120,128,0.16))' }}>ベータ</span>
             <ChevronRight size={16} className="text-label-tertiary" />
           </button>
         </div>
@@ -208,7 +209,9 @@ export default function Home() {
       <div className="pt-2">
         <div className="px-3 flex items-center justify-between mb-1.5">
           <span className="text-[12px] text-label-secondary">フォロー中（{follows.length}）</span>
-          <button onClick={() => { haptic.select(); setFollowSheetOpen(true); }} className="pressable text-[11px] font-medium" style={{ color: 'var(--accent-text)' }}>管理</button>
+          {/* 管理はページへ（作品ごとの通知ベル・フォロー解除・追加をまとめてある）。
+              追加チップだけは今まで通りシートで完結させる（1タップ減らす）。 */}
+          <button onClick={() => { haptic.select(); navigate('/follows'); }} className="pressable text-[11px] font-medium" style={{ color: 'var(--accent-text)' }}>管理</button>
         </div>
         <div className="flex gap-2 overflow-x-auto no-scrollbar px-3">
           {follows.map((w) => (

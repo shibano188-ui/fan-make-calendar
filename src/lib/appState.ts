@@ -20,6 +20,8 @@ const KEYS = {
   notify_event_ids:    'fan_notify_event_ids',
   hidden_work_ids:     'fan_hidden_work_ids',
   work_colors:         'fan_work_colors',
+  muted_event_ids:     'fan_muted_event_ids',
+  muted_work_ids:      'fan_muted_work_ids',
 } as const;
 
 export type AppStateColumn = keyof typeof KEYS;
@@ -31,6 +33,8 @@ const IS_ARRAY: Record<AppStateColumn, boolean> = {
   notify_event_ids:    true,
   hidden_work_ids:     true,
   work_colors:         false,
+  muted_event_ids:     true,
+  muted_work_ids:      true,
 };
 
 function readLocal(col: AppStateColumn): unknown {
@@ -87,11 +91,15 @@ export function pushAppState(col: AppStateColumn, value: unknown): void {
 export async function syncAppState(userId: string): Promise<void> {
   currentUserId = userId;
   try {
-    const { data, error } = await supabase
-      .from(TABLE)
-      .select('important_event_ids,bell_event_ids,notify_event_ids,hidden_work_ids,work_colors')
-      .eq('user_id', userId)
-      .maybeSingle();
+    // 列は KEYS から組み立てる（列を足したときに書き換え漏れが起きないように）。
+    // ただし新しい列のSQLが未適用の環境では select ごと失敗するので、旧列だけで一度だけ retry する
+    // （ここで諦めると既存の同期まで止まってしまう）。
+    const ALL_COLS = (Object.keys(KEYS) as AppStateColumn[]).join(',');
+    const LEGACY_COLS = 'important_event_ids,bell_event_ids,notify_event_ids,hidden_work_ids,work_colors';
+    let { data, error } = await supabase.from(TABLE).select(ALL_COLS).eq('user_id', userId).maybeSingle();
+    if (error) {
+      ({ data, error } = await supabase.from(TABLE).select(LEGACY_COLS).eq('user_id', userId).maybeSingle());
+    }
     if (error) return;
 
     const row = (data ?? null) as Record<string, unknown> | null;

@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import type { CalendarEvent, EventVisit, Offer } from '../types';
-import { parseCategories } from './constants';
+import { parseCategories, loadMutedEventIds, loadMutedWorkIds } from './constants';
 import { searchWorksByAlias, findWorkByExactAlias } from './workAliases';
 import { primaryOffer, getOffers } from './affiliate';
 
@@ -1427,7 +1427,11 @@ export type PriceChange = {
 /** 自分がいいねしたグッズの値下げ・再入荷。新しい順。
  *  同じグッズの同じ種類は**最新の1件だけ**返す（毎日値が動く商品で埋め尽くされないように）。 */
 export async function listMyPriceChanges(userId: string, days = 30): Promise<PriceChange[]> {
-  const likedIds = [...(await listLikedEventIds(userId))];
+  // ミュートは端末（＝user_app_state 経由でアカウント）に持つ。オプトアウト方式なので、
+  // いいね済みは自動で対象。止めたいものだけがここで落ちる。
+  const mutedEvents = loadMutedEventIds();
+  const mutedWorks = loadMutedWorkIds();
+  const likedIds = [...(await listLikedEventIds(userId))].filter((id) => !mutedEvents.has(id));
   if (!likedIds.length) return [];
   const since = new Date(Date.now() - days * 86400000).toISOString();
   const { data } = await supabase
@@ -1456,6 +1460,7 @@ export async function listMyPriceChanges(userId: string, days = 30): Promise<Pri
     .map((r) => {
       const event = events.get(r.event_id as string);
       if (!event) return null; // 消された投稿
+      if (event.workId && mutedWorks.has(event.workId)) return null; // 作品ごとミュート
       return {
         id: r.id as string,
         kind: r.kind as PriceChangeKind,
