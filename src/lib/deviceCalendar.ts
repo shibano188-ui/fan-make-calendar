@@ -13,6 +13,7 @@ import { Capacitor } from '@capacitor/core';
 import { CapacitorCalendar } from '@ebarooni/capacitor-calendar';
 import type { CalendarEvent } from '../types';
 import { parseCategories } from './constants';
+import { buildWorkColorMap } from './workColors';
 
 const ENABLED_KEY = 'fan_device_cal_enabled';
 const TARGET_KEY = 'fan_device_cal_id';
@@ -29,6 +30,8 @@ type Desired = {
   description: string;
   location: string;
   url: string;
+  /** 作品ごとの色（アプリ内の作品カラーと同じもの）。Androidのみ効く。 */
+  color?: string;
 };
 
 export function deviceCalendarSupported(): boolean {
@@ -113,6 +116,11 @@ const DAY = 86400000;
  *  キーは ics の UID と揃えてある（本体=イベントID、締切=`${id}-deadline`）。 */
 export function buildDesired(events: CalendarEvent[]): Record<string, Desired> {
   const out: Record<string, Desired> = {};
+  // カレンダーを開いた瞬間にどの作品か分かるよう、アプリ内の作品カラーをそのまま予定の色にする。
+  // Googleカレンダー・Appleカレンダーに「タグ」の欄は無く、区別に使えるのは色だけ。
+  // ※ 予定ごとの色はAndroidのみ（iOSのEventKitはカレンダー単位の色しか持たない）。
+  //   割り当て済みの色だけを使う（ここで新規割り当てはしない＝アプリの見た目と食い違わせない）。
+  const colors = buildWorkColorMap();
   for (const e of events) {
     const url = e.link || `https://fanhive.jp/item/${e.id}`;
     // ⚠️ url はiOS（EventKit）にしか入らない。AndroidのCalendarContractにURL列が無く、
@@ -121,6 +129,7 @@ export function buildDesired(events: CalendarEvent[]): Record<string, Desired> {
     const tags = [e.workName, ...parseCategories(e.category)].filter(Boolean).join(' / ');
     const desc = [e.memo, tags, url].filter(Boolean).join('\n\n');
     const location = [e.prefecture, e.locationDetail].filter(Boolean).join(' ');
+    const color = e.workId ? colors.get(e.workId) : undefined;
     if (e.date) {
       // 曖昧日付（「7月上旬」など）は date が代表日でしかなく、期間・時刻は意味を持たない。
       // 代表日の全日予定にして、見た人が誤解しないようタイトルにラベルを添える。
@@ -129,8 +138,8 @@ export function buildDesired(events: CalendarEvent[]): Record<string, Desired> {
       const time = vague ? undefined : e.time;
       const end = vague ? undefined : e.endDate;
       out[e.id] = time
-        ? { title, startDate: jstTime(e.date, time), endDate: jstTime(end || e.date, time), isAllDay: false, description: desc, location, url }
-        : { title, startDate: utcMidnight(e.date), endDate: utcMidnight(end || e.date) + DAY, isAllDay: true, description: desc, location, url };
+        ? { title, startDate: jstTime(e.date, time), endDate: jstTime(end || e.date, time), isAllDay: false, description: desc, location, url, color }
+        : { title, startDate: utcMidnight(e.date), endDate: utcMidnight(end || e.date) + DAY, isAllDay: true, description: desc, location, url, color };
     }
     // 受付の締切は見逃すと取り返しがつかないので、日付が別なら独立した予定として出す
     if (e.preorderEnd && e.preorderEnd !== e.date) {
@@ -142,6 +151,7 @@ export function buildDesired(events: CalendarEvent[]): Record<string, Desired> {
         description: desc,
         location,
         url,
+        color,
       };
     }
   }
@@ -149,7 +159,7 @@ export function buildDesired(events: CalendarEvent[]): Record<string, Desired> {
 }
 
 function hashOf(d: Desired): string {
-  return `${d.title}|${d.startDate}|${d.endDate}|${d.isAllDay ? 1 : 0}|${d.description}|${d.location}|${d.url}`;
+  return `${d.title}|${d.startDate}|${d.endDate}|${d.isAllDay ? 1 : 0}|${d.description}|${d.location}|${d.url}|${d.color ?? ''}`;
 }
 
 /** 起動・復帰時に端末カレンダーを現在の保存内容へ揃える。
@@ -172,6 +182,7 @@ export async function syncDeviceCalendar(events: CalendarEvent[]): Promise<void>
     const options = {
       title: d.title, startDate: d.startDate, endDate: d.endDate,
       isAllDay: d.isAllDay, description: d.description, location: d.location, url: d.url, calendarId,
+      ...(d.color ? { color: d.color } : {}),
     };
     try {
       if (!prev) {
