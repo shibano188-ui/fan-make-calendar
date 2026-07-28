@@ -49,4 +49,9 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- 端末カレンダーへの直接書き込み（マイページの設定でONにした人だけ実際に要求する）。
+         書き込み先カレンダーを一覧から選ばせるので READ も要る。 -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
 </manifest>

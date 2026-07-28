@@ -14,6 +14,7 @@ import {
 import { useFeature } from '../lib/premium';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import WorkFollowSheet from '../components/WorkFollowSheet';
+import Toggle from '../components/ui/Toggle';
 import AccountSheet from '../components/AccountSheet';
 import { accountState, accountEmail, signOutAccount } from '../lib/account';
 import FanStarChart from '../components/FanStarChart';
@@ -22,6 +23,10 @@ import { calcTitle, calcRadarData, calcGrade, type AchievementStats } from '../l
 import { REGIONS } from '../lib/prefectures';
 import { loadNotifyLeadDays, saveNotifyLeadDays, clearAccountScopedCache, FEATURE_GOOGLE_CALENDAR, FEATURE_PREMIUM } from '../lib/constants';
 import { isGoogleConfigured, isGoogleLinked, linkGoogle, unlinkGoogle } from '../lib/googleCalendar';
+import {
+  deviceCalendarSupported, isDeviceCalendarOn, enableDeviceCalendar, disableDeviceCalendar,
+  listDeviceCalendars, getTargetCalendarId, setTargetCalendarId, syncDeviceCalendar, type DeviceCalendar,
+} from '../lib/deviceCalendar';
 import { useTheme, type ThemeMode } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
@@ -82,6 +87,43 @@ export default function MyPage() {
       if (!t) toast('URLを作れませんでした', 'error');
     }
   };
+  // 端末カレンダーへの直接書き込み（プレミアム・アプリ版のみ）。ics購読より早く反映される。
+  // 書き込み先は端末に既にあるカレンダーから選ぶ（Googleを選べばPCでも見える）。
+  const [devCalOn, setDevCalOn] = useState(isDeviceCalendarOn());
+  const [devCals, setDevCals] = useState<DeviceCalendar[] | null>(null);
+  const [devCalId, setDevCalId] = useState<string | null>(getTargetCalendarId());
+  const syncDevCal = () => { if (user) listSavedEvents(user.id).then(syncDeviceCalendar).catch(() => {}); };
+  const onToggleDevCal = async () => {
+    haptic.select();
+    if (devCalOn) {
+      await disableDeviceCalendar();
+      setDevCalOn(false);
+      setDevCals(null);
+      toast('端末のカレンダーから FanHive の予定を消しました');
+      return;
+    }
+    const ok = await enableDeviceCalendar();
+    if (!ok) { toast('カレンダーへのアクセスが許可されていません。端末の設定から許可してください'); return; }
+    setDevCalOn(true);
+    setDevCalId(getTargetCalendarId());
+    setDevCals(await listDeviceCalendars());
+    syncDevCal();
+    toast('端末のカレンダーに書き込みます');
+  };
+  const onPickDevCal = async (id: string) => {
+    haptic.select();
+    // 書き込み先を変えるので、前のカレンダーに入れた分を消してから入れ直す
+    await disableDeviceCalendar();
+    setTargetCalendarId(id);
+    setDevCalId(id);
+    await enableDeviceCalendar();
+    setDevCalOn(true);
+    syncDevCal();
+  };
+  useEffect(() => {
+    if (devCalOn && devCals === null && deviceCalendarSupported()) listDeviceCalendars().then(setDevCals).catch(() => {});
+  }, [devCalOn, devCals]);
+
   const onCopyIcs = async () => {
     if (!icsUrl) return;
     haptic.select();
@@ -397,8 +439,40 @@ export default function MyPage() {
             {[1, 2, 3, 5, 7].map((d) => <option key={d} value={d}>{d}日前</option>)}
           </select>
         </div>
+        {/* 端末のカレンダーへ直接書き込む（プレミアム・アプリ版のみ）。
+            ics購読はカレンダー側が取りに来るまで反映されない（Googleは8〜24時間）ので、
+            アプリが動いた時点で書けるこちらを上位の手段として置く。Webには出さない。 */}
+        {calendarSync && deviceCalendarSupported() && (
+          <div className="px-3 py-2.5">
+            <div className="flex items-center gap-2">
+              <CalendarSync size={16} className="text-label-secondary" />
+              <span className="text-[14px] flex-1">端末のカレンダーに書き込む</span>
+              <Toggle checked={devCalOn} onChange={onToggleDevCal} />
+            </div>
+            <p className="text-[11px] text-label-secondary mt-1 ml-6">
+              いいねした予定と自分の投稿が、選んだカレンダーに入ります（締切は別の予定として入ります）。
+            </p>
+            {devCalOn && (
+              <div className="mt-2 ml-6 flex flex-col gap-1">
+                <span className="text-[11px] text-label-tertiary">書き込み先</span>
+                {devCals === null ? (
+                  <span className="text-[12px] text-label-tertiary">読み込み中…</span>
+                ) : devCals.length === 0 ? (
+                  <span className="text-[12px] text-label-tertiary">書き込めるカレンダーが見つかりませんでした</span>
+                ) : devCals.map((c) => (
+                  <button key={c.id} onClick={() => onPickDevCal(c.id)}
+                    className="pressable flex items-center gap-2 py-1.5 text-left">
+                    <span className="w-4 flex-shrink-0">{c.id === devCalId && <Check size={14} style={{ color: 'var(--accent-color)' }} />}</span>
+                    <span className="text-[13px] truncate">{c.title}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {/* カレンダー自動同期（プレミアム）: 購読URLをGoogle/Appleに登録してもらう方式。
-            無料の人には出さない（購入導線ができるまで案内UIは出さない方針）。 */}
+            無料の人には出さない（購入導線ができるまで案内UIは出さない方針）。
+            PC専用の人・アプリを入れていない人はこちらしか使えないので残す。 */}
         {calendarSync && (
           <div className="px-3 py-2.5">
             <button onClick={onToggleIcs} className="pressable w-full flex items-center gap-2 text-left">

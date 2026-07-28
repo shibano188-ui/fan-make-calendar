@@ -1,0 +1,195 @@
+// 端末カレンダーへの直接書き込み（プレミアム・ネイティブのみ）。
+//
+// ics購読（api/ics.ts）はカレンダー側が取りに来るまで反映されず、Googleだと8〜24時間遅れる。
+// こちらは端末のカレンダーに直接書くので、アプリが動いた時点で即反映される。
+// 対象・予定の作り方は ics と完全に揃える（いいね＋自分の投稿／締切は別予定）。
+//
+// 書き込み先は「端末に既にあるカレンダー」から本人に選んでもらう。専用カレンダーを作る手もあるが、
+// Androidで作れるのは ACCOUNT_TYPE_LOCAL のカレンダーだけで端末内に閉じてしまい、
+// 「PCでも見たい」が満たせない（既存のGoogleカレンダーに書けば同期アダプタがサーバへ上げる）。
+//
+// ⚠️ Webでは動かない（プラグインはネイティブのみ）。PC専用の人のために ics 購読は残す。
+import { Capacitor } from '@capacitor/core';
+import { CapacitorCalendar } from '@ebarooni/capacitor-calendar';
+import type { CalendarEvent } from '../types';
+
+const ENABLED_KEY = 'fan_device_cal_enabled';
+const TARGET_KEY = 'fan_device_cal_id';
+/** 予定キー → { 端末側のイベントID, 内容のハッシュ }。更新・削除に追随するための対応表。 */
+const MAP_KEY = 'fan_device_cal_map';
+
+export type DeviceCalendar = { id: string; title: string };
+type Entry = { id: string; hash: string };
+type Desired = {
+  title: string;
+  startDate: number;
+  endDate: number;
+  isAllDay: boolean;
+  description: string;
+  url: string;
+};
+
+export function deviceCalendarSupported(): boolean {
+  return Capacitor.isNativePlatform();
+}
+
+export function isDeviceCalendarOn(): boolean {
+  try { return localStorage.getItem(ENABLED_KEY) === '1'; } catch { return false; }
+}
+
+/** 書き込み先カレンダーID。端末ごとに違うのでサーバーには同期しない（デバイス間同期の対象外）。 */
+export function getTargetCalendarId(): string | null {
+  try { return localStorage.getItem(TARGET_KEY); } catch { return null; }
+}
+
+export function setTargetCalendarId(id: string | null): void {
+  try { if (id) localStorage.setItem(TARGET_KEY, id); else localStorage.removeItem(TARGET_KEY); } catch { /* noop */ }
+}
+
+function loadMap(): Record<string, Entry> {
+  try { return JSON.parse(localStorage.getItem(MAP_KEY) ?? '{}') as Record<string, Entry>; } catch { return {}; }
+}
+
+function saveMap(m: Record<string, Entry>): void {
+  try { localStorage.setItem(MAP_KEY, JSON.stringify(m)); } catch { /* noop */ }
+}
+
+/** 権限を取り、書き込み先の候補を返す。一覧を出すには読み取りも要るのでフルアクセスを求める。 */
+export async function listDeviceCalendars(): Promise<DeviceCalendar[]> {
+  if (!deviceCalendarSupported()) return [];
+  const { result } = await CapacitorCalendar.requestFullCalendarAccess();
+  if (result !== 'granted') return [];
+  const { result: cals } = await CapacitorCalendar.listCalendars();
+  return cals.map((c) => ({ id: String(c.id), title: c.title }));
+}
+
+/** 端末の既定カレンダー（何も選ばなかった人のための初期値）。 */
+export async function getDefaultDeviceCalendarId(): Promise<string | null> {
+  if (!deviceCalendarSupported()) return null;
+  try {
+    const { result } = await CapacitorCalendar.getDefaultCalendar();
+    return result?.id != null ? String(result.id) : null;
+  } catch { return null; }
+}
+
+/** ONにする。権限が取れなければ false を返す（呼び出し側は ics 方式を案内する）。 */
+export async function enableDeviceCalendar(): Promise<boolean> {
+  if (!deviceCalendarSupported()) return false;
+  const { result } = await CapacitorCalendar.requestFullCalendarAccess();
+  if (result !== 'granted') return false;
+  if (!getTargetCalendarId()) setTargetCalendarId(await getDefaultDeviceCalendarId());
+  try { localStorage.setItem(ENABLED_KEY, '1'); } catch { /* noop */ }
+  return true;
+}
+
+/** OFFにする。書き込んだ予定は残さず消す（自分が入れたものだけを対応表から辿って消す）。 */
+export async function disableDeviceCalendar(): Promise<void> {
+  try { localStorage.setItem(ENABLED_KEY, '0'); } catch { /* noop */ }
+  const map = loadMap();
+  const ids = Object.values(map).map((e) => e.id);
+  if (ids.length && deviceCalendarSupported()) {
+    try { await CapacitorCalendar.deleteEventsById({ ids }); } catch { /* 消せなくても設定は切る */ }
+  }
+  saveMap({});
+}
+
+/** 全日予定は UTC 0時で持つ（Androidの CalendarContract の約束事。端末TZの0時で入れると
+ *  読み手によって前日にずれる）。日付は 'YYYY-MM-DD'。 */
+function utcMidnight(date: string): number {
+  const [y, m, d] = date.split('-').map(Number);
+  return Date.UTC(y, m - 1, d);
+}
+
+/** 時刻ありは日本時間として解釈する（アプリはJSTのみ扱う）。 */
+function jstTime(date: string, time: string): number {
+  return new Date(`${date}T${time.slice(0, 5)}:00+09:00`).getTime();
+}
+
+const DAY = 86400000;
+
+/** ics（api/ics.ts）と同じルールで「カレンダーに入れる予定」を組み立てる。
+ *  キーは ics の UID と揃えてある（本体=イベントID、締切=`${id}-deadline`）。 */
+export function buildDesired(events: CalendarEvent[]): Record<string, Desired> {
+  const out: Record<string, Desired> = {};
+  for (const e of events) {
+    const url = e.link || `https://fanhive.jp/item/${e.id}`;
+    const desc = e.memo ?? '';
+    if (e.date) {
+      // 曖昧日付（「7月上旬」など）は date が代表日でしかなく、期間・時刻は意味を持たない。
+      // 代表日の全日予定にして、見た人が誤解しないようタイトルにラベルを添える。
+      const vague = !!e.dateLabel;
+      const title = vague ? `${e.title}（${e.dateLabel}）` : e.title;
+      const time = vague ? undefined : e.time;
+      const end = vague ? undefined : e.endDate;
+      out[e.id] = time
+        ? { title, startDate: jstTime(e.date, time), endDate: jstTime(end || e.date, time), isAllDay: false, description: desc, url }
+        : { title, startDate: utcMidnight(e.date), endDate: utcMidnight(end || e.date) + DAY, isAllDay: true, description: desc, url };
+    }
+    // 受付の締切は見逃すと取り返しがつかないので、日付が別なら独立した予定として出す
+    if (e.preorderEnd && e.preorderEnd !== e.date) {
+      out[`${e.id}-deadline`] = {
+        title: `【締切】${e.title}`,
+        startDate: utcMidnight(e.preorderEnd),
+        endDate: utcMidnight(e.preorderEnd) + DAY,
+        isAllDay: true,
+        description: desc,
+        url,
+      };
+    }
+  }
+  return out;
+}
+
+function hashOf(d: Desired): string {
+  return `${d.title}|${d.startDate}|${d.endDate}|${d.isAllDay ? 1 : 0}|${d.description}|${d.url}`;
+}
+
+/** 起動・復帰時に端末カレンダーを現在の保存内容へ揃える。
+ *  差分だけを触る（毎回消して入れ直すと、カレンダーアプリの通知が鳴り直したり同期が重くなる）。 */
+export async function syncDeviceCalendar(events: CalendarEvent[]): Promise<void> {
+  if (!deviceCalendarSupported() || !isDeviceCalendarOn()) return;
+  const calendarId = getTargetCalendarId();
+  if (!calendarId) return;
+  const { result } = await CapacitorCalendar.checkAllPermissions();
+  // 権限を後から切られたら黙って止まる（ics購読は生きているので予定が消えるわけではない）
+  if (result.writeCalendar !== 'granted') return;
+
+  const desired = buildDesired(events);
+  const map = loadMap();
+  let changed = false;
+
+  for (const [key, d] of Object.entries(desired)) {
+    const hash = hashOf(d);
+    const prev = map[key];
+    const options = {
+      title: d.title, startDate: d.startDate, endDate: d.endDate,
+      isAllDay: d.isAllDay, description: d.description, url: d.url, calendarId,
+    };
+    try {
+      if (!prev) {
+        const { id } = await CapacitorCalendar.createEvent(options);
+        map[key] = { id: String(id), hash };
+        changed = true;
+      } else if (prev.hash !== hash) {
+        await CapacitorCalendar.modifyEvent({ id: prev.id, ...options });
+        map[key] = { id: prev.id, hash };
+        changed = true;
+      }
+    } catch {
+      // 1件の失敗で全体を止めない。次回の同期で作り直しを試みる
+      if (!prev) continue;
+      delete map[key];
+      changed = true;
+    }
+  }
+
+  // いいねを外した・予定が消えた分を削除する
+  const stale = Object.keys(map).filter((k) => !desired[k]);
+  if (stale.length) {
+    try { await CapacitorCalendar.deleteEventsById({ ids: stale.map((k) => map[k].id) }); } catch { /* 次回に持ち越す */ }
+    for (const k of stale) delete map[k];
+    changed = true;
+  }
+
+  if (changed) saveMap(map);
+}
