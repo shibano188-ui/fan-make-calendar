@@ -12,6 +12,7 @@
 import { Capacitor } from '@capacitor/core';
 import { CapacitorCalendar } from '@ebarooni/capacitor-calendar';
 import type { CalendarEvent } from '../types';
+import { parseCategories } from './constants';
 
 const ENABLED_KEY = 'fan_device_cal_enabled';
 const TARGET_KEY = 'fan_device_cal_id';
@@ -26,6 +27,7 @@ type Desired = {
   endDate: number;
   isAllDay: boolean;
   description: string;
+  location: string;
   url: string;
 };
 
@@ -113,7 +115,12 @@ export function buildDesired(events: CalendarEvent[]): Record<string, Desired> {
   const out: Record<string, Desired> = {};
   for (const e of events) {
     const url = e.link || `https://fanhive.jp/item/${e.id}`;
-    const desc = e.memo ?? '';
+    // ⚠️ url はiOS（EventKit）にしか入らない。AndroidのCalendarContractにURL列が無く、
+    // プラグインも書いていないので、メモ欄に必ず本文としても入れる（カレンダーアプリが
+    // リンクとして拾う）。作品名・カテゴリも「何の予定か」が分かるようここに載せる。
+    const tags = [e.workName, ...parseCategories(e.category)].filter(Boolean).join(' / ');
+    const desc = [e.memo, tags, url].filter(Boolean).join('\n\n');
+    const location = [e.prefecture, e.locationDetail].filter(Boolean).join(' ');
     if (e.date) {
       // 曖昧日付（「7月上旬」など）は date が代表日でしかなく、期間・時刻は意味を持たない。
       // 代表日の全日予定にして、見た人が誤解しないようタイトルにラベルを添える。
@@ -122,8 +129,8 @@ export function buildDesired(events: CalendarEvent[]): Record<string, Desired> {
       const time = vague ? undefined : e.time;
       const end = vague ? undefined : e.endDate;
       out[e.id] = time
-        ? { title, startDate: jstTime(e.date, time), endDate: jstTime(end || e.date, time), isAllDay: false, description: desc, url }
-        : { title, startDate: utcMidnight(e.date), endDate: utcMidnight(end || e.date) + DAY, isAllDay: true, description: desc, url };
+        ? { title, startDate: jstTime(e.date, time), endDate: jstTime(end || e.date, time), isAllDay: false, description: desc, location, url }
+        : { title, startDate: utcMidnight(e.date), endDate: utcMidnight(end || e.date) + DAY, isAllDay: true, description: desc, location, url };
     }
     // 受付の締切は見逃すと取り返しがつかないので、日付が別なら独立した予定として出す
     if (e.preorderEnd && e.preorderEnd !== e.date) {
@@ -133,6 +140,7 @@ export function buildDesired(events: CalendarEvent[]): Record<string, Desired> {
         endDate: utcMidnight(e.preorderEnd) + DAY,
         isAllDay: true,
         description: desc,
+        location,
         url,
       };
     }
@@ -141,7 +149,7 @@ export function buildDesired(events: CalendarEvent[]): Record<string, Desired> {
 }
 
 function hashOf(d: Desired): string {
-  return `${d.title}|${d.startDate}|${d.endDate}|${d.isAllDay ? 1 : 0}|${d.description}|${d.url}`;
+  return `${d.title}|${d.startDate}|${d.endDate}|${d.isAllDay ? 1 : 0}|${d.description}|${d.location}|${d.url}`;
 }
 
 /** 起動・復帰時に端末カレンダーを現在の保存内容へ揃える。
@@ -163,7 +171,7 @@ export async function syncDeviceCalendar(events: CalendarEvent[]): Promise<void>
     const prev = map[key];
     const options = {
       title: d.title, startDate: d.startDate, endDate: d.endDate,
-      isAllDay: d.isAllDay, description: d.description, url: d.url, calendarId,
+      isAllDay: d.isAllDay, description: d.description, location: d.location, url: d.url, calendarId,
     };
     try {
       if (!prev) {
