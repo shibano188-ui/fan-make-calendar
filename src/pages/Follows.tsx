@@ -92,8 +92,12 @@ export default function Follows() {
                       <span className="text-[15px] font-semibold truncate">{w.name}</span>
                       <ChevronRight size={15} className="text-label-tertiary flex-shrink-0" />
                     </button>
-                    <button onClick={() => toggleMute(w)} aria-label={off ? '通知をオン' : '通知をオフ'} className="pressable tap-44 flex items-center justify-center w-11">
+                    {/* ベルのアイコンだけでは何の通知か読めないので字を添える。
+                        ここで止まるのは値下げ・再入荷（作品まるごと）。発売日リマインダーは予定ごとのベル。 */}
+                    <button onClick={() => toggleMute(w)} aria-label={off ? '値下げ通知をオン' : '値下げ通知をオフ'}
+                      className="pressable tap-44 flex flex-col items-center justify-center gap-0.5 px-1.5">
                       {off ? <BellOff size={19} className="text-label-tertiary" /> : <Bell size={19} style={{ color: 'var(--accent-color)' }} />}
+                      <span className="text-[9px] leading-none text-label-tertiary">値下げ</span>
                     </button>
                     <button onClick={() => unfollow(w)} disabled={busyId !== null}
                       className="pressable flex-shrink-0 flex items-center gap-1 text-[12px] px-3 py-1.5 rounded-full font-medium"
