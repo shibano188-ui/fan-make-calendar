@@ -35,7 +35,8 @@ async function rakutenRequest(keyword: string, hits: number, shopCode?: string):
     ...(affiliateId ? { affiliateId } : {}),
     ...(shopCode ? { shopCode } : {}),
   });
-  const referer = process.env.RAKUTEN_REFERER || 'https://fan-make-calendar.vercel.app/';
+  // 楽天アフィリエイトに登録しているサイトURLと揃える（RAKUTEN_REFERER は未設定なのでこの既定値が使われる）
+  const referer = process.env.RAKUTEN_REFERER || 'https://fanhive.jp/';
   const r = await fetch(`https://openapi.rakuten.co.jp/ichibams/api/IchibaItem/Search/20260401?${params.toString()}`, {
     headers: { accessKey, Referer: referer, Origin: referer.replace(/\/$/, '') },
     signal: AbortSignal.timeout(8000),

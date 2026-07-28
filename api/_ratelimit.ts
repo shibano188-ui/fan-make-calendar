@@ -41,10 +41,13 @@ export function getClientIp(req: VercelRequest): string {
   return first || req.socket?.remoteAddress || 'unknown';
 }
 
+// ok:true 側にも retryAfterSec を（undefined で）持たせる。Vercel は api/ を
+// strictNullChecks 無しで型チェックするので、`if (rl.ok) return` による絞り込みが効かず、
+// 呼び出し側の rl.retryAfterSec が TS2339 になる（ビルドは通るがログにエラーが出続ける）。
 export async function checkRateLimit(
   bucket: RateLimitBucket,
   ip: string,
-): Promise<{ ok: true } | { ok: false; retryAfterSec: number }> {
+): Promise<{ ok: true; retryAfterSec?: undefined } | { ok: false; retryAfterSec: number }> {
   const limiters = limitersFor(bucket);
   if (!limiters) return { ok: true };
   try {

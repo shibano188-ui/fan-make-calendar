@@ -6,7 +6,9 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   server: {
     androidScheme: 'https',
-    url: 'https://fan-make-calendar.vercel.app',
+    // アプリはこのURLをWebViewで開く（Web側の変更は再ビルドなしで反映される）。
+    // 独自ドメインに固定しておくと、Vercelのプロジェクト名やデプロイURLが変わってもアプリが死なない。
+    url: 'https://fanhive.jp',
   },
   plugins: {
     SplashScreen: {

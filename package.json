@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "postinstall": "patch-package || true"
+    "postinstall": "[ \"$VERCEL\" = \"1\" ] || patch-package || true"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.102.0",
