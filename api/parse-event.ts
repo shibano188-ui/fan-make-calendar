@@ -16,9 +16,31 @@ async function claudeComplete(systemPrompt: string, userContent: string, maxToke
   return block.type === 'text' ? block.text : '';
 }
 
-// t.co を実URLに解決（GET + redirect follow で確実に取得）
+// 短縮URLのホスト。展開しないと販路名が「x.gd」になり、どの店か分からないまま保存される
+// （2026-07-26 実測3件）。アフィ判定・価格取得もホストで決まるので、保存前に必ず実URLへ戻す。
+const SHORTENER_HOSTS = /^(t\.co|x\.gd|bit\.ly|bitly\.com|tinyurl\.com|is\.gd|v\.gd|ow\.ly|buff\.ly|cutt\.ly|rebrand\.ly|shorturl\.at|s\.id|onl\.(bz|sc)|urx\d?\.(blue|nu)|ur0\.(link|work)|amzn\.(to|asia)|a\.r10\.to)$/i;
+function isShortUrl(url: string): boolean {
+  try { return SHORTENER_HOSTS.test(new URL(url).host.replace(/^www\./, '')); } catch { return false; }
+}
+
+// リダイレクト先の Location にパスの日本語が生バイトで入っていると、fetch の res.url が
+// それを latin-1 として読み直して二重エンコードされる（%E3%83%8B → %C3%A3%C2%83%C2%8B）。
+// そのまま保存すると 404 になるURLが販路として残るので、latin-1→UTF-8 で読み直して戻す。
+function deMojibake(url: string): string {
+  try {
+    const u = new URL(url);
+    const dec = decodeURIComponent(u.pathname);
+    if (!/[\u0080-\u00ff]/.test(dec)) return url;
+    const fixed = Buffer.from(dec, 'latin1').toString('utf8');
+    if (fixed.includes('\uFFFD')) return url; // UTF-8として読めない＝元から latin-1 のパス
+    u.pathname = fixed;
+    return u.toString();
+  } catch { return url; }
+}
+
+// 短縮URLを実URLに解決（GET + redirect follow で確実に取得）
 async function resolveUrl(url: string): Promise<string> {
-  if (!url.includes('t.co/')) return url;
+  if (!isShortUrl(url)) return url;
   try {
     const res = await fetch(url, {
       method: 'GET',
@@ -28,7 +50,7 @@ async function resolveUrl(url: string): Promise<string> {
     });
     const final = res.url;
     if (/twitter\.com|x\.com|t\.co\//.test(final)) return '';
-    return final;
+    return deMojibake(final);
   } catch { return url; }
 }
 
@@ -53,20 +75,39 @@ function isNoiseLink(url: string): boolean {
   } catch { return false; }
 }
 
-// ポスト本文に残った t.co 短縮URLを実URLへ展開する。
-// t.co のままではリンク先がまとめ記事かショップか判別できず isNoiseLink が効かないため、
+// ポスト本文に残った短縮URL（t.co・x.gd など）を実URLへ展開する。
+// 短縮のままではリンク先がまとめ記事かショップか判別できず isNoiseLink が効かないため、
 // 展開してから判定する。展開できない/ノイズなら本文から取り除き、AIが購入リンクとして拾えないようにする。
 // 正規の外部リンクは【ポスト内の外部リンク】として別に渡しているので、消しても情報は落ちない。
 async function expandShortLinks(text: string): Promise<string> {
-  const shorts = [...new Set(text.match(/https?:\/\/t\.co\/[A-Za-z0-9]+/g) ?? [])];
+  const shorts = [...new Set(text.match(/https?:\/\/[^\s<>"']+/g) ?? [])].filter(isShortUrl);
   if (!shorts.length) return text;
   const pairs = await Promise.all(shorts.map(async (s) => [s, await resolveUrl(s)] as const));
   let out = text;
   for (const [short, final] of pairs) {
-    const usable = final && !/t\.co\//.test(final) && !isNoiseLink(final);
+    const usable = final && !isShortUrl(final) && !isNoiseLink(final);
     out = out.split(short).join(usable ? final : '');
   }
   return out.replace(/[ \t]+/g, ' ').trim();
+}
+
+/** AIが link として返したURLを実URLへ展開する（保存されるのはこの値なので最後の砦）。
+ *  link は文字列 or 複数件のJSON配列文字列。展開後にノイズ判定をやり直し、全滅したら null。 */
+async function expandEventLinks(events: unknown[]): Promise<void> {
+  await Promise.all(events.map(async (e) => {
+    const ev = e as Record<string, unknown>;
+    const raw = ev.link;
+    if (typeof raw !== 'string' || !raw) return;
+    let links: string[];
+    try { const p = JSON.parse(raw); links = Array.isArray(p) ? p.filter((u): u is string => typeof u === 'string') : [raw]; }
+    catch { links = [raw]; }
+    if (!links.some(isShortUrl)) return;
+    // 解決に失敗したときは resolveUrl が元のURLを返す。購入リンクが1本しかない投稿で
+    // 一時的なタイムアウトによりリンクを丸ごと失うほうが損なので、短縮のままでも残す。
+    const expanded = (await Promise.all(links.map(async (u) => (isShortUrl(u) ? await resolveUrl(u) : u))))
+      .filter((u) => !!u && !isNoiseLink(u));
+    ev.link = expanded.length === 0 ? null : expanded.length === 1 ? expanded[0] : JSON.stringify(expanded);
+  }));
 }
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -517,7 +558,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const block = res2.content[0];
       const rawText = block.type === 'text' ? block.text : '';
       try {
-        return res.status(200).json(parseRawText(rawText));
+        const parsed = parseRawText(rawText);
+        await expandEventLinks(parsed);
+        return res.status(200).json(parsed);
       } catch {
         return res.status(422).json({ error: 'Could not parse response' });
       }
@@ -529,8 +572,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!/^https?:\/\//.test(processUrl)) {
       processUrl = processUrl.match(/https?:\/\/\S+/)?.[0] ?? processUrl;
     }
-    // 2. t.co 短縮URLをリダイレクト先へ解決（X アプリが t.co を送ってくる場合）
-    if (/^https?:\/\/t\.co\//.test(processUrl)) {
+    // 2. 短縮URLをリダイレクト先へ解決（X アプリが t.co を送る／本文の x.gd を直接共有する場合）
+    if (isShortUrl(processUrl)) {
       try {
         const r = await fetch(processUrl, {
           method: 'GET', redirect: 'follow',
@@ -586,6 +629,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         }
       }
+      await expandEventLinks(parsed);
       return res.status(200).json(parsed);
     }
 
@@ -593,6 +637,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const pageText = await fetchPageText(processUrl);
     try {
       const parsed = await extractWithRetry(EXTRACT_PROMPT, pageText, 768);
+      await expandEventLinks(parsed);
       return res.status(200).json(parsed);
     } catch {
       return res.status(422).json({ error: 'Could not parse response' });
