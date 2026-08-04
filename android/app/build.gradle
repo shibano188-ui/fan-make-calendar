@@ -31,6 +31,12 @@ android {
         }
     }
     buildTypes {
+        debug {
+            // Play版と署名が違うので、同じパッケージ名だと実機検証のたびにアンインストール＝
+            // 端末にしか無いデータ（作品カラー・非表示作品・通知設定）が消える。別アプリとして併存させる。
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+        }
         release {
             signingConfig signingConfigs.release
             minifyEnabled false
