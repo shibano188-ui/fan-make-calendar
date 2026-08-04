@@ -18,6 +18,14 @@ export const pushSupported = (): boolean =>
 
 const TOKEN_KEY = 'fan_push_token';
 
+// リスナーの二重登録を防ぐフラグ（同じ通知で2回遷移させない）
+let registered = false;
+let openerBound = false;
+
+/** 通知チャンネル。Android 8以降は必須で、無いとFCMが既定チャンネルにフォールバックし、
+ *  重要度や表示名をこちらで決められない（AndroidManifest の default_notification_channel_id と揃える）。 */
+const CHANNEL_ID = 'fanhive_default';
+
 function rememberToken(token: string | null): void {
   try {
     if (token) localStorage.setItem(TOKEN_KEY, token);
@@ -51,10 +59,24 @@ export async function registerPush(userId: string): Promise<void> {
       : cur.receive;
     if (state !== 'granted') return;
 
-    await PushNotifications.removeAllListeners();
-    await PushNotifications.addListener('registration', (t) => { void saveToken(userId, t.value); });
-    // 失敗しても再試行はしない（次の起動でまた register される）
-    await PushNotifications.addListener('registrationError', () => { /* noop */ });
+    // 通知チャンネルを用意（同じidで何度呼んでも増えない）
+    try {
+      await PushNotifications.createChannel({
+        id: CHANNEL_ID, name: 'お知らせ',
+        description: '値下げ・受付開始・フォロー作品の新着',
+        importance: 4, visibility: 1,
+      });
+    } catch { /* 非対応端末では何もしない */ }
+
+    // ⚠️ ここで removeAllListeners() を呼んではいけない。
+    // onPushOpened() が登録する**タップ用リスナーまで消える**（2つを await せず並行で呼ぶので、
+    // 順序次第で「通知をタップしても何も起きない」になる）。二重登録は下のフラグで防ぐ。
+    if (!registered) {
+      registered = true;
+      await PushNotifications.addListener('registration', (t) => { void saveToken(userId, t.value); });
+      // 失敗しても再試行はしない（次の起動でまた register される）
+      await PushNotifications.addListener('registrationError', () => { /* noop */ });
+    }
     // ⚠️ google-services.json が無いビルドでは register() が**投げずに返ってこない**
     // （FirebaseAppの初期化に失敗したまま待ち続ける）。待ちっぱなしにしないよう打ち切る。
     // トークンは 'registration' イベントで届くので、ここで待つ必要はもともと無い。
@@ -68,7 +90,8 @@ export async function registerPush(userId: string): Promise<void> {
 /** 通知タップ時の遷移を配線する。
  *  1件の通知は data.eventId（その商品へ）、まとめの通知は data.path（まとめページへ）を持つ。 */
 export async function onPushOpened(go: (path: string) => void): Promise<void> {
-  if (!pushSupported()) return;
+  if (!pushSupported() || openerBound) return;
+  openerBound = true;
   try {
     await PushNotifications.addListener('pushNotificationActionPerformed', (a) => {
       const data = a.notification.data as { eventId?: string; path?: string } | undefined;
