@@ -78,6 +78,39 @@ export async function onPushOpened(go: (path: string) => void): Promise<void> {
   } catch { /* noop */ }
 }
 
+// ─── フォロー作品の新着まとめ（毎朝9時）のON/OFF ──────────────────────
+//
+// ⚠️ プレミアムの端末間同期（appState.ts の pushAppState）には**乗せない**。
+// あちらはプレミアムのときしかサーバーへ書かないので、無料ユーザーがOFFにしても
+// サーバーには届かず、止めたつもりで送られ続けることになる。ここは直接書く。
+const DIGEST_OFF_KEY = 'fan_new_events_digest_off';
+
+/** まとめ通知を受け取るか。既定はON（オプトアウト方式）。 */
+export function isDigestOn(): boolean {
+  try { return localStorage.getItem(DIGEST_OFF_KEY) !== '1'; } catch { return true; }
+}
+
+export async function setDigestOn(userId: string, on: boolean): Promise<void> {
+  try {
+    if (on) localStorage.removeItem(DIGEST_OFF_KEY);
+    else localStorage.setItem(DIGEST_OFF_KEY, '1');
+  } catch { /* noop */ }
+  await supabase.from('user_app_state').upsert(
+    { user_id: userId, new_events_digest_off: !on, updated_at: new Date().toISOString() },
+    { onConflict: 'user_id' },
+  );
+}
+
+/** ログイン時にサーバーの設定を端末へ引き戻す（別端末で切った設定を尊重する）。 */
+export async function loadDigestSetting(userId: string): Promise<void> {
+  const { data } = await supabase.from('user_app_state').select('new_events_digest_off').eq('user_id', userId).maybeSingle();
+  if (!data) return;
+  try {
+    if (data.new_events_digest_off === true) localStorage.setItem(DIGEST_OFF_KEY, '1');
+    else localStorage.removeItem(DIGEST_OFF_KEY);
+  } catch { /* noop */ }
+}
+
 /** ログアウト時に**この端末の宛先だけ**を消す。
  *  消さないと、次にこの端末を使う別アカウント宛の通知が前の持ち主に届く。
  *  他の端末の宛先（同じアカウントの別スマホ）は残す。 */

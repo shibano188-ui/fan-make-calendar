@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Bell, Crown, CalendarSync, Moon, Palette, Pencil, Plus, Droplet, Check, MessageCircle, MapPin, UserRound, Star } from 'lucide-react';
+import { ChevronRight, Bell, BellRing, Crown, CalendarSync, Moon, Palette, Pencil, Plus, Droplet, Check, MessageCircle, MapPin, UserRound, Star } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { getContrastText } from '../lib/color';
 
@@ -12,6 +12,7 @@ import {
   getOrCreateIcsToken, regenerateIcsToken, icsSubscribeUrl, icsWebcalUrl, type Work,
 } from '../lib/api';
 import { useFeature } from '../lib/premium';
+import { pushSupported, isDigestOn, setDigestOn } from '../lib/push';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import WorkFollowSheet from '../components/WorkFollowSheet';
 import Toggle from '../components/ui/Toggle';
@@ -86,6 +87,14 @@ export default function MyPage() {
       setIcsWebcal(t ? icsWebcalUrl(t) : null);
       if (!t) toast('URLを作れませんでした', 'error');
     }
+  };
+  // フォロー作品の新着まとめ（毎朝9時・無料/プレミアム共通）。既定ONのオプトアウト
+  const [digestOn, setDigestEnabled] = useState(isDigestOn());
+  const onToggleDigest = async (next: boolean) => {
+    haptic.select();
+    setDigestEnabled(next);
+    if (user) await setDigestOn(user.id, next);
+    toast(next ? '毎朝9時にまとめてお知らせします' : '新着のまとめ通知を止めました');
   };
   // 端末カレンダーへの直接書き込み（プレミアム・アプリ版のみ）。ics購読より早く反映される。
   // 書き込み先は端末に既にあるカレンダーから選ぶ（Googleを選べばPCでも見える）。
@@ -439,6 +448,20 @@ export default function MyPage() {
             {[1, 2, 3, 5, 7].map((d) => <option key={d} value={d}>{d}日前</option>)}
           </select>
         </div>
+        {/* フォロー作品の新着まとめ（毎朝9時・無料/プレミアム共通）。
+            プッシュが届く端末にだけ出す（Webに出すと、切っても何も変わらないスイッチになる）。 */}
+        {pushSupported() && (
+          <div className="px-3 py-2.5">
+            <div className="flex items-center gap-2">
+              <BellRing size={16} className="text-label-secondary" />
+              <span className="text-[14px] flex-1">フォロー作品の新着まとめ</span>
+              <Toggle checked={digestOn} onChange={onToggleDigest} />
+            </div>
+            <p className="text-[11px] text-label-secondary mt-1 ml-6">
+              フォロー中の作品に追加された予定を、毎朝9時に1通でお知らせします。
+            </p>
+          </div>
+        )}
         {/* 端末のカレンダーへ直接書き込む（プレミアム・アプリ版のみ）。
             ics購読はカレンダー側が取りに来るまで反映されない（Googleは8〜24時間）ので、
             アプリが動いた時点で書けるこちらを上位の手段として置く。Webには出さない。 */}

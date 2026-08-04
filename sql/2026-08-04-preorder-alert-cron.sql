@@ -25,6 +25,21 @@ select cron.schedule(
   $$
 );
 
+-- フォロー作品の新着まとめ（毎朝9時JST = 0:00 UTC に1回だけ）
+select cron.unschedule('fanhive-new-events-digest')
+where exists (select 1 from cron.job where jobname = 'fanhive-new-events-digest');
+
+select cron.schedule(
+  'fanhive-new-events-digest',
+  '0 0 * * *',
+  $$
+    select net.http_post(
+      url     := 'https://fanhive.jp/api/notify-new-events',
+      headers := '{"Authorization": "Bearer <CRON_SECRET>", "Content-Type": "application/json"}'::jsonb
+    );
+  $$
+);
+
 -- 確認用:
 --   select jobid, jobname, schedule, active from cron.job;
 --   select * from cron.job_run_details order by start_time desc limit 10;   -- 実行できているか

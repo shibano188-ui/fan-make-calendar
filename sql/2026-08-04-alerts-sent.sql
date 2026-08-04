@@ -27,5 +27,34 @@ end $$;
 -- ポリシーは1つも作らない ＝ service_role（Cron）以外は読み書きできない。
 -- クライアントが読む必要はなく、書けると通知を止められてしまう。
 
+-- ─── フォロー作品の新着まとめ（毎朝9時・無料/プレミアム共通） ─────────────────
+
+-- その人にその日のまとめを送ったか。1日1通に保つ（Cronが二度回っても増やさない）。
+create table if not exists public.user_alert_digests (
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  digest_date date not null,
+  sent_at     timestamptz not null default now(),
+  primary key (user_id, digest_date)
+);
+
+alter table public.user_alert_digests enable row level security;
+
+do $$
+declare p record;
+begin
+  for p in select policyname from pg_policies
+            where schemaname = 'public' and tablename = 'user_alert_digests'
+  loop
+    execute format('drop policy %I on public.user_alert_digests', p.policyname);
+  end loop;
+end $$;
+-- ポリシーは作らない ＝ service_role（Cron）だけが読み書きできる
+
+-- まとめ通知の停止スイッチ（既定は受け取る＝オプトアウト方式）。
+-- ⚠️ この列は**プレミアムの端末間同期とは独立に**クライアントが直接書く。
+--    pushAppState 経由にすると無料ユーザーの設定がサーバーに届かず、止めたのに送られてしまう。
+alter table public.user_app_state add column if not exists new_events_digest_off boolean;
+
 -- 確認用:
 --   select * from public.event_alerts_sent order by sent_at desc limit 20;
+--   select * from public.user_alert_digests order by sent_at desc limit 20;

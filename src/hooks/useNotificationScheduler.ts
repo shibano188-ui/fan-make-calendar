@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { listSavedEvents } from '../lib/api';
 import { rescheduleAll, notificationsSupported } from '../lib/notifications';
 import { syncDeviceCalendar } from '../lib/deviceCalendar';
-import { registerPush, onPushOpened } from '../lib/push';
+import { registerPush, onPushOpened, loadDigestSetting } from '../lib/push';
 
 /** ローカル通知の運用フック（ネイティブのみ）。
  *  - 起動時・アプリ復帰時に、いいね済み×ベルON×未来の予定を組み直す
@@ -33,6 +33,8 @@ export function useNotificationScheduler() {
     if (!user) return;
     void registerPush(user.id);
     void onPushOpened((path) => navigate(path));
+    // 別端末で「新着まとめ」を切っていたら、この端末の表示もそれに合わせる
+    void loadDigestSetting(user.id).catch(() => { /* 取れなくても既定（受け取る）で動く */ });
   }, [user?.id, navigate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 起動 + 復帰で再スケジュール
