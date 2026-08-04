@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { listSavedEvents } from '../lib/api';
 import { rescheduleAll, notificationsSupported } from '../lib/notifications';
 import { syncDeviceCalendar } from '../lib/deviceCalendar';
+import { registerPush, onPushOpened } from '../lib/push';
 
 /** ローカル通知の運用フック（ネイティブのみ）。
  *  - 起動時・アプリ復帰時に、いいね済み×ベルON×未来の予定を組み直す
@@ -25,6 +26,14 @@ export function useNotificationScheduler() {
     }).then((h) => { handle = h; });
     return () => { handle?.remove(); };
   }, [navigate]);
+
+  // プッシュの宛先を登録（サーバー起点の通知＝値下げ・再入荷・受付開始の検知）。
+  // ローカル通知とは独立に動く（片方が使えなくても、もう片方は生きる）。
+  useEffect(() => {
+    if (!user) return;
+    void registerPush(user.id);
+    void onPushOpened((path) => navigate(path));
+  }, [user?.id, navigate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 起動 + 復帰で再スケジュール
   useEffect(() => {

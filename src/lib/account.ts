@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { clearAccountScopedCache } from './constants';
+import { unregisterPush } from './push';
 import type { User } from '@supabase/supabase-js';
 
 // アカウント連携（匿名→メール恒久化＋デバイス間引き継ぎ）。
@@ -63,6 +64,10 @@ export async function verifyEmailSignIn(email: string, code: string): Promise<Re
  * localStorage.clear() は後者まで消してしまい、再ログインしても復元できない。
  */
 export async function signOutAccount(): Promise<Result> {
+  // 先にこの端末のプッシュ宛先を消す（サインアウト後はRLSで自分の行を消せなくなる）。
+  // 残すと、次にこの端末を使う別アカウント宛の通知が前の持ち主に届く。
+  const { data } = await supabase.auth.getUser();
+  if (data.user) await unregisterPush(data.user.id).catch(() => { /* 消せなくてもログアウトは続ける */ });
   const { error } = await supabase.auth.signOut();
   if (error) return { ok: false, error: friendly(error.message) };
   clearAccountScopedCache();

@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { searchCandidates, highConfidence, scoreTitle, isSetTitle, searchKeyword, variantMismatch, type Candidate } from './_product-search.js';
+import { pushPriceAlerts, type PriceChange } from './_alerts.js';
 
 // 毎日Cron: グッズの販路を最新化する。
 // (0) ユーザーが追加した購入リンク(event_offer_contribs)を events.offers に昇格
@@ -130,13 +131,15 @@ export function isDrop(beforeMin: number | null, afterMin: number | null, record
   return recordLow === null || afterMin <= recordLow; // 過去最安を更新（かタイ）
 }
 
+/** 積んだ変化を返す（プッシュの材料にする）。DBに入らなかったものは返さない＝
+ *  「通知は出たのに履歴に無い」というズレを作らない。 */
 async function recordChanges(
   db: Db, eventId: string,
   before: Pick<OfferRow, 'url' | 'price' | 'inStock' | 'isSet'>[],
   after: OfferRow[], liveAfter: OfferRow[],
   recordLow: number | null,
-): Promise<number> {
-  const rows: { event_id: string; kind: string; old_price: number | null; new_price: number | null }[] = [];
+): Promise<{ kind: 'price_drop' | 'restock'; oldPrice: number | null; newPrice: number | null }[]> {
+  const rows: { event_id: string; kind: 'price_drop' | 'restock'; old_price: number | null; new_price: number | null }[] = [];
   const beforeMin = cheapestAvailable(before);
   const afterMin = cheapestAvailable(liveAfter);
   if (afterMin && (recordLow === null || afterMin < recordLow)) {
@@ -149,9 +152,10 @@ async function recordChanges(
   // undefined（未取得・掲載が消えていた）からの復帰は「初めて在庫が取れた」だけなので数えない。
   const restocked = after.some((o, i) => before[i]?.inStock === false && o.inStock === true);
   if (restocked) rows.push({ event_id: eventId, kind: 'restock', old_price: null, new_price: afterMin });
-  if (!rows.length) return 0;
+  if (!rows.length) return [];
   const { error } = await db.from('price_changes').insert(rows);
-  return error ? 0 : rows.length;
+  if (error) return [];
+  return rows.map((r) => ({ kind: r.kind, oldPrice: r.old_price, newPrice: r.new_price }));
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -194,7 +198,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const { data: rows, error } = await db
     .from('events')
-    .select('id, title, price, offers, works(name)')
+    .select('id, title, price, offers, work_id, works(name)')
     .eq('type', 'goods')
     .order('created_at', { ascending: true });
   if (error) return res.status(500).json({ error: error.message });
@@ -206,6 +210,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 手動で全件バックフィルしたいときは ?backfill=1 を付ける。
   const doBackfill = req.query.backfill === '1' || new Date().getUTCDay() === 1;
   let scanned = 0, backfilled = 0, updated = 0, detected = 0;
+  // 検知した変化はここに溜めて、全部走り終えてからまとめて送る（1人に何通も出さないため）
+  const changes: PriceChange[] = [];
 
   for (const row of rows ?? []) {
     if (Date.now() - started > BUDGET_MS) break;
@@ -309,7 +315,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { error: upErr } = await db.from('events').update({ offers, price: newPrice }).eq('id', row.id);
       if (!upErr) {
         updated++;
-        detected += await recordChanges(db, row.id as string, before, active, live, lows.get(row.id as string) ?? null);
+        const found = await recordChanges(db, row.id as string, before, active, live, lows.get(row.id as string) ?? null);
+        detected += found.length;
+        for (const f of found) {
+          changes.push({
+            eventId: row.id as string,
+            workId: (row.work_id as string | null) ?? null,
+            title, workName,
+            kind: f.kind, oldPrice: f.oldPrice, newPrice: f.newPrice,
+          });
+        }
       }
     }
     // 楽天は1件あたり5リクエスト（全体＋公式店4）投げるので、間隔を詰めると429で0件が返る。
@@ -317,5 +332,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await delay(900);
   }
 
-  return res.status(200).json({ doBackfill, promoted, scanned, backfilled, updated, detected, total: (rows ?? []).length, tookMs: Date.now() - started });
+  // 検知したものを、いいねしているプレミアム会員（ミュートしていない人）へプッシュ。
+  // FCM未設定なら 0 が返るだけで、検知そのものは今までどおり price_changes に残る。
+  const push = await pushPriceAlerts(db, changes);
+
+  return res.status(200).json({ doBackfill, promoted, scanned, backfilled, updated, detected, push, total: (rows ?? []).length, tookMs: Date.now() - started });
 }
