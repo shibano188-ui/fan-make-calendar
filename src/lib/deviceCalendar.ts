@@ -162,15 +162,28 @@ function hashOf(d: Desired): string {
   return `${d.title}|${d.startDate}|${d.endDate}|${d.isAllDay ? 1 : 0}|${d.description}|${d.location}|${d.url}|${d.color ?? ''}`;
 }
 
+/** 書き込み権限があるか。
+ *  ⚠️ checkAllPermissions の戻りは型定義（`{ result: { writeCalendar } }`）と Android の実装が
+ *  食い違う。Androidは各スコープを**トップレベル**に入れ、`result` には Kotlin の Map を
+ *  文字列化したもの（`"{WRITE_CALENDAR=granted, ...}"`）を入れてくる。型どおりに
+ *  `result.writeCalendar` と読むと必ず undefined になり、同期が毎回黙って止まる。 */
+async function canWriteCalendar(): Promise<boolean> {
+  const res = (await CapacitorCalendar.checkAllPermissions()) as unknown as {
+    writeCalendar?: string;
+    result?: { writeCalendar?: string } | string;
+  };
+  const state = typeof res.result === 'object' ? res.result?.writeCalendar : res.writeCalendar;
+  return state === 'granted';
+}
+
 /** 起動・復帰時に端末カレンダーを現在の保存内容へ揃える。
  *  差分だけを触る（毎回消して入れ直すと、カレンダーアプリの通知が鳴り直したり同期が重くなる）。 */
 export async function syncDeviceCalendar(events: CalendarEvent[]): Promise<void> {
   if (!deviceCalendarSupported() || !isDeviceCalendarOn()) return;
   const calendarId = getTargetCalendarId();
   if (!calendarId) return;
-  const { result } = await CapacitorCalendar.checkAllPermissions();
   // 権限を後から切られたら黙って止まる（ics購読は生きているので予定が消えるわけではない）
-  if (result.writeCalendar !== 'granted') return;
+  if (!(await canWriteCalendar())) return;
 
   const desired = buildDesired(events);
   const map = loadMap();
