@@ -1,13 +1,15 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { sendPushes, fcmConfigured, type PushMessage } from './_fcm.js';
+import { activePremiumUsers } from './_alerts.js';
 
-// フォロー作品の新着まとめ（毎朝9時・**無料/プレミアム共通**）。
+// フォロー作品の新着まとめ（毎朝9時・**プレミアム限定**）。
 //
 // 他の通知と性格が違う:
-//   値下げ・受付開始 … 自分が**いいねしたもの**を見張る。取りこぼすと損なので即時（プレミアム）
+//   値下げ・受付開始 … 自分が**いいねしたもの**を見張る。取りこぼすと損なので即時
 //   新着まとめ       … **まだ知らないもの**を見つける。1件ずつ即時に来るとうるさいのでまとめる
-// プレミアムの売りは「早さ」なので、ここは無料にも出す（戻ってくる理由を無料にも残す）。
+// 有料側に置く判断 → [[2026-08-04-new-event-digest-premium]]（欲しい人が多そうで課金の動機になる）。
+// 無料でも、いいねした予定のローカル通知（◯日前・当日の朝）は今までどおり届く。
 //
 // 送らない相手:
 //   - 自分が投稿した予定しか無い人（自分の投稿を自分に知らせない）
@@ -63,7 +65,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .in('work_id', [...byWork.keys()]);
   if (!follows?.length) return res.status(200).json({ newEvents: newEvents.length, sent: 0, failed: 0 });
 
-  const userIds = [...new Set(follows.map((f) => f.user_id as string))];
+  const followers = [...new Set(follows.map((f) => f.user_id as string))];
+  const premium = await activePremiumUsers(db, followers);
+  if (!premium.size) return res.status(200).json({ newEvents: newEvents.length, sent: 0, failed: 0 });
+  const userIds = [...premium];
 
   const { data: states } = await db
     .from('user_app_state')
@@ -93,7 +98,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   for (const f of follows) {
     const uid = f.user_id as string;
     const wid = f.work_id as string;
-    if (off.has(uid) || !tokensByUser.has(uid)) continue;
+    if (!premium.has(uid) || off.has(uid) || !tokensByUser.has(uid)) continue;
     if (hidden.get(uid)?.has(wid) || muted.get(uid)?.has(wid)) continue;
     const items = (byWork.get(wid) ?? []).filter((e) => e.authorId !== uid);
     if (!items.length) continue;

@@ -25,7 +25,7 @@ select cron.schedule(
   $$
 );
 
--- フォロー作品の新着まとめ（毎朝9時JST = 0:00 UTC に1回だけ）
+-- フォロー作品の新着まとめ（毎朝9時JST = 0:00 UTC に1回だけ・プレミアム限定）
 select cron.unschedule('fanhive-new-events-digest')
 where exists (select 1 from cron.job where jobname = 'fanhive-new-events-digest');
 

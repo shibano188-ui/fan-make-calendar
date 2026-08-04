@@ -65,6 +65,21 @@ function premiumActive(status: string | null, expiresAt: string | null): boolean
   return Number.isNaN(t) ? true : t > Date.now();
 }
 
+/** 渡したユーザーのうち、今プレミアムが有効な人だけを返す。
+ *  プッシュを出す経路が増えても判定が散らばらないよう、ここ1か所に置く。 */
+export async function activePremiumUsers(db: Db, userIds: string[]): Promise<Set<string>> {
+  if (!userIds.length) return new Set();
+  const { data } = await db
+    .from('user_private')
+    .select('user_id, subscription_status, subscription_expires_at')
+    .in('user_id', userIds);
+  return new Set(
+    (data ?? [])
+      .filter((s) => premiumActive(s.subscription_status as string | null, s.subscription_expires_at as string | null))
+      .map((s) => s.user_id as string),
+  );
+}
+
 function asIdSet(v: unknown): Set<string> {
   return new Set(Array.isArray(v) ? (v as unknown[]).filter((x): x is string => typeof x === 'string') : []);
 }
@@ -79,15 +94,7 @@ export async function pushAlerts(db: Db, alerts: Alert[]): Promise<{ sent: numbe
 
   const userIds = [...new Set(likes.map((l) => l.user_id as string))];
 
-  const { data: subs } = await db
-    .from('user_private')
-    .select('user_id, subscription_status, subscription_expires_at')
-    .in('user_id', userIds);
-  const premium = new Set(
-    (subs ?? [])
-      .filter((s) => premiumActive(s.subscription_status as string | null, s.subscription_expires_at as string | null))
-      .map((s) => s.user_id as string),
-  );
+  const premium = await activePremiumUsers(db, userIds);
   if (!premium.size) return { sent: 0, failed: 0 };
 
   const { data: states } = await db

@@ -12,7 +12,8 @@ import { supabase } from './supabase';
 //  - 判定はキャッシュファーストで即答する。起動直後に「無料」と判定してしまうと
 //    広告が一瞬出る等のチラつきが起きるため、前回の判定を localStorage に持つ
 //
-// 有料ゲートに入れる機能は [[2026-07-25-fanhive-premium-mvp]] で確定した6つ。
+// 有料ゲートに入れる機能は [[2026-07-25-fanhive-premium-mvp]] で確定した6つ＋
+// 「フォロー作品の新着まとめ」（2026-08-04 追加 → [[2026-08-04-new-event-digest-premium]]）。
 
 export type SubscriptionStatus = 'free' | 'active' | 'grace' | 'canceled';
 
@@ -28,8 +29,10 @@ export const FREE_SUBSCRIPTION: Subscription = { status: 'free', plan: null, exp
 
 /** 有料ゲートをかける機能。増やすときはここに足してから使う（散らばった文字列判定にしない）。 */
 export const PREMIUM_FEATURES = {
-  /** 受付開始を検知した時点で即プッシュ（無料は1日1回のダイジェスト） */
+  /** 受付開始を検知した時点で即プッシュ */
   instantAlerts: '即時通知',
+  /** フォロー作品に予定が追加されたら毎朝まとめて知らせる（2026-08-04 追加・本人判断で有料側へ） */
+  newEventDigest: 'フォロー作品の新着まとめ',
   /** 値下げ・再入荷アラート */
   priceAlerts: '値下げ・再入荷アラート',
   /** 複数端末の同時同期（登録・バックアップ自体は無料のまま） */

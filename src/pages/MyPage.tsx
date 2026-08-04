@@ -72,6 +72,8 @@ export default function MyPage() {
   const [acctSheet, setAcctSheet] = useState<null | 'link' | 'signin'>(null);
   // カレンダー自動同期（プレミアム）。URLは開いたときに初めて作る（使わない人の行を作らない）
   const calendarSync = useFeature('calendarAutoSync');
+  // フォロー作品の新着まとめ（プレミアム）。無料に出すと、切っても何も変わらないスイッチになる
+  const newEventDigest = useFeature('newEventDigest');
   // Androidには webcal: を受けるアプリが無い（タップしても何も起きない）ので出さない
   const isAndroid = Capacitor.getPlatform() === 'android' || /Android/i.test(navigator.userAgent);
   const [icsOpen, setIcsOpen] = useState(false);
@@ -88,7 +90,7 @@ export default function MyPage() {
       if (!t) toast('URLを作れませんでした', 'error');
     }
   };
-  // フォロー作品の新着まとめ（毎朝9時・無料/プレミアム共通）。既定ONのオプトアウト
+  // 既定ONのオプトアウト（プレミアムの中での「止める」スイッチ）
   const [digestOn, setDigestEnabled] = useState(isDigestOn());
   const onToggleDigest = async (next: boolean) => {
     haptic.select();
@@ -448,9 +450,9 @@ export default function MyPage() {
             {[1, 2, 3, 5, 7].map((d) => <option key={d} value={d}>{d}日前</option>)}
           </select>
         </div>
-        {/* フォロー作品の新着まとめ（毎朝9時・無料/プレミアム共通）。
+        {/* フォロー作品の新着まとめ（毎朝9時・プレミアム）。
             プッシュが届く端末にだけ出す（Webに出すと、切っても何も変わらないスイッチになる）。 */}
-        {pushSupported() && (
+        {newEventDigest && pushSupported() && (
           <div className="px-3 py-2.5">
             <div className="flex items-center gap-2">
               <BellRing size={16} className="text-label-secondary" />
