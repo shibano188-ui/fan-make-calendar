@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 通知アイコンの着色（アプリのアクセントカラー。src/index.css の accent-color と同じ値） -->
+    <color name="fanhive_accent">#FBBF00</color>
+</resources>

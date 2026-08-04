@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { searchCandidates, highConfidence, scoreTitle, isSetTitle, searchKeyword, variantMismatch, type Candidate } from './_product-search.js';
-import { pushPriceAlerts, type PriceChange } from './_alerts.js';
+import { pushAlerts, type Alert } from './_alerts.js';
 
 // 毎日Cron: グッズの販路を最新化する。
 // (0) ユーザーが追加した購入リンク(event_offer_contribs)を events.offers に昇格
@@ -211,7 +211,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const doBackfill = req.query.backfill === '1' || new Date().getUTCDay() === 1;
   let scanned = 0, backfilled = 0, updated = 0, detected = 0;
   // 検知した変化はここに溜めて、全部走り終えてからまとめて送る（1人に何通も出さないため）
-  const changes: PriceChange[] = [];
+  const changes: Alert[] = [];
 
   for (const row of rows ?? []) {
     if (Date.now() - started > BUDGET_MS) break;
@@ -334,7 +334,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // 検知したものを、いいねしているプレミアム会員（ミュートしていない人）へプッシュ。
   // FCM未設定なら 0 が返るだけで、検知そのものは今までどおり price_changes に残る。
-  const push = await pushPriceAlerts(db, changes);
+  const push = await pushAlerts(db, changes);
 
   return res.status(200).json({ doBackfill, promoted, scanned, backfilled, updated, detected, push, total: (rows ?? []).length, tookMs: Date.now() - started });
 }

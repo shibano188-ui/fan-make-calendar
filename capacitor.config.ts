@@ -14,6 +14,11 @@ const config: CapacitorConfig = {
     SplashScreen: {
       backgroundColor: '#0e0e10',
     },
+    // ローカル通知もプッシュと同じステータスバーアイコンにする（アイコンが2種類あると別アプリに見える）
+    LocalNotifications: {
+      smallIcon: 'ic_stat_fanhive',
+      iconColor: '#FBBF00',
+    },
   },
 };
 

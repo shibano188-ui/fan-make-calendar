@@ -35,6 +35,16 @@
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="ca-app-pub-3561970163550872~9421578491"/>
 
+        <!-- プッシュ通知の見た目。ステータスバーのアイコンは Android 5 以降**アルファだけ**が
+             使われる（色は捨てられる）ので、アプリアイコンをそのまま指定すると白い四角になる。
+             専用の透過シルエット(ic_stat_fanhive)を置いている。色は端末側がこの色で塗る。 -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_fanhive"/>
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/fanhive_accent"/>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

@@ -1,39 +1,59 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { sendPushes, fcmConfigured, type PushMessage } from './_fcm.js';
 
-// 値下げ・再入荷を検知したその場でプッシュする（プレミアムの「値下げ・再入荷アラート」）。
+// サーバー起点の通知をプッシュで届ける（プレミアムの「値下げ・再入荷アラート」「即時通知」）。
 //
 // 送る相手の決め方（この順で絞る。**サーバー側だけで完結させる**）:
-//   1. そのグッズを**いいね**している人（＝自分のカレンダーに入れた人だけ。全員には送らない）
-//   2. **プレミアムが有効**な人（値下げ・再入荷アラートは有料機能）
-//   3. そのグッズ・その作品を**ミュートしていない**人（user_app_state の muted_*）
+//   1. その予定を**いいね**している人（＝自分のカレンダーに入れた人だけ。全員には送らない）
+//   2. **プレミアムが有効**な人（どちらも有料機能）
+//   3. その種類の通知を**その人が受け取る設定**にしている（下の「同意の取り方」）
 //   4. プッシュ宛先(push_tokens)を持っている人
+//
+// 同意の取り方が種類で逆なので、ここは一本化できない（NotifyBell のシートと揃える）:
+//   値下げ・再入荷 … オプトアウト。いいね済みは自動で対象で、止めた人だけ muted_* に入る
+//   受付開始       … オプトイン。ベルをONにした予定（notify_event_ids）だけ
 //
 // 1人に複数件たまったときは**1通にまとめる**（通知欄が同じ日に何通も並ぶと、次から開かれなくなる）。
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any>;
 
-export type PriceChange = {
+export type AlertKind = 'price_drop' | 'restock' | 'preorder_start';
+
+export type Alert = {
   eventId: string;
   workId: string | null;
   title: string;
   workName: string;
-  kind: 'price_drop' | 'restock';
-  oldPrice: number | null;
-  newPrice: number | null;
+  kind: AlertKind;
+  oldPrice?: number | null;
+  newPrice?: number | null;
 };
 
 const yen = (n: number) => `${n.toLocaleString('ja-JP')}円`;
 
-/** 1件だけのときの文面。何が起きて、いくらになったのかを一目で分かるようにする。 */
-function oneMessage(c: PriceChange): { title: string; body: string } {
+/** 1件だけのときの文面。何が起きたのかを一目で分かるようにする。 */
+function oneMessage(c: Alert): { title: string; body: string } {
   const tag = c.workName ? `【${c.workName}】` : '';
+  if (c.kind === 'preorder_start') {
+    return { title: `${tag}受付が始まりました`, body: `「${c.title}」の予約受付が始まりました` };
+  }
   if (c.kind === 'restock') {
     return { title: `${tag}再入荷しました`, body: `「${c.title}」が買えるようになりました` };
   }
   const price = c.oldPrice && c.newPrice ? `${yen(c.oldPrice)} → ${yen(c.newPrice)}` : c.newPrice ? yen(c.newPrice) : '';
   return { title: `${tag}過去最安になりました`, body: price ? `「${c.title}」が ${price}` : `「${c.title}」が値下がりしました` };
+}
+
+/** まとめて送るときの文面。件数と「何の話か」だけを伝える。 */
+function manyMessage(list: Alert[]): { title: string; body: string } {
+  if (list.every((c) => c.kind === 'preorder_start')) {
+    return { title: `受付が始まったものが${list.length}件あります`, body: 'いいねした予定の予約受付が始まりました' };
+  }
+  if (list.every((c) => c.kind === 'price_drop')) {
+    return { title: `値下がりが${list.length}件あります`, body: 'いいねしたグッズが過去最安になりました' };
+  }
+  return { title: `いいねした予定に動きが${list.length}件あります`, body: 'アプリで確認できます' };
 }
 
 /** プレミアムが今有効か（premium.ts の isPremiumActive と同じ判定をサーバー側に置いたもの）。
@@ -49,11 +69,11 @@ function asIdSet(v: unknown): Set<string> {
   return new Set(Array.isArray(v) ? (v as unknown[]).filter((x): x is string => typeof x === 'string') : []);
 }
 
-/** 検知した変化をプッシュする。戻り値は送信数（Cronのレスポンスに出して様子を見るため）。 */
-export async function pushPriceAlerts(db: Db, changes: PriceChange[]): Promise<{ sent: number; failed: number }> {
-  if (!changes.length || !fcmConfigured()) return { sent: 0, failed: 0 };
+/** 検知したものをプッシュする。戻り値は送信数（Cronのレスポンスに出して様子を見るため）。 */
+export async function pushAlerts(db: Db, alerts: Alert[]): Promise<{ sent: number; failed: number }> {
+  if (!alerts.length || !fcmConfigured()) return { sent: 0, failed: 0 };
 
-  const eventIds = [...new Set(changes.map((c) => c.eventId))];
+  const eventIds = [...new Set(alerts.map((c) => c.eventId))];
   const { data: likes } = await db.from('likes').select('user_id, event_id').in('event_id', eventIds);
   if (!likes?.length) return { sent: 0, failed: 0 };
 
@@ -72,13 +92,15 @@ export async function pushPriceAlerts(db: Db, changes: PriceChange[]): Promise<{
 
   const { data: states } = await db
     .from('user_app_state')
-    .select('user_id, muted_event_ids, muted_work_ids')
+    .select('user_id, muted_event_ids, muted_work_ids, notify_event_ids')
     .in('user_id', [...premium]);
   const mutedEvents = new Map<string, Set<string>>();
   const mutedWorks = new Map<string, Set<string>>();
+  const bellOn = new Map<string, Set<string>>();
   for (const s of states ?? []) {
     mutedEvents.set(s.user_id as string, asIdSet(s.muted_event_ids));
     mutedWorks.set(s.user_id as string, asIdSet(s.muted_work_ids));
+    bellOn.set(s.user_id as string, asIdSet(s.notify_event_ids));
   }
 
   const { data: tokenRows } = await db.from('push_tokens').select('user_id, token').in('user_id', [...premium]);
@@ -90,20 +112,26 @@ export async function pushPriceAlerts(db: Db, changes: PriceChange[]): Promise<{
     tokensByUser.set(t.user_id as string, list);
   }
 
-  // ユーザーごとに「その人に知らせる変化」を集める
-  const byEvent = new Map<string, PriceChange[]>();
-  for (const c of changes) {
+  /** この人にこの通知を送ってよいか（種類ごとに同意の取り方が逆）。 */
+  function wants(uid: string, c: Alert): boolean {
+    if (c.kind === 'preorder_start') return !!bellOn.get(uid)?.has(c.eventId); // オプトイン
+    if (mutedEvents.get(uid)?.has(c.eventId)) return false;                    // オプトアウト
+    if (c.workId && mutedWorks.get(uid)?.has(c.workId)) return false;
+    return true;
+  }
+
+  const byEvent = new Map<string, Alert[]>();
+  for (const c of alerts) {
     const list = byEvent.get(c.eventId) ?? [];
     list.push(c);
     byEvent.set(c.eventId, list);
   }
-  const perUser = new Map<string, PriceChange[]>();
+  const perUser = new Map<string, Alert[]>();
   for (const like of likes) {
     const uid = like.user_id as string;
     if (!premium.has(uid) || !tokensByUser.has(uid)) continue;
     for (const c of byEvent.get(like.event_id as string) ?? []) {
-      if (mutedEvents.get(uid)?.has(c.eventId)) continue;
-      if (c.workId && mutedWorks.get(uid)?.has(c.workId)) continue;
+      if (!wants(uid, c)) continue;
       const list = perUser.get(uid) ?? [];
       list.push(c);
       perUser.set(uid, list);
@@ -112,15 +140,9 @@ export async function pushPriceAlerts(db: Db, changes: PriceChange[]): Promise<{
 
   const messages: PushMessage[] = [];
   for (const [uid, list] of perUser) {
-    const one = list.length === 1 ? oneMessage(list[0]) : null;
-    const drops = list.filter((c) => c.kind === 'price_drop').length;
-    const many = {
-      title: `値下がり・再入荷が${list.length}件あります`,
-      body: drops === list.length ? 'いいねしたグッズが過去最安になりました' : 'いいねしたグッズに動きがありました',
-    };
-    const text = one ?? many;
+    const text = list.length === 1 ? oneMessage(list[0]) : manyMessage(list);
     // タップ先: 1件ならその商品、複数ならまとめのページ
-    const data = one ? { eventId: list[0].eventId } : { path: '/price-drops' };
+    const data = list.length === 1 ? { eventId: list[0].eventId } : { path: '/price-drops' };
     for (const token of tokensByUser.get(uid) ?? []) {
       messages.push({ token, title: text.title, body: text.body, data });
     }
