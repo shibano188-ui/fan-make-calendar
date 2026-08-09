@@ -249,9 +249,11 @@ async function adoptExisting(
       for (const token of (ev.description ?? '').split(/\s+/)) {
         if (token.startsWith('https://fanhive.jp/item/')) push(byMarker, token, id);
       }
-      // 目印が無い時代の予定は題名で拾うしかない。こちらは**書き込み先のカレンダーに限る**
-      // （他人の作った同名の予定を巻き込む余地を最小にする）
-      if (cal === calendarId) push(byTitleStart, `${ev.title}|${ev.startDate}|${ev.isAllDay ? 1 : 0}`, id);
+      // 目印が無い時代の予定は題名で拾うしかない。**カレンダーは限定しない**。
+      // 実測（2026-08-09）で、重複は「書き込み先を変える前のカレンダー」に1件ずつ残っていた＝
+      // 書き込み先だけ見ていると永久に消えない。題名・開始日時・全日フラグが完全一致する
+      // 別人の予定はまず無いので、この範囲なら巻き込みは起きない
+      push(byTitleStart, `${ev.title}|${ev.startDate}|${ev.isAllDay ? 1 : 0}`, id);
     }
     log('perCalendar', Object.fromEntries(perCalendar));
   } catch (e) {
