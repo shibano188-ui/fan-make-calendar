@@ -7,7 +7,7 @@ index 0000000..0d259dd
 +o/classes
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/002947cc8f0850cfd05d4a3cb5b7f8fb/transformed/classes/classes_dex/classes.dex b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/002947cc8f0850cfd05d4a3cb5b7f8fb/transformed/classes/classes_dex/classes.dex
 new file mode 100644
-index 0000000..1d2d5da
+index 0000000..e52feaf
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/002947cc8f0850cfd05d4a3cb5b7f8fb/transformed/classes/classes_dex/classes.dex differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/1871c8447c1ac9b429f44c11b5d9e8c8/results.bin b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/1871c8447c1ac9b429f44c11b5d9e8c8/results.bin
 new file mode 100644
@@ -154,7 +154,7 @@ index 0000000..85f045f
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/1871c8447c1ac9b429f44c11b5d9e8c8/transformed/bundleLibRuntimeToDirRelease/bundleLibRuntimeToDirRelease_dex/dev/barooni/capacitor/calendar/PluginError.dex differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/1871c8447c1ac9b429f44c11b5d9e8c8/transformed/bundleLibRuntimeToDirRelease/bundleLibRuntimeToDirRelease_dex/dev/barooni/capacitor/calendar/implementation/CapacitorCalendar.dex b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/1871c8447c1ac9b429f44c11b5d9e8c8/transformed/bundleLibRuntimeToDirRelease/bundleLibRuntimeToDirRelease_dex/dev/barooni/capacitor/calendar/implementation/CapacitorCalendar.dex
 new file mode 100644
-index 0000000..54cc15f
+index 0000000..1169e82
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/1871c8447c1ac9b429f44c11b5d9e8c8/transformed/bundleLibRuntimeToDirRelease/bundleLibRuntimeToDirRelease_dex/dev/barooni/capacitor/calendar/implementation/CapacitorCalendar.dex differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/1871c8447c1ac9b429f44c11b5d9e8c8/transformed/bundleLibRuntimeToDirRelease/bundleLibRuntimeToDirRelease_dex/dev/barooni/capacitor/calendar/models/data/CalendarEvent.dex b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/1871c8447c1ac9b429f44c11b5d9e8c8/transformed/bundleLibRuntimeToDirRelease/bundleLibRuntimeToDirRelease_dex/dev/barooni/capacitor/calendar/models/data/CalendarEvent.dex
 new file mode 100644
@@ -198,7 +198,7 @@ index 0000000..e7a72d3
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/1871c8447c1ac9b429f44c11b5d9e8c8/transformed/bundleLibRuntimeToDirRelease/bundleLibRuntimeToDirRelease_dex/dev/barooni/capacitor/calendar/models/inputs/CreateCalendarInput.dex differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/1871c8447c1ac9b429f44c11b5d9e8c8/transformed/bundleLibRuntimeToDirRelease/bundleLibRuntimeToDirRelease_dex/dev/barooni/capacitor/calendar/models/inputs/CreateEventInput.dex b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/1871c8447c1ac9b429f44c11b5d9e8c8/transformed/bundleLibRuntimeToDirRelease/bundleLibRuntimeToDirRelease_dex/dev/barooni/capacitor/calendar/models/inputs/CreateEventInput.dex
 new file mode 100644
-index 0000000..7bde925
+index 0000000..f0f1f96
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/1871c8447c1ac9b429f44c11b5d9e8c8/transformed/bundleLibRuntimeToDirRelease/bundleLibRuntimeToDirRelease_dex/dev/barooni/capacitor/calendar/models/inputs/CreateEventInput.dex differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/1871c8447c1ac9b429f44c11b5d9e8c8/transformed/bundleLibRuntimeToDirRelease/bundleLibRuntimeToDirRelease_dex/dev/barooni/capacitor/calendar/models/inputs/CreateEventWithPromptInput.dex b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/1871c8447c1ac9b429f44c11b5d9e8c8/transformed/bundleLibRuntimeToDirRelease/bundleLibRuntimeToDirRelease_dex/dev/barooni/capacitor/calendar/models/inputs/CreateEventWithPromptInput.dex
 new file mode 100644
@@ -230,7 +230,7 @@ index 0000000..51cd081
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/1871c8447c1ac9b429f44c11b5d9e8c8/transformed/bundleLibRuntimeToDirRelease/bundleLibRuntimeToDirRelease_dex/dev/barooni/capacitor/calendar/models/inputs/ModifyCalendarInput.dex differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/1871c8447c1ac9b429f44c11b5d9e8c8/transformed/bundleLibRuntimeToDirRelease/bundleLibRuntimeToDirRelease_dex/dev/barooni/capacitor/calendar/models/inputs/ModifyEvent.dex b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/1871c8447c1ac9b429f44c11b5d9e8c8/transformed/bundleLibRuntimeToDirRelease/bundleLibRuntimeToDirRelease_dex/dev/barooni/capacitor/calendar/models/inputs/ModifyEvent.dex
 new file mode 100644
-index 0000000..1b1e992
+index 0000000..0353439
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/1871c8447c1ac9b429f44c11b5d9e8c8/transformed/bundleLibRuntimeToDirRelease/bundleLibRuntimeToDirRelease_dex/dev/barooni/capacitor/calendar/models/inputs/ModifyEvent.dex differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/1871c8447c1ac9b429f44c11b5d9e8c8/transformed/bundleLibRuntimeToDirRelease/bundleLibRuntimeToDirRelease_dex/dev/barooni/capacitor/calendar/models/inputs/ModifyEventWithPromptInput.dex b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/1871c8447c1ac9b429f44c11b5d9e8c8/transformed/bundleLibRuntimeToDirRelease/bundleLibRuntimeToDirRelease_dex/dev/barooni/capacitor/calendar/models/inputs/ModifyEventWithPromptInput.dex
 new file mode 100644
@@ -345,7 +345,7 @@ index 0000000..0d259dd
 +o/classes
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/5438b919c358db0ef4cd9602350a687b/transformed/classes/classes_dex/classes.dex b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/5438b919c358db0ef4cd9602350a687b/transformed/classes/classes_dex/classes.dex
 new file mode 100644
-index 0000000..4b4610f
+index 0000000..380086c
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/5438b919c358db0ef4cd9602350a687b/transformed/classes/classes_dex/classes.dex differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/results.bin b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/results.bin
 new file mode 100644
@@ -492,7 +492,7 @@ index 0000000..76b0b12
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/PluginError.dex differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/implementation/CapacitorCalendar.dex b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/implementation/CapacitorCalendar.dex
 new file mode 100644
-index 0000000..0d05158
+index 0000000..693433a
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/implementation/CapacitorCalendar.dex differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/models/data/CalendarEvent.dex b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/models/data/CalendarEvent.dex
 new file mode 100644
@@ -536,7 +536,7 @@ index 0000000..8585c3a
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/models/inputs/CreateCalendarInput.dex differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/models/inputs/CreateEventInput.dex b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/models/inputs/CreateEventInput.dex
 new file mode 100644
-index 0000000..601b4e5
+index 0000000..702d2d1
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/models/inputs/CreateEventInput.dex differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/models/inputs/CreateEventWithPromptInput.dex b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/models/inputs/CreateEventWithPromptInput.dex
 new file mode 100644
@@ -568,7 +568,7 @@ index 0000000..a8d6a12
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/models/inputs/ModifyCalendarInput.dex differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/models/inputs/ModifyEvent.dex b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/models/inputs/ModifyEvent.dex
 new file mode 100644
-index 0000000..59c4036
+index 0000000..f50806a
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/models/inputs/ModifyEvent.dex differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/models/inputs/ModifyEventWithPromptInput.dex b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/models/inputs/ModifyEventWithPromptInput.dex
 new file mode 100644
@@ -664,7 +664,7 @@ index 0000000..71536c3
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/models/templates/JSResult.dex differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/utils/ImplementationHelper$Companion.dex b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/utils/ImplementationHelper$Companion.dex
 new file mode 100644
-index 0000000..838303c
+index 0000000..75f6081
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/utils/ImplementationHelper$Companion.dex differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/utils/ImplementationHelper.dex b/node_modules/@ebarooni/capacitor-calendar/android/build/.transforms/cb37cf6757e077a4532f060f0604698c/transformed/bundleLibRuntimeToDirDebug/bundleLibRuntimeToDirDebug_dex/dev/barooni/capacitor/calendar/utils/ImplementationHelper.dex
 new file mode 100644
@@ -754,11 +754,11 @@ index 0000000..8af77d5
 \ No newline at end of file
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/aar_main_jar/debug/syncDebugLibJars/classes.jar b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/aar_main_jar/debug/syncDebugLibJars/classes.jar
 new file mode 100644
-index 0000000..540ed28
+index 0000000..160ab5b
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/aar_main_jar/debug/syncDebugLibJars/classes.jar differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/aar_main_jar/release/syncReleaseLibJars/classes.jar b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/aar_main_jar/release/syncReleaseLibJars/classes.jar
 new file mode 100644
-index 0000000..8ac2ecb
+index 0000000..78ce24e
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/aar_main_jar/release/syncReleaseLibJars/classes.jar differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/aar_metadata/debug/writeDebugAarMetadata/aar-metadata.properties b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/aar_metadata/debug/writeDebugAarMetadata/aar-metadata.properties
 new file mode 100644
@@ -808,11 +808,11 @@ new file mode 100644
 index 0000000..e69de29
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/compile_library_classes_jar/debug/bundleLibCompileToJarDebug/classes.jar b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/compile_library_classes_jar/debug/bundleLibCompileToJarDebug/classes.jar
 new file mode 100644
-index 0000000..dae0cda
+index 0000000..22e4e0a
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/compile_library_classes_jar/debug/bundleLibCompileToJarDebug/classes.jar differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/compile_library_classes_jar/release/bundleLibCompileToJarRelease/classes.jar b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/compile_library_classes_jar/release/bundleLibCompileToJarRelease/classes.jar
 new file mode 100644
-index 0000000..78dde28
+index 0000000..82e87da
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/compile_library_classes_jar/release/bundleLibCompileToJarRelease/classes.jar differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar
 new file mode 100644
@@ -1121,7 +1121,7 @@ index 0000000..7bbb228
 +-dontnote java.lang.invoke.**
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/full_jar/release/createFullJarRelease/full.jar b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/full_jar/release/createFullJarRelease/full.jar
 new file mode 100644
-index 0000000..c20e2ad
+index 0000000..be50d51
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/full_jar/release/createFullJarRelease/full.jar differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/incremental/debug-mergeJavaRes/merge-state b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/incremental/debug-mergeJavaRes/merge-state
 new file mode 100644
@@ -3723,7 +3723,7 @@ new file mode 100644
 index 0000000..e69de29
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/local_aar_for_lint/release/out.aar b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/local_aar_for_lint/release/out.aar
 new file mode 100644
-index 0000000..76f54c6
+index 0000000..66be361
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/local_aar_for_lint/release/out.aar differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/local_only_symbol_list/debug/parseDebugLocalResources/R-def.txt b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/local_only_symbol_list/debug/parseDebugLocalResources/R-def.txt
 new file mode 100644
@@ -3977,7 +3977,7 @@ index 0000000..67cbb1e
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/PluginError.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/implementation/CapacitorCalendar.class b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/implementation/CapacitorCalendar.class
 new file mode 100644
-index 0000000..25c1490
+index 0000000..4fd1385
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/implementation/CapacitorCalendar.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/models/data/CalendarEvent.class b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/models/data/CalendarEvent.class
 new file mode 100644
@@ -4021,7 +4021,7 @@ index 0000000..a08e011
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/models/inputs/CreateCalendarInput.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/models/inputs/CreateEventInput.class b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/models/inputs/CreateEventInput.class
 new file mode 100644
-index 0000000..1e79ec4
+index 0000000..a426b5a
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/models/inputs/CreateEventInput.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/models/inputs/CreateEventWithPromptInput.class b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/models/inputs/CreateEventWithPromptInput.class
 new file mode 100644
@@ -4053,7 +4053,7 @@ index 0000000..cf0f39a
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/models/inputs/ModifyCalendarInput.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/models/inputs/ModifyEvent.class b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/models/inputs/ModifyEvent.class
 new file mode 100644
-index 0000000..9137b80
+index 0000000..e4d37b1
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/models/inputs/ModifyEvent.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/models/inputs/ModifyEventWithPromptInput.class b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/models/inputs/ModifyEventWithPromptInput.class
 new file mode 100644
@@ -4149,7 +4149,7 @@ index 0000000..4a30816
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/models/templates/JSResult.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/utils/ImplementationHelper$Companion.class b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/utils/ImplementationHelper$Companion.class
 new file mode 100644
-index 0000000..1be365e
+index 0000000..e05f07c
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/utils/ImplementationHelper$Companion.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/utils/ImplementationHelper.class b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/debug/bundleLibRuntimeToDirDebug/dev/barooni/capacitor/calendar/utils/ImplementationHelper.class
 new file mode 100644
@@ -4297,7 +4297,7 @@ index 0000000..b7225e2
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/release/bundleLibRuntimeToDirRelease/dev/barooni/capacitor/calendar/PluginError.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/release/bundleLibRuntimeToDirRelease/dev/barooni/capacitor/calendar/implementation/CapacitorCalendar.class b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/release/bundleLibRuntimeToDirRelease/dev/barooni/capacitor/calendar/implementation/CapacitorCalendar.class
 new file mode 100644
-index 0000000..69e34f6
+index 0000000..e9e4eec
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/release/bundleLibRuntimeToDirRelease/dev/barooni/capacitor/calendar/implementation/CapacitorCalendar.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/release/bundleLibRuntimeToDirRelease/dev/barooni/capacitor/calendar/models/data/CalendarEvent.class b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/release/bundleLibRuntimeToDirRelease/dev/barooni/capacitor/calendar/models/data/CalendarEvent.class
 new file mode 100644
@@ -4341,7 +4341,7 @@ index 0000000..aa9614f
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/release/bundleLibRuntimeToDirRelease/dev/barooni/capacitor/calendar/models/inputs/CreateCalendarInput.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/release/bundleLibRuntimeToDirRelease/dev/barooni/capacitor/calendar/models/inputs/CreateEventInput.class b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/release/bundleLibRuntimeToDirRelease/dev/barooni/capacitor/calendar/models/inputs/CreateEventInput.class
 new file mode 100644
-index 0000000..2de9ec8
+index 0000000..d702d90
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/release/bundleLibRuntimeToDirRelease/dev/barooni/capacitor/calendar/models/inputs/CreateEventInput.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/release/bundleLibRuntimeToDirRelease/dev/barooni/capacitor/calendar/models/inputs/CreateEventWithPromptInput.class b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/release/bundleLibRuntimeToDirRelease/dev/barooni/capacitor/calendar/models/inputs/CreateEventWithPromptInput.class
 new file mode 100644
@@ -4373,7 +4373,7 @@ index 0000000..1aa8400
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/release/bundleLibRuntimeToDirRelease/dev/barooni/capacitor/calendar/models/inputs/ModifyCalendarInput.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/release/bundleLibRuntimeToDirRelease/dev/barooni/capacitor/calendar/models/inputs/ModifyEvent.class b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/release/bundleLibRuntimeToDirRelease/dev/barooni/capacitor/calendar/models/inputs/ModifyEvent.class
 new file mode 100644
-index 0000000..43a28fa
+index 0000000..1c52fe2
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/release/bundleLibRuntimeToDirRelease/dev/barooni/capacitor/calendar/models/inputs/ModifyEvent.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/release/bundleLibRuntimeToDirRelease/dev/barooni/capacitor/calendar/models/inputs/ModifyEventWithPromptInput.class b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/release/bundleLibRuntimeToDirRelease/dev/barooni/capacitor/calendar/models/inputs/ModifyEventWithPromptInput.class
 new file mode 100644
@@ -4477,11 +4477,11 @@ index 0000000..1ffafcb
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_dir/release/bundleLibRuntimeToDirRelease/dev/barooni/capacitor/calendar/utils/ImplementationHelper.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_jar/debug/bundleLibRuntimeToJarDebug/classes.jar b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_jar/debug/bundleLibRuntimeToJarDebug/classes.jar
 new file mode 100644
-index 0000000..a4c1c21
+index 0000000..0d6c8f7
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_jar/debug/bundleLibRuntimeToJarDebug/classes.jar differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_jar/release/bundleLibRuntimeToJarRelease/classes.jar b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_jar/release/bundleLibRuntimeToJarRelease/classes.jar
 new file mode 100644
-index 0000000..e10ba34
+index 0000000..885d20b
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/runtime_library_classes_jar/release/bundleLibRuntimeToJarRelease/classes.jar differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/symbol_list_with_package_name/debug/generateDebugRFile/package-aware-r.txt b/node_modules/@ebarooni/capacitor-calendar/android/build/intermediates/symbol_list_with_package_name/debug/generateDebugRFile/package-aware-r.txt
 new file mode 100644
@@ -4499,7 +4499,7 @@ index 0000000..6fcc975
 +dev.barooni.capacitor.calendar
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/inputs/source-to-output.tab b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/inputs/source-to-output.tab
 new file mode 100644
-index 0000000..5600d97
+index 0000000..8020a29
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/inputs/source-to-output.tab differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.keystream b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.keystream
 new file mode 100644
@@ -4515,7 +4515,7 @@ index 0000000..b67c227
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.values.at b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.values.at
 new file mode 100644
-index 0000000..b750dfa
+index 0000000..3281904
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.values.at differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i
 new file mode 100644
@@ -4527,7 +4527,7 @@ index 0000000..131e265
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab
 new file mode 100644
-index 0000000..3a9a797
+index 0000000..3b0033e
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.keystream b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.keystream
 new file mode 100644
@@ -4543,7 +4543,7 @@ index 0000000..8f368d6
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.values.at b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.values.at
 new file mode 100644
-index 0000000..183c318
+index 0000000..9cdc7ca
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.values.at differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab_i b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab_i
 new file mode 100644
@@ -4555,7 +4555,7 @@ index 0000000..131e265
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab_i.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab
 new file mode 100644
-index 0000000..9733fd9
+index 0000000..b7f43c7
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.keystream b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.keystream
 new file mode 100644
@@ -4571,7 +4571,7 @@ index 0000000..8f368d6
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.values.at b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.values.at
 new file mode 100644
-index 0000000..4c51a3d
+index 0000000..d63d397
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.values.at differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab_i b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab_i
 new file mode 100644
@@ -4583,7 +4583,7 @@ index 0000000..131e265
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab_i.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab
 new file mode 100644
-index 0000000..605f359
+index 0000000..aff522f
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.keystream b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.keystream
 new file mode 100644
@@ -4599,7 +4599,7 @@ index 0000000..bba171d
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.values.at b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.values.at
 new file mode 100644
-index 0000000..0e84c78
+index 0000000..88434e8
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.values.at differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i
 new file mode 100644
@@ -4611,7 +4611,7 @@ index 0000000..131e265
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab
 new file mode 100644
-index 0000000..8b93cc6
+index 0000000..ab5a5ee
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.keystream b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.keystream
 new file mode 100644
@@ -4631,7 +4631,7 @@ index 0000000..b0757de
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.values differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.values.at b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.values.at
 new file mode 100644
-index 0000000..588fe01
+index 0000000..8465314
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.values.at differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.values.s b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.values.s
 new file mode 100644
@@ -4651,7 +4651,7 @@ index 0000000..131e265
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab_i.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab
 new file mode 100644
-index 0000000..bda95ed
+index 0000000..5aee84c
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.keystream b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.keystream
 new file mode 100644
@@ -4667,7 +4667,7 @@ index 0000000..b67c227
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.values.at b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.values.at
 new file mode 100644
-index 0000000..89673f5
+index 0000000..e35e1c4
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.values.at differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab_i b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab_i
 new file mode 100644
@@ -4735,16 +4735,16 @@ index 0000000..131e265
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab_i.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/counters.tab b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/counters.tab
 new file mode 100644
-index 0000000..104aff1
+index 0000000..0e3086b
 --- /dev/null
 +++ b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/counters.tab
 @@ -0,0 +1,2 @@
-+38
++43
 +0
 \ No newline at end of file
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/file-to-id.tab b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/file-to-id.tab
 new file mode 100644
-index 0000000..b6995de
+index 0000000..0b72ab9
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/file-to-id.tab differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.keystream b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.keystream
 new file mode 100644
@@ -4760,7 +4760,7 @@ index 0000000..b67c227
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.values.at b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.values.at
 new file mode 100644
-index 0000000..12a2667
+index 0000000..956b516
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.values.at differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i
 new file mode 100644
@@ -4772,27 +4772,27 @@ index 0000000..131e265
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/id-to-file.tab b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/id-to-file.tab
 new file mode 100644
-index 0000000..b731d9a
+index 0000000..36fadb5
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/id-to-file.tab differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream
 new file mode 100644
-index 0000000..f0c2da4
+index 0000000..c86230b
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream.len b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream.len
 new file mode 100644
-index 0000000..6645728
+index 0000000..5b8e1ac
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.len b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.len
 new file mode 100644
-index 0000000..b67c227
+index 0000000..a123325
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.values.at b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.values.at
 new file mode 100644
-index 0000000..5b1b1bb
+index 0000000..35b911d
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.values.at differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i
 new file mode 100644
-index 0000000..81b4c67
+index 0000000..a243e51
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i.len b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i.len
 new file mode 100644
@@ -4800,27 +4800,27 @@ index 0000000..131e265
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/lookups.tab b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/lookups.tab
 new file mode 100644
-index 0000000..1f0920e
+index 0000000..50ce18d
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/lookups.tab differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream
 new file mode 100644
-index 0000000..4f2810f
+index 0000000..d8210e7
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream.len b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream.len
 new file mode 100644
-index 0000000..3f6f51e
+index 0000000..36331f3
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/lookups.tab.len b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/lookups.tab.len
 new file mode 100644
-index 0000000..71bea5a
+index 0000000..1ee789c
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/lookups.tab.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/lookups.tab.values.at b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/lookups.tab.values.at
 new file mode 100644
-index 0000000..4b7b808
+index 0000000..07f099a
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/lookups.tab.values.at differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/lookups.tab_i b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/lookups.tab_i
 new file mode 100644
-index 0000000..e6014ea
+index 0000000..b986625
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/lookups.tab_i differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/lookups.tab_i.len b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/lookups.tab_i.len
 new file mode 100644
@@ -4828,15 +4828,15 @@ index 0000000..131e265
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/caches-jvm/lookups/lookups.tab_i.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/last-build.bin b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/last-build.bin
 new file mode 100644
-index 0000000..2d998ec
+index 0000000..d530ae0
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/cacheable/last-build.bin differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/classpath-snapshot/shrunk-classpath-snapshot.bin b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/classpath-snapshot/shrunk-classpath-snapshot.bin
 new file mode 100644
-index 0000000..2436bef
+index 0000000..4edebd0
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileDebugKotlin/classpath-snapshot/shrunk-classpath-snapshot.bin differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab
 new file mode 100644
-index 0000000..c8a47a8
+index 0000000..d8b2534
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.keystream b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.keystream
 new file mode 100644
@@ -4852,7 +4852,7 @@ index 0000000..b67c227
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.values.at b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.values.at
 new file mode 100644
-index 0000000..f33146d
+index 0000000..5fad67e
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.values.at differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i
 new file mode 100644
@@ -4864,7 +4864,7 @@ index 0000000..131e265
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab
 new file mode 100644
-index 0000000..3a9a797
+index 0000000..13fc25d
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.keystream b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.keystream
 new file mode 100644
@@ -4880,7 +4880,7 @@ index 0000000..8f368d6
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.values.at b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.values.at
 new file mode 100644
-index 0000000..183c318
+index 0000000..5bd736e
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.values.at differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab_i b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab_i
 new file mode 100644
@@ -4892,7 +4892,7 @@ index 0000000..131e265
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab_i.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab
 new file mode 100644
-index 0000000..9733fd9
+index 0000000..ca21210
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.keystream b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.keystream
 new file mode 100644
@@ -4908,7 +4908,7 @@ index 0000000..8f368d6
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.values.at b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.values.at
 new file mode 100644
-index 0000000..4c51a3d
+index 0000000..5c365bd
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.values.at differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab_i b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab_i
 new file mode 100644
@@ -4920,7 +4920,7 @@ index 0000000..131e265
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab_i.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab
 new file mode 100644
-index 0000000..605f359
+index 0000000..572836f
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.keystream b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.keystream
 new file mode 100644
@@ -4936,7 +4936,7 @@ index 0000000..bba171d
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.values.at b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.values.at
 new file mode 100644
-index 0000000..0e84c78
+index 0000000..0532839
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.values.at differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i
 new file mode 100644
@@ -4948,7 +4948,7 @@ index 0000000..131e265
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab
 new file mode 100644
-index 0000000..2a3873b
+index 0000000..bf1984b
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.keystream b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.keystream
 new file mode 100644
@@ -4968,7 +4968,7 @@ index 0000000..c44f292
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.values differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.values.at b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.values.at
 new file mode 100644
-index 0000000..f089800
+index 0000000..8efc24a
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.values.at differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.values.s b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.values.s
 new file mode 100644
@@ -4988,7 +4988,7 @@ index 0000000..131e265
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab_i.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab
 new file mode 100644
-index 0000000..bda95ed
+index 0000000..762e3ea
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.keystream b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.keystream
 new file mode 100644
@@ -5004,7 +5004,7 @@ index 0000000..b67c227
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.values.at b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.values.at
 new file mode 100644
-index 0000000..89673f5
+index 0000000..c85ec23
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.values.at differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab_i b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab_i
 new file mode 100644
@@ -5072,16 +5072,16 @@ index 0000000..131e265
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab_i.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/counters.tab b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/counters.tab
 new file mode 100644
-index 0000000..104aff1
+index 0000000..46619a5
 --- /dev/null
 +++ b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/counters.tab
 @@ -0,0 +1,2 @@
-+38
++41
 +0
 \ No newline at end of file
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab
 new file mode 100644
-index 0000000..b6995de
+index 0000000..d05a11f
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.keystream b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.keystream
 new file mode 100644
@@ -5097,7 +5097,7 @@ index 0000000..b67c227
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.values.at b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.values.at
 new file mode 100644
-index 0000000..12a2667
+index 0000000..6265ee6
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.values.at differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i
 new file mode 100644
@@ -5109,27 +5109,27 @@ index 0000000..131e265
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab
 new file mode 100644
-index 0000000..b731d9a
+index 0000000..6c80111
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream
 new file mode 100644
-index 0000000..f0c2da4
+index 0000000..9f7e88a
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream.len b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream.len
 new file mode 100644
-index 0000000..6645728
+index 0000000..a0ecf07
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.len b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.len
 new file mode 100644
-index 0000000..b67c227
+index 0000000..b287d95
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.values.at b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.values.at
 new file mode 100644
-index 0000000..5b1b1bb
+index 0000000..3374904
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.values.at differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i
 new file mode 100644
-index 0000000..81b4c67
+index 0000000..63a5a21
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i.len b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i.len
 new file mode 100644
@@ -5137,27 +5137,27 @@ index 0000000..131e265
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab
 new file mode 100644
-index 0000000..1f0920e
+index 0000000..093b00b
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream
 new file mode 100644
-index 0000000..4f2810f
+index 0000000..61a11ee
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream.len b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream.len
 new file mode 100644
-index 0000000..3f6f51e
+index 0000000..9ec8e3e
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.len b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.len
 new file mode 100644
-index 0000000..71bea5a
+index 0000000..c51b9f5
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.values.at b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.values.at
 new file mode 100644
-index 0000000..4b7b808
+index 0000000..e81ad44
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.values.at differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab_i b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab_i
 new file mode 100644
-index 0000000..e6014ea
+index 0000000..83f16bb
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab_i differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab_i.len b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab_i.len
 new file mode 100644
@@ -5165,7 +5165,7 @@ index 0000000..131e265
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab_i.len differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/last-build.bin b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/last-build.bin
 new file mode 100644
-index 0000000..6e7ab7c
+index 0000000..bd963b0
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/cacheable/last-build.bin differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/classpath-snapshot/shrunk-classpath-snapshot.bin b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/classpath-snapshot/shrunk-classpath-snapshot.bin
 new file mode 100644
@@ -5173,7 +5173,7 @@ index 0000000..2436bef
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/kotlin/compileReleaseKotlin/classpath-snapshot/shrunk-classpath-snapshot.bin differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/outputs/aar/ebarooni-capacitor-calendar-debug.aar b/node_modules/@ebarooni/capacitor-calendar/android/build/outputs/aar/ebarooni-capacitor-calendar-debug.aar
 new file mode 100644
-index 0000000..5c126ac
+index 0000000..16b5f13
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/outputs/aar/ebarooni-capacitor-calendar-debug.aar differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/outputs/logs/manifest-merger-debug-report.txt b/node_modules/@ebarooni/capacitor-calendar/android/build/outputs/logs/manifest-merger-debug-report.txt
 new file mode 100644
@@ -5361,7 +5361,7 @@ index 0000000..67cbb1e
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/PluginError.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/implementation/CapacitorCalendar.class b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/implementation/CapacitorCalendar.class
 new file mode 100644
-index 0000000..25c1490
+index 0000000..4fd1385
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/implementation/CapacitorCalendar.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/models/data/CalendarEvent.class b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/models/data/CalendarEvent.class
 new file mode 100644
@@ -5405,7 +5405,7 @@ index 0000000..a08e011
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/models/inputs/CreateCalendarInput.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/models/inputs/CreateEventInput.class b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/models/inputs/CreateEventInput.class
 new file mode 100644
-index 0000000..1e79ec4
+index 0000000..a426b5a
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/models/inputs/CreateEventInput.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/models/inputs/CreateEventWithPromptInput.class b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/models/inputs/CreateEventWithPromptInput.class
 new file mode 100644
@@ -5437,7 +5437,7 @@ index 0000000..cf0f39a
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/models/inputs/ModifyCalendarInput.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/models/inputs/ModifyEvent.class b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/models/inputs/ModifyEvent.class
 new file mode 100644
-index 0000000..9137b80
+index 0000000..e4d37b1
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/models/inputs/ModifyEvent.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/models/inputs/ModifyEventWithPromptInput.class b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/models/inputs/ModifyEventWithPromptInput.class
 new file mode 100644
@@ -5533,7 +5533,7 @@ index 0000000..4a30816
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/models/templates/JSResult.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/utils/ImplementationHelper$Companion.class b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/utils/ImplementationHelper$Companion.class
 new file mode 100644
-index 0000000..1be365e
+index 0000000..e05f07c
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/utils/ImplementationHelper$Companion.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/utils/ImplementationHelper.class b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/debug/dev/barooni/capacitor/calendar/utils/ImplementationHelper.class
 new file mode 100644
@@ -5681,7 +5681,7 @@ index 0000000..b7225e2
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/release/dev/barooni/capacitor/calendar/PluginError.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/release/dev/barooni/capacitor/calendar/implementation/CapacitorCalendar.class b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/release/dev/barooni/capacitor/calendar/implementation/CapacitorCalendar.class
 new file mode 100644
-index 0000000..69e34f6
+index 0000000..e9e4eec
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/release/dev/barooni/capacitor/calendar/implementation/CapacitorCalendar.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/release/dev/barooni/capacitor/calendar/models/data/CalendarEvent.class b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/release/dev/barooni/capacitor/calendar/models/data/CalendarEvent.class
 new file mode 100644
@@ -5725,7 +5725,7 @@ index 0000000..aa9614f
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/release/dev/barooni/capacitor/calendar/models/inputs/CreateCalendarInput.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/release/dev/barooni/capacitor/calendar/models/inputs/CreateEventInput.class b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/release/dev/barooni/capacitor/calendar/models/inputs/CreateEventInput.class
 new file mode 100644
-index 0000000..2de9ec8
+index 0000000..d702d90
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/release/dev/barooni/capacitor/calendar/models/inputs/CreateEventInput.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/release/dev/barooni/capacitor/calendar/models/inputs/CreateEventWithPromptInput.class b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/release/dev/barooni/capacitor/calendar/models/inputs/CreateEventWithPromptInput.class
 new file mode 100644
@@ -5757,7 +5757,7 @@ index 0000000..1aa8400
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/release/dev/barooni/capacitor/calendar/models/inputs/ModifyCalendarInput.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/release/dev/barooni/capacitor/calendar/models/inputs/ModifyEvent.class b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/release/dev/barooni/capacitor/calendar/models/inputs/ModifyEvent.class
 new file mode 100644
-index 0000000..43a28fa
+index 0000000..1c52fe2
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/release/dev/barooni/capacitor/calendar/models/inputs/ModifyEvent.class differ
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/release/dev/barooni/capacitor/calendar/models/inputs/ModifyEventWithPromptInput.class b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/release/dev/barooni/capacitor/calendar/models/inputs/ModifyEventWithPromptInput.class
 new file mode 100644
@@ -5859,11 +5859,52 @@ diff --git a/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-
 new file mode 100644
 index 0000000..1ffafcb
 Binary files /dev/null and b/node_modules/@ebarooni/capacitor-calendar/android/build/tmp/kotlin-classes/release/dev/barooni/capacitor/calendar/utils/ImplementationHelper.class differ
+diff --git a/node_modules/@ebarooni/capacitor-calendar/android/src/main/java/dev/barooni/capacitor/calendar/cdp-tmp.mjs b/node_modules/@ebarooni/capacitor-calendar/android/src/main/java/dev/barooni/capacitor/calendar/cdp-tmp.mjs
+new file mode 100644
+index 0000000..ca39e8c
+--- /dev/null
++++ b/node_modules/@ebarooni/capacitor-calendar/android/src/main/java/dev/barooni/capacitor/calendar/cdp-tmp.mjs
+@@ -0,0 +1,9 @@
++const list = await (await fetch('http://localhost:9222/json')).json();
++const page = list.find(p => p.url.includes('fanhive.jp'));
++const ws = new WebSocket(page.webSocketDebuggerUrl);
++const expr = process.argv[2];
++await new Promise(r => ws.onopen = r);
++ws.send(JSON.stringify({ id: 1, method: 'Runtime.evaluate', params: { expression: expr, awaitPromise: true, returnByValue: true } }));
++const out = await new Promise(r => { ws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.id === 1) r(m); }; });
++console.log(JSON.stringify(out.result?.result?.value ?? out.result ?? out, null, 1));
++ws.close();
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/src/main/java/dev/barooni/capacitor/calendar/implementation/CapacitorCalendar.kt b/node_modules/@ebarooni/capacitor-calendar/android/src/main/java/dev/barooni/capacitor/calendar/implementation/CapacitorCalendar.kt
-index 1b0008b..c210ce4 100644
+index 1b0008b..4ac1f9e 100644
 --- a/node_modules/@ebarooni/capacitor-calendar/android/src/main/java/dev/barooni/capacitor/calendar/implementation/CapacitorCalendar.kt
 +++ b/node_modules/@ebarooni/capacitor-calendar/android/src/main/java/dev/barooni/capacitor/calendar/implementation/CapacitorCalendar.kt
-@@ -119,6 +119,7 @@ class CapacitorCalendar(
+@@ -99,7 +99,15 @@ class CapacitorCalendar(
+                 input.availability?.let { put(CalendarContract.Events.AVAILABILITY, it) }
+                 input.organizer?.let { put(CalendarContract.Events.ORGANIZER, it) }
+                 input.duration?.let { put(CalendarContract.Events.DURATION, it) }
+-                input.color?.let { put(CalendarContract.Events.EVENT_COLOR, it) }
++                // FanHive パッチ: 色はアカウントの色表のindexで書く（生の色は表示に使われない）
++                input.color?.let {
++                    val key = ImplementationHelper.nearestEventColorKey(cr, calendarId, it)
++                    if (key != null) {
++                        put(CalendarContract.Events.EVENT_COLOR_KEY, key)
++                    } else {
++                        put(CalendarContract.Events.EVENT_COLOR, it)
++                    }
++                }
+                 input.recurrence?.let { put(CalendarContract.Events.RRULE, it.toRRule()) }
+             }
+         val uri: Uri? = cr.insert(CalendarContract.Events.CONTENT_URI, values)
+@@ -111,6 +119,8 @@ class CapacitorCalendar(
+ 
+     fun modifyEvent(input: ModifyEvent) {
+         val cr = plugin.context.contentResolver
++        // FanHive パッチ: 色のindexを引くのに、その予定が乗っているカレンダーが要る
++        val colorCalendarId: Long? = input.calendarId ?: ImplementationHelper.getEventCalendarId(cr, input.id)
+         val values =
+             ContentValues().apply {
+                 input.title?.let { put(CalendarContract.Events.TITLE, it) }
+@@ -119,10 +129,18 @@ class CapacitorCalendar(
                  input.startDate?.let { put(CalendarContract.Events.DTSTART, it) }
                  input.endDate?.let { put(CalendarContract.Events.DTEND, it) }
                  input.isAllDay?.let { put(CalendarContract.Events.ALL_DAY, it) }
@@ -5871,6 +5912,18 @@ index 1b0008b..c210ce4 100644
                  input.description?.let { put(CalendarContract.Events.DESCRIPTION, it) }
                  input.availability?.let { put(CalendarContract.Events.AVAILABILITY, it) }
                  input.organizer?.let { put(CalendarContract.Events.ORGANIZER, it) }
+-                input.color?.let { put(CalendarContract.Events.EVENT_COLOR, it) }
++                input.color?.let { color ->
++                    val key = colorCalendarId?.let { ImplementationHelper.nearestEventColorKey(cr, it, color) }
++                    if (key != null) {
++                        put(CalendarContract.Events.EVENT_COLOR_KEY, key)
++                    } else {
++                        put(CalendarContract.Events.EVENT_COLOR, color)
++                    }
++                }
+                 input.duration?.let { put(CalendarContract.Events.DURATION, it) }
+                 input.recurrence?.let { put(CalendarContract.Events.RRULE, it.toRRule()) }
+             }
 diff --git a/node_modules/@ebarooni/capacitor-calendar/android/src/main/java/dev/barooni/capacitor/calendar/models/inputs/CreateEventInput.kt b/node_modules/@ebarooni/capacitor-calendar/android/src/main/java/dev/barooni/capacitor/calendar/models/inputs/CreateEventInput.kt
 index 71e90bf..295b896 100644
 --- a/node_modules/@ebarooni/capacitor-calendar/android/src/main/java/dev/barooni/capacitor/calendar/models/inputs/CreateEventInput.kt
@@ -5908,3 +5961,91 @@ index 6d792da..3f36144 100644
      val alerts: List<Int>? = ImplementationHelper.jsArrayToIntArray(call.getArray("alerts"))
      val description: String? = call.getString("description")
      val availability: Int? = call.getInt("availability")
+diff --git a/node_modules/@ebarooni/capacitor-calendar/android/src/main/java/dev/barooni/capacitor/calendar/utils/ImplementationHelper.kt b/node_modules/@ebarooni/capacitor-calendar/android/src/main/java/dev/barooni/capacitor/calendar/utils/ImplementationHelper.kt
+index 24e7144..85317bd 100644
+--- a/node_modules/@ebarooni/capacitor-calendar/android/src/main/java/dev/barooni/capacitor/calendar/utils/ImplementationHelper.kt
++++ b/node_modules/@ebarooni/capacitor-calendar/android/src/main/java/dev/barooni/capacitor/calendar/utils/ImplementationHelper.kt
+@@ -14,6 +14,83 @@ import java.util.Calendar
+ 
+ class ImplementationHelper {
+     companion object {
++        // ── FanHive パッチ ───────────────────────────────────────────────
++        // Googleカレンダーは予定の色を **Colors表のindex（EVENT_COLOR_KEY）でしか表示しない**。
++        // 生の EVENT_COLOR を書いてもプロバイダには入るが表示には使われない（2026-08-09 実機で確認）。
++        // そこでアカウントが持つ「予定の色」の中から一番近いものを選び、そのindexを書く。
++
++        private fun colorDistance(
++            a: Int,
++            b: Int,
++        ): Int {
++            val dr = ((a shr 16) and 0xFF) - ((b shr 16) and 0xFF)
++            val dg = ((a shr 8) and 0xFF) - ((b shr 8) and 0xFF)
++            val db = (a and 0xFF) - (b and 0xFF)
++            return dr * dr + dg * dg + db * db
++        }
++
++        /** 予定が乗るカレンダーのアカウントが持つ色のうち、`color` に一番近いもののindex。
++         *  色を持たないアカウント（端末ローカル等）では null。 */
++        fun nearestEventColorKey(
++            cr: ContentResolver,
++            calendarId: Long,
++            color: Int,
++        ): String? {
++            var accountName: String? = null
++            var accountType: String? = null
++            cr.query(
++                ContentUris.withAppendedId(CalendarContract.Calendars.CONTENT_URI, calendarId),
++                arrayOf(CalendarContract.Calendars.ACCOUNT_NAME, CalendarContract.Calendars.ACCOUNT_TYPE),
++                null,
++                null,
++                null,
++            )?.use {
++                if (it.moveToFirst()) {
++                    accountName = it.getString(0)
++                    accountType = it.getString(1)
++                }
++            }
++            val name = accountName ?: return null
++            val type = accountType ?: return null
++
++            var bestKey: String? = null
++            var bestDist = Int.MAX_VALUE
++            cr.query(
++                CalendarContract.Colors.CONTENT_URI,
++                arrayOf(CalendarContract.Colors.COLOR_KEY, CalendarContract.Colors.COLOR),
++                "${CalendarContract.Colors.ACCOUNT_NAME}=? AND ${CalendarContract.Colors.ACCOUNT_TYPE}=? AND " +
++                    "${CalendarContract.Colors.COLOR_TYPE}=?",
++                arrayOf(name, type, CalendarContract.Colors.TYPE_EVENT.toString()),
++                null,
++            )?.use { c ->
++                while (c.moveToNext()) {
++                    val key = c.getString(0) ?: continue
++                    val d = colorDistance(color, c.getInt(1))
++                    if (d < bestDist) {
++                        bestDist = d
++                        bestKey = key
++                    }
++                }
++            }
++            return bestKey
++        }
++
++        /** 既存の予定が今どのカレンダーに乗っているか（modifyEvent で calendarId 省略時に使う）。 */
++        fun getEventCalendarId(
++            cr: ContentResolver,
++            eventId: Long,
++        ): Long? {
++            cr.query(
++                ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId),
++                arrayOf(CalendarContract.Events.CALENDAR_ID),
++                null,
++                null,
++                null,
++            )?.use { if (it.moveToFirst()) return it.getLong(0) }
++            return null
++        }
++        // ── ここまで FanHive パッチ ──────────────────────────────────────
++
+         fun getCalendarFromTimestamp(timestamp: Long?): Calendar =
+             Calendar.getInstance().apply {
+                 timeInMillis = timestamp ?: System.currentTimeMillis()
