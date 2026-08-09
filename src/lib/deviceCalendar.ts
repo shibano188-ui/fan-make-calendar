@@ -123,11 +123,14 @@ export function buildDesired(events: CalendarEvent[]): Record<string, Desired> {
   const colors = buildWorkColorMap();
   for (const e of events) {
     const url = e.link || `https://fanhive.jp/item/${e.id}`;
+    // アプリ内の予定へのリンク。**これが目印を兼ねる**（対応表が消えても、この行があるかどうかで
+    // 「自分が入れた予定か」「どの予定か」が分かる → 入れ直しても重複しない。下の findExisting 参照）
+    const marker = `https://fanhive.jp/item/${e.id}`;
     // ⚠️ url はiOS（EventKit）にしか入らない。AndroidのCalendarContractにURL列が無く、
     // プラグインも書いていないので、メモ欄に必ず本文としても入れる（カレンダーアプリが
     // リンクとして拾う）。作品名・カテゴリも「何の予定か」が分かるようここに載せる。
     const tags = [e.workName, ...parseCategories(e.category)].filter(Boolean).join(' / ');
-    const desc = [e.memo, tags, url].filter(Boolean).join('\n\n');
+    const desc = [e.memo, tags, url === marker ? '' : url, marker].filter(Boolean).join('\n\n');
     const location = [e.prefecture, e.locationDetail].filter(Boolean).join(' ');
     const color = e.workId ? colors.get(e.workId) : undefined;
     if (e.date) {
@@ -148,7 +151,8 @@ export function buildDesired(events: CalendarEvent[]): Record<string, Desired> {
         startDate: utcMidnight(e.preorderEnd),
         endDate: utcMidnight(e.preorderEnd) + DAY,
         isAllDay: true,
-        description: desc,
+        // 本体と同じ内容なので、目印だけ `#deadline` で区別する（同じ予定の2件目だと分かるように）
+        description: desc.replace(marker, `${marker}#deadline`),
         location,
         url,
         color,
@@ -176,6 +180,99 @@ async function canWriteCalendar(): Promise<boolean> {
   return state === 'granted';
 }
 
+/** 予定キーから、説明欄に入れている目印を復元する。 */
+function markerFor(key: string): string {
+  const suffix = '-deadline';
+  return key.endsWith(suffix)
+    ? `https://fanhive.jp/item/${key.slice(0, -suffix.length)}#deadline`
+    : `https://fanhive.jp/item/${key}`;
+}
+
+/** 起動してから一度でもカレンダーの中身を見に行ったか（重複の掃除は1セッション1回でよい）。 */
+let scannedThisSession = false;
+
+function push(m: Map<string, string[]>, k: string, v: string): void {
+  const cur = m.get(k);
+  if (cur) cur.push(v); else m.set(k, [v]);
+}
+
+/** 対応表に無い予定を、書き込み先カレンダーの中から探して拾い直す。
+ *
+ *  対応表は localStorage にしか無いので、**アプリを入れ直すと消える**。一方カレンダー側の予定は
+ *  （Googleアカウントのカレンダーなら）サーバーに残っているので、そのまま同期すると
+ *  「まだ作っていない」と判断して全部作り直す＝同じ予定が二重・三重に増える。
+ *  debug版とPlay版を同じカレンダーに向けたときも同じことが起きる。
+ *
+ *  そこで説明欄の末尾に入れているアプリ内リンクを目印にして、既にある予定を拾い直す。
+ *  同じ目印が複数あれば過去の重複なので、1件だけ残して消す（＝入れ直しの後始末も兼ねる）。
+ *  戻り値は対応表を書き換えたか。 */
+async function adoptExisting(
+  calendarId: string,
+  desired: Record<string, Desired>,
+  map: Record<string, Entry>,
+): Promise<boolean> {
+  const keys = Object.keys(desired);
+  if (!keys.length) return false;
+  // 対応表が欠けているとき（＝入れ直した直後）に加えて、アプリを開いてから1回は必ず見に行く。
+  // 既に増えてしまった重複を片付けるため。いいねのたびに一覧を取りに行くのは重いので毎回はしない
+  if (keys.every((k) => map[k]) && scannedThisSession) return false;
+
+  const byMarker = new Map<string, string[]>();
+  const byTitleStart = new Map<string, string[]>();
+  const titleById = new Map<string, string>();
+  try {
+    const { result } = await CapacitorCalendar.listEventsInRange({
+      from: Math.min(...keys.map((k) => desired[k].startDate)) - DAY,
+      to: Math.max(...keys.map((k) => desired[k].endDate)) + DAY,
+    });
+    for (const ev of result) {
+      // 選んだカレンダー以外には絶対に触らない
+      if (String(ev.calendarId) !== calendarId) continue;
+      const id = String(ev.id);
+      titleById.set(id, ev.title);
+      // 目印は完全一致で拾う（本体のリンクは締切のリンクの前方一致になるため、includes では混ざる）
+      for (const token of (ev.description ?? '').split(/\s+/)) {
+        if (token.startsWith('https://fanhive.jp/item/')) push(byMarker, token, id);
+      }
+      push(byTitleStart, `${ev.title}|${ev.startDate}|${ev.isAllDay ? 1 : 0}`, id);
+    }
+  } catch {
+    return false; // 一覧が取れなければ従来どおり（作り直しになるが、同期を止めるよりはよい）
+  }
+  scannedThisSession = true;
+
+  let changed = false;
+  const taken = new Set<string>();
+  for (const key of keys) {
+    const d = desired[key];
+    // 目印が無い時代に書いた予定のために、題名＋開始日時でも拾う。
+    // ⚠️ 本人が自分で作った同名・同日時の予定を巻き込む可能性はあるが、
+    //    題名は「作品名入りのグッズ名」「【締切】…」なので実際にはまず衝突しない
+    const hit = (byMarker.get(markerFor(key)) ?? byTitleStart.get(`${d.title}|${d.startDate}|${d.isAllDay ? 1 : 0}`) ?? [])
+      .filter((id) => !taken.has(id));
+    // 目印が無い時代の締切予定は本体と説明欄が同じで、本体の目印で引っかかる。
+    // 題名が一致するものがあればそちらだけを見る（本体のキーで締切を消してしまわないように）
+    const titled = hit.filter((id) => titleById.get(id) === d.title);
+    const found = titled.length ? titled : hit;
+    if (!found.length) continue;
+    const prev = map[key];
+    const keep = prev && found.includes(prev.id) ? prev.id : found[0]; // 今使っているものを優先して残す
+    taken.add(keep);
+    if (!prev || prev.id !== keep) {
+      map[key] = { id: keep, hash: '' }; // 中身は下の更新処理で必ず揃え直す（目印の追加もここで入る）
+      changed = true;
+    }
+    const dupes = found.filter((id) => id !== keep);
+    if (dupes.length) {
+      try {
+        await CapacitorCalendar.deleteEventsById({ ids: dupes });
+        changed = true;
+      } catch { /* 次回に持ち越す */ }
+    }
+  }
+  return changed;
+}
+
 /** 起動・復帰時に端末カレンダーを現在の保存内容へ揃える。
  *  差分だけを触る（毎回消して入れ直すと、カレンダーアプリの通知が鳴り直したり同期が重くなる）。 */
 export async function syncDeviceCalendar(events: CalendarEvent[]): Promise<void> {
@@ -187,7 +284,7 @@ export async function syncDeviceCalendar(events: CalendarEvent[]): Promise<void>
 
   const desired = buildDesired(events);
   const map = loadMap();
-  let changed = false;
+  let changed = await adoptExisting(calendarId, desired, map);
 
   for (const [key, d] of Object.entries(desired)) {
     const hash = hashOf(d);
