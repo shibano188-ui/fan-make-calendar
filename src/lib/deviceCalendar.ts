@@ -34,6 +34,15 @@ type Desired = {
   color?: string;
 };
 
+/** 端末カレンダー同期の診断ログ。既定では黙っている。
+ *  出したいときは端末で `localStorage.setItem('fan_devcal_debug','1')` してから開き直す
+ *  （chrome://inspect でWebViewを覗く用。失敗が全部握りつぶされていて原因が見えないため）。 */
+function log(...args: unknown[]): void {
+  try {
+    if (localStorage.getItem('fan_devcal_debug') === '1') console.log('[devcal]', ...args);
+  } catch { /* noop */ }
+}
+
 export function deviceCalendarSupported(): boolean {
   return Capacitor.isNativePlatform();
 }
@@ -220,23 +229,33 @@ async function adoptExisting(
   const byMarker = new Map<string, string[]>();
   const byTitleStart = new Map<string, string[]>();
   const titleById = new Map<string, string>();
+  const calById = new Map<string, string>();
+  const perCalendar = new Map<string, number>();
   try {
     const { result } = await CapacitorCalendar.listEventsInRange({
       from: Math.min(...keys.map((k) => desired[k].startDate)) - DAY,
       to: Math.max(...keys.map((k) => desired[k].endDate)) + DAY,
     });
+    log('scan', { calendarId, desired: keys.length, events: result.length });
     for (const ev of result) {
-      // 選んだカレンダー以外には絶対に触らない
-      if (String(ev.calendarId) !== calendarId) continue;
       const id = String(ev.id);
+      const cal = String(ev.calendarId);
+      perCalendar.set(cal, (perCalendar.get(cal) ?? 0) + 1);
       titleById.set(id, ev.title);
-      // 目印は完全一致で拾う（本体のリンクは締切のリンクの前方一致になるため、includes では混ざる）
+      calById.set(id, cal);
+      // 目印付きは**どのカレンダーにあっても自分が入れたもの**（書き込み先を変えた・入れ直したときの
+      // 置き去りもここで拾える）。目印は完全一致で見る（本体のリンクは締切のリンクの前方一致なので
+      // includes だと混ざる）
       for (const token of (ev.description ?? '').split(/\s+/)) {
         if (token.startsWith('https://fanhive.jp/item/')) push(byMarker, token, id);
       }
-      push(byTitleStart, `${ev.title}|${ev.startDate}|${ev.isAllDay ? 1 : 0}`, id);
+      // 目印が無い時代の予定は題名で拾うしかない。こちらは**書き込み先のカレンダーに限る**
+      // （他人の作った同名の予定を巻き込む余地を最小にする）
+      if (cal === calendarId) push(byTitleStart, `${ev.title}|${ev.startDate}|${ev.isAllDay ? 1 : 0}`, id);
     }
-  } catch {
+    log('perCalendar', Object.fromEntries(perCalendar));
+  } catch (e) {
+    log('scan failed', e);
     return false; // 一覧が取れなければ従来どおり（作り直しになるが、同期を止めるよりはよい）
   }
   scannedThisSession = true;
@@ -256,7 +275,10 @@ async function adoptExisting(
     const found = titled.length ? titled : hit;
     if (!found.length) continue;
     const prev = map[key];
-    const keep = prev && found.includes(prev.id) ? prev.id : found[0]; // 今使っているものを優先して残す
+    // 今使っているもの → 書き込み先にあるもの、の順で残す（残りは重複として消す）
+    const keep = (prev && found.includes(prev.id) && prev.id)
+      || found.find((id) => calById.get(id) === calendarId)
+      || found[0];
     taken.add(keep);
     if (!prev || prev.id !== keep) {
       map[key] = { id: keep, hash: '' }; // 中身は下の更新処理で必ず揃え直す（目印の追加もここで入る）
@@ -264,10 +286,13 @@ async function adoptExisting(
     }
     const dupes = found.filter((id) => id !== keep);
     if (dupes.length) {
+      log('dedupe', { key, title: d.title, keep, dupes });
       try {
         await CapacitorCalendar.deleteEventsById({ ids: dupes });
         changed = true;
-      } catch { /* 次回に持ち越す */ }
+      } catch (e) {
+        log('delete failed', e);
+      }
     }
   }
   return changed;
@@ -276,11 +301,11 @@ async function adoptExisting(
 /** 起動・復帰時に端末カレンダーを現在の保存内容へ揃える。
  *  差分だけを触る（毎回消して入れ直すと、カレンダーアプリの通知が鳴り直したり同期が重くなる）。 */
 export async function syncDeviceCalendar(events: CalendarEvent[]): Promise<void> {
-  if (!deviceCalendarSupported() || !isDeviceCalendarOn()) return;
+  if (!deviceCalendarSupported() || !isDeviceCalendarOn()) { log('skip: off or not native'); return; }
   const calendarId = getTargetCalendarId();
-  if (!calendarId) return;
+  if (!calendarId) { log('skip: 書き込み先が未設定'); return; }
   // 権限を後から切られたら黙って止まる（ics購読は生きているので予定が消えるわけではない）
-  if (!(await canWriteCalendar())) return;
+  if (!(await canWriteCalendar())) { log('skip: 書き込み権限なし'); return; }
 
   const desired = buildDesired(events);
   const map = loadMap();
@@ -304,7 +329,8 @@ export async function syncDeviceCalendar(events: CalendarEvent[]): Promise<void>
         map[key] = { id: prev.id, hash };
         changed = true;
       }
-    } catch {
+    } catch (e) {
+      log(prev ? 'modify failed' : 'create failed', d.title, e);
       // 1件の失敗で全体を止めない。次回の同期で作り直しを試みる
       if (!prev) continue;
       delete map[key];
@@ -320,6 +346,7 @@ export async function syncDeviceCalendar(events: CalendarEvent[]): Promise<void>
     changed = true;
   }
 
+  log('done', { desired: Object.keys(desired).length, mapped: Object.keys(map).length, changed });
   if (changed) saveMap(map);
 }
 
