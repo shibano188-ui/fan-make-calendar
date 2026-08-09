@@ -63,6 +63,20 @@ function triggersFor(e: CalendarEvent): Trigger[] {
   return out;
 }
 
+/** 今の通知許可の状態。'prompt' は「まだ聞いていない」＝アプリから聞ける。
+ *  'denied' はOSに断られた状態で、**アプリからはもう聞けない**（端末の設定を開いてもらうしかない）。 */
+export async function notificationPermission(): Promise<'granted' | 'denied' | 'prompt' | 'unsupported'> {
+  if (!native()) return 'unsupported';
+  try {
+    const cur = await LocalNotifications.checkPermissions();
+    if (cur.display === 'granted') return 'granted';
+    if (cur.display === 'denied') return 'denied';
+    return 'prompt';
+  } catch {
+    return 'unsupported';
+  }
+}
+
 /** 通知許可を確認・要求。許可されていれば true。 */
 export async function ensurePermission(): Promise<boolean> {
   if (!native()) return false;

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Bell, BellRing, Crown, CalendarSync, Moon, Palette, Pencil, Plus, Droplet, Check, MessageCircle, MapPin, UserRound, Star } from 'lucide-react';
+import { ChevronRight, Bell, Crown, CalendarSync, Moon, Palette, Pencil, Plus, Droplet, Check, MessageCircle, MapPin, UserRound, Star } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { getContrastText } from '../lib/color';
 
@@ -12,21 +12,20 @@ import {
   getOrCreateIcsToken, regenerateIcsToken, icsSubscribeUrl, icsWebcalUrl, type Work,
 } from '../lib/api';
 import { useFeature } from '../lib/premium';
-import { pushSupported, isDigestOn, setDigestOn } from '../lib/push';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import WorkFollowSheet from '../components/WorkFollowSheet';
+import DeviceCalendarSheet from '../components/DeviceCalendarSheet';
 import Toggle from '../components/ui/Toggle';
 import AccountSheet from '../components/AccountSheet';
 import { accountState, accountEmail, signOutAccount } from '../lib/account';
 import FanStarChart from '../components/FanStarChart';
-import { rescheduleAll } from '../lib/notifications';
 import { calcTitle, calcRadarData, calcGrade, type AchievementStats } from '../lib/achievements';
 import { REGIONS } from '../lib/prefectures';
-import { loadNotifyLeadDays, saveNotifyLeadDays, clearAccountScopedCache, FEATURE_GOOGLE_CALENDAR, FEATURE_PREMIUM } from '../lib/constants';
+import { clearAccountScopedCache, FEATURE_GOOGLE_CALENDAR, FEATURE_PREMIUM } from '../lib/constants';
 import { isGoogleConfigured, isGoogleLinked, linkGoogle, unlinkGoogle } from '../lib/googleCalendar';
 import {
   deviceCalendarSupported, isDeviceCalendarOn, enableDeviceCalendar, disableDeviceCalendar,
-  listDeviceCalendars, getTargetCalendarId, setTargetCalendarId, syncDeviceCalendar, type DeviceCalendar,
+  listDeviceCalendars, getTargetCalendarId, setTargetCalendarId, syncDeviceCalendar,
 } from '../lib/deviceCalendar';
 import { useTheme, type ThemeMode } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -67,13 +66,10 @@ export default function MyPage() {
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [editingField, setEditingField] = useState<EditableField | null>(null);
   const confirm = useConfirm();
-  const [leadDays, setLeadDays] = useState(loadNotifyLeadDays());
   const [gcalLinked, setGcalLinked] = useState(isGoogleLinked());
   const [acctSheet, setAcctSheet] = useState<null | 'link' | 'signin'>(null);
   // カレンダー自動同期（プレミアム）。URLは開いたときに初めて作る（使わない人の行を作らない）
   const calendarSync = useFeature('calendarAutoSync');
-  // フォロー作品の新着まとめ（プレミアム）。無料に出すと、切っても何も変わらないスイッチになる
-  const newEventDigest = useFeature('newEventDigest');
   // Androidには webcal: を受けるアプリが無い（タップしても何も起きない）ので出さない
   const isAndroid = Capacitor.getPlatform() === 'android' || /Android/i.test(navigator.userAgent);
   const [icsOpen, setIcsOpen] = useState(false);
@@ -90,50 +86,45 @@ export default function MyPage() {
       if (!t) toast('URLを作れませんでした', 'error');
     }
   };
-  // 既定ONのオプトアウト（プレミアムの中での「止める」スイッチ）
-  const [digestOn, setDigestEnabled] = useState(isDigestOn());
-  const onToggleDigest = async (next: boolean) => {
-    haptic.select();
-    setDigestEnabled(next);
-    if (user) await setDigestOn(user.id, next);
-    toast(next ? '毎朝9時にまとめてお知らせします' : '新着のまとめ通知を止めました');
-  };
   // 端末カレンダーへの直接書き込み（プレミアム・アプリ版のみ）。ics購読より早く反映される。
   // 書き込み先は端末に既にあるカレンダーから選ぶ（Googleを選べばPCでも見える）。
   const [devCalOn, setDevCalOn] = useState(isDeviceCalendarOn());
-  const [devCals, setDevCals] = useState<DeviceCalendar[] | null>(null);
   const [devCalId, setDevCalId] = useState<string | null>(getTargetCalendarId());
+  const [devCalName, setDevCalName] = useState<string | null>(null);
+  const [devCalSheet, setDevCalSheet] = useState(false);
   const syncDevCal = () => { if (user) listSavedEvents(user.id).then(syncDeviceCalendar).catch(() => {}); };
   const onToggleDevCal = async () => {
     haptic.select();
     if (devCalOn) {
       await disableDeviceCalendar();
       setDevCalOn(false);
-      setDevCals(null);
       toast('端末のカレンダーから FanHive の予定を消しました');
       return;
     }
+    // ONにしただけでは書き込まない。**先に書き込み先を選んで「決定」を押してもらう**
+    // （既定のカレンダーに黙って入れると、意図しない場所に予定が増える）
+    setDevCalSheet(true);
+  };
+  const onDecideDevCal = async (id: string) => {
+    setDevCalSheet(false);
+    const changing = devCalOn && devCalId !== null && devCalId !== id;
+    // 書き込み先を変えるときは、前のカレンダーに入れた分を消してから入れ直す
+    if (changing) await disableDeviceCalendar();
+    setTargetCalendarId(id);
+    setDevCalId(id);
     const ok = await enableDeviceCalendar();
     if (!ok) { toast('カレンダーへのアクセスが許可されていません。端末の設定から許可してください'); return; }
     setDevCalOn(true);
-    setDevCalId(getTargetCalendarId());
-    setDevCals(await listDeviceCalendars());
     syncDevCal();
-    toast('端末のカレンダーに書き込みます');
+    toast(changing ? '書き込み先を変えました' : '端末のカレンダーに書き込みます');
   };
-  const onPickDevCal = async (id: string) => {
-    haptic.select();
-    // 書き込み先を変えるので、前のカレンダーに入れた分を消してから入れ直す
-    await disableDeviceCalendar();
-    setTargetCalendarId(id);
-    setDevCalId(id);
-    await enableDeviceCalendar();
-    setDevCalOn(true);
-    syncDevCal();
-  };
+  // 選んだカレンダーの名前だけ表示する（一覧はシートの中に閉じ込める）
   useEffect(() => {
-    if (devCalOn && devCals === null && deviceCalendarSupported()) listDeviceCalendars().then(setDevCals).catch(() => {});
-  }, [devCalOn, devCals]);
+    if (!devCalOn || !devCalId || !deviceCalendarSupported()) { setDevCalName(null); return; }
+    listDeviceCalendars()
+      .then((cs) => setDevCalName(cs.find((c) => c.id === devCalId)?.title ?? null))
+      .catch(() => {});
+  }, [devCalOn, devCalId]);
 
   const onCopyIcs = async () => {
     if (!icsUrl) return;
@@ -441,29 +432,14 @@ export default function MyPage() {
             </button>
           </div>
         )}
-        {/* 通知リードタイム */}
-        <div className="flex items-center gap-2 px-3 py-2.5">
+        {/* 通知の設定（許可の状態・リマインダー・まとめ・値下げ）は1ページにまとめてある。
+            「通知が来ない」ときに見る場所が分かれていると直せないため。 */}
+        <button onClick={() => { haptic.select(); navigate('/notifications'); }}
+          className="pressable w-full flex items-center gap-2 px-3 py-2.5 text-left">
           <Bell size={16} className="text-label-secondary" />
-          <span className="text-[14px] flex-1">通知（受付開始・締切・発売の前に）</span>
-          <select value={leadDays} onChange={(e) => { const d = Number(e.target.value); setLeadDays(d); saveNotifyLeadDays(d); if (user) listSavedEvents(user.id).then(rescheduleAll).catch(() => {}); }}
-            className="bg-transparent text-[14px] outline-none" style={{ color: 'var(--input-text)' }}>
-            {[1, 2, 3, 5, 7].map((d) => <option key={d} value={d}>{d}日前</option>)}
-          </select>
-        </div>
-        {/* フォロー作品の新着まとめ（毎朝9時・プレミアム）。
-            プッシュが届く端末にだけ出す（Webに出すと、切っても何も変わらないスイッチになる）。 */}
-        {newEventDigest && pushSupported() && (
-          <div className="px-3 py-2.5">
-            <div className="flex items-center gap-2">
-              <BellRing size={16} className="text-label-secondary" />
-              <span className="text-[14px] flex-1">フォロー作品の新着まとめ</span>
-              <Toggle checked={digestOn} onChange={onToggleDigest} />
-            </div>
-            <p className="text-[11px] text-label-secondary mt-1 ml-6">
-              フォロー中の作品に追加された予定を、毎朝9時に1通でお知らせします。
-            </p>
-          </div>
-        )}
+          <span className="text-[14px] flex-1">通知</span>
+          <ChevronRight size={16} className="text-label-tertiary" />
+        </button>
         {/* 端末のカレンダーへ直接書き込む（プレミアム・アプリ版のみ）。
             ics購読はカレンダー側が取りに来るまで反映されない（Googleは8〜24時間）ので、
             アプリが動いた時点で書けるこちらを上位の手段として置く。Webには出さない。 */}
@@ -478,20 +454,12 @@ export default function MyPage() {
               いいねした予定と自分の投稿が、選んだカレンダーに入ります（締切は別の予定として入ります）。
             </p>
             {devCalOn && (
-              <div className="mt-2 ml-6 flex flex-col gap-1">
+              <button onClick={() => { haptic.select(); setDevCalSheet(true); }}
+                className="pressable mt-2 ml-6 flex items-center gap-2 w-[calc(100%-1.5rem)] text-left">
                 <span className="text-[11px] text-label-tertiary">書き込み先</span>
-                {devCals === null ? (
-                  <span className="text-[12px] text-label-tertiary">読み込み中…</span>
-                ) : devCals.length === 0 ? (
-                  <span className="text-[12px] text-label-tertiary">書き込めるカレンダーが見つかりませんでした</span>
-                ) : devCals.map((c) => (
-                  <button key={c.id} onClick={() => onPickDevCal(c.id)}
-                    className="pressable flex items-center gap-2 py-1.5 text-left">
-                    <span className="w-4 flex-shrink-0">{c.id === devCalId && <Check size={14} style={{ color: 'var(--accent-color)' }} />}</span>
-                    <span className="text-[13px] truncate">{c.title}</span>
-                  </button>
-                ))}
-              </div>
+                <span className="text-[13px] flex-1 truncate">{devCalName ?? '—'}</span>
+                <ChevronRight size={16} className="text-label-tertiary" />
+              </button>
             )}
           </div>
         )}
@@ -591,6 +559,8 @@ export default function MyPage() {
 
       <WorkFollowSheet open={followSheetOpen} onClose={() => setFollowSheetOpen(false)}
         onChanged={() => { if (user) listAllParticipatedWorks(user.id).then(setWorks).catch(() => {}); }} />
+
+      <DeviceCalendarSheet open={devCalSheet} onClose={() => setDevCalSheet(false)} onDecide={onDecideDevCal} />
 
       {acctSheet && (
         <AccountSheet mode={acctSheet} onClose={() => setAcctSheet(null)}

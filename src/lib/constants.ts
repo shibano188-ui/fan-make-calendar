@@ -9,6 +9,8 @@ export const DEFAULT_WORK_NAMES = ['ちいかわ', 'ハイキュー!!'];
 export const SHOW_POPULAR_CALENDARS = false;
 // 初回起動時のオンボーディング案内。再度出すなら true に戻す
 export const SHOW_ONBOARDING = true;
+// 案内を見終わった印。バナー広告を伏せる判断（adSuppress.ts）でも読むのでここに置く
+export const ONBOARDING_KEY = 'fan_onboarding_done_v2';
 
 // ─── 一度きりのヒント（コンテキスト内チュートリアル用） ─────────────────
 // 初めて呼ばれたときだけ true（＝ヒントを出す）。以後は false。端末ごと・localStorage。

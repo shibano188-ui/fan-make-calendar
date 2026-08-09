@@ -1,11 +1,11 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CalendarDays, Heart, Bell, Sparkles } from 'lucide-react';
+import { setAdsSuppressed } from '../lib/adSuppress';
+import { ONBOARDING_KEY } from '../lib/constants';
 
 // 初回オンボーディング（現IA: ホーム/探す/＋投稿/カレンダー/マイページ 版）
 // 表示条件: フラグ未設定のみ。キーを v2 に更新し、旧カードを見た人にも一度だけ出す
 // （「いいね＝カレンダー追加」「通知がある」が伝わっていないため）。
-
-const ONBOARDING_KEY = 'fan_onboarding_done_v2';
 
 // 本文はワンセンテンス厳守（長いと読まれない）。改行は入れず折り返しに任せる。
 const CARDS = [
@@ -35,6 +35,12 @@ export default function Onboarding() {
   const [show, setShow] = useState(() => !localStorage.getItem(ONBOARDING_KEY));
   const [page, setPage] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // バナー広告はWebViewの外に出るので、この画面を重ねても隠れない。ネイティブ側に伏せてもらう
+  useEffect(() => {
+    setAdsSuppressed(show);
+    return () => setAdsSuppressed(false);
+  }, [show]);
 
   if (!show) return null;
 

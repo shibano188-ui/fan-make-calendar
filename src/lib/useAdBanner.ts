@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { showBanner, hideBanner, onBannerSize, onBannerReserveTop } from './admob';
 import { useFeature } from './premium';
+import { useAdsSuppressed } from './adSuppress';
 
 // アダプティブ・アンカーバナーの最大高さ(dp)= 90。ネイティブ実測(reserveTop)が届くまでの
 // 暫定フォールバック用。SizeChanged が未発火/小さい値でも、最低これだけ確保しておく。
@@ -43,7 +44,12 @@ export function useAdBanner(): string {
   // 有料会員はバナーを出さない（プレミアム特典「広告非表示」）。判定はキャッシュ即答なので
   // 起動直後に一瞬バナーが出ることはない。あとからサーバー確定で有料に変わったときは
   // 依存配列の変化でエフェクトが再実行され、クリーンアップの hideBanner() が効く。
-  const noAds = useFeature('noAds');
+  const premiumNoAds = useFeature('noAds');
+  // チュートリアルなど「今は出さない」画面。バナーはWebViewの外に出るので、
+  // 上に画面を重ねても隠れない＝ネイティブ側に消してもらう必要がある。
+  // ⚠️ `||` の右に置くと短絡でフックが呼ばれない回があり、フックの順序が崩れる
+  const suppressed = useAdsSuppressed();
+  const noAds = premiumNoAds || suppressed;
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform() || noAds) return;
