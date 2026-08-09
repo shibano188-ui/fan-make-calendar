@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Bell, Crown, CalendarSync, Moon, Palette, Pencil, Plus, Droplet, Check, MessageCircle, MapPin, UserRound, Star } from 'lucide-react';
+import { ChevronRight, Bell, BellRing, Crown, CalendarSync, Moon, Palette, Pencil, Plus, Droplet, Check, MessageCircle, MapPin, UserRound, Star } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { getContrastText } from '../lib/color';
 
@@ -9,8 +9,9 @@ const MYPAGE_ACCENTS = ['#FBBF00', '#D85A30', '#1D9E75', '#378ADD', '#D4537E'] a
 import {
   getUserPublicProfile, getHomePrefecture, saveHomePrefecture, saveDisplayName, saveAvatarEmoji,
   listAllParticipatedWorks, leaveCalendar, listSavedEvents, getProfileExtras, saveProfileExtras,
-  getOrCreateIcsToken, regenerateIcsToken, icsSubscribeUrl, icsWebcalUrl, type Work,
+  getOrCreateIcsToken, regenerateIcsToken, icsSubscribeUrl, icsWebcalUrl, listNotices, type Work,
 } from '../lib/api';
+import { unseenNotices } from '../lib/notices';
 import { useFeature } from '../lib/premium';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import WorkFollowSheet from '../components/WorkFollowSheet';
@@ -68,6 +69,8 @@ export default function MyPage() {
   const confirm = useConfirm();
   const [gcalLinked, setGcalLinked] = useState(isGoogleLinked());
   const [acctSheet, setAcctSheet] = useState<null | 'link' | 'signin'>(null);
+  // お知らせの未読数（バッジ）。中身はサーバー、既読の位置だけ端末に持つ
+  const [unreadNotices, setUnreadNotices] = useState(0);
   // カレンダー自動同期（プレミアム）。URLは開いたときに初めて作る（使わない人の行を作らない）
   const calendarSync = useFeature('calendarAutoSync');
   // Androidには webcal: を受けるアプリが無い（タップしても何も起きない）ので出さない
@@ -155,6 +158,11 @@ export default function MyPage() {
     setGcalLinked(ok);
     toast(ok ? 'Googleカレンダーと連携しました' : '連携に失敗しました');
   };
+
+  useEffect(() => {
+    if (!user) return;
+    listNotices(user.id).then((ns) => setUnreadNotices(unseenNotices(ns).length)).catch(() => {});
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user) return;
@@ -432,12 +440,25 @@ export default function MyPage() {
             </button>
           </div>
         )}
+        {/* 届いたお知らせの履歴。端末の通知欄は消えると戻せないので、見返す場所をここに置く */}
+        <button onClick={() => { haptic.select(); navigate('/notices'); }}
+          className="pressable w-full flex items-center gap-2 px-3 py-2.5 text-left">
+          <BellRing size={16} className="text-label-secondary" />
+          <span className="text-[14px] flex-1">お知らせ</span>
+          {unreadNotices > 0 && (
+            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full"
+              style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+              {unreadNotices}
+            </span>
+          )}
+          <ChevronRight size={16} className="text-label-tertiary" />
+        </button>
         {/* 通知の設定（許可の状態・リマインダー・まとめ・値下げ）は1ページにまとめてある。
             「通知が来ない」ときに見る場所が分かれていると直せないため。 */}
         <button onClick={() => { haptic.select(); navigate('/notifications'); }}
           className="pressable w-full flex items-center gap-2 px-3 py-2.5 text-left">
           <Bell size={16} className="text-label-secondary" />
-          <span className="text-[14px] flex-1">通知</span>
+          <span className="text-[14px] flex-1">通知の設定</span>
           <ChevronRight size={16} className="text-label-tertiary" />
         </button>
         {/* 端末のカレンダーへ直接書き込む（プレミアム・アプリ版のみ）。

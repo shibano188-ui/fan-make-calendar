@@ -104,6 +104,15 @@ export default function NotificationSettings() {
             </div>
           )}
 
+          {/* 届いたお知らせの見返し先。設定ページに来る人は「来ない・見逃した」が動機なので上に置く */}
+          <button onClick={() => { haptic.select(); navigate('/notices'); }}
+            className="pressable w-full text-left rounded-[12px] p-3 mb-3 flex items-center gap-2"
+            style={{ backgroundColor: 'var(--bg-secondary)' }}>
+            <BellRing size={16} className="text-label-secondary" />
+            <span className="text-[14px] flex-1">これまでのお知らせを見る</span>
+            <ChevronRight size={16} className="text-label-tertiary" />
+          </button>
+
           <div className="rounded-[12px] overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>
             {/* 予定のリマインダー（端末で組む・無料） */}
             <div className={row}>

@@ -1564,3 +1564,38 @@ export function icsSubscribeUrl(token: string): string {
 export function icsWebcalUrl(token: string): string {
   return `webcal://fanhive.jp/api/ics?t=${token}`;
 }
+
+// ─── お知らせ履歴 ─────────────────────────────────────────────
+// 送った側（Cron）が notifications に書く。クライアントは読むだけ（RLSで自分宛てのみ）。
+// 端末の通知欄は消えるので、見返す場所をアプリの中に持つ。
+
+export type NoticeKind = 'price_drop' | 'restock' | 'preorder_start' | 'new_events';
+export type Notice = {
+  id: string;
+  kind: NoticeKind;
+  title: string;
+  body: string;
+  path: string;
+  createdAt: string;
+};
+
+/** 自分宛てのお知らせ。新しい順。既定は過去60日（それより前は通知としての意味がもう無い）。 */
+export async function listNotices(userId: string, days = 60): Promise<Notice[]> {
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('id, kind, title, body, path, created_at')
+    .eq('user_id', userId)
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (error || !data) return [];
+  return data.map((r) => ({
+    id: r.id as string,
+    kind: r.kind as NoticeKind,
+    title: r.title as string,
+    body: (r.body as string) ?? '',
+    path: (r.path as string) || '/',
+    createdAt: r.created_at as string,
+  }));
+}

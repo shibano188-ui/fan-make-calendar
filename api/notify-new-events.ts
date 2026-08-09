@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { sendPushes, fcmConfigured, type PushMessage } from './_fcm.js';
-import { activePremiumUsers } from './_alerts.js';
+import { activePremiumUsers, logNotifications } from './_alerts.js';
 
 // フォロー作品の新着まとめ（毎朝9時・**プレミアム限定**）。
 //
@@ -98,7 +98,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   for (const f of follows) {
     const uid = f.user_id as string;
     const wid = f.work_id as string;
-    if (!premium.has(uid) || off.has(uid) || !tokensByUser.has(uid)) continue;
+    // 宛先が無くても数える（プッシュは届かなくても、お知らせ履歴には残す）
+    if (!premium.has(uid) || off.has(uid)) continue;
     if (hidden.get(uid)?.has(wid) || muted.get(uid)?.has(wid)) continue;
     const items = (byWork.get(wid) ?? []).filter((e) => e.authorId !== uid);
     if (!items.length) continue;
@@ -122,6 +123,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!targets.size) return res.status(200).json({ newEvents: newEvents.length, sent: 0, failed: 0, skipped: 'already sent today' });
 
   const messages: PushMessage[] = [];
+  const logs: { user_id: string; kind: string; title: string; body: string; path: string; event_id: string | null }[] = [];
   for (const [uid, agg] of perUser) {
     if (!targets.has(uid)) continue;
     const works = [...agg.works].filter(Boolean);
@@ -129,10 +131,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? `【${works[0]}】新しい予定が${agg.count}件`
       : `フォロー中の作品に新しい予定が${agg.count}件`;
     const body = works.length === 1 ? '追加された予定を見る' : works.slice(0, 3).join(' / ');
+    logs.push({ user_id: uid, kind: 'new_events', title, body, path: '/', event_id: null });
     for (const token of tokensByUser.get(uid) ?? []) {
       messages.push({ token, title, body, data: { path: '/' } });
     }
   }
+  await logNotifications(db, logs);
 
   const { sent, failed, deadTokens } = await sendPushes(messages);
   if (deadTokens.length) await db.from('push_tokens').delete().in('token', deadTokens);

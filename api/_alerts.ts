@@ -84,9 +84,20 @@ function asIdSet(v: unknown): Set<string> {
   return new Set(Array.isArray(v) ? (v as unknown[]).filter((x): x is string => typeof x === 'string') : []);
 }
 
+/** お知らせ履歴に残す。**プッシュが送れたかとは無関係に書く**
+ *  （通知を切っている人・端末を持っていない人も、アプリで見返せるようにするため）。 */
+export async function logNotifications(
+  db: Db,
+  rows: { user_id: string; kind: string; title: string; body: string; path: string; event_id: string | null }[],
+): Promise<void> {
+  if (!rows.length) return;
+  // 履歴が書けなくても通知は送る（ここで止めると通知そのものが届かなくなる）
+  await db.from('notifications').insert(rows);
+}
+
 /** 検知したものをプッシュする。戻り値は送信数（Cronのレスポンスに出して様子を見るため）。 */
 export async function pushAlerts(db: Db, alerts: Alert[]): Promise<{ sent: number; failed: number }> {
-  if (!alerts.length || !fcmConfigured()) return { sent: 0, failed: 0 };
+  if (!alerts.length) return { sent: 0, failed: 0 };
 
   const eventIds = [...new Set(alerts.map((c) => c.eventId))];
   const { data: likes } = await db.from('likes').select('user_id, event_id').in('event_id', eventIds);
@@ -110,10 +121,10 @@ export async function pushAlerts(db: Db, alerts: Alert[]): Promise<{ sent: numbe
     bellOn.set(s.user_id as string, asIdSet(s.notify_event_ids));
   }
 
+  // 宛先が無くても止めない。**履歴は残す**（通知を切っている人もアプリで見返せるように）
   const { data: tokenRows } = await db.from('push_tokens').select('user_id, token').in('user_id', [...premium]);
-  if (!tokenRows?.length) return { sent: 0, failed: 0 };
   const tokensByUser = new Map<string, string[]>();
-  for (const t of tokenRows) {
+  for (const t of tokenRows ?? []) {
     const list = tokensByUser.get(t.user_id as string) ?? [];
     list.push(t.token as string);
     tokensByUser.set(t.user_id as string, list);
@@ -136,7 +147,7 @@ export async function pushAlerts(db: Db, alerts: Alert[]): Promise<{ sent: numbe
   const perUser = new Map<string, Alert[]>();
   for (const like of likes) {
     const uid = like.user_id as string;
-    if (!premium.has(uid) || !tokensByUser.has(uid)) continue;
+    if (!premium.has(uid)) continue;
     for (const c of byEvent.get(like.event_id as string) ?? []) {
       if (!wants(uid, c)) continue;
       const list = perUser.get(uid) ?? [];
@@ -144,6 +155,22 @@ export async function pushAlerts(db: Db, alerts: Alert[]): Promise<{ sent: numbe
       perUser.set(uid, list);
     }
   }
+
+  // お知らせ履歴は**1件ずつ**残す（通知欄ではまとめて1通でも、見返すときは個別に辿りたい）
+  await logNotifications(
+    db,
+    [...perUser].flatMap(([uid, list]) =>
+      list.map((c) => {
+        const text = oneMessage(c);
+        return {
+          user_id: uid, kind: c.kind, title: text.title, body: text.body,
+          path: `/item/${c.eventId}`, event_id: c.eventId,
+        };
+      }),
+    ),
+  );
+
+  if (!fcmConfigured()) return { sent: 0, failed: 0 };
 
   const messages: PushMessage[] = [];
   for (const [uid, list] of perUser) {
@@ -154,6 +181,7 @@ export async function pushAlerts(db: Db, alerts: Alert[]): Promise<{ sent: numbe
       messages.push({ token, title: text.title, body: text.body, data });
     }
   }
+  if (!messages.length) return { sent: 0, failed: 0 };
 
   const { sent, failed, deadTokens } = await sendPushes(messages);
   // 失効したトークンは残しても毎回失敗するだけなので消す
