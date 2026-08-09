@@ -3,6 +3,7 @@ import type { CalendarEvent, EventVisit, Offer } from '../types';
 import { parseCategories, loadMutedEventIds, loadMutedWorkIds } from './constants';
 import { searchWorksByAlias, findWorkByExactAlias } from './workAliases';
 import { primaryOffer, getOffers } from './affiliate';
+import { requestDeviceCalendarSync } from './deviceCalendar';
 
 /** 2つのカテゴリ値（単一文字列 or JSON配列文字列）が完全に重ならない場合 true。
  *  どちらかが空なら false（＝別イベントとは判定しない）。複数カテゴリの重複検知に使う。 */
@@ -366,6 +367,7 @@ export async function createEvents(
 
   const { data, error } = await supabase.from('events').insert(rows).select('id');
   if (error) throw error;
+  requestDeviceCalendarSync(authorId);
   return (data ?? []).map(r => r.id as string);
 }
 
@@ -638,6 +640,9 @@ export async function toggleLike(eventId: string, userId: string): Promise<{ lik
     .eq('event_id', eventId);
 
   await supabase.from('events').update({ like_count: count ?? 0 }).eq('id', eventId);
+
+  // 端末カレンダーに書く設定なら、起動・復帰を待たずに反映する（外したら消える）
+  requestDeviceCalendarSync(userId);
 
   return { liked: !existing, count: count ?? 0 };
 }

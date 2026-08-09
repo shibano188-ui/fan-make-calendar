@@ -225,3 +225,21 @@ export async function syncDeviceCalendar(events: CalendarEvent[]): Promise<void>
 
   if (changed) saveMap(map);
 }
+
+let pendingSync: ReturnType<typeof setTimeout> | undefined;
+
+/** いいね・投稿の直後に呼ぶ。起動・復帰を待たずに端末カレンダーへ反映する。
+ *  連打されるので少し待ってから1回だけ走らせる（保存内容の取得ごと間引く）。
+ *  ⚠️ `listSavedEvents` は動的importで取る。静的にすると api.ts ↔ deviceCalendar.ts が循環する。 */
+export function requestDeviceCalendarSync(userId: string, delayMs = 1500): void {
+  if (!deviceCalendarSupported() || !isDeviceCalendarOn()) return;
+  clearTimeout(pendingSync);
+  pendingSync = setTimeout(() => {
+    void (async () => {
+      try {
+        const { listSavedEvents } = await import('./api');
+        await syncDeviceCalendar(await listSavedEvents(userId));
+      } catch { /* 失敗しても次の起動・復帰時の同期で揃う */ }
+    })();
+  }, delayMs);
+}
