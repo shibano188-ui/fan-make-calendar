@@ -542,14 +542,23 @@ export default function MyPage() {
             <span className="text-[11px] text-label-tertiary">近日</span>
           </div>
         )}
-        {/* プレミアム（実装完了まで「近日」固定・操作不可） */}
-        <div className="flex items-center gap-2 px-3 py-2.5 opacity-50">
-          <Crown size={16} style={{ color: 'var(--accent-color)' }} />
-          <span className="text-[14px] flex-1">プレミアム</span>
-          {FEATURE_PREMIUM
-            ? <ChevronRight size={16} className="text-label-tertiary" />
-            : <span className="text-[11px] text-label-tertiary">近日</span>}
-        </div>
+        {/* プレミアム。案内・購入画面は /premium に用意してあるが、決済が繋がるまでは
+            FEATURE_PREMIUM=false で「近日」のまま出す（買えない案内を出さない方針）。
+            決済が入ったらフラグを true にするだけでこの行が開くようになる。 */}
+        {FEATURE_PREMIUM ? (
+          <button onClick={() => { haptic.select(); navigate('/premium'); }}
+            className="pressable w-full flex items-center gap-2 px-3 py-2.5 text-left">
+            <Crown size={16} style={{ color: 'var(--accent-color)' }} />
+            <span className="text-[14px] flex-1">プレミアム</span>
+            <ChevronRight size={16} className="text-label-tertiary" />
+          </button>
+        ) : (
+          <div className="flex items-center gap-2 px-3 py-2.5 opacity-50">
+            <Crown size={16} style={{ color: 'var(--accent-color)' }} />
+            <span className="text-[14px] flex-1">プレミアム</span>
+            <span className="text-[11px] text-label-tertiary">近日</span>
+          </div>
+        )}
       </div>
 
       {/* フォロー作品（ドロップダウン） */}

@@ -53,6 +53,25 @@ export type PremiumFeature = keyof typeof PREMIUM_FEATURES;
  *  **既に上限を超えている人からは絶対に取り上げない**（追加が止まるだけ）。不利益変更にしないため。 */
 export const FREE_FOLLOW_LIMIT = 5;
 
+/** 案内画面に出す並び順。効き目の大きい順に置く（上から読まれて途中でやめられる前提）。
+ *  PREMIUM_FEATURES に足したらここにも足す（漏れると案内に出ない）。 */
+export const PREMIUM_FEATURE_ORDER: PremiumFeature[] = [
+  'instantAlerts', 'priceAlerts', 'newEventDigest', 'noAds',
+  'calendarAutoSync', 'multiDeviceSync', 'unlimitedFollow',
+];
+
+/** 案内画面に出す一行説明。使う人の言葉で書く（機能名だけでは何が嬉しいか伝わらない）。
+ *  FREE_FOLLOW_LIMIT を参照するので、この定義より後ろに置くこと。 */
+export const PREMIUM_FEATURE_NOTES: Record<PremiumFeature, string> = {
+  instantAlerts: 'いいねしたグッズの予約受付が始まった瞬間に届きます。無料プランは翌朝のまとめになります。',
+  priceAlerts: 'いいねしたグッズが過去の最安値を更新したとき、売り切れから在庫が戻ったときに知らせます。',
+  newEventDigest: 'フォロー中の作品に追加された予定を、毎朝9時に1通でまとめて届けます。',
+  noAds: 'アプリの下に出る広告が消えます。',
+  calendarAutoSync: 'いいねした予定と自分の投稿が、Google・Appleのカレンダーに自動で入ります。',
+  multiDeviceSync: 'スマホとタブレットなど、複数の端末で同じデータを同時に使えます。',
+  unlimitedFollow: `フォローできる作品の数が無制限になります（無料プランは${FREE_FOLLOW_LIMIT}作品まで）。`,
+};
+
 /** もう1作品フォローできるか。`count` は今フォローしている数。 */
 export function canFollowMore(count: number, premium: boolean): boolean {
   return premium || count < FREE_FOLLOW_LIMIT;

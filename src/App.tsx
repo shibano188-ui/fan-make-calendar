@@ -24,6 +24,7 @@ const PriceDrops      = lazy(() => import('./pages/PriceDrops'));
 const Follows         = lazy(() => import('./pages/Follows'));
 const NotificationSettings = lazy(() => import('./pages/NotificationSettings'));
 const Notices         = lazy(() => import('./pages/Notices'));
+const Premium         = lazy(() => import('./pages/Premium'));
 const WidgetCountdown = lazy(() => import('./pages/WidgetCountdown'));
 const WidgetToday     = lazy(() => import('./pages/WidgetToday'));
 const WidgetMonth     = lazy(() => import('./pages/WidgetMonth'));
@@ -135,6 +136,7 @@ export default function App() {
                     <Route path="/follows" element={<Follows />} />
                     <Route path="/notifications" element={<NotificationSettings />} />
                     <Route path="/notices" element={<Notices />} />
+                    <Route path="/premium" element={<Premium />} />
                     <Route path="*"         element={<NotFound />} />
                   </Routes>
                 </PhoneFrame>
