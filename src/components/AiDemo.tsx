@@ -36,7 +36,12 @@ const FALLBACK: ParsedEvent = {
   isOrderMade: true, preorderStart: '2026-08-20', preorderEnd: null, sellsGoods: false,
 };
 
-type Step = 'post' | 'sheet' | 'loading' | 'done';
+// 投稿画面のモックで使う見た目（PostNew と揃える）
+const inputCls = 'w-full rounded-[10px] px-3 py-2.5 text-[14px]';
+const inputStyle = { backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' };
+const labelCls = 'text-[12px] text-label-secondary mb-1 mt-4';
+
+type Step = 'post' | 'sheet' | 'loading' | 'form';
 
 export default function AiDemo({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState<Step>('post');
@@ -54,23 +59,75 @@ export default function AiDemo({ onDone }: { onDone: () => void }) {
         if (!alive || !r) return;
         // 速すぎると何が起きたか分からないので、最低1.2秒は読み取っている状態を見せる
         const wait = Math.max(0, 1200 - (Date.now() - started));
-        setTimeout(() => { if (alive) { setResult(r); setStep('done'); haptic.select(); } }, wait);
+        setTimeout(() => { if (alive) { setResult(r); setStep('form'); haptic.select(); } }, wait);
       });
     return () => { alive = false; };
   }, [step]);
 
-  const openX = () => {
-    haptic.select();
-    window.open('https://x.com/', '_blank', 'noopener');
-    onDone();
+  const dateText = (d: string) => {
+    const [y, m, day] = d.split('-');
+    return `${y}年${Number(m)}月${Number(day)}日`;
   };
 
-  const dateText = (e: ParsedEvent) => {
-    const d = e.preorderStart ?? e.date;
-    if (!d) return e.dateLabel ?? '';
-    const [, m, day] = d.split('-');
-    return `${Number(m)}月${Number(day)}日`;
-  };
+  // ── 投稿画面のモック。**保存はしない**。
+  // 例の予定は架空の作品なので、本当に登録すると他の人の「探す」に実在しない予定が流れる。
+  // 「投稿する」は手順を最後まで見せるためだけのボタンで、押したらオンボーディングに戻る。
+  if (step === 'form' && result) {
+    return (
+      <div className="fixed inset-0 z-[310] max-w-app mx-auto flex flex-col" style={{ backgroundColor: 'var(--bg-primary)' }}>
+        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-subtle" style={{ paddingTop: 'max(12px, var(--sat))' }}>
+          <span className="text-[16px] font-bold flex-1">新しい予定</span>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+            style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-secondary)' }}>例</span>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 pb-6">
+          <div className="flex items-center gap-1.5 mt-3 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+            <Sparkles size={14} className="flex-shrink-0" style={{ color: 'var(--accent-color)' }} />
+            <span className="text-[12px]">AIが入力しました。あとは確認するだけです</span>
+          </div>
+
+          <div className={labelCls}>作品</div>
+          <div className={inputCls} style={inputStyle}>{result.work ?? FALLBACK.work}</div>
+
+          <div className={labelCls}>タイトル</div>
+          <div className={inputCls} style={inputStyle}>{result.title}</div>
+
+          {result.price != null && (
+            <>
+              <div className={labelCls}>価格</div>
+              <div className={inputCls} style={inputStyle}>¥{result.price.toLocaleString('ja-JP')}</div>
+            </>
+          )}
+          {result.preorderStart && (
+            <>
+              <div className={labelCls}>受付開始</div>
+              <div className={inputCls} style={inputStyle}>{dateText(result.preorderStart)}</div>
+            </>
+          )}
+          {(result.date || result.dateLabel) && (
+            <>
+              <div className={labelCls}>発売</div>
+              <div className={inputCls} style={inputStyle}>
+                {result.date ? `${dateText(result.date)}${result.dateLabel ? `（${result.dateLabel}）` : ''}` : result.dateLabel}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="px-5 pt-3 border-t border-subtle" style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom))' }}>
+          <button onClick={() => { haptic.select(); onDone(); }}
+            className="w-full py-3.5 rounded-full text-[15px] font-bold pressable"
+            style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+            投稿する
+          </button>
+          <p className="text-[11px] text-label-tertiary mt-2 text-center leading-relaxed">
+            これは例なので投稿はされません。次は自分の推しの告知でどうぞ。
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[310] max-w-app mx-auto flex flex-col" style={{ backgroundColor: 'var(--bg-primary)' }}>
@@ -78,8 +135,7 @@ export default function AiDemo({ onDone }: { onDone: () => void }) {
         <p className="text-[13px] text-label-secondary">
           {step === 'post' ? 'Xで見つけた告知の例です。共有ボタンを押してみてください'
             : step === 'sheet' ? '共有先から FanHive を選びます'
-            : step === 'loading' ? 'AIが読み取っています'
-            : 'これだけで予定になりました'}
+            : 'AIが読み取っています'}
         </p>
       </div>
 
@@ -115,22 +171,7 @@ export default function AiDemo({ onDone }: { onDone: () => void }) {
           </div>
         </div>
 
-        {/* 解析結果 */}
         {step === 'loading' && <LineLoader label="予定にしています…" />}
-        {step === 'done' && result && (
-          <div className="rounded-[14px] border p-3.5" style={{ borderColor: 'var(--accent-color)' }}>
-            <div className="flex items-center gap-1.5 mb-2">
-              <Sparkles size={14} style={{ color: 'var(--accent-color)' }} />
-              <span className="text-[11px] font-semibold" style={{ color: 'var(--accent-text)' }}>FanHiveに入りました</span>
-            </div>
-            <p className="text-[15px] font-bold leading-snug">{result.title}</p>
-            <div className="mt-2 flex flex-col gap-1 text-[12px] text-label-secondary">
-              {result.work && <p>作品　{result.work}</p>}
-              {(result.preorderStart || result.date) && <p>受付開始　{dateText(result)}</p>}
-              {result.price != null && <p>価格　¥{result.price.toLocaleString('ja-JP')}</p>}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* 共有シート（簡略化した図。OSの本物ではない） */}
@@ -162,25 +203,11 @@ export default function AiDemo({ onDone }: { onDone: () => void }) {
         </div>
       )}
 
-      <div className="px-5 flex flex-col gap-2" style={{ paddingBottom: 'max(32px, env(safe-area-inset-bottom))' }}>
-        {step === 'done' ? (
-          <>
-            <button onClick={openX}
-              className="w-full py-3.5 rounded-full text-[15px] font-semibold pressable"
-              style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
-              自分の推しでやってみる
-            </button>
-            <button onClick={() => { haptic.select(); onDone(); }}
-              className="w-full py-2.5 text-[13px] text-label-secondary pressable">
-              あとで
-            </button>
-          </>
-        ) : (
-          <button onClick={() => { haptic.select(); onDone(); }}
-            className="w-full py-2.5 text-[13px] text-label-tertiary pressable">
-            スキップ
-          </button>
-        )}
+      <div className="px-5" style={{ paddingBottom: 'max(32px, env(safe-area-inset-bottom))' }}>
+        <button onClick={() => { haptic.select(); onDone(); }}
+          className="w-full py-2.5 text-[13px] text-label-tertiary pressable">
+          スキップ
+        </button>
       </div>
     </div>
   );
