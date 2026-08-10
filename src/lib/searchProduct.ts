@@ -86,8 +86,12 @@ export function variantMismatch(entered: string, candidate: string): boolean {
 // 投稿時に「自動添付してよい高信頼候補」だけを絞る。
 // 公式店(あみあみ/駿河屋/アニメイト/楽天ブックス)はタイトル一致度0.55以上、
 // 非公式店(転売混在の恐れ)はより厳しく0.8以上。誤マッチを避けつつ手間ゼロで収益リンクを付ける。
-// 販路(retailer+shop)ごとに1件・最大4件。アフィ対応の販路を先に確保してから、アニメイト本店など
-// 非対応の公式店を足す。売切れ・種類違いは自動添付しない（候補としては残るので手動では選べる）。
+// 販売サイトごとに1件・最大4件。売切れ・種類違いは自動添付しない（候補としては残るので手動では選べる）。
+//
+// 2026-08-10: 上限を「サイト＋ショップ」単位から**サイト単位**に変えた。
+// 以前は楽天の別ショップ3件で4枠のうち3つが埋まり、提携が無いだけの公式店（アニメイト本店）が
+// 最後まで出てこなかった。同じサイトの2件目以降はユーザーにとって選択肢が増えないので、
+// 1件に絞って空いた枠を他のサイトに回す。
 export function highConfidenceCandidates(enteredTitle: string, items: ProductCandidate[]): ProductCandidate[] {
   const scored = items
     .map((c) => ({ c, score: titleMatchScore(enteredTitle, c.title) }))
@@ -107,9 +111,8 @@ export function highConfidenceCandidates(enteredTitle: string, items: ProductCan
   const seen = new Set<string>();
   const out: ProductCandidate[] = [];
   for (const { c } of ranked) {
-    const k = `${c.retailer}:${c.shop || ''}`;
-    if (seen.has(k)) continue;
-    seen.add(k);
+    if (seen.has(c.retailer)) continue;
+    seen.add(c.retailer);
     out.push(c);
     if (out.length >= 4) break;
   }
