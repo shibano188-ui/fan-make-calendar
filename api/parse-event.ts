@@ -23,6 +23,19 @@ function isShortUrl(url: string): boolean {
   try { return SHORTENER_HOSTS.test(new URL(url).host.replace(/^www\./, '')); } catch { return false; }
 }
 
+// 解析にかけてよいURLは **Xのポスト** だけ（2026-08-10 本人確定）。理由は2つ:
+//  ・まとめ記事やニュースを解析させられると、予定にならないゴミが生まれる
+//  ・任意のホストへサーバーが接続する口になっていた（内部アドレスも弾いていなかった）
+// 販売先のURLは解析対象ではない。投稿画面の購入リンク欄に入れてもらう。
+function isXPostUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    const host = u.host.replace(/^www\./, '').toLowerCase();
+    if (host !== 'x.com' && host !== 'twitter.com' && host !== 'mobile.twitter.com') return false;
+    return /\/status\/\d+/.test(u.pathname);  // プロフィールや検索結果は本文が無いので通さない
+  } catch { return false; }
+}
+
 // リダイレクト先の Location にパスの日本語が生バイトで入っていると、fetch の res.url が
 // それを latin-1 として読み直して二重エンコードされる（%E3%83%8B → %C3%A3%C2%83%C2%8B）。
 // そのまま保存すると 404 になるURLが販路として残るので、latin-1→UTF-8 で読み直して戻す。
@@ -391,6 +404,9 @@ async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
   return { text: `URL: ${tweetUrl}`, imageUrl };
 }
 
+// ⚠ 2026-08-10 から**呼ばれていない**。Xのポスト以外のURLを解析しない方針にしたため
+// （isXPostUrl 参照）。任意ホストへの接続口でもあったので復活させるときは、
+// https限定・内部アドレス拒否・リダイレクト先の再検証を足してからにすること。
 async function fetchPageText(url: string): Promise<string> {
   try {
     const res = await fetch(url, {
@@ -567,13 +583,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // ── URL前処理 ──────────────────────────────────────────────
-    // 1. mixed content（"ツイート本文 https://t.co/xxx"）からURLだけ取り出す
-    let processUrl = url!.trim();
-    if (!/^https?:\/\//.test(processUrl)) {
-      processUrl = processUrl.match(/https?:\/\/\S+/)?.[0] ?? processUrl;
-    }
+    const rawInput = url!.trim();
+    // 1. mixed content（"ツイート本文 https://t.co/xxx"）からURLだけ取り出す。
+    //    URLが1つも無ければ空になる＝テキスト入力として扱う（下の分岐へ）
+    let processUrl = rawInput.match(/https?:\/\/\S+/)?.[0] ?? '';
     // 2. 短縮URLをリダイレクト先へ解決（X アプリが t.co を送る／本文の x.gd を直接共有する場合）
-    if (isShortUrl(processUrl)) {
+    if (processUrl && isShortUrl(processUrl)) {
       try {
         const r = await fetch(processUrl, {
           method: 'GET', redirect: 'follow',
@@ -585,9 +600,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     // ────────────────────────────────────────────────────────────
 
-    const isTweet = /twitter\.com|x\.com/.test(processUrl);
-
-    if (isTweet) {
+    if (isXPostUrl(processUrl)) {
       const { text: pageText, imageUrl: tweetImageUrl } = await fetchTweetContent(processUrl);
       // sharedText（X アプリが Web Share で送ってきたツイート本文）があれば先頭に追加
       const tweetContext = sharedText
@@ -633,10 +646,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json(parsed);
     }
 
-    // 通常URL
-    const pageText = await fetchPageText(processUrl);
+    // ここから先はXのポスト以外。**URLは取りに行かない**。
+    // ただし本文が一緒に入っているなら、URLを除いた文章をそのまま読む
+    // （「告知の本文＋販売先のURL」を丸ごと貼る使い方を殺さないため）。
+    const textOnly = rawInput.replace(/https?:\/\/\S+/g, '').trim();
+    if (!textOnly) {
+      // 中身がURLだけ＝読むものが無い。クライアントで案内に差し替える
+      return res.status(400).json({ error: 'unsupported_url' });
+    }
+    const textContext = sharedText
+      ? `${await expandShortLinks(sharedText)}\n\n${textOnly}`
+      : textOnly;
     try {
-      const parsed = await extractWithRetry(EXTRACT_PROMPT, pageText, 768);
+      const parsed = await extractWithRetry(EXTRACT_PROMPT, textContext, 768);
       await expandEventLinks(parsed);
       return res.status(200).json(parsed);
     } catch {

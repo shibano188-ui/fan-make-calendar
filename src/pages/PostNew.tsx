@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { X, Plus, Check, Sparkles, Camera, Link2, Loader2, Search } from 'lucide-react';
+import { X, Plus, Check, Sparkles, Camera, Link2, Loader2, Search, Share2 } from 'lucide-react';
 import Chip from '../components/ui/Chip';
 import { searchWorks, getOrCreateWork, createEvents, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, type Work } from '../lib/api';
 import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES, GOODS_TAG } from '../lib/constants';
@@ -318,7 +318,12 @@ export default function PostNew() {
       else if (events.length === 1) { applyParsed(events[0]); toast('AIが入力しました'); }
       else { setParsedList(events); }
     } catch (e) {
-      setAiError(e instanceof Error && e.message === 'rate_limited' ? '混雑しています。少し待って再試行' : '解析に失敗しました');
+      const code = e instanceof Error ? e.message : '';
+      setAiError(
+        code === 'rate_limited' ? '混雑しています。少し待って再試行'
+        : code === 'unsupported_url' ? '読み取れるのはXのポストだけです。販売先のURLは下の「購入・予約ページのURL」へ、告知は本文を貼り付けてください'
+        : '解析に失敗しました',
+      );
     } finally {
       setAiLoading(false);
     }
@@ -468,10 +473,21 @@ export default function PostNew() {
             </div>
             {!parsedList ? (
               <>
+                {/* 一番速い経路を先に出す。貼り付け欄を上に置くと「毎回コピーしてくるもの」と
+                    読まれて、共有ひとつで済むことが伝わらない */}
+                <div className="flex items-start gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+                  <Share2 size={15} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--accent-text)' }} />
+                  <p className="text-[12px] leading-relaxed">
+                    Xで告知を見つけたら、共有から FanHive を選ぶだけ。開かなくても予定が埋まります。
+                  </p>
+                </div>
+                <p className="text-[11px] text-label-tertiary mt-3 mb-1.5">
+                  Xのポストのリンクや、告知の本文を貼り付けても読み取れます
+                </p>
                 <div className="flex gap-2">
                   <div className="flex-1 relative">
                     <Link2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary pointer-events-none" />
-                    <input value={aiText} onChange={(e) => setAiText(e.target.value)} placeholder="X や 商品ページのURL / テキストを貼り付け"
+                    <input value={aiText} onChange={(e) => setAiText(e.target.value)} placeholder="Xのポストのリンク / 告知の本文"
                       onKeyDown={(e) => e.key === 'Enter' && onAnalyzeText()}
                       className="w-full rounded-[10px] pl-8 pr-3 py-2.5 text-[13px] outline-none" style={inputStyle} />
                   </div>

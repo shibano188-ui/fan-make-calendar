@@ -65,18 +65,29 @@ export async function parseEventsApi(body: ParseBody): Promise<ParsedEvent[]> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(res.status === 429 ? 'rate_limited' : `error_${res.status}`);
+  if (!res.ok) {
+    if (res.status === 429) throw new Error('rate_limited');
+    // Xのポスト以外のURLだけを投げたとき（サーバーはページを取りに行かない）
+    if (res.status === 400) {
+      const detail = await res.json().catch(() => null);
+      if (detail?.error === 'unsupported_url') throw new Error('unsupported_url');
+    }
+    throw new Error(`error_${res.status}`);
+  }
   const raw = await res.json();
   const arr: Record<string, unknown>[] = Array.isArray(raw) ? raw : [raw];
   const events = arr.filter((e) => clean(e.title)).map(rawToParsed);
 
-  // URL入力時: 非ツイートはそのURLを購入/公式リンクに、ツイートは元リンク維持＋sourceに記録
+  // URL入力時: 非ツイートはそのURLを購入/公式リンクに、ツイートは元リンク維持＋sourceに記録。
+  // `body.url` には**テキストがそのまま入ることがある**（貼り付け欄は種別を区別しない）ので、
+  // 実際にURLの形をしているときだけ販路のフォールバックに使う（テキストが販路として保存されるのを防ぐ）。
   if (body.url) {
     const isTweet = /twitter\.com|x\.com/.test(body.url);
+    const foundUrl = body.url.match(/https?:\/\/\S+/)?.[0] ?? null;
     return events.map((e) => ({
       ...e,
-      link: isTweet ? e.link : (e.link ?? body.url!),
-      sourceUrl: isTweet ? body.url! : e.sourceUrl,
+      link: isTweet ? e.link : (e.link ?? foundUrl),
+      sourceUrl: isTweet ? (foundUrl ?? body.url!) : e.sourceUrl,
     }));
   }
   return events;
