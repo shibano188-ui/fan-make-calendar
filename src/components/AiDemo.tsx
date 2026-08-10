@@ -28,13 +28,17 @@ export default function AiDemo({ onSkip }: { onSkip: () => void }) {
 
   return (
     <div className="fixed inset-0 z-[310] max-w-app mx-auto flex flex-col" style={{ backgroundColor: 'var(--bg-primary)' }}>
-      <div className="px-5 pt-4 pb-2" style={{ paddingTop: 'max(16px, var(--sat))' }}>
-        <p className="text-[13px] text-label-secondary">
-          {sheet ? '共有先から FanHive を選びます' : 'Xで見つけた告知の例です。共有ボタンを押してみてください'}
+      {/* 手順の説明。ここが読まれないと何をする画面か分からないので、
+          小さく上に貼らずに、カードの手前で大きく見せる */}
+      <div className="px-6 pb-5" style={{ paddingTop: 'calc(var(--sat) + 56px)' }}>
+        <p className="text-[20px] font-bold leading-relaxed">
+          {sheet
+            ? '共有先から FanHive を選びます'
+            : '気になるXの投稿を見つけたら、共有から FanHive に共有するだけ。'}
         </p>
       </div>
 
-      <div className="flex-1 px-5 flex flex-col justify-center min-h-0">
+      <div className="flex-1 px-5 flex flex-col justify-start min-h-0">
         <div className="rounded-[14px] border border-subtle p-3.5" style={{ backgroundColor: 'var(--bg-secondary)' }}>
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-full flex items-center justify-center text-[15px]"

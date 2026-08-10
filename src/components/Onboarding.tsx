@@ -36,8 +36,8 @@ const CARDS = [
 export default function Onboarding() {
   const [show, setShow] = useState(() => !localStorage.getItem(ONBOARDING_KEY));
   // 体験（/post?demo=1）から戻ってきた直後か。最後のカードのボタンが変わる
-  const [demoDone] = useState(() => !!localStorage.getItem(ONBOARDING_DEMO_KEY));
-  const [page, setPage] = useState(() => (localStorage.getItem(ONBOARDING_DEMO_KEY) ? CARDS.length - 1 : 0));
+  const [demoDone, setDemoDone] = useState(() => !!localStorage.getItem(ONBOARDING_DEMO_KEY));
+  const [page, setPage] = useState(0);
   const [demo, setDemo] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -54,12 +54,21 @@ export default function Onboarding() {
     return () => setAdsSuppressed(false);
   }, [visible]);
 
+  // 体験から戻ってきたかを、ホームに戻るたびに読み直す。
+  // このコンポーネントは App 直下でマウントされたままなので、初期値だけ見ていると
+  // 投稿画面から戻っても false のままで「自分の推しでやってみる」が出ない
+  useEffect(() => {
+    if (pathname !== '/') return;
+    setDemoDone(!!localStorage.getItem(ONBOARDING_DEMO_KEY));
+  }, [pathname]);
+
   // 体験から戻ってきたときは最後のカードから始める（1枚目に巻き戻すと同じ説明を読み直させる）
   // ⚠ フックは早期returnより前に置くこと。後ろに足すとフックの数が変わってアプリごと落ちる
   useEffect(() => {
     if (!visible || !demoDone) return;
     const el = scrollRef.current;
     if (el) el.scrollLeft = el.clientWidth * (CARDS.length - 1);
+    setPage(CARDS.length - 1);
   }, [visible, demoDone]);
 
   const finish = () => {

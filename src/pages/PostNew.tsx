@@ -507,7 +507,7 @@ export default function PostNew() {
                 <div className="flex items-start gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
                   <Share2 size={15} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--accent-text)' }} />
                   <p className="text-[12px] leading-relaxed">
-                    Xで告知を見つけたら、共有から FanHive を選ぶだけ。開かなくても予定が埋まります。
+                    Xで告知を見つけたら、共有から FanHive を選ぶだけ。自動で予定が入力されます。
                   </p>
                 </div>
                 <p className="text-[11px] text-label-tertiary mt-3 mb-1.5">
