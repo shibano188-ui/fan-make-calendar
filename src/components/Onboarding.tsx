@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { CalendarDays, Heart, Bell, Sparkles } from 'lucide-react';
 import { setAdsSuppressed } from '../lib/adSuppress';
-import { ONBOARDING_KEY, ONBOARDING_DEMO_KEY } from '../lib/constants';
+import { ONBOARDING_KEY, ONBOARDING_DEMO_KEY, FEATURE_PREMIUM } from '../lib/constants';
 import AiDemo from './AiDemo';
 
 // 初回オンボーディング（現IA: ホーム/探す/＋投稿/カレンダー/マイページ 版）
@@ -39,26 +40,35 @@ export default function Onboarding() {
   const [page, setPage] = useState(() => (localStorage.getItem(ONBOARDING_DEMO_KEY) ? CARDS.length - 1 : 0));
   const [demo, setDemo] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+
+  // この画面はホームの上にだけ出す。体験で /post?demo=1 へ送っている間に重なったままだと
+  // 投稿画面が見えない（＝「飛ばない」ように見える）。戻ってきたらまた出る。
+  const onHome = pathname === '/';
+  const visible = show && onHome;
 
   // バナー広告はWebViewの外に出るので、この画面を重ねても隠れない。ネイティブ側に伏せてもらう
   useEffect(() => {
-    setAdsSuppressed(show);
+    setAdsSuppressed(visible);
     return () => setAdsSuppressed(false);
-  }, [show]);
-
-  if (!show) return null;
+  }, [visible]);
 
   // 体験から戻ってきたときは最後のカードから始める（1枚目に巻き戻すと同じ説明を読み直させる）
+  // ⚠ フックは早期returnより前に置くこと。後ろに足すとフックの数が変わってアプリごと落ちる
   useEffect(() => {
-    if (!show || !demoDone) return;
+    if (!visible || !demoDone) return;
     const el = scrollRef.current;
     if (el) el.scrollLeft = el.clientWidth * (CARDS.length - 1);
-  }, [show, demoDone]);
+  }, [visible, demoDone]);
 
   const finish = () => {
     localStorage.setItem(ONBOARDING_KEY, '1');
     try { localStorage.removeItem(ONBOARDING_DEMO_KEY); } catch { /* ignore */ }
     setShow(false);
+    // スキップした人にもプランの案内は見せる（一番読まれる位置なので）。
+    // 決済が繋がるまでは買えない案内を出さない方針なので FEATURE_PREMIUM で止めてある
+    if (FEATURE_PREMIUM) navigate('/premium');
   };
 
   // 自分の推しの告知でやってみてもらう。Xを開いて、あとは本物の共有シートから戻ってくる
@@ -66,6 +76,8 @@ export default function Onboarding() {
     window.open('https://x.com/', '_blank', 'noopener');
     finish();
   };
+
+  if (!visible) return null;
 
   const onScroll = () => {
     const el = scrollRef.current;

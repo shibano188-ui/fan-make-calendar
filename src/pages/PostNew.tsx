@@ -490,8 +490,7 @@ export default function PostNew() {
           {demo && (
             <div className="mt-3 rounded-[12px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
               <p className="text-[12px] leading-relaxed">
-                例のポストを読み取っています。販売先と価格、画像も自動で探します。
-                これは体験なので、投稿を押しても登録はされません。
+                今は投稿を押しても登録はされません。
               </p>
             </div>
           )}
