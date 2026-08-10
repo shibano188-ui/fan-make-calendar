@@ -60,6 +60,9 @@ export default function Onboarding() {
   useEffect(() => {
     if (pathname !== '/') return;
     setDemoDone(!!localStorage.getItem(ONBOARDING_DEMO_KEY));
+    // 体験は投稿画面へ移った時点で役目が終わっている。ここを消さないと、ホームに戻ったときに
+    // 例のポストの画面がカードの上にまた被さって、次のボタンが見えない
+    setDemo(false);
   }, [pathname]);
 
   // 体験から戻ってきたときは最後のカードから始める（1枚目に巻き戻すと同じ説明を読み直させる）

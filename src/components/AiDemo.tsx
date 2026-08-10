@@ -34,7 +34,7 @@ export default function AiDemo({ onSkip }: { onSkip: () => void }) {
         <p className="text-[20px] font-bold leading-relaxed">
           {sheet
             ? '共有先から FanHive を選びます'
-            : '気になるXの投稿を見つけたら、共有から FanHive に共有するだけ。'}
+            : '気になるXの投稿を見つけたら、共有から FanHive を選ぶだけ。'}
         </p>
       </div>
 
@@ -78,18 +78,23 @@ export default function AiDemo({ onSkip }: { onSkip: () => void }) {
             <p className="text-[12px] text-label-tertiary mb-3">共有</p>
             <div className="flex gap-5">
               {[
-                { label: 'FanHive', emoji: '🐝', on: true },
+                { label: 'FanHive', emoji: '', on: true },
                 { label: 'コピー', emoji: '🔗', on: false },
                 { label: 'メール', emoji: '✉️', on: false },
               ].map((a) => (
                 <button key={a.label} disabled={!a.on} onClick={toPostPage}
                   className="relative flex flex-col items-center gap-1.5 pressable">
                   {a.on && (
-                    <span className="absolute top-0 w-12 h-12 rounded-full animate-ping"
+                    <span className="absolute top-0 w-12 h-12 rounded-[14px] animate-ping"
                       style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 35%, transparent)' }} />
                   )}
-                  <span className="relative w-12 h-12 rounded-full flex items-center justify-center text-[20px]"
-                    style={{ backgroundColor: 'var(--fill-tertiary)', opacity: a.on ? 1 : 0.45 }}>{a.emoji}</span>
+                  {a.on ? (
+                    /* 本物のアプリアイコン。ここだけ絵文字だと「別のアプリ」に見える */
+                    <img src="/icon-512.png" alt="" className="relative w-12 h-12 rounded-[14px] object-cover" />
+                  ) : (
+                    <span className="relative w-12 h-12 rounded-[14px] flex items-center justify-center text-[20px]"
+                      style={{ backgroundColor: 'var(--fill-tertiary)', opacity: 0.45 }}>{a.emoji}</span>
+                  )}
                   <span className="text-[11px]" style={{ opacity: a.on ? 1 : 0.45 }}>{a.label}</span>
                 </button>
               ))}
