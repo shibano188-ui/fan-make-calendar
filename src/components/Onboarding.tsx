@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { CalendarDays, Heart, Bell, Sparkles } from 'lucide-react';
 import { setAdsSuppressed } from '../lib/adSuppress';
-import { ONBOARDING_KEY } from '../lib/constants';
+import { ONBOARDING_KEY, ONBOARDING_DEMO_KEY } from '../lib/constants';
 import AiDemo from './AiDemo';
 
 // 初回オンボーディング（現IA: ホーム/探す/＋投稿/カレンダー/マイページ 版）
@@ -34,7 +34,9 @@ const CARDS = [
 
 export default function Onboarding() {
   const [show, setShow] = useState(() => !localStorage.getItem(ONBOARDING_KEY));
-  const [page, setPage] = useState(0);
+  // 体験（/post?demo=1）から戻ってきた直後か。最後のカードのボタンが変わる
+  const [demoDone] = useState(() => !!localStorage.getItem(ONBOARDING_DEMO_KEY));
+  const [page, setPage] = useState(() => (localStorage.getItem(ONBOARDING_DEMO_KEY) ? CARDS.length - 1 : 0));
   const [demo, setDemo] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -46,9 +48,23 @@ export default function Onboarding() {
 
   if (!show) return null;
 
+  // 体験から戻ってきたときは最後のカードから始める（1枚目に巻き戻すと同じ説明を読み直させる）
+  useEffect(() => {
+    if (!show || !demoDone) return;
+    const el = scrollRef.current;
+    if (el) el.scrollLeft = el.clientWidth * (CARDS.length - 1);
+  }, [show, demoDone]);
+
   const finish = () => {
     localStorage.setItem(ONBOARDING_KEY, '1');
+    try { localStorage.removeItem(ONBOARDING_DEMO_KEY); } catch { /* ignore */ }
     setShow(false);
+  };
+
+  // 自分の推しの告知でやってみてもらう。Xを開いて、あとは本物の共有シートから戻ってくる
+  const openX = () => {
+    window.open('https://x.com/', '_blank', 'noopener');
+    finish();
   };
 
   const onScroll = () => {
@@ -107,11 +123,11 @@ export default function Onboarding() {
              強制はしない（押さない人はそのまま「はじめる」で抜けられる）。 */
           <div className="w-full flex flex-col gap-2">
             <button
-              onClick={() => setDemo(true)}
+              onClick={demoDone ? openX : () => setDemo(true)}
               className="w-full py-3.5 rounded-full text-[15px] font-semibold pressable"
               style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
             >
-              AI入力を使ってみる
+              {demoDone ? '自分の推しでやってみる' : 'AI入力を使ってみる'}
             </button>
             <button onClick={finish} className="w-full py-2 text-[13px] text-label-secondary pressable">
               はじめる
@@ -128,7 +144,7 @@ export default function Onboarding() {
         )}
       </div>
 
-      {demo && <AiDemo onDone={finish} />}
+      {demo && <AiDemo onSkip={finish} />}
     </div>
   );
 }

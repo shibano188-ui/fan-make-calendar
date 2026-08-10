@@ -11,6 +11,10 @@ export const SHOW_POPULAR_CALENDARS = false;
 export const SHOW_ONBOARDING = true;
 // 案内を見終わった印。バナー広告を伏せる判断（adSuppress.ts）でも読むのでここに置く
 export const ONBOARDING_KEY = 'fan_onboarding_done_v2';
+/** 初回オンボーディングのAI体験（/post?demo=1）をやり終えたか。
+ *  投稿画面から戻ってきたときに、最後のカードを「自分の推しでやってみる」に切り替えるために使う。
+ *  オンボーディングを閉じるときに一緒に消す。 */
+export const ONBOARDING_DEMO_KEY = 'fan_onboarding_demo_done';
 
 // ─── 一度きりのヒント（コンテキスト内チュートリアル用） ─────────────────
 // 初めて呼ばれたときだけ true（＝ヒントを出す）。以後は false。端末ごと・localStorage。

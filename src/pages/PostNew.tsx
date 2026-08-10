@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { X, Plus, Check, Sparkles, Camera, Link2, Loader2, Search, Share2 } from 'lucide-react';
 import Chip from '../components/ui/Chip';
 import { searchWorks, getOrCreateWork, createEvents, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, type Work } from '../lib/api';
-import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES, GOODS_TAG } from '../lib/constants';
+import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES, GOODS_TAG, ONBOARDING_DEMO_KEY } from '../lib/constants';
+import { DEMO_POST_TEXT } from '../lib/demoPost';
 import { affiliatize, buildOffer, primaryOffer, isAffiliateUrl, offerUrl, isNoiseLink } from '../lib/affiliate';
 import { parseEventsApi, fileToBase64, type ParsedEvent } from '../lib/parseEvents';
 import { logAiExtraction, logSearch } from '../lib/dataLogs';
@@ -161,6 +162,17 @@ export default function PostNew() {
     setAiText(share.url);
     runParse({ url: share.url, sharedText: share.text || undefined });
   }, [shareKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 初回オンボーディングのAI体験（?demo=1）。例のポストを**本番と同じ経路で**解析する。
+  // モックにしないのは、画像・購入リンク・価格が自動で埋まるところまで見せたいため。
+  // 保存だけはしない（架空の投稿を「探す」に流さない）。判定は onSubmit 側。
+  const demo = searchParams.get('demo') === '1';
+  const demoStarted = useRef(false);
+  useEffect(() => {
+    if (!demo || demoStarted.current) return;
+    demoStarted.current = true;
+    runParse({ url: DEMO_POST_TEXT });
+  }, [demo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 作品オートコンプリート（名寄せ簡易版: 既存検索＋新規作成）
   useEffect(() => {
@@ -370,6 +382,15 @@ export default function PostNew() {
 
   const onSubmit = async () => {
     if (!user || !canSave) return;
+    // オンボーディングの体験。ここまでの手順を見せるのが目的なので**保存しない**。
+    // 例のポストを本当に登録すると、他の人の「探す」に実在しない予定が流れる。
+    if (demo) {
+      haptic.select();
+      try { localStorage.setItem(ONBOARDING_DEMO_KEY, '1'); } catch { /* ignore */ }
+      clearDraft();
+      navigate('/', { replace: true });
+      return;
+    }
     setSaving(true); setError('');
     try {
       let wid = workId;
@@ -456,7 +477,7 @@ export default function PostNew() {
         <div className="sticky top-0 z-20 flex items-center justify-between px-3 py-2.5 material-bar scroll-edge" style={{ paddingTop: 'calc(var(--sat) + 10px)' }}>
           {/* 入力中(キーボード表示中)は最初のタップがblurに食われて閉じないため pointerDown で確実に閉じる */}
           <button onPointerDown={(e) => { e.preventDefault(); onClose(); }} aria-label="閉じる" className="pressable tap-44 p-1"><X size={22} /></button>
-          <span className="font-semibold">投稿</span>
+          <span className="font-semibold">{demo ? '投稿（例）' : '投稿'}</span>
           <button onClick={onSubmit} disabled={!canSave}
             className="pressable px-3 py-1.5 rounded-full text-[13px] font-semibold"
             style={canSave ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' } : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-tertiary)' }}>
@@ -465,6 +486,15 @@ export default function PostNew() {
         </div>
 
         <div className="px-4 pb-24">
+          {/* オンボーディングの体験中であることを常に見せる（本当に投稿されると思わせない） */}
+          {demo && (
+            <div className="mt-3 rounded-[12px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+              <p className="text-[12px] leading-relaxed">
+                例のポストを読み取っています。販売先と価格、画像も自動で探します。
+                これは体験なので、投稿を押しても登録はされません。
+              </p>
+            </div>
+          )}
           {/* AI入力（ヒーロー） */}
           <div className="mt-3 rounded-[12px] border border-subtle p-3" style={{ backgroundColor: 'var(--bg-secondary)' }}>
             <div className="flex items-center gap-1.5 mb-2">

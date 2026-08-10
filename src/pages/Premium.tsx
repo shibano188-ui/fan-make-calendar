@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserPublicProfile } from '../lib/api';
-import { usePremium } from '../lib/premium';
+import { usePremium, FREE_FOLLOW_LIMIT } from '../lib/premium';
 import { PLANS, planOf, FREE_TRIAL_POSTS, trialEligible, billingSupported, startPurchase, restorePurchase, yen, type PlanId } from '../lib/billing';
 import { useToast } from '../components/ui/Toast';
 import Toggle from '../components/ui/Toggle';
@@ -31,7 +31,7 @@ export default function Premium() {
 
   const [posted, setPosted] = useState<number | null>(null);
   const [watching, setWatching] = useState<{ likes: number; works: number } | null>(null);
-  const [plan, setPlan] = useState<PlanId>('yearly');   // 年払いを既定に（既定側が選ばれやすい）
+  const [plan, setPlan] = useState<PlanId>('monthly');  // 既定は月払い（2026-08-10 本人確定）
   const [allPlans, setAllPlans] = useState(false);
   const [trialOn, setTrialOn] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -56,7 +56,7 @@ export default function Premium() {
   // 見出しは本人の数字で出す。ただし始めたばかりの人に0件と出すと逆効果なので汎用へ落とす
   const headline = watching && watching.likes > 0
     ? `いま${watching.likes}件のグッズを見張っています`
-    : '見逃してから気づく、をなくす';
+    : '推し活を、もっと便利に';
   const subline = watching && watching.likes > 0
     ? `無料プランだと、受付開始のお知らせは翌朝のまとめになります。${watching.works > 0 ? `フォロー中の${watching.works}作品も同じです。` : ''}`
     : '受付開始も値下げも、始まった時点でお知らせします。';
@@ -109,22 +109,25 @@ export default function Premium() {
             </div>
           ) : (
             <>
-              {/* 無料との差。3つを超えると読まれないので絞る */}
+              {/* 無料との差。上から効き目の大きい順に並べる（下ほど読まれない） */}
               <div className="mt-6">
                 <div className="flex text-[11px] text-label-tertiary pb-1.5 border-b border-subtle">
                   <span className="flex-1" />
-                  <span className="w-[74px] text-center">無料</span>
-                  <span className="w-[86px] text-center font-semibold" style={{ color: 'var(--accent-text)' }}>プレミアム</span>
+                  <span className="w-[68px] text-center">無料</span>
+                  <span className="w-[82px] text-center font-semibold" style={{ color: 'var(--accent-text)' }}>プレミアム</span>
                 </div>
                 {[
                   ['受付開始のお知らせ', '翌朝まとめて', '始まった時点で'],
                   ['値下げ・再入荷', 'なし', 'お知らせ'],
+                  ['外部カレンダー連携', '手動', '自動で同期'],
+                  ['フォローできる作品', `${FREE_FOLLOW_LIMIT}作品まで`, '無制限'],
+                  ['複数の端末で使う', 'できない', 'できる'],
                   ['広告', '表示', '非表示'],
                 ].map(([label, free, paid]) => (
                   <div key={label} className="flex items-center py-2.5 border-b border-subtle">
                     <span className="flex-1 text-[13px]">{label}</span>
-                    <span className="w-[74px] text-center text-[12px] text-label-tertiary">{free}</span>
-                    <span className="w-[86px] text-center text-[12px] font-semibold">{paid}</span>
+                    <span className="w-[68px] text-center text-[12px] text-label-tertiary">{free}</span>
+                    <span className="w-[82px] text-center text-[12px] font-semibold">{paid}</span>
                   </div>
                 ))}
               </div>
