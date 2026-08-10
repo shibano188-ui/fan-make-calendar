@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { CalendarDays, Heart, Bell, Sparkles } from 'lucide-react';
 import { setAdsSuppressed } from '../lib/adSuppress';
 import { ONBOARDING_KEY } from '../lib/constants';
+import AiDemo from './AiDemo';
 
 // 初回オンボーディング（現IA: ホーム/探す/＋投稿/カレンダー/マイページ 版）
 // 表示条件: フラグ未設定のみ。キーを v2 に更新し、旧カードを見た人にも一度だけ出す
@@ -34,6 +35,7 @@ const CARDS = [
 export default function Onboarding() {
   const [show, setShow] = useState(() => !localStorage.getItem(ONBOARDING_KEY));
   const [page, setPage] = useState(0);
+  const [demo, setDemo] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // バナー広告はWebViewの外に出るので、この画面を重ねても隠れない。ネイティブ側に伏せてもらう
@@ -101,13 +103,20 @@ export default function Onboarding() {
           ))}
         </div>
         {page === CARDS.length - 1 ? (
-          <button
-            onClick={finish}
-            className="w-full py-3.5 rounded-full text-[15px] font-semibold pressable"
-            style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
-          >
-            はじめる
-          </button>
+          /* 最後は「読んで終わり」にしない。共有ひとつで予定になるところを実際に触らせる。
+             強制はしない（押さない人はそのまま「はじめる」で抜けられる）。 */
+          <div className="w-full flex flex-col gap-2">
+            <button
+              onClick={() => setDemo(true)}
+              className="w-full py-3.5 rounded-full text-[15px] font-semibold pressable"
+              style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
+            >
+              AI入力を使ってみる
+            </button>
+            <button onClick={finish} className="w-full py-2 text-[13px] text-label-secondary pressable">
+              はじめる
+            </button>
+          </div>
         ) : (
           <button
             onClick={() => scrollRef.current?.scrollBy({ left: scrollRef.current.clientWidth, behavior: 'smooth' })}
@@ -118,6 +127,8 @@ export default function Onboarding() {
           </button>
         )}
       </div>
+
+      {demo && <AiDemo onDone={finish} />}
     </div>
   );
 }
