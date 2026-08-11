@@ -7,6 +7,8 @@ import { usePremium, FREE_FOLLOW_LIMIT } from '../lib/premium';
 import { PLANS, planOf, FREE_TRIAL_POSTS, trialEligible, billingSupported, startPurchase, restorePurchase, lastPurchaseError, yen, type PlanId } from '../lib/billing';
 import { useToast } from '../components/ui/Toast';
 import Toggle from '../components/ui/Toggle';
+import AccountSheet from '../components/AccountSheet';
+import { accountState } from '../lib/account';
 import { haptic } from '../lib/haptics';
 
 // プレミアムの案内＝購入画面。設計は [[fanhive-paywall-design]]。
@@ -34,6 +36,12 @@ export default function Premium() {
   const [allPlans, setAllPlans] = useState(false);
   const [trialOn, setTrialOn] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [linkOpen, setLinkOpen] = useState(false);
+
+  // 匿名のまま課金させない。課金SDKに渡すIDは Supabase の user_id なので、
+  // 匿名のまま買うとアプリを入れ直した時点で別IDになり、サーバー上は無料に戻る。
+  // Play側の購読は生きているのに噛み合わず、「課金したのに消えた」になる。
+  const linked = accountState(user) === 'email';
 
   useEffect(() => {
     if (!user) return;
@@ -196,10 +204,16 @@ export default function Premium() {
         {/* 購入。金額・期間と規約はボタンのすぐ下に置く（別画面に逃がすと審査で落ちる） */}
         {!premium && (
           <div className="px-5 pt-2" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
-            <button onClick={onBuy} disabled={busy}
+            {!linked && (
+              <p className="text-[12px] mb-2 leading-relaxed" style={{ color: 'var(--accent-text)' }}>
+                お支払いの前に、メールアドレスの登録をお願いします。登録しておかないと、
+                機種変更やアプリの入れ直しでプレミアムを引き継げません。
+              </p>
+            )}
+            <button onClick={linked ? onBuy : () => { haptic.select(); setLinkOpen(true); }} disabled={busy}
               className="pressable w-full py-3.5 rounded-full text-[15px] font-bold disabled:opacity-50"
               style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
-              {trial ? '初月無料で始める' : 'プレミアムを始める'}
+              {!linked ? 'メールアドレスを登録する' : trial ? '初月無料で始める' : 'プレミアムを始める'}
             </button>
             <p className="text-[11px] text-label-secondary mt-2 text-center leading-relaxed">
               {billingLine}いつでも解約できます。
@@ -213,6 +227,14 @@ export default function Premium() {
           </div>
         )}
       </div>
+
+      {linkOpen && (
+        <AccountSheet
+          mode="link"
+          onClose={() => setLinkOpen(false)}
+          onDone={() => { setLinkOpen(false); toast('登録しました。続けてお支払いに進めます'); }}
+        />
+      )}
     </div>
   );
 }
