@@ -61,9 +61,15 @@ export default function Premium() {
       const r = await startPurchase(plan, { trial });
       if (r === 'done') { toast('プレミアムを始めました'); navigate(-1); }
       else if (r === 'canceled') { /* 本人が閉じただけ。何も言わない */ }
-      // 原因が分からないと実機で追えないので、当面は理由も出す（安定したら短い文言に戻す）
-      else if (r === 'unavailable') toast(`お支払いの準備をしています（${lastPurchaseError()}）`);
-      else toast(`購入できませんでした（${lastPurchaseError()}）`);
+      // 失敗の理由は普段は出さない（技術的な文字列を利用者に見せない）。
+      // 実機で原因を追うときだけ localStorage.fan_billing_debug='1' で出す
+      else {
+        let detail = '';
+        try { if (localStorage.getItem('fan_billing_debug') === '1') detail = `（${lastPurchaseError()}）`; } catch { /* ignore */ }
+        toast(r === 'unavailable'
+          ? `お支払いの準備をしています。もう少しお待ちください${detail}`
+          : `購入できませんでした。時間をおいてお試しください${detail}`);
+      }
     } finally { setBusy(false); }
   };
 
