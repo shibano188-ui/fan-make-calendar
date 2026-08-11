@@ -5,7 +5,7 @@ import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveStatus, deriveItemType, todayStr } from '../design/tokens';
-import { loadSeenEventIds, isNewItem } from '../lib/constants';
+import { loadSeenEventIds, isNewItem, FEATURE_PREMIUM } from '../lib/constants';
 import { listExploreEvents, getHomePrefecture, listAllParticipatedWorks, toggleLike, toggleCalendarAdd, listLikedEventIds, listMyPriceChanges, type Work } from '../lib/api';
 import { useFeature } from '../lib/premium';
 import { unseenChanges } from '../lib/priceAlerts';
@@ -200,6 +200,23 @@ export default function Home() {
             <TrendingDown size={16} style={{ color: 'var(--color-success)' }} />
             <span className="flex-1 text-left text-[13px] font-semibold">{alertLabel}（{alertTotal}件）</span>
             <span className="text-[9px] font-bold px-1.5 py-0.5 rounded text-label-tertiary" style={{ background: 'var(--fill-secondary, rgba(120,120,128,0.16))' }}>ベータ</span>
+            <ChevronRight size={16} className="text-label-tertiary" />
+          </button>
+        </div>
+      )}
+
+      {/* 無料の人にはこの枠が常に空になる。何も出さないと「そういう機能は無い」と読まれるので、
+          既にある空白と文脈をそのまま使って案内する。閲覧の邪魔にならないよう1行に留める。
+          決済が繋がるまでは出さない（FEATURE_PREMIUM） */}
+      {FEATURE_PREMIUM && !priceAlerts && (
+        <div className="px-3 pt-2">
+          <button onClick={() => { haptic.select(); navigate('/premium'); }}
+            className="pressable w-full flex items-center gap-2 px-3 py-2.5 rounded-[12px]"
+            style={{ backgroundColor: 'var(--bg-secondary)' }}>
+            <TrendingDown size={16} className="text-label-secondary" />
+            <span className="flex-1 text-left text-[12px] text-label-secondary">
+              いいねしたグッズの値下がり・再入荷を受け取る
+            </span>
             <ChevronRight size={16} className="text-label-tertiary" />
           </button>
         </div>

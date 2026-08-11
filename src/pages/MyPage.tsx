@@ -12,7 +12,7 @@ import {
   getOrCreateIcsToken, regenerateIcsToken, icsSubscribeUrl, icsWebcalUrl, listNotices, type Work,
 } from '../lib/api';
 import { unseenNotices } from '../lib/notices';
-import { useFeature } from '../lib/premium';
+import { useFeature, usePremium } from '../lib/premium';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import WorkFollowSheet from '../components/WorkFollowSheet';
 import DeviceCalendarSheet from '../components/DeviceCalendarSheet';
@@ -73,6 +73,7 @@ export default function MyPage() {
   const [unreadNotices, setUnreadNotices] = useState(0);
   // カレンダー自動同期（プレミアム）。URLは開いたときに初めて作る（使わない人の行を作らない）
   const calendarSync = useFeature('calendarAutoSync');
+  const premium = usePremium();
   // Androidには webcal: を受けるアプリが無い（タップしても何も起きない）ので出さない
   const isAndroid = Capacitor.getPlatform() === 'android' || /Android/i.test(navigator.userAgent);
   const [icsOpen, setIcsOpen] = useState(false);
@@ -346,6 +347,35 @@ export default function MyPage() {
         </div>
       )}
 
+      {/* プレミアムの入口。設定リストの中に埋めると「設定項目のひとつ」にしか見えず、
+          一番下だと見つけられない。無料の人には何が良くなるかを添えたカードとして出し、
+          既に会員の人には主張しない1行に落とす。 */}
+      {FEATURE_PREMIUM && (
+        premium ? (
+          <button onClick={() => { haptic.select(); navigate('/premium'); }}
+            className="pressable w-full flex items-center gap-2 mt-5 px-3 py-2.5 rounded-[12px] border border-subtle text-left"
+            style={{ backgroundColor: 'var(--bg-secondary)' }}>
+            <Crown size={16} style={{ color: 'var(--accent-color)' }} />
+            <span className="text-[14px] flex-1">プレミアム</span>
+            <span className="text-[11px] text-label-tertiary">利用中</span>
+            <ChevronRight size={16} className="text-label-tertiary" />
+          </button>
+        ) : (
+          <button onClick={() => { haptic.select(); navigate('/premium'); }}
+            className="pressable w-full mt-5 px-3.5 py-3 rounded-[12px] text-left"
+            style={{ border: '1.5px solid var(--accent-color)' }}>
+            <div className="flex items-center gap-2">
+              <Crown size={16} style={{ color: 'var(--accent-color)' }} />
+              <span className="text-[14px] font-semibold flex-1">プレミアム</span>
+              <ChevronRight size={16} className="text-label-tertiary" />
+            </div>
+            <p className="text-[11px] text-label-secondary mt-1 ml-6 leading-relaxed">
+              受付開始も値下げも、始まった時点でお知らせ。広告なし・カレンダー自動同期つき。月¥500
+            </p>
+          </button>
+        )
+      )}
+
       {/* 設定 */}
       <div className="mt-5 text-[12px] text-label-secondary mb-1">設定</div>
       <div className="rounded-[12px] border border-subtle divide-y" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-subtle)' }}>
@@ -539,23 +569,6 @@ export default function MyPage() {
           <div className="flex items-center gap-2 px-3 py-2.5 opacity-50">
             <CalendarSync size={16} className="text-label-secondary" />
             <span className="text-[14px] flex-1">外部カレンダー連携</span>
-            <span className="text-[11px] text-label-tertiary">近日</span>
-          </div>
-        )}
-        {/* プレミアム。案内・購入画面は /premium に用意してあるが、決済が繋がるまでは
-            FEATURE_PREMIUM=false で「近日」のまま出す（買えない案内を出さない方針）。
-            決済が入ったらフラグを true にするだけでこの行が開くようになる。 */}
-        {FEATURE_PREMIUM ? (
-          <button onClick={() => { haptic.select(); navigate('/premium'); }}
-            className="pressable w-full flex items-center gap-2 px-3 py-2.5 text-left">
-            <Crown size={16} style={{ color: 'var(--accent-color)' }} />
-            <span className="text-[14px] flex-1">プレミアム</span>
-            <ChevronRight size={16} className="text-label-tertiary" />
-          </button>
-        ) : (
-          <div className="flex items-center gap-2 px-3 py-2.5 opacity-50">
-            <Crown size={16} style={{ color: 'var(--accent-color)' }} />
-            <span className="text-[14px] flex-1">プレミアム</span>
             <span className="text-[11px] text-label-tertiary">近日</span>
           </div>
         )}
