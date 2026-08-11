@@ -65,8 +65,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // RevenueCat のダッシュボードで設定する共有の秘密。sensitive にすると後で読めなくなるので
   // 通常の環境変数として入れること（8/9に CRON_SECRET で同じ失敗をしている）
+  // ダッシュボードの入力例が "Bearer xxx" 形式なので、前置きの有無どちらでも通す。
+  // ここで弾くと原因が分かりにくい401になるだけで、防御としての意味は無い
   const secret = process.env.REVENUECAT_WEBHOOK_SECRET;
-  const auth = req.headers.authorization ?? '';
+  const auth = (req.headers.authorization ?? '').replace(/^Bearer\s+/i, '').trim();
   if (!secret || auth !== secret) return res.status(401).json({ error: 'Unauthorized' });
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL!;
