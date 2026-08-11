@@ -5,6 +5,7 @@ import { getWorksByNames, upsertParticipation } from '../lib/api';
 import { DEFAULT_WORK_NAMES } from '../lib/constants';
 import { setAppStateUser, setAppStateSync, syncAppState } from '../lib/appState';
 import { refreshPremium, clearPremium, isPremiumCached } from '../lib/premium';
+import { configureBilling } from '../lib/billing';
 
 type AuthContextValue = {
   user: User | null;
@@ -59,6 +60,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (cancelled) return;
       setUser(u);
       setLoading(false);
+      // 課金SDKのユーザーIDを Supabase の user_id に合わせる。
+      // ここがズレると Webhook から user_private に引き当てられない
+      configureBilling(u.id).catch(() => { /* 購入時にもう一度試す */ });
       // 会員状態は起動を待たせない（キャッシュで即答し、確定したらストア経由で切り替わる）
       refreshPremium(u.id)
         .then((active) => {

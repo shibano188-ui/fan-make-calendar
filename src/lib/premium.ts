@@ -139,6 +139,13 @@ export function clearPremium(): void {
   setPremium(false);
 }
 
+/** 購入が成立した直後に、サーバーの反映を待たずに画面を切り替えるためだけに使う。
+ *  正はあくまでサーバーで、次の refreshPremium() で必ず上書きされる。
+ *  **決済SDK以外から呼ばないこと**（呼べば誰でも有料になるが、サーバー側の機能は動かない）。 */
+export function setPremiumOptimistic(): void {
+  setPremium(true);
+}
+
 /** フック外から今の判定を読む（起動時の同期可否など、Reactの外で要るとき）。
  *  キャッシュ即答なので、サーバー確定前は前回の判定を返す。 */
 export function isPremiumCached(): boolean {
