@@ -29,7 +29,7 @@ export function oneShotTip(key: string): boolean {
 
 // 未完成機能は「近日」表示にして操作不可にする。実装が整ったら true に戻す。
 export const FEATURE_GOOGLE_CALENDAR = false;
-export const FEATURE_PREMIUM = false;
+export const FEATURE_PREMIUM = true;
 
 // イベントで物販あり＝このカテゴリを付ける。探す→グッズ一覧にもそのイベントを出す。
 export const GOODS_TAG = 'グッズあり';
