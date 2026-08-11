@@ -555,7 +555,10 @@ export default function MyPage() {
             )}
           </div>
         )}
-        {/* Googleカレンダー連携（実装完了まで「近日」固定） */}
+        {/* Googleカレンダー連携。フラグが立つまで**何も出さない**。
+            「外部カレンダー連携（近日）」を出していたが、そのすぐ上にある
+            「端末のカレンダーに書き込む」「カレンダー自動同期」で既に連携できるので矛盾する。
+            再開するときは FEATURE_GOOGLE_CALENDAR を true にすれば元の行が戻る。 */}
         {FEATURE_GOOGLE_CALENDAR && isGoogleConfigured() ? (
           <div className="flex items-center gap-2 px-3 py-2.5">
             <CalendarSync size={16} className="text-label-secondary" />
@@ -565,13 +568,7 @@ export default function MyPage() {
               {gcalLinked ? '連携済み（解除）' : '連携する'}
             </button>
           </div>
-        ) : (
-          <div className="flex items-center gap-2 px-3 py-2.5 opacity-50">
-            <CalendarSync size={16} className="text-label-secondary" />
-            <span className="text-[14px] flex-1">外部カレンダー連携</span>
-            <span className="text-[11px] text-label-tertiary">近日</span>
-          </div>
-        )}
+        ) : null}
       </div>
 
       {/* フォロー作品（ドロップダウン） */}
