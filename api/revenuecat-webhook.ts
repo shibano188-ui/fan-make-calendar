@@ -81,6 +81,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const userId = event.app_user_id || event.original_app_user_id;
   const status = statusOf(event.type);
+  // 何が来て何をしたかを残す。届いているのに反映されないときの切り分けがこれ無しでは無理
+  console.log('[rc]', event.type, '| user:', userId, '| product:', event.product_id, '| status:', status);
   // 未知の種別・匿名IDは何もせず200を返す（再送させない）
   if (!userId || !status) return res.status(200).json({ ok: true, skipped: event.type });
 
@@ -109,6 +111,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         payment_provider: event.store ?? 'play_store',
       }, { onConflict: 'user_id' });
     if (error) throw error;
+    console.log('[rc] updated', userId, '→', status);
   } catch (e) {
     // 500を返すと再送してくれる。握りつぶすと課金が反映されないまま消える
     console.error('[revenuecat-webhook]', event.type, e);
