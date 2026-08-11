@@ -114,6 +114,13 @@ export default function Premium() {
               <p className="text-[12px] text-label-secondary mt-1 leading-relaxed">
                 解約や支払い方法の変更は、Google Play・App Storeの定期購入の画面から行えます。
               </p>
+              {/* 加入直後の設定を飛ばした人の受け皿。ここから何度でも開ける */}
+              <button onClick={() => { haptic.select(); navigate('/premium/welcome?step=settings'); }}
+                className="pressable w-full flex items-center gap-2 mt-4 px-3 py-2.5 rounded-[12px] text-left"
+                style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                <span className="text-[14px] flex-1">通知とカレンダーの設定</span>
+                <span className="text-[11px] text-label-tertiary">開く</span>
+              </button>
             </div>
           ) : (
             <>
