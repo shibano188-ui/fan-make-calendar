@@ -115,10 +115,6 @@ export default function PremiumWelcome() {
               {/* 通知 */}
               <div className="rounded-[12px] p-3.5" style={{ backgroundColor: 'var(--bg-secondary)' }}>
                 <p className="text-[14px] font-semibold">通知を許可する</p>
-                <p className="text-[12px] text-label-secondary mt-1 leading-relaxed">
-                  受付開始や値下げを、始まった時点でお知らせします。許可されていないと、
-                  プレミアムの機能のうち3つが動きません。
-                </p>
                 {perm === 'granted' ? done('許可済み')
                   : perm === 'denied' ? (
                     <p className="text-[12px] text-label-secondary mt-2.5">
@@ -136,10 +132,6 @@ export default function PremiumWelcome() {
               {/* カレンダー */}
               <div className="rounded-[12px] p-3.5 mt-3" style={{ backgroundColor: 'var(--bg-secondary)' }}>
                 <p className="text-[14px] font-semibold">カレンダーの書き込み先を選ぶ</p>
-                <p className="text-[12px] text-label-secondary mt-1 leading-relaxed">
-                  いいねした予定と自分の投稿が、選んだカレンダーに自動で入ります。
-                  決めるまでは何も書き込みません。
-                </p>
                 {!deviceCalendarSupported() ? (
                   <p className="text-[12px] text-label-secondary mt-2.5">
                     この端末では直接の書き込みに対応していません。マイページの「カレンダー自動同期」から
