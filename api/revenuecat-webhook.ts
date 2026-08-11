@@ -25,6 +25,7 @@ type RcEvent = {
   product_id?: string;
   expiration_at_ms?: number | null;
   event_timestamp_ms?: number;
+  period_type?: string;   // TRIAL / NORMAL / INTRO
   store?: string;
 };
 
@@ -108,6 +109,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         subscription_status: status,
         subscription_plan: planOf(event.product_id),
         subscription_expires_at: expiresAt,
+        subscription_period_type: event.period_type ?? null,
         payment_provider: event.store ?? 'play_store',
       }, { onConflict: 'user_id' });
     if (error) throw error;

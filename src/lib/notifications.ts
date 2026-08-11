@@ -104,6 +104,30 @@ export async function scheduleForEvent(e: CalendarEvent): Promise<void> {
   if (notifications.length) await LocalNotifications.schedule({ notifications });
 }
 
+/** 無料お試しの終わりを知らせる通知のID。予定用のIDと衝突しない固定値にしてある。 */
+const TRIAL_NOTIF_ID = 2_000_000_001;
+/** 何日前に知らせるか。当日だと解約する時間が無く、遠すぎると忘れられる。 */
+const TRIAL_LEAD_DAYS = 2;
+
+/** 無料お試しの終わりを知らせる通知を組み直す。
+ *  黙って請求が始まると、解約と低評価に直結する（本人が「知らされていない」と感じる）。
+ *  お試し中でないときは登録しない。月額の更新日ごとに知らせるのは邪魔なだけなので。 */
+export async function scheduleTrialEndReminder(expiresAt: string | null, isTrial: boolean): Promise<void> {
+  if (!native()) return;
+  await LocalNotifications.cancel({ notifications: [{ id: TRIAL_NOTIF_ID }] });
+  if (!isTrial || !expiresAt) return;
+  const at = new Date(Date.parse(expiresAt) - TRIAL_LEAD_DAYS * 86400000);
+  if (at.getTime() <= Date.now()) return;
+  await LocalNotifications.schedule({
+    notifications: [{
+      id: TRIAL_NOTIF_ID,
+      title: '無料お試しがもうすぐ終わります',
+      body: `${TRIAL_LEAD_DAYS}日後から料金がかかります。続けない場合はストアの定期購入から解約できます。`,
+      schedule: { at },
+    }],
+  });
+}
+
 /** 1予定分の通知を全キャンセル。 */
 export async function cancelForEvent(eventId: string): Promise<void> {
   if (!native()) return;

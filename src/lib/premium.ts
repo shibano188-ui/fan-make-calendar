@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { supabase } from './supabase';
+import { scheduleTrialEndReminder } from './notifications';
 
 // プレミアム（月額サブスク）の会員状態と機能ゲート。
 //
@@ -23,9 +24,11 @@ export type Subscription = {
   /** 期限。null は無期限（手動付与など） */
   expiresAt: string | null;
   provider: string | null;
+  /** RevenueCat の period_type（TRIAL / NORMAL / INTRO）。無料お試し中かの判定に使う */
+  periodType: string | null;
 };
 
-export const FREE_SUBSCRIPTION: Subscription = { status: 'free', plan: null, expiresAt: null, provider: null };
+export const FREE_SUBSCRIPTION: Subscription = { status: 'free', plan: null, expiresAt: null, provider: null, periodType: null };
 
 /** 有料ゲートをかける機能。増やすときはここに足してから使う（散らばった文字列判定にしない）。 */
 export const PREMIUM_FEATURES = {
@@ -92,7 +95,7 @@ export function isPremiumActive(sub: Subscription | null, now: Date = new Date()
 export async function fetchSubscription(userId: string): Promise<Subscription | null> {
   const { data, error } = await supabase
     .from('user_private')
-    .select('subscription_status, subscription_plan, subscription_expires_at, payment_provider')
+    .select('subscription_status, subscription_plan, subscription_expires_at, payment_provider, subscription_period_type')
     .eq('user_id', userId)
     .maybeSingle();
   if (error) return null;        // 通信失敗・権限エラー → 不明
@@ -102,6 +105,7 @@ export async function fetchSubscription(userId: string): Promise<Subscription | 
     plan: (data.subscription_plan as string | null) ?? null,
     expiresAt: (data.subscription_expires_at as string | null) ?? null,
     provider: (data.payment_provider as string | null) ?? null,
+    periodType: (data.subscription_period_type as string | null) ?? null,
   };
 }
 
@@ -131,6 +135,8 @@ export async function refreshPremium(userId: string | null): Promise<boolean> {
   if (sub === null) return premium;
   const active = isPremiumActive(sub);
   setPremium(active);
+  // 無料お試しの終わりを知らせる通知を組み直す。黙って請求が始まるのを防ぐ
+  scheduleTrialEndReminder(sub.expiresAt, active && sub.periodType === 'TRIAL').catch(() => {});
   return active;
 }
 
