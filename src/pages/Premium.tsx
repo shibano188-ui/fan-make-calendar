@@ -4,7 +4,7 @@ import { X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserPublicProfile } from '../lib/api';
 import { usePremium, FREE_FOLLOW_LIMIT } from '../lib/premium';
-import { PLANS, planOf, FREE_TRIAL_POSTS, trialEligible, billingSupported, startPurchase, restorePurchase, yen, type PlanId } from '../lib/billing';
+import { PLANS, planOf, FREE_TRIAL_POSTS, trialEligible, billingSupported, startPurchase, restorePurchase, lastPurchaseError, yen, type PlanId } from '../lib/billing';
 import { useToast } from '../components/ui/Toast';
 import Toggle from '../components/ui/Toggle';
 import { haptic } from '../lib/haptics';
@@ -69,8 +69,9 @@ export default function Premium() {
       const r = await startPurchase(plan, { trial });
       if (r === 'done') { toast('プレミアムを始めました'); navigate(-1); }
       else if (r === 'canceled') { /* 本人が閉じただけ。何も言わない */ }
-      else if (r === 'unavailable') toast('お支払いの準備をしています。もう少しお待ちください');
-      else toast('購入できませんでした。時間をおいてお試しください');
+      // 原因が分からないと実機で追えないので、当面は理由も出す（安定したら短い文言に戻す）
+      else if (r === 'unavailable') toast(`お支払いの準備をしています（${lastPurchaseError()}）`);
+      else toast(`購入できませんでした（${lastPurchaseError()}）`);
     } finally { setBusy(false); }
   };
 

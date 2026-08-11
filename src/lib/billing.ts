@@ -98,6 +98,17 @@ function pickOption(pkg: PurchasesPackage, trial: boolean): SubscriptionOption |
   return options.find((o) => o.isBasePlan) ?? null;
 }
 
+// 直近の失敗の中身。原因が分からないと実機で追えないので、画面に短く出すために持っておく
+let lastError = '';
+export function lastPurchaseError(): string {
+  return lastError;
+}
+
+function describe(e: unknown): string {
+  const err = e as { code?: string | number; message?: string; underlyingErrorMessage?: string } | null;
+  return [err?.code, err?.message, err?.underlyingErrorMessage].filter(Boolean).join(' / ').slice(0, 160);
+}
+
 function isCanceled(e: unknown): boolean {
   const err = e as { userCancelled?: boolean; code?: string | number; message?: string } | null;
   if (err?.userCancelled === true) return true;
@@ -106,15 +117,22 @@ function isCanceled(e: unknown): boolean {
 
 /** 購入を始める。`trial` は無料お試し付きの特典を使うかどうか。 */
 export async function startPurchase(plan: PlanId, opts?: { trial?: boolean }): Promise<PurchaseResult> {
-  if (!billingSupported()) return 'unavailable';
+  lastError = '';
+  if (!billingSupported()) {
+    lastError = Capacitor.isNativePlatform() ? 'no api key' : 'web';
+    return 'unavailable';
+  }
   try {
     const { current } = await Purchases.getOfferings();
-    if (!current) return 'unavailable';
+    if (!current) { lastError = 'no current offering'; return 'unavailable'; }
     // 基本プランIDで引き当てる。Offering の並び順や package 名に依存させない
     const pkg = current.availablePackages.find(
       (p) => p.product.subscriptionOptions?.some((o) => o.id.startsWith(BASE_PLAN_ID[plan])),
     );
-    if (!pkg) return 'unavailable';
+    if (!pkg) {
+      lastError = `no package for ${plan} (${current.availablePackages.length} pkgs)`;
+      return 'unavailable';
+    }
 
     const option = pickOption(pkg, opts?.trial === true);
     const result = option
@@ -125,6 +143,7 @@ export async function startPurchase(plan: PlanId, opts?: { trial?: boolean }): P
     return 'done';
   } catch (e) {
     if (isCanceled(e)) return 'canceled';
+    lastError = describe(e);
     return 'failed';
   }
 }
