@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { X, Plus, Check, Sparkles, Camera, Link2, Loader2, Search, Share2 } from 'lucide-react';
 import Chip from '../components/ui/Chip';
-import { searchWorks, getOrCreateWork, createEvents, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, type Work } from '../lib/api';
-import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES, GOODS_TAG, ONBOARDING_DEMO_KEY } from '../lib/constants';
+import { searchWorks, getOrCreateWork, createEvents, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, getUserPublicProfile, type Work } from '../lib/api';
+import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES, GOODS_TAG, ONBOARDING_DEMO_KEY, FEATURE_PREMIUM } from '../lib/constants';
 import { DEMO_POST_TEXT } from '../lib/demoPost';
+import { isPremiumCached } from '../lib/premium';
+import { trialEligible } from '../lib/billing';
 import { affiliatize, buildOffer, primaryOffer, isAffiliateUrl, offerUrl, isNoiseLink } from '../lib/affiliate';
 import { parseEventsApi, fileToBase64, type ParsedEvent } from '../lib/parseEvents';
 import { logAiExtraction, logSearch } from '../lib/dataLogs';
@@ -460,6 +462,12 @@ export default function PostNew() {
       clearDraft();
       toast('投稿しました');
       setSaving(false);
+      // 5件目を投稿し終えた瞬間＝初月無料の条件を満たした瞬間。ここが一番強いきっかけなので、
+      // 帰り道をプランの案内に変える（有料会員と、条件を満たしていない人には出さない）
+      if (FEATURE_PREMIUM && !isPremiumCached()) {
+        const posted = await getUserPublicProfile(user.id).then((p) => p.postedCount).catch(() => 0);
+        if (trialEligible(posted)) { navigate('/premium', { replace: true }); return; }
+      }
       goBack();
     } catch (e) {
       const timedOut = e instanceof DOMException && e.name === 'AbortError';

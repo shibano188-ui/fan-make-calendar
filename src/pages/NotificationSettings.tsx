@@ -104,6 +104,21 @@ export default function NotificationSettings() {
             </div>
           )}
 
+          {/* 無料プランだと、この画面から3つの項目が丸ごと消えている。
+              何も言わずに消すと「機能が無い」と読まれるので、ここで違いを出して案内へ送る。
+              通知を見に来ている＝取りこぼしを気にしている人なので、一番刺さる位置 */}
+          {!instantAlerts && (
+            <button onClick={() => { haptic.select(); navigate('/premium'); }}
+              className="pressable w-full text-left rounded-[12px] p-3 mb-3"
+              style={{ border: '1.5px solid var(--accent-color)' }}>
+              <p className="text-[14px] font-semibold">受付開始をその場で受け取る</p>
+              <p className="text-[11px] text-label-secondary mt-1 leading-relaxed">
+                無料プランのお知らせは翌朝のまとめです。プレミアムなら、受付が始まった時点と、
+                値下げ・再入荷があった時点でお知らせします。
+              </p>
+            </button>
+          )}
+
           {/* 届いたお知らせの見返し先。設定ページに来る人は「来ない・見逃した」が動機なので上に置く */}
           <button onClick={() => { haptic.select(); navigate('/notices'); }}
             className="pressable w-full text-left rounded-[12px] p-3 mb-3 flex items-center gap-2"

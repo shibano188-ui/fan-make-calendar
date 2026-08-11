@@ -67,7 +67,8 @@ export default function Premium() {
     setBusy(true);
     try {
       const r = await startPurchase(plan, { trial });
-      if (r === 'done') { toast('プレミアムを始めました'); navigate(-1); }
+      // 買って終わりにしない。何が使えるようになったかと、今すぐ効く設定をこの流れで済ませる
+      if (r === 'done') { navigate('/premium/welcome', { replace: true }); }
       else if (r === 'canceled') { /* 本人が閉じただけ。何も言わない */ }
       // 失敗の理由は普段は出さない（技術的な文字列を利用者に見せない）。
       // 実機で原因を追うときだけ localStorage.fan_billing_debug='1' で出す

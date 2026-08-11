@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, Search, Plus, Check } from 'lucide-react';
 import Sheet from './ui/Sheet';
 import { logSearch } from '../lib/dataLogs';
@@ -25,15 +26,22 @@ export default function WorkFollowSheet({ open, onClose, onChanged, onPick }: Pr
   const { user } = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
+  const navigate = useNavigate();
   const [follows, setFollows] = useState<Work[]>([]);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Work[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const premium = usePremium();
-  // 上限に達していたら新規フォローだけ止める。**今フォロー中のものは触らない**（不利益変更にしない）
-  const blocked = () => {
+  // 上限に達していたら新規フォローだけ止める。**今フォロー中のものは触らない**（不利益変更にしない）。
+  // 止めるだけで終わらせず、その場でプレミアムの案内へ送る（欲しいと思った瞬間が一番効く）
+  const blocked = async () => {
     if (canFollowMore(follows.length, premium)) return false;
-    toast(`フォローは${FREE_FOLLOW_LIMIT}作品までです。今フォロー中の作品はそのまま使えます`);
+    const go = await confirm({
+      title: `フォローは${FREE_FOLLOW_LIMIT}作品までです`,
+      message: 'プレミアムなら作品を無制限にフォローできます。今フォロー中の作品はそのまま使えます。',
+      confirmLabel: 'プレミアムを見る',
+    });
+    if (go) navigate('/premium');
     return true;
   };
 
@@ -71,7 +79,7 @@ export default function WorkFollowSheet({ open, onClose, onChanged, onPick }: Pr
 
   const follow = async (w: Work) => {
     if (!user || busyId) return;
-    if (!followedIds.has(w.id) && blocked()) return;
+    if (!followedIds.has(w.id) && await blocked()) return;
     haptic.select();
     // 「query と入力して w.name を選んだ」＝表記ゆれ辞書の別名ペア
     if (query.trim() && w.name !== query.trim()) { logSearch('work_follow', query, results?.length ?? null, user.id, w.name); maybeAddWorkAlias(w, query); }
@@ -99,7 +107,7 @@ export default function WorkFollowSheet({ open, onClose, onChanged, onPick }: Pr
   const createAndFollow = async () => {
     const name = query.trim();
     if (!user || !name || busyId) return;
-    if (blocked()) return;
+    if (await blocked()) return;
     haptic.select();
     setBusyId('create');
     try {
