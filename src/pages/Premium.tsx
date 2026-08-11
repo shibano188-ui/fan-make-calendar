@@ -30,7 +30,6 @@ export default function Premium() {
   const premium = usePremium();
 
   const [posted, setPosted] = useState<number | null>(null);
-  const [watching, setWatching] = useState<{ likes: number; works: number } | null>(null);
   const [plan, setPlan] = useState<PlanId>('monthly');  // 既定は月払い（2026-08-10 本人確定）
   const [allPlans, setAllPlans] = useState(false);
   const [trialOn, setTrialOn] = useState(true);
@@ -39,11 +38,9 @@ export default function Premium() {
   useEffect(() => {
     if (!user) return;
     let alive = true;
-    getUserPublicProfile(user.id).then((p) => {
-      if (!alive) return;
-      setPosted(p.postedCount);
-      setWatching({ likes: p.likesGiven, works: p.works });
-    }).catch(() => {});
+    getUserPublicProfile(user.id)
+      .then((p) => { if (alive) setPosted(p.postedCount); })
+      .catch(() => {});
     return () => { alive = false; };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -53,13 +50,8 @@ export default function Premium() {
   const selected = planOf(plan);
   const shown = allPlans ? PLANS : PLANS.filter((p) => p.id === plan);
 
-  // 見出しは本人の数字で出す。ただし始めたばかりの人に0件と出すと逆効果なので汎用へ落とす
-  const headline = watching && watching.likes > 0
-    ? `いま${watching.likes}件のグッズを見張っています`
-    : '推し活を、もっと便利に';
-  const subline = watching && watching.likes > 0
-    ? `無料プランだと、受付開始のお知らせは翌朝のまとめになります。${watching.works > 0 ? `フォロー中の${watching.works}作品も同じです。` : ''}`
-    : '受付開始も値下げも、始まった時点でお知らせします。';
+  const headline = '推し活を、もっと便利に';
+  const subline = 'プレミアムプランに加入すると以下の機能が使えます';
 
   const onBuy = async () => {
     haptic.select();
