@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CAPACITOR_DEBUG</key>
+	<string>$(CAPACITOR_DEBUG)</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+        <string>FanHive</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>armv7</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
+	<!-- 端末カレンダー。listCalendars / listEventsInRange / deleteEventsById を使う（重複を掃除するため
+	     既存の予定を読む）ので書き込み専用では足りず、フルアクセスが要る。
+	     iOS 17以降は FullAccess、16以前は NSCalendarsUsageDescription を見る。
+	     この文言はそのまま許可ダイアログに出る。目的が曖昧だと審査 5.1.1 で落ちる。 -->
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>保存した発売日・イベントの予定を、あなたのカレンダーアプリに書き込むために使います。重複した予定を整理するため、FanHiveが作成した予定の読み取りも行います。</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>保存した発売日・イベントの予定を、あなたのカレンダーアプリに書き込むために使います。重複した予定を整理するため、FanHiveが作成した予定の読み取りも行います。</string>
+	<!-- 広告のトラッキング許可(ATT)。AdMob を出す前に必ず要る。
+	     許可しなくても広告は出る（パーソナライズされないだけ）。 -->
+	<key>NSUserTrackingUsageDescription</key>
+	<string>あなたの興味に合った広告を表示するために使います。許可しなくてもFanHiveのすべての機能をお使いいただけます。</string>
+	<!-- 値下げ・再入荷・受付開始のプッシュ通知 -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<!-- ⚠️ Google の開発用テストID。AdMob管理画面で iOS アプリを作り、本番のアプリID
+	     (ca-app-pub-3561970163550872~xxxxxxxx) に差し替えること。このキーが無い/不正だと
+	     GoogleMobileAds SDK は起動時に例外を投げてアプリが落ちる。 -->
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-3940256099942544~1458002511</string>
+</dict>
+</plist>
