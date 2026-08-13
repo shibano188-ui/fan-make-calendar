@@ -64,11 +64,10 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
-	<!-- ⚠️ Google の開発用テストID。AdMob管理画面で iOS アプリを作り、本番のアプリID
-	     (ca-app-pub-3561970163550872~xxxxxxxx) に差し替えること。このキーが無い/不正だと
-	     GoogleMobileAds SDK は起動時に例外を投げてアプリが落ちる。 -->
+	<!-- AdMob の iOS アプリID（Androidとは別のアプリとして登録されている）。
+	     このキーが無い/不正だと GoogleMobileAds SDK は起動時に例外を投げてアプリが落ちる。 -->
 	<key>GADApplicationIdentifier</key>
-	<string>ca-app-pub-3940256099942544~1458002511</string>
+	<string>ca-app-pub-3561970163550872~5475667425</string>
 	<!-- Share Extension から本体を開くためのURLスキーム。
 	     拡張機能は別プロセスなので、openURL 以外に本体へ渡す手段がない。 -->
 	<key>CFBundleURLTypes</key>

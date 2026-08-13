@@ -2,12 +2,11 @@ import { Capacitor } from '@capacitor/core';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { AdMob, BannerAdSize, BannerAdPosition, BannerAdPluginEvents } from '@capacitor-community/admob';
 
-// バナーの広告ユニットはプラットフォームごとに別物。Androidのユニットを
-// iOSで使っても広告は返ってこない。
-// ⚠️ iOSは Google の開発用テストユニット。AdMob管理画面で iOS アプリと
-//    バナーユニットを作って差し替えること（Info.plist の GADApplicationIdentifier も同様）。
+// バナーの広告ユニットはプラットフォームごとに別物。AdMobでは iOS と Android が
+// **別々のアプリとして登録**されるので、Androidのユニットを iOS で使っても広告は返らない。
+// アプリID側は iOS が Info.plist の GADApplicationIdentifier、Android が AndroidManifest。
 const BANNER_AD_ID_ANDROID = 'ca-app-pub-3561970163550872/4318089302';
-const BANNER_AD_ID_IOS = 'ca-app-pub-3940256099942544/2934735716';
+const BANNER_AD_ID_IOS = 'ca-app-pub-3561970163550872/7738868684';
 const BANNER_AD_ID = Capacitor.getPlatform() === 'ios' ? BANNER_AD_ID_IOS : BANNER_AD_ID_ANDROID;
 
 export async function initAdMob() {
