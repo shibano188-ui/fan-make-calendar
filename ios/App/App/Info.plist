@@ -69,5 +69,18 @@
 	     GoogleMobileAds SDK は起動時に例外を投げてアプリが落ちる。 -->
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-3940256099942544~1458002511</string>
+	<!-- Share Extension から本体を開くためのURLスキーム。
+	     拡張機能は別プロセスなので、openURL 以外に本体へ渡す手段がない。 -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>jp.llp.fanhive</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>fanhive</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

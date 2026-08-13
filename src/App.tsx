@@ -43,31 +43,70 @@ function PageLoader() {
   );
 }
 
-// Capacitorネイティブ上でのシェア受け取り
-function AndroidShareHandler() {
+// Capacitorネイティブ上でのシェア受け取り。
+// Android は send-intent プラグイン（インテントを直接受ける）、
+// iOS は Share Extension が `fanhive://?title=…&url=…` で本体を開くので
+// @capacitor/app の appUrlOpen で受ける。出口はどちらも /post で同じ。
+//
+// iOS で send-intent の iOS 実装を使わないのは、AppDelegate から
+// `import SendIntent` が要るが、Capacitor の SPM 構成では App ターゲットから
+// その依存を解決できないため（CapApp-SPM 経由の間接依存になる）。
+function NativeShareHandler() {
   const navigate = useNavigate();
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
+    const isIOS = Capacitor.getPlatform() === 'ios';
 
-    const handle = async () => {
+    const goPost = (url: string, text: string, title: string) => {
+      if (!url && !text && !title) return;
+      const params = new URLSearchParams();
+      if (url)   params.set('url',   url);
+      if (text)  params.set('text',  text);
+      if (title) params.set('title', title);
+      navigate(`/post?${params.toString()}`, { replace: true });
+    };
+
+    // ── Android: send-intent ──
+    const handleAndroid = async () => {
       try {
         const { SendIntent } = await import('send-intent');
         const result = await SendIntent.checkSendIntentReceived();
-        const url  = (result as Record<string, string | undefined>).url  ?? '';
-        const text = (result as Record<string, string | undefined>).text ?? '';
-        const title = (result as Record<string, string | undefined>).title ?? '';
-        if (!url && !text) return;
-        const params = new URLSearchParams();
-        if (url)   params.set('url',   url);
-        if (text)  params.set('text',  text);
-        if (title) params.set('title', title);
-        navigate(`/post?${params.toString()}`, { replace: true });
+        const r = result as Record<string, string | undefined>;
+        goPost(r.url ?? '', r.text ?? '', r.title ?? '');
       } catch (e) { console.error('[ShareHandler]', e); }
     };
 
-    handle();
-    window.addEventListener('sendIntentReceived', handle);
-    return () => window.removeEventListener('sendIntentReceived', handle);
+    // ── iOS: Share Extension → fanhive:// ──
+    // 拡張機能はURLの共有なら url に、本文だけの共有なら title に入れてくる。
+    // 本文だけのときは text として渡す（/post 側は text からURLを拾える）。
+    const handleIOSUrl = (rawUrl: string) => {
+      try {
+        const u = new URL(rawUrl);
+        if (u.protocol !== 'fanhive:') return;
+        const url = u.searchParams.get('url') ?? '';
+        const title = u.searchParams.get('title') ?? '';
+        if (url) goPost(url, '', title === url ? '' : title);
+        else if (title) goPost('', title, '');
+      } catch (e) { console.error('[ShareHandler:ios]', e); }
+    };
+
+    if (isIOS) {
+      let remove: (() => void) | undefined;
+      (async () => {
+        const { App: CapApp } = await import('@capacitor/app');
+        // 起動中に共有された場合
+        const sub = await CapApp.addListener('appUrlOpen', (e) => handleIOSUrl(e.url));
+        remove = () => { sub.remove(); };
+        // コールドスタート（共有でアプリが起動された）場合はリスナー登録が間に合わない
+        const launch = await CapApp.getLaunchUrl();
+        if (launch?.url) handleIOSUrl(launch.url);
+      })();
+      return () => remove?.();
+    }
+
+    handleAndroid();
+    window.addEventListener('sendIntentReceived', handleAndroid);
+    return () => window.removeEventListener('sendIntentReceived', handleAndroid);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return null;
@@ -108,7 +147,7 @@ export default function App() {
         <ConfirmProvider>
         <ActionSheetProvider>
         <ToastProvider>
-          <AndroidShareHandler />
+          <NativeShareHandler />
           <AdMobController />
           <BackButtonHandler />
           <Suspense fallback={<PageLoader />}>
