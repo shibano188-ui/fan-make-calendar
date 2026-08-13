@@ -12,9 +12,19 @@ import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { supabase } from './supabase';
 
-/** プッシュが使えるか（ネイティブ かつ プラグイン同梱のAPK）。旧APK・Webでは false。 */
+// iOS だけ別のプラグインを使う理由:
+// @capacitor/push-notifications の iOS 実装が返すのは **APNsのデバイストークン**で、
+// FCMの登録トークンではない（Android は内部でFCMを使うのでそのまま使える）。
+// サーバー(api/_alerts.ts)は push_tokens の値をFCMトークンとして送るので、
+// APNsトークンを入れると毎回「無効なトークン」で弾かれ、掃除ロジックに消される。
+// iOS では @capacitor-firebase/messaging からFCMトークンを取って登録する。
+// 配信中のAndroidには手を触れない（壊すリスクを負わない）。
+const isIOS = (): boolean => Capacitor.getPlatform() === 'ios';
+
+/** プッシュが使えるか（ネイティブ かつ プラグイン同梱のビルド）。旧APK・Webでは false。 */
 export const pushSupported = (): boolean =>
-  Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('PushNotifications');
+  Capacitor.isNativePlatform() &&
+  Capacitor.isPluginAvailable(isIOS() ? 'FirebaseMessaging' : 'PushNotifications');
 
 const TOKEN_KEY = 'fan_push_token';
 
@@ -51,6 +61,30 @@ async function saveToken(userId: string, token: string): Promise<void> {
  *  プッシュが無いだけでアプリは動くので、握りつぶして黙って諦める。 */
 export async function registerPush(userId: string): Promise<void> {
   if (!pushSupported()) return;
+
+  if (isIOS()) {
+    try {
+      const { FirebaseMessaging } = await import('@capacitor-firebase/messaging');
+      const cur = await FirebaseMessaging.checkPermissions();
+      const state = cur.receive === 'prompt' || cur.receive === 'prompt-with-rationale'
+        ? (await FirebaseMessaging.requestPermissions()).receive
+        : cur.receive;
+      if (state !== 'granted') return;
+
+      // トークンは後から作り直されることがある（アプリ再インストール・復元など）。
+      // 更新を取りこぼすと通知が届かなくなるので購読しておく。
+      if (!registered) {
+        registered = true;
+        await FirebaseMessaging.addListener('tokenReceived', (e) => {
+          if (e.token) void saveToken(userId, e.token);
+        });
+      }
+      const { token } = await FirebaseMessaging.getToken();
+      if (token) await saveToken(userId, token);
+    } catch { /* Firebase未設定のビルド。プッシュ無しで動かす */ }
+    return;
+  }
+
   try {
     const cur = await PushNotifications.checkPermissions();
     // 通知はローカル通知の側で既に許可を取っていることが多い。まだなら1回だけ聞く。
@@ -92,10 +126,19 @@ export async function registerPush(userId: string): Promise<void> {
 export async function onPushOpened(go: (path: string) => void): Promise<void> {
   if (!pushSupported() || openerBound) return;
   openerBound = true;
+  const toPath = (data: { eventId?: string; path?: string } | undefined): string | null =>
+    data?.path ?? (data?.eventId ? `/item/${data.eventId}` : null);
   try {
+    if (isIOS()) {
+      const { FirebaseMessaging } = await import('@capacitor-firebase/messaging');
+      await FirebaseMessaging.addListener('notificationActionPerformed', (a) => {
+        const path = toPath(a.notification.data as { eventId?: string; path?: string } | undefined);
+        if (path) go(path);
+      });
+      return;
+    }
     await PushNotifications.addListener('pushNotificationActionPerformed', (a) => {
-      const data = a.notification.data as { eventId?: string; path?: string } | undefined;
-      const path = data?.path ?? (data?.eventId ? `/item/${data.eventId}` : null);
+      const path = toPath(a.notification.data as { eventId?: string; path?: string } | undefined);
       if (path) go(path);
     });
   } catch { /* noop */ }

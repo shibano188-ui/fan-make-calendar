@@ -6,3 +6,10 @@ dist/
 .vercel
 .env*
 backups/
+
+# 秘密鍵。APNs認証キー(.p8)やサービスアカウントの鍵をうっかり置いても入らないように。
+# ※ GoogleService-Info.plist は除外しない。Android の google-services.json と同じで
+#   アプリに同梱される設定であり秘密鍵ではないため、リポジトリに入れる。
+*.p8
+*.p12
+*.mobileprovision
