@@ -12,6 +12,7 @@ import { resolveBuy, getOffers, buildOffer, offerUrl, primaryOffer, isSearchPage
 import { openBuyLink } from '../lib/dataLogs';
 import { REACTIONS } from '../lib/reactions';
 import { useAuth } from '../contexts/AuthContext';
+import { useHiddenContent } from '../hooks/useHiddenContent';
 import { haptic } from '../lib/haptics';
 import { likeEffect } from '../lib/likeEffect';
 import { useLike, setLike, getLike } from '../lib/likeStore';
@@ -40,6 +41,7 @@ export default function ItemDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { hideReportedEvent } = useHiddenContent(user?.id);
   const toast = useToast();
 
   const [ev, setEv] = useState<CalendarEvent | null | undefined>(undefined); // undefined=loading
@@ -281,10 +283,14 @@ export default function ItemDetail() {
   const onReport = async () => {
     if (!user || reported) return;
     haptic.select();
-    const ok = await confirm({ title: 'この投稿を通報しますか？', message: '不適切な内容・誤情報として運営に報告します', confirmLabel: '通報する', destructive: true });
+    const ok = await confirm({ title: 'この投稿を通報しますか？', message: '不適切な内容・誤情報として運営に報告します。この投稿はあなたの画面から消えます', confirmLabel: '通報する', destructive: true });
     if (!ok) return;
     setReported(true);
     await reportEvent(event.id, user.id, 'user_report').catch(() => {});
+    // 通報したものは自分の画面から消す（一覧に残っていると通報が効いていないように見える）
+    hideReportedEvent(event.id);
+    toast('通報しました。この投稿は表示されなくなります');
+    navigate(-1);
   };
   const onSaveEdit = async (patch: EventPatch) => {
     if (!user) return;
@@ -620,7 +626,13 @@ export default function ItemDetail() {
         )}
       </div>
 
-      {viewingUserId && <UserProfileModal userId={viewingUserId} onClose={() => setViewingUserId(null)} />}
+      {viewingUserId && (
+        <UserProfileModal
+          userId={viewingUserId}
+          onClose={() => setViewingUserId(null)}
+          onBlocked={() => { setViewingUserId(null); navigate(-1); }}
+        />
+      )}
     </div>
   );
 }

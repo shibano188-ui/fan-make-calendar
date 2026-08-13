@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react';
-import { X, ExternalLink, Crown } from 'lucide-react';
+import { X, ExternalLink, Crown, Ban } from 'lucide-react';
 import { getUserPublicProfile, getProfileExtras, type ProfileExtras } from '../lib/api';
 import { calcTitle, calcGrade, calcRadarData, type AchievementStats } from '../lib/achievements';
 import FanStarChart from './FanStarChart';
 import { safeHref } from '../lib/url';
+import { useAuth } from '../contexts/AuthContext';
+import { useHiddenContent } from '../hooks/useHiddenContent';
+import { useConfirm } from './ui/ConfirmDialog';
+import { useToast } from './ui/Toast';
 
 interface Profile {
   displayName: string | null;
@@ -20,13 +24,23 @@ interface Profile {
 export default function UserProfileModal({
   userId,
   onClose,
+  onBlocked,
 }: {
   userId: string;
   onClose: () => void;
+  /** ブロックが成立したとき。開いていた投稿はもう見えないので、呼び出し側で画面を離れる */
+  onBlocked?: () => void;
 }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [extras, setExtras] = useState<ProfileExtras | null>(null);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const { isBlocked, block, unblock } = useHiddenContent(user?.id);
+  const confirm = useConfirm();
+  const toast = useToast();
+  const [working, setWorking] = useState(false);
+  const isSelf = !!user && user.id === userId;
+  const blocked = isBlocked(userId);
 
   useEffect(() => {
     getUserPublicProfile(userId)
@@ -53,6 +67,34 @@ export default function UserProfileModal({
   const title = achStats ? calcTitle(achStats) : null;
   const grade = achStats ? calcGrade(achStats) : null;
   const radar = achStats ? calcRadarData(achStats) : null;
+
+  const onToggleBlock = async () => {
+    if (!user || working) return;
+    if (blocked) {
+      setWorking(true);
+      const ok = await unblock(userId).then(() => true).catch(() => false);
+      setWorking(false);
+      toast(ok ? `${name}さんのブロックを解除しました` : '解除できませんでした。通信状況を確認してください');
+      return;
+    }
+    const ok = await confirm({
+      title: `${name}さんをブロックしますか？`,
+      message: 'この人の投稿があなたの画面に出てこなくなります。相手には知らされません。マイページからいつでも解除できます',
+      confirmLabel: 'ブロックする',
+      destructive: true,
+    });
+    if (!ok) return;
+    setWorking(true);
+    const done = await block(userId).then(() => true).catch(() => false);
+    setWorking(false);
+    if (!done) {
+      // 成功したように見せてはいけない（相手の投稿は消えていない）
+      toast('ブロックできませんでした。通信状況を確認してください');
+      return;
+    }
+    toast(`${name}さんをブロックしました`);
+    onBlocked?.();
+  };
 
   return (
     <div className="fixed inset-0 z-[500] flex items-center justify-center px-6">
@@ -167,6 +209,21 @@ export default function UserProfileModal({
                 </span>
               </div>
             </div>
+
+            {/* ブロック（自分のプロフィールには出さない） */}
+            {!isSelf && user && (
+              <div className="mt-4 flex justify-center">
+                <button
+                  onClick={onToggleBlock}
+                  disabled={working}
+                  className="pressable inline-flex items-center gap-1.5 text-[12px] disabled:opacity-50"
+                  style={{ color: blocked ? 'var(--label-secondary)' : 'var(--color-destructive)' }}
+                >
+                  <Ban size={13} />
+                  {blocked ? 'ブロックを解除する' : 'この人をブロックする'}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

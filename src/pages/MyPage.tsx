@@ -9,8 +9,9 @@ const MYPAGE_ACCENTS = ['#FBBF00', '#D85A30', '#1D9E75', '#378ADD', '#D4537E'] a
 import {
   getUserPublicProfile, getHomePrefecture, saveHomePrefecture, saveDisplayName, saveAvatarEmoji,
   listAllParticipatedWorks, leaveCalendar, listSavedEvents, getProfileExtras, saveProfileExtras,
-  getOrCreateIcsToken, regenerateIcsToken, icsSubscribeUrl, icsWebcalUrl, listNotices, type Work,
+  getOrCreateIcsToken, regenerateIcsToken, icsSubscribeUrl, icsWebcalUrl, listNotices, listBlockedUsers, type Work,
 } from '../lib/api';
+import { useHiddenContent } from '../hooks/useHiddenContent';
 import { unseenNotices } from '../lib/notices';
 import { useFeature, usePremium } from '../lib/premium';
 import { useConfirm } from '../components/ui/ConfirmDialog';
@@ -52,6 +53,7 @@ const ANIMAL_AVATARS = [
 
 export default function MyPage() {
   const { user } = useAuth();
+  const { unblock } = useHiddenContent(user?.id);
   const toast = useToast();
   const navigate = useNavigate();
   const [stats, setStats] = useState<AchievementStats | null>(null);
@@ -63,6 +65,8 @@ export default function MyPage() {
   const [favWorks, setFavWorks] = useState('');
   const [works, setWorks] = useState<Work[]>([]);
   const [worksOpen, setWorksOpen] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState<{ userId: string; displayName: string | null }[]>([]);
+  const [blocksOpen, setBlocksOpen] = useState(false);
   const [followSheetOpen, setFollowSheetOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [editingField, setEditingField] = useState<EditableField | null>(null);
@@ -176,6 +180,7 @@ export default function MyPage() {
     }).catch(() => {});
     getHomePrefecture(user.id).then((p) => alive && setHomePref(p ?? '')).catch(() => {});
     listAllParticipatedWorks(user.id).then((ws) => alive && setWorks(ws)).catch(() => {});
+    listBlockedUsers(user.id).then((bs) => alive && setBlockedUsers(bs)).catch(() => {});
     getProfileExtras(user.id).then((x) => { if (!alive) return; setBio(x.bio ?? ''); setOshi(x.oshi ?? ''); setFavWorks(x.favWorks ?? ''); }).catch(() => {});
     return () => { alive = false; };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -210,6 +215,15 @@ export default function MyPage() {
     if (!ok) return;
     setWorks((prev) => prev.filter((x) => x.id !== w.id));
     await leaveCalendar(w.id, user.id);
+  };
+
+  const onUnblock = async (b: { userId: string; displayName: string | null }) => {
+    const label = b.displayName ?? '匿名';
+    haptic.select();
+    const ok = await confirm({ title: `${label}さんのブロックを解除しますか？`, message: 'この人の投稿がまた表示されるようになります', confirmLabel: '解除する' });
+    if (!ok) return;
+    setBlockedUsers((prev) => prev.filter((x) => x.userId !== b.userId));
+    await unblock(b.userId).catch(() => {});
   };
 
   return (
@@ -595,6 +609,27 @@ export default function MyPage() {
             ))}
           </div>
         )
+      )}
+
+      {/* ブロック中のユーザー（0人のときは出さない。ブロックは投稿者のプロフィールから行う） */}
+      {blockedUsers.length > 0 && (
+        <>
+          <button onClick={() => setBlocksOpen((v) => !v)}
+            className="pressable w-full flex items-center justify-between mt-5 mb-1">
+            <span className="text-[12px] text-label-secondary">ブロック中（{blockedUsers.length}）</span>
+            <ChevronRight size={16} className="text-label-tertiary" style={{ transform: blocksOpen ? 'rotate(90deg)' : 'none' }} />
+          </button>
+          {blocksOpen && (
+            <div className="flex flex-col gap-1.5 max-h-[40vh] overflow-y-auto no-scrollbar">
+              {blockedUsers.map((b) => (
+                <div key={b.userId} className="flex items-center justify-between gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+                  <span className="text-[14px] truncate">{b.displayName ?? '匿名'}</span>
+                  <button onClick={() => onUnblock(b)} className="pressable text-[12px] text-label-secondary flex-shrink-0">解除</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       <WorkFollowSheet open={followSheetOpen} onClose={() => setFollowSheetOpen(false)}

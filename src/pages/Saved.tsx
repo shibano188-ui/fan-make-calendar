@@ -14,6 +14,7 @@ import { buildWorkColorMap } from '../lib/workColors';
 import { logSearch } from '../lib/dataLogs';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useAuth } from '../contexts/AuthContext';
+import { useHiddenContent } from '../hooks/useHiddenContent';
 import { useToast } from '../components/ui/Toast';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { haptic } from '../lib/haptics';
@@ -40,6 +41,7 @@ function loadSavedSession() {
 export default function Saved() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { isHidden } = useHiddenContent(user?.id);
   const toast = useToast();
   const _ss = loadSavedSession();
   const [items, setItems] = useState<CalendarEvent[] | null>(null);
@@ -128,14 +130,14 @@ export default function Saved() {
 
   // スコープ（すべて / いいね / 自分の投稿）→ 検索語 で絞った集合
   const scopeItems = useMemo(() => {
-    let list = items ?? [];
+    let list = (items ?? []).filter((e) => !isHidden(e));
     if (tab === 'preorder') list = list.filter((e) => deriveStatus(e) === 'preorder');
     if (tab === 'mine') list = list.filter((e) => e.authorId === user?.id);
     if (tab === 'notify') list = list.filter((e) => isNotifyOn(e.id));
     const q = query.trim().toLowerCase();
     if (q) list = list.filter((e) => `${e.title} ${e.workName ?? ''} ${e.category ?? ''}`.toLowerCase().includes(q));
     return list;
-  }, [items, tab, user?.id, query]);
+  }, [items, tab, user?.id, query, isHidden]);
 
   // 検索クエリログ（データ資産化②の素材）
   const queryCountRef = useRef(0);

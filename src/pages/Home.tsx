@@ -15,6 +15,7 @@ import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { useAuth } from '../contexts/AuthContext';
+import { useHiddenContent } from '../hooks/useHiddenContent';
 import { haptic } from '../lib/haptics';
 import { useAdBanner } from '../lib/useAdBanner';
 import WorkFollowSheet from '../components/WorkFollowSheet';
@@ -48,6 +49,7 @@ function Section({ title, items, seen, likedIds, workColorMap, onOpen, onLike, o
 export default function Home() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { isHidden } = useHiddenContent(user?.id);
   const toast = useToast();
   const [items, setItems] = useState<CalendarEvent[] | null>(null);
   const [follows, setFollows] = useState<Work[]>([]);
@@ -138,6 +140,7 @@ export default function Home() {
     const today = todayStr();
     const all = (items ?? []).filter((e) => {
       if (!e.workId || !followIds.has(e.workId)) return false;
+      if (isHidden(e)) return false;
       const st = deriveStatus(e);
       if (st === 'ended') return false;
       // 受付終了でも発売・開催がこれからなら見せる（発売待ちはまだ「これからの予定」）
@@ -155,7 +158,7 @@ export default function Home() {
       : [];
     const popular = [...all].sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0)).filter((e) => (e.likes ?? 0) > 0).slice(0, 12);
     return { preorderOpen, preorderSoon, followNew, nearby, popular };
-  }, [items, followIds, nearPrefs]);
+  }, [items, followIds, nearPrefs, isHidden]);
 
   const workColorMap = useMemo(() => buildWorkColorMap(follows), [follows]);
   const seen = useMemo(() => loadSeenEventIds(), [items]);

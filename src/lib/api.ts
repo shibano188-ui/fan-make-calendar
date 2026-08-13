@@ -1251,6 +1251,52 @@ export async function getReportedEventIds(reporterId: string): Promise<string[]>
   return (data ?? []).map(r => r.event_id as string);
 }
 
+// ─── ブロック ──────────────────────────────────────────────────────
+// 自分の画面から相手の投稿を消すだけの片方向の設定。相手には何も伝わらない。
+
+export async function blockUser(blockerId: string, blockedId: string): Promise<void> {
+  const { error } = await supabase
+    .from('blocks')
+    .upsert({ blocker_id: blockerId, blocked_id: blockedId }, { onConflict: 'blocker_id,blocked_id' });
+  if (error) throw error;
+}
+
+export async function unblockUser(blockerId: string, blockedId: string): Promise<void> {
+  const { error } = await supabase
+    .from('blocks')
+    .delete()
+    .eq('blocker_id', blockerId)
+    .eq('blocked_id', blockedId);
+  if (error) throw error;
+}
+
+export async function getBlockedUserIds(blockerId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('blocks')
+    .select('blocked_id')
+    .eq('blocker_id', blockerId);
+  if (error) throw error;
+  return (data ?? []).map(r => r.blocked_id as string);
+}
+
+// ブロック中の一覧（マイページの解除用）。表示名は user_settings から引く
+export async function listBlockedUsers(blockerId: string): Promise<{ userId: string; displayName: string | null }[]> {
+  const { data, error } = await supabase
+    .from('blocks')
+    .select('blocked_id, created_at')
+    .eq('blocker_id', blockerId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  const ids = (data ?? []).map(r => r.blocked_id as string);
+  if (ids.length === 0) return [];
+  const { data: settings } = await supabase
+    .from('user_settings')
+    .select('user_id, display_name')
+    .in('user_id', ids);
+  const nameById = new Map((settings ?? []).map(s => [s.user_id as string, s.display_name as string | null]));
+  return ids.map(id => ({ userId: id, displayName: nameById.get(id) ?? null }));
+}
+
 // ─── リアクション ─────────────────────────────────────────────────
 
 export async function setReaction(eventId: string, userId: string, type: string | null): Promise<void> {

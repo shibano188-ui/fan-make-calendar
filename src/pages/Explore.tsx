@@ -17,6 +17,7 @@ import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { useAuth } from '../contexts/AuthContext';
+import { useHiddenContent } from '../hooks/useHiddenContent';
 import { haptic } from '../lib/haptics';
 import { usePremium, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
 import { useAdBanner } from '../lib/useAdBanner';
@@ -42,6 +43,7 @@ export default function Explore() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
+  const { isHidden } = useHiddenContent(user?.id);
   const toast = useToast();
   const premium = usePremium();
   const _ss = loadExploreSession();
@@ -244,10 +246,11 @@ export default function Explore() {
   const modeItems = useMemo(
     () => (items ?? []).filter((e) => {
       if (!e.workId || !followed.has(e.workId)) return false;
+      if (isHidden(e)) return false;
       if (mode === 'goods') return deriveItemType(e) === 'goods' || parseCategories(e.category).includes(GOODS_TAG);
       return deriveItemType(e) === 'event';
     }),
-    [items, mode, followed],
+    [items, mode, followed, isHidden],
   );
 
   const queryItems = useMemo(() => {
