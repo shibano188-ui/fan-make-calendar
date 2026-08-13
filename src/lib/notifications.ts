@@ -134,6 +134,11 @@ export async function cancelForEvent(eventId: string): Promise<void> {
   await LocalNotifications.cancel({ notifications: KINDS.map((k) => ({ id: notifId(eventId, k) })) });
 }
 
+// iOSは**アプリあたり保留中の通知が64件まで**で、超えたぶんは黙って捨てられる
+// （Androidにこの制限は無い）。1予定で最大5件積むので、ベルONが13件を超えると
+// 上限に当たる。近い日のものから詰めて、無料お試しリマインダー用に少し空けておく。
+const IOS_PENDING_LIMIT = 60;
+
 /** 起動/復帰時に全体を組み直す。events から「いいね済み×ベルON×未来」を抽出。 */
 export async function rescheduleAll(events: CalendarEvent[]): Promise<void> {
   if (!native()) return;
@@ -141,7 +146,29 @@ export async function rescheduleAll(events: CalendarEvent[]): Promise<void> {
   if (!ok) return;
   const pending = await LocalNotifications.getPending();
   if (pending.notifications.length) await LocalNotifications.cancel(pending);
+
   const notifyIds = loadNotifyEventIds();
   const targets = events.filter((e) => e.likedByMe && notifyIds.has(e.id));
-  for (const e of targets) await scheduleForEvent(e);
+  const now = Date.now();
+
+  // 予定ごとに登録すると、上限に当たったとき「先に処理した予定だけ入る」＝
+  // 日付が遠いものが近いものを押し出すことがある。全部集めてから**近い順**に詰める。
+  // （まとめて1回で渡すぶん、プラグイン呼び出しの往復も減る）
+  const all = targets
+    .flatMap((e) => triggersFor(e).map((t) => ({ e, t })))
+    .filter(({ t }) => t.at.getTime() > now)
+    .sort((a, b) => a.t.at.getTime() - b.t.at.getTime());
+
+  const capped = Capacitor.getPlatform() === 'ios' ? all.slice(0, IOS_PENDING_LIMIT) : all;
+  if (!capped.length) return;
+
+  await LocalNotifications.schedule({
+    notifications: capped.map(({ e, t }) => ({
+      id: notifId(e.id, t.kind),
+      title: t.title,
+      body: t.body,
+      schedule: { at: t.at },
+      extra: { eventId: e.id },
+    })),
+  });
 }
