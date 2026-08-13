@@ -61,11 +61,21 @@ export type PurchaseResult = 'done' | 'canceled' | 'unavailable' | 'failed';
 
 // ── SDKの初期化 ────────────────────────────────────────────────
 // 公開鍵。アプリに埋め込む前提のキーなので秘匿しない（サーバー側の鍵とは別物）。
-const API_KEY = (import.meta.env.VITE_REVENUECAT_ANDROID_KEY as string | undefined) ?? '';
+// **RevenueCat の公開鍵はストアごとに別物**（Play は goog_… / App Store は appl_…）。
+// 片方の鍵で他方を初期化しても購入できない。
+//
+// ⚠️ VITE_ の変数はビルド時に埋め込まれる。Android は Vercel でビルドした本番サイトを
+// WebViewで開くので Vercel の環境変数が効くが、**iOSは dist を同梱＝手元でビルドする**ので
+// `.env.local` に無いと空になる。空だと billingSupported() が false になり、
+// 課金画面が黙って「アプリ版でどうぞ」状態に落ちる（原因が分かりにくい）。
+const isIOS = (): boolean => Capacitor.getPlatform() === 'ios';
+const API_KEY = (isIOS()
+  ? (import.meta.env.VITE_REVENUECAT_IOS_KEY as string | undefined)
+  : (import.meta.env.VITE_REVENUECAT_ANDROID_KEY as string | undefined)) ?? '';
 
-/** Play Console の基本プランID。PLANS の id と同じ文字列にしてある。 */
+/** Play Console の基本プランID。PLANS の id と同じ文字列にしてある。**Android専用の概念**。 */
 const BASE_PLAN_ID: Record<PlanId, string> = { monthly: 'monthly', yearly: 'yearly' };
-/** 無料お試しの特典に付けたタグ。SDKの自動適用を止める意味も兼ねている。 */
+/** 無料お試しの特典に付けたタグ。SDKの自動適用を止める意味も兼ねている。**Android専用**。 */
 const TRIAL_TAG = 'rc-ignore-offer';
 
 let configuredFor: string | null = null;
@@ -73,6 +83,13 @@ let configuredFor: string | null = null;
 /** 起動時とログイン時に呼ぶ。**appUserID は Supabase の user_id にする**。
  *  Webhook から `user_private.user_id` に直接引き当てるため、ここがズレると紐付けが壊れる。 */
 export async function configureBilling(userId: string | null): Promise<void> {
+  if (Capacitor.isNativePlatform() && !API_KEY) {
+    // 黙って課金なしに落ちると原因が分からないので、ここだけは声を上げる。
+    // iOSは手元ビルドなので .env.local に VITE_REVENUECAT_IOS_KEY が要る。
+    console.error(
+      `[billing] RevenueCatの公開鍵が空。${isIOS() ? 'VITE_REVENUECAT_IOS_KEY' : 'VITE_REVENUECAT_ANDROID_KEY'} をビルド時の環境変数に入れること`,
+    );
+  }
   if (!Capacitor.isNativePlatform() || !API_KEY || !userId) return;
   if (configuredFor === userId) return;
   try {
@@ -125,16 +142,27 @@ export async function startPurchase(plan: PlanId, opts?: { trial?: boolean }): P
   try {
     const { current } = await Purchases.getOfferings();
     if (!current) { lastError = 'no current offering'; return 'unavailable'; }
-    // 基本プランIDで引き当てる。Offering の並び順や package 名に依存させない
-    const pkg = current.availablePackages.find(
-      (p) => p.product.subscriptionOptions?.some((o) => o.id.startsWith(BASE_PLAN_ID[plan])),
-    );
+
+    // 引き当て方がストアで違う。
+    // Android(Play): 1商品の中に「基本プラン」が複数ぶら下がる構造なので subscriptionOptions で探す。
+    // iOS(App Store): 基本プランという概念が無く**月/年が別々の商品**。subscriptionOptions は
+    //   空なので同じ探し方をすると必ず見つからない。パッケージの種類(MONTHLY/ANNUAL)で引く。
+    const pkg = isIOS()
+      ? current.availablePackages.find((p) => p.packageType === (plan === 'yearly' ? 'ANNUAL' : 'MONTHLY'))
+      : current.availablePackages.find(
+        (p) => p.product.subscriptionOptions?.some((o) => o.id.startsWith(BASE_PLAN_ID[plan])),
+      );
     if (!pkg) {
       lastError = `no package for ${plan} (${current.availablePackages.length} pkgs)`;
       return 'unavailable';
     }
 
-    const option = pickOption(pkg, opts?.trial === true);
+    // 無料お試しの当て方もストアで違う。
+    // Android: 「デベロッパー指定」の特典を**こちらから明示的に指定して**購入を始める。
+    // iOS: 導入価格(Introductory Offer)は**Appleが対象者を判定して自動で当てる**。
+    //   アプリ側から特典を選ぶ口が無いので、そのまま purchasePackage を呼ぶ。
+    //   ＝ iOS では trial の指定は購入処理に影響しない（画面の表示だけの話になる）。
+    const option = isIOS() ? null : pickOption(pkg, opts?.trial === true);
     const result = option
       ? await Purchases.purchaseSubscriptionOption({ subscriptionOption: option })
       : await Purchases.purchasePackage({ aPackage: pkg });
