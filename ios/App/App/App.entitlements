@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- プッシュ通知。これが無いと registerForRemoteNotifications が
+	     「no valid aps-environment entitlement string found」で失敗し、
+	     APNsトークンが降りてこない → FCMトークンも作られない → 通知が一切届かない。
+	     開発者サイトのApp IDでPush Notificationsを有効にするだけでは足りず、
+	     アプリ側のこの宣言が要る。
+	     値は development のままでよい。App Store配布用にアーカイブすると
+	     Xcodeが production に差し替える。 -->
+	<key>aps-environment</key>
+	<string>development</string>
+</dict>
+</plist>

@@ -13,3 +13,6 @@ backups/
 *.p8
 *.p12
 *.mobileprovision
+
+# macOSが勝手に作るもの
+.DS_Store
