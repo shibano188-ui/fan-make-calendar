@@ -383,8 +383,15 @@ export default function MyPage() {
               <span className="text-[14px] font-semibold flex-1">プレミアム</span>
               <ChevronRight size={16} className="text-label-tertiary" />
             </div>
+            {/* 日本語は単語の区切りが無いので、CSSは文字数で機械的に折り返す＝句の途中で切れる。
+                句ごとに inline-block で包むと、その中では折り返さなくなる（区切りの位置を選べる）。 */}
             <p className="text-[11px] text-label-secondary mt-1 ml-6 leading-relaxed">
-              受付開始も値下げも、始まった時点でお知らせ。広告なし・カレンダー自動同期つき。月¥500
+              <span className="inline-block">受付開始と値下げはその場で、</span>
+              <span className="inline-block">新着は毎朝まとめて。</span>
+              <span className="inline-block">広告なし・</span>
+              <span className="inline-block">カレンダー自動同期・</span>
+              <span className="inline-block">フォロー無制限。</span>
+              <span className="inline-block">月¥500</span>
             </p>
           </button>
         )
