@@ -143,7 +143,26 @@ export function buildDesired(events: CalendarEvent[]): Record<string, Desired> {
     const desc = [e.memo, tags, url === marker ? '' : url, marker].filter(Boolean).join('\n\n');
     const location = [e.prefecture, e.locationDetail].filter(Boolean).join(' ');
     const color = e.workId ? colors.get(e.workId) : undefined;
-    if (e.date) {
+    const visits = e.visits ?? [];
+    if (visits.length) {
+      // 「ここ行く!」を登録したら、**その日だけ**を入れる。
+      // 長期のコラボカフェ等を全期間の1件で入れると、実際のカレンダーが何週間も埋まる
+      // （アプリ内の表示とローカル通知は既に行く日基準なのに、ここだけ全期間だった）。
+      // キーが変わるので、前に入れた全期間の1件は stale として自動的に消える。
+      for (const v of visits) {
+        // 1日だけの来店で時刻があるなら時刻を活かす（開催時間のあるイベント用）
+        const single = v.start === v.end;
+        out[`${e.id}-visit-${v.id}`] = single && e.time
+          ? {
+            title: e.title, startDate: jstTime(v.start, e.time), endDate: jstTime(v.start, e.endTime || e.time),
+            isAllDay: false, description: `${desc}#visit-${v.id}`, location, url, color,
+          }
+          : {
+            title: e.title, startDate: utcMidnight(v.start), endDate: utcMidnight(v.end) + DAY,
+            isAllDay: true, description: `${desc}#visit-${v.id}`, location, url, color,
+          };
+      }
+    } else if (e.date) {
       // 曖昧日付（「7月上旬」など）は date が代表日でしかなく、期間・時刻は意味を持たない。
       // 代表日の全日予定にして、見た人が誤解しないようタイトルにラベルを添える。
       const vague = !!e.dateLabel;
@@ -190,12 +209,16 @@ async function canWriteCalendar(): Promise<boolean> {
   return state === 'granted';
 }
 
-/** 予定キーから、説明欄に入れている目印を復元する。 */
+/** 予定キーから、説明欄に入れている目印を復元する。
+ *  buildDesired が description に入れる文字列と**必ず対で**直すこと。
+ *  ここがズレると「自分が入れた予定」を見つけられず、同じ予定が二重に増える。 */
 function markerFor(key: string): string {
-  const suffix = '-deadline';
-  return key.endsWith(suffix)
-    ? `https://fanhive.jp/item/${key.slice(0, -suffix.length)}#deadline`
-    : `https://fanhive.jp/item/${key}`;
+  const base = `https://fanhive.jp/item/`;
+  if (key.endsWith('-deadline')) return `${base}${key.slice(0, -'-deadline'.length)}#deadline`;
+  // 来店予定は `${eventId}-visit-${visitId}`（visitId自体にハイフンが入りうるので最初の区切りで割る）
+  const at = key.indexOf('-visit-');
+  if (at >= 0) return `${base}${key.slice(0, at)}#visit-${key.slice(at + '-visit-'.length)}`;
+  return `${base}${key}`;
 }
 
 /** 起動してから一度でもカレンダーの中身を見に行ったか（重複の掃除は1セッション1回でよい）。 */

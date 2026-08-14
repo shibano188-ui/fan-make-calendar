@@ -92,6 +92,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (likedIds.length) queries.push(db.from('events').select(cols).eq('pool', 0).in('id', likedIds));
   const results = await Promise.all(queries);
 
+  // 「ここ行く!」を登録した予定は、**その日だけ**を出す。
+  // 長期のコラボカフェ等を全期間で出すとカレンダーが何週間も埋まる
+  // （アプリ内の表示・ローカル通知は既に行く日基準。ここと端末カレンダーだけ全期間だった）。
+  const { data: visitRows } = await db
+    .from('event_visits').select('id, event_id, start_date, end_date').eq('user_id', userId);
+  const visitsByEvent = new Map<string, { id: string; start: string; end: string }[]>();
+  for (const v of visitRows ?? []) {
+    const list = visitsByEvent.get(v.event_id as string) ?? [];
+    list.push({ id: String(v.id), start: v.start_date as string, end: v.end_date as string });
+    visitsByEvent.set(v.event_id as string, list);
+  }
+
   const seen = new Set<string>();
   const stamp = `${ymd(new Date().toISOString().slice(0, 10))}T000000Z`;
   const body: string[] = [];
@@ -100,7 +112,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (seen.has(e.id)) continue;
       seen.add(e.id);
       const url = e.link_url || `https://fanhive.jp/item/${e.id}`;
-      if (e.event_date) {
+      const visits = visitsByEvent.get(e.id) ?? [];
+      if (visits.length) {
+        for (const v of visits) {
+          // 1日だけの来店で時刻があるなら時刻を活かす（開催時間のあるイベント用）
+          const single = v.start === v.end;
+          body.push(...vevent(
+            `${e.id}-visit-${v.id}`, e.title, v.start,
+            single ? null : v.end, single ? e.event_time : null,
+            e.memo ?? '', url, stamp,
+          ));
+        }
+      } else if (e.event_date) {
         // 曖昧日付（「7月上旬」など）は date が代表日でしかなく、期間・時刻は意味を持たない
         // （rowToEvent と同じ不変条件）。カレンダーには代表日の全日予定として置き、
         // 見た人が誤解しないようタイトルにラベルを添える。
