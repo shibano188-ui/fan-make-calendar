@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 import { X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserPublicProfile } from '../lib/api';
@@ -52,7 +53,12 @@ export default function Premium() {
     return () => { alive = false; };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const eligible = posted !== null && trialEligible(posted);
+  // 初月無料の出し方がストアで違う（2026-08-14 本人判断でA案）。
+  //  Play: 「デベロッパー指定」の特典を、5件投稿した人にだけアプリから明示的に適用する。
+  //  App Store: 導入価格に条件を付けられず、**初めて買う人全員**にAppleが自動で適用する。
+  //   → iOSは投稿数に関係なく初月無料。「あと◯件」の案内も出さない。
+  const iosTrialForAll = Capacitor.getPlatform() === 'ios';
+  const eligible = iosTrialForAll || (posted !== null && trialEligible(posted));
   const remain = posted === null ? FREE_TRIAL_POSTS : Math.max(0, FREE_TRIAL_POSTS - posted);
   const trial = eligible && trialOn;
   const selected = planOf(plan);
