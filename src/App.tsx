@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { ConfirmProvider } from './components/ui/ConfirmDialog';
@@ -8,7 +8,9 @@ import { ToastProvider } from './components/ui/Toast';
 import PhoneFrame from './components/PhoneFrame';
 import Onboarding from './components/Onboarding';
 import { Capacitor } from '@capacitor/core';
-import { initAdMob } from './lib/admob';
+import { initAdMob, showBanner, hideBanner } from './lib/admob';
+import { useFeature } from './lib/premium';
+import { useAdsSuppressed } from './lib/adSuppress';
 import { SHOW_ONBOARDING } from './lib/constants';
 
 // ピボット後IA（feat/pivot-rebuild）。旧 Calendar 中心の画面は順次置換。
@@ -117,6 +119,27 @@ function AdMobController() {
   return null;
 }
 
+// バナー広告を出す画面はホームと探すの2つだけ。
+//
+// ⚠️ 表示の可否は**ここ1か所**で決める。以前は各ページの useAdBanner が出し入れしていたが、
+// バナーはWebViewの外側に出るネイティブのビューなので、制御していない画面
+// （/premium など）に持ち越される。実際、オンボーディング終了時に
+// 「広告抑制の解除」と「ホームの離脱」が同時に起きて show が hide を追い越し、
+// プレミアムの案内画面にバナーが残って**×ボタンが押せなく**なっていた。
+const AD_PATHS = ['/', '/explore'];
+function AdBannerController() {
+  const { pathname } = useLocation();
+  const premiumNoAds = useFeature('noAds');
+  const suppressed = useAdsSuppressed();
+  const show = Capacitor.isNativePlatform()
+    && AD_PATHS.includes(pathname) && !premiumNoAds && !suppressed;
+  useEffect(() => {
+    // nudge 0 = ステータスバー直下にフル表示（ステータスバーへ食い込ませない）
+    if (show) showBanner(0); else hideBanner();
+  }, [show]);
+  return null;
+}
+
 // Androidの戻る（エッジスワイプ／ハードウェアキー）を購読し、
 // 履歴があれば前の画面へ戻る。ルートタブ（ホーム/探す/いいね/マイページ）では
 // 戻り先が無いのでアプリを終了する。未購読だと既定で即終了してしまうため必須。
@@ -149,6 +172,7 @@ export default function App() {
         <ToastProvider>
           <NativeShareHandler />
           <AdMobController />
+          <AdBannerController />
           <BackButtonHandler />
           <Suspense fallback={<PageLoader />}>
             <Routes>

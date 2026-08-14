@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import type { PluginListenerHandle } from '@capacitor/core';
-import { showBanner, hideBanner, onBannerSize, onBannerReserveTop, onBannerFailed } from './admob';
+import { onBannerSize, onBannerReserveTop, onBannerFailed } from './admob';
 import { useFeature } from './premium';
 import { useAdsSuppressed } from './adSuppress';
 
@@ -72,15 +72,17 @@ export function useAdBanner(): string {
         setReserveTop(px);
         try { localStorage.setItem(RESERVE_CACHE_KEY, String(Math.round(px))); } catch { /* ignore */ }
       });
-      // nudge 0 = ステータスバー直下にフル表示（ステータスバーへ食い込ませない）。
-      showBanner(0);
     })();
+    // ⚠️ ここで showBanner / hideBanner を呼ばないこと。
+    // 表示の可否は AdBannerController（App.tsx）がルートを見て一元的に決める。
+    // 画面ごとに出し入れしていたときは、オンボーディング終了時に
+    // 「抑制の解除」と「ホームの離脱」が同時に起きて show が hide を追い越し、
+    // 広告を出さないはずの /premium にバナーが残って×ボタンを覆っていた。
     return () => {
       alive = false;
       sizeHandle?.remove();
       reserveHandle?.remove();
       failHandle?.remove();
-      hideBanner();
     };
   }, [noAds]);
 

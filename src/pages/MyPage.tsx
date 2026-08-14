@@ -381,17 +381,19 @@ export default function MyPage() {
             <div className="flex items-center gap-2">
               <Crown size={16} style={{ color: 'var(--accent-color)' }} />
               <span className="text-[14px] font-semibold flex-1">プレミアム</span>
+              {/* 金額は見出しの右に置く。説明文に混ぜると読み流されるうえ、行が伸びて折り返しが崩れる */}
+              <span className="text-[12px] font-semibold" style={{ color: 'var(--accent-text)' }}>月¥500</span>
               <ChevronRight size={16} className="text-label-tertiary" />
             </div>
             {/* 日本語は単語の区切りが無いので、CSSは文字数で機械的に折り返す＝句の途中で切れる。
-                句ごとに inline-block で包むと、その中では折り返さなくなる（区切りの位置を選べる）。 */}
+                2文に分けて <br> で確実に切り、各行の中は inline-block で句のまとまりを守る。 */}
             <p className="text-[11px] text-label-secondary mt-1 ml-6 leading-relaxed">
               <span className="inline-block">受付開始と値下げはその場で、</span>
               <span className="inline-block">新着は毎朝まとめて。</span>
+              <br />
               <span className="inline-block">広告なし・</span>
               <span className="inline-block">カレンダー自動同期・</span>
               <span className="inline-block">フォロー無制限。</span>
-              <span className="inline-block">月¥500</span>
             </p>
           </button>
         )
