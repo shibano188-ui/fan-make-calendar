@@ -119,7 +119,10 @@ export default function UserSettingsSheet({
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
       if (!token) throw new Error('no session');
-      const res = await fetch('/api/delete-account', {
+      // ⚠️ 相対パスにしないこと。iOSは dist を同梱していてオリジンが capacitor://localhost に
+      // なるため、'/api/…' は存在しない場所を指す（Androidはリモートを開くので気づけない）。
+      const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ?? '';
+      const res = await fetch(`${apiBase}/api/delete-account`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });

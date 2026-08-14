@@ -3,6 +3,14 @@ import { createClient } from '@supabase/supabase-js';
 import { rateLimited } from './_ratelimit.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // iOSアプリは dist を同梱していてオリジンが capacitor://localhost になるため、
+  // ここへの呼び出しは**別オリジンからの通信**になる。Authorization を付けるので
+  // プリフライト(OPTIONS)も飛んでくる。許可しないとアカウント削除がiOSで動かない
+  // （App Store の必須要件 5.1.1(v)）。
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   if (await rateLimited('delete', req, res)) return;
 
