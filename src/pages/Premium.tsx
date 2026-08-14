@@ -82,10 +82,21 @@ export default function Premium() {
     } finally { setBusy(false); }
   };
 
+  // 閉じる/戻る。**戻り先が無いことがある**ので必ずホームへ逃がす。
+  //   例: Xから共有 → /post（replace）→ 投稿 → /premium（replace）
+  //   共有でアプリが起動したときは履歴が1件しかなく、両方replaceなので
+  //   navigate(-1) の行き先が無くなり、この画面から出られなくなる。
+  //   React Router は履歴の位置を history.state.idx に持っているので、先頭なら / へ。
+  const close = () => {
+    const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+    if (idx > 0) navigate(-1);
+    else navigate('/', { replace: true });
+  };
+
   const onRestore = async () => {
     haptic.select();
     const r = await restorePurchase();
-    if (r === 'done') { toast('購入を復元しました'); navigate(-1); }
+    if (r === 'done') { toast('購入を復元しました'); close(); }
     else if (r === 'unavailable') toast('お支払いの準備をしています。もう少しお待ちください');
     else toast('復元できる購入が見つかりませんでした');
   };
@@ -99,7 +110,7 @@ export default function Premium() {
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--bg-primary)' }}>
       <div className="mx-auto w-full max-w-app flex-1 flex flex-col">
         <div className="flex items-center px-2 py-2" style={{ paddingTop: 'calc(var(--sat) + 8px)' }}>
-          <button onClick={() => { haptic.select(); navigate(-1); }} aria-label="閉じる" className="pressable tap-44 p-2">
+          <button onClick={() => { haptic.select(); close(); }} aria-label="閉じる" className="pressable tap-44 p-2">
             <X size={22} />
           </button>
         </div>
