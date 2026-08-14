@@ -122,6 +122,15 @@ function jstTime(date: string, time: string): number {
 
 const DAY = 86400000;
 
+/** 全日予定の終了時刻。**ストアで意味が逆なので分ける**。
+ *  Android（CalendarContract）と ics（RFC 5545 の DTEND）は「翌日0時＝その日を含まない」指定。
+ *  iOS（EventKit）の `EKEvent.endDate` は**終了日そのものを含む**ので、同じ値を渡すと
+ *  1日の予定が必ず2日間になる（実機で確認：8/14の予定が8/14〜8/15になった）。 */
+const IS_IOS = Capacitor.getPlatform() === 'ios';
+function allDayEnd(date: string): number {
+  return IS_IOS ? utcMidnight(date) : utcMidnight(date) + DAY;
+}
+
 /** ics（api/ics.ts）と同じルールで「カレンダーに入れる予定」を組み立てる。
  *  キーは ics の UID と揃えてある（本体=イベントID、締切=`${id}-deadline`）。 */
 export function buildDesired(events: CalendarEvent[]): Record<string, Desired> {
@@ -158,7 +167,7 @@ export function buildDesired(events: CalendarEvent[]): Record<string, Desired> {
             isAllDay: false, description: `${desc}#visit-${v.id}`, location, url, color,
           }
           : {
-            title: e.title, startDate: utcMidnight(v.start), endDate: utcMidnight(v.end) + DAY,
+            title: e.title, startDate: utcMidnight(v.start), endDate: allDayEnd(v.end),
             isAllDay: true, description: `${desc}#visit-${v.id}`, location, url, color,
           };
       }
@@ -171,14 +180,14 @@ export function buildDesired(events: CalendarEvent[]): Record<string, Desired> {
       const end = vague ? undefined : e.endDate;
       out[e.id] = time
         ? { title, startDate: jstTime(e.date, time), endDate: jstTime(end || e.date, time), isAllDay: false, description: desc, location, url, color }
-        : { title, startDate: utcMidnight(e.date), endDate: utcMidnight(end || e.date) + DAY, isAllDay: true, description: desc, location, url, color };
+        : { title, startDate: utcMidnight(e.date), endDate: allDayEnd(end || e.date), isAllDay: true, description: desc, location, url, color };
     }
     // 受付の締切は見逃すと取り返しがつかないので、日付が別なら独立した予定として出す
     if (e.preorderEnd && e.preorderEnd !== e.date) {
       out[`${e.id}-deadline`] = {
         title: `【締切】${e.title}`,
         startDate: utcMidnight(e.preorderEnd),
-        endDate: utcMidnight(e.preorderEnd) + DAY,
+        endDate: allDayEnd(e.preorderEnd),
         isAllDay: true,
         // 本体と同じ内容なので、目印だけ `#deadline` で区別する（同じ予定の2件目だと分かるように）
         description: desc.replace(marker, `${marker}#deadline`),
