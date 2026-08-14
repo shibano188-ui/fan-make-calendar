@@ -167,4 +167,16 @@ Sandboxアカウントでご確認ください。
 - **iPad対応を続けるか**（現在 `TARGETED_DEVICE_FAMILY = "1,2"`）。
   iPhone専用にすればiPadのスクリーンショットが不要になる → 2026-08-13の相談で
   「本番はiPhone専用」で合意、切り替えは提出直前
-- 定期購読の商品ID（RevenueCatとの対応付け）
+
+## 定期購読（2026-08-14 設定完了・Sandbox購入まで検証済み）
+
+| | 製品ID | Apple ID | 価格 |
+|---|---|---|---|
+| 月払い | `jp.llp.fanhive.premium.monthly` | 6801366256 | ¥500 / 1か月 |
+| 年払い | `jp.llp.fanhive.premium.yearly` | 6801365422 | ¥4,800 / 1年 |
+
+グループ `FanHive プレミアム`（ID 22308279）。両方に導入価格＝**1か月無料**（終了日なし・175地域）。
+RevenueCat の Entitlement `premium` と Offering `default` の `$rc_monthly` / `$rc_annual` に紐付け済み。
+
+**提出前に必要**: 定期購読ごとの審査用スクリーンショット（未作成）。
+最初の定期購読は**バイナリと同時に提出**しないと審査に回らない。
