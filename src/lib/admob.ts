@@ -49,6 +49,16 @@ export async function onBannerSize(
   );
 }
 
+/** バナーの読み込み失敗を購読する。Web版では何もしない。
+ *  在庫が無い（no fill）ときにも来る。**新しく作った広告ユニットはしばらく配信されない**ので、
+ *  これを拾わないと「広告は出ないのに場所だけ空いている」状態が続く。 */
+export async function onBannerFailed(
+  cb: () => void,
+): Promise<PluginListenerHandle | null> {
+  if (!Capacitor.isNativePlatform()) return null;
+  return AdMob.addListener(BannerAdPluginEvents.FailedToLoad, () => cb());
+}
+
 /**
  * ネイティブが実測した「バナー下端の位置（WebView上端からのCSS px）」を購読する。
  * この値をそのままヘッダーの paddingTop に使えば、env(safe-area-inset-top) が

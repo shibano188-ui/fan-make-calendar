@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import type { PluginListenerHandle } from '@capacitor/core';
-import { showBanner, hideBanner, onBannerSize, onBannerReserveTop } from './admob';
+import { showBanner, hideBanner, onBannerSize, onBannerReserveTop, onBannerFailed } from './admob';
 import { useFeature } from './premium';
 import { useAdsSuppressed } from './adSuppress';
 
@@ -41,6 +41,9 @@ export function useAdBanner(): string {
   const [reserveTop, setReserveTop] = useState<number | null>(() =>
     Capacitor.isNativePlatform() ? loadCachedReserve() : null,
   );
+  // 広告が返ってこなかった（在庫なし・新しいユニットで未配信など）。
+  // 拾わないと「広告は出ないのに場所だけ空いている」状態が残る。
+  const [failed, setFailed] = useState(false);
   // 有料会員はバナーを出さない（プレミアム特典「広告非表示」）。判定はキャッシュ即答なので
   // 起動直後に一瞬バナーが出ることはない。あとからサーバー確定で有料に変わったときは
   // 依存配列の変化でエフェクトが再実行され、クリーンアップの hideBanner() が効く。
@@ -56,8 +59,14 @@ export function useAdBanner(): string {
     let alive = true;
     let sizeHandle: PluginListenerHandle | null = null;
     let reserveHandle: PluginListenerHandle | null = null;
+    let failHandle: PluginListenerHandle | null = null;
     (async () => {
-      sizeHandle = await onBannerSize((h) => { if (alive && h > 0) setAdH(Math.max(h, BANNER_FALLBACK)); });
+      sizeHandle = await onBannerSize((h) => {
+        if (!alive || h <= 0) return;
+        setAdH(Math.max(h, BANNER_FALLBACK));
+        setFailed(false);   // 次の更新で表示できたら余白を戻す
+      });
+      failHandle = await onBannerFailed(() => { if (alive) setFailed(true); });
       reserveHandle = await onBannerReserveTop((px) => {
         if (!alive || px <= 0) return;
         setReserveTop(px);
@@ -70,12 +79,13 @@ export function useAdBanner(): string {
       alive = false;
       sizeHandle?.remove();
       reserveHandle?.remove();
+      failHandle?.remove();
       hideBanner();
     };
   }, [noAds]);
 
-  // 非ネイティブ（Web）と有料会員はバナーが無いので、ステータスバー分の余白だけ返す
-  if (!Capacitor.isNativePlatform() || noAds) {
+  // 非ネイティブ（Web）・有料会員・広告が出せなかったときは、ステータスバー分の余白だけ返す
+  if (!Capacitor.isNativePlatform() || noAds || failed) {
     return `calc(var(--sat) + ${BANNER_GAP}px)`;
   }
   // ネイティブ実測（今回 or キャッシュ）が最優先。env非依存で機種差に強い。

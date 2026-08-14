@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { getWorksByNames, upsertParticipation } from '../lib/api';
 import { DEFAULT_WORK_NAMES } from '../lib/constants';
 import { setAppStateUser, setAppStateSync, syncAppState } from '../lib/appState';
-import { refreshPremium, clearPremium, isPremiumCached } from '../lib/premium';
+import { refreshPremium, clearPremium } from '../lib/premium';
 import { configureBilling } from '../lib/billing';
 
 type AuthContextValue = {
@@ -49,9 +49,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // 同期はサーバーが遅い/落ちている場合に起動を止めないよう上限を切り、超えたらローカルのまま進む。
     const activate = async (u: User) => {
       setAppStateUser(u.id);
-      // 端末設定の同期はプレミアム機能。起動を待たせないのでキャッシュで先に決め、
-      // サーバー確定後に開き直す（広告非表示と同じキャッシュファーストの扱い）。
-      setAppStateSync(isPremiumCached());
+      // 端末設定（通知ベル・ミュート・作品の色など）の同期は**全員**に開放している。
+      // 元は有料機能だったが、投稿・いいね・フォローはそもそもアカウントに紐付いていて
+      // 無料でも別端末で見られる＝「複数端末で使える」は有料の売りとして成立しなかった
+      // （2026-08-14 本人判断で有料リストから外した）。
+      setAppStateSync(true);
       await ensureDefaultJoined(u.id);
       await Promise.race([
         syncAppState(u.id),

@@ -154,7 +154,6 @@ export default function Premium() {
                   // ItemDetail の EXTERNAL_CALENDAR_ENABLED=false で今は出していない
                   ['外部カレンダー連携', 'できない', '自動で同期'],
                   ['フォローできる作品', `${FREE_FOLLOW_LIMIT}作品まで`, '無制限'],
-                  ['複数の端末で使う', 'できない', 'できる'],
                   ['広告', '表示', '非表示'],
                 ].map(([label, free, paid]) => (
                   <div key={label} className="flex items-center py-2.5 border-b border-subtle">
