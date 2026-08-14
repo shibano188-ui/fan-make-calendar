@@ -54,11 +54,16 @@ function statusOf(type: string): Status | null {
   }
 }
 
-/** Play の商品IDからプラン名を取る。`premium:monthly` 形式（subId:basePlanId）。 */
+/** 商品IDからプラン名（monthly / yearly）を取る。ストアで形が違う。
+ *  Play      : `premium:monthly`（subId:basePlanId）
+ *  App Store : `jp.llp.fanhive.premium.monthly`（逆ドメイン）
+ *  どちらでもなければ受け取ったIDをそのまま残す（後から何が来たか分かるように）。 */
 function planOf(productId: string | undefined): string | null {
   if (!productId) return null;
-  const base = productId.includes(':') ? productId.split(':')[1] : productId;
-  return base === 'monthly' || base === 'yearly' ? base : base || null;
+  const base = productId.includes(':')
+    ? productId.split(':')[1]
+    : (productId.split('.').pop() ?? productId);
+  return base === 'monthly' || base === 'yearly' ? base : productId;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
