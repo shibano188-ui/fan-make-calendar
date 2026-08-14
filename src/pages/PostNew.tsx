@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { X, Plus, Check, Sparkles, Camera, Link2, Loader2, Search, Share2 } from 'lucide-react';
 import Chip from '../components/ui/Chip';
-import { searchWorks, getOrCreateWork, createEvents, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, getUserPublicProfile, type Work } from '../lib/api';
+import { searchWorks, getOrCreateWork, createEvents, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, getUserPublicProfile, listAllParticipatedWorks, type Work } from '../lib/api';
 import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES, GOODS_TAG, ONBOARDING_DEMO_KEY, FEATURE_PREMIUM, oneShotTip } from '../lib/constants';
 import { DEMO_POST_TEXT } from '../lib/demoPost';
-import { isPremiumCached } from '../lib/premium';
+import { isPremiumCached, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
 import { trialEligible } from '../lib/billing';
 import { affiliatize, buildOffer, primaryOffer, isAffiliateUrl, offerUrl, isNoiseLink } from '../lib/affiliate';
 import { parseEventsApi, fileToBase64, type ParsedEvent } from '../lib/parseEvents';
@@ -457,10 +457,25 @@ export default function PostNew() {
         aiLogRef.current = null;
       }
 
-      await upsertParticipation(wid, user.id).catch(() => {}); // 投稿で自動フォロー
+      // 投稿で自動フォロー。ただし無料プランの上限は超えない。
+      // ここだけ上限を見ていないと、投稿を繰り返すだけで無制限にフォローできてしまう。
+      // **投稿そのものは必ず通す**（フォローできないことを理由に投稿を止めない）。
+      let followSkipped = false;
+      try {
+        const follows = await listAllParticipatedWorks(user.id);
+        const already = follows.some((w) => w.id === wid);
+        if (already || canFollowMore(follows.length, isPremiumCached())) {
+          await upsertParticipation(wid, user.id);
+        } else {
+          followSkipped = true;
+        }
+      } catch { /* フォローに失敗しても投稿は成立している */ }
       haptic.select();
       clearDraft();
-      toast('投稿しました');
+      // 黙って増えないと「なぜフォローされていないのか」が分からないので、そのときだけ伝える
+      toast(followSkipped
+        ? `投稿しました（フォローは${FREE_FOLLOW_LIMIT}作品までのため追加していません）`
+        : '投稿しました');
       setSaving(false);
       // 初月無料の条件を満たした瞬間だけ、帰り道をプランの案内に変える。
       // ⚠️ **一度きり**であること。条件は「5件以上」なので、素通しにすると
