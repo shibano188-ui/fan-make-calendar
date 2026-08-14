@@ -14,6 +14,7 @@ import { CapacitorCalendar } from '@ebarooni/capacitor-calendar';
 import type { CalendarEvent } from '../types';
 import { parseCategories } from './constants';
 import { buildWorkColorMap } from './workColors';
+import { isPremiumCached } from './premium';
 
 const ENABLED_KEY = 'fan_device_cal_enabled';
 const TARGET_KEY = 'fan_device_cal_id';
@@ -304,6 +305,11 @@ async function adoptExisting(
  *  差分だけを触る（毎回消して入れ直すと、カレンダーアプリの通知が鳴り直したり同期が重くなる）。 */
 export async function syncDeviceCalendar(events: CalendarEvent[]): Promise<void> {
   if (!deviceCalendarSupported() || !isDeviceCalendarOn()) { log('skip: off or not native'); return; }
+  // ⚠️ 会員かどうかを必ず見ること。ONかどうかは localStorage のフラグでしかないので、
+  // これが無いと**1か月だけ課金して設定をONにすれば、解約後もずっと書き込まれ続ける**。
+  // キャッシュは localStorage に永続化されていて起動直後から正しい値を返す。
+  // ※ 解約しても既に書き込まれた予定は消さない（カレンダーが突然空になるほうが不親切）。
+  if (!isPremiumCached()) { log('skip: プレミアムではない'); return; }
   const calendarId = getTargetCalendarId();
   if (!calendarId) { log('skip: 書き込み先が未設定'); return; }
   // 権限を後から切られたら黙って止まる（ics購読は生きているので予定が消えるわけではない）
