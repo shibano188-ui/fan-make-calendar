@@ -57,6 +57,13 @@ export function billingSupported(): boolean {
   return Capacitor.isNativePlatform() && !!API_KEY;
 }
 
+/** アプリ版なのに鍵が無くて買えない状態か。
+ *  ブラウザ版と同じ「アプリ版からどうぞ」を出すと、**アプリで見ている人に
+ *  アプリを勧める**ことになり、原因の切り分けもできなくなる（実際に混乱した）。 */
+export function billingNotConfigured(): boolean {
+  return Capacitor.isNativePlatform() && !API_KEY;
+}
+
 export type PurchaseResult = 'done' | 'canceled' | 'unavailable' | 'failed';
 
 // ── SDKの初期化 ────────────────────────────────────────────────

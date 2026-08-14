@@ -4,7 +4,7 @@ import { X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserPublicProfile } from '../lib/api';
 import { usePremium, FREE_FOLLOW_LIMIT } from '../lib/premium';
-import { PLANS, planOf, FREE_TRIAL_POSTS, trialEligible, billingSupported, startPurchase, restorePurchase, lastPurchaseError, yen, type PlanId } from '../lib/billing';
+import { PLANS, planOf, FREE_TRIAL_POSTS, trialEligible, billingSupported, billingNotConfigured, startPurchase, restorePurchase, lastPurchaseError, yen, type PlanId } from '../lib/billing';
 import { useToast } from '../components/ui/Toast';
 import Toggle from '../components/ui/Toggle';
 import AccountSheet from '../components/AccountSheet';
@@ -63,7 +63,12 @@ export default function Premium() {
 
   const onBuy = async () => {
     haptic.select();
-    if (!billingSupported()) { toast('購入はアプリ版からお願いします'); return; }
+    if (!billingSupported()) {
+      toast(billingNotConfigured()
+        ? 'お支払いの準備が整っていません。少し待って再度お試しください'
+        : '購入はアプリ版からお願いします');
+      return;
+    }
     setBusy(true);
     try {
       const r = await startPurchase(plan, { trial });
@@ -236,7 +241,9 @@ export default function Premium() {
             </button>
             <p className="text-[11px] text-label-secondary mt-2 text-center leading-relaxed">
               {billingLine}いつでも解約できます。
-              {!billingSupported() && ' 購入はアプリ版からお願いします。'}
+              {!billingSupported() && (billingNotConfigured()
+                ? ' ただいまお支払いの準備中です。'
+                : ' 購入はアプリ版からお願いします。')}
             </p>
             <div className="flex items-center justify-center gap-3 mt-2 text-[11px]">
               <a href="/terms.html" className="underline" style={{ color: 'var(--accent-text)' }}>利用規約</a>

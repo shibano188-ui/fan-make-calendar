@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { useEffect, useState, type ReactNode } from 'react';
 import WidgetPreviewModal from './WidgetPreviewModal';
 
@@ -43,7 +44,12 @@ export default function PhoneFrame({ children }: Props) {
   // CSSのhidden切り替えで両方マウントすると、アプリ全体が2重に動く
   // （データ取得・通知・スクロール補正ループが2倍走り、非表示側の補正が
   //   表示側のスクロールと喧嘩して「反発」バグを起こしていた）。
-  const [desktop, setDesktop] = useState(() => window.matchMedia('(min-width: 640px)').matches);
+  // 画面が広いとPCとみなして電話型の枠とウィジェットのプレビューを出すが、これは**ブラウザ用**。
+  // ネイティブアプリでは常に全画面にする（iPadは幅が広いのでPC扱いになり、
+  // アプリなのに枠とウィジェットボタンが出てWeb版と見分けがつかなくなる）。
+  const [desktop, setDesktop] = useState(
+    () => !Capacitor.isNativePlatform() && window.matchMedia('(min-width: 640px)').matches,
+  );
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 640px)');
     const onChange = () => setDesktop(mq.matches);
