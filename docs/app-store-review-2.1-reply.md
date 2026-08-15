@@ -52,8 +52,10 @@ feature is then available.
 
 - Home (bottom tab "ホーム"): upcoming events for the titles you follow
 - Explore (bottom tab "探す"): all posted merchandise and events, filtered by category and region
-- Calendar (bottom tab "カレンダー"): month view; tapping an event opens its detail, where it can
-  be written to the iOS Calendar (this asks for calendar permission)
+- Calendar (bottom tab "カレンダー"): a month view of the events the user has saved
+- Writing to the iOS Calendar is a subscriber feature. After subscribing, the user picks which of
+  the calendars already on the device to write to (this asks for calendar permission), and saved
+  events are synced to it from then on.
 - Adding an event with AI: share a post from the X app or Safari into FanHive with the iOS share
   sheet, or paste a URL in the app. Our server reads the post (and its image) and fills in the
   product name, date, and price. The user checks the result and saves it.
@@ -186,34 +188,46 @@ Apple の要求は「最新のOSが入った**実機**で、**起動から**主�
 
 ### 撮る前の準備
 
-- 借りるiPhoneの **iOSが最新（26.x）か確認**する。Appleは "running the latest operating system"
-  と指定している。古ければ設定 > 一般 > ソフトウェアアップデート
-- 借りたiPhoneに **TestFlight で 1.0(2) を入れる**（App Store Connect > TestFlight >
-  内部テスターにその人のApple IDを追加、またはパブリックリンクを発行）
-- **一度アプリを消してから入れ直す**。通知・カレンダー・ATTの許可ダイアログは初回だけ出る
-- 課金を撮るので **Sandboxアカウント**を設定（設定 > Developer > Sandbox Apple Account。
-  項目が無ければ購入時に出るダイアログでSandboxテスターのIDを入れる）
+端末は **iPhone SE（第3世代）/ iOS 26.6**。2026-08-15 に開発ビルドをインストール済み。
+
+- **アプリをまだ開かない**。オンボーディングと通知・ATTの許可ダイアログは初回起動でしか出ない。
+  開いてしまったらアプリを削除して入れ直す（`xcrun devicectl device install app` で30秒）
+- **Sandboxアカウント**: 設定 > デベロッパ > Sandbox Apple Account に
+  `shisoh0501+sandbox@gmail.com` でサインイン
+- **Sandboxの購入履歴を消しておく**（App Store Connect > ユーザとアクセス > Sandbox >
+  テストアカウントを選択 > 「購入履歴を消去」）。2026-08-14に購入済みのままだと
+  **初月無料の対象外になり「初月無料を使う」のトグルが出ない**
+- **メールアドレスはFanHiveで未使用のものを使う**。登録は「今の匿名アカウントにメールを紐づける」
+  処理なので、過去に使ったアドレスだとエラーで止まる。
+  `shisoh0501+fh1@gmail.com` のような Gmail の `+` エイリアスなら、Supabaseからは別アドレス、
+  受信は普段の受信箱。撮り直すたびに番号を変えれば何度でも使える
 - Xのアプリ（またはSafariでXのポスト）を1つ開いておく。共有からの取り込みを撮るため
 - コントロールセンターに「画面収録」を出しておく
 
-### 撮る順番（3〜6分・音声なしでよい）
+### 撮る順番（4〜7分・音声なしでよい）
 
-1. ホーム画面のアイコンをタップして起動（**必ずここから撮る**）
+**端末カレンダーへの書き込みはプレミアム限定**（`src/pages/MyPage.tsx:520`）なので、
+購入を先に済ませてからカレンダーを見せる。購入直後の画面に「カレンダーの書き込み先を選ぶ」が
+出るので、そのまま繋がる。
+
+1. 収録を開始 → ホーム画面のアイコンをタップして起動（**必ずここから撮る**）
 2. オンボーディング → 作品を選ぶ → ホームが表示される
-3. 通知の許可ダイアログ・ATTのダイアログが出たら**画面に写す**（許可を選ぶ）
-4. ホームをスクロール → 予定をタップ → 詳細 → 端末カレンダーに追加
-   （カレンダーの許可ダイアログ → 追加後に iOS の「カレンダー」アプリを開いて入っていることを見せる）
-5. 「探す」タブ → 商品を開く → 購入リンクをタップして販売ページ（楽天/Yahoo!）が開くのを見せて戻る
-6. Xに切り替え → ポストを共有 → FanHive → AIが読み取った内容 → 保存 → 予定ができるところまで
-7. 「+」から手動で投稿を1件
-8. 他人の投稿を開く → 通報 → 消えるのを見せる → 投稿者名 → プロフィール → ブロック
-9. マイページ → FanHive プレミアム → 月/年のプラン・価格・初月無料・規約リンクが見えるところ
-   → 「メールアドレスを登録する」→ メール入力 → 6桁コード → 登録完了
-   → 購入 → **Sandboxの購入ダイアログ** → 完了 → プレミアムが有効になった画面
-   → 「購入を復元」もタップして見せる
-10. マイページ → カスタマイズ → 右上の⋮ → 下までスクロール → アカウントを削除する → 本当に削除する
+3. 通知の許可ダイアログ・ATTのダイアログが出たら**画面に写す**（どちらも許可を選ぶ）
+4. 「探す」タブ → 商品を開く → 購入リンクをタップして販売ページ（楽天/Yahoo!）が開くのを見せて戻る
+5. Xに切り替え → ポストを共有 → FanHive → AIが読み取った内容 → 保存 → 予定ができるところまで
+6. 「+」から手動で投稿を1件
+7. 他人の投稿を開く → 通報する → 消えるのを見せる → 投稿者名 → プロフィール → ブロック
+8. マイページ → FanHive プレミアム。**月/年の価格・初月無料・利用規約・プライバシーポリシー・
+   購入を復元が1画面に並んでいるところを数秒映す**（購入後は復元ボタンが消えるので、
+   押して見せるならここ）
+9. 「メールアドレスを登録する」→ `+` エイリアスのアドレス → 届いた6桁コード → 登録完了
+10. 「初月無料で始める」→ **Sandboxの購入ダイアログ** → 完了
+11. 購入直後の画面で「カレンダーの書き込み先を選ぶ」→ **カレンダーの許可ダイアログ** →
+    書き込み先を選ぶ → 「はじめる」
+12. iOSの「カレンダー」アプリを開いて、FanHiveの予定が入っているのを見せる → FanHiveに戻る
+13. マイページ → カスタマイズ → 右上の⋮ → 下までスクロール → アカウントを削除する → 本当に削除する
     （**最後にやる**。データが消えるので）
-11. 収録を停止
+14. 収録を停止
 
 ### 送り方
 
