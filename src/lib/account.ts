@@ -74,3 +74,32 @@ export async function signOutAccount(): Promise<Result> {
   window.location.href = '/';
   return { ok: true };
 }
+
+/**
+ * アカウントを削除する（投稿・いいね・保存した予定もサーバーから消える。取り消せない）。
+ *
+ * 呼ぶ側が2段階の確認を出すこと。成功したときはこの中で '/' に飛ぶので戻ってこない。
+ * マイページとユーザー設定シートの2箇所から呼ぶので、処理はここに1つだけ置く。
+ */
+export async function deleteAccount(): Promise<Result> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) throw new Error('no session');
+    // ⚠️ 相対パスにしないこと。iOSは dist を同梱していてオリジンが capacitor://localhost に
+    // なるため、'/api/…' は存在しない場所を指す（Androidはリモートを開くので気づけない）。
+    const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ?? '';
+    const res = await fetch(`${apiBase}/api/delete-account`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('failed');
+    await supabase.auth.signOut();
+    // 前アカウントのキャッシュを端末に残さない（次の匿名アカウントで嘘を表示しないため）
+    clearAccountScopedCache();
+    window.location.href = '/';
+    return { ok: true };
+  } catch {
+    return { ok: false, error: '削除に失敗しました。しばらくして再試行してください' };
+  }
+}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Bell, BellRing, Crown, CalendarSync, Moon, Palette, Pencil, Plus, Droplet, Check, MessageCircle, MapPin, UserRound, Star } from 'lucide-react';
+import { ChevronRight, Bell, BellRing, Crown, CalendarSync, Moon, Palette, Pencil, Plus, Droplet, Check, MessageCircle, MapPin, UserRound, Star, Trash2 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { getContrastText } from '../lib/color';
 
@@ -19,7 +19,7 @@ import WorkFollowSheet from '../components/WorkFollowSheet';
 import DeviceCalendarSheet from '../components/DeviceCalendarSheet';
 import Toggle from '../components/ui/Toggle';
 import AccountSheet from '../components/AccountSheet';
-import { accountState, accountEmail, signOutAccount } from '../lib/account';
+import { accountState, accountEmail, signOutAccount, deleteAccount } from '../lib/account';
 import FanStarChart from '../components/FanStarChart';
 import { calcTitle, calcRadarData, calcGrade, type AchievementStats } from '../lib/achievements';
 import { REGIONS } from '../lib/prefectures';
@@ -151,6 +151,14 @@ export default function MyPage() {
   };
   const [signOutConfirm, setSignOutConfirm] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  // アカウント削除。5.1.1(v)で「アカウント設定の中の見つけやすい場所」に置くことが要る。
+  const [delConfirm, setDelConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const onDeleteAccount = async () => {
+    setDeleting(true);
+    const r = await deleteAccount();  // 成功したら '/' に飛ぶので戻ってこない
+    if (!r.ok) { setDeleting(false); setDelConfirm(false); toast(r.error, 'error'); }
+  };
   const { settings, updateSettings } = useTheme();
 
   const acctState = accountState(user);
@@ -592,6 +600,35 @@ export default function MyPage() {
             </button>
           </div>
         ) : null}
+        {/* アカウント削除。設定リストの最終行に置く（Appleの5.1.1(v)は「見つけやすい場所」を求める）。
+            誤爆しないよう2段階にする。処理は lib/account.ts に1つだけ置いてある。 */}
+        {!delConfirm ? (
+          <button onClick={() => { haptic.select(); setDelConfirm(true); }}
+            className="pressable w-full flex items-center gap-2 px-3 py-2.5 text-left">
+            <Trash2 size={16} style={{ color: 'var(--color-destructive)' }} />
+            <span className="text-[14px] flex-1" style={{ color: 'var(--color-destructive)' }}>アカウントを削除する</span>
+          </button>
+        ) : (
+          <div className="px-3 py-2.5">
+            <div className="flex items-center gap-2">
+              <Trash2 size={16} style={{ color: 'var(--color-destructive)' }} />
+              <span className="text-[14px] flex-1" style={{ color: 'var(--color-destructive)' }}>アカウントを削除する</span>
+            </div>
+            <p className="text-[11px] text-label-secondary mt-1.5 ml-6">
+              投稿・いいね・保存した予定を含むすべてのデータが削除されます。この操作は取り消せません。
+            </p>
+            <div className="mt-2 ml-6 flex gap-2">
+              <button onClick={onDeleteAccount} disabled={deleting}
+                className="pressable text-[12px] font-semibold px-3 py-1 rounded-full disabled:opacity-40"
+                style={{ backgroundColor: 'var(--color-destructive)', color: '#ffffff' }}>
+                {deleting ? '削除中…' : '本当に削除する'}
+              </button>
+              <button onClick={() => setDelConfirm(false)} className="pressable text-[12px] text-label-secondary px-2">
+                キャンセル
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* フォロー作品（ドロップダウン） */}

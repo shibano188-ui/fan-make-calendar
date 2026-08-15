@@ -2,7 +2,9 @@
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- maximum-scale=1: iOSは入力欄にフォーカスすると自動で拡大し、**元の倍率に戻さない**。
+         上限を1にすると拡大自体が起きない。入力欄のフォント下限16pxとの二段構え（index.css）。 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />

@@ -223,6 +223,17 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* iOSは**16px未満の入力欄**にフォーカスすると画面を自動で拡大し、離れても元に戻さない。
+   下限を16pxにして拡大そのものを起こさせない。index.html の maximum-scale=1 は
+   アプリ（WKWebView）では効くが、SafariはAppleが無視することがあるのでこちらも要る。
+   :not() の分だけ Tailwind の text-[14px] より詳細度が高いので !important は不要。
+   max(16px, 1em) なので、親より大きく指定してある入力欄は縮まない。 */
+input:not([type='checkbox']):not([type='radio']),
+textarea,
+select {
+  font-size: max(16px, 1em);
+}
+
 /* キーボードフォーカスの可視化（PWA・デスクトップ用） */
 :focus-visible {
   outline: 2px solid var(--accent-text);

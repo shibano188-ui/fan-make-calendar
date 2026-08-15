@@ -2,8 +2,8 @@ import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import Sheet from './ui/Sheet';
 import { PREFECTURES } from '../lib/prefectures';
-import { loadImageVisibility, saveImageVisibility, clearAccountScopedCache, type ImageVisibility } from '../lib/constants';
-import { supabase } from '../lib/supabase';
+import { loadImageVisibility, saveImageVisibility, type ImageVisibility } from '../lib/constants';
+import { deleteAccount } from '../lib/account';
 import { useToast } from './ui/Toast';
 
 const inputCls =
@@ -115,24 +115,9 @@ export default function UserSettingsSheet({
 
   const handleDeleteAccount = async () => {
     setDeleting(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) throw new Error('no session');
-      // ⚠️ 相対パスにしないこと。iOSは dist を同梱していてオリジンが capacitor://localhost に
-      // なるため、'/api/…' は存在しない場所を指す（Androidはリモートを開くので気づけない）。
-      const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ?? '';
-      const res = await fetch(`${apiBase}/api/delete-account`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error('failed');
-      await supabase.auth.signOut();
-      // 前アカウントのキャッシュを端末に残さない（次の匿名アカウントで嘘を表示しないため）
-      clearAccountScopedCache();
-      window.location.href = '/';
-    } catch {
-      showToast('削除に失敗しました。しばらくして再試行してください', 'error');
+    const r = await deleteAccount();
+    if (!r.ok) {
+      showToast(r.error, 'error');
       setDeleting(false);
       setDelConfirm(false);
     }
