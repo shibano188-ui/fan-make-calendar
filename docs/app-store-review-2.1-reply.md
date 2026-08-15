@@ -13,8 +13,7 @@
 Thank you for the review. Here is the requested information.
 
 1. SCREEN RECORDING
-Attached, captured on a physical iPhone SE (3rd generation), iOS 26.6, starting from launching
-the app. It covers the whole flow described below, including the ATT, notification and calendar
+Attached, captured on a physical iPhone SE (3rd generation), iOS 26.6, from app launch. It covers the whole flow described below, including the ATT, notification and calendar
 prompts, reporting and blocking, the Sandbox purchase, and account deletion.
 
 2. DEVICES AND OS TESTED
