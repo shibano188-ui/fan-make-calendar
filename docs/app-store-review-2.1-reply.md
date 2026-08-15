@@ -14,7 +14,7 @@ Thank you for the review. Here is the information requested.
 
 1. Screen recording
 
-Attached is a screen recording captured on a physical iPhone [MODEL] running iOS [VERSION].
+Attached is a screen recording captured on a physical iPhone SE (3rd generation) running iOS 26.6.
 It starts with launching the app from the Home Screen and covers the typical user flow:
 onboarding and following titles, adding an event by sharing a post from X (our AI input),
 writing an event to the iOS Calendar, posting an event, reporting a post and blocking a user,
@@ -24,8 +24,8 @@ calendar access, and App Tracking Transparency are shown as they appear.
 
 2. Devices and operating systems tested
 
-- iPhone [MODEL] (physical device), iOS [VERSION]
-- iPad Air 13-inch (M2) (physical device), iPadOS [VERSION] - used during development, before
+- iPhone SE (3rd generation) (physical device), iOS 26.6
+- iPad Air 13-inch (M2) (physical device), iPadOS 26.6 - used during development, before
   the app was set to iPhone only
 - Simulator: iPhone 17 Pro, iPhone 17 Pro Max, iPhone Air, iOS 26.5
 
