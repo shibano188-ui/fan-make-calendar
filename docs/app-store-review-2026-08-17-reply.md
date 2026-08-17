@@ -10,7 +10,7 @@
 購入ボタンが「メールアドレスを登録する」になっていて、登録しないと購入に進めなかった。
 端末で完結する機能（広告非表示・通知の速さ）の購入に会員登録は要求できない。
 
-### 直したこと（ビルド3）
+### 直したこと（ビルド4）
 
 - `src/pages/Premium.tsx` — 購入ボタンは**常に購入を開始する**。匿名のままでも買える。
   **この画面には登録の入口を一切置かない**（ボタンを1つにして「先に登録するのか」と
@@ -28,7 +28,7 @@
 **8/15に送った録画にはATTのダイアログが写っている**（0:03〜0:04 と 0:08〜0:11 の2回）。
 1回目が通知の許可ダイアログにすぐ覆われているため、見落とされたと思われる。
 
-実装側にも弱いところが2つあった。ビルド3で作り直した。
+実装側にも弱いところが2つあった。ビルド4で作り直した。
 
 - ATTの要求を **JS（AdMobプラグイン）→ ネイティブ（`AppDelegate.swift`）** に移した。
   Capacitor はプラグインの呼び出しを `DispatchQueue(label: "bridge")`＝バックグラウンドスレッドで
@@ -44,10 +44,11 @@
 
 ## 3. App Review への返信（英語・そのまま貼る）
 
-`[ ]` は録画を撮ってから埋める。返信欄の上限は4000字。
+録画（`~/Desktop/FanHive-AppReview-2026-08-17.mp4`・1.9MB・2分39秒）の時刻を入れ込んだ完成稿。
+返信欄の上限は4000字。
 
 ```
-Thank you for the review. Both items are fixed in build 3, which is attached to this submission.
+Thank you for the review. Both items are fixed in build 4, which is attached to this submission.
 
 1. GUIDELINE 5.1.1(v) - REGISTRATION BEFORE PURCHASE
 
@@ -66,7 +67,7 @@ opened at any time from "マイページ" > "アカウント（データ引き�
 "購入を復元" (Restore Purchases) is on the subscription screen as well, so a subscription can be
 recovered on a new device or after reinstalling without registering at all.
 
-Two related screens changed in build 3 as well: account deletion has been moved out of
+Two related screens changed in build 4 as well: account deletion has been moved out of
 "カスタマイズ" > "⋮" and is now the last row of the settings list on My Page ("マイページ"), and the
 optional email registration is offered on the screen shown right after a purchase.
 
@@ -77,7 +78,7 @@ we sent on August 15 (physical iPhone SE 3rd generation, iOS 26.6) from 0:03 to 
 covered by the notification permission alert, and again from 0:08 to 0:11. We are sorry that it
 was hard to find.
 
-We found two weaknesses in that implementation and rewrote it for build 3.
+We found two weaknesses in that implementation and rewrote it for build 4.
 
 - The request was issued from the web layer through the AdMob plugin. Capacitor runs plugin calls
   on a background thread, and ATTrackingManager.requestTrackingAuthorization does not reliably
@@ -94,9 +95,17 @@ requested before that.
 
 A new screen recording is attached, captured on a physical iPad Air 13-inch (M2) running
 iPadOS 26.6, where the iPhone app runs in compatibility mode, after deleting and reinstalling the
-app from TestFlight. The App Tracking Transparency prompt appears at [ 0:0X ], before any ad is
-loaded, followed by the notification prompt, onboarding, and the subscription flow described
-above.
+app. Nothing is trimmed from it.
+
+- 0:06 the App Tracking Transparency prompt appears, before any ad is loaded, and stays on screen
+  until it is allowed at 0:11
+- 0:12 the notification permission prompt follows, and is allowed at 0:17
+- 0:20 onboarding, then Home, Explore, Calendar and My Page
+- 0:47 the subscription screen, and 0:53 the purchase in the Sandbox environment. No account,
+  email address, or other personal information is requested at any point before this
+- 1:05 the screen shown after the purchase, and 1:11 its settings step, where the optional email
+  registration is the first item. It is completed between 1:26 and 2:05
+- 2:14 account deletion from My Page, confirmed at 2:30
 
 The prompt is only presented while the tracking status of the app is "not determined". If the app
 has already been launched on the review device, deleting the app, or turning
@@ -117,7 +126,7 @@ ATTが出て、そのあとの流れが分かること」。長い全機能の�
 - 借りられないなら **iPad Air 13インチ(M2)/iPadOS 26.6**。今回の審査がiPadなので、
   「iPadOSで出ている」証拠になるのはむしろ強い。iPhone専用アプリなので互換モード（黒枠つき）になる。
   Xcodeからの直接インストールはデバイスファミリの制約で弾かれることがあるので、
-  **ビルド3をApp Store Connectに上げてTestFlightから入れる**のが確実。
+  **ビルド4をApp Store Connectに上げてTestFlightから入れる**のが確実。
 
 ### 撮る前
 
@@ -152,8 +161,8 @@ ffmpeg -i 提出用.mp4 -vf "fps=2,scale=150:-1,tile=6x5" -frames:v 1 sheet.png 
 
 ## 5. App Store Connect での手順
 
-1. Xcode で **ビルド3**（`CURRENT_PROJECT_VERSION = 3`）をアーカイブ → アップロード
-2. バージョンページでビルドを 3 に差し替える
+1. Xcode で **ビルド4**（`CURRENT_PROJECT_VERSION = 4`）をアーカイブ → アップロード
+2. バージョンページでビルドを **4** に差し替える（3は選ばず放置でよい）
 3. 「App Reviewに返信」に 3. の英文＋録画を添付
 4. App Review情報の**メモ**を更新（下記の2箇所）
 5. バージョンページ「審査内容を更新」→ 提出詳細の「App Reviewに再提出」
