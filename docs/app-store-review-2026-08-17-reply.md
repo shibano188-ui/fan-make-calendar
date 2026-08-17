@@ -92,10 +92,11 @@ No data that could be used to track the user is collected before the answer: the
 SDK is initialized only after the tracking status is no longer "not determined", and no ad is
 requested before that.
 
-A new screen recording is attached, captured on a physical [ 端末名 ] running [ OS ], after
-deleting and reinstalling the app. The App Tracking Transparency prompt appears at [ 0:0X ],
-before any ad is loaded, followed by the notification prompt, onboarding, and the subscription
-flow described above.
+A new screen recording is attached, captured on a physical iPad Air 13-inch (M2) running
+iPadOS 26.6, where the iPhone app runs in compatibility mode, after deleting and reinstalling the
+app from TestFlight. The App Tracking Transparency prompt appears at [ 0:0X ], before any ad is
+loaded, followed by the notification prompt, onboarding, and the subscription flow described
+above.
 
 The prompt is only presented while the tracking status of the app is "not determined". If the app
 has already been launched on the review device, deleting the app, or turning
