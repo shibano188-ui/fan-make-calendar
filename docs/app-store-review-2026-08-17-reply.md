@@ -205,3 +205,17 @@ optional email registration at 1:11-2:05, and account deletion at 2:14-2:30.
 8/15の録画は**添付が届いていない可能性がある**（本人が画面で確認できなかった）。
 メモからも「8/15の録画を見てくれ」という参照は外してある。古い録画は送り直さない
 （却下された仕様＝購入前のメール登録が必須の画面が映っているため）。
+
+### 3-b. 送ったあとに足した2通目（2026-08-17）
+
+上の返信（8/15の録画に言及する版）を送ったあとに気づいたので、スレッドに1通足した。
+
+```
+One clarification on our previous message. The recording to use is the one attached to that
+message: captured on a physical iPad Air 13-inch (M2) running iPadOS 26.6, from a fresh install,
+with the App Tracking Transparency prompt appearing at 0:06 and the notification prompt at 0:12.
+In that message we also referred to a recording sent with our reply of August 15. We are not
+certain that attachment went through, so please disregard that reference if you do not have it;
+everything needed to verify both items is in the recording attached to our previous message.
+Thank you.
+```
