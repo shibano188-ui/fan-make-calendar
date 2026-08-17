@@ -119,8 +119,25 @@ export default function PremiumWelcome() {
                 あとからマイページのプレミアムでも設定できます。
               </p>
 
-              {/* 通知 */}
+              {/* 引き継ぎ（任意）。**購入画面には登録の入口を置かない**（5.1.1(v)）ので、
+                  加入した人にはここが入口になる。3つのうち「今やらないと後で困る」のは
+                  これだけなので一番上に置く。
+                  登録しなくても「購入を復元」で購読は戻せるが、投稿やフォローは戻らない */}
               <div className="rounded-[12px] p-3.5" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                <p className="text-[14px] font-semibold">メールアドレスを登録する（任意）</p>
+                {linked ? done(accountEmail(user) ?? '登録済み') : (
+                  <>
+                    <p className="text-[12px] text-label-secondary mt-2.5">
+                      機種変更やアプリを入れ直したあとも、そのまま使えます。
+                    </p>
+                    <button onClick={() => { haptic.select(); setLinkOpen(true); }}
+                      className={actionBtn} style={accent}>登録する</button>
+                  </>
+                )}
+              </div>
+
+              {/* 通知 */}
+              <div className="rounded-[12px] p-3.5 mt-3" style={{ backgroundColor: 'var(--bg-secondary)' }}>
                 <p className="text-[14px] font-semibold">通知を許可する</p>
                 {perm === 'granted' ? done('許可済み')
                   : perm === 'denied' ? (
@@ -148,20 +165,6 @@ export default function PremiumWelcome() {
                   : <button onClick={askCalendar} className={actionBtn} style={accent}>書き込み先を選ぶ</button>}
               </div>
 
-              {/* 引き継ぎ（任意）。登録しなくても「購入を復元」で戻せるが、
-                  登録しておくと復元を挟まずに別の端末でもそのまま使える */}
-              <div className="rounded-[12px] p-3.5 mt-3" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                <p className="text-[14px] font-semibold">メールアドレスを登録する（任意）</p>
-                {linked ? done(accountEmail(user) ?? '登録済み') : (
-                  <>
-                    <p className="text-[12px] text-label-secondary mt-2.5">
-                      機種変更やアプリを入れ直したあとも、そのまま使えます。
-                    </p>
-                    <button onClick={() => { haptic.select(); setLinkOpen(true); }}
-                      className={actionBtn} style={accent}>登録する</button>
-                  </>
-                )}
-              </div>
             </div>
 
             <button onClick={() => { haptic.select(); navigate('/', { replace: true }); }}

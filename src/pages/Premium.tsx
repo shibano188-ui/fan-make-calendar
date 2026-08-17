@@ -8,8 +8,6 @@ import { usePremium, FREE_FOLLOW_LIMIT } from '../lib/premium';
 import { PLANS, planOf, FREE_TRIAL_POSTS, trialEligible, billingSupported, billingNotConfigured, startPurchase, restorePurchase, lastPurchaseError, yen, type PlanId } from '../lib/billing';
 import { useToast } from '../components/ui/Toast';
 import Toggle from '../components/ui/Toggle';
-import AccountSheet from '../components/AccountSheet';
-import { accountState } from '../lib/account';
 import { haptic } from '../lib/haptics';
 
 // プレミアムの案内＝購入画面。設計は [[fanhive-paywall-design]]。
@@ -23,7 +21,9 @@ import { haptic } from '../lib/haptics';
 //  - 金額と請求期間を購入ボタンの**すぐ隣**に、目立つ形で置く
 //  - 利用規約とプライバシーポリシーへの機能するリンクを同じ画面に置く。別画面送りは不可
 //  - そのリンクはボタンではなくリンクの見た目にする
-//  - **購入に会員登録を要求しない**（5.1.1(v)）。メール登録は任意の引き継ぎ手段として案内する
+//  - **購入に会員登録を要求しない**（5.1.1(v)）。この画面には登録の入口を置かない。
+//    引き継ぎのメール登録は購入後の `/premium/welcome`（加入済みなら「引き継ぎ・通知・
+//    カレンダーの設定」から何度でも開ける）とマイページに置く
 //
 // 塗り面はほとんど使わない。区切りは罫線と余白で作り、色はCTAと見出しのアクセントだけに使う。
 
@@ -38,13 +38,6 @@ export default function Premium() {
   const [allPlans, setAllPlans] = useState(false);
   const [trialOn, setTrialOn] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [linkOpen, setLinkOpen] = useState(false);
-
-  // メール登録は**任意**。購入の前提にしてはいけない（2026-08-17 に iOS 5.1.1(v) で却下された。
-  // 端末で完結する機能の購入に会員登録を要求できない）。
-  // 登録が無くても、入れ直したときは「購入を復元」でストアのアカウントから戻せる。
-  // 登録しておくと user_id が保たれるので、復元を挟まずに別端末でもそのまま使える。
-  const linked = accountState(user) === 'email';
 
   useEffect(() => {
     if (!user) return;
@@ -142,7 +135,7 @@ export default function Premium() {
               <button onClick={() => { haptic.select(); navigate('/premium/welcome?step=settings'); }}
                 className="pressable w-full flex items-center gap-2 mt-4 px-3 py-2.5 rounded-[12px] text-left"
                 style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                <span className="text-[14px] flex-1">通知とカレンダーの設定</span>
+                <span className="text-[14px] flex-1">引き継ぎ・通知・カレンダーの設定</span>
                 <span className="text-[11px] text-label-tertiary">開く</span>
               </button>
             </div>
@@ -246,13 +239,6 @@ export default function Premium() {
                 ? ' ただいまお支払いの準備中です。'
                 : ' 購入はアプリ版からお願いします。')}
             </p>
-            {!linked && (
-              <button onClick={() => { haptic.select(); setLinkOpen(true); }}
-                className="pressable w-full text-[11px] text-center underline mt-2"
-                style={{ color: 'var(--accent-text)' }}>
-                メールアドレスを登録する（任意・別の端末でも使えます）
-              </button>
-            )}
             <div className="flex items-center justify-center gap-3 mt-2 text-[11px]">
               <a href="/terms.html" className="underline" style={{ color: 'var(--accent-text)' }}>利用規約</a>
               <a href="/privacy.html" className="underline" style={{ color: 'var(--accent-text)' }}>プライバシーポリシー</a>
@@ -262,13 +248,6 @@ export default function Premium() {
         )}
       </div>
 
-      {linkOpen && (
-        <AccountSheet
-          mode="link"
-          onClose={() => setLinkOpen(false)}
-          onDone={() => { setLinkOpen(false); toast('登録しました'); }}
-        />
-      )}
     </div>
   );
 }
