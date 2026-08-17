@@ -186,3 +186,19 @@ Account deletion: My Page ("マイページ") > the last row of the settings lis
 ```
 
 他の段落（IN-APP PURCHASE / EXTERNAL SERVICES / PERMISSIONS など）は変更なし。
+
+### 添付ファイル欄（動画は1つだけ）
+
+8/15の9分の録画が残っているが、**却下された仕様（購入前のメール登録が必須・ATTが一瞬）が
+映っている**ので、8/17の録画に差し替える。旧録画は8/15の返信スレッドに残るので失われない。
+
+メモの末尾にこの段落を足しておく。
+
+```
+RECORDING
+The attached recording (August 17, physical iPad Air 13-inch (M2), iPadOS 26.6, nothing trimmed)
+shows, from a fresh install: the App Tracking Transparency prompt at 0:06, the notification prompt
+at 0:12, a subscription purchase with no registration of any kind beforehand at 0:47-1:05, the
+optional email registration at 1:11-2:05, and account deletion at 2:14-2:30. A longer recording
+that also covers posting, reporting, and blocking is attached to our reply of August 15.
+```
