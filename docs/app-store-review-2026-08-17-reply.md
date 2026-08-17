@@ -73,12 +73,11 @@ optional email registration is offered on the screen shown right after a purchas
 
 2. GUIDELINE 2.1 - APP TRACKING TRANSPARENCY
 
-The app does request tracking authorization at launch, and the prompt is visible in the recording
-we sent on August 15 (physical iPhone SE 3rd generation, iOS 26.6) from 0:03 to 0:04, where it is
-covered by the notification permission alert, and again from 0:08 to 0:11. We are sorry that it
-was hard to find.
+The app does request tracking authorization at launch, and a new screen recording that shows it is
+attached to this message. We attached a recording to our reply of August 15 as well; if it did not
+reach you, please use the one attached here.
 
-We found two weaknesses in that implementation and rewrote it for build 4.
+We found two weaknesses in the previous implementation and rewrote it for build 4.
 
 - The request was issued from the web layer through the AdMob plugin. Capacitor runs plugin calls
   on a background thread, and ATTrackingManager.requestTrackingAuthorization does not reliably
@@ -200,6 +199,9 @@ RECORDING
 The attached recording (August 17, physical iPad Air 13-inch (M2), iPadOS 26.6, nothing trimmed)
 shows, from a fresh install: the App Tracking Transparency prompt at 0:06, the notification prompt
 at 0:12, a subscription purchase with no registration of any kind beforehand at 0:47-1:05, the
-optional email registration at 1:11-2:05, and account deletion at 2:14-2:30. A longer recording
-that also covers posting, reporting, and blocking is attached to our reply of August 15.
+optional email registration at 1:11-2:05, and account deletion at 2:14-2:30.
 ```
+
+8/15の録画は**添付が届いていない可能性がある**（本人が画面で確認できなかった）。
+メモからも「8/15の録画を見てくれ」という参照は外してある。古い録画は送り直さない
+（却下された仕様＝購入前のメール登録が必須の画面が映っているため）。
