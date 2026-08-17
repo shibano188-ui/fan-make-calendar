@@ -13,10 +13,12 @@
 ### 直したこと（ビルド3）
 
 - `src/pages/Premium.tsx` — 購入ボタンは**常に購入を開始する**。匿名のままでも買える。
-  メール登録は購入ボタンの下の小さなリンク（任意）に降格。
-- `src/pages/PremiumWelcome.tsx` — 購入後の設定画面に「メールアドレスを登録する（任意）」を追加。
-  登録済みならメールアドレスを出すだけにする。
-- マイページの「アカウント（データ引き継ぎ）> メールで登録」は従来どおり。いつでも登録できる。
+  **この画面には登録の入口を一切置かない**（ボタンを1つにして「先に登録するのか」と
+  読まれる余地を消す）。
+- `src/pages/PremiumWelcome.tsx` — 購入後の設定画面の**一番上**に
+  「メールアドレスを登録する（任意）」を置く。登録済みならメールアドレスを出すだけ。
+- 加入済みの `/premium` からは「引き継ぎ・通知・カレンダーの設定」で何度でも開ける。
+- マイページの「アカウント（データ引き継ぎ）> メールで登録」も従来どおり。いつでも登録できる。
 
 匿名のまま買っても、Supabaseの匿名ユーザーにメールを紐づけると **user_id は変わらない**ので、
 あとから登録しても購読はそのまま繋がる。登録しない人は「購入を復元」で戻せる。
@@ -56,10 +58,10 @@ starts the App Store purchase for every user, including a user who has never reg
 account, email address, or other personal information is requested before or during the purchase.
 
 Registering an email address is optional and is offered only as a way to use the subscription on
-another device. It appears as a small link under the purchase button
-("メールアドレスを登録する（任意・別の端末でも使えます）"), once more on the screen shown after the
-purchase completes, and it is always available from "マイページ" > "アカウント（データ引き継ぎ）" >
-"メールで登録".
+another device. The subscription screen has no registration entry at all. The screen shown right
+after a purchase offers it as one optional item ("メールアドレスを登録する（任意）"), and it can be
+opened at any time from "マイページ" > "アカウント（データ引き継ぎ）" > "メールで登録", or from
+"マイページ" > "FanHive プレミアム" > "引き継ぎ・通知・カレンダーの設定".
 
 "購入を復元" (Restore Purchases) is on the subscription screen as well, so a subscription can be
 recovered on a new device or after reinstalling without registering at all.
