@@ -9,6 +9,8 @@ import {
   deviceCalendarSupported, enableDeviceCalendar, getTargetCalendarId, listDeviceCalendars,
 } from '../lib/deviceCalendar';
 import DeviceCalendarSheet from '../components/DeviceCalendarSheet';
+import AccountSheet from '../components/AccountSheet';
+import { accountEmail, accountState } from '../lib/account';
 import { useToast } from '../components/ui/Toast';
 import { haptic } from '../lib/haptics';
 
@@ -33,6 +35,11 @@ export default function PremiumWelcome() {
   const [perm, setPerm] = useState<'granted' | 'denied' | 'prompt' | 'unsupported' | null>(null);
   const [calName, setCalName] = useState<string | null>(null);
   const [calSheet, setCalSheet] = useState(false);
+  const [linkOpen, setLinkOpen] = useState(false);
+
+  // 引き継ぎのメール登録は**購入の前ではなくここで**案内する。
+  // 購入の条件にすると iOS 5.1.1(v) で落ちる（2026-08-17 却下）。
+  const linked = accountState(user) === 'email';
 
   const refreshPerm = useCallback(() => { notificationPermission().then(setPerm).catch(() => {}); }, []);
 
@@ -140,6 +147,21 @@ export default function PremiumWelcome() {
                 ) : calName ? done(calName)
                   : <button onClick={askCalendar} className={actionBtn} style={accent}>書き込み先を選ぶ</button>}
               </div>
+
+              {/* 引き継ぎ（任意）。登録しなくても「購入を復元」で戻せるが、
+                  登録しておくと復元を挟まずに別の端末でもそのまま使える */}
+              <div className="rounded-[12px] p-3.5 mt-3" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                <p className="text-[14px] font-semibold">メールアドレスを登録する（任意）</p>
+                {linked ? done(accountEmail(user) ?? '登録済み') : (
+                  <>
+                    <p className="text-[12px] text-label-secondary mt-2.5">
+                      機種変更やアプリを入れ直したあとも、そのまま使えます。
+                    </p>
+                    <button onClick={() => { haptic.select(); setLinkOpen(true); }}
+                      className={actionBtn} style={accent}>登録する</button>
+                  </>
+                )}
+              </div>
             </div>
 
             <button onClick={() => { haptic.select(); navigate('/', { replace: true }); }}
@@ -149,6 +171,14 @@ export default function PremiumWelcome() {
           </>
         )}
       </div>
+
+      {linkOpen && (
+        <AccountSheet
+          mode="link"
+          onClose={() => setLinkOpen(false)}
+          onDone={() => { setLinkOpen(false); toast('登録しました'); }}
+        />
+      )}
 
       {calSheet && (
         <DeviceCalendarSheet

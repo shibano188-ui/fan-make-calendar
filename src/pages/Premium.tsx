@@ -23,6 +23,7 @@ import { haptic } from '../lib/haptics';
 //  - 金額と請求期間を購入ボタンの**すぐ隣**に、目立つ形で置く
 //  - 利用規約とプライバシーポリシーへの機能するリンクを同じ画面に置く。別画面送りは不可
 //  - そのリンクはボタンではなくリンクの見た目にする
+//  - **購入に会員登録を要求しない**（5.1.1(v)）。メール登録は任意の引き継ぎ手段として案内する
 //
 // 塗り面はほとんど使わない。区切りは罫線と余白で作り、色はCTAと見出しのアクセントだけに使う。
 
@@ -39,9 +40,10 @@ export default function Premium() {
   const [busy, setBusy] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
 
-  // 匿名のまま課金させない。課金SDKに渡すIDは Supabase の user_id なので、
-  // 匿名のまま買うとアプリを入れ直した時点で別IDになり、サーバー上は無料に戻る。
-  // Play側の購読は生きているのに噛み合わず、「課金したのに消えた」になる。
+  // メール登録は**任意**。購入の前提にしてはいけない（2026-08-17 に iOS 5.1.1(v) で却下された。
+  // 端末で完結する機能の購入に会員登録を要求できない）。
+  // 登録が無くても、入れ直したときは「購入を復元」でストアのアカウントから戻せる。
+  // 登録しておくと user_id が保たれるので、復元を挟まずに別端末でもそのまま使える。
   const linked = accountState(user) === 'email';
 
   useEffect(() => {
@@ -233,16 +235,10 @@ export default function Premium() {
         {/* 購入。金額・期間と規約はボタンのすぐ下に置く（別画面に逃がすと審査で落ちる） */}
         {!premium && (
           <div className="px-5 pt-2" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
-            {!linked && (
-              <p className="text-[12px] mb-2 leading-relaxed" style={{ color: 'var(--accent-text)' }}>
-                お支払いの前に、メールアドレスの登録をお願いします。登録しておかないと、
-                機種変更やアプリの入れ直しでプレミアムを引き継げません。
-              </p>
-            )}
-            <button onClick={linked ? onBuy : () => { haptic.select(); setLinkOpen(true); }} disabled={busy}
+            <button onClick={onBuy} disabled={busy}
               className="pressable w-full py-3.5 rounded-full text-[15px] font-bold disabled:opacity-50"
               style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
-              {!linked ? 'メールアドレスを登録する' : trial ? '初月無料で始める' : 'プレミアムを始める'}
+              {trial ? '初月無料で始める' : 'プレミアムを始める'}
             </button>
             <p className="text-[11px] text-label-secondary mt-2 text-center leading-relaxed">
               {billingLine}いつでも解約できます。
@@ -250,6 +246,13 @@ export default function Premium() {
                 ? ' ただいまお支払いの準備中です。'
                 : ' 購入はアプリ版からお願いします。')}
             </p>
+            {!linked && (
+              <button onClick={() => { haptic.select(); setLinkOpen(true); }}
+                className="pressable w-full text-[11px] text-center underline mt-2"
+                style={{ color: 'var(--accent-text)' }}>
+                メールアドレスを登録する（任意・別の端末でも使えます）
+              </button>
+            )}
             <div className="flex items-center justify-center gap-3 mt-2 text-[11px]">
               <a href="/terms.html" className="underline" style={{ color: 'var(--accent-text)' }}>利用規約</a>
               <a href="/privacy.html" className="underline" style={{ color: 'var(--accent-text)' }}>プライバシーポリシー</a>
@@ -263,7 +266,7 @@ export default function Premium() {
         <AccountSheet
           mode="link"
           onClose={() => setLinkOpen(false)}
-          onDone={() => { setLinkOpen(false); toast('登録しました。続けてお支払いに進めます'); }}
+          onDone={() => { setLinkOpen(false); toast('登録しました'); }}
         />
       )}
     </div>

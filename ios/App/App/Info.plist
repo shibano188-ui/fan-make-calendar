@@ -22,6 +22,10 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<!-- 通信はHTTPSだけ＝輸出規制の免除対象。入れておくとアップロードのたびに
+	     暗号化の確認ダイアログが出なくなる（提出時の申告「標準的な暗号化のみ」と同じ内容）。 -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

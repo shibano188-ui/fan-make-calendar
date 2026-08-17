@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { AdMob, BannerAdSize, BannerAdPosition, BannerAdPluginEvents } from '@capacitor-community/admob';
+import { waitForTrackingDecision } from './att';
 
 // バナーの広告ユニットはプラットフォームごとに別物。AdMobでは iOS と Android が
 // **別々のアプリとして登録**されるので、Androidのユニットを iOS で使っても広告は返らない。
@@ -11,14 +12,11 @@ const BANNER_AD_ID = Capacitor.getPlatform() === 'ios' ? BANNER_AD_ID_IOS : BANN
 
 export async function initAdMob() {
   if (!Capacitor.isNativePlatform()) return;
-  // iOS: 広告を出す前にトラッキングの許可を聞く（ATT）。聞かずに広告を出すと審査で落ちる。
-  // 断られてもパーソナライズされないだけで広告自体は出るので、結果は見ない。
-  if (Capacitor.getPlatform() === 'ios') {
-    try {
-      const { status } = await AdMob.trackingAuthorizationStatus();
-      if (status === 'notDetermined') await AdMob.requestTrackingAuthorization();
-    } catch { /* ATTが使えない環境でも広告は出す */ }
-  }
+  // iOS: トラッキング許可(ATT)の回答が出てから広告SDKを起動する。
+  // **要求はネイティブ(AppDelegate.swift)が起動直後に出す**。ここから要求してはいけない
+  // （プラグインの呼び出しはバックグラウンドスレッドで走り、ダイアログが出ないことがある）。
+  // 断られてもパーソナライズされないだけで広告自体は出るので、結果は見ない。→ [[att.ts]]
+  await waitForTrackingDecision();
   await AdMob.initialize();
 }
 

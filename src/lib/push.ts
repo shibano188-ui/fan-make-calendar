@@ -11,6 +11,7 @@
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { supabase } from './supabase';
+import { waitForTrackingDecision } from './att';
 
 // iOS だけ別のプラグインを使う理由:
 // @capacitor/push-notifications の iOS 実装が返すのは **APNsのデバイストークン**で、
@@ -64,6 +65,10 @@ export async function registerPush(userId: string): Promise<void> {
 
   if (isIOS()) {
     try {
+      // ATTの回答が出るまで通知の許可を聞かない。
+      // システムのダイアログを重ねると片方が表示されないまま消えることがあり、
+      // 実際にATTのダイアログが通知のダイアログに覆われていた（2026-08-17 Guideline 2.1）。
+      await waitForTrackingDecision();
       const { FirebaseMessaging } = await import('@capacitor-firebase/messaging');
       const cur = await FirebaseMessaging.checkPermissions();
       const state = cur.receive === 'prompt' || cur.receive === 'prompt-with-rationale'
