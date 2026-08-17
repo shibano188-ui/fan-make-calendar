@@ -66,6 +66,10 @@ opened at any time from "マイページ" > "アカウント（データ引き�
 "購入を復元" (Restore Purchases) is on the subscription screen as well, so a subscription can be
 recovered on a new device or after reinstalling without registering at all.
 
+Two related screens changed in build 3 as well: account deletion has been moved out of
+"カスタマイズ" > "⋮" and is now the last row of the settings list on My Page ("マイページ"), and the
+optional email registration is offered on the screen shown right after a purchase.
+
 2. GUIDELINE 2.1 - APP TRACKING TRANSPARENCY
 
 The app does request tracking authorization at launch, and the prompt is visible in the recording
@@ -157,10 +161,18 @@ ffmpeg -i 提出用.mp4 -vf "fps=2,scale=150:-1,tile=6x5" -frames:v 1 sheet.png 
 
 ### メモ欄の直すところ
 
-- アカウント削除の場所が変わっている（ビルド3から）。
-  `My Page ("マイページ") > "カスタマイズ" > "⋮" > "アカウントを削除する"` →
-  **`My Page ("マイページ") > the bottom of the settings list > "アカウントを削除する"`**
-- 課金の説明にある「購入前にメールアドレスを聞く」の記述を削る。
-  `The app asks for an email address only before a subscription purchase, so that ...` →
-  **`No registration is required to purchase. An email address can be registered at any time,
-  optionally, so that a subscription can be used on another device.`**
+`docs/app-store-review-2.1-reply.md` の 2.（メモ欄用）にある **ACCOUNT の段落を丸ごと**
+これに差し替える。アカウント削除の場所と、購入前にメールを聞く記述の両方が変わっている。
+
+```
+ACCOUNT
+No sign-in is required. Every feature is available right after launch, and no registration is
+required to purchase a subscription. Registering an email address is optional: it lets the same
+account be used on another device. There is no password. Enter any email address you can receive
+mail at; a 6-digit code is sent to it immediately and is entered in the app. It can be registered
+at any time from My Page ("マイページ") > "アカウント（データ引き継ぎ）" > "メールで登録", and it is
+also offered on the screen shown right after a purchase.
+Account deletion: My Page ("マイページ") > the last row of the settings list > "アカウントを削除する".
+```
+
+他の段落（IN-APP PURCHASE / EXTERNAL SERVICES / PERMISSIONS など）は変更なし。
