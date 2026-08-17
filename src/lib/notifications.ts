@@ -6,6 +6,7 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import type { CalendarEvent } from '../types';
 import { deriveItemType } from '../design/tokens';
 import { loadNotifyEventIds, loadNotifyLeadDays } from './constants';
+import { waitForTrackingDecision } from './att';
 
 // ローカル通知が使えるか（ネイティブ かつ プラグイン同梱の新APK）。
 // 旧APK/PWAでは false になり、機能ごと無効化される。
@@ -83,6 +84,11 @@ export async function ensurePermission(): Promise<boolean> {
   const cur = await LocalNotifications.checkPermissions();
   if (cur.display === 'granted') return true;
   if (cur.display === 'denied') return false;
+  // iOS: ATTの回答が出るまで通知を聞かない。**起動直後の rescheduleAll がここを通る**ので、
+  // 塞がないと出したばかりのATTのダイアログが通知のダイアログに覆われて押せなくなる
+  // （2026-08-17 実機で確認。Guideline 2.1 の「ATTが見つからない」の実態がこれ）。
+  // ベルや設定から呼ばれるときは、ATTは既に答え済みなので即座に返る。
+  await waitForTrackingDecision();
   const req = await LocalNotifications.requestPermissions();
   return req.display === 'granted';
 }
