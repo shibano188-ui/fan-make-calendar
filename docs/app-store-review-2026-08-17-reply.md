@@ -181,7 +181,8 @@ required to purchase a subscription. Registering an email address is optional: i
 account be used on another device. There is no password. Enter any email address you can receive
 mail at; a 6-digit code is sent to it immediately and is entered in the app. It can be registered
 at any time from My Page ("マイページ") > "アカウント（データ引き継ぎ）" > "メールで登録", and it is
-also offered on the screen shown right after a purchase.
+also offered on the screen shown right after a purchase. After subscribing, that same screen can
+be reopened from My Page ("マイページ") > "FanHive プレミアム" > "引き継ぎ・通知・カレンダーの設定".
 Account deletion: My Page ("マイページ") > the last row of the settings list > "アカウントを削除する".
 ```
 
