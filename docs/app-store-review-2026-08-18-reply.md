@@ -159,12 +159,33 @@ A screen recording captured on that iPad is attached to this message.
 
 **「提出をキャンセル」は押さない**（サブスク2つとグループも提出し直しになる）。
 
-### メモ欄に足すなら（任意）
+### メモ欄（App Review 情報のNotes）
+
+**動画は差し替えない。** Notes に添付してある 8/17 の録画は、ATT のダイアログ・登録なしの購入・
+アカウント削除を映していて、5.1.1(v) と 2.1(ATT) の証拠になっている。今回の録画は外部リンクしか
+映っていないので、差し替えると前の2件の証拠が消える。**今回の録画は「App Reviewに返信」の
+メッセージに添付する**（添付は返信ごとに付けられる）。
+
+文章の変更は **EXTERNAL LINKS の段落だけ**。既存の段落（`docs/app-store-review-2.1-reply.md` の
+2. にある2行）を丸ごとこれに差し替える。挙動が変わった＝内容が古くなっているため。
 
 ```
 EXTERNAL LINKS
-Events can link to the organizer's official website or to a shop. Those links open inside the app
-in a Safari view (SFSafariViewController), not in an external browser, and the button at the
-top left (the X button) returns to the event screen. FanHive does not require any of those links to
-be opened in order to use the app.
+Events can link to the organizer's official website ("公式サイトを開く") and to shop pages for
+physical merchandise on Rakuten Ichiba and Yahoo! Shopping ("購入する", and the links listed under
+"購入リンク"). From build 5 these open inside the app in a Safari view (SFSafariViewController),
+not in an external browser; the X button at the top left returns to the event screen. No digital
+content is sold outside of In-App Purchase, and the app never requires any of these links to be
+opened in order to be used.
 ```
+
+RECORDING の段落（8/17に足したもの）はそのまま。2本の録画が別物だと分かるように、末尾に
+この1文だけ足しておくと親切。
+
+```
+A second, shorter recording, showing the external links opening on the same iPad in build 5, is
+attached to our reply about build 5.
+```
+
+他の段落（ACCOUNT / IN-APP PURCHASE / USER-GENERATED CONTENT / EXTERNAL SERVICES / REGIONS）は
+変更なし。ACCOUNT は 8/17 に差し替えた版のままでよい。
