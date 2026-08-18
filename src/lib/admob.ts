@@ -37,7 +37,6 @@ export function initAdMob(): Promise<void> {
 let queue: Promise<void> = Promise.resolve();
 let wantVisible = false;
 let wantMargin = 0;
-let applied: { visible: boolean; margin: number } | null = null;
 
 function enqueue(): Promise<void> {
   queue = queue.then(async () => {
@@ -45,7 +44,6 @@ function enqueue(): Promise<void> {
     // 実行時点の最新の意思を読む（途中で hide が来ていたら show はもう実行しない）
     const visible = wantVisible;
     const margin = wantMargin;
-    if (applied && applied.visible === visible && applied.margin === margin) return;
     try {
       if (visible) {
         await AdMob.showBanner({
@@ -58,13 +56,16 @@ function enqueue(): Promise<void> {
       } else {
         await AdMob.hideBanner();
       }
-      applied = { visible, margin };
-    } catch {
-      applied = null;   // 失敗したら次回は必ず適用し直す
-    }
+    } catch { /* 出せなくても致命ではない。次の遷移でまた要求する */ }
   });
   return queue;
 }
+
+// ⚠️ 「直前と同じ状態なら呼ばない」最適化を入れてはいけない。
+// AdMob.showBanner は**広告リクエストを投げた時点で resolve する**（実際に広告が返る前）。
+// 「表示済み」と覚えてしまうと、広告が返らなかった回のあと同じ margin での再要求が
+// 全てスキップされ、その画面だけ二度とバナーが出なくなる。
+// （探す=margin 0 で詰まり、ホーム=margin 96 を挟むと復活する、という形で踏んだ）
 
 export function showBanner(margin = 0): Promise<void> {
   if (!Capacitor.isNativePlatform()) return Promise.resolve();
