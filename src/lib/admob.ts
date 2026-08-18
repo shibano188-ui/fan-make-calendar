@@ -27,18 +27,37 @@ export function initAdMob(): Promise<void> {
   return ready;
 }
 
-// バナーの出し入れは**必ずこのキューを通す**。
+// バナーの出し入れは**必ずここを通す**。やることは2つ。
 //
-// バナーはWebViewの外側のネイティブビューなので、消し損ねると次の画面のボタンの上に
-// 居座ってタップを食う（＝「ボタンが反応しない」の典型）。呼び出し元は
-// AdBannerController・Calendar のタイマー・Discover の rAF と複数あり、
-// さらに show は ATT の回答待ち→initialize を挟むので**後から出した hide を show が追い越す**。
-// そこで「直列化」＋「最後の意思が勝つ」にして、追い越しを構造的に潰す。
+// (1) 直列化して「最後の意思が勝つ」ようにする
+//     バナーはWebViewの外側のネイティブビューなので、消し損ねると次の画面のボタンの上に
+//     居座ってタップを食う（＝「ボタンが反応しない」の典型）。呼び出し元は
+//     AdBannerController・Calendar のタイマー・Discover の rAF と複数あり、
+//     さらに show は ATT の回答待ち→initialize を挟むので**後から出した hide を show が追い越す**。
+//
+// (2) show をまとめる（**これをやらないとバナーが二度と出なくなる**）
+//     プラグインの iOS 実装 (BannerExecutor.swift) に地雷がある:
+//       func bannerView(_ b: BannerView, didFailToReceiveAdWithError e: Error) {
+//           self.removeBannerViewToView()      // → 中で self.bannerView.delegate = nil
+//       }
+//     `self.bannerView` は**最後に作ったバナー**を指すので、短時間に showBanner を2回呼ぶと、
+//     1回目の広告取得が失敗した瞬間に**2回目のバナーの delegate が切られる**。
+//     delegate が無いと広告が返っても bannerViewDidReceiveAd が呼ばれず、addSubview されない
+//     ＝「一瞬スペースが出て消え、その画面では二度と出ない」。
+//     実際、探すへ戻るときだけ AdBannerController と Discover の両方が show を呼んで2回になり、
+//     ホーム経由（AdBannerController は show=true のままで発火しない）だと1回で済むため復活していた。
+//
+// ⚠️ 代わりに「直前と同じ状態なら呼ばない」重複スキップを入れてはいけない。
+//    AdMob.showBanner は**広告リクエストを投げた時点で resolve する**（表示は広告が返ってから）。
+//    「表示済み」と覚えると、広告が返らなかった回のあと同じ margin での再要求が全部飛ぶ。
+const SHOW_COALESCE_MS = 250;
+
 let queue: Promise<void> = Promise.resolve();
 let wantVisible = false;
 let wantMargin = 0;
+let coalesce: ReturnType<typeof setTimeout> | null = null;
 
-function enqueue(): Promise<void> {
+function apply(): void {
   queue = queue.then(async () => {
     await initAdMob().catch(() => {});
     // 実行時点の最新の意思を読む（途中で hide が来ていたら show はもう実行しない）
@@ -58,26 +77,23 @@ function enqueue(): Promise<void> {
       }
     } catch { /* 出せなくても致命ではない。次の遷移でまた要求する */ }
   });
-  return queue;
 }
 
-// ⚠️ 「直前と同じ状態なら呼ばない」最適化を入れてはいけない。
-// AdMob.showBanner は**広告リクエストを投げた時点で resolve する**（実際に広告が返る前）。
-// 「表示済み」と覚えてしまうと、広告が返らなかった回のあと同じ margin での再要求が
-// 全てスキップされ、その画面だけ二度とバナーが出なくなる。
-// （探す=margin 0 で詰まり、ホーム=margin 96 を挟むと復活する、という形で踏んだ）
-
-export function showBanner(margin = 0): Promise<void> {
-  if (!Capacitor.isNativePlatform()) return Promise.resolve();
+/** バナーを出す。近接した複数回の呼び出しは1回にまとめる（上の (2)）。 */
+export function showBanner(margin = 0): void {
+  if (!Capacitor.isNativePlatform()) return;
   wantVisible = true;
   wantMargin = margin;
-  return enqueue();
+  if (coalesce) clearTimeout(coalesce);
+  coalesce = setTimeout(() => { coalesce = null; apply(); }, SHOW_COALESCE_MS);
 }
 
-export function hideBanner(): Promise<void> {
-  if (!Capacitor.isNativePlatform()) return Promise.resolve();
+/** バナーを隠す。**待たせない**（居座るとボタンのタップを食うため）。 */
+export function hideBanner(): void {
+  if (!Capacitor.isNativePlatform()) return;
   wantVisible = false;
-  return enqueue();
+  if (coalesce) { clearTimeout(coalesce); coalesce = null; }
+  apply();
 }
 
 /** アダプティブバナーの実測高さ(px)を購読する。Web版では何もしない。 */
