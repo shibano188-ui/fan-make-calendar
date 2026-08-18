@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { resolveBuy } from './affiliate';
+import { openExternal } from './openExternal';
 import type { CalendarEvent } from '../types';
 
 // データ資産化の蛇口（Projects/fanhive-data-asset-plan.md の①④）。
@@ -60,16 +61,20 @@ export function logSearch(
 export function openBuyLink(e: CalendarEvent, from: 'home' | 'explore' | 'saved' | 'item', userId?: string | null): void {
   const { url, retailer, mode } = resolveBuy(e);
   if (!url) return;
-  let domain: string | null = null;
-  try { domain = new URL(url).hostname; } catch { /* 不正URLでもログは諦めるだけ */ }
-  void supabase.from('buy_click_logs').insert({
-    user_id: userId ?? null,
-    event_id: e.id,
-    url,
-    domain,
-    retailer: retailer || null,
-    has_affiliate: mode === 'cart',
-    source: from,
-  }).then(() => {}, () => {});
-  window.open(url, '_blank', 'noopener');
+  // ログは完全なおまけ。ここで例外が出てもリンクが開かないことが無いよう try で囲う
+  // （2026-08 の審査却下は「リンクが開かない」だったので、開く動作は何があっても守る）。
+  try {
+    let domain: string | null = null;
+    try { domain = new URL(url).hostname; } catch { /* 不正URLでもログは諦めるだけ */ }
+    void supabase.from('buy_click_logs').insert({
+      user_id: userId ?? null,
+      event_id: e.id,
+      url,
+      domain,
+      retailer: retailer || null,
+      has_affiliate: mode === 'cart',
+      source: from,
+    }).then(() => {}, () => {});
+  } catch { /* noop */ }
+  void openExternal(url);
 }

@@ -9,6 +9,7 @@ import PhoneFrame from './components/PhoneFrame';
 import Onboarding from './components/Onboarding';
 import { Capacitor } from '@capacitor/core';
 import { initAdMob, showBanner, hideBanner } from './lib/admob';
+import { installExternalLinkHandler } from './lib/openExternal';
 import { useFeature } from './lib/premium';
 import { useAdsSuppressed } from './lib/adSuppress';
 import { SHOW_ONBOARDING } from './lib/constants';
@@ -119,6 +120,13 @@ function AdMobController() {
   return null;
 }
 
+// 外部リンク（target="_blank"）をネイティブのブラウザで開く。
+// Capacitor 標準の横取りは iPad の互換モードで無反応になるため（openExternal.ts のコメント参照）。
+function ExternalLinkHandler() {
+  useEffect(() => installExternalLinkHandler(), []);
+  return null;
+}
+
 // バナー広告を出す画面はホームと探すの2つだけ。
 //
 // ⚠️ 表示の可否は**ここ1か所**で決める。以前は各ページの useAdBanner が出し入れしていたが、
@@ -171,6 +179,7 @@ export default function App() {
         <ActionSheetProvider>
         <ToastProvider>
           <NativeShareHandler />
+          <ExternalLinkHandler />
           <AdMobController />
           <AdBannerController />
           <BackButtonHandler />

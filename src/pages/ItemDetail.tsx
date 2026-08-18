@@ -10,6 +10,7 @@ import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventI
 import { deriveStatus, deriveItemType, itemDateLines } from '../design/tokens';
 import { resolveBuy, getOffers, buildOffer, offerUrl, primaryOffer, isSearchPageUrl } from '../lib/affiliate';
 import { openBuyLink } from '../lib/dataLogs';
+import { openExternal } from '../lib/openExternal';
 import { REACTIONS } from '../lib/reactions';
 import { useAuth } from '../contexts/AuthContext';
 import { useHiddenContent } from '../hooks/useHiddenContent';
@@ -225,7 +226,7 @@ export default function ItemDetail() {
     haptic.select();
     const text = encodeURIComponent(event.title);
     const url = event.sourceUrl || event.link || '';
-    window.open(`https://twitter.com/intent/tweet?text=${text}${url ? `&url=${encodeURIComponent(url)}` : ''}`, '_blank', 'noopener');
+    void openExternal(`https://twitter.com/intent/tweet?text=${text}${url ? `&url=${encodeURIComponent(url)}` : ''}`);
   };
   const myReactionImg = REACTIONS.find((r) => r.type === myReaction)?.image;
 

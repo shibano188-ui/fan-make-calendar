@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { CalendarDays, Heart, Bell, Sparkles } from 'lucide-react';
 import { setAdsSuppressed } from '../lib/adSuppress';
+import { openExternal } from '../lib/openExternal';
 import { ONBOARDING_KEY, ONBOARDING_DEMO_KEY, FEATURE_PREMIUM } from '../lib/constants';
 import AiDemo from './AiDemo';
 
@@ -85,7 +86,7 @@ export default function Onboarding() {
 
   // 自分の推しの告知でやってみてもらう。Xを開いて、あとは本物の共有シートから戻ってくる
   const openX = () => {
-    window.open('https://x.com/', '_blank', 'noopener');
+    void openExternal('https://x.com/');
     finish();
   };
 
