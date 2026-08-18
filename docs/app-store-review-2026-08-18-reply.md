@@ -119,12 +119,47 @@ attempt, both from "公式サイトを開く" and from the shop links listed und
 Thank you for your time.
 ```
 
-### 録画を添付する場合に足す一文
-
-上の `Thank you for your time.` の直前に入れる。
+### 短縮版（返信欄が入りきらないとき・こちらでも要求は満たす）
 
 ```
+Thank you for the review. The bug is fixed in build 5, attached to this submission.
+
+GUIDELINE 2.1(a) - "公式サイトを開く" WAS UNRESPONSIVE
+
+Cause. "公式サイトを開く" ("Open the official site") opened the event's website as an external link
+from the app's web layer. The framework the app is built on (Capacitor) intercepts such links
+natively and calls UIApplication.shared.open(url) only while the scene's activationState is
+.foregroundActive; otherwise it cancels the navigation and opens nothing, with no error. FanHive is
+an iPhone app that also runs on iPad in compatibility mode, where its window is not always the
+active scene. That is why the buttons were unresponsive on your iPad while they worked on our
+iPhone devices.
+
+Fix. Build 5 no longer uses that path. Every external link - "公式サイトを開く", "購入する", the shop
+links under "購入リンク", profile links and share links - is opened natively with
+SFSafariViewController through the Capacitor Browser plugin. It does not depend on the activation
+state of the scene and presents the site inside the app, so the button always gives an immediate,
+visible response and the user stays in FanHive. The X button at the top left returns to the
+previous screen.
+
+We also removed a second possible cause of unresponsive controls: the AdMob banner is a native view
+placed over the web view, and a race between the calls that show and hide it could leave it
+covering a screen where it should not appear. Those calls are now serialized.
+
+How to verify:
+
+1. Open any event from the "ホーム" (Home) tab or the "探す" (Explore) tab.
+2. Tap the yellow button at the bottom: "公式サイトを開く", or "購入する" when the event has a shop
+   link.
+3. The website opens inside the app in a Safari view. The X button at the top left returns to the
+   event screen.
+
+Build 5 was verified on a physical iPad Air 13-inch (M2) running iPadOS 26.6, where the app runs in
+compatibility mode, after deleting the previously installed version and installing build 5 as a
+fresh install, and on an iPad Air 11-inch simulator. Every link opened on every attempt.
+
 A screen recording captured on that iPad is attached to this message.
+
+Thank you for your time.
 ```
 
 ### 返信文で意図的にやっていること
@@ -177,14 +212,6 @@ physical merchandise on Rakuten Ichiba and Yahoo! Shopping ("購入する", and 
 not in an external browser; the X button at the top left returns to the event screen. No digital
 content is sold outside of In-App Purchase, and the app never requires any of these links to be
 opened in order to be used.
-```
-
-RECORDING の段落（8/17に足したもの）はそのまま。2本の録画が別物だと分かるように、末尾に
-この1文だけ足しておくと親切。
-
-```
-A second, shorter recording, showing the external links opening on the same iPad in build 5, is
-attached to our reply about build 5.
 ```
 
 他の段落（ACCOUNT / IN-APP PURCHASE / USER-GENERATED CONTENT / EXTERNAL SERVICES / REGIONS）は
