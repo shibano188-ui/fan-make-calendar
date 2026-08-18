@@ -91,11 +91,11 @@ compatibility mode, where its window is not always the active scene. That is why
 unresponsive on your iPad while they worked on our iPhone devices.
 
 Build 5 no longer relies on that path. Every external link in the app - "公式サイトを開く", "購入する"
-(the same button when the event has a shop link), the source badge, profile links and share links -
-is now opened natively with SFSafariViewController through the Capacitor Browser plugin. It does
-not depend on the activation state of the scene, and it presents the website inside the app, so
-tapping the button always gives an immediate, visible response and the user stays in FanHive.
-Tapping "完了" (Done) at the top left returns to the previous screen.
+(the same button when the event has a shop link), the shop links listed under "購入リンク", profile
+links and share links - is now opened natively with SFSafariViewController through the Capacitor
+Browser plugin. It does not depend on the activation state of the scene, and it presents the
+website inside the app, so tapping the button always gives an immediate, visible response and the
+user stays in FanHive. The X button at the top left returns to the previous screen.
 
 We also fixed a second problem that could make buttons unresponsive. The AdMob banner is a native
 view placed over the web view, so it cannot be hidden by the web layer. A race between the calls
@@ -108,15 +108,23 @@ How to verify in build 5:
 1. Open any event from the "ホーム" (Home) tab or the "探す" (Explore) tab.
 2. On the event screen, tap the yellow button at the bottom: "公式サイトを開く", or "購入する" when
    the event has a shop link.
-3. The website opens inside the app in a Safari view. Tap "完了" (Done) at the top left to return
+3. The website opens inside the app in a Safari view. Tap the X button at the top left to return
    to the event screen.
 
 Build 5 was verified on a physical iPad Air 13-inch (M2) running iPadOS 26.6, where the app runs in
 compatibility mode, after deleting the previously installed version and installing build 5 as a
-fresh install, and also on the iPad Air 11-inch simulator, which matches the device used for the
-review. The website opened on every attempt.
+fresh install, and on an iPad Air 11-inch simulator running iPadOS 26. The website opened on every
+attempt, both from "公式サイトを開く" and from the shop links listed under "購入リンク".
 
 Thank you for your time.
+```
+
+### 録画を添付する場合に足す一文
+
+上の `Thank you for your time.` の直前に入れる。
+
+```
+A screen recording captured on that iPad is attached to this message.
 ```
 
 ### 返信文で意図的にやっていること
@@ -134,12 +142,12 @@ Thank you for your time.
    （iPhone専用アプリなのでXcodeからのiPad直接インストールは弾かれることがある）
 2. 入れる前に**前のバージョンを削除**する（Appleの Next Steps がそれを要求している）
 3. ホーム or 探す → 予定を開く → 下の黄色いボタンを押す
-   → **アプリ内にSafariのシートが出る**（左上に「完了」）ことを確認
-4. 「完了」で予定の画面に戻れることを確認
+   → **アプリ内にSafariのシートが出る**（左上に ✕ ボタン）ことを確認
+4. ✕ で予定の画面に戻れることを確認
 5. 予定の画面の**上部にバナーが残っていない**こと、戻る（←）が押せることを確認
 
 余裕があれば 30〜60秒の録画を撮って添付する。2.1(a) は「動いている画像」が一番強い。
-録画するなら、削除→インストール→予定を開く→ボタン→サイトが開く→完了で戻る、を無編集で。
+録画するなら、削除→インストール→予定を開く→ボタン→サイトが開く→✕で戻る、を無編集で。
 
 ## 5. App Store Connect での手順
 
@@ -156,7 +164,7 @@ Thank you for your time.
 ```
 EXTERNAL LINKS
 Events can link to the organizer's official website or to a shop. Those links open inside the app
-in a Safari view (SFSafariViewController), not in an external browser, and "完了" (Done) at the
-top left returns to the event screen. FanHive does not require any of those links to be opened in
-order to use the app.
+in a Safari view (SFSafariViewController), not in an external browser, and the button at the
+top left (the X button) returns to the event screen. FanHive does not require any of those links to
+be opened in order to use the app.
 ```
