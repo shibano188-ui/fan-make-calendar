@@ -10,30 +10,73 @@ const BANNER_AD_ID_ANDROID = 'ca-app-pub-3561970163550872/4318089302';
 const BANNER_AD_ID_IOS = 'ca-app-pub-3561970163550872/7738868684';
 const BANNER_AD_ID = Capacitor.getPlatform() === 'ios' ? BANNER_AD_ID_IOS : BANNER_AD_ID_ANDROID;
 
-export async function initAdMob() {
-  if (!Capacitor.isNativePlatform()) return;
+let ready: Promise<void> | null = null;
+
+export function initAdMob(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return Promise.resolve();
   // iOS: トラッキング許可(ATT)の回答が出てから広告SDKを起動する。
   // **要求はネイティブ(AppDelegate.swift)が起動直後に出す**。ここから要求してはいけない
   // （プラグインの呼び出しはバックグラウンドスレッドで走り、ダイアログが出ないことがある）。
   // 断られてもパーソナライズされないだけで広告自体は出るので、結果は見ない。→ [[att.ts]]
-  await waitForTrackingDecision();
-  await AdMob.initialize();
+  if (!ready) {
+    ready = (async () => {
+      await waitForTrackingDecision();
+      await AdMob.initialize();
+    })();
+  }
+  return ready;
 }
 
-export async function showBanner(margin = 0) {
-  if (!Capacitor.isNativePlatform()) return;
-  await AdMob.showBanner({
-    adId: BANNER_AD_ID,
-    adSize: BannerAdSize.ADAPTIVE_BANNER,
-    position: BannerAdPosition.TOP_CENTER,
-    margin,
-    isTesting: false,
+// バナーの出し入れは**必ずこのキューを通す**。
+//
+// バナーはWebViewの外側のネイティブビューなので、消し損ねると次の画面のボタンの上に
+// 居座ってタップを食う（＝「ボタンが反応しない」の典型）。呼び出し元は
+// AdBannerController・Calendar のタイマー・Discover の rAF と複数あり、
+// さらに show は ATT の回答待ち→initialize を挟むので**後から出した hide を show が追い越す**。
+// そこで「直列化」＋「最後の意思が勝つ」にして、追い越しを構造的に潰す。
+let queue: Promise<void> = Promise.resolve();
+let wantVisible = false;
+let wantMargin = 0;
+let applied: { visible: boolean; margin: number } | null = null;
+
+function enqueue(): Promise<void> {
+  queue = queue.then(async () => {
+    await initAdMob().catch(() => {});
+    // 実行時点の最新の意思を読む（途中で hide が来ていたら show はもう実行しない）
+    const visible = wantVisible;
+    const margin = wantMargin;
+    if (applied && applied.visible === visible && applied.margin === margin) return;
+    try {
+      if (visible) {
+        await AdMob.showBanner({
+          adId: BANNER_AD_ID,
+          adSize: BannerAdSize.ADAPTIVE_BANNER,
+          position: BannerAdPosition.TOP_CENTER,
+          margin,
+          isTesting: false,
+        });
+      } else {
+        await AdMob.hideBanner();
+      }
+      applied = { visible, margin };
+    } catch {
+      applied = null;   // 失敗したら次回は必ず適用し直す
+    }
   });
+  return queue;
 }
 
-export async function hideBanner() {
-  if (!Capacitor.isNativePlatform()) return;
-  await AdMob.hideBanner();
+export function showBanner(margin = 0): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return Promise.resolve();
+  wantVisible = true;
+  wantMargin = margin;
+  return enqueue();
+}
+
+export function hideBanner(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return Promise.resolve();
+  wantVisible = false;
+  return enqueue();
 }
 
 /** アダプティブバナーの実測高さ(px)を購読する。Web版では何もしない。 */
