@@ -153,7 +153,8 @@ How to verify in build 6:
 2. Open the "マイページ" (Profile) tab and tap the palette icon in the header to open カスタマイズ
    (Customize). Under "カレンダー背景画像" tap "画像をアップロード". After the photo library
    permission prompt, the system photo picker opens showing photos only - there is no "Take Photo"
-   option. Pick any photo, then tap "この範囲で設定" to apply it as the calendar background.
+   option. Picking a photo and tapping "この範囲で設定" applies it, and the camera is never
+   offered at any point.
 
 Build 6 was verified on <端末とOSをここに書く> as a fresh install after deleting the previously
 installed version. The app does not crash, and the camera is never opened.
