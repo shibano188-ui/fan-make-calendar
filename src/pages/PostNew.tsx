@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { X, Plus, Check, Sparkles, Camera, Link2, Loader2, Search, Share2 } from 'lucide-react';
+import { X, Plus, Check, Sparkles, Link2, Loader2, Search, Share2 } from 'lucide-react';
 import Chip from '../components/ui/Chip';
 import { searchWorks, getOrCreateWork, createEvents, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, getUserPublicProfile, listAllParticipatedWorks, type Work } from '../lib/api';
 import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES, GOODS_TAG, ONBOARDING_DEMO_KEY, FEATURE_PREMIUM, oneShotTip } from '../lib/constants';
@@ -8,7 +8,7 @@ import { DEMO_POST_TEXT } from '../lib/demoPost';
 import { isPremiumCached, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
 import { trialEligible } from '../lib/billing';
 import { affiliatize, buildOffer, primaryOffer, isAffiliateUrl, offerUrl, isNoiseLink } from '../lib/affiliate';
-import { parseEventsApi, fileToBase64, type ParsedEvent } from '../lib/parseEvents';
+import { parseEventsApi, type ParsedEvent } from '../lib/parseEvents';
 import { logAiExtraction, logSearch } from '../lib/dataLogs';
 import { maybeAddWorkAlias } from '../lib/workAliases';
 import { searchProductCandidates, titleMatchScore, retailerSearchUrls, highConfidenceCandidates, offerFromCandidate, variantMismatch, searchKeyword, type ProductCandidate } from '../lib/searchProduct';
@@ -115,7 +115,6 @@ export default function PostNew() {
   const [candidates, setCandidates] = useState<ProductCandidate[] | null>(null);
   const [searchingProduct, setSearchingProduct] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   // 開いたら最上部から（前ページのスクロール位置を引き継がない）
   useEffect(() => {
@@ -344,11 +343,6 @@ export default function PostNew() {
   };
 
   const onAnalyzeText = () => { if (aiText.trim()) runParse({ url: aiText.trim() }); };
-  const onPickPhoto = async (file: File | undefined) => {
-    if (!file) return;
-    const { data, mime } = await fileToBase64(file);
-    runParse({ imageBase64: data, mimeType: mime });
-  };
 
   // 販売先候補を検索（リンク無し/価格不明の補完）
   const onSearchProduct = async () => {
@@ -556,10 +550,6 @@ export default function PostNew() {
                   </button>
                 </div>
                 {aiLoading && <div className="mt-3 py-1"><LineLoader label="AIが読み取っています…" /></div>}
-                <button onClick={() => fileRef.current?.click()} disabled={aiLoading} className="pressable mt-2 flex items-center gap-1.5 text-[13px]" style={{ color: 'var(--accent-text)' }}>
-                  <Camera size={16} /> 写真から読み取る
-                </button>
-                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => onPickPhoto(e.target.files?.[0] || undefined)} />
                 {aiError && <p className="text-[12px] mt-2" style={{ color: 'var(--color-destructive)' }}>{aiError}</p>}
               </>
             ) : (

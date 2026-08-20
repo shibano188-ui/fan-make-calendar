@@ -59,6 +59,15 @@
 	<string>保存した発売日・イベントの予定を、あなたのカレンダーアプリに書き込むために使います。重複した予定を整理するため、FanHiveが作成した予定の読み取りも行います。</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>保存した発売日・イベントの予定を、あなたのカレンダーアプリに書き込むために使います。重複した予定を整理するため、FanHiveが作成した予定の読み取りも行います。</string>
+	<!-- カレンダーの背景画像を選ぶための写真ライブラリ。
+	     カメラは使わないので NSCameraUsageDescription は入れない（入れる＝カメラを開く経路が
+	     残っているということ）。写真の選択は Camera プラグインの pickImages で
+	     iOS標準の PHPicker を開く。HTMLの <input type="file" accept="image/*"> は iOS では
+	     「Take Photo」を必ず出してしまい、用途説明の無いカメラ起動でアプリが落ちるため使わない。
+	     ピッカーを出す前に PHPhotoLibrary.requestAuthorization が走るので、
+	     この文言はそのまま許可ダイアログに出る。 -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>カレンダーの背景画像に使う写真を選ぶために使います。選んだ写真だけを読み込み、他の写真は読み取りません。</string>
 	<!-- 広告のトラッキング許可(ATT)。AdMob を出す前に必ず要る。
 	     許可しなくても広告は出る（パーソナライズされないだけ）。 -->
 	<key>NSUserTrackingUsageDescription</key>

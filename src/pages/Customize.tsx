@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { WORK_COLORS } from './Calendar';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import { pushAppState } from '../lib/appState';
+import { hasNativePhotoPicker, pickPhoto } from '../lib/pickPhoto';
 
 const SYSTEM_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 
@@ -329,6 +330,7 @@ function BgImageCropModal({
 export default function Customize() {
   const { settings, updateSettings, currentWorkId } = useTheme();
   const { user } = useAuth();
+  const confirmDialog = useConfirm();
   const currentWorkName = localStorage.getItem('last_calendar_work_name') ?? '';
   const rootRef          = useRef<HTMLDivElement>(null);
   const fontInputRef     = useRef<HTMLInputElement>(null);
@@ -440,6 +442,25 @@ export default function Customize() {
     reader.readAsDataURL(file);
     // input をリセットして同じファイルを再選択できるようにする
     e.target.value = '';
+  };
+
+  // 背景画像を選ぶ。ネイティブは写真ライブラリを直接開く（iOSのファイル入力は
+  // 「Take Photo」を必ず出してしまい、カメラを使わないアプリでは落ちる。src/lib/pickPhoto.ts 参照）
+  const openBgPicker = async () => {
+    if (!hasNativePhotoPicker()) { bgInputRef.current?.click(); return; }
+    const res = await pickPhoto();
+    if (res.status === 'denied') {
+      // 黙って戻ると「ボタンが効かない」に見える
+      await confirmDialog({
+        title: '写真へのアクセスが必要です',
+        message: '設定アプリ ＞ FanHive ＞ 写真 で許可すると、背景画像を選べます。',
+        hideCancel: true,
+      });
+      return;
+    }
+    if (res.status !== 'picked') return;
+    setPendingImageUrl(res.dataUrl);
+    setShowCropModal(true);
   };
 
   const handleApplyShared = (td: SharedThemeData) => {
@@ -787,7 +808,9 @@ export default function Customize() {
         {/* 背景画像 */}
         <section>
           <p className="text-label-tertiary text-xs mb-3">カレンダー背景画像</p>
-          <input ref={bgInputRef} type="file" accept="image/*" onChange={handleBgUpload} className="hidden" />
+          {!hasNativePhotoPicker() && (
+            <input ref={bgInputRef} type="file" accept="image/*" onChange={handleBgUpload} className="hidden" />
+          )}
           {settings.backgroundImageUrl ? (
             <div className="flex gap-3 items-start">
               {/* サムネイルプレビュー */}
@@ -809,7 +832,7 @@ export default function Customize() {
                 </div>
               </button>
               <div className="flex-1 flex flex-col gap-2 pt-1">
-                <button onClick={() => bgInputRef.current?.click()}
+                <button onClick={() => void openBgPicker()}
                   className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-subtle text-label-secondary text-sm active:opacity-60">
                   <Upload size={13} />画像を変更
                 </button>
@@ -820,7 +843,7 @@ export default function Customize() {
               </div>
             </div>
           ) : (
-            <button onClick={() => bgInputRef.current?.click()}
+            <button onClick={() => void openBgPicker()}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-subtle text-label-secondary text-sm active:opacity-60">
               <Upload size={14} />画像をアップロード
             </button>

@@ -257,7 +257,13 @@ function loadSettings(workId: string): UserSettings {
 }
 
 function saveSettings(workId: string, s: UserSettings) {
-  localStorage.setItem(storageKey(workId), JSON.stringify(s));
+  try {
+    localStorage.setItem(storageKey(workId), JSON.stringify(s));
+  } catch (e) {
+    // 背景画像は data URL で入るので容量超過があり得る。ここで投げると
+    // setSettings の中なのでアプリごと白画面になる（保存できなくても表示は続ける）
+    console.error('設定を保存できませんでした', e);
+  }
 }
 
 // ウィジェットページなど ThemeProvider 外で使用するユーティリティ
