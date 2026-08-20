@@ -851,6 +851,11 @@ export default function PostNew() {
             style={canSave ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' } : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-tertiary)' }}>
             <Check size={18} /> {saving ? '投稿中…' : '投稿する'}
           </button>
+          {/* UGCの同意点。審査(1.2)で「規約に同意する場所」を見られる */}
+          <p className="text-[11px] text-label-tertiary mt-3 text-center leading-relaxed">
+            投稿すると<a href="/terms.html" className="underline" style={{ color: 'var(--accent-text)' }}>利用規約</a>に同意したものとみなされます。
+            <br />不適切な投稿は削除され、繰り返した場合は利用を停止します。
+          </p>
         </div>
       </div>
 

@@ -2,10 +2,21 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>プライバシーポリシー - FanHive</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 720px; margin: 0 auto; padding: 24px 16px; color: #1a1a1a; line-height: 1.7; }
+    /* アプリ内（WKWebView）から開かれる。ブラウザのバーが無いので、
+       上のノッチ分の余白と「戻る」を自前で用意しないと読めないし戻れない。 */
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 720px; margin: 0 auto; padding: 16px 16px 24px; color: #1a1a1a; line-height: 1.7; padding-top: calc(16px + env(safe-area-inset-top)); }
+    .back { display: inline-block; margin-bottom: 16px; font-size: 0.95rem; color: #0066cc; text-decoration: none; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #000; color: #f2f2f7; }
+      p, li { color: #d1d1d6; }
+      th { color: #f2f2f7; }
+      .updated { color: #8e8e93; }
+      nav { border-top-color: #38383a; }
+      a, nav a, .back { color: #6cb0ff; }
+    }
     h1 { font-size: 1.5rem; margin-bottom: 8px; }
     h2 { font-size: 1.1rem; margin-top: 32px; }
     p, li { font-size: 0.95rem; color: #333; }
@@ -14,6 +25,7 @@
   </style>
 </head>
 <body>
+  <a class="back" href="/" onclick="if (history.length > 1) { history.back(); return false; }">&larr; 戻る</a>
   <h1>プライバシーポリシー</h1>
   <p class="updated">最終更新日：2026年8月14日</p>
 
