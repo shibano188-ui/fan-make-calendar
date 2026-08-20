@@ -159,6 +159,14 @@ How to verify in build 6:
 Build 6 was verified on <端末とOSをここに書く> as a fresh install after deleting the previously
 installed version. The app does not crash, and the camera is never opened.
 
+One more note. Our reply about the previous rejection (2.1(a), "公式サイトを開く" buttons were
+unresponsive) was saved as a draft on our side and was never sent. We are sorry for the silence.
+For the record: that issue was caused by the framework the app is built on (Capacitor) cancelling
+external-link navigations without opening anything while the scene is not .foregroundActive, which
+is what happens to an iPhone app running on iPad in compatibility mode. Since build 5, every
+external link is opened natively with SFSafariViewController through the Capacitor Browser plugin,
+and that fix is unchanged in build 6.
+
 Thank you for your time.
 ```
 
@@ -191,7 +199,16 @@ How to verify:
    with no "Take Photo" option.
 
 Build 6 was verified on <端末とOSをここに書く> as a fresh install after deleting the previous
-version. Thank you for your time.
+version.
+
+Our reply about the previous rejection (2.1(a), unresponsive "公式サイトを開く" buttons) was saved as
+a draft on our side and was never sent - we are sorry. For the record: since build 5, every external
+link is opened natively with SFSafariViewController through the Capacitor Browser plugin, instead of
+the framework path that cancelled the navigation without opening anything when the app's scene was
+not .foregroundActive (which is what happens on iPad in compatibility mode). That fix is unchanged
+in build 6.
+
+Thank you for your time.
 ```
 
 ### 返信文で意図的にやっていること
@@ -207,12 +224,29 @@ version. Thank you for your time.
 1. Xcode で **ビルド6**（`CURRENT_PROJECT_VERSION = 6`）をアーカイブ → アップロード
 2. バージョンページでビルドを **6** に差し替える
 3. 「App Reviewに返信」に 4. の英文を貼る（`<端末とOSをここに書く>` を埋める）
-4. **前回（8/18）の返信がスレッドに残っているか確認する。** 送信できていなかったようなので、
-   メモ欄の EXTERNAL LINKS の差し替え（`docs/app-store-review-2026-08-18-reply.md` の
-   「メモ欄」節）も適用されていない可能性がある。未適用なら今回まとめて入れる
-5. バージョンページ「審査内容を更新」→ 提出詳細の「App Reviewに再提出」
+4. バージョンページ「審査内容を更新」→ 提出詳細の「App Reviewに再提出」
 
 **「提出をキャンセル」は押さない**（サブスク2つとグループも提出し直しになる）。
+
+### 8/18の返信は送信されていなかった（2026-08-20 確認）
+
+スレッドの8/18のメッセージの下に **「下書きを続ける ｜ 下書きを削除」** が出ている。
+これは**未送信の下書き**。審査員は 2.1(a) の説明も、添付した録画
+（`FanHive-AppReview-2026-08-18.mp4`）も受け取っていない。
+
+- **この下書きは「下書きを削除」で消す。** 本文が「The bug is fixed in build 5, which is attached
+  to this submission.」で、そのビルド5が却下された後に送ると噛み合わない。
+  文面は `docs/app-store-review-2026-08-18-reply.md` に残っているので消して困らない
+- 代わりに、4. の返信文の末尾に「前回の返信が下書きのまま送れていなかった」段落を入れてある。
+  外部リンクの修正はビルド5から入っていてビルド6でも変わらない、と1段落で伝わる
+- 録画の添付は不要。今回の却下で 2.1(a) は再指摘されていない（＝審査側では解消扱い）。
+  ビルド5の画面を今出すとかえって話がややこしくなる
+
+### ⚠️ 送信できたことを必ず確認する
+
+App Store Connect の返信欄は、書いただけでは送られず下書きとして残る。
+送信後にスレッドを再読み込みして、**自分の返信の下に「下書きを続ける」が出ていないこと**を見る。
+出ていたら送信されていない。
 
 ### App Privacy（プライバシーラベル）
 
