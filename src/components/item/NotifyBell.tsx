@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Bell, BellRing, BellOff } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bell, BellRing, BellOff, ChevronRight } from 'lucide-react';
 import type { CalendarEvent } from '../../types';
 import { isNotifyOn, setNotifyOn, loadNotifyLeadDays, loadMutedEventIds, toggleMutedEventId } from '../../lib/constants';
 import { ensurePermission, scheduleForEvent, cancelForEvent, notificationsSupported } from '../../lib/notifications';
@@ -7,15 +8,20 @@ import Sheet from '../ui/Sheet';
 import Toggle from '../ui/Toggle';
 import { useToast } from '../ui/Toast';
 import { haptic } from '../../lib/haptics';
+import { useFeature } from '../../lib/premium';
 
 /** 予定ごとの通知ベル。いいね済み(liked)の時だけ表示し、押すと通知の内訳シートを開く。
  *  この予定について届くものはここに全部集める（値下げのミュートが値下げ一覧にしか無かったのを解消）:
  *   - 発売日・締切のリマインダー: オプトイン（既定OFF）。ローカル通知をスケジュールする
- *   - 値下げ・再入荷アラート: オプトアウト（既定ON・いいね済みは自動で対象）。止めたものだけ muted に入る
+ *   - 値下げ・再入荷アラート: **プレミアム限定**。オプトアウト（既定ON・いいね済みは自動で対象）で、
+ *     止めたものだけ muted に入る。無料の人は配信側（api/_alerts.ts）で弾かれて一生届かないので、
+ *     トグルではなく購入画面への案内を出す（ONにできるのに届かないのが一番きつい）
  *  既定値が逆なので1つのトグルには畳めない。アイコンだけは「この予定が静かか」を映す。
  *  いいねを外す(liked=false)と発売日リマインダーは自動でOFF＋スケジュール解除する。 */
 export default function NotifyBell({ event, liked, size = 18, variant = 'icon' }: { event: CalendarEvent; liked: boolean; size?: number; variant?: 'icon' | 'labeled' }) {
   const toast = useToast();
+  const navigate = useNavigate();
+  const priceAlerts = useFeature('priceAlerts');
   const [on, setOn] = useState(false);
   const [priceOn, setPriceOn] = useState(true);
   const [open, setOpen] = useState(false);
@@ -61,7 +67,7 @@ export default function NotifyBell({ event, liked, size = 18, variant = 'icon' }
   // 発売日リマインダーがON＝鳴っている。両方OFF＝この予定は静か。既定のままなら普通のベル。
   const Icon = on
     ? <BellRing size={variant === 'labeled' ? 22 : size} style={{ color: 'var(--accent-color)' }} />
-    : (isGoods && !priceOn)
+    : (isGoods && priceAlerts && !priceOn)
       ? <BellOff size={variant === 'labeled' ? 22 : size} className="text-label-tertiary" />
       : <Bell size={variant === 'labeled' ? 22 : size} className="text-label-secondary" />;
 
@@ -97,7 +103,7 @@ export default function NotifyBell({ event, liked, size = 18, variant = 'icon' }
               <Toggle checked={on} onChange={toggleReminder} />
             </div>
 
-            {isGoods && (
+            {isGoods && (priceAlerts ? (
               <div className="flex items-center gap-3 py-2.5 border-t border-subtle">
                 <div className="flex-1 min-w-0">
                   <div className="text-[15px] font-semibold">値下げ・再入荷</div>
@@ -107,7 +113,22 @@ export default function NotifyBell({ event, liked, size = 18, variant = 'icon' }
                 </div>
                 <Toggle checked={priceOn} onChange={togglePrice} />
               </div>
-            )}
+            ) : (
+              <button onClick={() => { haptic.select(); setOpen(false); navigate('/premium'); }}
+                className="pressable w-full text-left flex items-center gap-3 py-2.5 border-t border-subtle">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[15px] font-semibold">値下げ・再入荷</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                      style={{ color: 'var(--accent-on)', backgroundColor: 'var(--accent-color)' }}>プレミアム</span>
+                  </div>
+                  <div className="text-[11px] text-label-secondary mt-0.5">
+                    買える最安値が下がったとき・売り切れが戻ったときにお知らせします
+                  </div>
+                </div>
+                <ChevronRight size={16} className="text-label-tertiary flex-shrink-0" />
+              </button>
+            ))}
           </div>
         </Sheet>
         </div>

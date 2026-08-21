@@ -19,7 +19,7 @@ const ANIMAL_AVATARS = [
   '🦁','🐮','🐷','🐸','🦋','🐝','🐬','🐧',
   '🦄','🐙','🦜','🦅','🦖','🐳','🦓','🐢',
 ];
-import { loadRegionFilter, saveRegionFilter, type FilterMode } from '../lib/constants';
+import { loadRegionFilter, saveRegionFilter, type FilterMode, ANON_NAME } from '../lib/constants';
 import { safeHref } from '../lib/url';
 import { PrefectureSearch } from '../components/UserSettingsSheet';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
@@ -203,7 +203,7 @@ export default function Profile() {
     }).catch(() => {});
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const initials = (displayName ?? '匿名').slice(0, 2).toUpperCase();
+  const initials = (displayName ?? ANON_NAME).slice(0, 2).toUpperCase();
 
   const startFieldEdit = (field: NonNullable<EditingField>) => {
     setEditName(displayName ?? '');
@@ -325,7 +325,7 @@ export default function Profile() {
                     </div>
                   ) : (
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-label-primary font-semibold text-base truncate">{displayName ?? '匿名'}</p>
+                      <p className="text-label-primary font-semibold text-base truncate">{displayName ?? ANON_NAME}</p>
                       <button onClick={() => startFieldEdit('name')} className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full active:opacity-60" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                         <Pencil size={12} className="text-label-secondary" />
                       </button>

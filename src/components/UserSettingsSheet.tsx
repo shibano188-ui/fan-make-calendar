@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import Sheet from './ui/Sheet';
 import { PREFECTURES } from '../lib/prefectures';
-import { loadImageVisibility, saveImageVisibility, type ImageVisibility } from '../lib/constants';
+import { loadImageVisibility, saveImageVisibility, type ImageVisibility, ANON_NAME } from '../lib/constants';
 import { deleteAccount } from '../lib/account';
 import { useToast } from './ui/Toast';
 
@@ -140,7 +140,7 @@ export default function UserSettingsSheet({
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="匿名"
+              placeholder={ANON_NAME}
               className={inputCls}
               maxLength={20}
             />

@@ -8,7 +8,7 @@ import { listEventsByDate, addLikeTap, getReactionData, setReaction, getWorkById
 import { useAuth } from '../contexts/AuthContext';
 import type { CalendarEvent } from '../types';
 import { REACTIONS, type ReactionType } from '../lib/reactions';
-import { incrementTotalLikesGiven } from '../lib/constants';
+import { incrementTotalLikesGiven, ANON_NAME } from '../lib/constants';
 import { safeHref } from '../lib/url';
 import SourceBadge from '../components/SourceBadge';
 import { useLikeAnimation } from '../hooks/useLikeAnimation';
@@ -293,9 +293,9 @@ function EventCard({
         <p className="text-label-tertiary text-xs">
           {event.authorId && onAuthorClick ? (
             <button onClick={() => onAuthorClick(event.authorId!)} className="underline underline-offset-2 active:opacity-60">
-              {event.authorName ?? '匿名'}
+              {event.authorName ?? ANON_NAME}
             </button>
-          ) : (event.authorName ?? '匿名')}
+          ) : (event.authorName ?? ANON_NAME)}
           {' '}・ {timeAgo(event.createdAt)}
         </p>
         <SourceBadge sourceUrl={event.sourceUrl} />

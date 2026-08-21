@@ -42,6 +42,13 @@ export default function EventEditForm({ event, onSave, onClose }: { event: Calen
     } as EventPatch);
   };
 
+  // 単日（終了日＝開始日）のままなら、開始日を動かしたときに終了日も一緒に動かす。
+  // 投稿フォーム（PostNew）と同じ挙動。期間を指定済みの人は終了日が違うので触らない。
+  const changeStartDate = (next: string) => {
+    if (endDate === date || !endDate) setEndDate(next);
+    setDate(next);
+  };
+
   return (
     <div className="mt-2 rounded-[12px] border border-subtle p-3" style={{ backgroundColor: 'var(--bg-secondary)' }}>
       <div className="text-[12px] text-label-secondary mb-1">日付</div>
@@ -60,7 +67,7 @@ export default function EventEditForm({ event, onSave, onClose }: { event: Calen
       {!dateTBD ? (
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={dateCls} style={inputStyle} />
+            <input type="date" value={date} onChange={(e) => changeStartDate(e.target.value)} className={dateCls} style={inputStyle} />
             {!allDay && <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={timeCls} style={inputStyle} />}
           </div>
           <div className="flex items-center gap-2">

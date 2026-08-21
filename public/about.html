@@ -9,14 +9,6 @@
        上のノッチ分の余白と「戻る」を自前で用意しないと読めないし戻れない。 */
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 720px; margin: 0 auto; padding: 16px 16px 24px; color: #1a1a1a; line-height: 1.7; padding-top: calc(16px + env(safe-area-inset-top)); }
     .back { display: inline-block; margin-bottom: 16px; font-size: 0.95rem; color: #0066cc; text-decoration: none; }
-    @media (prefers-color-scheme: dark) {
-      body { background: #000; color: #f2f2f7; }
-      p, li { color: #d1d1d6; }
-      th { color: #f2f2f7; }
-      .updated { color: #8e8e93; }
-      nav { border-top-color: #38383a; }
-      a, nav a, .back { color: #6cb0ff; }
-    }
     h1 { font-size: 1.5rem; margin-bottom: 8px; }
     h2 { font-size: 1.1rem; margin-top: 32px; }
     p, li, td, th { font-size: 0.95rem; color: #333; }
@@ -27,6 +19,17 @@
     th { width: 30%; background: #fafafa; font-weight: 600; white-space: nowrap; }
     nav { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e2e2e2; font-size: 0.9rem; }
     nav a { color: #0066cc; margin-right: 16px; }
+    /* ダークの上書きはここ（最後）に置くこと。前に置くと後続の p,li{color:#333} などに
+       負けて、黒背景に濃い灰色の文字になり読めなくなる（同詳細度は後勝ち）。 */
+    @media (prefers-color-scheme: dark) {
+      body { background: #000; color: #f2f2f7; }
+      p, li, td { color: #d1d1d6; }
+      th { color: #f2f2f7; background: #1c1c1e; }
+      th, td { border-color: #38383a; }
+      .updated { color: #8e8e93; }
+      nav { border-top-color: #38383a; }
+      a, nav a, .back { color: #6cb0ff; }
+    }
   </style>
 </head>
 <body>

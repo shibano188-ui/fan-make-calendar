@@ -23,7 +23,7 @@ import { accountState, accountEmail, signOutAccount, deleteAccount } from '../li
 import FanStarChart from '../components/FanStarChart';
 import { calcTitle, calcRadarData, calcGrade, type AchievementStats } from '../lib/achievements';
 import { REGIONS } from '../lib/prefectures';
-import { clearAccountScopedCache, FEATURE_GOOGLE_CALENDAR, FEATURE_PREMIUM } from '../lib/constants';
+import { clearAccountScopedCache, FEATURE_GOOGLE_CALENDAR, FEATURE_PREMIUM, ANON_NAME } from '../lib/constants';
 import { isGoogleConfigured, isGoogleLinked, linkGoogle, unlinkGoogle } from '../lib/googleCalendar';
 import {
   deviceCalendarSupported, isDeviceCalendarOn, enableDeviceCalendar, disableDeviceCalendar,
@@ -226,7 +226,7 @@ export default function MyPage() {
   };
 
   const onUnblock = async (b: { userId: string; displayName: string | null }) => {
-    const label = b.displayName ?? '匿名';
+    const label = b.displayName ?? ANON_NAME;
     haptic.select();
     const ok = await confirm({ title: `${label}さんのブロックを解除しますか？`, message: 'この人の投稿がまた表示されるようになります', confirmLabel: '解除する' });
     if (!ok) return;
@@ -669,7 +669,7 @@ export default function MyPage() {
             <div className="flex flex-col gap-1.5 max-h-[40vh] overflow-y-auto no-scrollbar">
               {blockedUsers.map((b) => (
                 <div key={b.userId} className="flex items-center justify-between gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-                  <span className="text-[14px] truncate">{b.displayName ?? '匿名'}</span>
+                  <span className="text-[14px] truncate">{b.displayName ?? ANON_NAME}</span>
                   <button onClick={() => onUnblock(b)} className="pressable text-[12px] text-label-secondary flex-shrink-0">解除</button>
                 </div>
               ))}

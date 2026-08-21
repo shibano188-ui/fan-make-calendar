@@ -376,6 +376,14 @@ export default function PostNew() {
   const linkInfo = link.trim() ? affiliatize(link.trim()) : null;
   const canSave = !!title.trim() && (!!workId || !!workQuery.trim()) && !saving;
 
+  // 開始日を動かしたとき、終了日が**開始日と同じ＝単日**のままなら一緒に動かす。
+  // 単日の予定で終了日まで直すのが面倒だという話（案A）。すでに期間を指定している人は
+  // 終了日が開始日と違うので、ここでは触らない。
+  const changeStartDate = (next: string) => {
+    if (endDate === date || !endDate) setEndDate(next);
+    setDate(next);
+  };
+
   const onSubmit = async () => {
     if (!user || !canSave) return;
     // オンボーディングの体験。ここまでの手順を見せるのが目的なので**保存しない**。
@@ -670,7 +678,7 @@ export default function PostNew() {
           {!dateTBD ? (
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
-                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={dateCls} style={inputStyle} />
+                <input type="date" value={date} onChange={(e) => changeStartDate(e.target.value)} className={dateCls} style={inputStyle} />
                 {!allDay && <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={timeCls} style={inputStyle} />}
               </div>
               <div className="flex items-center gap-2">

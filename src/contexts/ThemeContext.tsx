@@ -13,10 +13,11 @@ export function resolveTheme(mode: ThemeMode): 'simple' | 'dark' {
   return window.matchMedia('(prefers-color-scheme: light)').matches ? 'simple' : 'dark';
 }
 
+// プリセットに使用人数は持たせない。以前は 482人 のような**架空の数字**を各テーマに
+// 埋め込んでいたが、実体のない人気表示なので消した（実数を出せるのは共有テーマだけ）。
 export interface CommunityTheme {
   id: string;
   name: string;
-  useCount: number;
   dark: boolean;
   vars: Record<string, string>;
 }
@@ -25,7 +26,6 @@ export const COMMUNITY_THEMES: CommunityTheme[] = [
   {
     id: 'sakura',
     name: 'さくらピンク',
-    useCount: 482,
     dark: false,
     vars: {
       '--bg-primary': '#fff0f3', '--bg-secondary': '#ffd6e0', '--bg-tertiary': '#fec9d5',
@@ -43,7 +43,6 @@ export const COMMUNITY_THEMES: CommunityTheme[] = [
   {
     id: 'midnight',
     name: 'ミッドナイト',
-    useCount: 891,
     dark: true,
     vars: {
       '--bg-primary': '#080c14', '--bg-secondary': '#111827', '--bg-tertiary': '#1a2535',
@@ -61,7 +60,6 @@ export const COMMUNITY_THEMES: CommunityTheme[] = [
   {
     id: 'matcha',
     name: '抹茶グリーン',
-    useCount: 256,
     dark: true,
     vars: {
       '--bg-primary': '#1a2614', '--bg-secondary': '#263520', '--bg-tertiary': '#344a28',
@@ -79,7 +77,6 @@ export const COMMUNITY_THEMES: CommunityTheme[] = [
   {
     id: 'ivory',
     name: 'アイボリー',
-    useCount: 203,
     dark: false,
     vars: {
       '--bg-primary': '#faf8f2', '--bg-secondary': '#f0ece0', '--bg-tertiary': '#e6e0cc',
@@ -97,7 +94,6 @@ export const COMMUNITY_THEMES: CommunityTheme[] = [
   {
     id: 'mahou',
     name: '魔法少女の夢',
-    useCount: 743,
     dark: true,
     vars: {
       '--bg-primary': '#1a0d2e', '--bg-secondary': '#2d1448', '--bg-tertiary': '#401a60',
@@ -115,7 +111,6 @@ export const COMMUNITY_THEMES: CommunityTheme[] = [
   {
     id: 'neon',
     name: 'ネオン街',
-    useCount: 1204,
     dark: true,
     vars: {
       '--bg-primary': '#0a0a12', '--bg-secondary': '#12121e', '--bg-tertiary': '#1a1a2e',
@@ -133,7 +128,6 @@ export const COMMUNITY_THEMES: CommunityTheme[] = [
   {
     id: 'autumn',
     name: '秋の情景',
-    useCount: 389,
     dark: true,
     vars: {
       '--bg-primary': '#1e1208', '--bg-secondary': '#2e1c0c', '--bg-tertiary': '#3e2610',

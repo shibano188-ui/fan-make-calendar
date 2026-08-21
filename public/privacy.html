@@ -9,6 +9,13 @@
        上のノッチ分の余白と「戻る」を自前で用意しないと読めないし戻れない。 */
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 720px; margin: 0 auto; padding: 16px 16px 24px; color: #1a1a1a; line-height: 1.7; padding-top: calc(16px + env(safe-area-inset-top)); }
     .back { display: inline-block; margin-bottom: 16px; font-size: 0.95rem; color: #0066cc; text-decoration: none; }
+    h1 { font-size: 1.5rem; margin-bottom: 8px; }
+    h2 { font-size: 1.1rem; margin-top: 32px; }
+    p, li { font-size: 0.95rem; color: #333; }
+    ul { padding-left: 20px; }
+    .updated { font-size: 0.85rem; color: #888; margin-bottom: 32px; }
+    /* ダークの上書きはここ（最後）に置くこと。前に置くと後続の p,li{color:#333} などに
+       負けて、黒背景に濃い灰色の文字になり読めなくなる（同詳細度は後勝ち）。 */
     @media (prefers-color-scheme: dark) {
       body { background: #000; color: #f2f2f7; }
       p, li { color: #d1d1d6; }
@@ -17,11 +24,6 @@
       nav { border-top-color: #38383a; }
       a, nav a, .back { color: #6cb0ff; }
     }
-    h1 { font-size: 1.5rem; margin-bottom: 8px; }
-    h2 { font-size: 1.1rem; margin-top: 32px; }
-    p, li { font-size: 0.95rem; color: #333; }
-    ul { padding-left: 20px; }
-    .updated { font-size: 0.85rem; color: #888; margin-bottom: 32px; }
   </style>
 </head>
 <body>

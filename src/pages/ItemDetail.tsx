@@ -6,7 +6,7 @@ import { getEventById, getWorkById, getDisplayName, toggleLike, setReaction, get
 import EventEditForm from '../components/item/EventEditForm';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
-import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId } from '../lib/constants';
+import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME } from '../lib/constants';
 import { deriveStatus, deriveItemType, itemDateLines } from '../design/tokens';
 import { resolveBuy, getOffers, buildOffer, offerUrl, primaryOffer, isSearchPageUrl } from '../lib/affiliate';
 import { openBuyLink } from '../lib/dataLogs';
@@ -108,7 +108,7 @@ export default function ItemDetail() {
       if (getLike(e.id) === undefined) setLike(e.id, { liked: !!e.likedByMe, count: e.likes ?? 0 });
       if (e.workId) getWorkById(e.workId).then((w) => alive && setWorkName(w?.name ?? ''));
       if (e.workId && user) listAllParticipatedWorks(user.id).then((ws) => { if (!alive) return; setFollowing(ws.some((w) => w.id === e.workId)); setFollowCount(ws.length); }).catch(() => {});
-      if (e.authorId) getDisplayName(e.authorId).then((n) => alive && setAuthorName(n));
+      if (e.authorId) getDisplayName(e.authorId).then((n) => alive && setAuthorName(n ?? ANON_NAME));
       addSeenEventId(id); // 閲覧済み＝新着判定から外す
       getReactionData(id, user?.id).then((r) => { if (alive) { setCounts(r.counts); setMyReaction(r.myReaction); } });
       getCalendarAddData(id, user?.id).then((c) => { if (alive) { setCalCount(c.count); setCalAdded(c.added); } });

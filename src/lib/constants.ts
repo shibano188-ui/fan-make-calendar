@@ -7,6 +7,11 @@ export const POST_CATEGORIES = ['書籍', 'グッズ', 'イベント', '誕生�
 export const DEFAULT_WORK_NAMES = ['ちいかわ', 'ハイキュー!!'];
 // 作品タブの「人気のカレンダー」表示。作品が増えたら true に戻す
 export const SHOW_POPULAR_CALENDARS = false;
+
+/** 表示名を設定していない人の呼び名。名前を出す場所は必ずこれで埋める。
+ *  空欄のまま「投稿: 」の行ごと消すと、誰が出したのか分からない投稿になる。
+ *  ブロックや通報は user_id で動くので、名前が共通でも支障は無い。 */
+export const ANON_NAME = '名無しさん';
 // 初回起動時のオンボーディング案内。再度出すなら true に戻す
 export const SHOW_ONBOARDING = true;
 // 案内を見終わった印。バナー広告を伏せる判断（adSuppress.ts）でも読むのでここに置く

@@ -46,7 +46,9 @@ platform :ios do
       skip_binary_upload: true,
       skip_metadata: true,
       skip_screenshots: false,
-      force: true
+      force: true,
+      # APIキーではIAPをチェックできないので precheck を通さない
+      run_precheck_before_submit: false
     )
   end
 

@@ -156,7 +156,6 @@ function CommunityThemeModal({
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-label-primary text-sm font-medium">{theme.name}</p>
-                    <p className="text-label-tertiary text-xs mt-0.5">{formatCount(theme.useCount)}人が使用中</p>
                   </div>
                   {selected && <Check size={16} className="text-label-secondary flex-shrink-0" />}
                 </button>
@@ -179,7 +178,10 @@ function CommunityThemeModal({
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-label-primary text-sm font-medium">{theme.name}</p>
-                      <p className="text-label-tertiary text-xs mt-0.5">{formatCount(theme.useCount)}人が使用中</p>
+                      {/* 共有テーマの数字はDBの use_count＝実数。誰も使っていないときは出さない */}
+                      {theme.useCount > 0 && (
+                        <p className="text-label-tertiary text-xs mt-0.5">{formatCount(theme.useCount)}人が使用中</p>
+                      )}
                     </div>
                   </button>
                   <button onClick={() => handleDeleteShared(theme.id)}

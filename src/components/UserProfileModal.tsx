@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useHiddenContent } from '../hooks/useHiddenContent';
 import { useConfirm } from './ui/ConfirmDialog';
 import { useToast } from './ui/Toast';
+import { ANON_NAME } from '../lib/constants';
 
 interface Profile {
   displayName: string | null;
@@ -50,7 +51,7 @@ export default function UserProfileModal({
     getProfileExtras(userId).then(setExtras).catch(() => {});
   }, [userId]);
 
-  const name = profile?.displayName ?? '匿名';
+  const name = profile?.displayName ?? ANON_NAME;
   const initials = name.slice(0, 2).toUpperCase();
 
   const achStats: AchievementStats | null = profile

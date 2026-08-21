@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import type { CalendarEvent, EventVisit, Offer } from '../types';
-import { parseCategories, loadMutedEventIds, loadMutedWorkIds } from './constants';
+import { parseCategories, loadMutedEventIds, loadMutedWorkIds, ANON_NAME } from './constants';
 import { searchWorksByAlias, findWorkByExactAlias } from './workAliases';
 import { primaryOffer, getOffers } from './affiliate';
 import { requestDeviceCalendarSync } from './deviceCalendar';
@@ -120,11 +120,11 @@ async function resolveAuthorNames(events: CalendarEvent[]): Promise<CalendarEven
     .select('user_id, display_name')
     .in('user_id', authorIds);
   const nameMap = Object.fromEntries(
-    (data ?? []).map(d => [d.user_id as string, (d.display_name as string | null) ?? '匿名']),
+    (data ?? []).map(d => [d.user_id as string, (d.display_name as string | null) ?? ANON_NAME]),
   );
   return events.map(e => ({
     ...e,
-    authorName: e.authorId ? (nameMap[e.authorId] ?? '匿名') : undefined,
+    authorName: e.authorId ? (nameMap[e.authorId] ?? ANON_NAME) : undefined,
   }));
 }
 
