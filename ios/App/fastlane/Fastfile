@@ -64,6 +64,46 @@ platform :ios do
     )
   end
 
+  desc "アーカイブだけする（送信はしない）"
+  lane :archive do
+    build_app(scheme: "App", export_method: "app-store", output_directory: "build")
+  end
+
+  desc "アーカイブ済みの build/App.ipa を TestFlight へ送る"
+  lane :upload do
+    upload_to_testflight(
+      api_key: asc_key,
+      ipa: "build/App.ipa",
+      skip_waiting_for_build_processing: false
+    )
+  end
+
+  desc "指定ビルドを 1.0 に紐付けて審査に提出（例: fastlane submit build:8）"
+  lane :submit do |options|
+    deliver(
+      api_key: asc_key,
+      build_number: options[:build],
+      skip_binary_upload: true,
+      skip_metadata: true,
+      skip_screenshots: true,
+      submit_for_review: true,
+      automatic_release: true,
+      force: true,
+      precheck_include_in_app_purchases: false,
+      run_precheck_before_submit: false,
+      submission_information: {
+        # 暗号化: Info.plist の ITSAppUsesNonExemptEncryption=false と同じ回答
+        export_compliance_uses_encryption: false,
+        # AdMobの広告を出すので IDFA を使う。許可はATTで取る
+        add_id_info_uses_idfa: true,
+        add_id_info_serves_ads: true,
+        add_id_info_tracks_action: false,
+        add_id_info_tracks_install: false,
+        add_id_info_limits_tracking: true
+      }
+    )
+  end
+
   desc "アーカイブして TestFlight へ送信"
   lane :beta do
     build_app(

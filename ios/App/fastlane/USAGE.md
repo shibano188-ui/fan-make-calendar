@@ -58,3 +58,17 @@ fastlane screenshots_upload
   ここだけはブラウザ操作か生 API 呼び出しが要る。
   （`docs/app-store-review-audit-2026-08-20.md` の「提出中のサブスクは差し替えられない」も参照）
 - 証明書の新規発行など、Apple ID の 2FA が要る一部の操作
+
+## ビルドと提出（2026-08-21 追加）
+
+```bash
+fastlane archive          # アーカイブだけ（build/App.ipa）
+fastlane upload           # 上の ipa を TestFlight へ
+fastlane submit build:8   # そのビルドを 1.0 に紐付けて審査に提出
+```
+
+`submit` は暗号化・IDFA の回答も一緒に送る（AdMobの広告あり・ATTで許可を取る前提）。
+`beta` は archive と upload をまとめてやる従来のレーン。
+
+サブスクの審査用スクリーンショットだけは fastlane では触れないので
+`ruby scripts/asc-iap-screenshot.rb list | replace <画像>` を使う。

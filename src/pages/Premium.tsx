@@ -33,9 +33,16 @@ export default function Premium() {
   const toast = useToast();
   const premium = usePremium();
 
+  // 初月無料の出し方がストアで違う（2026-08-14 本人判断でA案）。
+  //  Play: 「デベロッパー指定」の特典を、5件投稿した人にだけアプリから明示的に適用する。
+  //  App Store: 導入価格に条件を付けられず、**初めて買う人全員**にAppleが自動で適用する。
+  //   → iOSは投稿数に関係なく初月無料。「あと◯件」の案内も出さない。
+  const ios = Capacitor.getPlatform() === 'ios';
+
   const [posted, setPosted] = useState<number | null>(null);
   const [plan, setPlan] = useState<PlanId>('monthly');  // 既定は月払い（2026-08-10 本人確定）
-  const [allPlans, setAllPlans] = useState(false);
+  // iOSは価格を隠さない。月/年を最初から両方出す（3.1.2(c)）
+  const [allPlans, setAllPlans] = useState(ios);
   const [trialOn, setTrialOn] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -48,14 +55,13 @@ export default function Premium() {
     return () => { alive = false; };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 初月無料の出し方がストアで違う（2026-08-14 本人判断でA案）。
-  //  Play: 「デベロッパー指定」の特典を、5件投稿した人にだけアプリから明示的に適用する。
-  //  App Store: 導入価格に条件を付けられず、**初めて買う人全員**にAppleが自動で適用する。
-  //   → iOSは投稿数に関係なく初月無料。「あと◯件」の案内も出さない。
-  const iosTrialForAll = Capacitor.getPlatform() === 'ios';
-  const eligible = iosTrialForAll || (posted !== null && trialEligible(posted));
+  const eligible = ios || (posted !== null && trialEligible(posted));
   const remain = posted === null ? FREE_TRIAL_POSTS : Math.max(0, FREE_TRIAL_POSTS - posted);
-  const trial = eligible && trialOn;
+  // iOSでは初月無料を**付ける/外すの選択にしない**。Appleは「無料お試しを足したり
+  // 外したりするトグルは、自動更新の定期購読に入ることを分かりにくくする」として
+  // 3.1.2(c) で却下してきた（2026-08-21 ビルド6）。iOSは常に初月無料付きの1つの提案だけを出す。
+  // （そもそもiOSの導入価格はAppleが自動で当てるので、トグルは表示だけの飾りだった）
+  const trial = eligible && (ios || trialOn);
   const selected = planOf(plan);
   const shown = allPlans ? PLANS : PLANS.filter((p) => p.id === plan);
 
@@ -108,9 +114,10 @@ export default function Premium() {
   };
 
   // 金額と期間の文。購入ボタンのすぐ下に出す（審査要件）
+  const per = selected.id === 'yearly' ? '年' : '月';
   const billingLine = trial
-    ? `最初の1か月は無料。以降は${selected.id === 'yearly' ? '年' : '月'}${yen(selected.price)}で自動更新されます。`
-    : `${selected.id === 'yearly' ? '年' : '月'}${yen(selected.price)}で自動更新されます。`;
+    ? `最初の1か月は無料。無料期間が終わると${per}${yen(selected.price)}の定期購読に自動で切り替わり、${per}ごとに自動更新されます。`
+    : `${per}${yen(selected.price)}の定期購読です。${per}ごとに自動更新されます。`;
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--bg-primary)' }}>
@@ -196,7 +203,10 @@ export default function Premium() {
                           )}
                         </div>
                         <p className="text-[11px] text-label-tertiary mt-0.5">
-                          1日あたり約{yen(Math.round(p.perMonth / 30))}
+                          {/* 無料お試しが付くかどうかをプランの行でも明示する（3.1.2(c)） */}
+                          {trial
+                            ? `1か月無料、その後${yen(p.price)}${p.id === 'yearly' ? '/年' : '/月'}`
+                            : `1日あたり約${yen(Math.round(p.perMonth / 30))}`}
                         </p>
                       </div>
                       <span className="text-[16px] font-bold flex-shrink-0">
@@ -214,8 +224,9 @@ export default function Premium() {
                 )}
               </div>
 
-              {/* 初月無料のトグル。対象の人にだけ出す（対象外に出すと取り上げられた感じになる） */}
-              {eligible && (
+              {/* 初月無料のトグル。対象の人にだけ出す（対象外に出すと取り上げられた感じになる）。
+                  iOSには出さない（上の3.1.2(c)のとおり） */}
+              {!ios && eligible && (
                 <div className="flex items-center gap-2 mt-4 py-2">
                   <span className="text-[14px] flex-1">初月無料を使う</span>
                   <Toggle checked={trialOn} onChange={(v) => { haptic.select(); setTrialOn(v); }} />
