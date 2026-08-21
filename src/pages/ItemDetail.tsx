@@ -188,6 +188,12 @@ export default function ItemDetail() {
     setVisitEnd(eff.date ?? '');
     setVisitOpen(true);
   };
+  // 行く日は単日で足す人がほとんど。終了日が開始日と同じ＝単日のままなら一緒に動かす
+  // （投稿フォームと同じ扱い。期間で指定し直した人は終了日が違うので触らない）
+  const changeVisitStart = (next: string) => {
+    if (visitEnd === visitStart || !visitEnd) setVisitEnd(next);
+    setVisitStart(next);
+  };
   const onAddVisit = async () => {
     if (!user || !visitStart) return;
     haptic.select();
@@ -402,7 +408,7 @@ export default function ItemDetail() {
                 ) : (
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-2 text-[13px]">
-                      <input type="date" value={visitStart} min={eff.date ?? undefined} max={eff.endDate} onChange={(e) => setVisitStart(e.target.value)} className="flex-1 rounded-[10px] px-3 py-2 outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
+                      <input type="date" value={visitStart} min={eff.date ?? undefined} max={eff.endDate} onChange={(e) => changeVisitStart(e.target.value)} className="flex-1 rounded-[10px] px-3 py-2 outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
                       <span className="text-label-secondary">〜</span>
                       <input type="date" value={visitEnd} min={visitStart || eff.date || undefined} max={eff.endDate} onChange={(e) => setVisitEnd(e.target.value)} className="flex-1 rounded-[10px] px-3 py-2 outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
                     </div>

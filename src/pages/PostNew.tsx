@@ -384,6 +384,13 @@ export default function PostNew() {
     setDate(next);
   };
 
+  // 受付開始も同じ扱い。受付終了は既定で発売日に追従しているので普通はここに入らないが、
+  // 「開始も終了も同じ日」に直した人はそのまま単日として動かせる。
+  const changePreStart = (next: string) => {
+    if (preEnd === preStart || !preEnd) { setPreEnd(next); setPreEndTouched(true); }
+    setPreStart(next);
+  };
+
   const onSubmit = async () => {
     if (!user || !canSave) return;
     // オンボーディングの体験。ここまでの手順を見せるのが目的なので**保存しない**。
@@ -733,7 +740,7 @@ export default function PostNew() {
               </div>
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
-                  <input type="date" value={preStart} onChange={(e) => setPreStart(e.target.value)} className={dateCls} style={inputStyle} />
+                  <input type="date" value={preStart} onChange={(e) => changePreStart(e.target.value)} className={dateCls} style={inputStyle} />
                   {!preAllDay && <input type="time" value={preStartTime} onChange={(e) => setPreStartTime(e.target.value)} className={timeCls} style={inputStyle} />}
                 </div>
                 <div className="flex items-center gap-2">

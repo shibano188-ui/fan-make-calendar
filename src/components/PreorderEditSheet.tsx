@@ -60,6 +60,13 @@ export default function PreorderEditSheet({ event, onClose, onSaved }: Props) {
     }
   };
 
+  // 終了日が開始日と同じ＝単日のままなら、開始日に追従させる（投稿フォームと同じ）。
+  // ここは終了日が空のことも普通にあるので、そのときは何もしない（空欄＝単日の意味）。
+  const changeStartDate = (next: string) => {
+    if (endDate && endDate === date) setEndDate(next);
+    setDate(next);
+  };
+
   return (
     <Sheet onClose={onClose} title="情報を追加" zIndex={400} ariaLabel="情報を追加"
       fixed={<p className="px-4 pb-2 text-xs text-label-tertiary truncate">{event.title}</p>}>
@@ -72,7 +79,7 @@ export default function PreorderEditSheet({ event, onClose, onSaved }: Props) {
             <input
               type="date"
               value={date}
-              onChange={e => setDate(e.target.value)}
+              onChange={e => changeStartDate(e.target.value)}
               className={inputCls}
             />
             {event.dateLabel && !date && (
