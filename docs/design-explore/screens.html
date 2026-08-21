@@ -1,0 +1,1080 @@
+<title>FanHive 画面帳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=BIZ+UDGothic:wght@400;700&family=Zen+Kaku+Gothic+New:wght@500;700;900&family=Zen+Kaku+Gothic+Antique:wght@400;500;700&family=Dela+Gothic+One&family=Martian+Mono:wght@300;400;500;700&family=Bitcount+Grid+Double:wght@400;700&family=Big+Shoulders+Display:wght@600;800;900&family=Anybody:wght@400;700;900&display=swap">
+
+<style>
+/* ═══════════ 頁の外側 ═══════════ */
+:root{
+  --paper:#eceae4; --paper-2:#e3e0d8; --panel:#f7f5f1;
+  --rule:#cfcabf; --rule-soft:#ded9cf;
+  --ink:#191817; --ink-2:#4a4741; --ink-3:#867f74;
+  --mark:#b0421f; --ok:#1f7a4d;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#0d0d0f; --paper-2:#121215; --panel:#17171a;
+  --rule:#2a2a30; --rule-soft:#212127;
+  --ink:#eae7e1; --ink-2:#a29e97; --ink-3:#6b6760;
+  --mark:#e0663c; --ok:#4cc98a;
+}}
+:root[data-theme="dark"]{
+  --paper:#0d0d0f; --paper-2:#121215; --panel:#17171a;
+  --rule:#2a2a30; --rule-soft:#212127;
+  --ink:#eae7e1; --ink-2:#a29e97; --ink-3:#6b6760;
+  --mark:#e0663c; --ok:#4cc98a;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:"Zen Kaku Gothic Antique","Hiragino Kaku Gothic ProN",system-ui,sans-serif;
+  line-height:1.85;-webkit-font-smoothing:antialiased;}
+:focus-visible{outline:2px solid var(--mark);outline-offset:3px;}
+.wrap{max-width:1220px;margin:0 auto;padding:0 28px;}
+.kicker{font-family:"Martian Mono",monospace;font-size:10px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--ink-3);margin:0 0 18px;}
+h1{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;
+  font-size:clamp(32px,5.2vw,52px);line-height:1.14;letter-spacing:-.02em;margin:0 0 20px;text-wrap:balance;}
+h2{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:26px;margin:0 0 6px;letter-spacing:-.01em;}
+h3{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:700;font-size:15px;margin:26px 0 9px;}
+p{font-size:14.5px;color:var(--ink-2);margin:0 0 14px;max-width:66ch;}
+p strong,li strong{color:var(--ink);font-weight:700;}
+code{font-family:"Martian Mono",monospace;font-size:.86em;}
+section{border-top:1px solid var(--rule);padding:52px 0 56px;}
+.masthead{border-top:0;padding:60px 0 40px;}
+
+.cols{display:grid;grid-template-columns:minmax(270px,340px) 1fr;gap:44px;align-items:start;}
+@media (max-width:960px){.cols{grid-template-columns:1fr;gap:30px;}}
+.screens{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start;}
+figure{margin:0;display:flex;flex-direction:column;gap:8px;}
+figcaption{font-family:"Martian Mono",monospace;font-size:9px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-3);}
+
+.n2{font-family:"Martian Mono",monospace;font-size:10px;letter-spacing:.12em;color:var(--mark);margin:0 0 6px;}
+ul.keep{margin:14px 0 0;padding:0;list-style:none;}
+ul.keep li{font-size:13px;color:var(--ink-2);padding:0 0 0 20px;position:relative;margin-bottom:6px;line-height:1.72;}
+ul.keep li::before{content:"";position:absolute;left:3px;top:9px;width:8px;height:8px;
+  border-left:1.6px solid var(--ok);border-bottom:1.6px solid var(--ok);transform:rotate(-45deg);}
+.note{font-size:12.5px;line-height:1.75;color:var(--ink-2);
+  border-left:2px solid var(--mark);padding:2px 0 2px 13px;margin:14px 0 0;max-width:60ch;}
+.tablewrap{overflow-x:auto;}
+table.iv{border-collapse:collapse;width:100%;font-size:12.5px;margin:8px 0 4px;min-width:640px;}
+table.iv th,table.iv td{border-bottom:1px solid var(--rule-soft);padding:8px 12px 8px 0;text-align:left;vertical-align:top;}
+table.iv th{font-family:"Martian Mono",monospace;font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:400;border-bottom:1px solid var(--rule);}
+table.iv td:first-child{font-weight:700;color:var(--ink);white-space:nowrap;}
+.foot{border-top:1px solid var(--rule);padding:22px 0 54px;font-family:"Martian Mono",monospace;
+  font-size:9.5px;letter-spacing:.05em;color:var(--ink-3);}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;}}
+
+/* ═══════════ 端末の骨組み ═══════════ */
+.ph{width:316px;height:648px;flex:0 0 auto;overflow:hidden;position:relative;
+  display:flex;flex-direction:column;font-size:14px;line-height:1.6;
+  box-shadow:0 20px 42px rgba(0,0,0,.3),0 0 0 1px rgba(120,120,120,.26);}
+.ph *{box-sizing:border-box;}
+.scr{flex:1;overflow:hidden;position:relative;z-index:1;}
+.tab{flex:0 0 auto;position:relative;z-index:1;display:flex;}
+.tab button{flex:1;border:0;background:none;cursor:default;display:flex;flex-direction:column;
+  align-items:center;gap:4px;padding:0;color:inherit;}
+.list{list-style:none;margin:0;padding:0;}
+.it-b{flex:1;min-width:0;}
+.it-h{margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.meta{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+
+.img{display:block;position:relative;overflow:hidden;flex:0 0 auto;}
+.img>span{position:absolute;inset:0;}
+.i1{background:linear-gradient(147deg,#4c4238,#836e57 54%,#3a322a);}
+.i2{background:linear-gradient(147deg,#243748,#48708f 54%,#1b2734);}
+.i3{background:linear-gradient(147deg,#3e2437,#7c3d5d 54%,#291725);}
+.i4{background:linear-gradient(147deg,#2b3d2e,#587c54 54%,#1d2a1f);}
+.i5{background:linear-gradient(147deg,#48331a,#8d6425 54%,#2e2110);}
+.img i{position:absolute;display:block;}
+.img .c{border-radius:50%;background:rgba(255,255,255,.34);}
+.img .k{background:rgba(0,0,0,.3);}
+.img .n{background:rgba(255,255,255,.24);}
+.m1 .c{width:38%;height:38%;left:15%;top:19%;} .m1 .k{width:52%;height:22%;left:32%;top:58%;}
+.m2 .n{width:60%;height:8%;left:20%;top:31%;}  .m2 .k{width:34%;height:34%;left:33%;top:47%;border-radius:50%;}
+.m3 .c{width:26%;height:26%;left:21%;top:21%;} .m3 .n{width:22%;height:56%;left:56%;top:21%;}
+.m4 .k{width:44%;height:44%;left:11%;top:29%;transform:rotate(45deg);} .m4 .c{width:24%;height:24%;left:58%;top:21%;}
+.m5 .n{width:16%;height:52%;left:18%;top:24%;} .m5 .c{width:32%;height:32%;left:46%;top:38%;}
+
+.dico{display:grid;grid-template-columns:repeat(7,2.2px);grid-auto-rows:2.2px;gap:1.5px;}
+.dico i{width:2.2px;height:2.2px;border-radius:50%;background:currentColor;opacity:.14;}
+.dico i.f{opacity:1;}
+
+/* ═══════════ 外皮1 PANEL ═══════════ */
+[data-skin="panel"]{
+  --bg:#101012; --plate:#1b1b20; --plate2:#26262c; --inset:#08080a;
+  --line:#33333b; --tx:#f3f0ea; --tx2:#95928b; --tx3:#5c5952;
+  --acc:#ff5a1e; --pre:#ff5a1e; --soon:#5aa9ff; --now:#37cf7c; --end:#5a5a61; --bad:#ff4d4d;
+  background:var(--bg);color:var(--tx);
+  font-family:"BIZ UDPGothic","Hiragino Kaku Gothic ProN",sans-serif;
+  background-image:radial-gradient(rgba(255,255,255,.075) 1px,transparent 1px);
+  background-size:19px 19px;background-position:9px 9px;
+}
+[data-skin="panel"] .lbl{font-family:"Martian Mono",monospace;font-size:8.5px;font-weight:500;
+  letter-spacing:.01em;text-transform:uppercase;color:var(--tx2);}
+[data-skin="panel"] .num{font-family:"Bitcount Grid Double",monospace;font-weight:700;font-variant-numeric:tabular-nums;}
+[data-skin="panel"] .mono{font-family:"Martian Mono",monospace;font-variant-numeric:tabular-nums;}
+[data-skin="panel"] .sico{display:none;}
+[data-skin="panel"] .hd{padding:12px 12px 0;}
+[data-skin="panel"] .hd-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+[data-skin="panel"] .hd-wm{font-family:"Martian Mono",monospace;font-size:10px;font-weight:700;}
+[data-skin="panel"] .hd-meta{font-family:"Martian Mono",monospace;font-size:9px;color:var(--tx2);}
+[data-skin="panel"] .hd-title{font-family:"BIZ UDGothic",sans-serif;font-weight:700;font-size:19px;letter-spacing:.14em;margin:7px 0 0;}
+[data-skin="panel"] .back{font-family:"Martian Mono",monospace;font-size:11px;color:var(--tx2);}
+[data-skin="panel"] .seg{display:flex;margin:11px 12px 0;border:1px solid var(--line);border-radius:2px;overflow:hidden;}
+[data-skin="panel"] .seg span{flex:1;text-align:center;padding:6px 0;font-family:"BIZ UDGothic",sans-serif;
+  font-weight:700;font-size:12px;letter-spacing:.1em;color:var(--tx2);border-right:1px solid var(--line);}
+[data-skin="panel"] .seg span:last-child{border-right:0;}
+[data-skin="panel"] .seg span.on{background:var(--tx);color:var(--bg);}
+[data-skin="panel"] .list{padding:0 12px;display:flex;flex-direction:column;gap:5px;}
+[data-skin="panel"] .it{background:var(--plate);border-radius:2px;padding:8px;display:flex;gap:10px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);}
+[data-skin="panel"] .img{border-radius:1px;}
+[data-skin="panel"] .it .img{width:52px;height:52px;}
+[data-skin="panel"] .img::after{content:"";position:absolute;inset:0;
+  background-image:radial-gradient(rgba(0,0,0,.62) 1px,transparent 1px);
+  background-size:3.6px 3.6px;mix-blend-mode:multiply;}
+[data-skin="panel"] .st{display:flex;align-items:center;gap:5px;margin-bottom:3px;}
+[data-skin="panel"] .st .led{width:5px;height:5px;border-radius:50%;flex:0 0 auto;background:var(--tx3);}
+[data-skin="panel"] .it[data-st="pre"] .led{background:var(--pre);box-shadow:0 0 5px rgba(255,90,30,.85);}
+[data-skin="panel"] .it[data-st="soon"] .led{background:var(--soon);}
+[data-skin="panel"] .it[data-st="now"] .led{background:var(--now);box-shadow:0 0 5px rgba(55,207,124,.7);}
+[data-skin="panel"] .it[data-st="end"] .led{background:var(--end);}
+[data-skin="panel"] .st .jp{display:none;}
+[data-skin="panel"] .it-h{font-family:"BIZ UDPGothic",sans-serif;font-weight:700;font-size:12.5px;line-height:1.42;margin-bottom:4px;}
+[data-skin="panel"] .it-d{font-family:"Martian Mono",monospace;font-size:9.5px;color:var(--tx2);}
+[data-skin="panel"] .it-p{font-family:"Bitcount Grid Double",monospace;font-weight:700;font-size:13px;color:var(--acc);}
+[data-skin="panel"] .it-p .yen{font-family:"Martian Mono",monospace;font-size:9px;}
+[data-skin="panel"] .tab{background:var(--plate);border-top:1px solid var(--line);padding:7px 7px 9px;gap:5px;}
+[data-skin="panel"] .tab button{background:var(--plate2);border-radius:2px;padding:6px 0 5px;color:var(--tx2);
+  box-shadow:0 1px 0 rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.06);}
+[data-skin="panel"] .tab button[aria-current]{background:var(--tx);color:var(--bg);}
+[data-skin="panel"] .tab button.add{background:var(--acc);color:#160600;}
+[data-skin="panel"] .tab .tl{font-family:"Martian Mono",monospace;font-size:7.5px;color:currentColor;text-transform:uppercase;}
+[data-skin="panel"] .sec-l{display:block;font-family:"BIZ UDGothic",sans-serif;font-weight:700;font-size:9px;
+  letter-spacing:.22em;color:var(--tx3);padding:12px 12px 4px;}
+
+/* PANEL 部品 */
+[data-skin="panel"] .srch{display:flex;align-items:center;gap:7px;margin:10px 12px 0;background:var(--inset);
+  border-radius:2px;padding:8px 10px;box-shadow:inset 0 1px 3px rgba(0,0,0,.9);}
+[data-skin="panel"] .srch .q{font-family:"BIZ UDPGothic",sans-serif;font-size:12.5px;flex:1;color:var(--tx);}
+[data-skin="panel"] .srch .ph-t{color:var(--tx3);}
+[data-skin="panel"] .srch .x{font-family:"Martian Mono",monospace;font-size:11px;color:var(--tx2);}
+[data-skin="panel"] .cue{margin:7px 12px 0;background:var(--plate);border-left:2px solid var(--acc);
+  border-radius:2px;padding:8px 10px;display:flex;align-items:center;gap:9px;}
+[data-skin="panel"] .cue .t{flex:1;font-size:11.5px;}
+[data-skin="panel"] .cue .b{font-family:"BIZ UDGothic",sans-serif;font-weight:700;font-size:10.5px;
+  letter-spacing:.08em;background:var(--acc);color:#160600;padding:4px 10px;border-radius:2px;}
+[data-skin="panel"] .crow{display:flex;gap:5px;padding:9px 12px 0;overflow:hidden;}
+[data-skin="panel"] .cp{font-family:"BIZ UDGothic",sans-serif;font-weight:700;font-size:10.5px;letter-spacing:.06em;
+  padding:4px 9px;border:1px solid var(--line);border-radius:2px;color:var(--tx2);white-space:nowrap;}
+[data-skin="panel"] .cp.on{background:var(--tx);color:var(--bg);border-color:var(--tx);}
+[data-skin="panel"] .fbar{display:flex;align-items:center;justify-content:space-between;
+  margin:8px 12px 0;padding:5px 9px;background:rgba(255,90,30,.12);border-radius:2px;}
+[data-skin="panel"] .fbar .t{font-family:"Martian Mono",monospace;font-size:9px;color:var(--acc);}
+[data-skin="panel"] .fsec{padding:11px 12px 3px;}
+[data-skin="panel"] .fh{font-family:"BIZ UDGothic",sans-serif;font-weight:700;font-size:10.5px;
+  letter-spacing:.18em;color:var(--tx2);margin-bottom:7px;}
+[data-skin="panel"] .fopts{display:flex;flex-wrap:wrap;gap:5px;}
+[data-skin="panel"] .fo{font-family:"BIZ UDPGothic",sans-serif;font-size:11px;padding:4px 8px;
+  border:1px solid var(--line);border-radius:2px;color:var(--tx2);display:flex;gap:5px;align-items:center;}
+[data-skin="panel"] .fo.on{background:var(--tx);color:var(--bg);border-color:var(--tx);}
+[data-skin="panel"] .fo .fc{font-family:"Bitcount Grid Double",monospace;font-weight:700;font-size:10px;opacity:.7;}
+[data-skin="panel"] .bar{position:absolute;left:0;right:0;bottom:0;display:flex;gap:6px;padding:9px 12px 11px;
+  background:var(--plate);border-top:1px solid var(--line);}
+[data-skin="panel"] .bar .b1,[data-skin="panel"] .bar .b2{flex:1;text-align:center;padding:9px 0;border-radius:2px;
+  font-family:"BIZ UDGothic",sans-serif;font-weight:700;font-size:12px;letter-spacing:.1em;}
+[data-skin="panel"] .bar .b1{background:var(--plate2);color:var(--tx2);}
+[data-skin="panel"] .bar .b2{background:var(--acc);color:#160600;}
+[data-skin="panel"] .cal{margin:8px 12px 0;background:var(--plate);border-radius:2px;padding:8px;}
+[data-skin="panel"] .cal-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;}
+[data-skin="panel"] .cal-m{font-family:"Bitcount Grid Double",monospace;font-weight:700;font-size:15px;}
+[data-skin="panel"] .cal-w{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:3px;}
+[data-skin="panel"] .cal-w span{text-align:center;font-family:"Martian Mono",monospace;font-size:7.5px;color:var(--tx3);}
+[data-skin="panel"] .cal-g{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+[data-skin="panel"] .cal-d{aspect-ratio:1/1;background:var(--inset);border-radius:1px;padding:2px 0 0;
+  display:flex;flex-direction:column;align-items:center;gap:2px;}
+[data-skin="panel"] .cal-d b{font-family:"Martian Mono",monospace;font-size:8px;font-weight:400;color:var(--tx2);}
+[data-skin="panel"] .cal-d.o b{color:var(--tx3);opacity:.45;}
+[data-skin="panel"] .cal-d.sel{background:var(--tx);}
+[data-skin="panel"] .cal-d.sel b{color:var(--bg);font-weight:700;}
+[data-skin="panel"] .cal-d.tdy{box-shadow:inset 0 0 0 1px var(--acc);}
+[data-skin="panel"] .dots{display:flex;gap:1.5px;}
+[data-skin="panel"] .dots i{width:3px;height:3px;border-radius:50%;display:block;}
+[data-skin="panel"] .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--plate);
+  border-top:1px solid var(--line);border-radius:6px 6px 0 0;padding:10px 12px 14px;}
+[data-skin="panel"] .sh-grip{width:34px;height:3px;border-radius:2px;background:var(--line);margin:0 auto 10px;}
+[data-skin="panel"] .sh-h{font-family:"BIZ UDGothic",sans-serif;font-weight:700;font-size:13px;letter-spacing:.14em;margin-bottom:9px;}
+[data-skin="panel"] .prow{display:flex;align-items:center;justify-content:space-between;gap:9px;
+  padding:10px 12px;border-bottom:1px dotted var(--line);}
+[data-skin="panel"] .sheet .prow{padding:10px 0;}
+[data-skin="panel"] .prow .t{font-size:12px;}
+[data-skin="panel"] .prow .sub{display:block;font-size:10px;color:var(--tx3);line-height:1.5;margin-top:2px;}
+[data-skin="panel"] .prow .v{font-family:"Martian Mono",monospace;font-size:9px;color:var(--tx2);text-transform:uppercase;}
+[data-skin="panel"] .prow .v.on{color:var(--acc);}
+[data-skin="panel"] .tg{width:32px;height:17px;border-radius:2px;background:var(--inset);position:relative;flex:0 0 auto;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.85);}
+[data-skin="panel"] .tg i{position:absolute;top:2px;left:2px;width:14px;height:13px;border-radius:1px;background:var(--tx3);}
+[data-skin="panel"] .tg.on{background:#2b1206;}
+[data-skin="panel"] .tg.on i{left:auto;right:2px;background:var(--acc);}
+[data-skin="panel"] .dt-img{display:block;width:100%;height:150px;position:relative;}
+[data-skin="panel"] .dt-t{font-family:"BIZ UDPGothic",sans-serif;font-weight:700;font-size:15px;line-height:1.45;padding:9px 12px 0;}
+[data-skin="panel"] .dt-acts{display:flex;gap:5px;padding:10px 12px 0;}
+[data-skin="panel"] .dt-a{flex:1;background:var(--plate2);border-radius:2px;padding:7px 0 6px;text-align:center;
+  box-shadow:0 1px 0 rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.06);}
+[data-skin="panel"] .dt-a.on{background:var(--acc);color:#160600;}
+[data-skin="panel"] .dt-a .n2s{font-family:"Bitcount Grid Double",monospace;font-weight:700;font-size:12px;display:block;line-height:1.1;}
+[data-skin="panel"] .dt-a .l2{font-family:"Martian Mono",monospace;font-size:7px;text-transform:uppercase;color:inherit;opacity:.75;}
+[data-skin="panel"] .offer{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px dotted var(--line);}
+[data-skin="panel"] .offer .sh{font-family:"BIZ UDPGothic",sans-serif;font-size:11.5px;flex:1;}
+[data-skin="panel"] .offer .pr{font-family:"Bitcount Grid Double",monospace;font-weight:700;font-size:12px;color:var(--acc);}
+[data-skin="panel"] .offer .go{font-family:"Martian Mono",monospace;font-size:8px;color:var(--tx2);}
+[data-skin="panel"] .rx-pop{margin:0 12px;background:var(--plate2);border:1px solid var(--line);border-radius:3px;
+  padding:7px;display:grid;grid-template-columns:repeat(3,1fr);gap:5px;}
+[data-skin="panel"] .rx-i{background:var(--inset);border-radius:2px;padding:9px 4px;text-align:center;
+  display:flex;align-items:center;justify-content:center;min-height:40px;line-height:1.3;
+  font-family:"BIZ UDGothic",sans-serif;font-weight:700;font-size:11px;letter-spacing:.04em;color:var(--tx2);}
+[data-skin="panel"] .rx-i.on{background:var(--acc);color:#160600;}
+[data-skin="panel"] .ai-in{margin:10px 12px 0;background:var(--inset);border-radius:2px;padding:10px;
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.9);min-height:78px;}
+[data-skin="panel"] .ai-in .txt{font-family:"BIZ UDPGothic",sans-serif;font-size:11.5px;color:var(--tx2);line-height:1.65;}
+[data-skin="panel"] .ai-st{display:flex;align-items:center;gap:7px;margin:9px 12px 0;}
+[data-skin="panel"] .ai-st .b{font-family:"Martian Mono",monospace;font-size:8.5px;color:var(--acc);text-transform:uppercase;}
+[data-skin="panel"] .prog{flex:1;height:3px;background:var(--inset);border-radius:2px;overflow:hidden;}
+[data-skin="panel"] .prog i{display:block;height:100%;width:62%;background:var(--acc);}
+[data-skin="panel"] .fld{padding:9px 12px;border-bottom:1px dotted var(--line);display:flex;align-items:center;gap:10px;}
+[data-skin="panel"] .fld .fl-l{font-family:"BIZ UDGothic",sans-serif;font-weight:700;font-size:10px;
+  letter-spacing:.14em;color:var(--tx2);width:62px;flex:0 0 auto;}
+[data-skin="panel"] .fld .fl-v{flex:1;font-size:12px;min-width:0;}
+[data-skin="panel"] .fld .fl-v.mono{font-family:"Martian Mono",monospace;font-size:10.5px;}
+[data-skin="panel"] .fld .fl-v.empty{color:var(--tx3);}
+[data-skin="panel"] .warn{margin:8px 12px 0;background:rgba(255,77,77,.13);border-left:2px solid var(--bad);
+  border-radius:2px;padding:7px 9px;font-size:11px;color:var(--tx);}
+[data-skin="panel"] .hrow{display:flex;gap:6px;padding:6px 12px 0;overflow:hidden;}
+[data-skin="panel"] .hcard{width:96px;flex:0 0 auto;}
+[data-skin="panel"] .hcard .img{width:96px;height:96px;}
+[data-skin="panel"] .hcard .t{font-family:"BIZ UDPGothic",sans-serif;font-weight:700;font-size:10.5px;
+  line-height:1.35;margin-top:4px;height:28px;overflow:hidden;}
+[data-skin="panel"] .hcard .d{font-family:"Martian Mono",monospace;font-size:8px;color:var(--tx2);}
+
+/* ═══════════ 外皮2 SURGE ═══════════ */
+[data-skin="surge"]{
+  --bg:#0b0b0c; --plate:#151519; --plate2:#1f1f24; --line:rgba(255,255,255,.13);
+  --tx:#fff; --tx2:rgba(255,255,255,.54); --tx3:rgba(255,255,255,.3);
+  --acc:#ffd400; --pre:#ffd400; --soon:#fff; --now:#3ee08a; --end:rgba(255,255,255,.3); --bad:#ff4d63;
+  background:var(--bg);color:var(--tx);
+  font-family:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN",sans-serif;font-weight:500;
+}
+[data-skin="surge"]::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background-image:radial-gradient(rgba(255,255,255,.055) 1px,transparent 1px);background-size:5px 5px;}
+[data-skin="surge"] .lbl{font-family:"Anybody",sans-serif;font-weight:700;font-size:9px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--tx2);}
+[data-skin="surge"] .num{font-family:"Big Shoulders Display",sans-serif;font-weight:900;font-variant-numeric:tabular-nums;}
+[data-skin="surge"] .mono{font-family:"Anybody",sans-serif;font-variant-numeric:tabular-nums;}
+[data-skin="surge"] .dico{display:none;}
+[data-skin="surge"] .hd{background:var(--acc);color:#0b0b0c;padding:15px 16px 24px;
+  transform:skewY(-3deg);transform-origin:top left;margin-top:-9px;}
+[data-skin="surge"] .hd>*{transform:skewY(3deg);}
+[data-skin="surge"] .hd-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+[data-skin="surge"] .hd-wm{font-family:"Big Shoulders Display",sans-serif;font-weight:900;font-size:14px;
+  letter-spacing:.08em;text-transform:uppercase;}
+[data-skin="surge"] .hd-meta{font-family:"Anybody",sans-serif;font-weight:700;font-size:9px;letter-spacing:.1em;}
+[data-skin="surge"] .hd-title{font-family:"Dela Gothic One",sans-serif;font-weight:400;font-size:25px;
+  line-height:1.05;margin:5px 0 0;letter-spacing:.02em;}
+[data-skin="surge"] .back{font-family:"Anybody",sans-serif;font-weight:900;font-size:11px;}
+[data-skin="surge"] .seg{display:flex;gap:7px;padding:6px 16px 0;}
+[data-skin="surge"] .seg span{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:11.5px;
+  padding:6px 15px;background:var(--plate2);color:var(--tx2);
+  clip-path:polygon(7px 0,100% 0,calc(100% - 7px) 100%,0 100%);}
+[data-skin="surge"] .seg span.on{background:var(--tx);color:#0b0b0c;}
+[data-skin="surge"] .list{padding:0 14px;display:flex;flex-direction:column;gap:9px;}
+[data-skin="surge"] .it{background:var(--plate);padding:10px 12px 10px 10px;display:flex;gap:11px;position:relative;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 13px),calc(100% - 16px) 100%,0 100%);
+  box-shadow:5px 5px 0 rgba(255,212,0,.14);}
+[data-skin="surge"] .it .img{width:54px;height:54px;}
+[data-skin="surge"] .img::after{content:"";position:absolute;inset:0;
+  background:linear-gradient(rgba(255,212,0,.2),rgba(255,212,0,0));}
+[data-skin="surge"] .st{margin-bottom:6px;}
+[data-skin="surge"] .st .led,[data-skin="surge"] .st .lbl{display:none;}
+[data-skin="surge"] .st .jp{display:inline-block;font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;
+  font-size:9.5px;letter-spacing:.06em;padding:2px 9px;background:var(--acc);color:#0b0b0c;transform:rotate(-1.5deg);}
+[data-skin="surge"] .it[data-st="soon"] .st .jp{background:var(--tx);}
+[data-skin="surge"] .it[data-st="now"] .st .jp{background:var(--now);}
+[data-skin="surge"] .it[data-st="end"] .st .jp{background:transparent;color:var(--tx3);box-shadow:inset 0 0 0 1px var(--line);}
+[data-skin="surge"] .it-h{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:12.5px;
+  line-height:1.36;margin-bottom:5px;}
+[data-skin="surge"] .it-d{font-family:"Anybody",sans-serif;font-size:10px;color:var(--tx2);letter-spacing:.03em;}
+[data-skin="surge"] .it-p{font-family:"Big Shoulders Display",sans-serif;font-weight:900;font-size:19px;color:var(--acc);}
+[data-skin="surge"] .it-p .yen{font-size:13px;}
+[data-skin="surge"] .it .meta{padding-right:10px;}
+[data-skin="surge"] .tab{background:#fff;padding:8px 6px 10px;}
+[data-skin="surge"] .tab button{color:#8d8d8d;}
+[data-skin="surge"] .tab button[aria-current],[data-skin="surge"] .tab button.add{color:#0b0b0c;}
+[data-skin="surge"] .tab .tl{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:8.5px;
+  letter-spacing:.08em;color:currentColor;}
+[data-skin="surge"] .sec-l{display:block;font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;
+  font-size:9.5px;letter-spacing:.2em;color:var(--tx3);padding:14px 16px 5px;}
+
+/* SURGE 部品 */
+[data-skin="surge"] .srch{display:flex;align-items:center;gap:8px;margin:9px 16px 0;background:var(--plate2);
+  padding:9px 12px;clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%);}
+[data-skin="surge"] .srch .q{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:700;font-size:12.5px;flex:1;color:var(--tx);}
+[data-skin="surge"] .srch .ph-t{color:var(--tx3);}
+[data-skin="surge"] .srch .x{font-family:"Anybody",sans-serif;font-weight:900;font-size:12px;color:var(--tx2);}
+[data-skin="surge"] .cue{margin:9px 16px 0;background:var(--acc);color:#0b0b0c;padding:8px 11px;
+  display:flex;align-items:center;gap:9px;transform:rotate(-.8deg);}
+[data-skin="surge"] .cue .t{flex:1;font-weight:900;font-size:11.5px;}
+[data-skin="surge"] .cue .b{font-weight:900;font-size:10.5px;background:#0b0b0c;color:var(--acc);padding:4px 10px;}
+[data-skin="surge"] .crow{display:flex;gap:6px;padding:10px 16px 0;overflow:hidden;}
+[data-skin="surge"] .cp{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:10.5px;
+  padding:5px 11px;background:var(--plate2);color:var(--tx2);white-space:nowrap;
+  clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%);}
+[data-skin="surge"] .cp.on{background:var(--tx);color:#0b0b0c;}
+[data-skin="surge"] .fbar{display:flex;align-items:center;justify-content:space-between;margin:9px 16px 0;
+  padding:5px 10px;background:var(--acc);color:#0b0b0c;transform:rotate(-.6deg);}
+[data-skin="surge"] .fbar .t{font-weight:900;font-size:10px;}
+[data-skin="surge"] .fsec{padding:12px 16px 3px;}
+[data-skin="surge"] .fh{font-family:"Dela Gothic One",sans-serif;font-size:13px;margin-bottom:8px;letter-spacing:.04em;}
+[data-skin="surge"] .fopts{display:flex;flex-wrap:wrap;gap:6px;}
+[data-skin="surge"] .fo{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:700;font-size:11px;padding:5px 10px;
+  background:var(--plate2);color:var(--tx2);display:flex;gap:6px;align-items:center;
+  clip-path:polygon(5px 0,100% 0,calc(100% - 5px) 100%,0 100%);}
+[data-skin="surge"] .fo.on{background:var(--acc);color:#0b0b0c;}
+[data-skin="surge"] .fo .fc{font-family:"Big Shoulders Display",sans-serif;font-weight:900;font-size:12px;opacity:.8;}
+[data-skin="surge"] .bar{position:absolute;left:0;right:0;bottom:0;display:flex;gap:8px;padding:11px 16px 13px;
+  background:var(--plate);border-top:1px solid var(--line);}
+[data-skin="surge"] .bar .b1,[data-skin="surge"] .bar .b2{flex:1;text-align:center;padding:10px 0;
+  font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:12.5px;
+  clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%);}
+[data-skin="surge"] .bar .b1{background:var(--plate2);color:var(--tx2);}
+[data-skin="surge"] .bar .b2{background:var(--acc);color:#0b0b0c;}
+[data-skin="surge"] .cal{margin:8px 14px 0;}
+[data-skin="surge"] .cal-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+[data-skin="surge"] .cal-m{font-family:"Big Shoulders Display",sans-serif;font-weight:900;font-size:22px;color:var(--acc);}
+[data-skin="surge"] .cal-w{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:4px;}
+[data-skin="surge"] .cal-w span{text-align:center;font-family:"Anybody",sans-serif;font-weight:900;font-size:8px;color:var(--tx3);}
+[data-skin="surge"] .cal-g{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+[data-skin="surge"] .cal-d{aspect-ratio:1/1;background:var(--plate);padding:2px 0 0;display:flex;
+  flex-direction:column;align-items:center;gap:2px;}
+[data-skin="surge"] .cal-d b{font-family:"Anybody",sans-serif;font-weight:700;font-size:8.5px;color:var(--tx2);}
+[data-skin="surge"] .cal-d.o{background:transparent;}
+[data-skin="surge"] .cal-d.o b{color:var(--tx3);opacity:.5;}
+[data-skin="surge"] .cal-d.sel{background:var(--acc);}
+[data-skin="surge"] .cal-d.sel b{color:#0b0b0c;font-weight:900;}
+[data-skin="surge"] .cal-d.tdy{box-shadow:inset 0 0 0 2px var(--acc);}
+[data-skin="surge"] .dots{display:flex;gap:2px;}
+[data-skin="surge"] .dots i{width:3.5px;height:3.5px;display:block;}
+[data-skin="surge"] .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--plate);
+  border-top:2px solid var(--acc);padding:11px 16px 15px;}
+[data-skin="surge"] .sh-grip{width:36px;height:3px;background:var(--line);margin:0 auto 11px;}
+[data-skin="surge"] .sh-h{font-family:"Dela Gothic One",sans-serif;font-size:15px;margin-bottom:10px;}
+[data-skin="surge"] .prow{display:flex;align-items:center;justify-content:space-between;gap:9px;
+  padding:11px 16px;border-bottom:1px solid var(--line);}
+[data-skin="surge"] .sheet .prow{padding:11px 0;}
+[data-skin="surge"] .prow .t{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:700;font-size:12.5px;}
+[data-skin="surge"] .prow .sub{display:block;font-weight:500;font-size:10px;color:var(--tx3);line-height:1.5;margin-top:2px;}
+[data-skin="surge"] .prow .v{font-family:"Anybody",sans-serif;font-weight:700;font-size:9px;color:var(--tx2);
+  letter-spacing:.1em;text-transform:uppercase;}
+[data-skin="surge"] .prow .v.on{color:var(--acc);}
+[data-skin="surge"] .tg{width:34px;height:18px;background:var(--plate2);position:relative;flex:0 0 auto;
+  clip-path:polygon(5px 0,100% 0,calc(100% - 5px) 100%,0 100%);}
+[data-skin="surge"] .tg i{position:absolute;top:3px;left:3px;width:14px;height:12px;background:var(--tx3);}
+[data-skin="surge"] .tg.on i{left:auto;right:3px;background:var(--acc);}
+[data-skin="surge"] .dt-img{display:block;width:100%;height:150px;position:relative;}
+[data-skin="surge"] .dt-t{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:16px;
+  line-height:1.4;padding:10px 16px 0;}
+[data-skin="surge"] .dt-acts{display:flex;gap:6px;padding:11px 16px 0;}
+[data-skin="surge"] .dt-a{flex:1;background:var(--plate2);padding:8px 0 6px;text-align:center;
+  clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%);}
+[data-skin="surge"] .dt-a.on{background:var(--acc);color:#0b0b0c;}
+[data-skin="surge"] .dt-a .n2s{font-family:"Big Shoulders Display",sans-serif;font-weight:900;font-size:16px;
+  display:block;line-height:1;}
+[data-skin="surge"] .dt-a .l2{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:8px;
+  color:inherit;opacity:.8;}
+[data-skin="surge"] .offer{display:flex;align-items:center;gap:9px;padding:9px 16px;border-bottom:1px solid var(--line);}
+[data-skin="surge"] .offer .sh{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:700;font-size:11.5px;flex:1;}
+[data-skin="surge"] .offer .pr{font-family:"Big Shoulders Display",sans-serif;font-weight:900;font-size:17px;color:var(--acc);}
+[data-skin="surge"] .offer .go{font-family:"Anybody",sans-serif;font-weight:900;font-size:9px;color:var(--tx2);}
+[data-skin="surge"] .rx-pop{margin:0 16px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+[data-skin="surge"] .rx-i{background:var(--plate2);padding:10px 4px;text-align:center;
+  display:flex;align-items:center;justify-content:center;min-height:42px;line-height:1.3;
+  font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:11px;color:var(--tx2);
+  clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%);}
+[data-skin="surge"] .rx-i:nth-child(odd){transform:rotate(-1.2deg);}
+[data-skin="surge"] .rx-i:nth-child(even){transform:rotate(1deg);}
+[data-skin="surge"] .rx-i.on{background:var(--acc);color:#0b0b0c;}
+[data-skin="surge"] .ai-in{margin:10px 16px 0;background:var(--plate2);padding:11px;min-height:78px;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 12px),calc(100% - 14px) 100%,0 100%);}
+[data-skin="surge"] .ai-in .txt{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:500;font-size:11.5px;
+  color:var(--tx2);line-height:1.65;}
+[data-skin="surge"] .ai-st{display:flex;align-items:center;gap:8px;margin:10px 16px 0;}
+[data-skin="surge"] .ai-st .b{font-family:"Anybody",sans-serif;font-weight:900;font-size:9px;color:var(--acc);text-transform:uppercase;}
+[data-skin="surge"] .prog{flex:1;height:4px;background:var(--plate2);overflow:hidden;}
+[data-skin="surge"] .prog i{display:block;height:100%;width:62%;background:var(--acc);}
+[data-skin="surge"] .fld{padding:10px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;}
+[data-skin="surge"] .fld .fl-l{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:10px;
+  letter-spacing:.1em;color:var(--tx2);width:62px;flex:0 0 auto;}
+[data-skin="surge"] .fld .fl-v{flex:1;font-size:12px;min-width:0;font-weight:700;}
+[data-skin="surge"] .fld .fl-v.mono{font-family:"Anybody",sans-serif;font-size:11px;}
+[data-skin="surge"] .fld .fl-v.empty{color:var(--tx3);font-weight:500;}
+[data-skin="surge"] .warn{margin:9px 16px 0;background:var(--bad);color:#fff;padding:7px 10px;font-size:11px;
+  font-weight:900;transform:rotate(-.8deg);}
+[data-skin="surge"] .hrow{display:flex;gap:8px;padding:6px 16px 0;overflow:hidden;}
+[data-skin="surge"] .hcard{width:96px;flex:0 0 auto;}
+[data-skin="surge"] .hcard .img{width:96px;height:96px;}
+[data-skin="surge"] .hcard .t{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:10.5px;
+  line-height:1.35;margin-top:5px;height:28px;overflow:hidden;}
+[data-skin="surge"] .hcard .d{font-family:"Anybody",sans-serif;font-weight:700;font-size:9px;color:var(--tx2);}
+
+@media (max-width:640px){.wrap{padding:0 18px;}.ph{width:298px;height:614px;}}
+</style>
+
+<header class="masthead">
+  <div class="wrap">
+    <p class="kicker">FanHive ─ 意匠検討 その3 ─ branch: design/panel</p>
+    <h1>FanHive 画面帳</h1>
+    <p>ご指摘の7項目──<strong>いいね・リアクション・通知・絞り込み・検索欄・カレンダー・投稿</strong>──を
+    コードから洗い出して、両方の外皮で全部起こしました。</p>
+    <p>正直に言うと、前回の2枚（探す・マイページ）では<strong>この7つを一度も描いていませんでした</strong>。
+    そのまま進めると必ず取りこぼすので、先に棚卸しをしています。各画面の左に
+    <strong>「どの機能を残したか」</strong>をコードの実装どおりに並べました。</p>
+  </div>
+</header>
+
+<!-- 1. 検索 -->
+<section>
+  <div class="wrap cols">
+    <div>
+      <p class="n2">01</p><h2>検索欄</h2>
+      <p>入力すると、<strong>まだフォローしていない作品にヒットしたときだけ</strong>
+      検索欄の直下にフォロー導線が出ます。これは今の実装そのままで、
+      「探す」の中で新しい作品と出会う唯一の入口なので、位置も条件も変えていません。</p>
+      <ul class="keep">
+        <li>「グッズ・イベントを検索」／いいね側は「保存した予定を検索」</li>
+        <li>クリアの×ボタン</li>
+        <li>未フォロー作品にヒット → フォロー切替パネル（最大3件）</li>
+        <li>作品チップ・カテゴリチップの横スクロール</li>
+        <li>検索語のログ（1秒静まったらヒット件数つきで記録）</li>
+        <li>画面を離れても検索語・絞り込み・スクロール位置を保持</li>
+      </ul>
+    </div>
+    <div class="screens" data-render="search"></div>
+  </div>
+</section>
+
+<!-- 2. 絞り込み -->
+<section>
+  <div class="wrap cols">
+    <div>
+      <p class="n2">02</p><h2>絞り込み</h2>
+      <p>4つの節（状態・作品・カテゴリ・地域）と、各項目の<strong>件数</strong>をそのまま残しています。
+      地域は「近隣（東京）」のひとまとめと、県を開いて選ぶ形の二段構え。</p>
+      <ul class="keep">
+        <li>状態 ／ 作品 ／ カテゴリ ／ 地域 の4節</li>
+        <li>選択肢ごとの件数表示</li>
+        <li>近隣（登録した都道府県）のまとめ選択</li>
+        <li>都道府県を地方ごとに開いて選ぶ</li>
+        <li>「絞り込み中 N件」の帯とクリア</li>
+        <li>探す・いいね の両方で同じパネルを使う</li>
+      </ul>
+      <p class="note">PANELは押しボタンの列、SURGEは平行四辺形の札。
+      <strong>選択肢の並びと件数の位置は同一</strong>にしてあるので、外皮を変えても操作の記憶が崩れません。</p>
+    </div>
+    <div class="screens" data-render="filter"></div>
+  </div>
+</section>
+
+<!-- 3. いいね・カレンダー -->
+<section>
+  <div class="wrap cols">
+    <div>
+      <p class="n2">03</p><h2>いいね と カレンダー</h2>
+      <p>いいねタブは<strong>月・週・日の3表示</strong>を持っていて、作品ごとに色が割り当てられ、
+      日付未定のものは下に別枠で溜まります。ここは情報量が多いので、
+      どちらの外皮でも<strong>マス目の中身（日付・色の点）は同じ設計</strong>にしました。</p>
+      <ul class="keep">
+        <li>月 ／ 週 ／ 日 の表示切替</li>
+        <li>作品ごとの色分け（日付の下の点）</li>
+        <li>今日の枠・選択日の反転</li>
+        <li>左右スワイプで月を移動</li>
+        <li>日付未定の予定を下の別枠に</li>
+        <li>すべて ／ 予約・受注中 ／ 自分の投稿 ／ 通知ON の4タブ</li>
+        <li>保存した予定の検索と絞り込み</li>
+      </ul>
+      <p class="note"><strong>端末カレンダーへの書き出し・ICS購読URL・Google連携・ウィジェット3種</strong>も
+      そのまま残ります（置き場所はマイページの「すべての設定」の中）。</p>
+    </div>
+    <div class="screens" data-render="cal"></div>
+  </div>
+</section>
+
+<!-- 4. 通知 -->
+<section>
+  <div class="wrap cols">
+    <div>
+      <p class="n2">04</p><h2>通知</h2>
+      <p>ベルは<strong>いいねした予定にだけ</strong>出て、押すと内訳のシートが開きます。
+      リマインダーは既定OFF（自分で入れる）、値下げはプレミアム、という今の設計を変えていません。
+      ベルは3状態（消灯・点灯・消音）を保ちます。</p>
+      <ul class="keep">
+        <li>カードのベル（いいね済みのときだけ表示・3状態）</li>
+        <li>発売日／締切のリマインダー（既定OFF・N日前と当日の朝）</li>
+        <li>値下げのお知らせ（プレミアム）</li>
+        <li>受付開始のお知らせ（プッシュ）</li>
+        <li>何日前に知らせるかの設定</li>
+        <li>作品ごとに通知を止める</li>
+        <li>これまでのお知らせ一覧と未読の数</li>
+        <li>通知が許可されていないときの案内</li>
+      </ul>
+    </div>
+    <div class="screens" data-render="notify"></div>
+  </div>
+</section>
+
+<!-- 5. 通知設定 -->
+<section>
+  <div class="wrap cols">
+    <div>
+      <p class="n2">05</p><h2>通知の設定</h2>
+      <p>マイページの「すべての設定」から入る画面です。項目は1つも減らしていません。</p>
+      <ul class="keep">
+        <li>許可されていないときの誘導</li>
+        <li>受付開始をその場で受け取る（プッシュ）</li>
+        <li>これまでのお知らせを見る</li>
+        <li>リマインダーの有無と日数</li>
+        <li>値下げのお知らせ（プレミアムへの導線つき）</li>
+        <li>作品ごとに通知を止める</li>
+      </ul>
+    </div>
+    <div class="screens" data-render="notifset"></div>
+  </div>
+</section>
+
+<!-- 6. 詳細 -->
+<section>
+  <div class="wrap cols">
+    <div>
+      <p class="n2">06</p><h2>詳細</h2>
+      <p>いちばん機能が詰まっている画面です。<strong>いいね・リアクション・カレンダー追加・共有</strong>の4つを
+      横一列に並べ、その下に購入リンク・在庫情報・行く日を積みます。</p>
+      <ul class="keep">
+        <li>いいね（数つき）・リアクション・カレンダー追加・Xで共有</li>
+        <li>購入リンクを複数（店名・価格・セット表記・差し替え・取り消し）</li>
+        <li>在庫情報の投稿と削除（自分のものだけ）</li>
+        <li>行く日の登録・削除</li>
+        <li>みんなの編集履歴と「戻す」</li>
+        <li>通報・非表示</li>
+        <li>受注／予約の期間と発売日の出し分け</li>
+      </ul>
+      <p class="note">PANELでは4つの操作を押しボタンの列に、SURGEでは平行四辺形の並びにしました。
+      <strong>並び順・数字の位置・ラベルは同一</strong>です。</p>
+    </div>
+    <div class="screens" data-render="detail"></div>
+  </div>
+</section>
+
+<!-- 7. リアクション -->
+<section>
+  <div class="wrap cols">
+    <div>
+      <p class="n2">07</p><h2>リアクション</h2>
+      <p>6種そのままです。行きたい！／欲しい！／楽しみ！／おめでとう！／ありがとう！／知らなかった！。
+      同じものをもう一度押すと解除、という挙動も変えていません。</p>
+      <ul class="keep">
+        <li>6種すべて（種類も文言も同じ）</li>
+        <li>押すと上にポップオーバー、選ぶと閉じる</li>
+        <li>同じものを選ぶと解除</li>
+        <li>自分の選択は端末に保存し、サーバーへは書き込みだけ</li>
+        <li>カード・詳細のどちらからでも押せる</li>
+      </ul>
+      <p class="note"><strong>ここだけ判断をお願いします。</strong>
+      今のリアクションは絵ではなく<strong>文字</strong>です（「行きたい」をピンク、「楽しみ」を黄で組んだPNG）。
+      色が固定なのでPANELの無彩色とぶつかります。
+      上の案は<strong>同じ6語を外皮の書体で組み直したもの</strong>で、機能も文言も変わりません。
+      今のPNGをそのまま使うこともできます。どちらにしますか。</p>
+    </div>
+    <div class="screens" data-render="reaction"></div>
+  </div>
+</section>
+
+<!-- 8. 投稿 AI -->
+<section>
+  <div class="wrap cols">
+    <div>
+      <p class="n2">08</p><h2>投稿 ─ AI入力</h2>
+      <p>公式の告知を貼ると解析して、候補を出す流れです。共有シートから直接ここに来る経路も残します。
+      重複検知は入力中にその場で出ます。</p>
+      <ul class="keep">
+        <li>グッズ／イベントの切替</li>
+        <li>本文やURLを貼って解析（複数件まとめて出る）</li>
+        <li>他のアプリの共有シートから直接開く</li>
+        <li>商品検索で画像・価格・リンクを自動で埋める</li>
+        <li>入力中の重複検知（似た投稿があれば警告）</li>
+        <li>解析の入力と出力をログに残す</li>
+        <li>下書きの保存（途中で離れても消えない）</li>
+      </ul>
+    </div>
+    <div class="screens" data-render="postai"></div>
+  </div>
+</section>
+
+<!-- 9. 投稿 フォーム -->
+<section>
+  <div class="wrap cols">
+    <div>
+      <p class="n2">09</p><h2>投稿 ─ 入力欄</h2>
+      <p>項目が20個以上あるので、<strong>よく使う順に上から並べ、細かいものは「もっと」の中</strong>へ。
+      これは今と同じ構成です。日付は「未定」「上旬・中旬・下旬」「春頃」まで扱えます。</p>
+      <ul class="keep">
+        <li>作品（検索して選ぶ／新しく作る）</li>
+        <li>タイトル・カテゴリ（複数選択）</li>
+        <li>日付：終日／時刻あり／未定／上旬・中旬・下旬／春頃</li>
+        <li>期間（開始と終了）</li>
+        <li>受注・予約トグルと受付期間・受付時刻</li>
+        <li>価格・購入リンク・複数の販売店</li>
+        <li>在庫メモ・メモ・画像</li>
+        <li>都道府県・会場の詳細</li>
+      </ul>
+    </div>
+    <div class="screens" data-render="postform"></div>
+  </div>
+</section>
+
+<!-- 10. ホーム -->
+<section>
+  <div class="wrap cols">
+    <div>
+      <p class="n2">10</p><h2>ホーム</h2>
+      <p>5つの節の横スクロールです。節の名前も順番も今のままにしました。</p>
+      <ul class="keep">
+        <li>受付中 ／ もうすぐ受付開始 ／ フォロー作品の新着 ／ 近くのイベント ／ 人気</li>
+        <li>フォロー作品の管理への導線</li>
+        <li>未読（まだ見ていない）の印</li>
+        <li>カードから直接いいね・カレンダー追加</li>
+        <li>作品ごとの色</li>
+      </ul>
+    </div>
+    <div class="screens" data-render="home"></div>
+  </div>
+</section>
+
+<!-- 棚卸し -->
+<section>
+  <div class="wrap">
+    <h2>消していないことの確かめ方</h2>
+    <p>実装のときは、この表を1行ずつ潰していきます。
+    生きている画面は18、共通部品は40。<strong>参照されていない古い画面が7つ（約7,000行）</strong>ありますが、
+    これは触らず、消しもしません。</p>
+    <div class="tablewrap">
+      <table class="iv">
+        <thead><tr><th>領域</th><th>残す機能</th><th>どこに置くか</th></tr></thead>
+        <tbody>
+          <tr><td>いいね</td><td>ハート＋数、押した瞬間の細線の演出、一覧に溜まる、未ログインでも押せる</td><td>カード／詳細／いいねタブ</td></tr>
+          <tr><td>リアクション</td><td>6種・付け替え・解除・端末保存</td><td>カード／詳細</td></tr>
+          <tr><td>通知</td><td>ベル3状態、リマインダー（日数指定）、値下げ、受付開始、作品ごとの停止、お知らせ一覧と未読数</td><td>カード／設定／お知らせ</td></tr>
+          <tr><td>絞り込み</td><td>状態・作品・カテゴリ・地域、件数、近隣、県の展開、クリア</td><td>探す／いいね</td></tr>
+          <tr><td>検索</td><td>2種の検索欄、クリア、未フォロー作品の導線、検索ログ、状態の保持</td><td>探す／いいね</td></tr>
+          <tr><td>カレンダー</td><td>月週日、作品色、スワイプ、日付未定枠、端末カレンダー書き出し、ICS購読、Google連携、ウィジェット3種</td><td>いいねタブ／設定</td></tr>
+          <tr><td>投稿</td><td>AI解析、共有シート受け、商品検索、重複検知、下書き、20以上の入力欄、曖昧な日付</td><td>＋タブ</td></tr>
+          <tr><td>詳細</td><td>4操作、購入リンク複数、在庫情報、行く日、編集履歴と戻す、通報</td><td>詳細</td></tr>
+          <tr><td>課金</td><td>プレミアム案内、初回の歓迎、値下げ一覧、広告の非表示</td><td>設定／値下げ</td></tr>
+          <tr><td>その他</td><td>初回の案内、テーマ7種、アクセント6色、書体4種、ブロック、退会、アカウント連携</td><td>設定</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>このまま進めます</h3>
+    <p>両方の外皮で、<strong>本番には一切反映せず</strong>ブランチの中だけで作ります。
+    設計書と変数表を全項目に広げてから、土台 → 探す → 外枠 → 詳細・投稿 → マイページ → 課金・通知・ウィジェット の順です。
+    区切りごとにプレビューURLを出します。</p>
+    <p class="note">リアクションの見た目（今のPNGを使うか、外皮の書体で組み直すか）だけ、
+    お返事をいただけると助かります。それ以外は決まった方針で進めます。</p>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="wrap">branch: design/panel ─ main には反映しません ─ 書体は SIL OFL のみ ─ 図形とアイコンはすべて自作</div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  var DOTS={
+    home:["...#...","..###..",".#####.","#######",".#...#.",".#...#.",".#####."],
+    find:[".###...","#...#..","#...#..","#...#..",".###...","....##.",".....##"],
+    post:["...#...","...#...","...#...","#######","...#...","...#...","...#..."],
+    like:[".##.##.","#######","#######","#######",".#####.","..###..","...#..."],
+    me:  ["..###..","..###..","..###..",".......",".#####.","#######","#######"]
+  };
+  var PATHS={
+    home:'M2 9.4 10 2.4l8 7V18H2z',
+    find:'M9 2.6a6.4 6.4 0 1 0 3.7 11.6l3.4 3.4 1.7-1.7-3.4-3.4A6.4 6.4 0 0 0 9 2.6zm0 2.4a4 4 0 1 1 0 8 4 4 0 0 1 0-8z',
+    post:'M8.6 3h2.8v5.6H17v2.8h-5.6V17H8.6v-5.6H3V8.6h5.6z',
+    like:'M10 17.4S2.6 12.6 2.6 7.9A3.9 3.9 0 0 1 10 6.1a3.9 3.9 0 0 1 7.4 1.8c0 4.7-7.4 9.5-7.4 9.5z',
+    me:  'M10 3.2a3.4 3.4 0 1 1 0 6.8 3.4 3.4 0 0 1 0-6.8zM3.4 17.6c0-3.7 3-5.8 6.6-5.8s6.6 2.1 6.6 5.8z'
+  };
+  var TABS=[{k:'home',jp:'ホーム',en:'Home'},{k:'find',jp:'探す',en:'Find'},
+            {k:'post',jp:'投稿',en:'Post',add:true},{k:'like',jp:'いいね',en:'Keep'},
+            {k:'me',jp:'マイ',en:'Me'}];
+  var NS='http://www.w3.org/2000/svg';
+
+  function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+  function dotIcon(k){var g=el('span','dico');DOTS[k].forEach(function(r){r.split('').forEach(function(ch){
+    var d=document.createElement('i');if(ch==='#')d.className='f';g.appendChild(d);});});return g;}
+  function solidIcon(k){var s=document.createElementNS(NS,'svg');
+    s.setAttribute('viewBox','0 0 20 20');s.setAttribute('width','17');s.setAttribute('height','17');
+    s.setAttribute('class','sico');s.setAttribute('aria-hidden','true');
+    var p=document.createElementNS(NS,'path');p.setAttribute('d',PATHS[k]);p.setAttribute('fill','currentColor');
+    s.appendChild(p);return s;}
+  function tabBar(cur,skin){
+    var n=el('nav','tab');
+    TABS.forEach(function(t){
+      var b=document.createElement('button');b.type='button';
+      if(t.add)b.className='add';
+      if(t.k===cur)b.setAttribute('aria-current','page');
+      b.appendChild(dotIcon(t.k));b.appendChild(solidIcon(t.k));
+      var l=el('span','tl');l.textContent=(skin==='panel')?t.en:t.jp;b.appendChild(l);
+      n.appendChild(b);
+    });
+    return n;
+  }
+  function head(skin,title,meta,back){
+    var h=el('div','hd');
+    var top=el('div','hd-top');
+    top.appendChild(el('span','hd-wm',back?'&lt; BACK':'FANHIVE'));
+    top.appendChild(el('span','hd-meta',meta||''));
+    h.appendChild(top);
+    var t=el('h3','hd-title');t.textContent=title;h.appendChild(t);
+    return h;
+  }
+  function img(cls,mark,extra){
+    var s=el('span','img '+cls+' '+mark+(extra?' '+extra:''));
+    s.appendChild(document.createElement('span'));
+    var a=document.createElement('i');a.className=(mark==='m2'||mark==='m5')?'n':'c';
+    var b=document.createElement('i');b.className='k';
+    s.appendChild(a);s.appendChild(b);return s;
+  }
+  var ITEMS=[
+    {st:'pre', jp:'予約・受注中', en:'Preorder',   t:'ちいかわ もちもちぬいぐるみ', d:'08.25 — 09.10', p:'3,300', im:'i1', mk:'m1'},
+    {st:'soon',jp:'発売まで あと12日',en:'Upcoming D-12',t:'ハイキュー!! アクリルスタンド', d:'09.02', p:'1,100', im:'i2', mk:'m2'},
+    {st:'now', jp:'開催中',      en:'Open now',   t:'呪術廻戦 POP UP SHOP', d:'08.15 — 09.01 渋谷', p:'—', im:'i3', mk:'m3'},
+    {st:'end', jp:'受付終了',    en:'Closed',     t:'【推しの子】缶バッジBOX', d:'08.18', p:'4,400', im:'i4', mk:'m4'},
+    {st:'soon',jp:'もうすぐ予約開始',en:'Opens soon',t:'SPY×FAMILY 一番くじ', d:'09.12 —', p:'770', im:'i5', mk:'m5'}
+  ];
+  function itemLi(o){
+    var li=el('li','it');li.dataset.st=o.st;
+    li.appendChild(img(o.im,o.mk));
+    var b=el('div','it-b');
+    var st=el('div','st');
+    st.appendChild(el('span','led'));
+    st.appendChild(el('span','lbl',o.en));
+    st.appendChild(el('span','jp',o.jp));
+    b.appendChild(st);
+    var h=el('h4','it-h');h.textContent=o.t;b.appendChild(h);
+    var m=el('div','meta');
+    m.appendChild(el('span','it-d',o.d));
+    m.appendChild(el('span','it-p',o.p==='—'?'入場無料':'<span class="yen">¥</span>'+o.p));
+    b.appendChild(m);li.appendChild(b);return li;
+  }
+  function list(n){var u=el('ul','list');for(var i=0;i<n;i++)u.appendChild(itemLi(ITEMS[i]));return u;}
+
+  /* ── 各画面 ── */
+  var BUILD = {
+    search:function(s){
+      var f=document.createDocumentFragment();
+      f.appendChild(head(s,'探す','08.21 FRI'));
+      var sr=el('div','srch');
+      sr.appendChild(el('span','q','ちいかわ'));
+      sr.appendChild(el('span','x','×'));
+      f.appendChild(sr);
+      var cue=el('div','cue');
+      cue.appendChild(el('span','t','「ちいかわ」をフォローすると<br>新着が届きます'));
+      cue.appendChild(el('span','b','フォロー'));
+      f.appendChild(cue);
+      var cr=el('div','crow');
+      ['すべて','グッズ','イベント','くじ'].forEach(function(t,i){
+        cr.appendChild(el('span','cp'+(i===1?' on':''),t));});
+      f.appendChild(cr);
+      var fb=el('div','fbar');
+      fb.appendChild(el('span','t','絞り込み中 3件'));
+      fb.appendChild(el('span','t','×'));
+      f.appendChild(fb);
+      var u=el('ul','list');u.style.marginTop='9px';
+      [ITEMS[0],ITEMS[3],ITEMS[4]].forEach(function(o){u.appendChild(itemLi(o));});
+      f.appendChild(u);
+      return {frag:f,tab:'find'};
+    },
+    filter:function(s){
+      var f=document.createDocumentFragment();
+      f.appendChild(head(s,'絞り込み','24 / 128'));
+      function sec(title,opts){
+        var d=el('div','fsec');d.appendChild(el('div','fh',title));
+        var o=el('div','fopts');
+        opts.forEach(function(x){
+          var b=el('span','fo'+(x[2]?' on':''));
+          b.appendChild(el('span',null,x[0]));
+          b.appendChild(el('span','fc',x[1]));
+          o.appendChild(b);
+        });
+        d.appendChild(o);return d;
+      }
+      f.appendChild(sec('状態',[['予約・受注中','24',1],['もうすぐ','8'],['開催中','11'],['終了','52']]));
+      f.appendChild(sec('作品',[['ちいかわ','41',1],['ハイキュー','23'],['呪術廻戦','19'],['推しの子','12']]));
+      f.appendChild(sec('カテゴリ',[['ぬいぐるみ','18'],['アクリル','22'],['くじ','7'],['書籍','5']]));
+      f.appendChild(sec('地域',[['近隣（東京）','31',1],['関東','44'],['関西','18'],['県を選ぶ','—']]));
+      var bar=el('div','bar');
+      bar.appendChild(el('span','b1','クリア'));
+      bar.appendChild(el('span','b2','24件を見る'));
+      f.appendChild(bar);
+      return {frag:f,tab:'find',noTab:true};
+    },
+    cal:function(s){
+      var f=document.createDocumentFragment();
+      f.appendChild(head(s,'いいね','GOODS 42'));
+      var sg=el('div','seg');
+      ['月','週','日'].forEach(function(t,i){sg.appendChild(el('span',i===0?'on':'',t));});
+      f.appendChild(sg);
+      var cr=el('div','crow');
+      ['すべて','予約・受注中','自分の投稿','通知ON'].forEach(function(t,i){
+        cr.appendChild(el('span','cp'+(i===0?' on':''),t));});
+      f.appendChild(cr);
+      var cal=el('div','cal');
+      var ch=el('div','cal-hd');
+      ch.appendChild(el('span','cal-m','2026.08'));
+      ch.appendChild(el('span','lbl','&lt;  &gt;'));
+      cal.appendChild(ch);
+      var w=el('div','cal-w');
+      ['S','M','T','W','T','F','S'].forEach(function(d){w.appendChild(el('span',null,d));});
+      cal.appendChild(w);
+      var g=el('div','cal-g');
+      var COL=['var(--pre)','var(--soon)','var(--now)','var(--end)'];
+      var marks={3:[0],5:[1],8:[0,2],12:[1],15:[2],18:[3],21:[0,1],22:[0],25:[0],26:[2],29:[1]};
+      for(var i=0;i<35;i++){
+        var day=i-5;
+        var out=day<1||day>31;
+        var d=el('div','cal-d'+(out?' o':'')+(day===21?' sel':'')+(day===22?' tdy':''));
+        d.appendChild(el('b',null,out?(day<1?31+day:day-31):day));
+        if(!out&&marks[day]){
+          var dd=el('span','dots');
+          marks[day].forEach(function(ci){var x=document.createElement('i');x.style.background=COL[ci];dd.appendChild(x);});
+          d.appendChild(dd);
+        }
+        g.appendChild(d);
+      }
+      cal.appendChild(g);
+      f.appendChild(cal);
+      f.appendChild(el('span','sec-l','日付未定 ─ 3件'));
+      var u=el('ul','list');u.appendChild(itemLi(ITEMS[4]));f.appendChild(u);
+      return {frag:f,tab:'like'};
+    },
+    notify:function(s){
+      var f=document.createDocumentFragment();
+      f.appendChild(head(s,'探す','08.21 FRI'));
+      f.appendChild(list(2));
+      var sh=el('div','sheet');
+      sh.appendChild(el('div','sh-grip'));
+      sh.appendChild(el('div','sh-h','通知'));
+      function row(t,sub,on,v){
+        var r=el('div','prow');
+        var L=el('div');L.appendChild(el('span','t',t));
+        if(sub)L.appendChild(el('span','sub',sub));
+        r.appendChild(L);
+        if(v)r.appendChild(el('span','v'+(on?' on':''),v));
+        else{var g=el('span','tg'+(on?' on':''));g.appendChild(document.createElement('i'));r.appendChild(g);}
+        return r;
+      }
+      sh.appendChild(row('発売日・締切のお知らせ','3日前と当日の朝にお知らせします',true));
+      sh.appendChild(row('値下げのお知らせ','最安値が更新されたら',true));
+      sh.appendChild(row('受付開始のお知らせ','受付が始まった時点で',false));
+      var last=row('何日前に知らせるか',null,true,'3 DAYS');
+      last.style.borderBottom='0';
+      sh.appendChild(last);
+      f.appendChild(sh);
+      return {frag:f,tab:'find'};
+    },
+    notifset:function(s){
+      var f=document.createDocumentFragment();
+      f.appendChild(head(s,'通知','SETTINGS',true));
+      f.appendChild(el('span','sec-l','01 ─ 受け取り方'));
+      function row(t,sub,on,v){
+        var r=el('div','prow');
+        var L=el('div');L.appendChild(el('span','t',t));
+        if(sub)L.appendChild(el('span','sub',sub));
+        r.appendChild(L);
+        if(v)r.appendChild(el('span','v'+(on?' on':''),v));
+        else{var g=el('span','tg'+(on?' on':''));g.appendChild(document.createElement('i'));r.appendChild(g);}
+        return r;
+      }
+      f.appendChild(row('受付開始をその場で受け取る','アプリを開いていなくても届きます',true));
+      f.appendChild(row('発売日・締切のお知らせ',null,true));
+      f.appendChild(row('何日前に知らせるか',null,true,'3 DAYS'));
+      f.appendChild(el('span','sec-l','02 ─ プレミアム'));
+      f.appendChild(row('値下げのお知らせ','最安値が更新されたら',true,'PREMIUM'));
+      f.appendChild(el('span','sec-l','03 ─ 止める・見る'));
+      f.appendChild(row('作品ごとに通知を止める',null,false,'7 WORKS'));
+      f.appendChild(row('これまでのお知らせ',null,true,'2 NEW'));
+      return {frag:f,tab:'me',noTab:false};
+    },
+    detail:function(s){
+      var f=document.createDocumentFragment();
+      var im=img('i1','m1','dt-img');im.classList.add('dt-img');
+      f.appendChild(im);
+      var st=el('div','st');st.style.padding='9px 12px 0';
+      st.appendChild(el('span','led'));st.appendChild(el('span','lbl','Preorder'));st.appendChild(el('span','jp','予約・受注中'));
+      var wrapSt=el('div');wrapSt.dataset.st='pre';wrapSt.className='it';
+      wrapSt.style.cssText='background:none;box-shadow:none;padding:9px 12px 0;display:block;clip-path:none;';
+      wrapSt.appendChild(st);
+      st.style.padding='0';
+      f.appendChild(wrapSt);
+      var t=el('h1','dt-t');t.textContent='ちいかわ もちもちぬいぐるみ';f.appendChild(t);
+      var d=el('div');d.style.cssText='padding:5px 12px 0;';
+      d.appendChild(el('span','lbl','予約 08.25 — 09.10 ／ 発売 10.03'));
+      f.appendChild(d);
+      var acts=el('div','dt-acts');
+      [['318','いいね',1],['24','リアクション',0],['—','カレンダー',0],['—','共有',0]].forEach(function(a){
+        var b=el('span','dt-a'+(a[2]?' on':''));
+        b.appendChild(el('span','n2s',a[0]));
+        b.appendChild(el('span','l2',a[1]));
+        acts.appendChild(b);
+      });
+      f.appendChild(acts);
+      f.appendChild(el('span','sec-l','購入できるお店 ─ 3件'));
+      [['あみあみ','3,300','セット'],['アニメイト','3,300',''],['楽天ブックス','3,520','']].forEach(function(o){
+        var r=el('div','offer');
+        r.appendChild(el('span','sh',o[0]+(o[2]?' <span class="lbl">'+o[2]+'</span>':'')));
+        r.appendChild(el('span','pr','¥'+o[1]));
+        r.appendChild(el('span','go','OPEN ↗'));
+        f.appendChild(r);
+      });
+      f.appendChild(el('span','sec-l','在庫情報 ─ 2件'));
+      var s1=el('div','prow');s1.appendChild(el('span','t','渋谷店は昨日の時点で在庫あり'));
+      s1.appendChild(el('span','v','08.20'));f.appendChild(s1);
+      var s2=el('div','prow');s2.appendChild(el('span','t','行く日を登録する'));
+      s2.appendChild(el('span','v on','+ ADD'));f.appendChild(s2);
+      f.appendChild(el('span','sec-l','みんなの編集 ─ 4件'));
+      var e1=el('div','prow');
+      var eL=el('div');eL.appendChild(el('span','t','価格を 3,500 → 3,300 に'));
+      eL.appendChild(el('span','sub','しばの ／ 08.19'));
+      e1.appendChild(eL);e1.appendChild(el('span','v','戻す'));f.appendChild(e1);
+      var e2=el('div','prow');e2.appendChild(el('span','t','この投稿を通報・非表示にする'));
+      e2.appendChild(el('span','v','›'));f.appendChild(e2);
+      return {frag:f,tab:'find'};
+    },
+    reaction:function(s){
+      var f=document.createDocumentFragment();
+      f.appendChild(head(s,'リアクション','6 TYPES'));
+      f.appendChild(list(1));
+      var sh=el('div','sheet');
+      sh.appendChild(el('div','sh-grip'));
+      sh.appendChild(el('div','sh-h','どう思った？'));
+      var pop=el('div','rx-pop');
+      [['行きたい！',0],['欲しい！',1],['楽しみ！',0],['おめでとう！',0],['ありがとう！',0],['知らなかった！',0]]
+        .forEach(function(r){pop.appendChild(el('span','rx-i'+(r[1]?' on':''),r[0]));});
+      sh.appendChild(pop);
+      var note=el('div');note.style.cssText='padding:10px 2px 0;';
+      note.appendChild(el('span','lbl','同じものをもう一度押すと解除'));
+      sh.appendChild(note);
+      f.appendChild(sh);
+      return {frag:f,tab:'find'};
+    },
+    postai:function(s){
+      var f=document.createDocumentFragment();
+      f.appendChild(head(s,'投稿','AI'));
+      var sg=el('div','seg');
+      sg.appendChild(el('span','on','グッズ'));sg.appendChild(el('span','','イベント'));
+      f.appendChild(sg);
+      f.appendChild(el('span','sec-l','公式の告知を貼る'));
+      var ai=el('div','ai-in');
+      ai.appendChild(el('div','txt','「ちいかわ もちもちぬいぐるみ」8/25(月)10:00より予約受付開始！ 9/10(水)23:59まで。価格 3,300円（税込）https://…'));
+      f.appendChild(ai);
+      var st=el('div','ai-st');
+      st.appendChild(el('span','b','解析中'));
+      var pg=el('div','prog');pg.appendChild(document.createElement('i'));
+      st.appendChild(pg);
+      f.appendChild(st);
+      f.appendChild(el('div','warn','似た投稿が1件あります。「ちいかわ もちもち…」'));
+      f.appendChild(el('span','sec-l','見つかった候補 ─ 2件'));
+      var u=el('ul','list');
+      u.appendChild(itemLi(ITEMS[0]));
+      u.appendChild(itemLi(ITEMS[4]));
+      f.appendChild(u);
+      return {frag:f,tab:'post',noTab:false};
+    },
+    postform:function(s){
+      var f=document.createDocumentFragment();
+      f.appendChild(head(s,'内容を確かめる','1 / 2',true));
+      function fld(l,v,cls){
+        var d=el('div','fld');
+        d.appendChild(el('span','fl-l',l));
+        d.appendChild(el('span','fl-v '+(cls||''),v));
+        return d;
+      }
+      f.appendChild(fld('作品','ちいかわ'));
+      f.appendChild(fld('タイトル','もちもちぬいぐるみ'));
+      f.appendChild(fld('カテゴリ','ぬいぐるみ ／ グッズ'));
+      var t=el('div','fld');
+      t.appendChild(el('span','fl-l','受注・予約'));
+      var g=el('span','tg on');g.appendChild(document.createElement('i'));
+      t.appendChild(el('span','fl-v','する'));t.appendChild(g);
+      f.appendChild(t);
+      f.appendChild(fld('受付','08.25 10:00 — 09.10 23:59','mono'));
+      f.appendChild(fld('発売','10.03（上旬）','mono'));
+      f.appendChild(fld('価格','¥3,300','mono'));
+      f.appendChild(fld('リンク','amiami.jp／animate…','mono'));
+      f.appendChild(fld('場所','（グッズなので不要）','empty'));
+      f.appendChild(fld('画像','1枚 添付済み'));
+      f.appendChild(el('span','sec-l','＋ もっと（在庫メモ・メモ・販売店の追加）'));
+      var bar=el('div','bar');
+      bar.appendChild(el('span','b1','下書き'));
+      bar.appendChild(el('span','b2','投稿する'));
+      f.appendChild(bar);
+      return {frag:f,tab:'post',noTab:true};
+    },
+    home:function(s){
+      var f=document.createDocumentFragment();
+      f.appendChild(head(s,'ホーム','08.21 FRI'));
+      var cr=el('div','crow');
+      ['ちいかわ','ハイキュー','呪術廻戦','＋管理'].forEach(function(t,i){
+        cr.appendChild(el('span','cp'+(i===0?' on':''),t));});
+      f.appendChild(cr);
+      function shelf(title,idx){
+        f.appendChild(el('span','sec-l',title));
+        var row=el('div','hrow');
+        idx.forEach(function(i){
+          var o=ITEMS[i];
+          var c=el('div','hcard');
+          c.appendChild(img(o.im,o.mk));
+          c.appendChild(el('div','t',o.t));
+          c.appendChild(el('div','d',o.d));
+          row.appendChild(c);
+        });
+        f.appendChild(row);
+      }
+      shelf('受付中 ─ 24件',[0,4,2]);
+      shelf('もうすぐ受付開始 ─ 8件',[1,3,0]);
+      shelf('フォロー作品の新着 ─ 11件',[2,0,1]);
+      return {frag:f,tab:'home'};
+    }
+  };
+
+  function phone(kind,skin){
+    var ph=el('div','ph');ph.setAttribute('data-skin',skin);
+    var scr=el('div','scr');
+    var r=BUILD[kind](skin);
+    scr.appendChild(r.frag);
+    ph.appendChild(scr);
+    ph.appendChild(tabBar(r.tab,skin));
+    return ph;
+  }
+  document.querySelectorAll('[data-render]').forEach(function(host){
+    var kind=host.dataset.render;
+    [['panel','PANEL'],['surge','SURGE']].forEach(function(sk){
+      var fg=el('figure');
+      fg.appendChild(phone(kind,sk[0]));
+      var c=el('figcaption');c.textContent=sk[1];
+      fg.appendChild(c);
+      host.appendChild(fg);
+    });
+  });
+})();
+</script>
