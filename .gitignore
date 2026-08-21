@@ -16,3 +16,11 @@ backups/
 
 # macOSが勝手に作るもの
 .DS_Store
+
+# fastlane の実行時生成物（スクショ・メタデータはApp Store Connect側が正）
+ios/App/fastlane/report.xml
+ios/App/fastlane/Preview.html
+ios/App/fastlane/screenshots/
+ios/App/fastlane/metadata/
+ios/App/build/
+ios/App/fastlane/README.md
