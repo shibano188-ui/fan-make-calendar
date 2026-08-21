@@ -80,7 +80,7 @@ table.iv td:first-child{font-weight:700;color:var(--ink);white-space:nowrap;}
 .meta{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
 
 .img{display:block;position:relative;overflow:hidden;flex:0 0 auto;}
-.img>span{position:absolute;inset:0;}
+.img>span:first-child{position:absolute;inset:0;}
 .i1{background:linear-gradient(147deg,#4c4238,#836e57 54%,#3a322a);}
 .i2{background:linear-gradient(147deg,#243748,#48708f 54%,#1b2734);}
 .i3{background:linear-gradient(147deg,#3e2437,#7c3d5d 54%,#291725);}
@@ -426,6 +426,74 @@ table.iv td:first-child{font-weight:700;color:var(--ink);white-space:nowrap;}
   line-height:1.35;margin-top:5px;height:28px;overflow:hidden;}
 [data-skin="surge"] .hcard .d{font-family:"Anybody",sans-serif;font-weight:700;font-size:9px;color:var(--tx2);}
 
+
+/* ═══════════ カードの解剖（ItemCard の実装に合わせる） ═══════════
+   実装: 画像の上に状態バッジ／新着、左端に作品色、最下段に必ず
+   「いいね＋数・リアクション・通知ベル」の3つ（list/grid 共通） */
+.it{position:relative;}
+.it .img{position:relative;}
+.it .badge{position:absolute;left:3px;bottom:3px;display:flex;align-items:center;gap:3px;z-index:2;}
+.it .new{position:absolute;right:3px;top:3px;z-index:2;}
+.acts{display:flex;align-items:center;gap:13px;margin-top:6px;}
+.act{display:flex;align-items:center;gap:4px;}
+.ico{display:block;}
+.aico{display:grid;grid-template-columns:repeat(7,1.7px);grid-auto-rows:1.7px;gap:1.2px;}
+.aico i{width:1.7px;height:1.7px;border-radius:50%;background:currentColor;opacity:.15;}
+.aico i.f{opacity:1;}
+
+[data-skin="panel"] .it{border-left:2px solid var(--wc,transparent);}
+[data-skin="panel"] .it .img{width:70px;height:70px;}
+[data-skin="panel"] .it .badge{background:rgba(0,0,0,.72);padding:1px 4px;border-radius:1px;}
+[data-skin="panel"] .it .badge .led{width:4px;height:4px;border-radius:50%;background:var(--tx3);flex:0 0 auto;}
+[data-skin="panel"] .it[data-st="pre"] .badge .led{background:var(--pre);box-shadow:0 0 4px rgba(255,90,30,.9);}
+[data-skin="panel"] .it[data-st="soon"] .badge .led{background:var(--soon);}
+[data-skin="panel"] .it[data-st="now"] .badge .led{background:var(--now);box-shadow:0 0 4px rgba(55,207,124,.8);}
+[data-skin="panel"] .it[data-st="end"] .badge .led{background:var(--end);}
+[data-skin="panel"] .it .badge .bt{font-family:"Martian Mono",monospace;font-size:6.5px;letter-spacing:0;
+  text-transform:uppercase;color:var(--tx);}
+[data-skin="panel"] .it .new{font-family:"Martian Mono",monospace;font-size:6.5px;background:var(--acc);
+  color:#160600;padding:1px 3px;border-radius:1px;}
+[data-skin="panel"] .work{font-family:"BIZ UDGothic",sans-serif;font-size:9.5px;letter-spacing:.08em;
+  color:var(--tx2);line-height:1.4;}
+[data-skin="panel"] .it-h{font-size:12.5px;margin-bottom:1px;}
+[data-skin="panel"] .cat{font-family:"BIZ UDGothic",sans-serif;font-size:8.5px;letter-spacing:.06em;
+  color:var(--tx3);line-height:1.5;margin-bottom:2px;}
+[data-skin="panel"] .setg{font-family:"Martian Mono",monospace;font-size:6.5px;text-transform:uppercase;
+  background:var(--plate2);color:var(--tx2);padding:1px 4px;border-radius:1px;margin-left:4px;}
+[data-skin="panel"] .acts{color:var(--tx2);}
+[data-skin="panel"] .act .cnt{font-family:"Bitcount Grid Double",monospace;font-weight:700;font-size:10px;color:var(--tx2);}
+[data-skin="panel"] .act.liked,[data-skin="panel"] .act.on{color:var(--acc);}
+[data-skin="panel"] .act.liked .cnt{color:var(--acc);}
+[data-skin="panel"] .act.muted{color:var(--tx3);}
+[data-skin="panel"] .rxw{font-family:"BIZ UDGothic",sans-serif;font-weight:700;font-size:9.5px;
+  letter-spacing:.04em;background:var(--acc);color:#160600;padding:1px 5px;border-radius:1px;}
+[data-skin="panel"] .asvg{display:none;}
+
+[data-skin="surge"] .it{border-left:3px solid var(--wc,transparent);}
+[data-skin="surge"] .it .img{width:70px;height:70px;}
+[data-skin="surge"] .it .badge{background:var(--acc);color:#0b0b0c;padding:1px 7px;transform:rotate(-1.6deg);}
+[data-skin="surge"] .it .badge .led{display:none;}
+[data-skin="surge"] .it .badge .bt{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:8px;}
+[data-skin="surge"] .it[data-st="soon"] .badge{background:#fff;}
+[data-skin="surge"] .it[data-st="now"] .badge{background:var(--now);}
+[data-skin="surge"] .it[data-st="end"] .badge{background:#3a3a40;color:rgba(255,255,255,.6);}
+[data-skin="surge"] .it .new{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:8px;
+  background:#fff;color:#0b0b0c;padding:1px 5px;transform:rotate(2deg);}
+[data-skin="surge"] .work{font-family:"Anybody",sans-serif;font-weight:700;font-size:9.5px;
+  letter-spacing:.08em;color:var(--tx2);line-height:1.4;}
+[data-skin="surge"] .cat{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:700;font-size:8.5px;
+  color:var(--tx3);line-height:1.5;margin-bottom:2px;}
+[data-skin="surge"] .setg{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:8px;
+  background:var(--plate2);color:var(--tx2);padding:1px 5px;margin-left:5px;}
+[data-skin="surge"] .acts{color:var(--tx2);}
+[data-skin="surge"] .act .cnt{font-family:"Big Shoulders Display",sans-serif;font-weight:900;font-size:13px;color:var(--tx2);}
+[data-skin="surge"] .act.liked,[data-skin="surge"] .act.on{color:var(--acc);}
+[data-skin="surge"] .act.liked .cnt{color:var(--acc);}
+[data-skin="surge"] .act.muted{color:var(--tx3);}
+[data-skin="surge"] .rxw{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:9.5px;
+  background:var(--acc);color:#0b0b0c;padding:1px 6px;transform:rotate(-1.4deg);display:inline-block;}
+[data-skin="surge"] .aico{display:none;}
+
 @media (max-width:640px){.wrap{padding:0 18px;}.ph{width:298px;height:614px;}}
 </style>
 
@@ -718,6 +786,28 @@ table.iv td:first-child{font-weight:700;color:var(--ink);white-space:nowrap;}
             {k:'me',jp:'マイ',en:'Me'}];
   var NS='http://www.w3.org/2000/svg';
 
+  /* カード足元の3操作アイコン（自作・PANELは点、SURGEは塗り） */
+  var ADOTS={
+    heart:[".##.##.","#######","#######","#######",".#####.","..###..","...#..."],
+    face: [".#####.","#.....#","#.#.#.#","#.....#","#.#.#.#","#.###.#",".#####."],
+    bell: ["...#...","..###..",".#####.",".#####.","#######",".......","...#..."],
+    bellx:["#.,#...","##.##..",".#.###.","##.####","###.###","....#..","...#.#."]
+  };
+  var APATH={
+    heart:'M10 17.4S2.6 12.6 2.6 7.9A3.9 3.9 0 0 1 10 6.1a3.9 3.9 0 0 1 7.4 1.8c0 4.7-7.4 9.5-7.4 9.5z',
+    face:'M10 1.8a8.2 8.2 0 1 0 0 16.4 8.2 8.2 0 0 0 0-16.4zM7.2 7.1a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4zm5.6 0a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4zM5.8 12h8.4a4.4 4.4 0 0 1-8.4 0z',
+    bell:'M10 2.2a4.6 4.6 0 0 0-4.6 4.6c0 3.4-1.4 4.6-1.4 4.6h12s-1.4-1.2-1.4-4.6A4.6 4.6 0 0 0 10 2.2zM8.2 13.4a1.9 1.9 0 0 0 3.6 0z',
+    bellx:'M10 2.2a4.6 4.6 0 0 0-4.6 4.6c0 3.4-1.4 4.6-1.4 4.6h12s-1.4-1.2-1.4-4.6A4.6 4.6 0 0 0 10 2.2zM8.2 13.4a1.9 1.9 0 0 0 3.6 0zM3.4 2.2 2.2 3.4 16.6 17.8l1.2-1.2z'
+  };
+  function aDot(k){var g=el('span','aico');ADOTS[k].forEach(function(r){r.split('').slice(0,7).forEach(function(ch){
+    var d=document.createElement('i');if(ch==='#')d.className='f';g.appendChild(d);});});return g;}
+  function aSvg(k){var s=document.createElementNS(NS,'svg');
+    s.setAttribute('viewBox','0 0 20 20');s.setAttribute('width','15');s.setAttribute('height','15');
+    s.setAttribute('class','asvg');s.setAttribute('aria-hidden','true');
+    var p=document.createElementNS(NS,'path');p.setAttribute('d',APATH[k]);p.setAttribute('fill','currentColor');
+    s.appendChild(p);return s;}
+  function actIcon(k){var w=el('span','ico');w.appendChild(aDot(k));w.appendChild(aSvg(k));return w;}
+
   function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
   function dotIcon(k){var g=el('span','dico');DOTS[k].forEach(function(r){r.split('').forEach(function(ch){
     var d=document.createElement('i');if(ch==='#')d.className='f';g.appendChild(d);});});return g;}
@@ -754,27 +844,49 @@ table.iv td:first-child{font-weight:700;color:var(--ink);white-space:nowrap;}
     var b=document.createElement('i');b.className='k';
     s.appendChild(a);s.appendChild(b);return s;
   }
+  var WC={'ちいかわ':'#d98a3a','ハイキュー!!':'#4a90d9','呪術廻戦':'#9b59b6','【推しの子】':'#d94a7a','SPY×FAMILY':'#3aa86b'};
   var ITEMS=[
-    {st:'pre', jp:'予約・受注中', en:'Preorder',   t:'ちいかわ もちもちぬいぐるみ', d:'08.25 — 09.10', p:'3,300', im:'i1', mk:'m1'},
-    {st:'soon',jp:'発売まで あと12日',en:'Upcoming D-12',t:'ハイキュー!! アクリルスタンド', d:'09.02', p:'1,100', im:'i2', mk:'m2'},
-    {st:'now', jp:'開催中',      en:'Open now',   t:'呪術廻戦 POP UP SHOP', d:'08.15 — 09.01 渋谷', p:'—', im:'i3', mk:'m3'},
-    {st:'end', jp:'受付終了',    en:'Closed',     t:'【推しの子】缶バッジBOX', d:'08.18', p:'4,400', im:'i4', mk:'m4'},
-    {st:'soon',jp:'もうすぐ予約開始',en:'Opens soon',t:'SPY×FAMILY 一番くじ', d:'09.12 —', p:'770', im:'i5', mk:'m5'}
+    {st:'pre', jp:'予約・受注中', en:'Preorder', w:'ちいかわ', t:'もちもちぬいぐるみ', cat:'ぬいぐるみ・グッズ',
+     d:'受付 08.25 — 09.10', p:'3,300', set:1, im:'i1', mk:'m1', like:318, liked:1, rx:'欲しい！', bell:'on', nw:1},
+    {st:'soon',jp:'発売まで あと12日', en:'Upcoming D-12', w:'ハイキュー!!', t:'アクリルスタンド', cat:'アクリル・グッズ',
+     d:'発売 09.02', p:'1,100', im:'i2', mk:'m2', like:64, bell:'off'},
+    {st:'now', jp:'開催中', en:'Open now', w:'呪術廻戦', t:'POP UP SHOP in 渋谷', cat:'イベント',
+     d:'開催 08.15 — 09.01', p:'—', im:'i3', mk:'m3', like:212, rx:'行きたい！', bell:'on'},
+    {st:'end', jp:'受付終了', en:'Closed', w:'【推しの子】', t:'缶バッジBOX', cat:'缶バッジ・グッズ',
+     d:'受付終了 08.18', p:'4,400', im:'i4', mk:'m4', like:41, bell:'muted'},
+    {st:'soon',jp:'もうすぐ予約開始', en:'Opens soon', w:'SPY×FAMILY', t:'一番くじ A賞ほか', cat:'くじ・グッズ',
+     d:'受付 09.12 —', p:'770', im:'i5', mk:'m5', like:7, bell:'off', nw:1}
   ];
   function itemLi(o){
     var li=el('li','it');li.dataset.st=o.st;
-    li.appendChild(img(o.im,o.mk));
+    if(WC[o.w])li.style.setProperty('--wc',WC[o.w]);
+    var im=img(o.im,o.mk);
+    var bd=el('span','badge');
+    bd.appendChild(el('span','led'));
+    bd.appendChild(el('span','bt',o.jp));
+    im.appendChild(bd);
+    if(o.nw)im.appendChild(el('span','new','新着'));
+    li.appendChild(im);
     var b=el('div','it-b');
-    var st=el('div','st');
-    st.appendChild(el('span','led'));
-    st.appendChild(el('span','lbl',o.en));
-    st.appendChild(el('span','jp',o.jp));
-    b.appendChild(st);
+    b.appendChild(el('div','work',o.w));
     var h=el('h4','it-h');h.textContent=o.t;b.appendChild(h);
+    b.appendChild(el('div','cat',o.cat));
     var m=el('div','meta');
     m.appendChild(el('span','it-d',o.d));
-    m.appendChild(el('span','it-p',o.p==='—'?'入場無料':'<span class="yen">¥</span>'+o.p));
-    b.appendChild(m);li.appendChild(b);return li;
+    m.appendChild(el('span','it-p',o.p==='—'?'入場無料':'<span class="yen">¥</span>'+o.p+(o.set?'<span class="setg">セット</span>':'')));
+    b.appendChild(m);
+    var a=el('div','acts');
+    var lk=el('span','act'+(o.liked?' liked':''));
+    lk.appendChild(actIcon('heart'));
+    lk.appendChild(el('b','cnt',o.like));
+    a.appendChild(lk);
+    if(o.rx){var r=el('span','act on');r.appendChild(el('span','rxw',o.rx));a.appendChild(r);}
+    else{var r0=el('span','act');r0.appendChild(actIcon('face'));a.appendChild(r0);}
+    var bl=el('span','act'+(o.bell==='on'?' on':o.bell==='muted'?' muted':''));
+    bl.appendChild(actIcon(o.bell==='muted'?'bellx':'bell'));
+    a.appendChild(bl);
+    b.appendChild(a);
+    li.appendChild(b);return li;
   }
   function list(n){var u=el('ul','list');for(var i=0;i<n;i++)u.appendChild(itemLi(ITEMS[i]));return u;}
 
