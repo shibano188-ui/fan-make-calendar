@@ -1,0 +1,903 @@
+<title>PANELとSURGE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=BIZ+UDGothic:wght@400;700&family=Zen+Kaku+Gothic+New:wght@500;700;900&family=Zen+Kaku+Gothic+Antique:wght@400;500;700&family=Dela+Gothic+One&family=Martian+Mono:wght@300;400;500;700&family=Bitcount+Grid+Double:wght@400;700&family=Big+Shoulders+Display:wght@600;800;900&family=Anybody:wght@400;700;900&family=DotGothic16&display=swap">
+
+<style>
+/* ══════════════════════════════════════════════════════════════
+   比較盤の外側（トークン方式・両テーマ対応）
+   ══════════════════════════════════════════════════════════════ */
+:root{
+  --paper:#eceae4; --paper-2:#e3e0d8; --panel:#f7f5f1;
+  --rule:#cfcabf; --rule-soft:#ded9cf;
+  --ink:#191817; --ink-2:#4a4741; --ink-3:#867f74;
+  --mark:#b0421f; --focus:#b0421f;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0d0d0f; --paper-2:#121215; --panel:#17171a;
+    --rule:#2a2a30; --rule-soft:#212127;
+    --ink:#eae7e1; --ink-2:#a29e97; --ink-3:#6b6760;
+    --mark:#e0663c; --focus:#e0663c;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0d0d0f; --paper-2:#121215; --panel:#17171a;
+  --rule:#2a2a30; --rule-soft:#212127;
+  --ink:#eae7e1; --ink-2:#a29e97; --ink-3:#6b6760;
+  --mark:#e0663c; --focus:#e0663c;
+}
+
+*{box-sizing:border-box;}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:"Zen Kaku Gothic Antique","Hiragino Kaku Gothic ProN",system-ui,sans-serif;
+  line-height:1.85; -webkit-font-smoothing:antialiased;
+}
+:focus-visible{outline:2px solid var(--focus);outline-offset:3px;}
+.wrap{max-width:1200px;margin:0 auto;padding:0 28px;}
+
+.kicker{
+  font-family:"Martian Mono",ui-monospace,monospace; font-size:10px;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3); margin:0 0 20px;
+}
+h1{
+  font-family:"Zen Kaku Gothic New",sans-serif; font-weight:900;
+  font-size:clamp(32px,5.4vw,54px); line-height:1.14; letter-spacing:-.02em;
+  margin:0 0 20px; text-wrap:balance;
+}
+h2{
+  font-family:"Zen Kaku Gothic New",sans-serif; font-weight:900;
+  font-size:clamp(22px,3.4vw,30px); margin:0 0 16px; letter-spacing:-.01em;
+}
+h3{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:700;font-size:16px;margin:30px 0 10px;}
+p{font-size:14.5px;color:var(--ink-2);margin:0 0 15px;max-width:66ch;}
+p strong,li strong{color:var(--ink);font-weight:700;}
+section{border-top:1px solid var(--rule);padding:60px 0 66px;}
+.masthead{border-top:0;padding:62px 0 46px;}
+
+/* ── 実演の切り替え ─────────────────────────── */
+.demo-bar{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  border:1px solid var(--rule);background:var(--panel);padding:12px 14px;margin:0 0 26px;
+}
+.demo-bar .lb{
+  font-family:"Martian Mono",monospace;font-size:9.5px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--ink-3);
+}
+.sw{display:flex;border:1px solid var(--rule);}
+.sw button{
+  font-family:"Zen Kaku Gothic New",sans-serif;font-weight:700;font-size:13px;
+  background:transparent;color:var(--ink-2);border:0;padding:8px 20px;cursor:pointer;
+  border-right:1px solid var(--rule);transition:background .15s,color .15s;
+}
+.sw button:last-child{border-right:0;}
+.sw button[aria-pressed="true"]{background:var(--ink);color:var(--paper);}
+.demo-bar .hint{font-size:12.5px;color:var(--ink-3);}
+
+.screens{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start;}
+figure{margin:0;display:flex;flex-direction:column;gap:9px;}
+figcaption{
+  font-family:"Martian Mono",monospace;font-size:9px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-3);
+}
+
+.cols{display:grid;grid-template-columns:minmax(280px,370px) 1fr;gap:50px;align-items:start;}
+@media (max-width:920px){.cols{grid-template-columns:1fr;gap:34px;}}
+
+.spec{border-top:1px solid var(--rule);margin:18px 0;}
+.spec > div{
+  display:grid;grid-template-columns:88px 1fr;gap:12px;padding:9px 0;
+  border-bottom:1px solid var(--rule-soft);font-size:12.5px;line-height:1.65;
+}
+.spec dt{
+  font-family:"Martian Mono",monospace;font-size:8.5px;letter-spacing:.08em;
+  color:var(--ink-3);text-transform:uppercase;padding-top:4px;
+}
+.spec dd{margin:0;color:var(--ink-2);}
+.spec dd b{color:var(--ink);font-weight:700;}
+.spec dd .ex{display:block;color:var(--ink);margin-top:2px;}
+
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 18px;}
+.chip{width:32px;height:32px;border-radius:2px;box-shadow:inset 0 0 0 1px rgba(128,128,128,.3);}
+
+ul.pts{margin:0 0 16px;padding-left:0;list-style:none;}
+ul.pts li{
+  font-size:13.5px;color:var(--ink-2);padding:0 0 0 20px;position:relative;margin-bottom:7px;line-height:1.7;
+}
+ul.pts li::before{
+  content:"";position:absolute;left:2px;top:11px;width:6px;height:6px;background:var(--mark);
+}
+.note{
+  font-size:12.5px;line-height:1.75;color:var(--ink-2);
+  border-left:2px solid var(--mark);padding:2px 0 2px 14px;margin:0 0 8px;max-width:60ch;
+}
+
+/* 傾きの図解 */
+.fixfig{display:flex;gap:20px;flex-wrap:wrap;margin:14px 0 4px;}
+.fixfig figure{gap:7px;width:230px;}
+.fixfig figcaption{line-height:1.6;text-transform:none;letter-spacing:.02em;font-family:"Zen Kaku Gothic Antique",sans-serif;font-size:11.5px;}
+.fixbox{width:230px;height:96px;background:#141417;position:relative;overflow:hidden;border:1px solid var(--rule);}
+.fixbox .cardA{
+  position:absolute;inset:12px;background:#1d1d21;transform:rotate(-3.4deg);
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 14px),calc(100% - 18px) 100%,0 100%);
+  padding:9px 11px;
+}
+.fixbox .cardB{
+  position:absolute;inset:12px;background:#1d1d21;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 14px),calc(100% - 18px) 100%,0 100%);
+  padding:26px 11px 9px;
+}
+.fixbox .t1{font-family:"Zen Kaku Gothic New";font-weight:900;font-size:12px;color:#fff;}
+.fixbox .t2{font-family:"Anybody",sans-serif;font-size:10px;color:rgba(255,255,255,.5);margin-top:3px;}
+.fixbox .t3{font-family:"Big Shoulders Display";font-weight:900;font-size:17px;color:#ffd400;position:absolute;right:4px;bottom:2px;}
+.fixbox .band{position:absolute;left:-10px;right:-10px;top:-4px;height:20px;background:#ffd400;transform:rotate(-3.4deg);}
+.fixbox .tagx{
+  position:absolute;left:20px;top:18px;background:#ffd400;color:#0b0b0c;font-weight:900;
+  font-size:9px;padding:1px 7px;transform:rotate(-3deg);font-family:"Zen Kaku Gothic New";z-index:2;
+}
+.bad{color:#d2452a;font-weight:700;}
+.good{color:#1f9d55;font-weight:700;}
+
+table.tk{border-collapse:collapse;width:100%;font-size:12.5px;margin:10px 0 4px;}
+table.tk th,table.tk td{border-bottom:1px solid var(--rule-soft);padding:8px 10px 8px 0;text-align:left;vertical-align:top;}
+table.tk th{
+  font-family:"Martian Mono",monospace;font-size:8.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-3);font-weight:400;border-bottom:1px solid var(--rule);
+}
+table.tk td:first-child{font-family:"Martian Mono",monospace;font-size:10.5px;color:var(--ink);white-space:nowrap;}
+.tablewrap{overflow-x:auto;}
+
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(212px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);margin:20px 0 0;}
+.steps div{background:var(--paper);padding:17px 17px 19px;}
+.steps .s{font-family:"Martian Mono",monospace;font-size:9px;letter-spacing:.12em;color:var(--mark);display:block;margin-bottom:7px;}
+.steps .h{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:700;font-size:14px;display:block;margin-bottom:5px;}
+.steps .b{font-size:12.5px;color:var(--ink-2);line-height:1.7;}
+
+.foot{border-top:1px solid var(--rule);padding:24px 0 56px;font-family:"Martian Mono",monospace;font-size:9.5px;letter-spacing:.06em;color:var(--ink-3);}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;}}
+
+/* ══════════════════════════════════════════════════════════════
+   端末（外皮に依存しない骨組み）
+   ══════════════════════════════════════════════════════════════ */
+.ph{
+  width:316px;height:648px;flex:0 0 auto;overflow:hidden;position:relative;
+  display:flex;flex-direction:column;font-size:14px;line-height:1.6;
+  box-shadow:0 22px 46px rgba(0,0,0,.32),0 0 0 1px rgba(120,120,120,.28);
+}
+.ph *{box-sizing:border-box;}
+.scr{flex:1;overflow:hidden;position:relative;z-index:1;}
+.tab{flex:0 0 auto;position:relative;z-index:1;display:flex;}
+.tab button{flex:1;border:0;background:none;cursor:default;display:flex;flex-direction:column;align-items:center;gap:4px;padding:0;color:inherit;}
+.tab .tl{display:block;}
+.list{list-style:none;margin:0;padding:0;}
+.it-b{flex:1;min-width:0;}
+.it-h{margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.meta{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+.sec-l{display:block;}
+
+/* 画像の代わり（実写は使わない） */
+.img{position:relative;overflow:hidden;flex:0 0 auto;}
+.img > span{position:absolute;inset:0;}
+.i1{background:linear-gradient(147deg,#4c4238,#836e57 54%,#3a322a);}
+.i2{background:linear-gradient(147deg,#243748,#48708f 54%,#1b2734);}
+.i3{background:linear-gradient(147deg,#3e2437,#7c3d5d 54%,#291725);}
+.i4{background:linear-gradient(147deg,#2b3d2e,#587c54 54%,#1d2a1f);}
+.i5{background:linear-gradient(147deg,#48331a,#8d6425 54%,#2e2110);}
+.img i{position:absolute;display:block;}
+.img .c{border-radius:50%;background:rgba(255,255,255,.34);}
+.img .k{background:rgba(0,0,0,.3);}
+.img .n{background:rgba(255,255,255,.24);}
+.m1 .c{width:38%;height:38%;left:15%;top:19%;}  .m1 .k{width:52%;height:22%;left:32%;top:58%;}
+.m2 .n{width:60%;height:8%;left:20%;top:31%;}   .m2 .k{width:34%;height:34%;left:33%;top:47%;border-radius:50%;}
+.m3 .c{width:26%;height:26%;left:21%;top:21%;}  .m3 .n{width:22%;height:56%;left:56%;top:21%;}
+.m4 .k{width:44%;height:44%;left:11%;top:29%;transform:rotate(45deg);} .m4 .c{width:24%;height:24%;left:58%;top:21%;}
+.m5 .n{width:16%;height:52%;left:18%;top:24%;}  .m5 .c{width:32%;height:32%;left:46%;top:38%;}
+
+/* 点で組んだアイコン（PANEL用） */
+.dico{display:grid;grid-template-columns:repeat(7,2.2px);grid-auto-rows:2.2px;gap:1.5px;}
+.dico i{width:2.2px;height:2.2px;border-radius:50%;background:currentColor;opacity:.14;}
+.dico i.f{opacity:1;}
+.sico{display:block;}
+
+/* ══════════════════════════════════════════════════════════════
+   外皮 1 ── PANEL（計器＋ドット）
+   ══════════════════════════════════════════════════════════════ */
+[data-skin="panel"]{
+  --bg:#101012; --plate:#1b1b20; --plate2:#26262c; --inset:#08080a;
+  --line:#33333b; --tx:#f3f0ea; --tx2:#95928b; --tx3:#5c5952;
+  --acc:#ff5a1e;
+  --pre:#ff5a1e; --soon:#5aa9ff; --now:#37cf7c; --end:#5a5a61;
+  background:var(--bg); color:var(--tx);
+  font-family:"BIZ UDPGothic","Hiragino Kaku Gothic ProN",sans-serif;
+  background-image:radial-gradient(rgba(255,255,255,.075) 1px,transparent 1px);
+  background-size:19px 19px; background-position:9px 9px;
+}
+[data-skin="panel"] .mono{font-family:"Martian Mono",monospace;font-variant-numeric:tabular-nums;}
+[data-skin="panel"] .lbl{
+  font-family:"Martian Mono",monospace;font-size:8.5px;font-weight:500;
+  letter-spacing:.01em;text-transform:uppercase;color:var(--tx2);
+}
+[data-skin="panel"] .dotnum{font-family:"Bitcount Grid Double",monospace;font-weight:700;font-variant-numeric:tabular-nums;}
+[data-skin="panel"] .sico{display:none;}
+
+[data-skin="panel"] .hd{padding:12px 12px 0;}
+[data-skin="panel"] .hd-top{display:flex;align-items:center;justify-content:space-between;}
+[data-skin="panel"] .hd-wm{font-family:"Martian Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.02em;}
+[data-skin="panel"] .hd-meta{font-family:"Martian Mono",monospace;font-size:9px;color:var(--tx2);}
+[data-skin="panel"] .hd-title{font-family:"BIZ UDGothic",sans-serif;font-weight:700;font-size:19px;letter-spacing:.14em;margin:7px 0 0;}
+
+[data-skin="panel"] .seg{display:flex;margin:11px 12px 0;border:1px solid var(--line);border-radius:2px;overflow:hidden;}
+[data-skin="panel"] .seg span{
+  flex:1;text-align:center;padding:6px 0;font-family:"BIZ UDGothic",sans-serif;font-weight:700;
+  font-size:12px;letter-spacing:.1em;color:var(--tx2);border-right:1px solid var(--line);
+}
+[data-skin="panel"] .seg span:last-child{border-right:0;}
+[data-skin="panel"] .seg span.on{background:var(--tx);color:var(--bg);}
+
+[data-skin="panel"] .ro{
+  margin:10px 12px;background:var(--inset);border-radius:2px;padding:10px 12px 9px;
+  display:flex;align-items:flex-end;justify-content:space-between;
+  box-shadow:inset 0 1px 4px rgba(0,0,0,.95);
+}
+[data-skin="panel"] .ro-n{
+  font-family:"Bitcount Grid Double",monospace;font-weight:700;font-size:30px;
+  color:var(--acc);line-height:.86;letter-spacing:.02em;
+}
+[data-skin="panel"] .ro-u{font-family:"Martian Mono",monospace;font-size:8.5px;letter-spacing:.04em;color:var(--tx2);display:block;margin-top:5px;text-transform:uppercase;}
+[data-skin="panel"] .ro-d{font-family:"Martian Mono",monospace;font-size:8.5px;color:var(--tx2);}
+
+[data-skin="panel"] .keys{display:flex;gap:5px;padding:0 12px 10px;}
+[data-skin="panel"] .key{
+  flex:1;background:var(--plate2);border-radius:2px;padding:6px 3px 5px;text-align:center;
+  box-shadow:0 1px 0 rgba(0,0,0,.62),inset 0 1px 0 rgba(255,255,255,.07);
+}
+[data-skin="panel"] .key .kn{font-family:"Martian Mono",monospace;font-size:8px;color:var(--tx2);display:block;letter-spacing:0;}
+[data-skin="panel"] .key .kt{font-family:"BIZ UDGothic",sans-serif;font-weight:700;font-size:11px;letter-spacing:.08em;}
+
+[data-skin="panel"] .list{padding:0 12px;display:flex;flex-direction:column;gap:5px;}
+[data-skin="panel"] .it{
+  background:var(--plate);border-radius:2px;padding:8px;display:flex;gap:10px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
+}
+[data-skin="panel"] .img{width:56px;height:56px;border-radius:1px;}
+[data-skin="panel"] .img::after{
+  content:"";position:absolute;inset:0;
+  background-image:radial-gradient(rgba(0,0,0,.62) 1px,transparent 1px);
+  background-size:3.6px 3.6px;mix-blend-mode:multiply;
+}
+[data-skin="panel"] .st{display:flex;align-items:center;gap:5px;margin-bottom:3px;}
+[data-skin="panel"] .st .led{width:5px;height:5px;border-radius:50%;flex:0 0 auto;background:var(--tx3);}
+[data-skin="panel"] .it[data-st="pre"] .led{background:var(--pre);box-shadow:0 0 5px rgba(255,90,30,.85);}
+[data-skin="panel"] .it[data-st="soon"] .led{background:var(--soon);}
+[data-skin="panel"] .it[data-st="now"] .led{background:var(--now);box-shadow:0 0 5px rgba(55,207,124,.7);}
+[data-skin="panel"] .it[data-st="end"] .led{background:var(--end);}
+[data-skin="panel"] .st .jp{display:none;}
+[data-skin="panel"] .it-h{font-family:"BIZ UDPGothic",sans-serif;font-weight:700;font-size:12.5px;line-height:1.42;margin-bottom:4px;}
+[data-skin="panel"] .it-d{font-family:"Martian Mono",monospace;font-size:9.5px;color:var(--tx2);letter-spacing:0;}
+[data-skin="panel"] .it-p{font-family:"Bitcount Grid Double",monospace;font-weight:700;font-size:13px;color:var(--acc);}
+[data-skin="panel"] .it[data-st="end"] .it-p{color:var(--tx3);}
+[data-skin="panel"] .it-p .yen{font-family:"Martian Mono",monospace;font-size:9px;}
+[data-skin="panel"] .it-x{font-family:"BIZ UDGothic",sans-serif;font-weight:700;font-size:11px;letter-spacing:.06em;color:var(--now);}
+
+[data-skin="panel"] .tab{background:var(--plate);border-top:1px solid var(--line);padding:7px 7px 9px;gap:5px;}
+[data-skin="panel"] .tab button{background:var(--plate2);border-radius:2px;padding:6px 0 5px;color:var(--tx2);box-shadow:0 1px 0 rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.06);}
+[data-skin="panel"] .tab button[aria-current]{background:var(--tx);color:var(--bg);}
+[data-skin="panel"] .tab button.add{background:var(--acc);color:#160600;}
+[data-skin="panel"] .tab .tl{font-family:"Martian Mono",monospace;font-size:7.5px;letter-spacing:0;color:currentColor;text-transform:uppercase;}
+
+/* PANEL マイページ */
+[data-skin="panel"] .sec-l{
+  font-family:"BIZ UDGothic",sans-serif;font-weight:700;font-size:9px;letter-spacing:.22em;
+  color:var(--tx3);padding:12px 12px 4px;
+}
+[data-skin="panel"] .who{margin:0 12px;background:var(--plate);border-radius:2px;padding:10px;display:flex;gap:11px;align-items:center;}
+[data-skin="panel"] .av{width:48px;height:48px;border-radius:1px;}
+[data-skin="panel"] .who-n{font-family:"BIZ UDPGothic",sans-serif;font-weight:700;font-size:15px;}
+[data-skin="panel"] .who-t{font-family:"BIZ UDGothic",sans-serif;font-size:11px;color:var(--acc);letter-spacing:.06em;}
+[data-skin="panel"] .grade{margin:0 12px;background:var(--inset);border-radius:2px;padding:10px 12px;box-shadow:inset 0 1px 4px rgba(0,0,0,.95);display:flex;align-items:flex-end;justify-content:space-between;}
+[data-skin="panel"] .grade .g-n{font-family:"Bitcount Grid Double",monospace;font-weight:700;font-size:32px;line-height:.86;}
+[data-skin="panel"] .grade .g-n i{color:#2d2d34;font-style:normal;}
+[data-skin="panel"] .stats{display:flex;gap:10px;}
+[data-skin="panel"] .stats div{text-align:right;}
+[data-skin="panel"] .stats .v{font-family:"Bitcount Grid Double",monospace;font-weight:700;font-size:15px;display:block;line-height:1.1;}
+[data-skin="panel"] .prow{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px dotted var(--line);}
+[data-skin="panel"] .prow:first-of-type{border-top:1px dotted var(--line);}
+[data-skin="panel"] .prow .t{font-size:12px;font-weight:400;}
+[data-skin="panel"] .prow .v{font-family:"Martian Mono",monospace;font-size:9px;color:var(--tx2);text-transform:uppercase;}
+[data-skin="panel"] .prow .v.on{color:var(--acc);}
+[data-skin="panel"] .more{
+  display:block;margin:10px 12px 0;text-align:center;padding:8px;background:var(--plate2);border-radius:2px;
+  font-family:"BIZ UDGothic",sans-serif;font-weight:700;font-size:11.5px;letter-spacing:.1em;color:var(--tx2);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   外皮 2 ── SURGE（高揚・傾き修正版）
+   ══════════════════════════════════════════════════════════════ */
+[data-skin="surge"]{
+  --bg:#0b0b0c; --plate:#151519; --plate2:#1f1f24; --line:rgba(255,255,255,.13);
+  --tx:#ffffff; --tx2:rgba(255,255,255,.54); --tx3:rgba(255,255,255,.3);
+  --acc:#ffd400;
+  --pre:#ffd400; --soon:#ffffff; --now:#3ee08a; --end:rgba(255,255,255,.3);
+  background:var(--bg); color:var(--tx);
+  font-family:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN",sans-serif;
+  font-weight:500;
+}
+[data-skin="surge"]::before{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background-image:radial-gradient(rgba(255,255,255,.055) 1px,transparent 1px);
+  background-size:5px 5px;
+}
+[data-skin="surge"] .mono{font-family:"Anybody",sans-serif;font-variant-numeric:tabular-nums;}
+[data-skin="surge"] .lbl{font-family:"Anybody",sans-serif;font-weight:700;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--tx2);}
+[data-skin="surge"] .dico{display:none;}
+
+/* 帯だけ傾ける。中身は逆回転で水平に戻す＝文字は絶対に切れない */
+[data-skin="surge"] .hd{
+  background:var(--acc);color:#0b0b0c;padding:15px 16px 24px;
+  transform:skewY(-3deg);transform-origin:top left;margin-top:-9px;
+}
+[data-skin="surge"] .hd > *{transform:skewY(3deg);}
+[data-skin="surge"] .hd-top{display:flex;align-items:center;justify-content:space-between;}
+[data-skin="surge"] .hd-wm{font-family:"Big Shoulders Display",sans-serif;font-weight:900;font-size:14px;letter-spacing:.08em;text-transform:uppercase;}
+[data-skin="surge"] .hd-meta{font-family:"Anybody",sans-serif;font-weight:700;font-size:9px;letter-spacing:.1em;}
+[data-skin="surge"] .hd-title{font-family:"Dela Gothic One",sans-serif;font-weight:400;font-size:25px;line-height:1.05;margin:5px 0 0;letter-spacing:.02em;}
+
+[data-skin="surge"] .seg{display:flex;gap:7px;padding:6px 16px 0;}
+[data-skin="surge"] .seg span{
+  font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:11.5px;padding:6px 15px;
+  background:var(--plate2);color:var(--tx2);
+  clip-path:polygon(7px 0,100% 0,calc(100% - 7px) 100%,0 100%);
+}
+[data-skin="surge"] .seg span.on{background:var(--tx);color:#0b0b0c;}
+
+[data-skin="surge"] .ro{padding:13px 16px 9px;display:flex;align-items:flex-end;justify-content:space-between;}
+[data-skin="surge"] .ro-n{font-family:"Big Shoulders Display",sans-serif;font-weight:900;font-size:46px;line-height:.78;color:var(--acc);}
+[data-skin="surge"] .ro-u{font-family:"Anybody",sans-serif;font-weight:900;font-size:9px;letter-spacing:.16em;display:block;margin-top:4px;text-transform:uppercase;color:var(--tx2);}
+[data-skin="surge"] .ro-d{font-family:"Anybody",sans-serif;font-weight:700;font-size:10px;color:var(--tx2);letter-spacing:.06em;}
+
+[data-skin="surge"] .keys{display:flex;gap:6px;padding:0 16px 11px;}
+[data-skin="surge"] .key{
+  flex:1;background:var(--plate2);padding:6px 3px 5px;text-align:center;
+  clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%);
+}
+[data-skin="surge"] .key .kn{display:none;}
+[data-skin="surge"] .key .kt{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:11px;letter-spacing:.06em;}
+
+/* 一覧: カードは傾けない。角の切り欠きは文字が来ない右下だけ */
+[data-skin="surge"] .list{padding:0 14px;display:flex;flex-direction:column;gap:9px;}
+[data-skin="surge"] .it{
+  background:var(--plate);padding:10px 12px 10px 10px;display:flex;gap:11px;position:relative;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 13px),calc(100% - 16px) 100%,0 100%);
+  box-shadow:5px 5px 0 rgba(255,212,0,.14);
+}
+[data-skin="surge"] .img{width:58px;height:58px;}
+[data-skin="surge"] .img::after{content:"";position:absolute;inset:0;background:linear-gradient(rgba(255,212,0,.2),rgba(255,212,0,0));}
+[data-skin="surge"] .st{margin-bottom:6px;}
+[data-skin="surge"] .st .led{display:none;}
+[data-skin="surge"] .st .lbl{display:none;}
+[data-skin="surge"] .st .jp{
+  display:inline-block;font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:9.5px;
+  letter-spacing:.06em;padding:2px 9px;background:var(--acc);color:#0b0b0c;transform:rotate(-1.5deg);
+}
+[data-skin="surge"] .it[data-st="soon"] .st .jp{background:var(--tx);}
+[data-skin="surge"] .it[data-st="now"] .st .jp{background:var(--now);}
+[data-skin="surge"] .it[data-st="end"] .st .jp{background:transparent;color:var(--tx3);box-shadow:inset 0 0 0 1px var(--line);}
+[data-skin="surge"] .it-h{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:12.5px;line-height:1.36;margin-bottom:5px;}
+[data-skin="surge"] .it-d{font-family:"Anybody",sans-serif;font-weight:400;font-size:10px;color:var(--tx2);letter-spacing:.03em;}
+[data-skin="surge"] .it-p{font-family:"Big Shoulders Display",sans-serif;font-weight:900;font-size:19px;color:var(--acc);letter-spacing:.01em;}
+[data-skin="surge"] .it[data-st="end"] .it-p{color:var(--tx3);}
+[data-skin="surge"] .it-p .yen{font-size:13px;}
+[data-skin="surge"] .it-x{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:11px;letter-spacing:.04em;color:var(--now);}
+/* 右下の切り欠きに文字がかからないよう、最終行だけ右に余白を確保 */
+[data-skin="surge"] .it .meta{padding-right:10px;}
+
+[data-skin="surge"] .tab{background:#fff;padding:8px 6px 10px;}
+[data-skin="surge"] .tab button{color:#8d8d8d;}
+[data-skin="surge"] .tab button[aria-current]{color:#0b0b0c;}
+[data-skin="surge"] .tab button.add{color:#0b0b0c;}
+[data-skin="surge"] .tab .tl{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:8.5px;letter-spacing:.08em;color:currentColor;}
+
+/* SURGE マイページ */
+[data-skin="surge"] .sec-l{
+  font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:9.5px;letter-spacing:.2em;
+  color:var(--tx3);padding:14px 16px 5px;
+}
+[data-skin="surge"] .who{padding:0 16px;display:flex;gap:13px;align-items:center;margin-top:-4px;}
+[data-skin="surge"] .av{width:56px;height:56px;clip-path:polygon(0 0,100% 0,100% calc(100% - 11px),calc(100% - 11px) 100%,0 100%);}
+[data-skin="surge"] .who-n{font-family:"Dela Gothic One",sans-serif;font-size:20px;line-height:1.15;}
+[data-skin="surge"] .who-t{display:inline-block;font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:10px;background:var(--acc);color:#0b0b0c;padding:2px 9px;transform:rotate(-1.4deg);margin-top:4px;}
+[data-skin="surge"] .grade{padding:0 16px;display:flex;align-items:flex-end;justify-content:space-between;}
+[data-skin="surge"] .grade .g-n{font-family:"Big Shoulders Display",sans-serif;font-weight:900;font-size:44px;line-height:.82;color:var(--acc);}
+[data-skin="surge"] .grade .g-n i{color:rgba(255,212,0,.26);font-style:normal;}
+[data-skin="surge"] .stats{display:flex;gap:16px;}
+[data-skin="surge"] .stats div{text-align:right;}
+[data-skin="surge"] .stats .v{font-family:"Big Shoulders Display",sans-serif;font-weight:900;font-size:22px;display:block;line-height:1;}
+[data-skin="surge"] .prow{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-bottom:1px solid var(--line);}
+[data-skin="surge"] .prow .t{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:700;font-size:12.5px;}
+[data-skin="surge"] .prow .v{font-family:"Anybody",sans-serif;font-weight:700;font-size:9px;color:var(--tx2);letter-spacing:.1em;text-transform:uppercase;}
+[data-skin="surge"] .prow .v.on{color:var(--acc);}
+[data-skin="surge"] .more{
+  display:block;margin:11px 16px 0;text-align:center;padding:9px;background:var(--plate2);
+  clip-path:polygon(7px 0,100% 0,calc(100% - 7px) 100%,0 100%);
+  font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:11.5px;letter-spacing:.08em;color:var(--tx2);
+}
+[data-skin="surge"] .radar-l{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:700;}
+[data-skin="panel"] .radar-l{font-family:"Martian Mono",monospace;}
+
+@media (max-width:640px){
+  .wrap{padding:0 18px;}
+  .ph{width:298px;height:614px;}
+}
+</style>
+
+<!-- ══════════════ 見出し ══════════════ -->
+<header class="masthead">
+  <div class="wrap">
+    <p class="kicker">FanHive ─ 意匠検討 その2 ─ branch: design/panel</p>
+    <h1>PANELとSURGE</h1>
+    <p>ご指定の2案です。<strong>A（計器）にCのドットを混ぜたPANEL</strong>と、<strong>D（高揚）を直したSURGE</strong>。
+    書体は全部入れ替えました。下の切り替えを押すと、<strong>同じ画面がその場で着替えます</strong>。</p>
+    <p>これは絵ではなく、実装の仕組みそのものです。この頁の2つの外皮は<strong>まったく同じHTML</strong>を使っていて、
+    違うのは <code>data-skin</code> の値だけ。アプリでも同じ作りにすれば、部品は1本のまま両方を持てます。</p>
+  </div>
+</header>
+
+<!-- ══════════════ 実演 ══════════════ -->
+<section id="demo">
+  <div class="wrap">
+    <h2>その場で着替える</h2>
+    <div class="demo-bar">
+      <span class="lb">Skin</span>
+      <div class="sw" role="group" aria-label="外皮の切り替え">
+        <button type="button" data-set="panel" aria-pressed="true">PANEL ／ 計器</button>
+        <button type="button" data-set="surge" aria-pressed="false">SURGE ／ 高揚</button>
+      </div>
+      <span class="hint">HTMLは1つ。切り替わるのは変数と外皮のCSSだけです。</span>
+    </div>
+    <div class="screens" id="demoScreens"></div>
+  </div>
+</section>
+
+<!-- ══════════════ PANEL ══════════════ -->
+<section id="panel">
+  <div class="wrap cols">
+    <div>
+      <p class="kicker">外皮 01</p>
+      <h2>PANEL ／ 計器</h2>
+      <p>A案の骨格はそのまま、<strong>Cのドットを「数字」に集中して混ぜ</strong>ました。
+      背景の点格子、写真の網点、下タブの点アイコン、そして件数・金額・称号の数値が
+      <strong>本当に点で組まれた書体</strong>になっています。</p>
+
+      <h3>書体を全部入れ替えました</h3>
+      <div class="spec">
+        <div><dt>和文 本文</dt><dd><b>BIZ UDPGothic</b> ─ 業務機器・標識の書体。かなが大きく、小さくても崩れない
+          <span class="ex">ちいかわ もちもちぬいぐるみ</span></dd></div>
+        <div><dt>和文 ラベル</dt><dd><b>BIZ UDGothic</b>（等幅）─ 「予約・受注中」が等間隔に並ぶ
+          <span class="ex" style="font-family:'BIZ UDGothic';letter-spacing:.1em">グッズ／イベント　予約・受注中</span></dd></div>
+        <div><dt>欧文・日付</dt><dd><b>Martian Mono</b> ─ 測定器の表示そのもの
+          <span class="ex" style="font-family:'Martian Mono';font-size:10px">08.25 — 09.10 / PREORDER</span></dd></div>
+        <div><dt>数値</dt><dd><b>Bitcount Grid Double</b> ─ 数字が点の集合でできている
+          <span class="ex" style="font-family:'Bitcount Grid Double';font-size:19px;font-weight:700">24 005 3,300</span></dd></div>
+      </div>
+      <p class="note">前回は Space Grotesk・Noto Sans JP・JetBrains Mono でした。
+      どれも「無難だから選ばれる」書体で、AIが作った画面に必ず出てきます。今回は1つも使っていません。</p>
+
+      <div class="chips">
+        <span class="chip" style="background:#101012"></span>
+        <span class="chip" style="background:#1b1b20"></span>
+        <span class="chip" style="background:#08080a"></span>
+        <span class="chip" style="background:#f3f0ea"></span>
+        <span class="chip" style="background:#95928b"></span>
+        <span class="chip" style="background:#ff5a1e"></span>
+      </div>
+
+      <h3>アイコンは点で組み直しました</h3>
+      <p>下タブの5つは、7×7の点で1つずつ描いています。絵文字でも既製品でもありません。
+      同じ点の言語で背景・数字・アイコンが揃うので、画面全体が1つの機械に見えます。</p>
+      <div id="icoDemo" style="display:flex;gap:22px;padding:14px 0 4px;color:var(--ink)"></div>
+    </div>
+    <div class="screens" id="panelScreens"></div>
+  </div>
+</section>
+
+<!-- ══════════════ SURGE ══════════════ -->
+<section id="surge">
+  <div class="wrap cols">
+    <div>
+      <p class="kicker">外皮 02</p>
+      <h2>SURGE ／ 高揚</h2>
+      <p>ご指摘の2点を直しました。<strong>書体</strong>と、<strong>傾きで文字が隠れる問題</strong>です。</p>
+
+      <h3>1. 傾けるものを分けた</h3>
+      <p>前回はカードごと回していたので、角の切り欠きに文字が入り込んでいました。
+      今回は<strong>傾けるのは帯と札だけ</strong>。カードは水平のまま、切り欠きは
+      <strong>文字が絶対に来ない右下だけ</strong>に置き、最終行に逃げの余白を取っています。</p>
+      <div class="fixfig">
+        <figure>
+          <div class="fixbox">
+            <div class="cardA">
+              <div class="t1">ちいかわ もちもちぬい</div>
+              <div class="t2">08.25 — 09.10</div>
+              <div class="t3">¥3,300</div>
+            </div>
+          </div>
+          <figcaption><span class="bad">前</span> ─ カードごと傾けると、角の切り欠きに金額が食い込む</figcaption>
+        </figure>
+        <figure>
+          <div class="fixbox">
+            <div class="band"></div>
+            <div class="cardB">
+              <div class="t1">ちいかわ もちもちぬい</div>
+              <div class="t2">08.25 — 09.10</div>
+              <div class="t3" style="right:22px;bottom:7px">¥3,300</div>
+            </div>
+            <span class="tagx">予約・受注中</span>
+          </div>
+          <figcaption><span class="good">後</span> ─ 傾くのは帯と札だけ。文字は水平のままで切れない</figcaption>
+        </figure>
+      </div>
+      <p class="note">上端の黄色い帯は <code>skewY(-3deg)</code> で傾け、中身を <code>skewY(3deg)</code> で戻しています。
+      面は斜めなのに文字は水平、という組み方です。</p>
+
+      <h3>2. 書体</h3>
+      <div class="spec">
+        <div><dt>和文 見出し</dt><dd><b>Dela Gothic One</b> ─ 角ばった極太。日本語で圧が出る唯一の自由書体
+          <span class="ex" style="font-family:'Dela Gothic One';font-size:19px">グッズを探す</span></dd></div>
+        <div><dt>欧文 見出し</dt><dd><b>Big Shoulders Display</b> ─ Anton より圧縮率が高く品がある
+          <span class="ex" style="font-family:'Big Shoulders Display';font-weight:900;font-size:24px">EXPLORE 24 ¥3,300</span></dd></div>
+        <div><dt>和文 本文</dt><dd><b>Zen Kaku Gothic New</b> 700/900 ─ Dela と骨格が合う
+          <span class="ex" style="font-family:'Zen Kaku Gothic New';font-weight:900">呪術廻戦 POP UP SHOP</span></dd></div>
+        <div><dt>数値・メタ</dt><dd><b>Anybody</b> ─ 数字に癖がある可変幅グロテスク
+          <span class="ex" style="font-family:'Anybody';font-weight:700;font-size:12px;letter-spacing:.06em">08.25 — 09.10 / D-12</span></dd></div>
+      </div>
+      <p class="note">Anton は前回使いましたが、見慣れすぎています。Big Shoulders Display は
+      シカゴの看板文字が元で、同じ「太い圧縮体」でも角の処理が違います。</p>
+
+      <div class="chips">
+        <span class="chip" style="background:#0b0b0c"></span>
+        <span class="chip" style="background:#151519"></span>
+        <span class="chip" style="background:#1f1f24"></span>
+        <span class="chip" style="background:#ffffff"></span>
+        <span class="chip" style="background:#ffd400"></span>
+        <span class="chip" style="background:#3ee08a"></span>
+      </div>
+      <p class="note"><b>著作権。</b>赤黒白にはしていません。切り抜きの形も原典から離した多角形で、
+      切り文字・破れ面・人物の影絵は使っていません。借りているのは「斜めに切る」「重ねる」「太い字で殴る」という組み方だけです。</p>
+    </div>
+    <div class="screens" id="surgeScreens"></div>
+  </div>
+</section>
+
+<!-- ══════════════ 仕組み ══════════════ -->
+<section id="how">
+  <div class="wrap">
+    <h2>2つ持つのに、部品は1本のまま</h2>
+    <p>いま色だけがCSS変数になっていますが、そこに<strong>形・書体・動き</strong>の変数を足します。
+    ルート要素の <code>data-skin</code> を変えるだけで両方に化けるので、
+    React側の部品は増えません。直すときも1か所で済みます。</p>
+    <div class="tablewrap">
+      <table class="tk">
+        <thead><tr><th>変数</th><th>PANEL</th><th>SURGE</th><th>役割</th></tr></thead>
+        <tbody>
+          <tr><td>--font-body</td><td>BIZ UDPGothic</td><td>Zen Kaku Gothic New 700</td><td>品名・本文</td></tr>
+          <tr><td>--font-label</td><td>BIZ UDGothic（等幅）</td><td>Zen Kaku Gothic New 900</td><td>状態・タブ</td></tr>
+          <tr><td>--font-meta</td><td>Martian Mono</td><td>Anybody</td><td>日付・英字ラベル</td></tr>
+          <tr><td>--font-num</td><td>Bitcount Grid Double</td><td>Big Shoulders Display</td><td>件数・金額・称号</td></tr>
+          <tr><td>--font-display</td><td>BIZ UDGothic</td><td>Dela Gothic One</td><td>画面名</td></tr>
+          <tr><td>--acc</td><td>#ff5a1e</td><td>#ffd400</td><td>操作可能・金額</td></tr>
+          <tr><td>--shape-card</td><td>角丸2px</td><td>右下を切った多角形</td><td>一覧の1件</td></tr>
+          <tr><td>--shape-chip</td><td>長方形</td><td>平行四辺形</td><td>タブ・キー</td></tr>
+          <tr><td>--skew-band</td><td>0deg</td><td>-3deg</td><td>上端の帯</td></tr>
+          <tr><td>--icon-set</td><td>7×7の点</td><td>塗りつぶし</td><td>下タブ</td></tr>
+          <tr><td>--texture</td><td>点格子19px＋網点</td><td>網点5px</td><td>地の質感</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>決めておきたいこと</h3>
+    <ul class="pts">
+      <li><strong>初期値はPANEL</strong>にするつもりです。毎日開くアプリなので、静かな方を既定に。SURGEは選んだ人だけ。</li>
+      <li><strong>既存のテーマ7種とアクセント6色は残します。</strong>外皮が「形と書体」、テーマが「色」を持つ二階建てにして、
+      変数のキーは1つも消しません。ただし7種の値は、両方の外皮で破綻しないように調整し直します。</li>
+      <li><strong>マイページは3層に分けます。</strong>どちらの外皮でも「人物 / 記録 / 設定」の順。
+      機能は1つも減らさず、置き場所だけ整理します。細かい設定は「すべての設定」の中へ。</li>
+      <li><strong>和文の書体は端末に無い</strong>ので配信が要ります。日本語の書体は重いので、
+      使う文字だけを切り出して自前で配る形にします（表示の遅れと通信量を抑えるため）。</li>
+    </ul>
+
+    <div class="steps">
+      <div><span class="s">STEP 1</span><span class="h">この2案でよいか</span><span class="b">気になる所があれば直します。書体・色・形、どこでも。</span></div>
+      <div><span class="s">STEP 2</span><span class="h">設計書と変数表</span><span class="b">上の表を全項目に広げ、docs に。既存のキーは消しません。</span></div>
+      <div><span class="s">STEP 3</span><span class="h">土台＋「探す」を実装</span><span class="b">両方の外皮が動く状態でプレビューURLに出します。</span></div>
+      <div><span class="s">STEP 4</span><span class="h">残り17画面</span><span class="b">外枠 → 詳細・投稿 → マイページ再構成 → 課金・通知・ウィジェット。</span></div>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="wrap">branch: design/panel ─ main には反映しません ─ 書体は SIL OFL のみ ─ 図形とアイコンはすべて自作</div>
+</footer>
+
+<!-- ══════════════ 画面のひな型（外皮に依存しない） ══════════════ -->
+<template id="tplExplore">
+  <div class="ph">
+    <div class="scr">
+      <div class="hd">
+        <div class="hd-top"><span class="hd-wm">FANHIVE</span><span class="hd-meta">08.21 FRI</span></div>
+        <h3 class="hd-title">探す</h3>
+      </div>
+      <div class="seg"><span class="on">グッズ</span><span>イベント</span></div>
+      <div class="ro">
+        <div><span class="ro-n">24</span><span class="ro-u">New today</span></div>
+        <span class="ro-d">2026.08.21</span>
+      </div>
+      <div class="keys">
+        <div class="key"><span class="kn">01</span><span class="kt">作品</span></div>
+        <div class="key"><span class="kn">02</span><span class="kt">地域</span></div>
+        <div class="key"><span class="kn">03</span><span class="kt">期間</span></div>
+      </div>
+      <ul class="list">
+        <li class="it" data-st="pre">
+          <span class="img i1 m1"><span></span><i class="c"></i><i class="k"></i></span>
+          <div class="it-b">
+            <div class="st"><span class="led"></span><span class="lbl">Preorder</span><span class="jp">予約・受注中</span></div>
+            <h4 class="it-h">ちいかわ もちもちぬいぐるみ</h4>
+            <div class="meta"><span class="it-d">08.25 — 09.10</span><span class="it-p"><span class="yen">¥</span>3,300</span></div>
+          </div>
+        </li>
+        <li class="it" data-st="soon">
+          <span class="img i2 m2"><span></span><i class="n"></i><i class="k"></i></span>
+          <div class="it-b">
+            <div class="st"><span class="led"></span><span class="lbl">Upcoming D-12</span><span class="jp">発売まで あと12日</span></div>
+            <h4 class="it-h">ハイキュー!! アクリルスタンド</h4>
+            <div class="meta"><span class="it-d">09.02</span><span class="it-p"><span class="yen">¥</span>1,100</span></div>
+          </div>
+        </li>
+        <li class="it" data-st="now">
+          <span class="img i3 m3"><span></span><i class="c"></i><i class="n"></i></span>
+          <div class="it-b">
+            <div class="st"><span class="led"></span><span class="lbl">Open now</span><span class="jp">開催中</span></div>
+            <h4 class="it-h">呪術廻戦 POP UP SHOP</h4>
+            <div class="meta"><span class="it-d">08.15 — 09.01 渋谷</span><span class="it-x">入場無料</span></div>
+          </div>
+        </li>
+        <li class="it" data-st="end">
+          <span class="img i4 m4"><span></span><i class="k"></i><i class="c"></i></span>
+          <div class="it-b">
+            <div class="st"><span class="led"></span><span class="lbl">Closed</span><span class="jp">受付終了</span></div>
+            <h4 class="it-h">【推しの子】缶バッジBOX</h4>
+            <div class="meta"><span class="it-d">08.18</span><span class="it-p"><span class="yen">¥</span>4,400</span></div>
+          </div>
+        </li>
+        <li class="it" data-st="soon">
+          <span class="img i5 m5"><span></span><i class="n"></i><i class="c"></i></span>
+          <div class="it-b">
+            <div class="st"><span class="led"></span><span class="lbl">Opens soon</span><span class="jp">もうすぐ予約開始</span></div>
+            <h4 class="it-h">SPY×FAMILY 一番くじ</h4>
+            <div class="meta"><span class="it-d">09.12 —</span><span class="it-p"><span class="yen">¥</span>770</span></div>
+          </div>
+        </li>
+      </ul>
+    </div>
+    <nav class="tab" data-tab="explore"></nav>
+  </div>
+</template>
+
+<template id="tplMy">
+  <div class="ph">
+    <div class="scr">
+      <div class="hd">
+        <div class="hd-top"><span class="hd-wm">FANHIVE</span><span class="hd-meta">MY PAGE</span></div>
+        <h3 class="hd-title">マイページ</h3>
+      </div>
+      <span class="sec-l">01 ─ 人物</span>
+      <div class="who">
+        <span class="img av i5 m1"><span></span><i class="c"></i><i class="k"></i></span>
+        <div>
+          <div class="who-n">しばの</div>
+          <div class="who-t">情報の運び手</div>
+        </div>
+      </div>
+      <span class="sec-l">02 ─ 記録</span>
+      <div class="grade">
+        <div><span class="lbl">Fan grade</span><div class="g-n"><i>00</i>5</div></div>
+        <div class="stats">
+          <div><span class="v">42</span><span class="lbl">Post</span></div>
+          <div><span class="v">318</span><span class="lbl">Like</span></div>
+          <div><span class="v">07</span><span class="lbl">Work</span></div>
+        </div>
+      </div>
+      <div class="radar"></div>
+      <span class="sec-l">03 ─ 設定</span>
+      <div class="prow"><span class="t">発売・受付の通知</span><span class="v on">On</span></div>
+      <div class="prow"><span class="t">カレンダー連携</span><span class="v">Google</span></div>
+      <div class="prow"><span class="t">プレミアム</span><span class="v on">Active</span></div>
+      <a class="more">すべての設定</a>
+    </div>
+    <nav class="tab" data-tab="my"></nav>
+  </div>
+</template>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ── 7×7 の点で組んだアイコン（PANEL用・自作） ── */
+  var DOTS = {
+    home:  ["...#...","..###..",".#####.","#######",".#...#.",".#...#.",".#####."],
+    find:  [".###...","#...#..","#...#..","#...#..",".###...","....##.",".....##"],
+    post:  ["...#...","...#...","...#...","#######","...#...","...#...","...#..."],
+    like:  [".##.##.","#######","#######","#######",".#####.","..###..","...#..."],
+    me:    ["..###..","..###..","..###..",".......",".#####.","#######","#######"]
+  };
+  /* ── 塗りつぶしアイコン（SURGE用・自作） ── */
+  var PATHS = {
+    home:'M2 9.4 10 2.4l8 7V18H2z',
+    find:'M9 2.6a6.4 6.4 0 1 0 3.7 11.6l3.4 3.4 1.7-1.7-3.4-3.4A6.4 6.4 0 0 0 9 2.6zm0 2.4a4 4 0 1 1 0 8 4 4 0 0 1 0-8z',
+    post:'M8.6 3h2.8v5.6H17v2.8h-5.6V17H8.6v-5.6H3V8.6h5.6z',
+    like:'M10 17.4S2.6 12.6 2.6 7.9A3.9 3.9 0 0 1 10 6.1a3.9 3.9 0 0 1 7.4 1.8c0 4.7-7.4 9.5-7.4 9.5z',
+    me:'M10 3.2a3.4 3.4 0 1 1 0 6.8 3.4 3.4 0 0 1 0-6.8zM3.4 17.6c0-3.7 3-5.8 6.6-5.8s6.6 2.1 6.6 5.8z'
+  };
+  var TABS = [
+    {k:'home', jp:'ホーム', en:'Home'},
+    {k:'find', jp:'探す',   en:'Find'},
+    {k:'post', jp:'投稿',   en:'Post', add:true},
+    {k:'like', jp:'いいね', en:'Keep'},
+    {k:'me',   jp:'マイ',   en:'Me'}
+  ];
+
+  function dotIcon(key){
+    var g = document.createElement('span');
+    g.className = 'dico';
+    DOTS[key].forEach(function(row){
+      row.split('').forEach(function(ch){
+        var d = document.createElement('i');
+        if (ch === '#') d.className = 'f';
+        g.appendChild(d);
+      });
+    });
+    return g;
+  }
+  function solidIcon(key){
+    var ns = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(ns,'svg');
+    svg.setAttribute('viewBox','0 0 20 20');
+    svg.setAttribute('width','17'); svg.setAttribute('height','17');
+    svg.setAttribute('class','sico'); svg.setAttribute('aria-hidden','true');
+    var p = document.createElementNS(ns,'path');
+    p.setAttribute('d', PATHS[key]); p.setAttribute('fill','currentColor');
+    svg.appendChild(p);
+    return svg;
+  }
+  function buildTab(nav, current){
+    TABS.forEach(function(t){
+      var b = document.createElement('button');
+      b.type = 'button';
+      if (t.add) b.className = 'add';
+      if (t.k === current) b.setAttribute('aria-current','page');
+      b.appendChild(dotIcon(t.k));
+      b.appendChild(solidIcon(t.k));
+      var l = document.createElement('span');
+      l.className = 'tl';
+      l.dataset.jp = t.jp; l.dataset.en = t.en;
+      l.textContent = t.jp;
+      b.appendChild(l);
+      nav.appendChild(b);
+    });
+  }
+
+  /* ── 五角形の能力図 ── */
+  var AX = [
+    {jp:'投稿', en:'Post',  x:100, y:22,    lx:100, ly:13,  a:'middle'},
+    {jp:'いいね', en:'Like', x:174.2, y:75.9, lx:186, ly:73, a:'start'},
+    {jp:'発見', en:'Find',  x:145.8, y:163.1, lx:154, ly:181, a:'middle'},
+    {jp:'継続', en:'Keep',  x:54.2, y:163.1, lx:46, ly:181, a:'middle'},
+    {jp:'反応', en:'React', x:25.8, y:75.9,  lx:14, ly:73,  a:'end'}
+  ];
+  function radar(host, skin){
+    var ns='http://www.w3.org/2000/svg';
+    var svg=document.createElementNS(ns,'svg');
+    svg.setAttribute('viewBox','0 0 200 200');
+    svg.setAttribute('width','100%'); svg.setAttribute('height','146');
+    svg.setAttribute('aria-label','称号のスターチャート');
+    svg.style.display='block';
+    function poly(pts,fill,stroke,w,dash){
+      var p=document.createElementNS(ns,'polygon');
+      p.setAttribute('points',pts); p.setAttribute('fill',fill);
+      p.setAttribute('stroke',stroke); p.setAttribute('stroke-width',w);
+      if(dash) p.setAttribute('stroke-dasharray',dash);
+      svg.appendChild(p); return p;
+    }
+    poly('100,22 174.2,75.9 145.8,163.1 54.2,163.1 25.8,75.9','none','var(--line)','1','1.5 3');
+    poly('100,48.5 149,83.9 130.2,141.6 69.8,141.6 51,83.9','none','var(--line)','1','1.5 3');
+    poly('100,74.3 124.5,92 115.1,120.8 84.9,120.8 75.5,92','none','var(--line)','1','1.5 3');
+    var data='100,36 147.5,84.6 141.3,156.8 74.8,134.7 46.6,82.6';
+    poly(data,'color-mix(in srgb, var(--acc) 18%, transparent)','var(--acc)','1.6');
+    data.split(' ').forEach(function(pt){
+      var xy=pt.split(','); var c=document.createElementNS(ns,'circle');
+      c.setAttribute('cx',xy[0]); c.setAttribute('cy',xy[1]); c.setAttribute('r','2.4');
+      c.setAttribute('fill','var(--acc)'); svg.appendChild(c);
+    });
+    AX.forEach(function(a){
+      var t=document.createElementNS(ns,'text');
+      t.setAttribute('x',a.lx); t.setAttribute('y',a.ly);
+      t.setAttribute('text-anchor',a.a); t.setAttribute('font-size','8');
+      t.setAttribute('fill','var(--tx2)'); t.setAttribute('class','radar-l');
+      t.setAttribute('letter-spacing','.5');
+      t.textContent = (skin === 'panel') ? a.en : a.jp;
+      svg.appendChild(t);
+    });
+    host.appendChild(svg);
+  }
+
+  function makeScreen(tplId, skin, tabKey){
+    var node = document.getElementById(tplId).content.firstElementChild.cloneNode(true);
+    node.setAttribute('data-skin', skin);
+    var nav = node.querySelector('.tab');
+    buildTab(nav, tabKey);
+    var r = node.querySelector('.radar');
+    if (r) { r.style.padding = '2px 12px 0'; radar(r, skin); }
+    return node;
+  }
+  function figure(node, cap){
+    var f = document.createElement('figure');
+    var c = document.createElement('figcaption');
+    c.textContent = cap;
+    f.appendChild(node); f.appendChild(c);
+    return f;
+  }
+
+  var demo = document.getElementById('demoScreens');
+  var demoA = makeScreen('tplExplore','panel','find');
+  var demoB = makeScreen('tplMy','panel','me');
+  demo.appendChild(figure(demoA,'探す'));
+  demo.appendChild(figure(demoB,'マイページ'));
+
+  var pan = document.getElementById('panelScreens');
+  pan.appendChild(figure(makeScreen('tplExplore','panel','find'),'PANEL ─ 探す'));
+  pan.appendChild(figure(makeScreen('tplMy','panel','me'),'PANEL ─ マイページ'));
+
+  var sur = document.getElementById('surgeScreens');
+  sur.appendChild(figure(makeScreen('tplExplore','surge','find'),'SURGE ─ 探す'));
+  sur.appendChild(figure(makeScreen('tplMy','surge','me'),'SURGE ─ マイページ'));
+
+  /* 切り替え */
+  var buttons = document.querySelectorAll('.sw button');
+  buttons.forEach(function(b){
+    b.addEventListener('click', function(){
+      var skin = b.dataset.set;
+      buttons.forEach(function(o){ o.setAttribute('aria-pressed', String(o === b)); });
+      [demoA, demoB].forEach(function(ph){
+        ph.setAttribute('data-skin', skin);
+        ph.querySelectorAll('.tl').forEach(function(l){
+          l.textContent = skin === 'panel' ? l.dataset.en : l.dataset.jp;
+        });
+      });
+    });
+  });
+  /* PANEL の初期表示は英字ラベル */
+  document.querySelectorAll('[data-skin="panel"] .tl').forEach(function(l){
+    l.textContent = l.dataset.en;
+  });
+
+  /* アイコンの見本 */
+  var ico = document.getElementById('icoDemo');
+  if (ico) {
+    TABS.forEach(function(t){
+      var w = document.createElement('div');
+      w.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:7px';
+      var big = dotIcon(t.k);
+      big.style.cssText = 'grid-template-columns:repeat(7,4px);grid-auto-rows:4px;gap:2px';
+      big.querySelectorAll('i').forEach(function(d){ d.style.width='4px'; d.style.height='4px'; });
+      w.appendChild(big);
+      var lab = document.createElement('span');
+      lab.style.cssText = 'font-family:"Zen Kaku Gothic Antique",sans-serif;font-size:10px;color:var(--ink-3)';
+      lab.textContent = t.jp;
+      w.appendChild(lab);
+      ico.appendChild(w);
+    });
+  }
+})();
+</script>
