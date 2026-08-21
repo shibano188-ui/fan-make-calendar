@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { Capacitor } from '@capacitor/core';
 import { Analytics } from '@vercel/analytics/react';
 import './index.css';
+import './design/skins.css';
 import App from './App';
 import { cleanupLikeSessions } from './lib/constants';
 

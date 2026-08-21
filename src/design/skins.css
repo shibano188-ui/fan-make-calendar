@@ -1,0 +1,253 @@
+/* ═══════════════════════════════════════════════════════════════════
+   外皮（スキン）の形・書体・質感
+   色は skins.ts が CSS 変数で流し込む（ThemeContext が変数をインラインで
+   置くため、色だけは JS 側で上書きする必要がある）。
+   ここは「形・書体・質感」だけを担当する。
+
+   規約:
+   - すべて html[data-skin="…"] の下にぶら下げる。classic では1行も効かない
+   - 既存のクラス・変数は消さない。上書きと追加だけ
+   - 機能に関わる指定（display:none 等）はしない。見た目のみ
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── 共通: 外皮が持つ形の変数 ───────────────────────────── */
+html[data-skin='panel'] {
+  --skin-radius: 2px;
+  --skin-radius-lg: 3px;
+  --skin-radius-pill: 3px;
+  --skin-font-body: 'BIZ UDPGothic', 'Hiragino Kaku Gothic ProN', system-ui, sans-serif;
+  --skin-font-label: 'BIZ UDGothic', 'Hiragino Kaku Gothic ProN', system-ui, sans-serif;
+  --skin-font-meta: 'Martian Mono', ui-monospace, monospace;
+  --skin-font-num: 'Bitcount Grid Double', ui-monospace, monospace;
+  --skin-dot: rgba(128, 128, 132, 0.16);
+}
+html[data-skin='surge'] {
+  --skin-radius: 0px;
+  --skin-radius-lg: 0px;
+  --skin-radius-pill: 0px;
+  --skin-font-body: 'Zen Kaku Gothic New', 'Hiragino Kaku Gothic ProN', system-ui, sans-serif;
+  --skin-font-label: 'Zen Kaku Gothic New', 'Hiragino Kaku Gothic ProN', system-ui, sans-serif;
+  --skin-font-meta: 'Anybody', system-ui, sans-serif;
+  --skin-font-num: 'Big Shoulders Display', system-ui, sans-serif;
+  --skin-display: 'Dela Gothic One', 'Hiragino Kaku Gothic ProN', sans-serif;
+  --skin-dot: rgba(128, 128, 132, 0.13);
+}
+
+/* ── 書体 ──────────────────────────────────────────── */
+html[data-skin='panel'] body,
+html[data-skin='surge'] body {
+  font-family: var(--skin-font-body);
+}
+html[data-skin='surge'] body {
+  font-weight: 500;
+}
+
+/* ── 地の質感 ──────────────────────────────────────── */
+/* PANEL: Nothing の点の格子。SURGE: 細かい網点 */
+html[data-skin='panel'] body {
+  background-image: radial-gradient(var(--skin-dot) 1px, transparent 1px);
+  background-size: 19px 19px;
+  background-position: 9px 9px;
+  background-attachment: fixed;
+}
+html[data-skin='surge'] body {
+  background-image: radial-gradient(var(--skin-dot) 1px, transparent 1px);
+  background-size: 5px 5px;
+  background-attachment: fixed;
+}
+
+/* ── 角丸 ──────────────────────────────────────────
+   アプリは Tailwind の任意値（rounded-[12px] など）で角丸を指定している。
+   外皮の下でだけ、その値を外皮の形に差し替える。 */
+html[data-skin='panel'] .rounded-sm,
+html[data-skin='panel'] .rounded,
+html[data-skin='panel'] .rounded-md,
+html[data-skin='panel'] .rounded-lg,
+html[data-skin='panel'] .rounded-xl,
+html[data-skin='panel'] .rounded-2xl,
+html[data-skin='panel'] .rounded-3xl,
+html[data-skin='panel'] .rounded-\[6px\],
+html[data-skin='panel'] .rounded-\[8px\],
+html[data-skin='panel'] .rounded-\[10px\],
+html[data-skin='panel'] .rounded-\[12px\],
+html[data-skin='panel'] .rounded-\[14px\],
+html[data-skin='panel'] .rounded-\[16px\],
+html[data-skin='panel'] .rounded-\[18px\],
+html[data-skin='panel'] .rounded-\[20px\],
+html[data-skin='panel'] .rounded-\[22px\],
+html[data-skin='surge'] .rounded-sm,
+html[data-skin='surge'] .rounded,
+html[data-skin='surge'] .rounded-md,
+html[data-skin='surge'] .rounded-lg,
+html[data-skin='surge'] .rounded-xl,
+html[data-skin='surge'] .rounded-2xl,
+html[data-skin='surge'] .rounded-3xl,
+html[data-skin='surge'] .rounded-\[6px\],
+html[data-skin='surge'] .rounded-\[8px\],
+html[data-skin='surge'] .rounded-\[10px\],
+html[data-skin='surge'] .rounded-\[12px\],
+html[data-skin='surge'] .rounded-\[14px\],
+html[data-skin='surge'] .rounded-\[16px\],
+html[data-skin='surge'] .rounded-\[18px\],
+html[data-skin='surge'] .rounded-\[20px\],
+html[data-skin='surge'] .rounded-\[22px\] {
+  border-radius: var(--skin-radius);
+}
+
+/* 丸ピル。アバターやチップも外皮の形に合わせる。
+   ただし「丸いこと自体が意味を持つ」もの（状態の点・トグルのつまみ）は
+   .skin-keep-round を付けずとも小さすぎて影響が出ないため一括で扱う。 */
+html[data-skin='panel'] .rounded-full,
+html[data-skin='surge'] .rounded-full {
+  border-radius: var(--skin-radius-pill);
+}
+/* 状態を表す小さな点・スピナー・パーティクルは丸のまま残す */
+html[data-skin='panel'] .rounded-full.w-1,
+html[data-skin='panel'] .rounded-full.w-1\.5,
+html[data-skin='panel'] .rounded-full.w-2,
+html[data-skin='panel'] .rounded-full.w-2\.5,
+html[data-skin='panel'] .rounded-full.w-3,
+html[data-skin='panel'] .rounded-full.animate-spin,
+html[data-skin='surge'] .rounded-full.w-1,
+html[data-skin='surge'] .rounded-full.w-1\.5,
+html[data-skin='surge'] .rounded-full.w-2,
+html[data-skin='surge'] .rounded-full.w-2\.5,
+html[data-skin='surge'] .rounded-full.w-3,
+html[data-skin='surge'] .rounded-full.animate-spin {
+  border-radius: 9999px;
+}
+
+/* ── 面の質感（材質） ───────────────────────────────
+   classic は磨りガラス。PANEL は塗りの筐体、SURGE は塗り＋黄の縁。 */
+html[data-skin='panel'] .material-bar,
+html[data-skin='panel'] .material-sheet {
+  background-color: var(--bg-secondary);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+html[data-skin='panel'] .material-thick {
+  background-color: var(--bg-tertiary);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+html[data-skin='surge'] .material-bar,
+html[data-skin='surge'] .material-sheet {
+  background-color: var(--bg-secondary);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-top: 2px solid var(--accent-color);
+}
+html[data-skin='surge'] .material-thick {
+  background-color: var(--bg-tertiary);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* ── 影 ────────────────────────────────────────────
+   PANEL は「浮く」のではなく「隆起した押しボタン」。SURGE は硬いオフセット影。 */
+html[data-skin='panel'] .shadow-card {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 1px 0 rgba(0, 0, 0, 0.5);
+}
+html[data-skin='panel'] .shadow-float {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 2px 0 rgba(0, 0, 0, 0.55);
+}
+html[data-theme='light'][data-skin='panel'] .shadow-card {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 1px 0 rgba(0, 0, 0, 0.14);
+}
+html[data-theme='light'][data-skin='panel'] .shadow-float {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 2px 0 rgba(0, 0, 0, 0.16);
+}
+html[data-skin='surge'] .shadow-card {
+  box-shadow: 3px 3px 0 color-mix(in srgb, var(--accent-color) 16%, transparent);
+}
+html[data-skin='surge'] .shadow-float {
+  box-shadow: 5px 5px 0 color-mix(in srgb, var(--accent-color) 20%, transparent);
+}
+
+/* ── 下タブ ────────────────────────────────────────
+   .material-bar.rounded-full はこのアプリでは下タブの丸バーだけ。 */
+html[data-skin='panel'] nav .material-bar.rounded-full {
+  border-radius: var(--skin-radius-lg);
+  border-color: var(--border-default);
+  padding-left: 4px;
+  padding-right: 4px;
+}
+html[data-skin='surge'] nav .material-bar.rounded-full {
+  border-radius: 0;
+  border: 0;
+  border-top: 2px solid var(--accent-color);
+  background-color: var(--bg-secondary);
+}
+/* 下タブの文字。PANEL は等幅の小さなラベル、SURGE は極太 */
+html[data-skin='panel'] nav .material-bar .text-\[10px\] {
+  font-family: var(--skin-font-label);
+  letter-spacing: 0.06em;
+}
+html[data-skin='surge'] nav .material-bar .text-\[10px\] {
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+/* ── 数値・日付・英字ラベル ─────────────────────────
+   価格・件数・日付はアプリ全体で決まったサイズを使っているので、
+   そのサイズのところだけ外皮の数字書体に差し替える。 */
+html[data-skin='panel'] .tabular-nums,
+html[data-skin='surge'] .tabular-nums {
+  font-family: var(--skin-font-num);
+}
+
+/* ── 見出し ────────────────────────────────────────
+   SURGE の画面名だけ極太の日本語書体に。 */
+html[data-skin='surge'] .text-largetitle,
+html[data-skin='surge'] h1.text-\[19px\],
+html[data-skin='surge'] .text-\[22px\].font-bold,
+html[data-skin='surge'] .text-\[20px\].font-bold {
+  font-family: var(--skin-display);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+html[data-skin='panel'] .text-largetitle {
+  font-family: var(--skin-font-label);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+/* ── 押した感じ ────────────────────────────────────
+   classic はばね。PANEL は機械式スイッチのように沈む、SURGE は弾く。 */
+html[data-skin='panel'] .pressable:active {
+  transform: translateY(1px) scale(0.995);
+  opacity: 0.85;
+}
+html[data-skin='surge'] .pressable:active {
+  transform: scale(0.94) rotate(-0.6deg);
+  opacity: 0.9;
+}
+
+/* ── 入力欄 ────────────────────────────────────────*/
+html[data-skin='panel'] input,
+html[data-skin='panel'] textarea {
+  font-family: var(--skin-font-body);
+}
+html[data-skin='surge'] input,
+html[data-skin='surge'] textarea {
+  font-family: var(--skin-font-body);
+  font-weight: 700;
+}
+
+/* ── 外皮の見本（マイページの切替UI用） ───────────── */
+.skin-chip {
+  display: flex;
+  width: 44px;
+  height: 30px;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 1px solid var(--border-default);
+}
+.skin-chip i {
+  display: block;
+  flex: 1;
+}
+.skin-chip.is-panel { border-radius: 2px; }
+.skin-chip.is-surge { border-radius: 0; }
+.skin-chip.is-classic { border-radius: 8px; }
