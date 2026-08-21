@@ -138,16 +138,17 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
 
   if (layout === 'list') {
     return (
-      <div className="rounded-[12px] border border-subtle overflow-hidden bg-bg-secondary p-2 flex gap-3"
+      <div data-skin-part="card" data-status={status} data-layout="list"
+        className="rounded-[12px] border border-subtle overflow-hidden bg-bg-secondary p-2 flex gap-3"
         style={workColor ? { borderLeft: `3px solid ${workColor}` } : undefined}>
-        <button onClick={onOpen} className="pressable flex-shrink-0 w-24 h-24 rounded-[8px] overflow-hidden">{Thumb}</button>
+        <button onClick={onOpen} data-skin-part="card-media" className="pressable flex-shrink-0 w-24 h-24 rounded-[8px] overflow-hidden">{Thumb}</button>
         <div className="flex-1 min-w-0 flex flex-col">
           <button onClick={onOpen} className="pressable text-left">
-            {event.workName && <div className="text-[11px] text-label-secondary truncate">{event.workName}</div>}
-            <div className="text-[14px] font-semibold leading-snug line-clamp-2">{event.title}</div>
+            {event.workName && <div data-skin-part="card-work" className="text-[11px] text-label-secondary truncate">{event.workName}</div>}
+            <div data-skin-part="card-title" className="text-[14px] font-semibold leading-snug line-clamp-2">{event.title}</div>
             <CategoryLine event={event} />
-            <div className="text-[12px] text-label-secondary mt-0.5">{itemDateLines(event).join(' / ')}</div>
-            {price && <div className="text-[15px] font-bold mt-1 flex items-center gap-1" style={{ color: 'var(--accent-text)' }}>{price}{isSet && setTag}</div>}
+            <div data-skin-part="card-date" className="text-[12px] text-label-secondary mt-0.5">{itemDateLines(event).join(' / ')}</div>
+            {price && <div data-skin-part="card-price" className="text-[15px] font-bold mt-1 flex items-center gap-1" style={{ color: 'var(--accent-text)' }}>{price}{isSet && setTag}</div>}
           </button>
           <div className="mt-auto pt-1.5"><CardActions liked={liked} likeCount={likeCount} onLike={handleLike} event={event} /></div>
         </div>
@@ -157,15 +158,16 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
 
   // grid（枠線つきカード・画像は正方形で固定・アクションは必ず最下段）
   return (
-    <div className="flex flex-col h-full rounded-[12px] border border-subtle overflow-hidden bg-bg-secondary"
+    <div data-skin-part="card" data-status={status} data-layout="grid"
+      className="flex flex-col h-full rounded-[12px] border border-subtle overflow-hidden bg-bg-secondary"
       style={workColor ? { borderLeft: `3px solid ${workColor}` } : undefined}>
       <button onClick={onOpen} className="pressable text-left flex flex-col">
-        <div className="w-full aspect-square relative">{Thumb}<DateBadge event={event} /></div>
+        <div data-skin-part="card-media" className="w-full aspect-square relative">{Thumb}<DateBadge event={event} /></div>
         <div className="px-2 pt-1.5">
-          <div className="text-[11px] text-label-secondary truncate min-h-[1.25em]">{event.workName ?? ''}</div>
-          <div className="text-[13px] font-medium leading-snug line-clamp-2 min-h-[2.75em]">{event.title}</div>
+          <div data-skin-part="card-work" className="text-[11px] text-label-secondary truncate min-h-[1.25em]">{event.workName ?? ''}</div>
+          <div data-skin-part="card-title" className="text-[13px] font-medium leading-snug line-clamp-2 min-h-[2.75em]">{event.title}</div>
           <CategoryLine event={event} />
-          <div className="text-[15px] font-bold mt-0.5 min-h-[1.4em] flex items-center gap-1" style={{ color: 'var(--accent-text)' }}>{price}{price && isSet && setTag}</div>
+          <div data-skin-part="card-price" className="text-[15px] font-bold mt-0.5 min-h-[1.4em] flex items-center gap-1" style={{ color: 'var(--accent-text)' }}>{price}{price && isSet && setTag}</div>
         </div>
       </button>
       <div className="px-2 pb-2 pt-1 mt-auto">
@@ -177,10 +179,10 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
 
 function CardActions({ liked, likeCount, onLike, event }: { liked?: boolean; likeCount?: number; onLike?: () => void; event: CalendarEvent }) {
   return (
-    <div className="flex items-center gap-4">
+    <div data-skin-part="card-actions" className="flex items-center gap-4">
       <button onClick={(e) => { e.stopPropagation(); if (!liked) likeEffect(e.currentTarget); onLike?.(); }} aria-label="いいね" className="pressable tap-44 flex items-center gap-1">
         <Heart size={18} fill={liked ? 'var(--accent-color)' : 'none'} style={{ color: liked ? 'var(--accent-color)' : 'var(--label-secondary)' }} />
-        {!!likeCount && likeCount > 0 && <span className="text-[11px] text-label-secondary">{likeCount}</span>}
+        {!!likeCount && likeCount > 0 && <span data-skin-part="card-likes" className="text-[11px] text-label-secondary">{likeCount}</span>}
       </button>
       <ReactionButton eventId={event.id} />
       <NotifyBell event={event} liked={!!liked} />

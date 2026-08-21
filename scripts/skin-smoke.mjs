@@ -13,6 +13,14 @@ import { mkdirSync } from 'node:fs';
 const BASE = process.argv[2] ?? 'http://localhost:5173';
 const OUT = 'scripts/.smoke';
 const SKINS = ['classic', 'panel', 'surge'];
+// 外皮の署名色。localStorage を直に触るときは色も対にして、
+// 見本が「その外皮の意図した組み合わせ」になるようにする
+const ACCENT = { classic: '#FBBF00', panel: '#FF5A1E', surge: '#FFD400' };
+const setSkinRaw = (page, skin) => page.evaluate(([s, a]) => {
+  localStorage.setItem('fan_skin', s);
+  const cur = JSON.parse(localStorage.getItem('user_settings') || '{}');
+  localStorage.setItem('user_settings', JSON.stringify({ ...cur, accentColor: a }));
+}, [skin, ACCENT[skin]]);
 
 // スマホ幅にする。640px 以上だと PhoneFrame（PC用の枠）が出て本体が入れ子になるため
 const MOBILE = { width: 390, height: 844 };
@@ -45,7 +53,7 @@ async function run() {
 
     // 外皮を先に入れてから開く
     await page.goto(BASE, { waitUntil: 'domcontentloaded' });
-    await page.evaluate((s) => localStorage.setItem('fan_skin', s), skin);
+    await setSkinRaw(page, skin);
 
     // ── 探す ─────────────────────────────────────────
     await page.goto(`${BASE}/explore`, { waitUntil: 'networkidle' });
@@ -119,7 +127,7 @@ async function run() {
 
     // ── web版デモ ────────────────────────────────────
     await page.setViewportSize(DESKTOP);
-    await page.evaluate((s) => localStorage.setItem('fan_skin', s), skin);
+    await setSkinRaw(page, skin);
     await page.goto(`${BASE}/web`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(1500);
     log(await page.getByPlaceholder('グッズ・イベントを検索').isVisible(), 'web: 上部の検索欄がある');

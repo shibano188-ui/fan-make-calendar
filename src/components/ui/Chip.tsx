@@ -11,6 +11,8 @@ export default function Chip({ active = false, onClick, children }: Props) {
   return (
     <button
       onClick={onClick}
+      data-skin-part="chip"
+      data-active={active ? '' : undefined}
       className="pressable inline-flex items-center gap-1 whitespace-nowrap rounded-full text-[13px] leading-none px-3 py-2"
       style={
         active

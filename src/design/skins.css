@@ -313,3 +313,506 @@ html[data-skin='surge'] .wd-card {
 html[data-skin='surge'] .wd-nav[aria-current='page'] {
   clip-path: polygon(7px 0, 100% 0, calc(100% - 7px) 100%, 0 100%);
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   ここから先は部品の作り込み。
+   components 側に data-skin-part の目印（属性）だけを足してあるので、
+   見た目はすべてここで決める。JSX の中身・条件分岐には触れていない。
+
+   混植の作法: 欧文と数字は外皮の書体、日本語は後ろの和文書体に落とす。
+     font-family: 'Martian Mono', 'BIZ UDGothic', sans-serif
+   前の書体に無いグリフは次へ落ちるので、1行の中で自然に混ざる。
+
+   ドットの使いどころ: Nothing 自身が OS 3.0 で NDot を本文から外し、
+   設定の見出しだけに限定した（可読性のため）。ここでも同じ線を引き、
+   **点で組む書体は数字と短い英字ラベルだけ**に使う。日本語には使わない。
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────
+   PANEL ／ 計器
+   ───────────────────────────────────────────────────────────── */
+
+/* 上部バー: 磨りガラスをやめて塗りの前面板に。文字は字間を開ける */
+html[data-skin='panel'] [data-skin-part='header'] {
+  background-color: var(--bg-secondary) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-bottom-color: var(--border-default);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+}
+html[data-skin='panel'] [data-skin-part='header-title'] {
+  font-family: var(--skin-font-label);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+/* 一覧の1件 = 筐体に取り付けた板。浮かせず、上辺の光でわずかに隆起させる */
+html[data-skin='panel'] [data-skin-part='card'] {
+  border-color: var(--border-subtle);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055);
+}
+html[data-theme='light'][data-skin='panel'] [data-skin-part='card'] {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+/* 写真は網点をかけて、画面じゅうの素材を点の言語に揃える */
+html[data-skin='panel'] [data-skin-part='card-media'] {
+  position: relative;
+}
+html[data-skin='panel'] [data-skin-part='card-media']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(0, 0, 0, 0.5) 1px, transparent 1px);
+  background-size: 3.4px 3.4px;
+  mix-blend-mode: multiply;
+  opacity: 0.55;
+}
+html[data-skin='panel'] [data-skin-part='card-work'] {
+  font-family: var(--skin-font-label);
+  letter-spacing: 0.1em;
+}
+html[data-skin='panel'] [data-skin-part='card-title'] {
+  font-family: var(--skin-font-body);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+/* 日付は欧文と数字だけ等幅に落とす。日本語（受付／開催）は和文書体のまま */
+html[data-skin='panel'] [data-skin-part='card-date'] {
+  font-family: 'Martian Mono', 'BIZ UDGothic', sans-serif;
+  font-size: 11px;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+/* 金額と件数は点で組む。「セット」等の日本語は後ろに落ちる */
+html[data-skin='panel'] [data-skin-part='card-price'],
+html[data-skin='panel'] [data-skin-part='card-likes'] {
+  font-family: 'Bitcount Grid Double', 'BIZ UDGothic', monospace;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+html[data-skin='panel'] [data-skin-part='card-price'] {
+  letter-spacing: 0.02em;
+}
+
+/* 状態バッジ = 黒い窓の中で灯る表示灯。
+   バッジの背景色は JSX のインライン指定なので、ここだけ !important で上書きする */
+html[data-skin='panel'] [data-skin-part='status'] {
+  background-color: rgba(0, 0, 0, 0.72) !important;
+  color: var(--label-primary) !important;
+  border-radius: 2px !important;
+  font-family: var(--skin-font-label);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  gap: 4px;
+  padding-left: 5px !important;
+}
+html[data-theme='light'][data-skin='panel'] [data-skin-part='status'] {
+  background-color: rgba(23, 23, 26, 0.82) !important;
+  color: #f3f0ea !important;
+}
+html[data-skin='panel'] [data-skin-part='status']::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--status-ended);
+}
+html[data-skin='panel'] [data-skin-part='status'][data-status='preorder']::before {
+  background: var(--status-preorder);
+  box-shadow: 0 0 5px var(--status-preorder);
+}
+html[data-skin='panel'] [data-skin-part='status'][data-status='preorder_soon']::before { background: var(--status-info); }
+html[data-skin='panel'] [data-skin-part='status'][data-status='sale_soon']::before { background: var(--status-upcoming); }
+html[data-skin='panel'] [data-skin-part='status'][data-status='onsale']::before {
+  background: var(--status-onsale);
+  box-shadow: 0 0 5px var(--status-onsale);
+}
+
+/* しぼり込みのチップ = 角のない押しボタン */
+html[data-skin='panel'] [data-skin-part='chip'] {
+  border-radius: 2px !important;
+  font-family: var(--skin-font-label);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+html[data-skin='panel'] [data-skin-part='chip'][data-active] {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+/* 下タブ = 機器の操作面。キーが並び、選択中は点灯する */
+html[data-skin='panel'] [data-skin-part='nav'] {
+  border-radius: 3px !important;
+  padding: 5px !important;
+  gap: 4px;
+  border-color: var(--border-default) !important;
+}
+html[data-skin='panel'] [data-skin-part='nav-ind'] {
+  border-radius: 2px !important;
+  background-color: var(--fill-secondary) !important;
+  box-shadow: inset 0 0 0 1px var(--border-default);
+}
+html[data-skin='panel'] [data-skin-part='nav-item'] {
+  border-radius: 2px !important;
+}
+html[data-skin='panel'] [data-skin-part='nav-item'] span {
+  font-family: var(--skin-font-label);
+  letter-spacing: 0.04em;
+}
+html[data-skin='panel'] [data-skin-part='nav-item'][aria-current='page'] svg {
+  filter: drop-shadow(0 0 5px var(--accent-color));
+}
+html[data-skin='panel'] [data-skin-part='nav-add'] {
+  border-radius: 2px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 0 rgba(0, 0, 0, 0.45) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   SURGE ／ 高揚
+   ───────────────────────────────────────────────────────────── */
+
+/* 上部バー = 黄色い帯。下辺だけを斜めに切る。
+   面は斜めでも文字は水平のまま（回転させないので絶対に切れない） */
+html[data-skin='surge'] [data-skin-part='header'] {
+  background-color: var(--accent-color) !important;
+  color: var(--accent-on);
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-bottom: 0 !important;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 9px), 0 100%);
+  padding-bottom: 14px;
+}
+html[data-skin='surge'] [data-skin-part='header'] .text-label-primary,
+html[data-skin='surge'] [data-skin-part='header'] .text-label-secondary,
+html[data-skin='surge'] [data-skin-part='header'] p,
+html[data-skin='surge'] [data-skin-part='header'] button {
+  color: var(--accent-on) !important;
+}
+html[data-skin='surge'] [data-skin-part='header'] button {
+  background-color: rgba(0, 0, 0, 0.12) !important;
+}
+html[data-skin='surge'] [data-skin-part='header-title'] {
+  font-family: var(--skin-display);
+  font-weight: 400;
+  font-size: 16px;
+  letter-spacing: 0.02em;
+}
+
+/* 一覧の1件 = 右下を切った面。硬いオフセット影を落とす */
+html[data-skin='surge'] [data-skin-part='card'] {
+  border: 0 !important;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 13px), calc(100% - 15px) 100%, 0 100%);
+  box-shadow: 4px 4px 0 color-mix(in srgb, var(--accent-color) 18%, transparent);
+}
+/* 切り欠きに文字が入らないよう、最終行の右に逃げをつくる */
+html[data-skin='surge'] [data-skin-part='card'] [data-skin-part='card-actions'] {
+  padding-right: 14px;
+}
+html[data-skin='surge'] [data-skin-part='card-media']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(color-mix(in srgb, var(--accent-color) 18%, transparent), transparent 60%);
+}
+html[data-skin='surge'] [data-skin-part='card-work'] {
+  font-family: var(--skin-font-meta);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+html[data-skin='surge'] [data-skin-part='card-title'] {
+  font-weight: 900;
+  letter-spacing: 0.005em;
+}
+html[data-skin='surge'] [data-skin-part='card-date'] {
+  font-family: 'Anybody', 'Zen Kaku Gothic New', sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+html[data-skin='surge'] [data-skin-part='card-price'] {
+  font-family: 'Big Shoulders Display', 'Zen Kaku Gothic New', sans-serif;
+  font-weight: 900;
+  font-size: 19px !important;
+  letter-spacing: 0.01em;
+}
+html[data-skin='surge'] [data-skin-part='card-likes'] {
+  font-family: 'Big Shoulders Display', sans-serif;
+  font-weight: 900;
+  font-size: 13px !important;
+}
+
+/* 状態バッジ = 傾いた札 */
+html[data-skin='surge'] [data-skin-part='status'] {
+  border-radius: 0 !important;
+  font-weight: 900;
+  transform: rotate(-1.6deg);
+  letter-spacing: 0.04em;
+}
+
+/* チップ = 平行四辺形 */
+html[data-skin='surge'] [data-skin-part='chip'] {
+  border-radius: 0 !important;
+  font-weight: 900;
+  clip-path: polygon(7px 0, 100% 0, calc(100% - 7px) 100%, 0 100%);
+  padding-left: 16px !important;
+  padding-right: 16px !important;
+}
+html[data-skin='surge'] [data-skin-part='chip'][data-active] {
+  transform: rotate(-1deg);
+}
+
+/* 下タブ = 白い帯に黒。上辺に黄色い縁 */
+html[data-skin='surge'] [data-skin-part='nav'] {
+  border-radius: 0 !important;
+  border: 0 !important;
+  border-top: 2px solid var(--accent-color) !important;
+  background-color: var(--label-primary) !important;
+  padding: 6px 6px 8px !important;
+  box-shadow: 0 -4px 14px rgba(0, 0, 0, 0.35) !important;
+}
+html[data-skin='surge'] [data-skin-part='nav-ind'] {
+  border-radius: 0 !important;
+  background-color: color-mix(in srgb, var(--accent-color) 90%, transparent) !important;
+  clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
+}
+html[data-skin='surge'] [data-skin-part='nav-item'] {
+  border-radius: 0 !important;
+  color: color-mix(in srgb, var(--bg-primary) 55%, transparent);
+}
+html[data-skin='surge'] [data-skin-part='nav-item'] svg,
+html[data-skin='surge'] [data-skin-part='nav-item'] span {
+  color: color-mix(in srgb, var(--bg-primary) 52%, transparent) !important;
+}
+html[data-skin='surge'] [data-skin-part='nav-item'][aria-current='page'] svg,
+html[data-skin='surge'] [data-skin-part='nav-item'][aria-current='page'] span {
+  color: var(--bg-primary) !important;
+}
+html[data-skin='surge'] [data-skin-part='nav-item'] span {
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+html[data-skin='surge'] [data-skin-part='nav-add'] {
+  border-radius: 0 !important;
+  clip-path: polygon(7px 0, 100% 0, calc(100% - 7px) 100%, 0 100%);
+  box-shadow: none !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   画面上部の帯・シート・トグル
+   （.material-bar.scroll-edge はタブ画面の上部、.material-sheet は
+    ボトムシート、[role="switch"] はトグル。どれも共通の作りなので
+    部品に目印を足さずにここから届く）
+   ───────────────────────────────────────────────────────────── */
+
+/* PANEL: 磨りガラスをやめ、下辺をぼかしで溶かすのもやめて硬い境界にする */
+html[data-skin='panel'] .material-bar.scroll-edge {
+  background-color: var(--bg-secondary);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  mask-image: none;
+  -webkit-mask-image: none;
+  border-bottom: 1px solid var(--border-default);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+}
+html[data-skin='panel'] .material-sheet {
+  border-radius: 3px 3px 0 0 !important;
+  border-top: 1px solid var(--border-default);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+/* シートのつまみは丸棒ではなく短い直線に */
+html[data-skin='panel'] .material-sheet .rounded-full.h-\[5px\] {
+  border-radius: 1px !important;
+  height: 3px !important;
+}
+
+/* SURGE: 上部は黄色い帯。下辺だけ斜めに切る（文字は水平のまま）。
+   帯の中の検索欄は暗い面にして、黄色の上でも読めるようにする */
+html[data-skin='surge'] .material-bar.scroll-edge {
+  background-color: var(--accent-color);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  mask-image: none;
+  -webkit-mask-image: none;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), 0 100%);
+  padding-bottom: 18px;
+}
+html[data-skin='surge'] .material-bar.scroll-edge .text-label-tertiary,
+html[data-skin='surge'] .material-bar.scroll-edge .text-label-secondary {
+  color: color-mix(in srgb, var(--accent-on) 62%, transparent) !important;
+}
+/* 帯の中の入力欄・アイコンボタンの面は、黄の上で沈むように暗くする。
+   帯はライト／ダークどちらでも黄色なので、ここは固定の墨色にする
+   （--bg-primary を使うとライトのとき白になり、黄の上で沈まない） */
+html[data-skin='surge'] .material-bar.scroll-edge > div > div,
+html[data-skin='surge'] .material-bar.scroll-edge > div > button {
+  background-color: #17171a !important;
+  color: #f4f2ec !important;
+}
+html[data-skin='surge'] .material-bar.scroll-edge input {
+  color: #f4f2ec !important;
+}
+html[data-skin='surge'] .material-bar.scroll-edge input::placeholder {
+  color: rgba(244, 242, 236, 0.45) !important;
+}
+html[data-skin='surge'] .material-bar.scroll-edge [data-skin-part='chip'] {
+  background-color: #17171a !important;
+  color: #f4f2ec !important;
+}
+html[data-skin='surge'] .material-bar.scroll-edge [data-skin-part='chip'][data-active] {
+  background-color: #f4f2ec !important;
+  color: #17171a !important;
+  transform: rotate(-1.4deg);
+}
+html[data-skin='surge'] .material-sheet {
+  border-radius: 0 !important;
+  border-top: 2px solid var(--accent-color);
+}
+html[data-skin='surge'] .material-sheet .rounded-full.h-\[5px\] {
+  border-radius: 0 !important;
+  background-color: var(--accent-color) !important;
+}
+
+/* トグル: 丸いスイッチをやめる。PANEL は機械式、SURGE は角の切れた札 */
+html[data-skin='panel'] [role='switch'] {
+  border-radius: 2px !important;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+html[data-skin='panel'] [role='switch'] > span {
+  border-radius: 1px !important;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.45) !important;
+}
+html[data-skin='panel'] [role='switch'][aria-checked='true'] {
+  background-color: var(--accent-color) !important;
+}
+html[data-skin='surge'] [role='switch'] {
+  border-radius: 0 !important;
+  clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
+}
+html[data-skin='surge'] [role='switch'] > span {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+html[data-skin='surge'] [role='switch'][aria-checked='true'] {
+  background-color: var(--accent-color) !important;
+}
+html[data-skin='surge'] [role='switch'][aria-checked='true'] > span {
+  background-color: var(--bg-primary) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   web版デモの作り込み
+   ───────────────────────────────────────────────────────────── */
+
+/* PANEL: 左は筐体の側面。上は端子帯。詳細は黒い表示窓 */
+html[data-skin='panel'] .wd-side {
+  border-right-color: var(--border-default);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.03);
+}
+html[data-skin='panel'] .wd-top {
+  border-bottom-color: var(--border-default);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.03);
+}
+html[data-skin='panel'] .wd-nav {
+  border-radius: 2px !important;
+  font-family: var(--skin-font-label);
+  letter-spacing: 0.06em;
+}
+html[data-skin='panel'] .wd-nav[aria-current='page'] {
+  box-shadow: inset 0 0 0 1px var(--border-default), inset 2px 0 0 var(--accent-color);
+}
+html[data-skin='panel'] .wd-primary,
+html[data-skin='panel'] .wd-chip,
+html[data-skin='panel'] .wd-icon,
+html[data-skin='panel'] .wd-select,
+html[data-skin='panel'] .wd-search,
+html[data-skin='panel'] .wd-act,
+html[data-skin='panel'] .wd-kbd {
+  border-radius: 2px !important;
+}
+html[data-skin='panel'] .wd-search {
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.55);
+  background-color: var(--bg-primary) !important;
+}
+html[data-skin='panel'] .wd-card {
+  border-radius: 2px !important;
+}
+html[data-skin='panel'] .wd-card img {
+  filter: none;
+}
+/* 一覧の写真にも網点をかけて、アプリ版と同じ素材にそろえる */
+html[data-skin='panel'] .wd-card > div:first-child::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(0, 0, 0, 0.5) 1px, transparent 1px);
+  background-size: 3.4px 3.4px;
+  mix-blend-mode: multiply;
+  opacity: 0.5;
+}
+html[data-skin='panel'] .wd-detail {
+  border-left-color: var(--border-default);
+}
+html[data-skin='panel'] .wd-card h3 {
+  font-family: var(--skin-font-body);
+  font-weight: 700;
+}
+html[data-skin='panel'] .wd-card .tabular-nums {
+  font-family: 'Bitcount Grid Double', 'BIZ UDGothic', monospace;
+  font-weight: 700;
+}
+
+/* SURGE: 上部バーは黄の帯。左は黒。カードは角を切る */
+html[data-skin='surge'] .wd-top {
+  background-color: var(--accent-color) !important;
+  border-bottom: 0 !important;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), 0 100%);
+  padding-bottom: 20px;
+}
+html[data-skin='surge'] .wd-top .wd-search {
+  background-color: var(--bg-primary) !important;
+  border-color: transparent !important;
+}
+html[data-skin='surge'] .wd-top .wd-search input {
+  color: var(--label-primary) !important;
+}
+html[data-skin='surge'] .wd-top .wd-icon,
+html[data-skin='surge'] .wd-top .wd-select {
+  color: var(--accent-on) !important;
+  background-color: rgba(0, 0, 0, 0.1) !important;
+  border-color: transparent !important;
+  border-radius: 0 !important;
+  font-weight: 900;
+}
+html[data-skin='surge'] .wd-side {
+  border-right: 0;
+  box-shadow: inset -2px 0 0 var(--accent-color);
+}
+html[data-skin='surge'] .wd-nav {
+  border-radius: 0 !important;
+  font-weight: 900;
+}
+html[data-skin='surge'] .wd-chip {
+  border-radius: 0 !important;
+  clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
+  font-weight: 900;
+}
+html[data-skin='surge'] .wd-act {
+  border-radius: 0 !important;
+  clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%);
+}
+html[data-skin='surge'] .wd-detail {
+  border-left: 0;
+  box-shadow: inset 2px 0 0 var(--accent-color);
+}
+html[data-skin='surge'] .wd-card h3 {
+  font-weight: 900;
+}
+html[data-skin='surge'] .wd-card .tabular-nums {
+  font-family: 'Big Shoulders Display', 'Zen Kaku Gothic New', sans-serif;
+  font-weight: 900;
+}
+
+/* 選択中のチップは必ず反転させて「今どれが効いているか」を残す */
