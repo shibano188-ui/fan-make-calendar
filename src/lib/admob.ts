@@ -12,6 +12,12 @@ const BANNER_AD_ID = Capacitor.getPlatform() === 'ios' ? BANNER_AD_ID_IOS : BANN
 
 let ready: Promise<void> | null = null;
 
+// ⚠️ 失敗した結果をキャッシュしないこと。
+// initialize が失敗したまま showBanner に進むと、Androidのネイティブ側は
+// mViewGroup（DecorView）が未設定のまま addView を呼び、**アプリごと落ちる**
+// （java.lang.NullPointerException at BannerExecutor.createNewAdView）。
+// しかも失敗した Promise を持ち続けると以降ずっと同じ経路を通るので、
+// 「アプリを開くたびに繰り返し停止する」状態になる（2026-08-21 実機のcrashログで確認）。
 export function initAdMob(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return Promise.resolve();
   // iOS: トラッキング許可(ATT)の回答が出てから広告SDKを起動する。
@@ -22,7 +28,7 @@ export function initAdMob(): Promise<void> {
     ready = (async () => {
       await waitForTrackingDecision();
       await AdMob.initialize();
-    })();
+    })().catch((e) => { ready = null; throw e; });   // 次の機会にやり直せるようにする
   }
   return ready;
 }
@@ -59,7 +65,9 @@ let coalesce: ReturnType<typeof setTimeout> | null = null;
 
 function apply(): void {
   queue = queue.then(async () => {
-    await initAdMob().catch(() => {});
+    // 初期化できていないのに show を投げるとネイティブが落ちる（上の注意）。
+    // 失敗したときは今回の表示を諦める。次の画面遷移でまた要求が来る。
+    try { await initAdMob(); } catch { return; }
     // 実行時点の最新の意思を読む（途中で hide が来ていたら show はもう実行しない）
     const visible = wantVisible;
     const margin = wantMargin;

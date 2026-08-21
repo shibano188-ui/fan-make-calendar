@@ -1,5 +1,25 @@
+diff --git a/node_modules/@capacitor-community/admob/.swiftpm/xcode/xcuserdata/shisoh.xcuserdatad/xcschemes/xcschememanagement.plist b/node_modules/@capacitor-community/admob/.swiftpm/xcode/xcuserdata/shisoh.xcuserdatad/xcschemes/xcschememanagement.plist
+new file mode 100644
+index 0000000..16f6470
+--- /dev/null
++++ b/node_modules/@capacitor-community/admob/.swiftpm/xcode/xcuserdata/shisoh.xcuserdatad/xcschemes/xcschememanagement.plist
+@@ -0,0 +1,14 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
++<plist version="1.0">
++<dict>
++	<key>SchemeUserState</key>
++	<dict>
++		<key>CapacitorCommunityAdmob.xcscheme_^#shared#^_</key>
++		<dict>
++			<key>orderHint</key>
++			<integer>12</integer>
++		</dict>
++	</dict>
++</dict>
++</plist>
 diff --git a/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/banner/BannerExecutor.java b/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/banner/BannerExecutor.java
-index c629139..08a6d27 100644
+index c629139..62921ba 100644
 --- a/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/banner/BannerExecutor.java
 +++ b/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/banner/BannerExecutor.java
 @@ -9,10 +9,13 @@ import android.view.Gravity;
@@ -34,7 +54,24 @@ index c629139..08a6d27 100644
      }
  
      public void showBanner(final PluginCall call) {
-@@ -80,69 +83,17 @@ public class BannerExecutor extends Executor {
+@@ -62,6 +65,16 @@ public class BannerExecutor extends Executor {
+             fullscreen = true;
+         }
+ 
++        // JS側が initialize を通さずに（あるいは initialize が失敗したまま）ここへ来ると
++        // mViewGroup が null のまま addView に進み、アプリごと落ちる。遅れて用意し直す。
++        if (mViewGroup == null) {
++            initialize();
++        }
++        if (mViewGroup == null) {
++            call.reject("AdMob banner: view group is not available");
++            return;
++        }
++
+         if (mAdView != null) {
+             updateExistingAdView(adOptions);
+             return;
+@@ -80,69 +93,17 @@ public class BannerExecutor extends Executor {
                  );
              }
  
@@ -111,7 +148,7 @@ index c629139..08a6d27 100644
  
              call.resolve();
          } catch (Exception ex) {
-@@ -226,6 +177,11 @@ public class BannerExecutor extends Executor {
+@@ -226,6 +187,11 @@ public class BannerExecutor extends Executor {
          activitySupplier
              .get()
              .runOnUiThread(() -> {
@@ -123,7 +160,7 @@ index c629139..08a6d27 100644
                  final AdRequest adRequest = RequestHelper.createRequest(adOptions);
                  mAdView.loadAd(adRequest);
              });
-@@ -235,7 +191,7 @@ public class BannerExecutor extends Executor {
+@@ -235,22 +201,116 @@ public class BannerExecutor extends Executor {
       * Follow iOS method Name:
       * https://developers.google.com/admob/ios/banner?hl=ja
       */
@@ -132,7 +169,12 @@ index c629139..08a6d27 100644
          // Run AdMob In Main UI Thread
          activitySupplier
              .get()
-@@ -243,14 +199,103 @@ public class BannerExecutor extends Executor {
+             .runOnUiThread(() -> {
++                // ここはポストされた処理なので、実行時点では hideBanner/removeBanner や
++                // 初期化失敗で参照が消えていることがある。落とさずに諦める。
++                if (mAdView == null || mAdViewLayout == null || mViewGroup == null) {
++                    return;
++                }
                  final AdRequest adRequest = RequestHelper.createRequest(adOptions);
                  // Assign the correct id needed
                  AdViewIdHelper.assignIdToAdView(mAdView, adOptions, adRequest, logTag, contextSupplier.get());
@@ -238,3 +280,23 @@ index c629139..08a6d27 100644
                              final BannerAdSizeInfo sizeInfo = new BannerAdSizeInfo(mAdView);
  
                              notifyListeners(BannerAdPluginEvents.SizeChanged.getWebEventName(), sizeInfo);
+@@ -260,7 +320,7 @@ public class BannerExecutor extends Executor {
+ 
+                         @Override
+                         public void onAdFailedToLoad(@NonNull LoadAdError adError) {
+-                            if (mAdView != null) {
++                            if (mAdView != null && mAdViewLayout != null && mViewGroup != null) {
+                                 mViewGroup.removeView(mAdViewLayout);
+                                 mAdViewLayout.removeView(mAdView);
+                                 mAdView.destroy();
+@@ -297,7 +357,9 @@ public class BannerExecutor extends Executor {
+                 );
+ 
+                 // Add AdViewLayout top of the WebView
+-                mViewGroup.addView(mAdViewLayout);
++                if (mViewGroup != null && mAdViewLayout != null) {
++                    mViewGroup.addView(mAdViewLayout);
++                }
+             });
+     }
+ }
