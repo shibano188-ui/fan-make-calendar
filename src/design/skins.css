@@ -251,3 +251,65 @@ html[data-skin='surge'] textarea {
 .skin-chip.is-panel { border-radius: 2px; }
 .skin-chip.is-surge { border-radius: 0; }
 .skin-chip.is-classic { border-radius: 8px; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   web版デモ（/web）。3つの外皮がそのまま効くよう、色は変数だけを使う
+   ═══════════════════════════════════════════════════════════════════ */
+.wd-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(178px, 1fr));
+}
+.wd-card { transition: border-color 0.15s ease, transform 0.15s ease; }
+@media (hover: hover) {
+  .wd-card:hover { transform: translateY(-2px); border-color: var(--border-default) !important; }
+  .wd-nav:hover, .wd-icon:hover { background-color: var(--fill-quaternary); }
+}
+.wd-detail { animation: wdSlideIn 0.18s cubic-bezier(0.32, 0.72, 0, 1) both; }
+@keyframes wdSlideIn { from { transform: translateX(14px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* PANEL: 端子帯のような区切りと、隆起した押しボタン */
+html[data-skin='panel'] .wd-logo {
+  font-family: var(--skin-font-label);
+  letter-spacing: 0.14em;
+}
+html[data-skin='panel'] .wd-side,
+html[data-skin='panel'] .wd-top,
+html[data-skin='panel'] .wd-detail {
+  background-image: none;
+}
+html[data-skin='panel'] .wd-primary {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 2px 0 rgba(0, 0, 0, 0.4);
+  letter-spacing: 0.1em;
+}
+html[data-skin='panel'] .wd-card {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+html[data-skin='panel'] .wd-kbd,
+html[data-skin='panel'] .wd-chip {
+  font-family: var(--skin-font-meta);
+}
+
+/* SURGE: 主ボタンと選択中の札を斜めに。面は角を切る */
+html[data-skin='surge'] .wd-logo {
+  font-family: var(--skin-display);
+  letter-spacing: 0.02em;
+}
+html[data-skin='surge'] .wd-primary {
+  clip-path: polygon(9px 0, 100% 0, calc(100% - 9px) 100%, 0 100%);
+  font-weight: 900;
+}
+html[data-skin='surge'] .wd-chip[aria-pressed='true'] {
+  transform: rotate(-1.2deg);
+}
+html[data-skin='surge'] .wd-card {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 14px), calc(100% - 16px) 100%, 0 100%);
+}
+@media (hover: hover) {
+  html[data-skin='surge'] .wd-card:hover {
+    box-shadow: 5px 5px 0 color-mix(in srgb, var(--accent-color) 22%, transparent);
+  }
+}
+html[data-skin='surge'] .wd-nav[aria-current='page'] {
+  clip-path: polygon(7px 0, 100% 0, calc(100% - 7px) 100%, 0 100%);
+}
