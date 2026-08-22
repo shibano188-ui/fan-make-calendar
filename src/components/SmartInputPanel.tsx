@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Sparkles, Link2, Loader2, Check } from 'lucide-react';
 import { categoriesFromRaw } from '../lib/constants';
+import { authHeaders } from '../lib/apiAuth';
 
 export type ParsedEvent = {
   title: string | null;
@@ -83,7 +84,7 @@ export default function SmartInputPanel({ onApply }: { onApply: (parsed: ParsedE
         const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ?? '';
         const res = await fetch(`${apiBase}/api/parse-event`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify(body),
         });
         if (!res.ok) {

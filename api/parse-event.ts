@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import Anthropic from '@anthropic-ai/sdk';
-import { checkParseRateLimit, getClientIp } from './_ratelimit.js';
+import { checkRateLimitFor, getClientIp } from './_ratelimit.js';
+import { getIdentity } from './_identity.js';
+import { withAiUsage, noteAiUsage, saveAiUsage, type AiCall } from './_aiusage.js';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -12,6 +14,7 @@ async function claudeComplete(systemPrompt: string, userContent: string, maxToke
     system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: userContent }],
   });
+  noteAiUsage('claude-haiku-4-5', res.usage);
   const block = res.content[0];
   return block.type === 'text' ? block.text : '';
 }
@@ -266,6 +269,7 @@ async function fetchReservationEndFromImage(imageUrlOrJson: string): Promise<str
       max_tokens: 50,
       messages: [{ role: 'user', content }],
     });
+    noteAiUsage('claude-haiku-4-5', res.usage);
     const block = res.content[0];
     const text = block.type === 'text' ? block.text.trim() : '';
     const match = text.match(/\d{4}-\d{2}-\d{2}/);
@@ -537,11 +541,19 @@ async function extractWithRetry(systemPrompt: string, content: string, maxTokens
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  // Authorization を許可しないと、iOS（オリジンが capacitor://localhost）のプリフライトで落ちる
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).end();
 
-  const rl = await checkParseRateLimit(getClientIp(req));
+  // 上限は user_id で数える。トークンが無ければ従来通りIPで数える（移行期の二段構え）。
+  // ⚠️ 「JWT無しの呼び出しがゼロ」をログで確認してから必須に切り替えること。
+  //    いきなり必須にすると、トークンを送れていない経路の解析が丸ごと死ぬ。
+  const identity = await getIdentity(req);
+  if (!identity) {
+    console.warn(`[parse-event][no-jwt] ip=${getClientIp(req)} ua=${String(req.headers['user-agent'] ?? '').slice(0, 60)}`);
+  }
+  const rl = await checkRateLimitFor('parse', identity, getClientIp(req));
   if (!rl.ok) {
     res.setHeader('Retry-After', String(rl.retryAfterSec));
     return res.status(429).json({ error: 'rate_limited' });
@@ -558,115 +570,130 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'url or imageBase64 is required' });
   }
 
+  // このリクエストで走ったClaude呼び出しを集めて、最後に台帳へ1行書く。
+  // 画像・再試行を含めて**実際にかかった額**が残る（回数では見えない）。
+  const calls: AiCall[] = [];
   try {
-    if (imageBase64) {
-      const res2 = await anthropic.messages.create({
-        model: 'claude-haiku-4-5',
-        max_tokens: 512,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: (mimeType ?? 'image/jpeg') as 'image/jpeg', data: imageBase64 } },
-            { type: 'text', text: `この画像のイベント情報を抽出してください。\n\n${EXTRACT_PROMPT}` },
-          ],
-        }],
-      });
-      const block = res2.content[0];
-      const rawText = block.type === 'text' ? block.text : '';
+    return await withAiUsage(calls, async () => {
+    try {
+      if (imageBase64) {
+        const res2 = await anthropic.messages.create({
+          model: 'claude-haiku-4-5',
+          max_tokens: 512,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: (mimeType ?? 'image/jpeg') as 'image/jpeg', data: imageBase64 } },
+              { type: 'text', text: `この画像のイベント情報を抽出してください。\n\n${EXTRACT_PROMPT}` },
+            ],
+          }],
+        });
+        noteAiUsage('claude-haiku-4-5', res2.usage);
+        const block = res2.content[0];
+        const rawText = block.type === 'text' ? block.text : '';
+        try {
+          const parsed = parseRawText(rawText);
+          await expandEventLinks(parsed);
+          return res.status(200).json(parsed);
+        } catch {
+          return res.status(422).json({ error: 'Could not parse response' });
+        }
+      }
+
+      // ── URL前処理 ──────────────────────────────────────────────
+      const rawInput = url!.trim();
+      // 1. mixed content（"ツイート本文 https://t.co/xxx"）からURLだけ取り出す。
+      //    URLが1つも無ければ空になる＝テキスト入力として扱う（下の分岐へ）
+      let processUrl = rawInput.match(/https?:\/\/\S+/)?.[0] ?? '';
+      // 2. 短縮URLをリダイレクト先へ解決（X アプリが t.co を送る／本文の x.gd を直接共有する場合）
+      if (processUrl && isShortUrl(processUrl)) {
+        try {
+          const r = await fetch(processUrl, {
+            method: 'GET', redirect: 'follow',
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            signal: AbortSignal.timeout(4000),
+          });
+          if (r.url && r.url !== processUrl) processUrl = r.url;
+        } catch {}
+      }
+      // ────────────────────────────────────────────────────────────
+
+      if (isXPostUrl(processUrl)) {
+        const { text: pageText, imageUrl: tweetImageUrl } = await fetchTweetContent(processUrl);
+        // sharedText（X アプリが Web Share で送ってきたツイート本文）があれば先頭に追加
+        const tweetContext = sharedText
+          ? `ポスト本文（X アプリより直接）: ${await expandShortLinks(sharedText)}\n\n${pageText}`
+          : pageText;
+        let parsed: unknown[];
+        try {
+          parsed = await extractWithRetry(EXTRACT_PROMPT_TWEET, tweetContext, 800);
+        } catch {
+          return res.status(422).json({ error: 'Could not parse response' });
+        }
+        // 受注・予約・受付期間を示す表現があれば全イベントをisOrderMade=trueに強制設定
+        if (/受注|受付期間|受付開始|予約受付|予約期間|予約販売|事前予約|事前受注|抽選販売|抽選受付|抽選予約|事後通販|申込期間|お申し込み期間/.test(tweetContext)) {
+          parsed.forEach(e => { (e as Record<string, unknown>).isOrderMade = true; });
+        }
+        // 会場物販を示す強い表現があれば sellsGoods=true に補完（イベント側のみ。クライアントで種別判定）
+        if (/物販|グッズ販売|販売グッズ|限定グッズ|会場限定グッズ|グッズ受注/.test(tweetContext)) {
+          parsed.forEach(e => { if ((e as Record<string, unknown>).sellsGoods == null) (e as Record<string, unknown>).sellsGoods = true; });
+        }
+        if (tweetImageUrl) {
+          parsed.forEach(e => { (e as Record<string, unknown>).imageUrl = tweetImageUrl; });
+          // 受注・予約で「受付終了日(preorderEnd)」がテキストから取れないときだけ画像の締切日を補完。
+          // 画像から取るのは受付締切＝preorderEnd であり、endDate（イベント終了日）ではない点に注意。
+          const needsFallback = parsed.some(e => {
+            const ev = e as Record<string, unknown>;
+            return ev.isOrderMade === true && !ev.preorderEnd;
+          });
+          if (needsFallback) {
+            const deadline = await fetchReservationEndFromImage(tweetImageUrl);
+            if (deadline) {
+              parsed.forEach(e => {
+                const ev = e as Record<string, unknown>;
+                if (ev.isOrderMade === true && !ev.preorderEnd) {
+                  // 締切は受付開始日以降のときだけ採用（誤検出した過去日は捨てる）
+                  const ps = ev.preorderStart as string | null;
+                  if (!ps || deadline >= ps) ev.preorderEnd = deadline;
+                }
+              });
+            }
+          }
+        }
+        await expandEventLinks(parsed);
+        return res.status(200).json(parsed);
+      }
+
+      // ここから先はXのポスト以外。**URLは取りに行かない**。
+      // ただし本文が一緒に入っているなら、URLを除いた文章をそのまま読む
+      // （「告知の本文＋販売先のURL」を丸ごと貼る使い方を殺さないため）。
+      const textOnly = rawInput.replace(/https?:\/\/\S+/g, '').trim();
+      if (!textOnly) {
+        // 中身がURLだけ＝読むものが無い。クライアントで案内に差し替える
+        return res.status(400).json({ error: 'unsupported_url' });
+      }
+      const textContext = sharedText
+        ? `${await expandShortLinks(sharedText)}\n\n${textOnly}`
+        : textOnly;
       try {
-        const parsed = parseRawText(rawText);
+        const parsed = await extractWithRetry(EXTRACT_PROMPT, textContext, 768);
         await expandEventLinks(parsed);
         return res.status(200).json(parsed);
       } catch {
         return res.status(422).json({ error: 'Could not parse response' });
       }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(err);
+      return res.status(500).json({ error: 'Internal server error', detail: msg });
     }
-
-    // ── URL前処理 ──────────────────────────────────────────────
-    const rawInput = url!.trim();
-    // 1. mixed content（"ツイート本文 https://t.co/xxx"）からURLだけ取り出す。
-    //    URLが1つも無ければ空になる＝テキスト入力として扱う（下の分岐へ）
-    let processUrl = rawInput.match(/https?:\/\/\S+/)?.[0] ?? '';
-    // 2. 短縮URLをリダイレクト先へ解決（X アプリが t.co を送る／本文の x.gd を直接共有する場合）
-    if (processUrl && isShortUrl(processUrl)) {
-      try {
-        const r = await fetch(processUrl, {
-          method: 'GET', redirect: 'follow',
-          headers: { 'User-Agent': 'Mozilla/5.0' },
-          signal: AbortSignal.timeout(4000),
-        });
-        if (r.url && r.url !== processUrl) processUrl = r.url;
-      } catch {}
-    }
-    // ────────────────────────────────────────────────────────────
-
-    if (isXPostUrl(processUrl)) {
-      const { text: pageText, imageUrl: tweetImageUrl } = await fetchTweetContent(processUrl);
-      // sharedText（X アプリが Web Share で送ってきたツイート本文）があれば先頭に追加
-      const tweetContext = sharedText
-        ? `ポスト本文（X アプリより直接）: ${await expandShortLinks(sharedText)}\n\n${pageText}`
-        : pageText;
-      let parsed: unknown[];
-      try {
-        parsed = await extractWithRetry(EXTRACT_PROMPT_TWEET, tweetContext, 800);
-      } catch {
-        return res.status(422).json({ error: 'Could not parse response' });
-      }
-      // 受注・予約・受付期間を示す表現があれば全イベントをisOrderMade=trueに強制設定
-      if (/受注|受付期間|受付開始|予約受付|予約期間|予約販売|事前予約|事前受注|抽選販売|抽選受付|抽選予約|事後通販|申込期間|お申し込み期間/.test(tweetContext)) {
-        parsed.forEach(e => { (e as Record<string, unknown>).isOrderMade = true; });
-      }
-      // 会場物販を示す強い表現があれば sellsGoods=true に補完（イベント側のみ。クライアントで種別判定）
-      if (/物販|グッズ販売|販売グッズ|限定グッズ|会場限定グッズ|グッズ受注/.test(tweetContext)) {
-        parsed.forEach(e => { if ((e as Record<string, unknown>).sellsGoods == null) (e as Record<string, unknown>).sellsGoods = true; });
-      }
-      if (tweetImageUrl) {
-        parsed.forEach(e => { (e as Record<string, unknown>).imageUrl = tweetImageUrl; });
-        // 受注・予約で「受付終了日(preorderEnd)」がテキストから取れないときだけ画像の締切日を補完。
-        // 画像から取るのは受付締切＝preorderEnd であり、endDate（イベント終了日）ではない点に注意。
-        const needsFallback = parsed.some(e => {
-          const ev = e as Record<string, unknown>;
-          return ev.isOrderMade === true && !ev.preorderEnd;
-        });
-        if (needsFallback) {
-          const deadline = await fetchReservationEndFromImage(tweetImageUrl);
-          if (deadline) {
-            parsed.forEach(e => {
-              const ev = e as Record<string, unknown>;
-              if (ev.isOrderMade === true && !ev.preorderEnd) {
-                // 締切は受付開始日以降のときだけ採用（誤検出した過去日は捨てる）
-                const ps = ev.preorderStart as string | null;
-                if (!ps || deadline >= ps) ev.preorderEnd = deadline;
-              }
-            });
-          }
-        }
-      }
-      await expandEventLinks(parsed);
-      return res.status(200).json(parsed);
-    }
-
-    // ここから先はXのポスト以外。**URLは取りに行かない**。
-    // ただし本文が一緒に入っているなら、URLを除いた文章をそのまま読む
-    // （「告知の本文＋販売先のURL」を丸ごと貼る使い方を殺さないため）。
-    const textOnly = rawInput.replace(/https?:\/\/\S+/g, '').trim();
-    if (!textOnly) {
-      // 中身がURLだけ＝読むものが無い。クライアントで案内に差し替える
-      return res.status(400).json({ error: 'unsupported_url' });
-    }
-    const textContext = sharedText
-      ? `${await expandShortLinks(sharedText)}\n\n${textOnly}`
-      : textOnly;
-    try {
-      const parsed = await extractWithRetry(EXTRACT_PROMPT, textContext, 768);
-      await expandEventLinks(parsed);
-      return res.status(200).json(parsed);
-    } catch {
-      return res.status(422).json({ error: 'Could not parse response' });
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(err);
-    return res.status(500).json({ error: 'Internal server error', detail: msg });
+    });
+  } finally {
+    await saveAiUsage({
+      endpoint: 'parse-event',
+      userId: identity ? identity.userId : null,
+      tier: identity ? identity.tier : null,
+      calls,
+    });
   }
 }

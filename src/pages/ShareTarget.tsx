@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Loader2, CheckCircle, AlertCircle, Inbox } from 'lucide-react';
 import { loadShareMode, addToEventQueue, categoriesFromRaw } from '../lib/constants';
+import { authHeaders } from '../lib/apiAuth';
 
 type Status = 'parsing' | 'done' | 'stocked' | 'error';
 
@@ -52,7 +53,7 @@ export default function ShareTarget() {
           const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ?? '';
           const res = await fetch(`${apiBase}/api/parse-event`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
             body: JSON.stringify({
               url: sharedUrl,
               ...(sharedText ? { sharedText } : {}),

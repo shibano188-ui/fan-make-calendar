@@ -1,6 +1,7 @@
 import type { VercelRequest } from '@vercel/node';
 import { Redis } from '@upstash/redis';
 import { Ratelimit } from '@upstash/ratelimit';
+import type { Identity, Tier } from './_identity.js';
 
 // Vercel Marketplace (Upstash) が KV_* 名で env を提供するため fromEnv() は使わない
 const url = process.env.KV_REST_API_URL;
@@ -66,9 +67,69 @@ export async function checkRateLimit(
   }
 }
 
-/** 既存の呼び出し互換（parse-event用）。 */
+/** 既存の呼び出し互換（parse-event用）。身元不明のときのフォールバック。 */
 export function checkParseRateLimit(ip: string) {
   return checkRateLimit('parse', ip);
+}
+
+// ── 身元が分かっているときの上限 ────────────────────────────────
+// キーがIPからuser_idに変わるので、**桁を上げてよい**。1回あたり¥0.5前後なので、
+// 300回/日でも¥150。個人の枠をケチる意味は無い。総額は _aiusage.ts の栓で守る。
+// owner は素通り（自分でコンテンツを仕込むときに詰まらせない）。
+// new（登録24時間以内）だけきつくする＝悪用の実行部隊はここに現れるため。
+const USER_LIMITS: Record<Exclude<Tier, 'owner'>, { min: number; day: number }> = {
+  registered: { min: 60, day: 300 },
+  anonymous:  { min: 60, day: 100 },
+  new:        { min: 20, day: 30 },
+};
+
+const userCache = new Map<string, { perMinute: Ratelimit; perDay: Ratelimit }>();
+
+function userLimitersFor(bucket: RateLimitBucket, tier: Exclude<Tier, 'owner'>) {
+  if (!redis) return null;
+  const key = `${bucket}:${tier}`;
+  let l = userCache.get(key);
+  if (!l) {
+    const c = USER_LIMITS[tier];
+    l = {
+      perMinute: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(c.min, '1 m'), prefix: `rl:${bucket}:u:${tier}:min` }),
+      perDay:    new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(c.day, '1 d'), prefix: `rl:${bucket}:u:${tier}:day` }),
+    };
+    userCache.set(key, l);
+  }
+  return l;
+}
+
+/**
+ * 身元が分かっていれば user_id で、分からなければIPで数える。
+ * 移行期のための二段構え: まずJWTを送れていない経路が無いかログで確認し、
+ * ゼロになってから「JWT必須」に切り替える（いきなり必須にすると、
+ * トークンを送れていない画面の解析が丸ごと死ぬ）。
+ */
+export async function checkRateLimitFor(
+  bucket: RateLimitBucket,
+  identity: Identity | null,
+  ip: string,
+): Promise<{ ok: true; retryAfterSec?: undefined } | { ok: false; retryAfterSec: number }> {
+  if (!identity) return checkRateLimit(bucket, ip);
+  if (identity.tier === 'owner') return { ok: true };   // オーナーは素通り
+
+  const limiters = userLimitersFor(bucket, identity.tier);
+  const global = limitersFor(bucket);
+  if (!limiters || !global) return { ok: true };
+  try {
+    const results = await Promise.all([
+      limiters.perMinute.limit(identity.userId),
+      limiters.perDay.limit(identity.userId),
+      global.globalDay.limit('global'),
+    ]);
+    const blocked = results.filter(r => !r.success);
+    if (blocked.length === 0) return { ok: true };
+    const reset = Math.max(...blocked.map(r => r.reset));
+    return { ok: false, retryAfterSec: Math.max(1, Math.ceil((reset - Date.now()) / 1000)) };
+  } catch {
+    return { ok: true };   // Redis障害でも機能は止めない（フェイルオープン）
+  }
 }
 
 /** 429を返すところまでの定型。超過時 true を返す。 */

@@ -1,5 +1,6 @@
 // /api/parse-event を叩いて解析結果(複数可)を返す。SmartInputPanel のロジックを共通化。
 import { categoriesFromRaw } from './constants';
+import { authHeaders } from './apiAuth';
 
 export type ParsedEvent = {
   title: string | null;
@@ -62,7 +63,7 @@ export async function parseEventsApi(body: ParseBody): Promise<ParsedEvent[]> {
   const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ?? '';
   const res = await fetch(`${apiBase}/api/parse-event`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
