@@ -11,6 +11,8 @@ export default function StatusBadge({ status, type = 'event', size = 'sm' }: Pro
   const meta = STATUS[status];
   return (
     <span
+      data-skin-part="status"
+      data-status={status}
       className="inline-flex items-center font-semibold rounded-full leading-none"
       style={{
         color: '#fff',

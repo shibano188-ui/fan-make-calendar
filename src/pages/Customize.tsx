@@ -1,22 +1,15 @@
 import { useRef, useState, useEffect } from 'react';
-import { Upload, Share2, Users, X, Check, Loader, Trash2, ChevronDown } from 'lucide-react';
+import { Upload, ChevronDown } from 'lucide-react';
 import Layout from '../components/Layout';
 import Header from '../components/Header';
-import { useTheme, COMMUNITY_THEMES, type FontFamily, type UserSettings } from '../contexts/ThemeContext';
-import { listSharedThemes, shareTheme, incrementThemeUseCount, deleteSharedTheme, listRecentWorks, type SharedTheme, type SharedThemeData, type Work } from '../lib/api';
+import { useTheme, COMMUNITY_THEMES, resolveTheme, type UserSettings } from '../contexts/ThemeContext';
+import { listRecentWorks, type Work } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { WORK_COLORS } from './Calendar';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import { pushAppState } from '../lib/appState';
 import { hasNativePhotoPicker, pickPhoto } from '../lib/pickPhoto';
-
-const SYSTEM_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-
-const FONT_OPTIONS: { value: FontFamily; label: string; stack: string }[] = [
-  { value: 'system',  label: 'システム標準', stack: SYSTEM_FONT },
-  { value: 'serif',   label: '明朝体',      stack: '"Hiragino Mincho ProN", "Yu Mincho", serif' },
-  { value: 'rounded', label: '丸ゴシック',  stack: '"Hiragino Maru Gothic ProN", "M PLUS Rounded 1c", sans-serif' },
-];
+import { SKINS, SKIN_IDS, type SkinDef } from '../design/skins';
 
 const CAL_COLOR_FIELDS: { key: keyof UserSettings; label: string; cssVar: string }[] = [
   { key: 'calWeekday',    label: '平日',        cssVar: '--cal-weekday-color' },
@@ -44,183 +37,6 @@ const PALETTE_FLAT = Array.from(
   { length: PALETTE_COLS * 7 },
   (_, i) => PALETTE_COLORS[i % PALETTE_COLS][Math.floor(i / PALETTE_COLS)],
 );
-
-function formatCount(n: number): string {
-  return n.toLocaleString('ja-JP');
-}
-
-// ─── コミュニティテーマ モーダル ──────────────────────────────────
-
-type Tab = 'preset' | 'shared';
-
-function CommunityThemeModal({
-  currentId, onSelect, onApplyShared, onClose, userId, currentSettings, canShare,
-}: {
-  currentId: string;
-  onSelect: (id: string) => void;
-  onApplyShared: (td: SharedThemeData) => void;
-  onClose: () => void;
-  userId: string | undefined;
-  currentSettings: Pick<UserSettings, 'theme' | 'font' | 'accentColor' | 'communityThemeId' | 'calWeekday' | 'calSaturday' | 'calSunday' | 'calOtherMonth'>;
-  canShare: boolean;
-}) {
-  const [tab, setTab] = useState<Tab>('preset');
-  const confirmDialog = useConfirm();
-  const [sharedThemes, setSharedThemes] = useState<SharedTheme[]>([]);
-  const [loadingShared, setLoadingShared] = useState(false);
-  const [shareName, setShareName] = useState('');
-  const [sharing, setSharing] = useState(false);
-  const [shareSuccess, setShareSuccess] = useState(false);
-
-  useEffect(() => {
-    if (tab !== 'shared') return;
-    setLoadingShared(true);
-    listSharedThemes().then(setSharedThemes).finally(() => setLoadingShared(false));
-  }, [tab]);
-
-  const handleApplyShared = async (theme: SharedTheme) => {
-    onApplyShared(theme.themeData);
-    await incrementThemeUseCount(theme.id);
-    onClose();
-  };
-
-  const handleDeleteShared = async (themeId: string) => {
-    if (!(await confirmDialog({ title: 'テーマを削除', message: 'このテーマを削除しますか？', confirmLabel: '削除', destructive: true }))) return;
-    try {
-      await deleteSharedTheme(themeId);
-      setSharedThemes(prev => prev.filter(t => t.id !== themeId));
-    } catch {
-      confirmDialog({ title: '削除できませんでした', message: 'SupabaseのSQLエディタで以下を実行してください:\n\nDROP POLICY IF EXISTS "delete own shared_themes" ON shared_themes;\nCREATE POLICY "delete any shared_themes"\nON shared_themes FOR DELETE TO authenticated\nUSING (true);', hideCancel: true });
-    }
-  };
-
-  const handleShare = async () => {
-    if (!userId || !shareName.trim() || !canShare) return;
-    setSharing(true);
-    try {
-      await shareTheme(userId, shareName.trim(), {
-        theme: currentSettings.theme,
-        font: currentSettings.font,
-        accentColor: currentSettings.accentColor,
-        communityThemeId: currentSettings.communityThemeId,
-        calWeekday: currentSettings.calWeekday,
-        calSaturday: currentSettings.calSaturday,
-        calSunday: currentSettings.calSunday,
-        calOtherMonth: currentSettings.calOtherMonth,
-      });
-      setShareSuccess(true);
-      setShareName('');
-      listSharedThemes().then(setSharedThemes);
-    } catch { /* silent */ }
-    finally { setSharing(false); }
-  };
-
-  const getPreviewColors = (td: SharedThemeData) => {
-    if (td.communityThemeId) {
-      const ct = COMMUNITY_THEMES.find(c => c.id === td.communityThemeId);
-      if (ct) return { bg: ct.vars['--bg-primary'], bg2: ct.vars['--bg-secondary'], accent: td.accentColor };
-    }
-    return td.theme === 'dark'
-      ? { bg: '#1a1a1a', bg2: '#2a2a2a', accent: td.accentColor }
-      : { bg: '#f5f5f5', bg2: '#e8e8e8', accent: td.accentColor };
-  };
-
-  return (
-    <div className="fixed inset-0 z-[200] flex flex-col" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
-      <div className="mt-auto rounded-t-2xl overflow-hidden" style={{ backgroundColor: 'var(--bg-primary)' }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-subtle">
-          <p className="text-label-primary font-semibold text-base">みんなのテーマ</p>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full text-label-tertiary active:opacity-60" style={{ backgroundColor: 'var(--border-subtle)' }}>
-            <X size={14} />
-          </button>
-        </div>
-        <div className="flex px-4 pt-3 gap-1">
-          {(['preset', 'shared'] as Tab[]).map(t => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${tab === t ? '' : 'text-label-secondary'}`}
-              style={tab === t ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' } : {}}>
-              {t === 'preset' ? 'プリセット' : 'みんなの共有'}
-            </button>
-          ))}
-        </div>
-        <div className="px-4 py-3 flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: '48vh' }}>
-          {tab === 'preset' ? (
-            COMMUNITY_THEMES.map(theme => {
-              const selected = currentId === theme.id;
-              return (
-                <button key={theme.id} onClick={() => { onSelect(theme.id); onClose(); }}
-                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl border text-left active:opacity-70"
-                  style={{ backgroundColor: 'var(--bg-secondary)', borderColor: selected ? 'var(--border-selected)' : 'var(--border-faint)' }}>
-                  <div className="w-10 h-10 rounded-lg flex-shrink-0 overflow-hidden" style={{ backgroundColor: theme.vars['--bg-primary'] }}>
-                    <div className="w-full h-1/2" style={{ backgroundColor: theme.vars['--bg-secondary'] }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-label-primary text-sm font-medium">{theme.name}</p>
-                  </div>
-                  {selected && <Check size={16} className="text-label-secondary flex-shrink-0" />}
-                </button>
-              );
-            })
-          ) : loadingShared ? (
-            <div className="flex justify-center py-8"><Loader size={18} className="text-label-tertiary animate-spin" /></div>
-          ) : sharedThemes.length === 0 ? (
-            <p className="text-center text-label-tertiary text-sm py-8">まだ共有されたテーマがありません</p>
-          ) : (
-            sharedThemes.map(theme => {
-              const colors = getPreviewColors(theme.themeData);
-              return (
-                <div key={theme.id} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl border"
-                  style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-faint)' }}>
-                  <button onClick={() => handleApplyShared(theme)} className="flex items-center gap-3 flex-1 min-w-0 text-left active:opacity-70">
-                    <div className="w-10 h-10 rounded-lg flex-shrink-0 overflow-hidden relative" style={{ backgroundColor: colors.bg }}>
-                      <div className="w-full h-1/2" style={{ backgroundColor: colors.bg2 }} />
-                      <div className="absolute bottom-1 right-1 w-3 h-3 rounded-full" style={{ backgroundColor: colors.accent }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-label-primary text-sm font-medium">{theme.name}</p>
-                      {/* 共有テーマの数字はDBの use_count＝実数。誰も使っていないときは出さない */}
-                      {theme.useCount > 0 && (
-                        <p className="text-label-tertiary text-xs mt-0.5">{formatCount(theme.useCount)}人が使用中</p>
-                      )}
-                    </div>
-                  </button>
-                  <button onClick={() => handleDeleteShared(theme.id)}
-                    className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-label-tertiary active:text-red-400">
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              );
-            })
-          )}
-        </div>
-        <div className="px-4 pt-2 pb-2 border-t border-subtle">
-          {shareSuccess ? (
-            <div className="flex items-center justify-center gap-2 py-3 text-sm text-label-secondary">
-              <Check size={14} />共有しました
-            </div>
-          ) : canShare ? (
-            <div className="flex gap-2">
-              <input type="text" value={shareName} onChange={e => setShareName(e.target.value)}
-                placeholder="テーマ名を入力して共有"
-                className="flex-1 bg-bg-secondary rounded-lg px-3 py-2 text-sm text-label-primary placeholder:text-label-tertiary outline-none border border-faint focus:border-strong" />
-              <button onClick={handleShare} disabled={!shareName.trim() || sharing}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-30 active:opacity-70"
-                style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
-                {sharing ? <Loader size={13} className="animate-spin" /> : <Share2 size={13} />}
-                共有
-              </button>
-            </div>
-          ) : (
-            <p className="text-center text-label-tertiary text-xs py-3">
-              独自フォントと背景画像の両方を設定すると共有できます
-            </p>
-          )}
-        </div>
-        <div className="pb-4" />
-      </div>
-    </div>
-  );
-}
 
 // ─── 背景画像クロップモーダル ────────────────────────────────────────
 
@@ -330,12 +146,11 @@ function BgImageCropModal({
 // ─── メイン画面 ────────────────────────────────────────────────────
 
 export default function Customize() {
-  const { settings, updateSettings, currentWorkId } = useTheme();
+  const { settings, updateSettings, currentWorkId, skin, setSkin } = useTheme();
   const { user } = useAuth();
   const confirmDialog = useConfirm();
   const currentWorkName = localStorage.getItem('last_calendar_work_name') ?? '';
   const rootRef          = useRef<HTMLDivElement>(null);
-  const fontInputRef     = useRef<HTMLInputElement>(null);
   const bgInputRef       = useRef<HTMLInputElement>(null);
   const calColorWrapperRef  = useRef<HTMLDivElement>(null);
   const calBtnRefs       = useRef<(HTMLButtonElement | null)[]>([null, null, null, null, null]);
@@ -352,7 +167,6 @@ export default function Customize() {
     window.scrollTo(0, 0);
   }, []);
 
-  const [showCommunityModal, setShowCommunityModal] = useState(false);
   const [calColorOpen, setCalColorOpen]   = useState(false);
   const [openCalKey, setOpenCalKey]       = useState<string | null>(null);
   const [paletteTop, setPaletteTop]       = useState(0);
@@ -427,12 +241,6 @@ export default function Customize() {
     setOpenWorkColorKey(null);
   };
 
-  const handleFontUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    updateSettings({ font: 'custom', customFontUrl: URL.createObjectURL(file), customFontName: file.name.replace(/\.[^.]+$/, '') });
-  };
-
   const handleBgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -465,30 +273,14 @@ export default function Customize() {
     setShowCropModal(true);
   };
 
-  const handleApplyShared = (td: SharedThemeData) => {
-    updateSettings({
-      communityThemeId: td.communityThemeId ?? '',
-      theme: td.theme as UserSettings['theme'],
-      font: td.font as FontFamily,
-      accentColor: td.accentColor,
-      calWeekday: td.calWeekday ?? '',
-      calSaturday: td.calSaturday ?? '',
-      calSunday: td.calSunday ?? '',
-      calOtherMonth: td.calOtherMonth ?? '',
-    });
-  };
-
-  const canShare = !!(settings.customFontUrl && settings.backgroundImageUrl);
   const isCommunityActive = !!settings.communityThemeId;
+  // 見本は今の明るさに合わせる（暗い色のまま出すと、明るい画面で3つとも同じ絵に見える）
+  const swatchDark = isCommunityActive
+    ? !!COMMUNITY_THEMES.find(t => t.id === settings.communityThemeId)?.dark
+    : resolveTheme(settings.theme) === 'dark';
+  const sw = (def: SkinDef) => (swatchDark ? def.swatch : def.swatchLight);
   const themeButtonClass = (active: boolean) =>
     `rounded-xl overflow-hidden border-2 transition-colors ${active ? 'border-selected' : 'border-subtle'}`;
-
-  const fontCards = [
-    ...FONT_OPTIONS,
-    ...(settings.customFontName
-      ? [{ value: 'custom' as FontFamily, label: settings.customFontName, stack: `"${settings.customFontName}", sans-serif` }]
-      : []),
-  ];
 
   const calColorPreviewDots = CAL_COLOR_FIELDS.map(f => settings[f.key] as string).filter(Boolean);
 
@@ -501,16 +293,49 @@ export default function Customize() {
 
       <div ref={rootRef} className="px-4 pt-4 pb-8 flex flex-col gap-6">
 
-        {/* テーマ */}
+        {/* テーマ（外皮）＝ 形・書体・質感・色をひとまとめにした層。アプリ全体に効く。
+            AIで作ったテーマも、いずれこの一覧に並ぶ。 */}
         <section>
           <p className="text-label-tertiary text-xs mb-3">テーマ</p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
+            {SKIN_IDS.map(id => {
+              const def = SKINS[id];
+              const on = skin === id;
+              return (
+                <button key={id} onClick={() => setSkin(id)} aria-pressed={on} className={themeButtonClass(on)}>
+                  {/* 見本は「地の上に面が1枚」。面の角の形が外皮の違いで一番効くので、
+                      色だけでなく角丸も外皮のものを使う */}
+                  <div className="h-12 relative flex items-center justify-center" style={{ backgroundColor: sw(def)[0] }}>
+                    <div className="w-3/5 h-1/2" style={{ backgroundColor: sw(def)[1], borderRadius: def.swatchRadius }} />
+                    <div className="absolute bottom-1.5 right-1.5 w-2.5 h-2.5" style={{ backgroundColor: sw(def)[2], borderRadius: def.swatchRadius ? 999 : 0 }} />
+                  </div>
+                  <div className="bg-bg-secondary py-1.5">
+                    <p className="text-xs text-label-primary text-center truncate px-1">{def.name}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          {/* 以前の「みんなのテーマ」を選んだままの人への逃げ道。選択中は色がそちら優先のままなので、
+              下の明るさを押せば解除される（communityThemeId を空にする）ことを明示する */}
+          {isCommunityActive && (
+            <p className="text-label-tertiary text-xs mt-1.5 px-1 leading-relaxed">
+              以前の配色「{COMMUNITY_THEMES.find(t => t.id === settings.communityThemeId)?.name}」を使用中です。
+              下の明るさを選ぶと解除され、テーマの配色に戻ります。
+            </p>
+          )}
+        </section>
+
+        {/* 明るさ。テーマは明暗2組の色を持つので、この選択とは独立して効く */}
+        <section>
+          <p className="text-label-tertiary text-xs mb-3">明るさ</p>
+          <div className="grid grid-cols-3 gap-2">
             <button onClick={() => updateSettings({ theme: 'system', communityThemeId: '' })} className={themeButtonClass(settings.theme === 'system' && !isCommunityActive)}>
               <div className="h-12 flex">
                 <div className="flex-1 bg-[#f5f5f5]" />
                 <div className="flex-1 bg-[#1a1a1a]" />
               </div>
-              <div className="bg-bg-secondary py-1.5"><p className="text-xs text-label-primary text-center">システムに合わせる</p></div>
+              <div className="bg-bg-secondary py-1.5"><p className="text-xs text-label-primary text-center">システム</p></div>
             </button>
             <button onClick={() => updateSettings({ theme: 'simple', communityThemeId: '' })} className={themeButtonClass(settings.theme === 'simple' && !isCommunityActive)}>
               <div className="h-12 bg-[#f5f5f5]" />
@@ -520,49 +345,7 @@ export default function Customize() {
               <div className="h-12 bg-[#1a1a1a]" />
               <div className="bg-bg-secondary py-1.5"><p className="text-xs text-label-primary text-center">ダーク</p></div>
             </button>
-            <button onClick={() => setShowCommunityModal(true)} className={themeButtonClass(isCommunityActive)}>
-              <div className="h-12 bg-bg-secondary flex items-center justify-center"><Users size={20} className="text-label-tertiary" /></div>
-              <div className="bg-bg-secondary py-1.5 border-t border-subtle"><p className="text-xs text-label-secondary text-center">みんなのテーマ</p></div>
-            </button>
           </div>
-          {isCommunityActive && (
-            <p className="text-label-tertiary text-xs mt-1.5 px-1">
-              適用中: {COMMUNITY_THEMES.find(t => t.id === settings.communityThemeId)?.name}
-            </p>
-          )}
-        </section>
-
-        {/* フォント */}
-        <section>
-          <p className="text-label-tertiary text-xs mb-3">フォント</p>
-          <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
-            {fontCards.map(f => {
-              const active = settings.font === f.value;
-              return (
-                <button key={f.value} onClick={() => updateSettings({ font: f.value })}
-                  className={`flex-shrink-0 w-20 rounded-xl overflow-hidden flex flex-col border-2 transition-colors ${active ? 'border-selected' : 'border-subtle'}`}>
-                  <div className="h-16 flex flex-col items-center justify-center bg-bg-secondary" style={{ fontFamily: f.stack }}>
-                    <span className="text-label-primary text-sm leading-tight">1月23日</span>
-                    <span className="text-label-tertiary text-xs leading-tight mt-1">12:34</span>
-                  </div>
-                  <div className="flex items-center justify-center gap-1 py-1.5 px-1 border-t border-faint bg-bg-secondary" style={{ fontFamily: SYSTEM_FONT }}>
-                    {active && <Check size={9} className="text-label-primary flex-shrink-0" />}
-                    <p className="text-[10px] text-label-secondary truncate leading-tight">{f.label}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          <input ref={fontInputRef} type="file" accept=".ttf,.otf,.woff,.woff2" onChange={handleFontUpload} className="hidden" />
-          <button onClick={() => fontInputRef.current?.click()}
-            className="mt-2 w-full py-3 rounded-xl border border-subtle text-label-secondary active:opacity-60 overflow-hidden"
-            style={{ fontFamily: SYSTEM_FONT }}>
-            <div className="flex items-center justify-center gap-1.5 px-4">
-              <Upload size={13} className="flex-shrink-0" />
-              <span style={{ fontSize: '14px', lineHeight: '1.4' }}>フォントをアップロード</span>
-            </div>
-            <div className="mt-0.5" style={{ fontSize: '11px', color: 'var(--label-tertiary)', fontFamily: SYSTEM_FONT }}>.ttf / .otf / .woff</div>
-          </button>
         </section>
 
         {/* カレンダー文字色（折りたたみ） */}
@@ -853,23 +636,6 @@ export default function Customize() {
         </section>
 
       </div>
-
-      {showCommunityModal && (
-        <CommunityThemeModal
-          currentId={settings.communityThemeId}
-          onSelect={id => updateSettings({ communityThemeId: id, theme: settings.theme })}
-          onApplyShared={handleApplyShared}
-          onClose={() => setShowCommunityModal(false)}
-          userId={user?.id}
-          currentSettings={{
-            theme: settings.theme, font: settings.font, accentColor: settings.accentColor,
-            communityThemeId: settings.communityThemeId,
-            calWeekday: settings.calWeekday, calSaturday: settings.calSaturday,
-            calSunday: settings.calSunday, calOtherMonth: settings.calOtherMonth,
-          }}
-          canShare={canShare}
-        />
-      )}
 
       {showCropModal && pendingImageUrl && (
         <BgImageCropModal

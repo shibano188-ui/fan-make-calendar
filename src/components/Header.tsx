@@ -37,6 +37,7 @@ export default function Header({ title, subtitle, subtitleNode, onBack, closeMod
   if (leftNode !== undefined) {
     return (
       <header
+        data-skin-part="header"
         className={`flex items-center justify-between px-4 ${py} border-b border-separator`}
         style={safeTopStyle}
       >
@@ -54,6 +55,7 @@ export default function Header({ title, subtitle, subtitleNode, onBack, closeMod
 
   return (
     <header
+      data-skin-part="header"
       className={`flex items-center px-4 ${py} border-b border-separator`}
       style={safeTopStyle}
     >
@@ -69,7 +71,7 @@ export default function Header({ title, subtitle, subtitleNode, onBack, closeMod
       </div>
 
       <div className="flex-1 text-center px-1">
-        {title && <p className="text-sm font-semibold text-label-primary leading-tight">{title}</p>}
+        {title && <p data-skin-part="header-title" className="text-sm font-semibold text-label-primary leading-tight">{title}</p>}
         {subtitleNode ?? (subtitle && (
           <p className="text-[11px] text-label-secondary leading-tight">{subtitle}</p>
         ))}

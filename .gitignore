@@ -24,3 +24,6 @@ ios/App/fastlane/screenshots/
 ios/App/fastlane/metadata/
 ios/App/build/
 ios/App/fastlane/README.md
+
+# 外皮の通し確認が吐くスクリーンショット
+scripts/.smoke/

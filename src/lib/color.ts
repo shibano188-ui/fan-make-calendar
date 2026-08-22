@@ -21,13 +21,26 @@ function relativeLuminance(hex: string): number | null {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-/** 塗り色の上に載せる文字色を返す。明るい塗り→黒系、暗い塗り→白 */
+/** 墨色（塗りの上に載せる暗い方の文字色）の輝度 */
+const INK = '#1a1a1a';
+const INK_LUM = 0.0103;
+
+/**
+ * 塗り色の上に載せる文字色を返す。
+ *
+ * 以前は「輝度 0.45 を境に白か墨か」で決めていたが、**中くらいの明るさの色で
+ * 明らかに悪い方を選んでしまう**。例えば橙 #FF5A1E（輝度 0.29）は白だと 3.12 しか出ず、
+ * 墨なら 5.46 出る。境界値ではなく**両方の比を実際に計算して良い方を採る**。
+ * 選べる6色のうち橙・緑・青・桃はこの帯に入るので、既存の配色でも読みやすくなる。
+ */
 export function getContrastText(color: string): string {
   // CSS変数（アクセント色）が渡された場合は算出済みトークンに委ねる
   if (color.startsWith('var(')) return 'var(--accent-on)';
   const lum = relativeLuminance(color);
   if (lum === null) return '#ffffff';
-  return lum > 0.45 ? '#1a1a1a' : '#ffffff';
+  const withWhite = 1.05 / (lum + 0.05);
+  const withInk = (lum + 0.05) / (INK_LUM + 0.05);
+  return withInk >= withWhite ? INK : '#ffffff';
 }
 
 /** 色を ratio (0〜1) ぶん暗くする */

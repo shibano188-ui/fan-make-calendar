@@ -443,10 +443,10 @@ export default function MyPage() {
           <span className="text-[13px] text-label-tertiary">{works.length}作品</span>
           <ChevronRight size={16} className="text-label-tertiary" />
         </button>
-        {/* カレンダーの配色・テーマ */}
+        {/* テーマ・カレンダーの配色（外皮の切り替えもここに集約） */}
         <button onClick={() => { haptic.select(); navigate('/customize'); }} className="w-full flex items-center gap-2 px-3 py-2.5 pressable text-left">
           <Palette size={16} className="text-label-secondary" />
-          <span className="text-[14px] flex-1">カレンダーの配色・テーマ</span>
+          <span className="text-[14px] flex-1">テーマ・カレンダーの配色</span>
           <ChevronRight size={16} className="text-label-tertiary" />
         </button>
         {/* アカウント（デバイス間のデータ引き継ぎ） */}

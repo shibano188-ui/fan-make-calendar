@@ -64,12 +64,14 @@ export default function BottomNav() {
     >
       <div
         ref={rowRef}
+        data-skin-part="nav"
         className="pointer-events-auto relative flex items-center rounded-full material-bar border border-subtle shadow-float px-1.5 py-1.5"
       >
         {/* アクティブタブの背景ピル（スプリングで追従） */}
         <div
           ref={indRef}
           aria-hidden
+          data-skin-part="nav-ind"
           className="absolute top-1.5 bottom-1.5 left-0 rounded-full"
           style={{ backgroundColor: 'var(--fill-tertiary)', width: 0, opacity: 0, willChange: 'transform, width' }}
         />
@@ -81,6 +83,7 @@ export default function BottomNav() {
         <button
           onClick={() => go('/post')}
           aria-label="投稿"
+          data-skin-part="nav-add"
           className="pressable relative w-11 h-11 mx-1 rounded-full flex items-center justify-center flex-shrink-0"
           style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)', boxShadow: '0 2px 10px rgba(0,0,0,0.25)' }}
         >
@@ -102,6 +105,7 @@ function TabButton({ label, icon: Icon, active, onClick, path, idx }: {
     // data-nav-cal: いいね演出（likeEffect）がカレンダータブへの線の到達点として参照する
     <button
       onClick={onClick}
+      data-skin-part="nav-item"
       data-tab-idx={idx}
       data-nav-cal={path === '/saved' ? '' : undefined}
       className="pressable relative flex flex-col items-center justify-center gap-[2px] w-[62px] py-1.5 rounded-full"

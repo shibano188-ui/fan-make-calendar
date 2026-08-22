@@ -63,6 +63,19 @@ let wantVisible = false;
 let wantMargin = 0;
 let coalesce: ReturnType<typeof setTimeout> | null = null;
 
+// プラグインの呼び出しが**返ってこないこと**への保険。
+// @capacitor-community/admob 8.0.0 の BannerExecutor.showBanner は、既にバナーがあるとき
+//   if (mAdView != null) { updateExistingAdView(adOptions); return; }
+// と **call.resolve() を呼ばずに return する**。await したまま解決しないので、下の待ち行列が
+// そこで永久に詰まり、**以後の hideBanner が一度も実行されない**。
+// 結果、広告を出さない画面（プレミアムの案内・商品詳細）にバナーが residue して
+// ×ボタンや戻るを覆う。ネイティブ側も直したが、**JSだけで復旧できるようにここでも切る**
+// （Androidはリモートのwebviewなので、こちらはAPKを出さずに直せる）。
+const CALL_TIMEOUT_MS = 3000;
+function withTimeout<T>(p: Promise<T>): Promise<T | void> {
+  return Promise.race([p, new Promise<void>((r) => setTimeout(r, CALL_TIMEOUT_MS))]);
+}
+
 function apply(): void {
   queue = queue.then(async () => {
     // 初期化できていないのに show を投げるとネイティブが落ちる（上の注意）。
@@ -73,15 +86,15 @@ function apply(): void {
     const margin = wantMargin;
     try {
       if (visible) {
-        await AdMob.showBanner({
+        await withTimeout(AdMob.showBanner({
           adId: BANNER_AD_ID,
           adSize: BannerAdSize.ADAPTIVE_BANNER,
           position: BannerAdPosition.TOP_CENTER,
           margin,
           isTesting: false,
-        });
+        }));
       } else {
-        await AdMob.hideBanner();
+        await withTimeout(AdMob.hideBanner());
       }
     } catch { /* 出せなくても致命ではない。次の遷移でまた要求する */ }
   });

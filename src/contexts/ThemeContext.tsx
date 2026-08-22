@@ -1,8 +1,9 @@
 import { createContext, useContext, useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { getUserSettings, updateUserSettings } from '../lib/api';
-import { accentTokens } from '../lib/color';
+import { accentTokens, getContrastText } from '../lib/color';
 import { syncStatusBar } from '../lib/statusbar';
+import { SKINS, applySkin, loadSkin, saveSkin, accentForSkin, type SkinId } from '../design/skins';
 
 export type ThemeMode = 'simple' | 'dark' | 'system';
 export type FontFamily = 'system' | 'serif' | 'rounded' | 'custom';
@@ -274,7 +275,9 @@ function fontStack(settings: UserSettings): string {
 }
 
 // テーマ変数の適用 + data-theme / theme-color / ステータスバー同期（共通処理）
-function applyThemeVars(settings: UserSettings) {
+// 外皮(skin)は色の上に「形・書体・質感」を重ねる層。コミュニティテーマを
+// 選んでいるときは色は使う人のものを優先し、外皮は色を上書きしない。
+function applyThemeVars(settings: UserSettings, skin: SkinId) {
   const root = document.documentElement;
   const communityTheme = settings.communityThemeId
     ? COMMUNITY_THEMES.find(t => t.id === settings.communityThemeId)
@@ -286,10 +289,20 @@ function applyThemeVars(settings: UserSettings) {
   const isDark = communityTheme ? communityTheme.dark : resolved === 'dark';
   root.dataset.theme = isDark ? 'dark' : 'light';
 
-  // ブラウザクローム・ネイティブステータスバーをテーマに追従させる
-  const bgPrimary = vars['--bg-primary'] ?? (isDark ? '#0e0e10' : '#f2f2f7');
+  // 外皮を重ねる（data-skin の付与・書体の読み込み・色の上書き）
+  applySkin(skin, isDark, !!communityTheme);
+
+  // ブラウザクローム・ネイティブステータスバーをテーマに追従させる。
+  // 外皮が地の色を上書きしているときはそちらを見る
+  const skinVars = communityTheme ? null : SKINS[skin].vars;
+  const skinBg = skinVars ? (isDark ? skinVars.dark : skinVars.light)['--bg-primary'] : undefined;
+  const bgPrimary = skinBg ?? vars['--bg-primary'] ?? (isDark ? '#0e0e10' : '#f2f2f7');
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', bgPrimary);
-  syncStatusBar(isDark, bgPrimary);
+  // ステータスバーのアイコンは「テーマが暗いか」ではなく、**バーの裏に実際に出ている色**で決める。
+  // SURGE は上部の帯がアクセント色（黄）なので、暗いテーマのまま白アイコンにすると読めない
+  // （実機で確認済み。Android 15 は setBackgroundColor が効かず、裏のアプリの色がそのまま見える）。
+  const statusColor = SKINS[skin].statusBar === 'accent' ? settings.accentColor : bgPrimary;
+  syncStatusBar(getContrastText(statusColor) === '#ffffff', statusColor);
 }
 
 // アクセントカラー + 派生トークンの適用（共通処理）
@@ -303,11 +316,12 @@ function applyAccentVars(accentColor: string) {
 }
 
 // ウィジェットページが設定をCSSに反映するためのユーティリティ
-export function applySettingsToCSS(settings: UserSettings) {
+// （ThemeProvider の外で描かれるので、外皮は localStorage から直接読む）
+export function applySettingsToCSS(settings: UserSettings, skin: SkinId = loadSkin()) {
   const root = document.documentElement;
 
   // テーマカラー
-  applyThemeVars(settings);
+  applyThemeVars(settings, skin);
 
   // アクセントカラー
   applyAccentVars(settings.accentColor);
@@ -354,6 +368,9 @@ interface ThemeContextValue {
   currentWorkId: string;
   setCurrentCalendar: (workId: string) => void;
   calFontFamily: string;
+  /** 見た目の外皮。テーマ・アクセント色とは独立した層 */
+  skin: SkinId;
+  setSkin: (id: SkinId) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -370,6 +387,24 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<UserSettings>(() =>
     loadSettings(localStorage.getItem('last_calendar_workId') ?? '')
   );
+
+  // 外皮。保存先は localStorage のみ（本番の user_settings スキーマに触らない）
+  const [skin, setSkinState] = useState<SkinId>(() => loadSkin());
+
+  const setSkin = useCallback((id: SkinId) => {
+    saveSkin(id);
+    setSkinState(id);
+    // アクセントが署名色のままなら外皮の色に合わせる。
+    // 自分で別の色を選んでいる人の設定は変えない。サーバーへは同期しない
+    // （外皮の切り替えで本番の設定を書き換えないため）。
+    setSettings((prev) => {
+      const nextAccent = accentForSkin(id, prev.accentColor);
+      if (nextAccent === prev.accentColor) return prev;
+      const next = { ...prev, accentColor: nextAccent };
+      saveSettings(currentWorkIdRef.current, next);
+      return next;
+    });
+  }, []);
 
   // カレンダー切り替え（Calendar ページから呼ばれる）
   const setCurrentCalendar = useCallback((workId: string) => {
@@ -413,6 +448,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         ...(db.font       && { font:        db.font       as FontFamily }),
         ...(db.accentColor && { accentColor: db.accentColor }),
       };
+      // 外皮を切り替えると署名色（黄→橙など）もローカルで変わるが、その色はサーバーへ同期しない。
+      // ここで DB の古い署名色をそのまま戻すと、翌起動で外皮と色がちぐはぐになる。
+      // 署名色のときだけ今の外皮の色に寄せ、**自分で選んだ色は DB の値を尊重する**。
+      next.accentColor = accentForSkin(loadSkin(), next.accentColor);
       saveSettings('', next);
       // カレンダー未選択時のみ現在の表示に反映
       if (!currentWorkIdRef.current) {
@@ -423,13 +462,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   // テーマカラーを CSS 変数に反映（theme='system' のときは OS 設定変更にも追従）
   useEffect(() => {
-    applyThemeVars(settings);
+    applyThemeVars(settings, skin);
     if (settings.theme !== 'system') return;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const onChange = () => applyThemeVars(settings);
+    const onChange = () => applyThemeVars(settings, skin);
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
-  }, [settings.theme, settings.communityThemeId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [settings.theme, settings.communityThemeId, skin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // アクセントカラー + 派生トークンを CSS 変数に反映
   useEffect(() => {
@@ -478,7 +517,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const calFontFamily = fontStack(settings);
 
   return (
-    <ThemeContext.Provider value={{ settings, updateSettings, currentWorkId, setCurrentCalendar, calFontFamily }}>
+    <ThemeContext.Provider value={{ settings, updateSettings, currentWorkId, setCurrentCalendar, calFontFamily, skin, setSkin }}>
       {children}
     </ThemeContext.Provider>
   );

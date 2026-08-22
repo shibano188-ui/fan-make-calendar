@@ -1,0 +1,1496 @@
+<title>五つのFanHive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Noto+Sans+JP:wght@300;400;500;700;900&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;700&family=DotGothic16&family=Shippori+Mincho:wght@400;600;800&family=Anton&family=Syne:wght@600;800&display=swap">
+
+<style>
+/* ═══════════════════════════════════════════════════════════
+   比較盤そのものの意匠（トークン方式・両テーマ対応）
+   ─ 5案のモックは各案が確定した配色を持つので、意図的に
+     テーマに追従させない（アプリの見本＝作品として扱う）
+   ═══════════════════════════════════════════════════════════ */
+:root{
+  --paper:#efece6;
+  --paper-2:#e5e1d9;
+  --panel:#faf8f4;
+  --rule:#d2cdc2;
+  --rule-soft:#e0dbd1;
+  --ink:#1b1a18;
+  --ink-2:#4d4a44;
+  --ink-3:#8b867c;
+  --mark:#b34222;
+  --focus:#b34222;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0e0e10;
+    --paper-2:#131316;
+    --panel:#17171b;
+    --rule:#2b2b31;
+    --rule-soft:#232328;
+    --ink:#eae7e1;
+    --ink-2:#a5a19a;
+    --ink-3:#6e6a63;
+    --mark:#e0663c;
+    --focus:#e0663c;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0e0e10;
+  --paper-2:#131316;
+  --panel:#17171b;
+  --rule:#2b2b31;
+  --rule-soft:#232328;
+  --ink:#eae7e1;
+  --ink-2:#a5a19a;
+  --ink-3:#6e6a63;
+  --mark:#e0663c;
+  --focus:#e0663c;
+}
+
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"Noto Sans JP","Hiragino Kaku Gothic ProN",system-ui,sans-serif;
+  font-weight:400;
+  line-height:1.85;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:inherit;}
+:focus-visible{outline:2px solid var(--focus);outline-offset:3px;}
+
+.wrap{max-width:1180px;margin:0 auto;padding:0 28px;}
+
+/* ── 上部の見出し帯 ───────────────────────────── */
+.masthead{
+  border-bottom:1px solid var(--rule);
+  padding:64px 0 40px;
+}
+.kicker{
+  font-family:"JetBrains Mono",ui-monospace,monospace;
+  font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--ink-3);margin:0 0 22px;
+}
+.masthead h1{
+  font-family:"Zen Kaku Gothic New","Noto Sans JP",sans-serif;
+  font-weight:900;
+  font-size:clamp(34px,6vw,60px);
+  line-height:1.12;letter-spacing:-.02em;
+  margin:0 0 20px;text-wrap:balance;
+}
+.masthead .lede{
+  max-width:62ch;font-size:15.5px;color:var(--ink-2);margin:0 0 8px;
+}
+.masthead .lede + .lede{margin-top:14px;}
+
+/* ── 索引 ───────────────────────────────────── */
+.index{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));
+  gap:1px;background:var(--rule);border:1px solid var(--rule);
+  margin:40px 0 0;
+}
+.index a{
+  background:var(--paper);padding:16px 16px 18px;text-decoration:none;
+  display:block;transition:background .18s ease;
+}
+.index a:hover{background:var(--panel);}
+.index .ix-code{
+  font-family:"Syne",system-ui,sans-serif;font-weight:800;
+  font-size:19px;letter-spacing:.04em;display:block;
+}
+.index .ix-jp{
+  font-family:"Zen Kaku Gothic New",sans-serif;font-weight:700;
+  font-size:13px;color:var(--ink-2);display:block;line-height:1.5;
+}
+.index .ix-note{
+  font-size:11.5px;color:var(--ink-3);line-height:1.6;display:block;margin-top:6px;
+}
+
+/* ── 各案の帯 ───────────────────────────────── */
+.band{border-top:1px solid var(--rule);padding:72px 0 76px;scroll-margin-top:12px;}
+.band:nth-of-type(even){background:var(--paper-2);}
+.band-inner{
+  display:grid;grid-template-columns:minmax(280px,360px) 1fr;
+  gap:52px;align-items:start;
+}
+@media (max-width:900px){.band-inner{grid-template-columns:1fr;gap:36px;}}
+
+.arg .tag{
+  font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.2em;
+  color:var(--mark);margin:0 0 10px;
+}
+.arg h2{
+  font-family:"Syne",system-ui,sans-serif;font-weight:800;
+  font-size:44px;line-height:1;letter-spacing:.01em;margin:0 0 6px;
+}
+.arg .jp{
+  font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;
+  font-size:19px;margin:0 0 20px;color:var(--ink-2);
+}
+.arg p{font-size:14.5px;color:var(--ink-2);margin:0 0 20px;max-width:46ch;}
+.arg p strong{color:var(--ink);font-weight:700;}
+
+.spec{border-top:1px solid var(--rule);margin:0 0 20px;}
+.spec div{
+  display:grid;grid-template-columns:74px 1fr;gap:12px;
+  padding:9px 0;border-bottom:1px solid var(--rule-soft);
+  font-size:12.5px;line-height:1.6;
+}
+.spec dt{
+  font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.12em;
+  color:var(--ink-3);text-transform:uppercase;padding-top:3px;
+}
+.spec dd{margin:0;color:var(--ink-2);}
+
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 18px;}
+.chip{
+  width:30px;height:30px;border-radius:2px;
+  box-shadow:inset 0 0 0 1px rgba(128,128,128,.28);
+}
+.risk{
+  font-size:12.5px;line-height:1.75;color:var(--ink-2);
+  border-left:2px solid var(--mark);padding:2px 0 2px 14px;margin:0;
+}
+.risk b{color:var(--ink);font-weight:700;}
+
+/* ── 端末の並べ方 ─────────────────────────── */
+.screens{display:flex;gap:22px;flex-wrap:wrap;}
+.screen-slot{display:flex;flex-direction:column;gap:9px;}
+.screen-slot > figcaption{
+  font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.16em;
+  color:var(--ink-3);text-transform:uppercase;
+}
+
+/* ═══ 端末の外枠（全案共通） ═══ */
+.ph{
+  width:314px;height:640px;flex:0 0 auto;
+  border-radius:26px;overflow:hidden;position:relative;
+  box-shadow:0 22px 44px rgba(0,0,0,.30),0 0 0 1px rgba(120,120,120,.30);
+  display:flex;flex-direction:column;
+  font-size:14px;line-height:1.6;
+}
+.ph *{box-sizing:border-box;}
+.ph .scroll{flex:1;overflow:hidden;position:relative;}
+.ph .nav{flex:0 0 auto;}
+
+/* ═══════════════════════════════════════════════════════════
+   案A ─ PANEL / 計器
+   ═══════════════════════════════════════════════════════════ */
+.d-a{
+  --chassis:#1a1a1c; --plate:#242427; --plate-2:#2d2d31; --inset:#08080a;
+  --line:#3a3a40; --tx:#f3f1ec; --tx-2:#9b978f; --amber:#ff5c1f;
+  --led-on:#3ad17e; --led-pre:#ff5c1f; --led-soon:#5aa9ff; --led-end:#5c5c62;
+  background:var(--chassis);color:var(--tx);
+  font-family:"Noto Sans JP",sans-serif;
+}
+.d-a .lbl{
+  font-family:"Space Grotesk",sans-serif;font-size:8.5px;font-weight:500;
+  letter-spacing:.19em;text-transform:uppercase;color:var(--tx-2);
+}
+.d-a .mono{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums;}
+.d-a .portbar{display:flex;border-bottom:1px solid var(--line);background:var(--plate);}
+.d-a .portbar > div{
+  flex:1;padding:9px 10px 8px;text-align:center;border-right:1px solid var(--line);
+}
+.d-a .portbar > div:last-child{border-right:0;}
+.d-a .portbar .on{background:var(--tx);color:var(--chassis);}
+.d-a .portbar .on .lbl{color:var(--chassis);}
+.d-a .portbar .val{font-size:12px;font-weight:700;margin-top:2px;letter-spacing:.02em;}
+.d-a .readout{
+  background:var(--inset);margin:10px;padding:11px 13px;border-radius:3px;
+  display:flex;align-items:baseline;justify-content:space-between;
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.9);
+}
+.d-a .readout .big{
+  font-family:"JetBrains Mono",monospace;font-size:29px;font-weight:700;
+  color:var(--amber);letter-spacing:-.02em;line-height:1;
+}
+.d-a .readout .unit{font-size:9px;letter-spacing:.18em;color:var(--tx-2);margin-left:5px;}
+.d-a .readout .date{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--tx-2);letter-spacing:.06em;}
+.d-a .keys{display:flex;gap:6px;padding:0 10px 10px;}
+.d-a .key{
+  flex:1;background:var(--plate-2);border-radius:3px;padding:7px 6px 6px;
+  text-align:center;box-shadow:0 1px 0 rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.07);
+}
+.d-a .key .n{font-family:"JetBrains Mono",monospace;font-size:8.5px;color:var(--tx-2);display:block;}
+.d-a .key .t{font-size:11px;font-weight:500;letter-spacing:.02em;}
+.d-a .rows{padding:0 10px;display:flex;flex-direction:column;gap:6px;}
+.d-a .row{
+  background:var(--plate);border-radius:3px;padding:9px;display:flex;gap:10px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
+}
+.d-a .thumb{
+  width:56px;height:56px;flex:0 0 auto;border-radius:2px;position:relative;overflow:hidden;
+}
+.d-a .row .body{flex:1;min-width:0;}
+.d-a .stat{display:flex;align-items:center;gap:5px;margin-bottom:3px;}
+.d-a .led{width:6px;height:6px;border-radius:50%;flex:0 0 auto;}
+.d-a .row h4{
+  margin:0 0 4px;font-size:12.5px;font-weight:700;line-height:1.4;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.d-a .meta{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+.d-a .meta .d{font-family:"JetBrains Mono",monospace;font-size:10px;color:var(--tx-2);letter-spacing:.03em;}
+.d-a .meta .p{font-family:"JetBrains Mono",monospace;font-size:12px;font-weight:700;color:var(--amber);}
+.d-a .nav{
+  display:flex;background:var(--plate);border-top:1px solid var(--line);padding:7px 8px 9px;gap:6px;
+}
+.d-a .nav button{
+  flex:1;background:var(--plate-2);border:0;border-radius:3px;padding:7px 0 5px;
+  color:var(--tx-2);display:flex;flex-direction:column;align-items:center;gap:3px;cursor:default;
+  box-shadow:0 1px 0 rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.06);
+}
+.d-a .nav button.act{background:var(--tx);color:var(--chassis);}
+.d-a .nav button.add{background:var(--amber);color:#140800;}
+.d-a .nav .lbl{font-size:7.5px;letter-spacing:.13em;color:currentColor;}
+/* マイページ */
+.d-a .idcard{
+  margin:10px;background:var(--plate);border-radius:3px;padding:12px;display:flex;gap:12px;align-items:center;
+}
+.d-a .avatar{width:52px;height:52px;border-radius:2px;background:var(--plate-2);position:relative;overflow:hidden;flex:0 0 auto;}
+.d-a .grade{
+  margin:0 10px 10px;background:var(--inset);border-radius:3px;padding:12px 13px;
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.9);
+}
+.d-a .grade .num{
+  font-family:"JetBrains Mono",monospace;font-size:38px;font-weight:700;line-height:.92;
+  color:var(--tx);letter-spacing:-.03em;
+}
+.d-a .grade .num i{color:#3a3a40;font-style:normal;}
+.d-a .swrow{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 13px;border-bottom:1px solid var(--line);
+}
+.d-a .swrow:first-of-type{border-top:1px solid var(--line);}
+.d-a .swrow .t{font-size:12.5px;font-weight:500;}
+.d-a .sw{width:34px;height:18px;border-radius:2px;background:var(--inset);position:relative;box-shadow:inset 0 1px 2px rgba(0,0,0,.8);}
+.d-a .sw i{position:absolute;top:2px;left:2px;width:15px;height:14px;border-radius:1px;background:var(--tx-2);}
+.d-a .sw.on{background:#2b1206;}
+.d-a .sw.on i{left:auto;right:2px;background:var(--amber);}
+
+/* ═══════════════════════════════════════════════════════════
+   案B ─ QUIET / 静寂
+   ═══════════════════════════════════════════════════════════ */
+.d-b{
+  --gr:#07090c; --gr2:#0c1015; --hair:rgba(232,229,220,.13); --hair2:rgba(232,229,220,.07);
+  --tx:#e8e5dc; --tx-2:#7f8791; --amber:#d9a441; --cy:#8fb6c6;
+  background:var(--gr);color:var(--tx);
+  font-family:"Noto Sans JP",sans-serif;font-weight:300;
+}
+.d-b .caps{
+  font-family:"Space Mono","JetBrains Mono",monospace;font-size:8.5px;
+  letter-spacing:.3em;text-transform:uppercase;color:var(--tx-2);
+}
+.d-b .head{padding:24px 20px 0;position:relative;}
+.d-b .head::before{
+  content:"";position:absolute;left:20px;top:18px;width:10px;height:10px;
+  border-left:1px solid var(--hair);border-top:1px solid var(--hair);
+}
+.d-b .head h3{
+  font-family:"Shippori Mincho",serif;font-weight:600;font-size:22px;
+  margin:8px 0 0;letter-spacing:.12em;
+}
+.d-b .brush{display:block;width:100%;height:16px;margin:10px 0 0;opacity:.55;}
+.d-b .seg{display:flex;gap:0;padding:14px 20px 0;align-items:center;}
+.d-b .seg span{
+  font-family:"Shippori Mincho",serif;font-size:14px;letter-spacing:.16em;
+  color:var(--tx-2);padding:0 14px 6px;position:relative;
+}
+.d-b .seg span:first-child{padding-left:0;}
+.d-b .seg span.on{color:var(--tx);}
+.d-b .seg span.on::after{
+  content:"";position:absolute;left:0;right:14px;bottom:0;height:1px;background:var(--amber);
+}
+.d-b .seg span:first-child.on::after{left:0;}
+.d-b .seg .div{width:1px;height:12px;background:var(--hair);margin-bottom:6px;}
+.d-b .filters{display:flex;gap:18px;padding:16px 20px 4px;}
+.d-b .filters .caps{color:var(--tx-2);}
+.d-b .filters .caps.on{color:var(--amber);}
+.d-b .rows{padding:6px 20px 0;}
+.d-b .row{display:flex;gap:14px;padding:17px 0;border-bottom:1px solid var(--hair2);align-items:flex-start;}
+.d-b .thumb{width:54px;height:70px;flex:0 0 auto;position:relative;overflow:hidden;box-shadow:0 0 0 1px var(--hair);}
+.d-b .row .body{flex:1;min-width:0;padding-top:1px;}
+.d-b .row h4{
+  font-family:"Shippori Mincho",serif;font-weight:400;font-size:14px;line-height:1.55;
+  margin:0 0 8px;letter-spacing:.03em;
+}
+.d-b .stat{display:flex;align-items:center;gap:7px;margin-bottom:7px;}
+.d-b .stat i{display:block;width:14px;height:1px;background:var(--amber);}
+.d-b .stat.ok i{background:#6fae86;}
+.d-b .stat.b i{background:var(--cy);}
+.d-b .stat.e i{background:#4a5058;}
+.d-b .row .d{font-family:"Space Mono",monospace;font-size:10px;color:var(--tx-2);letter-spacing:.09em;}
+.d-b .row .p{font-family:"Space Mono",monospace;font-size:11px;color:var(--tx);letter-spacing:.05em;margin-top:5px;display:block;}
+.d-b .nav{display:flex;padding:14px 20px 18px;border-top:1px solid var(--hair2);gap:0;}
+.d-b .nav button{
+  flex:1;background:none;border:0;color:var(--tx-2);display:flex;flex-direction:column;
+  align-items:center;gap:6px;cursor:default;padding:0;
+}
+.d-b .nav button.act{color:var(--amber);}
+.d-b .nav .caps{font-size:7px;letter-spacing:.22em;color:currentColor;}
+/* マイページ */
+.d-b .prof{padding:30px 20px 6px;text-align:center;}
+.d-b .prof .nm{font-family:"Shippori Mincho",serif;font-size:20px;letter-spacing:.16em;margin:12px 0 5px;}
+.d-b .prof .ttl{font-family:"Shippori Mincho",serif;font-size:12px;color:var(--amber);letter-spacing:.2em;}
+.d-b .avatar{width:56px;height:56px;margin:0 auto;border-radius:50%;box-shadow:0 0 0 1px var(--hair);position:relative;overflow:hidden;}
+.d-b .statline{display:flex;justify-content:center;gap:26px;padding:20px 0 6px;}
+.d-b .statline div{text-align:center;}
+.d-b .statline .n{font-family:"Space Mono",monospace;font-size:19px;color:var(--tx);letter-spacing:.02em;display:block;}
+.d-b .prow{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 20px;border-bottom:1px solid var(--hair2);
+}
+.d-b .prow .t{font-size:13px;font-weight:300;letter-spacing:.05em;}
+.d-b .prow .v{font-family:"Space Mono",monospace;font-size:10px;color:var(--tx-2);letter-spacing:.1em;}
+
+/* ═══════════════════════════════════════════════════════════
+   案C ─ DOT / ドット純度
+   ═══════════════════════════════════════════════════════════ */
+.d-c{
+  --bk:#000; --wh:#fff; --pn:#0f0f0f; --ln:rgba(255,255,255,.22); --dim:rgba(255,255,255,.45);
+  --red:#d71921;
+  background:var(--bk);color:var(--wh);
+  font-family:"Noto Sans JP",sans-serif;
+  background-image:radial-gradient(rgba(255,255,255,.13) 1px,transparent 1px);
+  background-size:19px 19px;background-position:8px 8px;
+}
+.d-c .dot{font-family:"DotGothic16",monospace;letter-spacing:.02em;}
+.d-c .head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:15px 15px 13px;border-bottom:1px solid var(--ln);
+}
+.d-c .head .wm{font-family:"DotGothic16",monospace;font-size:15px;letter-spacing:.06em;}
+.d-c .seg{display:flex;padding:13px 15px 0;gap:7px;}
+.d-c .seg span{
+  font-family:"DotGothic16",monospace;font-size:12px;padding:5px 13px;
+  border:1px solid var(--ln);color:var(--dim);
+}
+.d-c .seg span.on{background:var(--wh);color:var(--bk);border-color:var(--wh);}
+.d-c .cnt{
+  display:flex;align-items:baseline;gap:9px;padding:14px 15px 11px;
+}
+.d-c .cnt .n{font-family:"DotGothic16",monospace;font-size:34px;line-height:.9;}
+.d-c .cnt .u{font-family:"DotGothic16",monospace;font-size:11px;color:var(--dim);letter-spacing:.14em;}
+.d-c .filters{display:flex;gap:7px;padding:0 15px 12px;}
+.d-c .filters span{
+  font-family:"DotGothic16",monospace;font-size:10.5px;color:var(--dim);
+  border-bottom:1px solid var(--ln);padding-bottom:2px;
+}
+.d-c .rows{padding:0 15px;display:flex;flex-direction:column;gap:9px;}
+.d-c .row{border:1px solid var(--ln);padding:9px;display:flex;gap:10px;background:var(--bk);}
+.d-c .thumb{width:54px;height:54px;flex:0 0 auto;position:relative;overflow:hidden;}
+.d-c .row .body{flex:1;min-width:0;}
+.d-c .row h4{margin:0 0 5px;font-size:12px;font-weight:500;line-height:1.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.d-c .stat{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
+.d-c .stat .b{width:5px;height:5px;border-radius:50%;background:var(--wh);flex:0 0 auto;}
+.d-c .stat .b.r{background:var(--red);}
+.d-c .stat .b.o{background:transparent;box-shadow:inset 0 0 0 1px var(--dim);}
+.d-c .stat .dot{font-size:10px;letter-spacing:.06em;}
+.d-c .meta{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+.d-c .meta .d{font-family:"DotGothic16",monospace;font-size:10px;color:var(--dim);}
+.d-c .meta .p{font-family:"DotGothic16",monospace;font-size:13px;}
+.d-c .nav{display:flex;border-top:1px solid var(--ln);padding:9px 8px 11px;background:var(--bk);}
+.d-c .nav button{
+  flex:1;background:none;border:0;color:var(--dim);display:flex;flex-direction:column;
+  align-items:center;gap:5px;cursor:default;padding:0;
+}
+.d-c .nav button.act{color:var(--wh);}
+.d-c .nav .dot{font-size:8px;letter-spacing:.05em;color:currentColor;}
+.d-c .dotgrid{display:grid;grid-template-columns:repeat(5,3px);gap:2px;}
+.d-c .dotgrid i{width:3px;height:3px;border-radius:50%;background:currentColor;display:block;opacity:.18;}
+.d-c .dotgrid i.f{opacity:1;}
+/* マイページ */
+.d-c .prof{padding:18px 15px 4px;display:flex;gap:13px;align-items:center;}
+.d-c .avatar{width:52px;height:52px;flex:0 0 auto;border:1px solid var(--ln);position:relative;overflow:hidden;}
+.d-c .prof .nm{font-family:"DotGothic16",monospace;font-size:17px;line-height:1.2;}
+.d-c .prof .ttl{font-family:"DotGothic16",monospace;font-size:11px;color:var(--red);letter-spacing:.05em;}
+.d-c .statline{display:flex;padding:14px 15px 4px;gap:0;border-top:1px solid var(--ln);margin-top:14px;}
+.d-c .statline div{flex:1;border-right:1px solid var(--ln);padding-right:10px;}
+.d-c .statline div:last-child{border-right:0;}
+.d-c .statline .n{font-family:"DotGothic16",monospace;font-size:23px;display:block;line-height:1.1;}
+.d-c .statline .k{font-family:"DotGothic16",monospace;font-size:9.5px;color:var(--dim);}
+.d-c .prow{display:flex;align-items:center;justify-content:space-between;padding:11px 15px;border-bottom:1px solid var(--ln);}
+.d-c .prow .t{font-size:12px;}
+.d-c .prow .v{font-family:"DotGothic16",monospace;font-size:10px;color:var(--dim);}
+
+/* ═══════════════════════════════════════════════════════════
+   案D ─ SURGE / 高揚
+   ═══════════════════════════════════════════════════════════ */
+.d-d{
+  --bk:#0a0a0a; --ink:#111114; --wh:#fff; --yl:#ffd400; --dim:rgba(255,255,255,.5);
+  background:var(--bk);color:var(--wh);
+  font-family:"Noto Sans JP",sans-serif;
+  position:relative;
+}
+.d-d::before{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background-image:radial-gradient(rgba(255,255,255,.07) 1px,transparent 1px);
+  background-size:5px 5px;
+}
+.d-d .scroll,.d-d .nav{position:relative;z-index:1;}
+.d-d .head{background:var(--yl);color:#0a0a0a;padding:16px 16px 22px;transform:skewY(-3deg);transform-origin:top left;margin-top:-8px;}
+.d-d .head > *{transform:skewY(3deg);}
+.d-d .head .en{font-family:"Anton",sans-serif;font-size:33px;line-height:.9;letter-spacing:.01em;text-transform:uppercase;}
+.d-d .head .jp{font-family:"Noto Sans JP",sans-serif;font-weight:900;font-size:12px;letter-spacing:.24em;margin-top:3px;}
+.d-d .seg{display:flex;gap:7px;padding:4px 16px 0;}
+.d-d .seg span{
+  font-weight:900;font-size:11.5px;padding:6px 14px;background:var(--ink);
+  clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%);color:var(--dim);
+}
+.d-d .seg span.on{background:var(--wh);color:#0a0a0a;}
+.d-d .cnt{padding:14px 16px 10px;display:flex;align-items:flex-end;gap:8px;}
+.d-d .cnt .n{font-family:"Anton",sans-serif;font-size:44px;line-height:.82;color:var(--yl);}
+.d-d .cnt .u{font-weight:900;font-size:10px;letter-spacing:.2em;padding-bottom:5px;}
+.d-d .rows{padding:0 12px;display:flex;flex-direction:column;gap:11px;}
+.d-d .row{
+  background:var(--ink);padding:10px;display:flex;gap:11px;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 9px),calc(100% - 12px) 100%,0 100%);
+  box-shadow:4px 4px 0 rgba(255,212,0,.16);
+}
+.d-d .row:nth-child(odd){transform:rotate(-.7deg);}
+.d-d .row:nth-child(even){transform:rotate(.6deg);}
+.d-d .thumb{width:58px;height:58px;flex:0 0 auto;position:relative;overflow:hidden;}
+.d-d .row .body{flex:1;min-width:0;}
+.d-d .row h4{margin:0 0 5px;font-size:12.5px;font-weight:900;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.d-d .tag{
+  display:inline-block;font-weight:900;font-size:9px;letter-spacing:.1em;padding:2px 8px;
+  background:var(--yl);color:#0a0a0a;transform:rotate(-1.6deg);margin-bottom:5px;
+}
+.d-d .tag.w{background:var(--wh);}
+.d-d .tag.o{background:transparent;color:var(--dim);box-shadow:inset 0 0 0 1px rgba(255,255,255,.3);}
+.d-d .meta{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+.d-d .meta .d{font-family:"Space Grotesk",sans-serif;font-size:10.5px;color:var(--dim);letter-spacing:.04em;}
+.d-d .meta .p{font-family:"Anton",sans-serif;font-size:16px;color:var(--yl);letter-spacing:.02em;}
+.d-d .nav{display:flex;background:var(--wh);padding:8px 6px 10px;}
+.d-d .nav button{
+  flex:1;background:none;border:0;color:#8a8a8a;display:flex;flex-direction:column;
+  align-items:center;gap:3px;cursor:default;padding:0;
+}
+.d-d .nav button.act{color:#0a0a0a;}
+.d-d .nav button.add{color:#0a0a0a;}
+.d-d .nav .k{font-weight:900;font-size:7.5px;letter-spacing:.12em;color:currentColor;}
+.d-d .nav .add .cap{background:#0a0a0a;color:var(--yl);width:30px;height:22px;display:flex;align-items:center;justify-content:center;clip-path:polygon(4px 0,100% 0,calc(100% - 4px) 100%,0 100%);}
+/* マイページ */
+.d-d .prof{padding:0 16px 6px;margin-top:-10px;}
+.d-d .prof .nm{font-family:"Anton",sans-serif;font-size:30px;line-height:1;}
+.d-d .prof .ttl{display:inline-block;background:var(--yl);color:#0a0a0a;font-weight:900;font-size:11px;padding:2px 10px;transform:rotate(-1.4deg);margin-top:7px;letter-spacing:.06em;}
+.d-d .avatar{width:56px;height:56px;position:relative;overflow:hidden;clip-path:polygon(0 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%);}
+.d-d .statline{display:flex;gap:0;padding:16px 16px 6px;}
+.d-d .statline div{flex:1;}
+.d-d .statline .n{font-family:"Anton",sans-serif;font-size:26px;line-height:1;display:block;}
+.d-d .statline .k{font-weight:900;font-size:8.5px;letter-spacing:.14em;color:var(--dim);}
+.d-d .prow{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.12);}
+.d-d .prow .t{font-size:12.5px;font-weight:700;}
+.d-d .prow .v{font-family:"Space Grotesk",sans-serif;font-size:10px;color:var(--dim);letter-spacing:.1em;}
+
+/* ═══════════════════════════════════════════════════════════
+   案E ─ MAX / 全部盛り
+   ═══════════════════════════════════════════════════════════ */
+.d-e{
+  --bk:#0b0b0d; --plate:#17171b; --inset:#050506; --ln:rgba(255,255,255,.16);
+  --tx:#f0ede6; --dim:#8b8880; --or:#ff5c1f; --am:#d9a441; --rd:#d71921;
+  background:var(--bk);color:var(--tx);
+  font-family:"Noto Sans JP",sans-serif;
+  background-image:radial-gradient(rgba(255,255,255,.10) 1px,transparent 1px);
+  background-size:19px 19px;
+}
+.d-e .head{padding:13px 13px 0;position:relative;}
+.d-e .head .top{display:flex;align-items:center;justify-content:space-between;}
+.d-e .head .wm{font-family:"DotGothic16",monospace;font-size:14px;letter-spacing:.05em;}
+.d-e .head .code{font-family:"JetBrains Mono",monospace;font-size:9px;letter-spacing:.16em;color:var(--dim);}
+.d-e .head h3{font-family:"Shippori Mincho",serif;font-weight:600;font-size:19px;letter-spacing:.14em;margin:9px 0 0;}
+.d-e .brush{display:block;width:100%;height:13px;opacity:.5;margin-top:4px;}
+.d-e .seg{display:flex;margin:10px 13px 0;border:1px solid var(--ln);}
+.d-e .seg span{
+  flex:1;text-align:center;padding:6px 0;font-family:"DotGothic16",monospace;font-size:11.5px;color:var(--dim);
+  border-right:1px solid var(--ln);
+}
+.d-e .seg span:last-child{border-right:0;}
+.d-e .seg span.on{background:var(--tx);color:var(--bk);}
+.d-e .readout{
+  margin:10px 13px;background:var(--inset);padding:10px 12px;border-radius:2px;
+  display:flex;align-items:baseline;justify-content:space-between;box-shadow:inset 0 1px 3px #000;
+}
+.d-e .readout .n{font-family:"DotGothic16",monospace;font-size:27px;color:var(--or);line-height:.95;}
+.d-e .readout .u{font-family:"JetBrains Mono",monospace;font-size:8.5px;letter-spacing:.2em;color:var(--dim);}
+.d-e .readout .date{font-family:"JetBrains Mono",monospace;font-size:10px;color:var(--dim);letter-spacing:.06em;}
+.d-e .keys{display:flex;gap:5px;padding:0 13px 10px;}
+.d-e .key{flex:1;background:var(--plate);border-radius:2px;padding:6px 4px 5px;text-align:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.06);}
+.d-e .key .n{font-family:"JetBrains Mono",monospace;font-size:8px;color:var(--dim);display:block;}
+.d-e .key .t{font-size:10.5px;font-weight:500;}
+.d-e .rows{padding:0 13px;display:flex;flex-direction:column;gap:7px;}
+.d-e .row{background:var(--plate);border-radius:2px;padding:8px;display:flex;gap:10px;position:relative;box-shadow:inset 0 1px 0 rgba(255,255,255,.05);}
+.d-e .thumb{width:54px;height:54px;flex:0 0 auto;position:relative;overflow:hidden;border-radius:1px;}
+.d-e .row .body{flex:1;min-width:0;}
+.d-e .row h4{font-family:"Shippori Mincho",serif;font-weight:600;margin:0 0 5px;font-size:12.5px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.d-e .tag{
+  position:absolute;top:-4px;right:6px;font-family:"DotGothic16",monospace;font-size:8.5px;
+  padding:1px 7px;background:var(--or);color:#150700;transform:rotate(-2deg);
+}
+.d-e .tag.ok{background:#3ad17e;color:#04150a;}
+.d-e .tag.b{background:#5aa9ff;color:#031326;}
+.d-e .tag.e{background:#4a4a50;color:#c9c6c0;}
+.d-e .stat{display:flex;align-items:center;gap:5px;margin-bottom:3px;}
+.d-e .stat i{width:5px;height:5px;border-radius:50%;background:var(--or);}
+.d-e .stat .caps{font-family:"JetBrains Mono",monospace;font-size:8px;letter-spacing:.16em;color:var(--dim);text-transform:uppercase;}
+.d-e .meta{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+.d-e .meta .d{font-family:"JetBrains Mono",monospace;font-size:9.5px;color:var(--dim);letter-spacing:.04em;}
+.d-e .meta .p{font-family:"DotGothic16",monospace;font-size:13px;color:var(--am);}
+.d-e .nav{display:flex;background:var(--plate);border-top:1px solid var(--ln);padding:7px 7px 9px;gap:5px;}
+.d-e .nav button{
+  flex:1;background:#212127;border:0;border-radius:2px;padding:6px 0 4px;color:var(--dim);
+  display:flex;flex-direction:column;align-items:center;gap:3px;cursor:default;
+}
+.d-e .nav button.act{background:var(--tx);color:var(--bk);}
+.d-e .nav button.add{background:var(--or);color:#150700;}
+.d-e .nav .k{font-family:"DotGothic16",monospace;font-size:7.5px;color:currentColor;}
+/* マイページ */
+.d-e .prof{margin:12px 13px 0;background:var(--plate);border-radius:2px;padding:11px;display:flex;gap:11px;align-items:center;}
+.d-e .avatar{width:50px;height:50px;flex:0 0 auto;border-radius:1px;position:relative;overflow:hidden;}
+.d-e .prof .nm{font-family:"Shippori Mincho",serif;font-size:17px;letter-spacing:.1em;}
+.d-e .prof .ttl{font-family:"DotGothic16",monospace;font-size:10.5px;color:var(--am);}
+.d-e .grade{margin:9px 13px;background:var(--inset);border-radius:2px;padding:10px 12px;box-shadow:inset 0 1px 3px #000;display:flex;align-items:flex-end;justify-content:space-between;}
+.d-e .grade .num{font-family:"DotGothic16",monospace;font-size:32px;line-height:.9;}
+.d-e .grade .num i{color:#2e2e34;font-style:normal;}
+.d-e .prow{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;border-bottom:1px solid var(--ln);}
+.d-e .prow .t{font-size:12px;}
+.d-e .prow .v{font-family:"JetBrains Mono",monospace;font-size:9px;color:var(--dim);letter-spacing:.1em;}
+
+/* ═══ 画像の代わりの図形（実写は著作権上使わない） ═══ */
+.g{position:absolute;inset:0;}
+.g-1{background:linear-gradient(148deg,#4a4038,#7d6a55 55%,#3a322b);}
+.g-2{background:linear-gradient(148deg,#26364a,#4a6d8c 55%,#1c2836);}
+.g-3{background:linear-gradient(148deg,#3d2436,#7a3e5c 55%,#2a1826);}
+.g-4{background:linear-gradient(148deg,#2c3c2e,#587a54 55%,#1e2a20);}
+.g-5{background:linear-gradient(148deg,#463218,#8a6224 55%,#2e2110);}
+.g i{position:absolute;display:block;}
+.g .c{border-radius:50%;background:rgba(255,255,255,.34);}
+.g .b{background:rgba(0,0,0,.30);}
+.g .l{background:rgba(255,255,255,.24);}
+.mark-a .c{width:38%;height:38%;left:16%;top:20%;}
+.mark-a .b{width:52%;height:22%;left:32%;top:58%;}
+.mark-b .l{width:60%;height:8%;left:20%;top:32%;}
+.mark-b .b{width:34%;height:34%;left:33%;top:48%;border-radius:50%;}
+.mark-c .c{width:26%;height:26%;left:22%;top:22%;}
+.mark-c .l{width:22%;height:56%;left:56%;top:22%;}
+.mark-d .b{width:44%;height:44%;left:12%;top:30%;transform:rotate(45deg);}
+.mark-d .c{width:24%;height:24%;left:58%;top:22%;}
+/* ドット案では写真枠も網点にする */
+.d-c .g,.d-e .g{filter:grayscale(.55) contrast(1.15);}
+.d-c .thumb::after{
+  content:"";position:absolute;inset:0;
+  background-image:radial-gradient(rgba(0,0,0,.75) 1.1px,transparent 1.1px);
+  background-size:4px 4px;mix-blend-mode:multiply;
+}
+.d-d .thumb::after{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(rgba(255,212,0,.24),rgba(255,212,0,0));
+}
+
+/* ═══ 締めくくり ═══ */
+.close{border-top:1px solid var(--rule);padding:70px 0 90px;}
+.close h2{
+  font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;
+  font-size:clamp(24px,4vw,34px);margin:0 0 24px;letter-spacing:-.01em;
+}
+.close h3{
+  font-family:"Zen Kaku Gothic New",sans-serif;font-weight:700;font-size:16px;
+  margin:34px 0 12px;
+}
+.close p{font-size:14.5px;color:var(--ink-2);max-width:64ch;margin:0 0 14px;}
+.close strong{color:var(--ink);font-weight:700;}
+.steps{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+  gap:1px;background:var(--rule);border:1px solid var(--rule);margin:22px 0 0;
+}
+.steps div{background:var(--paper);padding:18px 18px 20px;}
+.steps .s{
+  font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.2em;
+  color:var(--mark);display:block;margin-bottom:8px;
+}
+.steps .h{font-family:"Zen Kaku Gothic New",sans-serif;font-weight:700;font-size:14px;display:block;margin-bottom:6px;}
+.steps .b{font-size:12.5px;color:var(--ink-2);line-height:1.7;}
+
+.foot{
+  border-top:1px solid var(--rule);padding:26px 0 60px;
+  font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.1em;color:var(--ink-3);
+}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation:none !important;transition:none !important;}
+}
+@media (max-width:640px){
+  .wrap{padding:0 18px;}
+  .ph{width:292px;height:600px;}
+}
+</style>
+
+<!-- ═══════════════ 見出し ═══════════════ -->
+<header class="masthead">
+  <div class="wrap">
+    <p class="kicker">FanHive / 意匠検討 / branch: design/panel</p>
+    <h1>五つのFanHive</h1>
+    <p class="lede">Nothing・Teenage Engineering・ペルソナ5・小島プロダクション（新川洋司）を実際に見て、
+    それぞれの<strong>原理</strong>だけを取り出し、同じ画面を5通りに組み直しました。書体・図形・アイコンはすべて自作で、
+    各社の書体・ロゴ・作品画像は一切使っていません。</p>
+    <p class="lede">中身は全案そろえてあります。左が<strong>「探す」</strong>、右が<strong>「マイページ」</strong>。
+    マイページは今いちばん散らかっている画面なので、どの案でも「人物・記録・設定」の3層に分けています。
+    機能は1つも減らしていません。</p>
+
+    <nav class="index">
+      <a href="#a"><span class="ix-code">PANEL</span><span class="ix-jp">計器</span><span class="ix-note">TEの機器パネル。黒地・オレンジ1色・小さな等幅ラベル</span></a>
+      <a href="#b"><span class="ix-code">QUIET</span><span class="ix-jp">静寂</span><span class="ix-note">新川・小島。細い線と余白、明朝、墨の一筆</span></a>
+      <a href="#c"><span class="ix-code">DOT</span><span class="ix-jp">ドット</span><span class="ix-note">Nothing。白黒とドット格子、赤は点1つ分だけ</span></a>
+      <a href="#d"><span class="ix-code">SURGE</span><span class="ix-jp">高揚</span><span class="ix-note">ペルソナ。斜め・太い書体・黄と黒でうるさく</span></a>
+      <a href="#e"><span class="ix-code">MAX</span><span class="ix-jp">全部盛り</span><span class="ix-note">4つ全部を1画面に。密度の上限を見るための案</span></a>
+    </nav>
+  </div>
+</header>
+
+<!-- ═══════════════ 案A ═══════════════ -->
+<section class="band" id="a">
+  <div class="wrap band-inner">
+    <div class="arg">
+      <p class="tag">案 A</p>
+      <h2>PANEL</h2>
+      <p class="jp">計器</p>
+      <p>アプリを「発売日と締切を読む<strong>計器</strong>」として作る。画面はすべて無彩色で、
+      色はグッズの画像と状態表示だけが持ち込む。オレンジは投稿ボタンと金額にしか出さない。</p>
+      <p>EP-133のパネルにあった作法をそのまま関数化しました。上端の「端子帯」＝タブ、黒い凹み＝数値の表示窓、
+      押しボタン＝しぼり込み、小さな等幅の英字ラベル＋点＝状態。</p>
+      <div class="spec">
+        <div><dt>骨格</dt><dd>TE / Nothing ─ 格子・端子帯・押しボタン</dd></div>
+        <div><dt>質感</dt><dd>新川 ─ 数値の先頭ゼロ、余白の取り方</dd></div>
+        <div><dt>動き</dt><dd>ペルソナ ─ 投稿完了・称号取得の一瞬だけ</dd></div>
+      </div>
+      <div class="chips">
+        <span class="chip" style="background:#1a1a1c"></span>
+        <span class="chip" style="background:#242427"></span>
+        <span class="chip" style="background:#08080a"></span>
+        <span class="chip" style="background:#f3f1ec"></span>
+        <span class="chip" style="background:#9b978f"></span>
+        <span class="chip" style="background:#ff5c1f"></span>
+      </div>
+      <div class="spec">
+        <div><dt>和文</dt><dd>Noto Sans JP ─ 本文・見出し</dd></div>
+        <div><dt>欧文</dt><dd>Space Grotesk ─ ラベル</dd></div>
+        <div><dt>数値</dt><dd>JetBrains Mono ─ 日付・金額・件数</dd></div>
+      </div>
+      <p class="risk"><b>不安な点。</b>真面目すぎて素っ気なく見えるかもしれない。
+      推し活のアプリとしては温度が低い側に振れています。</p>
+    </div>
+
+    <div class="screens">
+      <figure class="screen-slot" style="margin:0">
+        <div class="ph d-a">
+          <div class="scroll">
+            <div class="portbar">
+              <div class="on"><div class="lbl">Goods</div><div class="val">グッズ</div></div>
+              <div><div class="lbl">Event</div><div class="val">イベント</div></div>
+            </div>
+            <div class="readout">
+              <div><span class="big">24</span><span class="unit">NEW TODAY</span></div>
+              <div class="date">2026.08.21 FRI</div>
+            </div>
+            <div class="keys">
+              <div class="key"><span class="n">01</span><span class="t">作品</span></div>
+              <div class="key"><span class="n">02</span><span class="t">地域</span></div>
+              <div class="key"><span class="n">03</span><span class="t">期間</span></div>
+            </div>
+            <div class="rows">
+              <div class="row">
+                <div class="thumb"><span class="g g-1 mark-a"><i class="c"></i><i class="b"></i></span></div>
+                <div class="body">
+                  <div class="stat"><span class="led" style="background:#ff5c1f"></span><span class="lbl">Preorder</span></div>
+                  <h4>ちいかわ もちもちぬいぐるみ</h4>
+                  <div class="meta"><span class="d">08.25 — 09.10</span><span class="p">¥3,300</span></div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="thumb"><span class="g g-2 mark-b"><i class="l"></i><i class="b"></i></span></div>
+                <div class="body">
+                  <div class="stat"><span class="led" style="background:#5aa9ff"></span><span class="lbl">Upcoming — D-12</span></div>
+                  <h4>ハイキュー!! アクリルスタンド</h4>
+                  <div class="meta"><span class="d">09.02</span><span class="p">¥1,100</span></div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="thumb"><span class="g g-3 mark-c"><i class="c"></i><i class="l"></i></span></div>
+                <div class="body">
+                  <div class="stat"><span class="led" style="background:#3ad17e"></span><span class="lbl">Open Now</span></div>
+                  <h4>呪術廻戦 POP UP SHOP</h4>
+                  <div class="meta"><span class="d">08.15 — 09.01</span><span class="p" style="color:#9b978f;font-size:10px">渋谷</span></div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="thumb"><span class="g g-4 mark-d"><i class="b"></i><i class="c"></i></span></div>
+                <div class="body">
+                  <div class="stat"><span class="led" style="background:#5c5c62"></span><span class="lbl">Closed</span></div>
+                  <h4>【推しの子】缶バッジBOX</h4>
+                  <div class="meta"><span class="d">受付終了 08.18</span><span class="p" style="color:#5c5c62">¥4,400</span></div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="thumb"><span class="g g-5 mark-b"><i class="l"></i><i class="b"></i></span></div>
+                <div class="body">
+                  <div class="stat"><span class="led" style="background:#5aa9ff"></span><span class="lbl">Opens Soon</span></div>
+                  <h4>SPY×FAMILY 一番くじ</h4>
+                  <div class="meta"><span class="d">09.12 —</span><span class="p">¥770</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="nav">
+            <button class="act"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 8.5 10 3l7 5.5V17H3z"/></svg><span class="lbl">Home</span></button>
+            <button><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/></svg><span class="lbl">Find</span></button>
+            <button class="add"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 4v12M4 10h12"/></svg><span class="lbl">Post</span></button>
+            <button><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 16S3.5 12 3.5 7.8A3.3 3.3 0 0 1 10 6.4a3.3 3.3 0 0 1 6.5 1.4C16.5 12 10 16 10 16z"/></svg><span class="lbl">Saved</span></button>
+            <button><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="7" r="3"/><path d="M4 17c0-3.3 2.7-5 6-5s6 1.7 6 5"/></svg><span class="lbl">Me</span></button>
+          </div>
+        </div>
+        <figcaption>A ─ 探す</figcaption>
+      </figure>
+
+      <figure class="screen-slot" style="margin:0">
+        <div class="ph d-a">
+          <div class="scroll">
+            <div class="portbar">
+              <div class="on"><div class="lbl">Profile</div><div class="val">マイページ</div></div>
+            </div>
+            <div class="idcard">
+              <div class="avatar"><span class="g g-5 mark-a"><i class="c"></i><i class="b"></i></span></div>
+              <div>
+                <div class="lbl">Porter / 情報の運び手</div>
+                <div style="font-size:16px;font-weight:700;margin-top:2px">しばの</div>
+              </div>
+            </div>
+            <div class="grade">
+              <div class="lbl" style="margin-bottom:5px">Fan Grade</div>
+              <div class="num"><i>00</i>5</div>
+              <div style="display:flex;gap:14px;margin-top:9px">
+                <div><div class="lbl">Posts</div><div class="mono" style="font-size:15px">42</div></div>
+                <div><div class="lbl">Likes</div><div class="mono" style="font-size:15px">318</div></div>
+                <div><div class="lbl">Works</div><div class="mono" style="font-size:15px">07</div></div>
+              </div>
+            </div>
+            <div style="padding:0 10px 6px">
+              <svg viewBox="0 0 200 200" width="100%" height="152" style="display:block">
+                <polygon points="100,22 174.2,75.9 145.8,163.1 54.2,163.1 25.8,75.9" fill="none" stroke="#3a3a40" stroke-width="1"/>
+                <polygon points="100,48.5 149,83.9 130.2,141.6 69.8,141.6 51,83.9" fill="none" stroke="#2c2c31" stroke-width="1"/>
+                <polygon points="100,74.3 124.5,92 115.1,120.8 84.9,120.8 75.5,92" fill="none" stroke="#2c2c31" stroke-width="1"/>
+                <line x1="100" y1="100" x2="100" y2="22" stroke="#2c2c31"/>
+                <line x1="100" y1="100" x2="174.2" y2="75.9" stroke="#2c2c31"/>
+                <line x1="100" y1="100" x2="145.8" y2="163.1" stroke="#2c2c31"/>
+                <line x1="100" y1="100" x2="54.2" y2="163.1" stroke="#2c2c31"/>
+                <line x1="100" y1="100" x2="25.8" y2="75.9" stroke="#2c2c31"/>
+                <polygon points="100,36 147.5,84.6 141.3,156.8 74.8,134.7 46.6,82.6" fill="rgba(255,92,31,.16)" stroke="#ff5c1f" stroke-width="1.4"/>
+                <g fill="#9b978f" font-family="'Space Grotesk',sans-serif" font-size="8.5" letter-spacing="1.4">
+                  <text x="100" y="14" text-anchor="middle">POST</text>
+                  <text x="182" y="74" text-anchor="start">LIKE</text>
+                  <text x="152" y="178" text-anchor="middle">FIND</text>
+                  <text x="48" y="178" text-anchor="middle">KEEP</text>
+                  <text x="18" y="74" text-anchor="end">REACT</text>
+                </g>
+              </svg>
+            </div>
+            <div class="swrow"><span class="t">発売・受付の通知</span><span class="sw on"><i></i></span></div>
+            <div class="swrow"><span class="t">カレンダーに自動で入れる</span><span class="sw on"><i></i></span></div>
+            <div class="swrow"><span class="t">プレミアム</span><span class="lbl" style="color:#ff5c1f">ACTIVE</span></div>
+            <div class="swrow"><span class="t">アカウント</span><span class="lbl">SHIBANO@…</span></div>
+          </div>
+          <div class="nav">
+            <button><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 8.5 10 3l7 5.5V17H3z"/></svg><span class="lbl">Home</span></button>
+            <button><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/></svg><span class="lbl">Find</span></button>
+            <button class="add"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 4v12M4 10h12"/></svg><span class="lbl">Post</span></button>
+            <button><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 16S3.5 12 3.5 7.8A3.3 3.3 0 0 1 10 6.4a3.3 3.3 0 0 1 6.5 1.4C16.5 12 10 16 10 16z"/></svg><span class="lbl">Saved</span></button>
+            <button class="act"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="7" r="3"/><path d="M4 17c0-3.3 2.7-5 6-5s6 1.7 6 5"/></svg><span class="lbl">Me</span></button>
+          </div>
+        </div>
+        <figcaption>A ─ マイページ</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ 案B ═══════════════ -->
+<section class="band" id="b">
+  <div class="wrap band-inner">
+    <div class="arg">
+      <p class="tag">案 B</p>
+      <h2>QUIET</h2>
+      <p class="jp">静寂</p>
+      <p>線を髪の毛ほど細くし、余白を大きく取り、囲みをやめる。カードを全部なくして、
+      罫線と間だけで一覧を作りました。和文は<strong>明朝</strong>、英字は字間を広げた小さな等幅。</p>
+      <p>Death Stranding の PORTER GRADE 画面にあった「角の小さなかぎ」「先頭ゼロ付きの数値」
+      「六角形の能力図」を、そのままFanHiveの称号チャートに移しています。</p>
+      <div class="spec">
+        <div><dt>骨格</dt><dd>新川・小島 ─ 細線・余白・小さなかぎ</dd></div>
+        <div><dt>質感</dt><dd>墨の一筆（自作のSVG）</dd></div>
+        <div><dt>動き</dt><dd>ほぼなし。切り替えの溶暗だけ</dd></div>
+      </div>
+      <div class="chips">
+        <span class="chip" style="background:#07090c"></span>
+        <span class="chip" style="background:#0c1015"></span>
+        <span class="chip" style="background:#e8e5dc"></span>
+        <span class="chip" style="background:#7f8791"></span>
+        <span class="chip" style="background:#d9a441"></span>
+        <span class="chip" style="background:#8fb6c6"></span>
+      </div>
+      <div class="spec">
+        <div><dt>和文</dt><dd>しっぽり明朝 ─ 見出し・品名</dd></div>
+        <div><dt>本文</dt><dd>Noto Sans JP Light</dd></div>
+        <div><dt>数値</dt><dd>Space Mono ─ 字間広め</dd></div>
+      </div>
+      <p class="risk"><b>不安な点。</b>1画面に入る件数が減ります。
+      「たくさん見て回る」のが収益の本体なので、密度と美しさが正面からぶつかる案です。</p>
+    </div>
+
+    <div class="screens">
+      <figure class="screen-slot" style="margin:0">
+        <div class="ph d-b">
+          <div class="scroll">
+            <div class="head">
+              <div class="caps">Explore ─ 024 items</div>
+              <h3>探す</h3>
+              <svg class="brush" viewBox="0 0 280 16" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M2 9.5C34 4.2 62 12.4 96 8.1c34-4.3 58 5.2 92 1.4 22-2.4 60-3.9 88-2.2" fill="none" stroke="#e8e5dc" stroke-width="2.2" stroke-linecap="round" opacity=".8"/>
+                <path d="M6 12.4C40 9 70 14 104 11.2c30-2.5 52 3 82 .8" fill="none" stroke="#e8e5dc" stroke-width=".9" stroke-linecap="round" opacity=".45"/>
+              </svg>
+            </div>
+            <div class="seg">
+              <span class="on">グッズ</span><span class="div"></span><span>イベント</span>
+            </div>
+            <div class="filters">
+              <span class="caps on">Work</span><span class="caps">Region</span><span class="caps">Period</span>
+            </div>
+            <div class="rows">
+              <div class="row">
+                <div class="thumb"><span class="g g-1 mark-a"><i class="c"></i><i class="b"></i></span></div>
+                <div class="body">
+                  <div class="stat"><i></i><span class="caps">Preorder</span></div>
+                  <h4>ちいかわ もちもちぬいぐるみ</h4>
+                  <span class="d">08.25 — 09.10</span>
+                  <span class="p">¥3,300 / あみあみ</span>
+                </div>
+              </div>
+              <div class="row">
+                <div class="thumb"><span class="g g-2 mark-b"><i class="l"></i><i class="b"></i></span></div>
+                <div class="body">
+                  <div class="stat b"><i></i><span class="caps">Upcoming ─ D-12</span></div>
+                  <h4>ハイキュー!! アクリルスタンド</h4>
+                  <span class="d">09.02</span>
+                  <span class="p">¥1,100 / アニメイト</span>
+                </div>
+              </div>
+              <div class="row">
+                <div class="thumb"><span class="g g-3 mark-c"><i class="c"></i><i class="l"></i></span></div>
+                <div class="body">
+                  <div class="stat ok"><i></i><span class="caps">Open Now</span></div>
+                  <h4>呪術廻戦 POP UP SHOP</h4>
+                  <span class="d">08.15 — 09.01</span>
+                  <span class="p">東京 / 渋谷</span>
+                </div>
+              </div>
+              <div class="row">
+                <div class="thumb"><span class="g g-4 mark-d"><i class="b"></i><i class="c"></i></span></div>
+                <div class="body">
+                  <div class="stat e"><i></i><span class="caps">Closed</span></div>
+                  <h4>【推しの子】缶バッジBOX</h4>
+                  <span class="d">受付終了 08.18</span>
+                  <span class="p">¥4,400 / プレミアムバンダイ</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="nav">
+            <button><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1"><path d="M3 8.5 10 3l7 5.5V17H3z"/></svg><span class="caps">Home</span></button>
+            <button class="act"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1"><circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/></svg><span class="caps">Find</span></button>
+            <button><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1"><path d="M10 4v12M4 10h12"/></svg><span class="caps">Post</span></button>
+            <button><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1"><path d="M10 16S3.5 12 3.5 7.8A3.3 3.3 0 0 1 10 6.4a3.3 3.3 0 0 1 6.5 1.4C16.5 12 10 16 10 16z"/></svg><span class="caps">Keep</span></button>
+            <button><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1"><circle cx="10" cy="7" r="3"/><path d="M4 17c0-3.3 2.7-5 6-5s6 1.7 6 5"/></svg><span class="caps">Me</span></button>
+          </div>
+        </div>
+        <figcaption>B ─ 探す</figcaption>
+      </figure>
+
+      <figure class="screen-slot" style="margin:0">
+        <div class="ph d-b">
+          <div class="scroll">
+            <div class="prof">
+              <div class="caps">Fan Grade ─ 005</div>
+              <div class="avatar" style="margin-top:14px"><span class="g g-5 mark-a"><i class="c"></i><i class="b"></i></span></div>
+              <div class="nm">しばの</div>
+              <div class="ttl">情報の運び手</div>
+            </div>
+            <div style="padding:6px 20px 0">
+              <svg viewBox="0 0 200 200" width="100%" height="158" style="display:block">
+                <polygon points="100,22 174.2,75.9 145.8,163.1 54.2,163.1 25.8,75.9" fill="none" stroke="rgba(232,229,220,.16)" stroke-width=".8"/>
+                <polygon points="100,48.5 149,83.9 130.2,141.6 69.8,141.6 51,83.9" fill="none" stroke="rgba(232,229,220,.08)" stroke-width=".8"/>
+                <polygon points="100,74.3 124.5,92 115.1,120.8 84.9,120.8 75.5,92" fill="none" stroke="rgba(232,229,220,.08)" stroke-width=".8"/>
+                <line x1="100" y1="100" x2="100" y2="22" stroke="rgba(232,229,220,.09)"/>
+                <line x1="100" y1="100" x2="174.2" y2="75.9" stroke="rgba(232,229,220,.09)"/>
+                <line x1="100" y1="100" x2="145.8" y2="163.1" stroke="rgba(232,229,220,.09)"/>
+                <line x1="100" y1="100" x2="54.2" y2="163.1" stroke="rgba(232,229,220,.09)"/>
+                <line x1="100" y1="100" x2="25.8" y2="75.9" stroke="rgba(232,229,220,.09)"/>
+                <polygon points="100,36 147.5,84.6 141.3,156.8 74.8,134.7 46.6,82.6" fill="rgba(217,164,65,.10)" stroke="#d9a441" stroke-width="1"/>
+                <g fill="#7f8791" font-family="'Space Mono',monospace" font-size="7.5" letter-spacing="2">
+                  <text x="100" y="13" text-anchor="middle">POST</text>
+                  <text x="184" y="73" text-anchor="start">LIKE</text>
+                  <text x="152" y="180" text-anchor="middle">FIND</text>
+                  <text x="48" y="180" text-anchor="middle">KEEP</text>
+                  <text x="16" y="73" text-anchor="end">REACT</text>
+                </g>
+              </svg>
+            </div>
+            <div class="statline">
+              <div><span class="n">42</span><span class="caps">Posts</span></div>
+              <div><span class="n">318</span><span class="caps">Likes</span></div>
+              <div><span class="n">07</span><span class="caps">Works</span></div>
+            </div>
+            <div style="padding:8px 0 0">
+              <div class="prow"><span class="t">発売・受付の通知</span><span class="v">ON</span></div>
+              <div class="prow"><span class="t">カレンダー連携</span><span class="v">GOOGLE</span></div>
+              <div class="prow"><span class="t">プレミアム</span><span class="v" style="color:#d9a441">ACTIVE</span></div>
+              <div class="prow"><span class="t">アカウント</span><span class="v">SHIBANO</span></div>
+            </div>
+          </div>
+          <div class="nav">
+            <button><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1"><path d="M3 8.5 10 3l7 5.5V17H3z"/></svg><span class="caps">Home</span></button>
+            <button><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1"><circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/></svg><span class="caps">Find</span></button>
+            <button><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1"><path d="M10 4v12M4 10h12"/></svg><span class="caps">Post</span></button>
+            <button><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1"><path d="M10 16S3.5 12 3.5 7.8A3.3 3.3 0 0 1 10 6.4a3.3 3.3 0 0 1 6.5 1.4C16.5 12 10 16 10 16z"/></svg><span class="caps">Keep</span></button>
+            <button class="act"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1"><circle cx="10" cy="7" r="3"/><path d="M4 17c0-3.3 2.7-5 6-5s6 1.7 6 5"/></svg><span class="caps">Me</span></button>
+          </div>
+        </div>
+        <figcaption>B ─ マイページ</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ 案C ═══════════════ -->
+<section class="band" id="c">
+  <div class="wrap band-inner">
+    <div class="arg">
+      <p class="tag">案 C</p>
+      <h2>DOT</h2>
+      <p class="jp">ドット</p>
+      <p>純黒と純白だけ。背景に点の格子を敷き、ラベル・数字・見出しは<strong>ドット書体</strong>で打つ。
+      赤は「今すぐ動くべき1件」にだけ、点1つ分の面積で使います。</p>
+      <p>実際のNothingのやり方どおり、<strong>日本語の本文はドットにしない</strong>。
+      ドットにするのは短い語・数字・英字だけ、という線引きです。写真も網点をかけて素材を統一します。</p>
+      <div class="spec">
+        <div><dt>骨格</dt><dd>Nothing ─ 点の格子、白黒、赤1点</dd></div>
+        <div><dt>質感</dt><dd>網点。アイコンも点で組む</dd></div>
+        <div><dt>動き</dt><dd>点が順に灯る出方だけ</dd></div>
+      </div>
+      <div class="chips">
+        <span class="chip" style="background:#000"></span>
+        <span class="chip" style="background:#0f0f0f"></span>
+        <span class="chip" style="background:#fff"></span>
+        <span class="chip" style="background:#7a7a7a"></span>
+        <span class="chip" style="background:#d71921"></span>
+      </div>
+      <div class="spec">
+        <div><dt>ドット</dt><dd>DotGothic16 ─ 和欧両方いける自由書体</dd></div>
+        <div><dt>本文</dt><dd>Noto Sans JP</dd></div>
+        <div><dt>備考</dt><dd>Ndot（Nothing専用書体）は使わない</dd></div>
+      </div>
+      <p class="risk"><b>不安な点。</b>統一感は5案で最強ですが、ドット書体は小さいと読みにくい。
+      12px以下では使わない、という線を引く必要があります。</p>
+    </div>
+
+    <div class="screens">
+      <figure class="screen-slot" style="margin:0">
+        <div class="ph d-c">
+          <div class="scroll">
+            <div class="head">
+              <span class="dotgrid"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i></i><i></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i></span>
+              <span class="wm">FANHIVE(β)</span>
+              <span class="dotgrid"><i class="f"></i><i></i><i class="f"></i><i></i><i class="f"></i><i></i><i class="f"></i><i></i><i class="f"></i><i></i><i class="f"></i><i></i><i class="f"></i><i></i><i class="f"></i></span>
+            </div>
+            <div class="seg"><span class="on">グッズ</span><span>イベント</span></div>
+            <div class="cnt"><span class="n">24</span><span class="u">NEW / 08.21</span></div>
+            <div class="filters"><span>作品</span><span>地域</span><span>期間</span></div>
+            <div class="rows">
+              <div class="row">
+                <div class="thumb"><span class="g g-1 mark-a"><i class="c"></i><i class="b"></i></span></div>
+                <div class="body">
+                  <div class="stat"><span class="b r"></span><span class="dot">予約・受注中</span></div>
+                  <h4>ちいかわ もちもちぬいぐるみ</h4>
+                  <div class="meta"><span class="d">08.25-09.10</span><span class="p">3,300</span></div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="thumb"><span class="g g-2 mark-b"><i class="l"></i><i class="b"></i></span></div>
+                <div class="body">
+                  <div class="stat"><span class="b o"></span><span class="dot">発売予定 D-12</span></div>
+                  <h4>ハイキュー!! アクリルスタンド</h4>
+                  <div class="meta"><span class="d">09.02</span><span class="p">1,100</span></div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="thumb"><span class="g g-3 mark-c"><i class="c"></i><i class="l"></i></span></div>
+                <div class="body">
+                  <div class="stat"><span class="b"></span><span class="dot">開催中</span></div>
+                  <h4>呪術廻戦 POP UP SHOP</h4>
+                  <div class="meta"><span class="d">08.15-09.01</span><span class="p" style="font-size:10px">渋谷</span></div>
+                </div>
+              </div>
+              <div class="row" style="opacity:.45">
+                <div class="thumb"><span class="g g-4 mark-d"><i class="b"></i><i class="c"></i></span></div>
+                <div class="body">
+                  <div class="stat"><span class="b o"></span><span class="dot">受付終了</span></div>
+                  <h4>【推しの子】缶バッジBOX</h4>
+                  <div class="meta"><span class="d">08.18</span><span class="p">4,400</span></div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="thumb"><span class="g g-5 mark-b"><i class="l"></i><i class="b"></i></span></div>
+                <div class="body">
+                  <div class="stat"><span class="b o"></span><span class="dot">もうすぐ予約開始</span></div>
+                  <h4>SPY×FAMILY 一番くじ</h4>
+                  <div class="meta"><span class="d">09.12-</span><span class="p">770</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="nav">
+            <button><span class="dotgrid"><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i class="f"></i><i></i><i class="f"></i><i></i><i></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i></span><span class="dot">ホーム</span></button>
+            <button class="act"><span class="dotgrid"><i></i><i class="f"></i><i class="f"></i><i></i><i></i><i class="f"></i><i></i><i class="f"></i><i></i><i></i><i></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i></span><span class="dot">探す</span></button>
+            <button><span class="dotgrid"><i></i><i></i><i class="f"></i><i></i><i></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i class="f"></i><i></i><i></i></span><span class="dot">投稿</span></button>
+            <button><span class="dotgrid"><i class="f"></i><i></i><i class="f"></i><i></i><i></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i class="f"></i><i></i><i></i><i></i></span><span class="dot">いいね</span></button>
+            <button><span class="dotgrid"><i></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i class="f"></i><i class="f"></i><i></i><i></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i></span><span class="dot">マイ</span></button>
+          </div>
+        </div>
+        <figcaption>C ─ 探す</figcaption>
+      </figure>
+
+      <figure class="screen-slot" style="margin:0">
+        <div class="ph d-c">
+          <div class="scroll">
+            <div class="head">
+              <span class="wm">マイページ</span>
+              <span class="dot" style="font-size:10px;color:rgba(255,255,255,.45)">GRADE 005</span>
+            </div>
+            <div class="prof">
+              <div class="avatar"><span class="g g-5 mark-a"><i class="c"></i><i class="b"></i></span></div>
+              <div>
+                <div class="nm">しばの</div>
+                <div class="ttl">情報の運び手</div>
+              </div>
+            </div>
+            <div style="padding:12px 15px 0">
+              <svg viewBox="0 0 200 200" width="100%" height="150" style="display:block">
+                <polygon points="100,22 174.2,75.9 145.8,163.1 54.2,163.1 25.8,75.9" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="1" stroke-dasharray="1.6 3.2" stroke-linecap="round"/>
+                <polygon points="100,48.5 149,83.9 130.2,141.6 69.8,141.6 51,83.9" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="1" stroke-dasharray="1.6 3.2" stroke-linecap="round"/>
+                <polygon points="100,74.3 124.5,92 115.1,120.8 84.9,120.8 75.5,92" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="1" stroke-dasharray="1.6 3.2" stroke-linecap="round"/>
+                <polygon points="100,36 147.5,84.6 141.3,156.8 74.8,134.7 46.6,82.6" fill="rgba(255,255,255,.10)" stroke="#fff" stroke-width="1.2"/>
+                <g fill="#fff">
+                  <circle cx="100" cy="36" r="2.6"/><circle cx="147.5" cy="84.6" r="2.6"/>
+                  <circle cx="141.3" cy="156.8" r="2.6"/><circle cx="74.8" cy="134.7" r="2.6"/>
+                  <circle cx="46.6" cy="82.6" r="2.6"/>
+                </g>
+                <circle cx="147.5" cy="84.6" r="5" fill="none" stroke="#d71921" stroke-width="1.4"/>
+                <g fill="rgba(255,255,255,.5)" font-family="'DotGothic16',monospace" font-size="9">
+                  <text x="100" y="14" text-anchor="middle">投稿</text>
+                  <text x="182" y="74" text-anchor="start">いいね</text>
+                  <text x="152" y="180" text-anchor="middle">発見</text>
+                  <text x="48" y="180" text-anchor="middle">継続</text>
+                  <text x="18" y="74" text-anchor="end">反応</text>
+                </g>
+              </svg>
+            </div>
+            <div class="statline">
+              <div><span class="n">42</span><span class="k">投稿</span></div>
+              <div style="padding-left:10px"><span class="n">318</span><span class="k">いいね</span></div>
+              <div style="padding-left:10px"><span class="n">07</span><span class="k">作品</span></div>
+            </div>
+            <div style="padding-top:12px">
+              <div class="prow"><span class="t">発売・受付の通知</span><span class="v">ON</span></div>
+              <div class="prow"><span class="t">カレンダー連携</span><span class="v">GOOGLE</span></div>
+              <div class="prow"><span class="t">プレミアム</span><span class="v" style="color:#d71921">ACTIVE</span></div>
+              <div class="prow"><span class="t">アカウント</span><span class="v">SHIBANO</span></div>
+            </div>
+          </div>
+          <div class="nav">
+            <button><span class="dotgrid"><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i class="f"></i><i></i><i class="f"></i><i></i><i></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i></span><span class="dot">ホーム</span></button>
+            <button><span class="dotgrid"><i></i><i class="f"></i><i class="f"></i><i></i><i></i><i class="f"></i><i></i><i class="f"></i><i></i><i></i><i></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i></span><span class="dot">探す</span></button>
+            <button><span class="dotgrid"><i></i><i></i><i class="f"></i><i></i><i></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i class="f"></i><i></i><i></i></span><span class="dot">投稿</span></button>
+            <button><span class="dotgrid"><i class="f"></i><i></i><i class="f"></i><i></i><i></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i class="f"></i><i></i><i></i><i></i></span><span class="dot">いいね</span></button>
+            <button class="act"><span class="dotgrid"><i></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i class="f"></i><i class="f"></i><i></i><i></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i></span><span class="dot">マイ</span></button>
+          </div>
+        </div>
+        <figcaption>C ─ マイページ</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ 案D ═══════════════ -->
+<section class="band" id="d">
+  <div class="wrap band-inner">
+    <div class="arg">
+      <p class="tag">案 D</p>
+      <h2>SURGE</h2>
+      <p class="jp">高揚</p>
+      <p>斜めに切る、少し回す、重ねる、太い書体で殴る。ペルソナの<strong>勢いの作り方</strong>だけを持ち込みました。
+      色は赤黒白にせず、FanHiveの黄（#FFD400）と黒。ここを赤にすると誰が見ても複製に見えます。</p>
+      <p>カードは長方形をやめて多角形で切り、1枚ごとに0.6〜0.7度ずつ傾けています。
+      画面に入った瞬間だけ滑り込む動きが付く前提の絵です。</p>
+      <div class="spec">
+        <div><dt>骨格</dt><dd>ペルソナ ─ 斜め・重なり・太い字</dd></div>
+        <div><dt>質感</dt><dd>網点を全面に薄く</dd></div>
+        <div><dt>動き</dt><dd>常時。全部が動く前提</dd></div>
+      </div>
+      <div class="chips">
+        <span class="chip" style="background:#0a0a0a"></span>
+        <span class="chip" style="background:#111114"></span>
+        <span class="chip" style="background:#fff"></span>
+        <span class="chip" style="background:#ffd400"></span>
+        <span class="chip" style="background:#8a8a8a"></span>
+      </div>
+      <div class="spec">
+        <div><dt>欧文</dt><dd>Anton ─ 極太の圧縮体</dd></div>
+        <div><dt>和文</dt><dd>Noto Sans JP Black</dd></div>
+        <div><dt>数値</dt><dd>Space Grotesk</dd></div>
+      </div>
+      <p class="risk"><b>不安な点。</b>2つあります。毎日開くアプリでこの音量は疲れること。
+      そして<strong>寄せすぎると著作権上あぶない</strong>のはこの案だけです。色を赤にせず、
+      切り抜きの形も原典から離す前提でしか成立しません。</p>
+    </div>
+
+    <div class="screens">
+      <figure class="screen-slot" style="margin:0">
+        <div class="ph d-d">
+          <div class="scroll">
+            <div class="head">
+              <div class="en">Explore</div>
+              <div class="jp">グッズを探す</div>
+            </div>
+            <div class="seg"><span class="on">グッズ</span><span>イベント</span></div>
+            <div class="cnt"><span class="n">24</span><span class="u">NEW TODAY / 08.21</span></div>
+            <div class="rows">
+              <div class="row">
+                <div class="thumb"><span class="g g-1 mark-a"><i class="c"></i><i class="b"></i></span></div>
+                <div class="body">
+                  <span class="tag">予約・受注中</span>
+                  <h4>ちいかわ もちもちぬいぐるみ</h4>
+                  <div class="meta"><span class="d">08.25 — 09.10</span><span class="p">¥3,300</span></div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="thumb"><span class="g g-2 mark-b"><i class="l"></i><i class="b"></i></span></div>
+                <div class="body">
+                  <span class="tag w">発売まで あと12日</span>
+                  <h4>ハイキュー!! アクリルスタンド</h4>
+                  <div class="meta"><span class="d">09.02</span><span class="p">¥1,100</span></div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="thumb"><span class="g g-3 mark-c"><i class="c"></i><i class="l"></i></span></div>
+                <div class="body">
+                  <span class="tag">開催中</span>
+                  <h4>呪術廻戦 POP UP SHOP</h4>
+                  <div class="meta"><span class="d">08.15 — 09.01 / 渋谷</span><span class="p" style="font-size:11px">入場無料</span></div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="thumb"><span class="g g-4 mark-d"><i class="b"></i><i class="c"></i></span></div>
+                <div class="body">
+                  <span class="tag o">受付終了</span>
+                  <h4>【推しの子】缶バッジBOX</h4>
+                  <div class="meta"><span class="d">08.18</span><span class="p" style="color:#8a8a8a">¥4,400</span></div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="thumb"><span class="g g-5 mark-b"><i class="l"></i><i class="b"></i></span></div>
+                <div class="body">
+                  <span class="tag w">もうすぐ予約開始</span>
+                  <h4>SPY×FAMILY 一番くじ</h4>
+                  <div class="meta"><span class="d">09.12 —</span><span class="p">¥770</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="nav">
+            <button><svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M3 8.5 10 3l7 5.5V17H3z"/></svg><span class="k">ホーム</span></button>
+            <button class="act"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6"><circle cx="9" cy="9" r="5"/><path d="M13 13l4 4"/></svg><span class="k">探す</span></button>
+            <button class="add"><span class="cap"><svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="3"><path d="M10 4v12M4 10h12"/></svg></span><span class="k">投稿</span></button>
+            <button><svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M10 16.5S3 12.2 3 7.9A3.5 3.5 0 0 1 10 6.3a3.5 3.5 0 0 1 7 1.6c0 4.3-7 8.6-7 8.6z"/></svg><span class="k">いいね</span></button>
+            <button><svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="6.6" r="3.2"/><path d="M4 17c0-3.4 2.7-5.2 6-5.2s6 1.8 6 5.2z"/></svg><span class="k">マイ</span></button>
+          </div>
+        </div>
+        <figcaption>D ─ 探す</figcaption>
+      </figure>
+
+      <figure class="screen-slot" style="margin:0">
+        <div class="ph d-d">
+          <div class="scroll">
+            <div class="head" style="padding-bottom:30px">
+              <div class="en">Profile</div>
+              <div class="jp">マイページ</div>
+            </div>
+            <div class="prof">
+              <div style="display:flex;gap:13px;align-items:flex-end">
+                <div class="avatar"><span class="g g-5 mark-a"><i class="c"></i><i class="b"></i></span></div>
+                <div>
+                  <div class="nm">SHIBANO</div>
+                  <div class="ttl">情報の運び手 / GRADE 5</div>
+                </div>
+              </div>
+            </div>
+            <div class="statline">
+              <div><span class="n">42</span><span class="k">投稿</span></div>
+              <div><span class="n">318</span><span class="k">いいね</span></div>
+              <div><span class="n">7</span><span class="k">作品</span></div>
+            </div>
+            <div style="padding:4px 12px 0">
+              <svg viewBox="0 0 200 200" width="100%" height="150" style="display:block;transform:rotate(-3deg)">
+                <polygon points="100,22 174.2,75.9 145.8,163.1 54.2,163.1 25.8,75.9" fill="none" stroke="rgba(255,255,255,.20)" stroke-width="1.4"/>
+                <polygon points="100,48.5 149,83.9 130.2,141.6 69.8,141.6 51,83.9" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="1.4"/>
+                <polygon points="100,36 147.5,84.6 141.3,156.8 74.8,134.7 46.6,82.6" fill="rgba(255,212,0,.30)" stroke="#ffd400" stroke-width="3" stroke-linejoin="miter"/>
+                <g fill="#fff" font-family="'Space Grotesk',sans-serif" font-weight="700" font-size="9" letter-spacing="1">
+                  <text x="100" y="14" text-anchor="middle">POST</text>
+                  <text x="182" y="74" text-anchor="start">LIKE</text>
+                  <text x="152" y="180" text-anchor="middle">FIND</text>
+                  <text x="48" y="180" text-anchor="middle">KEEP</text>
+                  <text x="18" y="74" text-anchor="end">REACT</text>
+                </g>
+              </svg>
+            </div>
+            <div style="padding-top:8px">
+              <div class="prow"><span class="t">発売・受付の通知</span><span class="v">ON</span></div>
+              <div class="prow"><span class="t">カレンダー連携</span><span class="v">GOOGLE</span></div>
+              <div class="prow"><span class="t">プレミアム</span><span class="v" style="color:#ffd400">ACTIVE</span></div>
+              <div class="prow"><span class="t">アカウント</span><span class="v">SHIBANO</span></div>
+            </div>
+          </div>
+          <div class="nav">
+            <button><svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M3 8.5 10 3l7 5.5V17H3z"/></svg><span class="k">ホーム</span></button>
+            <button><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6"><circle cx="9" cy="9" r="5"/><path d="M13 13l4 4"/></svg><span class="k">探す</span></button>
+            <button class="add"><span class="cap"><svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="3"><path d="M10 4v12M4 10h12"/></svg></span><span class="k">投稿</span></button>
+            <button><svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M10 16.5S3 12.2 3 7.9A3.5 3.5 0 0 1 10 6.3a3.5 3.5 0 0 1 7 1.6c0 4.3-7 8.6-7 8.6z"/></svg><span class="k">いいね</span></button>
+            <button class="act"><svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="6.6" r="3.2"/><path d="M4 17c0-3.4 2.7-5.2 6-5.2s6 1.8 6 5.2z"/></svg><span class="k">マイ</span></button>
+          </div>
+        </div>
+        <figcaption>D ─ マイページ</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ 案E ═══════════════ -->
+<section class="band" id="e">
+  <div class="wrap band-inner">
+    <div class="arg">
+      <p class="tag">案 E</p>
+      <h2>MAX</h2>
+      <p class="jp">全部盛り</p>
+      <p>4つ全部を1画面に同時に入れました。点の格子（Nothing）、黒い凹みと押しボタン（TE）、
+      明朝の見出しと墨の一筆（新川）、斜めに傾いた札（ペルソナ）。色も橙・琥珀・赤の3つを同時に使っています。</p>
+      <p>これは<strong>密度の上限を測るための案</strong>です。実際に組んでみて分かったのは、
+      個々の部品はどれも成立するのに、一緒に置くと<strong>どこを見ればいいか分からなくなる</strong>ということでした。
+      混ぜるなら、どれかを「常時」に、残りを「瞬間」に降格させる必要があります。</p>
+      <div class="spec">
+        <div><dt>骨格</dt><dd>TE＋Nothing（同時）</dd></div>
+        <div><dt>質感</dt><dd>明朝＋墨＋点格子（同時）</dd></div>
+        <div><dt>動き</dt><dd>斜めの札（常時）</dd></div>
+      </div>
+      <div class="chips">
+        <span class="chip" style="background:#0b0b0d"></span>
+        <span class="chip" style="background:#17171b"></span>
+        <span class="chip" style="background:#f0ede6"></span>
+        <span class="chip" style="background:#ff5c1f"></span>
+        <span class="chip" style="background:#d9a441"></span>
+        <span class="chip" style="background:#d71921"></span>
+      </div>
+      <div class="spec">
+        <div><dt>書体</dt><dd>5種を同時に（明朝・ゴシック・ドット・等幅・欧文）</dd></div>
+      </div>
+      <p class="risk"><b>この案の使い道。</b>採用するためというより、<strong>どこまでが入れすぎか</strong>を
+      目で確かめるためのものです。ここから引いていくと、たぶんAかCに着地します。</p>
+    </div>
+
+    <div class="screens">
+      <figure class="screen-slot" style="margin:0">
+        <div class="ph d-e">
+          <div class="scroll">
+            <div class="head">
+              <div class="top">
+                <span class="wm">FANHIVE(β)</span>
+                <span class="code">08.21 FRI</span>
+              </div>
+              <h3>探す</h3>
+              <svg class="brush" viewBox="0 0 280 13" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M2 7.5C34 3 62 10.4 96 6.6c34-3.8 58 4.6 92 1.2 22-2.1 60-3.4 88-1.9" fill="none" stroke="#f0ede6" stroke-width="1.8" stroke-linecap="round" opacity=".8"/>
+              </svg>
+            </div>
+            <div class="seg"><span class="on">グッズ</span><span>イベント</span></div>
+            <div class="readout">
+              <div><span class="n">24</span> <span class="u">NEW</span></div>
+              <div class="date">2026.08.21</div>
+            </div>
+            <div class="keys">
+              <div class="key"><span class="n">01</span><span class="t">作品</span></div>
+              <div class="key"><span class="n">02</span><span class="t">地域</span></div>
+              <div class="key"><span class="n">03</span><span class="t">期間</span></div>
+            </div>
+            <div class="rows">
+              <div class="row">
+                <span class="tag">予約・受注中</span>
+                <div class="thumb"><span class="g g-1 mark-a"><i class="c"></i><i class="b"></i></span></div>
+                <div class="body">
+                  <div class="stat"><i></i><span class="caps">Preorder</span></div>
+                  <h4>ちいかわ もちもちぬいぐるみ</h4>
+                  <div class="meta"><span class="d">08.25 — 09.10</span><span class="p">3,300</span></div>
+                </div>
+              </div>
+              <div class="row">
+                <span class="tag b">D-12</span>
+                <div class="thumb"><span class="g g-2 mark-b"><i class="l"></i><i class="b"></i></span></div>
+                <div class="body">
+                  <div class="stat"><i style="background:#5aa9ff"></i><span class="caps">Upcoming</span></div>
+                  <h4>ハイキュー!! アクリルスタンド</h4>
+                  <div class="meta"><span class="d">09.02</span><span class="p">1,100</span></div>
+                </div>
+              </div>
+              <div class="row">
+                <span class="tag ok">開催中</span>
+                <div class="thumb"><span class="g g-3 mark-c"><i class="c"></i><i class="l"></i></span></div>
+                <div class="body">
+                  <div class="stat"><i style="background:#3ad17e"></i><span class="caps">Open Now</span></div>
+                  <h4>呪術廻戦 POP UP SHOP</h4>
+                  <div class="meta"><span class="d">08.15 — 09.01</span><span class="p" style="font-size:10px;color:#8b8880">渋谷</span></div>
+                </div>
+              </div>
+              <div class="row">
+                <span class="tag e">終了</span>
+                <div class="thumb"><span class="g g-4 mark-d"><i class="b"></i><i class="c"></i></span></div>
+                <div class="body">
+                  <div class="stat"><i style="background:#4a4a50"></i><span class="caps">Closed</span></div>
+                  <h4>【推しの子】缶バッジBOX</h4>
+                  <div class="meta"><span class="d">08.18</span><span class="p" style="color:#6a6862">4,400</span></div>
+                </div>
+              </div>
+              <div class="row">
+                <span class="tag b">09.12〜</span>
+                <div class="thumb"><span class="g g-5 mark-b"><i class="l"></i><i class="b"></i></span></div>
+                <div class="body">
+                  <div class="stat"><i style="background:#5aa9ff"></i><span class="caps">Opens Soon</span></div>
+                  <h4>SPY×FAMILY 一番くじ</h4>
+                  <div class="meta"><span class="d">09.12 —</span><span class="p">770</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="nav">
+            <button><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 8.5 10 3l7 5.5V17H3z"/></svg><span class="k">ホーム</span></button>
+            <button class="act"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/></svg><span class="k">探す</span></button>
+            <button class="add"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 4v12M4 10h12"/></svg><span class="k">投稿</span></button>
+            <button><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 16S3.5 12 3.5 7.8A3.3 3.3 0 0 1 10 6.4a3.3 3.3 0 0 1 6.5 1.4C16.5 12 10 16 10 16z"/></svg><span class="k">いいね</span></button>
+            <button><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="7" r="3"/><path d="M4 17c0-3.3 2.7-5 6-5s6 1.7 6 5"/></svg><span class="k">マイ</span></button>
+          </div>
+        </div>
+        <figcaption>E ─ 探す</figcaption>
+      </figure>
+
+      <figure class="screen-slot" style="margin:0">
+        <div class="ph d-e">
+          <div class="scroll">
+            <div class="head">
+              <div class="top">
+                <span class="wm">マイページ</span>
+                <span class="code">GRADE 005</span>
+              </div>
+              <h3>記録</h3>
+              <svg class="brush" viewBox="0 0 280 13" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M2 7.5C34 3 62 10.4 96 6.6c34-3.8 58 4.6 92 1.2 22-2.1 60-3.4 88-1.9" fill="none" stroke="#f0ede6" stroke-width="1.8" stroke-linecap="round" opacity=".8"/>
+              </svg>
+            </div>
+            <div class="prof">
+              <div class="avatar"><span class="g g-5 mark-a"><i class="c"></i><i class="b"></i></span></div>
+              <div>
+                <div class="nm">しばの</div>
+                <div class="ttl">情報の運び手</div>
+              </div>
+            </div>
+            <div class="grade">
+              <div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:.2em;color:#8b8880;margin-bottom:3px">FAN GRADE</div>
+                <div class="num"><i>00</i>5</div>
+              </div>
+              <div style="display:flex;gap:12px;text-align:right">
+                <div><div style="font-family:'DotGothic16',monospace;font-size:17px">42</div><div style="font-family:'JetBrains Mono',monospace;font-size:7.5px;letter-spacing:.16em;color:#8b8880">POST</div></div>
+                <div><div style="font-family:'DotGothic16',monospace;font-size:17px">318</div><div style="font-family:'JetBrains Mono',monospace;font-size:7.5px;letter-spacing:.16em;color:#8b8880">LIKE</div></div>
+              </div>
+            </div>
+            <div style="padding:0 13px 4px">
+              <svg viewBox="0 0 200 200" width="100%" height="140" style="display:block">
+                <polygon points="100,22 174.2,75.9 145.8,163.1 54.2,163.1 25.8,75.9" fill="none" stroke="rgba(240,237,230,.18)" stroke-width="1" stroke-dasharray="1.6 3.2"/>
+                <polygon points="100,48.5 149,83.9 130.2,141.6 69.8,141.6 51,83.9" fill="none" stroke="rgba(240,237,230,.10)" stroke-width="1"/>
+                <polygon points="100,36 147.5,84.6 141.3,156.8 74.8,134.7 46.6,82.6" fill="rgba(255,92,31,.16)" stroke="#ff5c1f" stroke-width="1.6"/>
+                <g fill="#8b8880" font-family="'DotGothic16',monospace" font-size="9">
+                  <text x="100" y="14" text-anchor="middle">投稿</text>
+                  <text x="182" y="74" text-anchor="start">いいね</text>
+                  <text x="152" y="180" text-anchor="middle">発見</text>
+                  <text x="48" y="180" text-anchor="middle">継続</text>
+                  <text x="18" y="74" text-anchor="end">反応</text>
+                </g>
+              </svg>
+            </div>
+            <div class="prow"><span class="t">発売・受付の通知</span><span class="v">ON</span></div>
+            <div class="prow"><span class="t">カレンダー連携</span><span class="v">GOOGLE</span></div>
+            <div class="prow"><span class="t">プレミアム</span><span class="v" style="color:#d9a441">ACTIVE</span></div>
+            <div class="prow"><span class="t">アカウント</span><span class="v">SHIBANO</span></div>
+          </div>
+          <div class="nav">
+            <button><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 8.5 10 3l7 5.5V17H3z"/></svg><span class="k">ホーム</span></button>
+            <button><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/></svg><span class="k">探す</span></button>
+            <button class="add"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 4v12M4 10h12"/></svg><span class="k">投稿</span></button>
+            <button><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 16S3.5 12 3.5 7.8A3.3 3.3 0 0 1 10 6.4a3.3 3.3 0 0 1 6.5 1.4C16.5 12 10 16 10 16z"/></svg><span class="k">いいね</span></button>
+            <button class="act"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="7" r="3"/><path d="M4 17c0-3.3 2.7-5 6-5s6 1.7 6 5"/></svg><span class="k">マイ</span></button>
+          </div>
+        </div>
+        <figcaption>E ─ マイページ</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ 締め ═══════════════ -->
+<section class="close">
+  <div class="wrap">
+    <h2>組んでみて分かったこと</h2>
+    <p>Nothing と Teenage Engineering は<strong>同じ家系</strong>で、混ぜても喧嘩しません（案Aと案Cは兄弟です）。
+    新川・小島は<strong>そこに温度と間を足す</strong>役に回れます。問題はペルソナで、
+    これだけは常時使うと他の3つを全部押しのけてしまう。案Eがそれを示しています。</p>
+    <p>だから<strong>「4つを均等に混ぜる」は成立しません</strong>。骨格を1つ選び、
+    残りを質感・瞬間の役に降ろす形になります。</p>
+
+    <h3>推し</h3>
+    <p><strong>A（計器）を骨格に、Cのドットを数字と件数だけに、Bの細線と余白を余白の設計に、Dは投稿完了と称号取得の一瞬だけ。</strong>
+    FanHiveは「発売日と締切を読む」アプリなので、計器の比喩が飾りではなく機能に効きます。
+    ただし案Cの統一感は5案中いちばん強いので、「もっと尖らせたい」ならCも十分ありです。</p>
+
+    <h3>ここに映っていないもの</h3>
+    <p>この5案はどれも見た目の話です。マイページを「人物・記録・設定」に分ける件、
+    テーマ7種の作り直し、広告バナーの居場所、11px下限の可読性、web版の下地──
+    これらは決まった案の上で個別に詰めます。機能は1つも減らしません。</p>
+
+    <div class="steps">
+      <div><span class="s">STEP 1</span><span class="h">案を選ぶ</span><span class="b">1案そのままでも、「Aの骨格＋Cの数字」のような組み合わせでも構いません。</span></div>
+      <div><span class="s">STEP 2</span><span class="h">設計書を書く</span><span class="b">色・文字・余白・角・動き・アイコンの規則を docs に。変数のキーは消しません。</span></div>
+      <div><span class="s">STEP 3</span><span class="h">「探す」を通しで実装</span><span class="b">土台＋1画面だけブランチに入れて、プレビューURLで実物を確認。</span></div>
+      <div><span class="s">STEP 4</span><span class="h">残り17画面</span><span class="b">外枠 → 詳細・投稿 → マイページ再構成 → 課金・通知・ウィジェット。</span></div>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="wrap">
+    branch: design/panel ─ main には反映しません ─ 書体は自由に使える許諾のもの（SIL OFL）のみ ─ 図形・アイコンはすべて自作
+  </div>
+</footer>
