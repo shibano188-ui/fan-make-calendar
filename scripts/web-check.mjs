@@ -131,6 +131,42 @@ async function run() {
       await page.waitForTimeout(250);
     }
 
+    // 4.5 いいねタブにカレンダーが在る（アプリ版の 月/週/日/リスト を落としていないか）
+    if (await likeBtn.isVisible().catch(() => false)) {
+      await likeBtn.click(); // 1件いいねしてから
+      await page.waitForTimeout(300);
+      if (sz.side) await page.getByRole('button', { name: 'いいね' }).first().click();
+      else {
+        await page.getByLabel('メニュー').click(); await page.waitForTimeout(350);
+        await page.getByRole('button', { name: 'いいね' }).first().click();
+      }
+      await page.waitForTimeout(600);
+      const seg = await page.evaluate(() =>
+        ['月', '週', '日', 'リスト'].every((l) =>
+          [...document.querySelectorAll('.wd-seg')].some((b) => (b.textContent || '').trim() === l)));
+      log(seg, 'いいねタブに 月/週/日/リスト がある');
+      const cells = await page.locator('.wd-day').count();
+      log(cells > 0, `  カレンダーのマス目が出ている（${cells}）`);
+      // 探すに戻す
+      if (sz.side) await page.getByRole('button', { name: '探す' }).first().click();
+      else {
+        await page.getByLabel('メニュー').click(); await page.waitForTimeout(350);
+        await page.getByRole('button', { name: '探す' }).first().click();
+      }
+      await page.waitForTimeout(500);
+      await likeBtn.click(); // 戻す
+      await page.waitForTimeout(250);
+    }
+
+    // 4.6 投稿とお知らせがスマホの画面へ飛ばない
+    await page.getByLabel(sz.side ? '' : 'メニュー').click().catch(() => {});
+    if (!sz.side) await page.waitForTimeout(350);
+    await page.getByRole('button', { name: '投稿する' }).first().click().catch(() => {});
+    await page.waitForTimeout(500);
+    log(page.url().endsWith('/web'), '投稿を押しても web の画面から出ない');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+
     // 5. 文字がはみ出していない（横スクロールが出ない）
     const overflowX = await page.evaluate(() =>
       document.documentElement.scrollWidth - document.documentElement.clientWidth);

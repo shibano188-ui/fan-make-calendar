@@ -30,13 +30,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Home, Search, Heart, User, Plus, SlidersHorizontal, Bell, X, ExternalLink,
-  LayoutGrid, Rows3, Star, Settings, SmilePlus, Menu, CalendarPlus, Check,
+  LayoutGrid, Rows3, Star, Settings, SmilePlus, Menu, Check, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { listExploreEvents } from '../lib/api';
 import { parseCategories, parseImageUrls, getPrimaryCategoryColor } from '../lib/constants';
 import { deriveStatus, deriveItemType, statusLabel, itemDateLines, todayStr, type ItemStatus } from '../design/tokens';
 import { REACTIONS, type ReactionType } from '../lib/reactions';
-import { downloadICS } from '../lib/ics';
+import { buildWorkColorMap } from '../lib/workColors';
 import { SKINS, SKIN_IDS } from '../design/skins';
 import { useTheme } from '../contexts/ThemeContext';
 import OptImg from '../components/ui/OptImg';
@@ -44,6 +44,43 @@ import type { CalendarEvent } from '../types';
 
 type Density = 'grid' | 'rows';
 type View = 'home' | 'explore' | 'saved' | 'me';
+/** いいねタブの表示。アプリ版（Saved.tsx）と同じ4つ */
+type SavedView = 'month' | 'week' | 'day' | 'list';
+
+const SAVED_VIEWS: { key: SavedView; label: string }[] = [
+  { key: 'month', label: '月' },
+  { key: 'week', label: '週' },
+  { key: 'day', label: '日' },
+  { key: 'list', label: 'リスト' },
+];
+
+const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
+
+function parseYmd(s: string): Date { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+function fmtYmd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function addDays(s: string, n: number): string { const d = parseYmd(s); d.setDate(d.getDate() + n); return fmtYmd(d); }
+function addMonths(s: string, n: number): string { const d = parseYmd(s); d.setMonth(d.getMonth() + n, 1); return fmtYmd(d); }
+function startOfWeek(s: string): string { const d = parseYmd(s); d.setDate(d.getDate() - d.getDay()); return fmtYmd(d); }
+/** その予定で「何かが起きる日」だけを返す。
+ *  期間の全日を塗るとカレンダーが帯で埋まって、いつ動くべきかが読めなくなる。
+ *  このアプリで意味があるのは 受付開始・受付締切・発売/開催の開始・終了 の4つ。 */
+function keyDaysOf(e: CalendarEvent): { day: string; kind: 'preStart' | 'preEnd' | 'start' | 'end' }[] {
+  const out: { day: string; kind: 'preStart' | 'preEnd' | 'start' | 'end' }[] = [];
+  if (e.preorderStart) out.push({ day: e.preorderStart, kind: 'preStart' });
+  if (e.preorderEnd) out.push({ day: e.preorderEnd, kind: 'preEnd' });
+  if (e.date) out.push({ day: e.date, kind: 'start' });
+  if (e.endDate && e.endDate !== e.date) out.push({ day: e.endDate, kind: 'end' });
+  return out;
+}
+const KIND_LABEL: Record<'preStart' | 'preEnd' | 'start' | 'end', string> = {
+  preStart: '受付開始', preEnd: '受付しめきり', start: '発売・開催', end: '終了',
+};
+/** その予定が関わる日（範囲つき）。期間で拾いたいところだけで使う */
+function daysOf(e: CalendarEvent): string[] {
+  return keyDaysOf(e).map((k) => k.day);
+}
 
 const VIEWS: { id: View; label: string; icon: typeof Home }[] = [
   { id: 'home', label: 'ホーム', icon: Home },
@@ -84,6 +121,11 @@ export default function WebDemo() {
   const [cats, setCats] = useState<Set<string>>(new Set());
   const [prefs, setPrefs] = useState<Set<string>>(new Set());
   const [openId, setOpenId] = useState<string | null>(null);
+  // いいねタブの表示。アプリ版と同じ 月/週/日/リスト の4つ
+  const [savedView, setSavedView] = useState<SavedView>('month');
+  const [anchor, setAnchor] = useState<string>(() => todayStr());
+  const [postOpen, setPostOpen] = useState(false);
+  const [noticeOpen, setNoticeOpen] = useState(false);
 
   // 幅が足りないときにかぶせて出すもの
   const [navOpen, setNavOpen] = useState(false);
@@ -122,7 +164,10 @@ export default function WebDemo() {
       const typing = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA');
       if (e.key === '/' && !typing) { e.preventDefault(); searchRef.current?.focus(); }
       if (e.key === 'Escape') {
+        // 開いているものを上から順に1つだけ閉じる
         if (rxFor) setRxFor(null);
+        else if (postOpen) setPostOpen(false);
+        else if (noticeOpen) setNoticeOpen(false);
         else if (notesOpen) setNotesOpen(false);
         else if (filterOpen) setFilterOpen(false);
         else if (navOpen) setNavOpen(false);
@@ -132,7 +177,7 @@ export default function WebDemo() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [openId, rxFor, notesOpen, filterOpen, navOpen]);
+  }, [openId, rxFor, notesOpen, filterOpen, navOpen, postOpen, noticeOpen]);
 
   const toggleSet = useCallback(<T,>(set: Set<T>, v: T, fn: (s: Set<T>) => void) => {
     const next = new Set(set);
@@ -227,7 +272,7 @@ export default function WebDemo() {
       view={view} setView={(v) => { setView(v); setNavOpen(false); }}
       works={facets.works} selectedWorks={works}
       onToggleWork={(w) => toggleSet(works, w, setWorks)}
-      onPost={() => navigate('/post')}
+      onPost={() => { setPostOpen(true); setNavOpen(false); }}
       onNotes={() => { setNotesOpen(true); setNavOpen(false); }}
       likedCount={liked.size}
     />
@@ -288,7 +333,7 @@ export default function WebDemo() {
                 <Icon size={17} />
               </button>
             ))}
-            <button onClick={() => navigate('/notices')} aria-label="お知らせ"
+            <button onClick={() => setNoticeOpen(true)} aria-label="お知らせ"
               className="wd-icon p-2 rounded-[9px] pressable" style={{ color: 'var(--label-tertiary)' }}>
               <Bell size={17} />
             </button>
@@ -317,6 +362,15 @@ export default function WebDemo() {
           <main className="flex-1 min-w-0 overflow-y-auto px-3 md:px-5 py-4">
             {view === 'me' ? (
               <MyPanel likedCount={liked.size} onOpenApp={() => navigate('/mypage')} />
+            ) : view === 'saved' ? (
+              <SavedPane
+                items={shown} savedView={savedView} setSavedView={setSavedView}
+                anchor={anchor} setAnchor={setAnchor}
+                openId={openId} onOpen={setOpenId}
+                liked={liked} reactions={reactions}
+                onLike={(e) => toggleLike(e.id, e.title)} onReact={(e) => setRxFor(e.id)}
+                density={density}
+              />
             ) : (
               <>
                 <div className="flex items-baseline gap-2 mb-3 flex-wrap">
@@ -344,9 +398,7 @@ export default function WebDemo() {
                 )}
                 {items !== null && shown.length === 0 && (
                   <p className="text-[13px] py-10 text-center" style={{ color: 'var(--label-tertiary)' }}>
-                    {view === 'saved'
-                      ? 'まだいいねしていません。カードのハートを押すとここに溜まります。'
-                      : '条件に合うものがありません。絞り込みを減らしてみてください。'}
+                    条件に合うものがありません。絞り込みを減らしてみてください。
                   </p>
                 )}
                 <div className={density === 'grid' ? 'wd-grid' : 'flex flex-col gap-2'}>
@@ -421,6 +473,8 @@ export default function WebDemo() {
       )}
 
       {notesOpen && <Notes onClose={() => setNotesOpen(false)} />}
+      {postOpen && <PostPane onClose={() => setPostOpen(false)} onOpenApp={() => navigate('/post')} />}
+      {noticeOpen && <NoticePane onClose={() => setNoticeOpen(false)} onOpenApp={() => navigate('/notices')} />}
 
       {toast && (
         <div className="fixed left-1/2 -translate-x-1/2 bottom-6 z-[400] px-4 py-2.5 rounded-[10px] text-[13px] font-semibold pointer-events-none"
@@ -676,8 +730,13 @@ function DetailBody({ event, liked, reaction, onClose, onLike, onReact, say }: {
           style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-tertiary)' }}>Esc</kbd>
         <button onClick={onClose} aria-label="閉じる" className="pressable p-1"><X size={17} style={{ color: 'var(--label-secondary)' }} /></button>
       </div>
-      <div className="aspect-square w-full overflow-hidden flex-shrink-0" style={{ backgroundColor: 'var(--fill-quaternary)' }}>
-        {img && <OptImg src={img} w={640} alt="" className="w-full h-full object-cover" />}
+      {/* 告知画像は縦長も横長もある。正方形に切り抜くと文字や日付が切れるので、
+          高さだけ決めて全体を収める（object-contain）。余白は地の色で埋める */}
+      <div className="w-full flex items-center justify-center flex-shrink-0 py-2"
+        style={{ backgroundColor: 'var(--fill-quaternary)', minHeight: 180 }}>
+        {img
+          ? <OptImg src={img} w={640} alt="" className="max-w-full object-contain" style={{ maxHeight: 340 }} />
+          : <div className="h-[180px]" />}
       </div>
       <div className="px-4 py-3">
         <span className="inline-block text-[10.5px] font-bold px-1.5 py-0.5 rounded-[5px]"
@@ -691,7 +750,9 @@ function DetailBody({ event, liked, reaction, onClose, onLike, onReact, say }: {
         </div>
         {yen(event.price) && <div className="tabular-nums text-[20px] font-bold mt-2" style={{ color: 'var(--accent-text)' }}>{yen(event.price)}</div>}
 
-        {/* 触る画面の4操作（いいね・リアクション・カレンダー・共有）は web でも同じ並び */}
+        {/* アプリ版の詳細と同じ4つ・同じ並び。
+            カレンダーは今のアプリでは出していない（EXTERNAL_CALENDAR_ENABLED=false）ので置かない。
+            通知ベルは「いいねした予定にだけ」出るという条件もそのまま。 */}
         <div className="grid grid-cols-4 gap-1.5 mt-3">
           <DetailAct label="いいね" value={likeCount > 0 ? String(likeCount) : ''} on={liked} onClick={onLike}>
             <Heart size={15} fill={liked ? 'currentColor' : 'none'} />
@@ -699,11 +760,10 @@ function DetailBody({ event, liked, reaction, onClose, onLike, onReact, say }: {
           <DetailAct label="リアクション" value={rx ? rx.label : ''} on={!!rx} onClick={onReact}>
             <SmilePlus size={15} />
           </DetailAct>
-          {/* web でカレンダーに入れる正攻法は .ics を渡すこと。端末のカレンダーが
-              受け取って、Google でも Apple でも同じように開ける */}
-          <DetailAct label="カレンダー" value="" on={false}
-            onClick={() => say(downloadICS(event) ? 'カレンダー用のファイルを書き出しました' : '日付が未定なので書き出せません')}>
-            <CalendarPlus size={15} />
+          {/* 通知ベルは「いいねした予定にだけ」出る。アプリ版と同じ条件にしてある */}
+          <DetailAct label={liked ? '通知' : '—'} value="" on={false} disabled={!liked}
+            onClick={() => say(liked ? '発売・締切の通知を入れました' : '')}>
+            <Bell size={15} />
           </DetailAct>
           <DetailAct label="共有" value="" on={false} onClick={share}>
             <ExternalLink size={15} />
@@ -738,19 +798,411 @@ function DetailBody({ event, liked, reaction, onClose, onLike, onReact, say }: {
   );
 }
 
-function DetailAct({ label, value, on, onClick, children }: {
-  label: string; value: string; on: boolean; onClick: () => void; children: React.ReactNode;
+function DetailAct({ label, value, on, onClick, children, disabled }: {
+  label: string; value: string; on: boolean; onClick: () => void; children: React.ReactNode; disabled?: boolean;
 }) {
   return (
-    <button onClick={onClick} aria-label={label} aria-pressed={on}
+    <button onClick={onClick} aria-label={label} aria-pressed={on} disabled={disabled}
       className="wd-act flex flex-col items-center gap-0.5 py-2 px-1 rounded-[9px] pressable min-w-0"
       style={on
         ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)', border: '1px solid transparent' }
-        : { backgroundColor: 'var(--fill-quaternary)', border: '1px solid var(--border-subtle)', color: 'var(--label-secondary)' }}>
+        : { backgroundColor: 'var(--fill-quaternary)', border: '1px solid var(--border-subtle)',
+            color: 'var(--label-secondary)', opacity: disabled ? 0.4 : 1 }}>
       {children}
       <span className="text-[9.5px] truncate max-w-full" style={on ? undefined : { color: 'var(--label-tertiary)' }}>{label}</span>
       {value && <span className="tabular-nums text-[10px] font-bold truncate max-w-full">{value}</span>}
     </button>
+  );
+}
+
+
+/* ── いいねタブ：カレンダー ───────────────────────────
+   アプリ版の /saved は 月・週・日・リスト の4表示を持っている。
+   web でも同じ4つを残し、幅がある分だけ「月の横に予定名」を並べる。 */
+function SavedPane({ items, savedView, setSavedView, anchor, setAnchor, openId, onOpen, liked, reactions, onLike, onReact, density }: {
+  items: CalendarEvent[]; savedView: SavedView; setSavedView: (v: SavedView) => void;
+  anchor: string; setAnchor: (s: string) => void;
+  openId: string | null; onOpen: (id: string) => void;
+  liked: Set<string>; reactions: Record<string, ReactionType>;
+  onLike: (e: CalendarEvent) => void; onReact: (e: CalendarEvent) => void;
+  density: Density;
+}) {
+  const today = todayStr();
+  const colorOf = useMemo(() => {
+    const works = [...new Set(items.map((e) => e.workId).filter(Boolean))] as string[];
+    const map = buildWorkColorMap(works.map((id) => ({ id })));
+    return (e: CalendarEvent) => (e.workId ? map.get(e.workId) : undefined) ?? 'var(--accent-color)';
+  }, [items]);
+
+  // 日付ごとの「起きること」。同じ予定でも受付開始と締切は別の日として並ぶ
+  const byDay = useMemo(() => {
+    const m = new Map<string, { e: CalendarEvent; kind: 'preStart' | 'preEnd' | 'start' | 'end' }[]>();
+    for (const e of items) for (const k of keyDaysOf(e)) {
+      if (!m.has(k.day)) m.set(k.day, []);
+      m.get(k.day)!.push({ e, kind: k.kind });
+    }
+    return m;
+  }, [items]);
+
+  const undated = useMemo(() => items.filter((e) => !e.date && !e.preorderStart), [items]);
+
+  const monthLabel = `${parseYmd(anchor).getFullYear()}.${String(parseYmd(anchor).getMonth() + 1).padStart(2, '0')}`;
+  const step = (n: number) => setAnchor(savedView === 'month' ? addMonths(anchor, n) : addDays(anchor, savedView === 'week' ? n * 7 : n));
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <h1 className="text-[17px] font-bold">いいね</h1>
+        <span className="tabular-nums text-[12.5px]" style={{ color: 'var(--label-tertiary)' }}>{items.length} 件</span>
+        <div className="flex ml-auto rounded-[9px] overflow-hidden" style={{ border: '1px solid var(--border-subtle)' }}>
+          {SAVED_VIEWS.map((v) => (
+            <button key={v.key} onClick={() => setSavedView(v.key)} aria-pressed={savedView === v.key}
+              className="wd-seg px-3 py-1.5 text-[12px] font-semibold pressable"
+              style={savedView === v.key
+                ? { backgroundColor: 'var(--label-primary)', color: 'var(--bg-primary)' }
+                : { color: 'var(--label-secondary)' }}>
+              {v.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {items.length === 0 && (
+        <p className="text-[13px] py-10 text-center" style={{ color: 'var(--label-tertiary)' }}>
+          まだいいねしていません。カードのハートを押すとここに溜まります。
+        </p>
+      )}
+
+      {items.length > 0 && savedView === 'list' && (
+        <div className={density === 'grid' ? 'wd-grid' : 'flex flex-col gap-2'}>
+          {items.map((e) => (
+            <Card key={e.id} event={e} rows={density === 'rows'} active={e.id === openId}
+              liked={liked.has(e.id)} reaction={reactions[e.id]}
+              onOpen={() => onOpen(e.id)} onLike={() => onLike(e)} onReact={() => onReact(e)} />
+          ))}
+        </div>
+      )}
+
+      {items.length > 0 && savedView !== 'list' && (
+        <>
+          <div className="flex items-center gap-2 mb-2">
+            <button onClick={() => step(-1)} aria-label="前へ" className="wd-icon p-1.5 rounded-[8px] pressable"
+              style={{ color: 'var(--label-secondary)' }}><ChevronLeft size={17} /></button>
+            <span className="tabular-nums text-[15px] font-bold min-w-[92px] text-center">
+              {savedView === 'month' ? monthLabel : anchor.replace(/-/g, '.')}
+            </span>
+            <button onClick={() => step(1)} aria-label="次へ" className="wd-icon p-1.5 rounded-[8px] pressable"
+              style={{ color: 'var(--label-secondary)' }}><ChevronRight size={17} /></button>
+            <button onClick={() => setAnchor(today)} className="text-[12px] px-2 py-1 rounded-[7px] pressable"
+              style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-secondary)' }}>今日</button>
+          </div>
+
+          <div className="flex flex-col xl:flex-row gap-4">
+            {/* 月・週のマス目 */}
+            <div className="flex-1 min-w-0">
+              {savedView === 'month' && (
+                <MonthGrid anchor={anchor} today={today} byDay={byDay} colorOf={colorOf}
+                  onPick={(d) => { setAnchor(d); setSavedView('day'); }} />
+              )}
+              {savedView === 'week' && (
+                <WeekGrid anchor={anchor} today={today} byDay={byDay} colorOf={colorOf}
+                  onPick={(d) => { setAnchor(d); setSavedView('day'); }} />
+              )}
+              {savedView === 'day' && (
+                <DayList day={anchor} list={byDay.get(anchor) ?? []} colorOf={colorOf} onOpen={onOpen} openId={openId} />
+              )}
+            </div>
+
+            {/* 横に並ぶ予定名。幅があるときだけ（月・週） */}
+            {savedView !== 'day' && (
+              <div className="xl:w-[320px] flex-shrink-0">
+                <div className="text-[10px] font-bold tracking-[0.14em] mb-1.5" style={{ color: 'var(--label-tertiary)' }}>
+                  {savedView === 'month' ? 'この月の予定' : 'この週の予定'}
+                </div>
+                <MonthList
+                  items={items} anchor={anchor} scope={savedView} colorOf={colorOf}
+                  onOpen={onOpen} openId={openId} />
+              </div>
+            )}
+          </div>
+
+          {undated.length > 0 && (
+            <>
+              <div className="text-[10px] font-bold tracking-[0.14em] mt-5 mb-1.5" style={{ color: 'var(--label-tertiary)' }}>
+                日付未定 ─ {undated.length}件
+              </div>
+              <div className="flex flex-col gap-1">
+                {undated.map((e) => (
+                  <Row key={e.id} event={e} color={colorOf(e)} active={e.id === openId} onOpen={() => onOpen(e.id)} />
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+type DayEntry = { e: CalendarEvent; kind: 'preStart' | 'preEnd' | 'start' | 'end' };
+
+function MonthGrid({ anchor, today, byDay, colorOf, onPick }: {
+  anchor: string; today: string; byDay: Map<string, DayEntry[]>;
+  colorOf: (e: CalendarEvent) => string; onPick: (d: string) => void;
+}) {
+  const cur = parseYmd(anchor);
+  const first = fmtYmd(new Date(cur.getFullYear(), cur.getMonth(), 1));
+  const gridStart = startOfWeek(first);
+  const days = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
+  const month = cur.getMonth();
+  return (
+    <div className="rounded-[12px] overflow-hidden" style={{ border: '1px solid var(--border-subtle)' }}>
+      <div className="grid grid-cols-7">
+        {WEEKDAYS.map((w, i) => (
+          <div key={w} className="text-[10px] text-center py-1.5"
+            style={{ color: i === 0 ? 'var(--cal-sunday-color)' : i === 6 ? 'var(--cal-saturday-color)' : 'var(--label-tertiary)' }}>{w}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7">
+        {days.map((d) => {
+          const out = parseYmd(d).getMonth() !== month;
+          const list = byDay.get(d) ?? [];
+          return (
+            <button key={d} onClick={() => onPick(d)}
+              className="wd-day text-left p-1 min-h-[62px] border-t border-l pressable"
+              style={{ borderColor: 'var(--border-faint)', opacity: out ? 0.38 : 1 }}>
+              <span className="tabular-nums text-[11px] inline-flex items-center justify-center w-5 h-5 rounded-full"
+                style={d === today
+                  ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)', fontWeight: 700 }
+                  : { color: 'var(--label-secondary)' }}>
+                {parseYmd(d).getDate()}
+              </span>
+              <span className="flex flex-col gap-[2px] mt-0.5">
+                {list.slice(0, 3).map((x, i) => (
+                  <span key={`${x.e.id}-${x.kind}-${i}`} className="flex items-center gap-1 min-w-0">
+                    <i className="w-[3px] h-[9px] rounded-sm flex-shrink-0" style={{ backgroundColor: colorOf(x.e) }} />
+                    <span className="text-[9px] truncate"
+                      style={{ color: x.kind === 'preEnd' ? 'var(--status-preorder)' : 'var(--label-secondary)' }}>
+                      {KIND_LABEL[x.kind]}
+                    </span>
+                  </span>
+                ))}
+                {list.length > 3 && (
+                  <span className="tabular-nums text-[9px]" style={{ color: 'var(--label-tertiary)' }}>+{list.length - 3}</span>
+                )}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function WeekGrid({ anchor, today, byDay, colorOf, onPick }: {
+  anchor: string; today: string; byDay: Map<string, DayEntry[]>;
+  colorOf: (e: CalendarEvent) => string; onPick: (d: string) => void;
+}) {
+  const start = startOfWeek(anchor);
+  const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+  return (
+    <div className="grid grid-cols-7 gap-1.5">
+      {days.map((d, i) => {
+        const list = byDay.get(d) ?? [];
+        return (
+          <button key={d} onClick={() => onPick(d)}
+            className="wd-day text-left rounded-[10px] p-1.5 min-h-[150px] pressable"
+            style={{ border: '1px solid var(--border-subtle)', backgroundColor: d === today ? 'var(--fill-quaternary)' : 'transparent' }}>
+            <div className="text-[9.5px]" style={{ color: i === 0 ? 'var(--cal-sunday-color)' : i === 6 ? 'var(--cal-saturday-color)' : 'var(--label-tertiary)' }}>
+              {WEEKDAYS[i]}
+            </div>
+            <div className="tabular-nums text-[15px] font-bold leading-none mb-1.5"
+              style={d === today ? { color: 'var(--accent-text)' } : undefined}>{parseYmd(d).getDate()}</div>
+            <div className="flex flex-col gap-1">
+              {list.slice(0, 5).map((x, i) => (
+                <span key={`${x.e.id}-${x.kind}-${i}`} className="block text-[10px] leading-tight px-1 py-0.5 rounded-[4px]"
+                  style={{ backgroundColor: 'var(--fill-quaternary)', borderLeft: `2px solid ${colorOf(x.e)}` }}>
+                  <span className="block text-[8.5px]"
+                    style={{ color: x.kind === 'preEnd' ? 'var(--status-preorder)' : 'var(--label-tertiary)' }}>
+                    {KIND_LABEL[x.kind]}
+                  </span>
+                  <span className="block truncate">{x.e.title}</span>
+                </span>
+              ))}
+              {list.length > 5 && (
+                <span className="tabular-nums text-[9.5px]" style={{ color: 'var(--label-tertiary)' }}>+{list.length - 5}</span>
+              )}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function DayList({ day, list, colorOf, onOpen, openId }: {
+  day: string; list: DayEntry[]; colorOf: (e: CalendarEvent) => string;
+  onOpen: (id: string) => void; openId: string | null;
+}) {
+  return (
+    <div>
+      <div className="text-[10px] font-bold tracking-[0.14em] mb-1.5" style={{ color: 'var(--label-tertiary)' }}>
+        {day.replace(/-/g, '.')} ─ {list.length}件
+      </div>
+      {list.length === 0
+        ? <p className="text-[13px] py-8 text-center" style={{ color: 'var(--label-tertiary)' }}>この日の予定はありません</p>
+        : <div className="flex flex-col gap-1">
+            {list.map((x, i) => (
+              <Row key={`${x.e.id}-${x.kind}-${i}`} event={x.e} color={colorOf(x.e)} kind={KIND_LABEL[x.kind]}
+                active={x.e.id === openId} onOpen={() => onOpen(x.e.id)} />
+            ))}
+          </div>}
+    </div>
+  );
+}
+
+function MonthList({ items, anchor, scope, colorOf, onOpen, openId }: {
+  items: CalendarEvent[]; anchor: string; scope: 'month' | 'week';
+  colorOf: (e: CalendarEvent) => string; onOpen: (id: string) => void; openId: string | null;
+}) {
+  const inRange = useMemo(() => {
+    const from = scope === 'month'
+      ? fmtYmd(new Date(parseYmd(anchor).getFullYear(), parseYmd(anchor).getMonth(), 1))
+      : startOfWeek(anchor);
+    const to = scope === 'month'
+      ? fmtYmd(new Date(parseYmd(anchor).getFullYear(), parseYmd(anchor).getMonth() + 1, 0))
+      : addDays(startOfWeek(anchor), 6);
+    return items
+      .filter((e) => daysOf(e).some((d) => d >= from && d <= to))
+      .sort((a, b) => (a.preorderEnd ?? a.date ?? '9999').localeCompare(b.preorderEnd ?? b.date ?? '9999'));
+  }, [items, anchor, scope]);
+
+  if (inRange.length === 0) {
+    return <p className="text-[12.5px] py-4" style={{ color: 'var(--label-tertiary)' }}>この期間の予定はありません</p>;
+  }
+  return (
+    <div className="flex flex-col gap-1">
+      {inRange.map((e) => <Row key={e.id} event={e} color={colorOf(e)} active={e.id === openId} onOpen={() => onOpen(e.id)} />)}
+    </div>
+  );
+}
+
+/** カレンダーの中で使う1行 */
+function Row({ event, color, active, onOpen, kind }: {
+  event: CalendarEvent; color: string; active: boolean; onOpen: () => void; kind?: string;
+}) {
+  const st = deriveStatus(event);
+  return (
+    <button onClick={onOpen}
+      className="flex items-center gap-2 w-full text-left px-2 py-1.5 rounded-[8px] pressable"
+      style={{
+        backgroundColor: active ? 'var(--fill-tertiary)' : 'var(--bg-secondary)',
+        border: `1px solid ${active ? 'var(--accent-color)' : 'var(--border-subtle)'}`,
+      }}>
+      <i className="w-[3px] self-stretch rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+      <span className="flex-1 min-w-0">
+        <span className="block text-[10px] truncate" style={{ color: 'var(--label-tertiary)' }}>
+          {kind ? `${kind}${event.workName ? ' ／ ' + event.workName : ''}` : (event.workName ?? '')}
+        </span>
+        <span className="block text-[12px] font-semibold truncate">{event.title}</span>
+        <span className="block tabular-nums text-[10.5px] truncate" style={{ color: 'var(--label-tertiary)' }}>{itemDateLines(event)[0]}</span>
+      </span>
+      <i className="w-[7px] h-[7px] rounded-full flex-shrink-0" style={{ backgroundColor: statusColor(st) }} />
+    </button>
+  );
+}
+
+/* ── 投稿（web の面で開く。スマホの枠に飛ばさない）───────── */
+function PostPane({ onClose, onOpenApp }: { onClose: () => void; onOpenApp: () => void }) {
+  const fields: [string, string][] = [
+    ['作品', '検索して選ぶ／新しく作る'],
+    ['タイトル', ''],
+    ['カテゴリ', '複数選べる'],
+    ['受注・予約', 'する／しない'],
+    ['受付', '開始 — 締切（時刻も）'],
+    ['発売・開催', '日付／未定／上旬・中旬・下旬／春頃'],
+    ['価格', ''],
+    ['販売店とリンク', '複数'],
+    ['場所', '都道府県・会場'],
+    ['画像', ''],
+  ];
+  return (
+    <div className="fixed inset-0 z-[330] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.55)' }} onClick={onClose}>
+      <div className="w-full max-w-[860px] max-h-[86vh] overflow-y-auto rounded-[14px] p-5 sm:p-6"
+        style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-default)' }}
+        onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start gap-3 mb-1">
+          <h2 className="text-[18px] font-bold flex-1">投稿する</h2>
+          <button onClick={onClose} aria-label="閉じる" className="pressable p-1"><X size={18} /></button>
+        </div>
+        <p className="text-[12.5px] mb-4" style={{ color: 'var(--label-secondary)' }}>
+          web では左右に分けます。<strong style={{ color: 'var(--label-primary)' }}>左に貼る、右に確かめる。</strong>
+          スマホは1本の縦の流れですが、幅があるぶん「貼った内容」と「AIが埋めた結果」を並べて見比べられます。
+        </p>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div>
+            <div className="text-[10px] font-bold tracking-[0.14em] mb-1.5" style={{ color: 'var(--label-tertiary)' }}>公式の告知を貼る</div>
+            <div className="rounded-[10px] p-3 text-[12px] leading-relaxed min-h-[168px]"
+              style={{ backgroundColor: 'var(--fill-quaternary)', border: '1px solid var(--border-subtle)', color: 'var(--label-tertiary)' }}>
+              本文やURLを貼ると、日付・価格・販売店を読み取ってフォームに流し込みます。
+              複数件がまとめて入っていても、件ごとに分けて候補にします。
+            </div>
+            <div className="text-[11.5px] mt-2" style={{ color: 'var(--label-tertiary)' }}>
+              似た投稿があると、その場で重複を知らせます。
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] font-bold tracking-[0.14em] mb-1.5" style={{ color: 'var(--label-tertiary)' }}>確かめる</div>
+            <div className="rounded-[10px] overflow-hidden" style={{ border: '1px solid var(--border-subtle)' }}>
+              {fields.map(([k, v]) => (
+                <div key={k} className="flex items-center gap-3 px-3 py-2 border-b text-[12px]" style={{ borderColor: 'var(--border-faint)' }}>
+                  <span className="w-[92px] flex-shrink-0 font-semibold">{k}</span>
+                  <span className="flex-1 truncate" style={{ color: 'var(--label-tertiary)' }}>{v || '—'}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 mt-4">
+          <button onClick={onOpenApp}
+            className="px-4 py-2.5 rounded-[10px] text-[13px] font-bold pressable"
+            style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+            いまはアプリ版の投稿を開く
+          </button>
+          <button onClick={onClose} className="px-4 py-2.5 rounded-[10px] text-[13px] pressable"
+            style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>閉じる</button>
+        </div>
+        <p className="text-[11.5px] mt-3" style={{ color: 'var(--label-tertiary)' }}>
+          web用の投稿フォームはまだ作っていません。ここは並べ方の案です。
+          「アプリ版を開く」を押すと、スマホ向けの画面に切り替わります。
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ── お知らせ ─────────────────────────────────── */
+function NoticePane({ onClose, onOpenApp }: { onClose: () => void; onOpenApp: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[330] flex items-start justify-end p-4" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onClick={onClose}>
+      <div className="w-full max-w-[360px] rounded-[14px] p-4 mt-14"
+        style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-default)' }}
+        onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start gap-3 mb-2">
+          <h2 className="text-[14px] font-bold flex-1">お知らせ</h2>
+          <button onClick={onClose} aria-label="閉じる" className="pressable p-1"><X size={16} /></button>
+        </div>
+        <p className="text-[12.5px] leading-relaxed" style={{ color: 'var(--label-secondary)' }}>
+          受付開始・値下げ・締切のお知らせがここに溜まります。
+          web では画面を切り替えずに、右上から開く形にしています。
+        </p>
+        <button onClick={onOpenApp}
+          className="mt-3 w-full py-2.5 rounded-[10px] text-[12.5px] font-bold pressable"
+          style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
+          アプリ版のお知らせを開く
+        </button>
+      </div>
+    </div>
   );
 }
 
