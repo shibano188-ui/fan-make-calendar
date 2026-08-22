@@ -30,7 +30,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Home, Search, Heart, User, Plus, SlidersHorizontal, Bell, X, ExternalLink,
-  LayoutGrid, Rows3, Star, Settings, SmilePlus, Menu, Check, ChevronLeft, ChevronRight,
+  LayoutGrid, Rows3, Star, Settings, SmilePlus, Menu, Check, ChevronLeft, ChevronRight, BellRing,
 } from 'lucide-react';
 import { listExploreEvents } from '../lib/api';
 import { parseCategories, parseImageUrls, getPrimaryCategoryColor } from '../lib/constants';
@@ -135,6 +135,8 @@ export default function WebDemo() {
   // この画面の中だけで動く状態（サーバーには書かない。デモなので端末にも残さない）
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [reactions, setReactions] = useState<Record<string, ReactionType>>({});
+  // 通知はアプリ版と同じく「いいねした予定にだけ」入れられる
+  const [notify, setNotify] = useState<Set<string>>(new Set());
   const [rxFor, setRxFor] = useState<string | null>(null);
   const [toast, setToast] = useState('');
 
@@ -193,6 +195,23 @@ export default function WebDemo() {
       return next;
     });
   }, [say]);
+
+  const toggleNotify = useCallback((id: string) => {
+    setNotify((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) { next.delete(id); say('通知を切りました'); }
+      else { next.add(id); say('発売・締切の通知を入れました'); }
+      return next;
+    });
+  }, [say]);
+
+  // いいねを外したら通知も外す（アプリ版はいいね済みのときだけベルが出る）
+  useEffect(() => {
+    setNotify((prev) => {
+      const next = new Set([...prev].filter((id) => liked.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [liked]);
 
   const pickReaction = useCallback((id: string, type: ReactionType) => {
     setReactions((prev) => {
@@ -367,8 +386,9 @@ export default function WebDemo() {
                 items={shown} savedView={savedView} setSavedView={setSavedView}
                 anchor={anchor} setAnchor={setAnchor}
                 openId={openId} onOpen={setOpenId}
-                liked={liked} reactions={reactions}
+                liked={liked} reactions={reactions} notify={notify}
                 onLike={(e) => toggleLike(e.id, e.title)} onReact={(e) => setRxFor(e.id)}
+                onNotify={(e) => toggleNotify(e.id)}
                 density={density}
               />
             ) : (
@@ -404,10 +424,11 @@ export default function WebDemo() {
                 <div className={density === 'grid' ? 'wd-grid' : 'flex flex-col gap-2'}>
                   {shown.slice(0, 120).map((e) => (
                     <Card key={e.id} event={e} rows={density === 'rows'} active={e.id === openId}
-                      liked={liked.has(e.id)} reaction={reactions[e.id]}
+                      liked={liked.has(e.id)} reaction={reactions[e.id]} notifyOn={notify.has(e.id)}
                       onOpen={() => setOpenId(e.id)}
                       onLike={() => toggleLike(e.id, e.title)}
-                      onReact={() => setRxFor(e.id)} />
+                      onReact={() => setRxFor(e.id)}
+                      onNotify={() => toggleNotify(e.id)} />
                   ))}
                 </div>
                 {shown.length > 120 && (
@@ -425,16 +446,18 @@ export default function WebDemo() {
               <aside className="wd-detail hidden xl:flex flex-col flex-shrink-0 w-[368px] border-l overflow-y-auto min-h-0"
                 style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-secondary)' }}>
                 <DetailBody event={open} liked={liked.has(open.id)} reaction={reactions[open.id]}
+                  notifyOn={notify.has(open.id)}
                   onClose={() => setOpenId(null)} onLike={() => toggleLike(open.id, open.title)}
-                  onReact={() => setRxFor(open.id)} say={say} />
+                  onReact={() => setRxFor(open.id)} onNotify={() => toggleNotify(open.id)} say={say} />
               </aside>
               <div className="xl:hidden">
                 <Overlay onClose={() => setOpenId(null)} side="right" width={392} label="詳細">
                   <div className="wd-detail flex flex-col h-full overflow-y-auto"
                     style={{ backgroundColor: 'var(--bg-secondary)' }}>
                     <DetailBody event={open} liked={liked.has(open.id)} reaction={reactions[open.id]}
+                      notifyOn={notify.has(open.id)}
                       onClose={() => setOpenId(null)} onLike={() => toggleLike(open.id, open.title)}
-                      onReact={() => setRxFor(open.id)} say={say} />
+                      onReact={() => setRxFor(open.id)} onNotify={() => toggleNotify(open.id)} say={say} />
                   </div>
                 </Overlay>
               </div>
@@ -643,9 +666,10 @@ function Chip({ on, onClick, children, count, dot }: {
 }
 
 /* ── 一覧の1件 ──────────────────────────────────── */
-function Card({ event, rows, active, liked, reaction, onOpen, onLike, onReact }: {
+function Card({ event, rows, active, liked, reaction, notifyOn, onOpen, onLike, onReact, onNotify }: {
   event: CalendarEvent; rows: boolean; active: boolean; liked: boolean; reaction?: ReactionType;
-  onOpen: () => void; onLike: () => void; onReact: () => void;
+  notifyOn?: boolean;
+  onOpen: () => void; onLike: () => void; onReact: () => void; onNotify?: () => void;
 }) {
   const st = deriveStatus(event);
   const img = parseImageUrls(event.imageUrl)[0];
@@ -699,15 +723,23 @@ function Card({ event, rows, active, liked, reaction, onOpen, onLike, onReact }:
           style={{ color: rx ? 'var(--accent-text)' : 'var(--label-secondary)' }}>
           {rx ? <span className="font-bold truncate max-w-[110px]">{rx.label}</span> : <SmilePlus size={15} />}
         </button>
+        {/* 通知ベルは「いいねした予定にだけ」出る。アプリ版の ItemCard と同じ条件 */}
+        {liked && onNotify && (
+          <button onClick={onNotify} aria-label={notifyOn ? '通知ON' : '通知'}
+            className="flex items-center pressable"
+            style={{ color: notifyOn ? 'var(--accent-text)' : 'var(--label-secondary)' }}>
+            {notifyOn ? <BellRing size={15} /> : <Bell size={15} />}
+          </button>
+        )}
       </div>
     </article>
   );
 }
 
 /* ── 詳細 ───────────────────────────────────────── */
-function DetailBody({ event, liked, reaction, onClose, onLike, onReact, say }: {
-  event: CalendarEvent; liked: boolean; reaction?: ReactionType;
-  onClose: () => void; onLike: () => void; onReact: () => void; say: (m: string) => void;
+function DetailBody({ event, liked, reaction, notifyOn, onClose, onLike, onReact, onNotify, say }: {
+  event: CalendarEvent; liked: boolean; reaction?: ReactionType; notifyOn: boolean;
+  onClose: () => void; onLike: () => void; onReact: () => void; onNotify: () => void; say: (m: string) => void;
 }) {
   const st = deriveStatus(event);
   const img = parseImageUrls(event.imageUrl)[0];
@@ -760,15 +792,22 @@ function DetailBody({ event, liked, reaction, onClose, onLike, onReact, say }: {
           <DetailAct label="リアクション" value={rx ? rx.label : ''} on={!!rx} onClick={onReact}>
             <SmilePlus size={15} />
           </DetailAct>
-          {/* 通知ベルは「いいねした予定にだけ」出る。アプリ版と同じ条件にしてある */}
-          <DetailAct label={liked ? '通知' : '—'} value="" on={false} disabled={!liked}
-            onClick={() => say(liked ? '発売・締切の通知を入れました' : '')}>
-            <Bell size={15} />
+          {/* 通知は「いいねした予定にだけ」入れられる（アプリ版と同じ条件）。
+              入っているかどうかは、色・アイコン・ラベルの3つで同時に示す */}
+          <DetailAct label={notifyOn ? '通知ON' : '通知'} value="" on={notifyOn} disabled={!liked}
+            onClick={() => (liked ? onNotify() : say('いいねすると通知を入れられます'))}>
+            {notifyOn ? <BellRing size={15} /> : <Bell size={15} />}
           </DetailAct>
           <DetailAct label="共有" value="" on={false} onClick={share}>
             <ExternalLink size={15} />
           </DetailAct>
         </div>
+
+        {!liked && (
+          <p className="text-[11px] mt-1.5" style={{ color: 'var(--label-tertiary)' }}>
+            いいねすると、発売・締切の通知を入れられます
+          </p>
+        )}
 
         {offers.length > 0 && (
           <>
@@ -819,12 +858,12 @@ function DetailAct({ label, value, on, onClick, children, disabled }: {
 /* ── いいねタブ：カレンダー ───────────────────────────
    アプリ版の /saved は 月・週・日・リスト の4表示を持っている。
    web でも同じ4つを残し、幅がある分だけ「月の横に予定名」を並べる。 */
-function SavedPane({ items, savedView, setSavedView, anchor, setAnchor, openId, onOpen, liked, reactions, onLike, onReact, density }: {
+function SavedPane({ items, savedView, setSavedView, anchor, setAnchor, openId, onOpen, liked, reactions, notify, onLike, onReact, onNotify, density }: {
   items: CalendarEvent[]; savedView: SavedView; setSavedView: (v: SavedView) => void;
   anchor: string; setAnchor: (s: string) => void;
   openId: string | null; onOpen: (id: string) => void;
-  liked: Set<string>; reactions: Record<string, ReactionType>;
-  onLike: (e: CalendarEvent) => void; onReact: (e: CalendarEvent) => void;
+  liked: Set<string>; reactions: Record<string, ReactionType>; notify: Set<string>;
+  onLike: (e: CalendarEvent) => void; onReact: (e: CalendarEvent) => void; onNotify: (e: CalendarEvent) => void;
   density: Density;
 }) {
   const today = todayStr();
@@ -867,23 +906,32 @@ function SavedPane({ items, savedView, setSavedView, anchor, setAnchor, openId, 
         </div>
       </div>
 
+      {/* 0件でも枠は出す。空のカレンダーが見えていないと、
+          「いいねすると何が起きるのか」が伝わらない */}
       {items.length === 0 && (
-        <p className="text-[13px] py-10 text-center" style={{ color: 'var(--label-tertiary)' }}>
-          まだいいねしていません。カードのハートを押すとここに溜まります。
+        <p className="text-[12.5px] mb-3 px-3 py-2 rounded-[9px]"
+          style={{ backgroundColor: 'var(--fill-quaternary)', color: 'var(--label-secondary)' }}>
+          まだいいねしていません。カードのハートを押すと、ここに溜まって予定が並びます。
         </p>
       )}
 
+      {savedView === 'list' && items.length === 0 && (
+        <p className="text-[13px] py-10 text-center" style={{ color: 'var(--label-tertiary)' }}>
+          いいねしたものがここに並びます
+        </p>
+      )}
       {items.length > 0 && savedView === 'list' && (
         <div className={density === 'grid' ? 'wd-grid' : 'flex flex-col gap-2'}>
           {items.map((e) => (
             <Card key={e.id} event={e} rows={density === 'rows'} active={e.id === openId}
-              liked={liked.has(e.id)} reaction={reactions[e.id]}
-              onOpen={() => onOpen(e.id)} onLike={() => onLike(e)} onReact={() => onReact(e)} />
+              liked={liked.has(e.id)} reaction={reactions[e.id]} notifyOn={notify.has(e.id)}
+              onOpen={() => onOpen(e.id)} onLike={() => onLike(e)} onReact={() => onReact(e)}
+              onNotify={() => onNotify(e)} />
           ))}
         </div>
       )}
 
-      {items.length > 0 && savedView !== 'list' && (
+      {savedView !== 'list' && (
         <>
           <div className="flex items-center gap-2 mb-2">
             <button onClick={() => step(-1)} aria-label="前へ" className="wd-icon p-1.5 rounded-[8px] pressable"

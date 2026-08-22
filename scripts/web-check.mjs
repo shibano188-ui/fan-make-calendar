@@ -131,6 +131,53 @@ async function run() {
       await page.waitForTimeout(250);
     }
 
+    // 4.4 いいねが0件でもカレンダーの枠は出る
+    if (sz.side) await page.getByRole('button', { name: 'いいね' }).first().click();
+    else {
+      await page.getByLabel('メニュー').click(); await page.waitForTimeout(350);
+      await page.getByRole('button', { name: 'いいね' }).first().click();
+    }
+    await page.waitForTimeout(600);
+    log((await page.locator('.wd-day').count()) > 0, 'いいね0件でも月のマス目が出る');
+    await page.locator('.wd-seg', { hasText: '週' }).first().click();
+    await page.waitForTimeout(400);
+    log((await page.locator('.wd-day').count()) === 7, '  0件でも週の7列が出る');
+    await page.locator('.wd-seg', { hasText: '月' }).first().click();
+    await page.waitForTimeout(300);
+    if (sz.side) await page.getByRole('button', { name: '探す' }).first().click();
+    else {
+      await page.getByLabel('メニュー').click(); await page.waitForTimeout(350);
+      await page.getByRole('button', { name: '探す' }).first().click();
+    }
+    await page.waitForTimeout(500);
+
+    // 4.45 詳細の通知が ON/OFF で見た目が変わる
+    await page.locator('.wd-card button').first().click();
+    await page.waitForTimeout(500);
+    const beforeLike = await page.locator('.wd-detail [aria-label="通知"]:visible').first().isDisabled().catch(() => null);
+    log(beforeLike === true, 'いいね前は通知を押せない');
+    await page.locator('.wd-detail [aria-label="いいね"]:visible').first().click();
+    await page.waitForTimeout(350);
+    const bgOff = await page.evaluate(() => {
+      const b = [...document.querySelectorAll('.wd-detail .wd-act')].filter((e) => e.getBoundingClientRect().width > 0)
+        .find((e) => /通知/.test(e.getAttribute('aria-label') || ''));
+      return b ? getComputedStyle(b).backgroundColor : '';
+    });
+    await page.locator('.wd-detail [aria-label="通知"]:visible').first().click();
+    await page.waitForTimeout(400);
+    const on = await page.evaluate(() => {
+      const b = [...document.querySelectorAll('.wd-detail .wd-act')].filter((e) => e.getBoundingClientRect().width > 0)
+        .find((e) => /通知/.test(e.getAttribute('aria-label') || ''));
+      return b ? { label: b.getAttribute('aria-label'), bg: getComputedStyle(b).backgroundColor } : null;
+    });
+    log(!!on && on.label === '通知ON' && on.bg !== bgOff, `通知ONで色とラベルが変わる（${bgOff} → ${on ? on.bg : '-'}）`);
+    log((await page.locator('.wd-card [aria-label="通知ON"]').count()) > 0, '  カードにもベルが出る');
+    // 戻す
+    await page.locator('.wd-detail [aria-label="いいね"]:visible').first().click();
+    await page.waitForTimeout(300);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+
     // 4.5 いいねタブにカレンダーが在る（アプリ版の 月/週/日/リスト を落としていないか）
     if (await likeBtn.isVisible().catch(() => false)) {
       await likeBtn.click(); // 1件いいねしてから
