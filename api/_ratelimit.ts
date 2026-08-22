@@ -11,7 +11,12 @@ const redis = url && token ? new Redis({ url, token }) : null;
 // エンドポイントごとの上限。IP単位（分・日）＋全体（日＝分散攻撃時のコスト上限）。
 // parse/search は外部API課金、title/delete はDBへの書き込み・破壊操作なので桁を分けている。
 const BUCKETS = {
-  parse:  { min: 20, day: 150, globalDay: 3000 },  // Claude API
+  // parse の globalDay は **財布の栓の暫定版**。実測 ¥0.62/回（キャッシュ無し）なので、
+  // 3000回/日 = 約¥1,860/日 = 月5万超となり、プリペイド残高(月¥10,000)を軽く超えていた。
+  // スマート入力の枠 月¥6,000 ≒ ¥194/日 ≒ 310回/日 に合わせて 400 に絞る。
+  // 円で数える本式の栓（ai_usage の月次集計）が入ったら、この行は撤去してよい。
+  // ⚠️ owner は checkRateLimitFor で素通りするので、仕込み作業はこの栓に当たらない。
+  parse:  { min: 20, day: 150, globalDay: 400 },   // Claude API
   search: { min: 30, day: 300, globalDay: 5000 },  // 楽天/Yahoo API（投稿1件で複数回叩く）
   title:  { min: 10, day: 60,  globalDay: 1000 },  // events更新（重複時の地名付与のみ）
   delete: { min: 5,  day: 20,  globalDay: 200 },   // アカウント削除（破壊操作）
