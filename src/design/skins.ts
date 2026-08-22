@@ -27,6 +27,16 @@ export interface SkinDef {
   swatchLight: [string, string, string];
   /** 見本の中の面の角丸(px)。**「面の形」が外皮の違いで一番効く**ので見本にも出す */
   swatchRadius: number;
+  /**
+   * ステータスバーの裏に実際に出る色。アイコンを白にするか黒にするかをここから決める。
+   *
+   * Android 15 は edge-to-edge が強制で **StatusBar.setBackgroundColor が効かない**
+   * （実機で確認: マゼンタを指定してもバーの色は変わらず、getInfo は指定値を返すのに見た目は
+   * アプリが描いた色のまま）。つまりバーの裏に出るのは**アプリ自身が描いている色**なので、
+   * 地の色ではなく「そこに何を描いているか」でアイコンの明暗を決めないと読めなくなる。
+   * SURGE は上部の帯がアクセント色（黄）なので、暗いテーマでも黒アイコンでなければ読めない。
+   */
+  statusBar: 'bg' | 'accent';
   /** Google Fonts のクエリ（classic は読み込み不要） */
   fontQuery: string | null;
   /** 色の上書き。コミュニティテーマ選択時は適用しない */
@@ -165,6 +175,7 @@ export const SKINS: Record<SkinId, SkinDef> = {
     swatch: ['#0e0e10', '#1c1c1e', '#FBBF00'],
     swatchLight: ['#f2f2f7', '#ffffff', '#FBBF00'],
     swatchRadius: 8,
+    statusBar: 'bg',
     fontQuery: null,
     vars: null,
   },
@@ -175,6 +186,7 @@ export const SKINS: Record<SkinId, SkinDef> = {
     swatch: ['#101012', '#1b1b20', '#FF5A1E'],
     swatchLight: ['#e7e4db', '#f6f4ef', '#FF5A1E'],
     swatchRadius: 2,
+    statusBar: 'bg',
     fontQuery:
       'family=BIZ+UDGothic:wght@400;700' +
       '&family=Martian+Mono:wght@300;400;500;700&family=Bitcount+Grid+Double:wght@400;700',
@@ -187,6 +199,8 @@ export const SKINS: Record<SkinId, SkinDef> = {
     swatch: ['#0b0b0c', '#151519', '#FFD400'],
     swatchLight: ['#f4f2ec', '#ffffff', '#FFD400'],
     swatchRadius: 0,
+    // 上部の帯が accent（skins.css の [data-skin-part='header']）
+    statusBar: 'accent',
     fontQuery:
       'family=Zen+Kaku+Gothic+New:wght@500;700;900&family=Dela+Gothic+One' +
       '&family=Anybody:wght@400;700;900&family=Big+Shoulders+Display:wght@600;800;900',

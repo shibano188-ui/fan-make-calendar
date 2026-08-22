@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { getUserSettings, updateUserSettings } from '../lib/api';
-import { accentTokens } from '../lib/color';
+import { accentTokens, getContrastText } from '../lib/color';
 import { syncStatusBar } from '../lib/statusbar';
 import { SKINS, applySkin, loadSkin, saveSkin, accentForSkin, type SkinId } from '../design/skins';
 
@@ -298,7 +298,11 @@ function applyThemeVars(settings: UserSettings, skin: SkinId) {
   const skinBg = skinVars ? (isDark ? skinVars.dark : skinVars.light)['--bg-primary'] : undefined;
   const bgPrimary = skinBg ?? vars['--bg-primary'] ?? (isDark ? '#0e0e10' : '#f2f2f7');
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', bgPrimary);
-  syncStatusBar(isDark, bgPrimary);
+  // ステータスバーのアイコンは「テーマが暗いか」ではなく、**バーの裏に実際に出ている色**で決める。
+  // SURGE は上部の帯がアクセント色（黄）なので、暗いテーマのまま白アイコンにすると読めない
+  // （実機で確認済み。Android 15 は setBackgroundColor が効かず、裏のアプリの色がそのまま見える）。
+  const statusColor = SKINS[skin].statusBar === 'accent' ? settings.accentColor : bgPrimary;
+  syncStatusBar(getContrastText(statusColor) === '#ffffff', statusColor);
 }
 
 // アクセントカラー + 派生トークンの適用（共通処理）
