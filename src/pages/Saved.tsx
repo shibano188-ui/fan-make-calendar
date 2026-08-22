@@ -251,7 +251,9 @@ export default function Saved() {
   const emptyMsg = tab === 'mine' ? 'まだ投稿がありません' : tab === 'preorder' ? '予約・受注中の予定はありません' : '保存した予定がありません';
 
   return (
-    <div ref={rootRef} className="px-3 pt-3">
+    // ⚠️ ルートに上の余白を付けないこと。上部バーは自分で var(--sat) を持っているので、
+    // ここに余白を足すと**帯の外側に地の色の帯**ができる（外皮で帯の色が変わると目立つ）
+    <div ref={rootRef} className="px-3">
       <div className="sticky top-0 z-20 -mx-3 px-3 pt-1 pb-3 material-bar scroll-edge" style={{ paddingTop: 'calc(var(--sat) + 4px)' }}>
         {/* 検索 ＋ 絞り込み（探すと同じ） */}
         <div className="flex items-center gap-2 mb-2">

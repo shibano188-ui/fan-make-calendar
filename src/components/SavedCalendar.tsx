@@ -5,6 +5,7 @@ import ItemCard from './item/ItemCard';
 import { todayStr, deriveStatus } from '../design/tokens';
 import { haptic } from '../lib/haptics';
 import { buildWorkColorMap } from '../lib/workColors';
+import { useTheme } from '../contexts/ThemeContext';
 
 type Scope = 'month' | 'week' | 'day';
 
@@ -167,6 +168,21 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, 
   const goNext = () => setAnchor(addMonths(anchor, 1));
   const swipe = useSwipe(goPrev, goNext);
 
+  // カレンダーの背景画像。設定はずっと前からあるのに、実際に描いていたのは
+  // ルートから外れた Calendar.tsx（死にコード）とウィジェットだけで、
+  // **本物のカレンダーに出ていなかった**。ここで出す。
+  // 画像の上でも日付が読めるように、マスの地は透かして残す（＝そのまま暗幕になる）。
+  // 濃さの調整と明るさの自動判定はテーマ生成のときに足す。
+  const { settings } = useTheme();
+  const bgImage = settings.backgroundImageUrl;
+  const cellBg = (sel: boolean) => {
+    if (!bgImage) return sel ? 'var(--fill-tertiary)' : 'var(--bg-primary)';
+    // 選んでいるマスは濃く（＝画像が引っ込む）、それ以外は薄く
+    return sel
+      ? 'color-mix(in srgb, var(--bg-primary) 90%, transparent)'
+      : 'color-mix(in srgb, var(--bg-primary) 58%, transparent)';
+  };
+
   return (
     <div {...swipe}>
       <NavHeader label={`${year}年${month + 1}月`}
@@ -183,8 +199,17 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, 
         ))}
       </div>
 
-      {/* 日グリッド */}
-      <div className="grid grid-cols-7 gap-px rounded-[12px] overflow-hidden" style={{ backgroundColor: 'var(--separator)' }}>
+      {/* 日グリッド。背景画像があるときは、その上にマスを半透明で重ねる
+          （マスを不透明のままにすると 1px の隙間からしか画像が見えない） */}
+      <div
+        className="rounded-[12px] overflow-hidden"
+        style={bgImage ? {
+          backgroundImage: `url(${bgImage})`,
+          backgroundSize: 'cover',
+          backgroundPosition: `${settings.bgImageOffsetX ?? 50}% ${settings.bgImageOffsetY ?? 50}%`,
+        } : undefined}
+      >
+      <div className="grid grid-cols-7 gap-px" style={{ backgroundColor: bgImage ? 'transparent' : 'var(--separator)' }}>
         {days.map((day) => {
           const d = parse(day);
           const inMonth = d.getMonth() === month;
@@ -196,7 +221,7 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, 
           return (
             <button key={day} onClick={() => { haptic.select(); setAnchor(day); }}
               className="relative min-h-[58px] flex flex-col items-center pt-1.5 pressable"
-              style={{ backgroundColor: isSel ? 'var(--fill-tertiary)' : 'var(--bg-primary)' }}>
+              style={{ backgroundColor: cellBg(isSel) }}>
               <span className="text-[12px] leading-none flex items-center justify-center w-5 h-5 rounded-full"
                 style={isToday
                   ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)', fontWeight: 700 }
@@ -211,6 +236,7 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, 
             </button>
           );
         })}
+      </div>
       </div>
 
       {/* 選択日の予定 */}
