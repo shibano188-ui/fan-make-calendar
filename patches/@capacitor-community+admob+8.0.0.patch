@@ -19,7 +19,7 @@ index 0000000..16f6470
 +</dict>
 +</plist>
 diff --git a/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/banner/BannerExecutor.java b/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/banner/BannerExecutor.java
-index c629139..62921ba 100644
+index c629139..033d100 100644
 --- a/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/banner/BannerExecutor.java
 +++ b/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/banner/BannerExecutor.java
 @@ -9,10 +9,13 @@ import android.view.Gravity;
@@ -54,7 +54,7 @@ index c629139..62921ba 100644
      }
  
      public void showBanner(final PluginCall call) {
-@@ -62,6 +65,16 @@ public class BannerExecutor extends Executor {
+@@ -62,8 +65,24 @@ public class BannerExecutor extends Executor {
              fullscreen = true;
          }
  
@@ -70,8 +70,16 @@ index c629139..62921ba 100644
 +
          if (mAdView != null) {
              updateExistingAdView(adOptions);
++            // ⚠️ ここで resolve しないと JS の showBanner が**永久に返らない**。
++            // 呼び出し側（src/lib/admob.ts）はバナーの出し入れを直列化しているので、
++            // 待ち行列がここで止まり、以後の hideBanner が一切実行されなくなる
++            // ＝ 広告を出さない画面にバナーが残り、×や戻るのタップを食う。
++            // 新規作成の経路も広告の到着を待たずに resolve しているので、揃えてよい。
++            call.resolve();
              return;
-@@ -80,69 +93,17 @@ public class BannerExecutor extends Executor {
+         }
+ 
+@@ -80,69 +99,17 @@ public class BannerExecutor extends Executor {
                  );
              }
  
@@ -148,7 +156,7 @@ index c629139..62921ba 100644
  
              call.resolve();
          } catch (Exception ex) {
-@@ -226,6 +187,11 @@ public class BannerExecutor extends Executor {
+@@ -226,6 +193,11 @@ public class BannerExecutor extends Executor {
          activitySupplier
              .get()
              .runOnUiThread(() -> {
@@ -160,7 +168,7 @@ index c629139..62921ba 100644
                  final AdRequest adRequest = RequestHelper.createRequest(adOptions);
                  mAdView.loadAd(adRequest);
              });
-@@ -235,22 +201,116 @@ public class BannerExecutor extends Executor {
+@@ -235,22 +207,116 @@ public class BannerExecutor extends Executor {
       * Follow iOS method Name:
       * https://developers.google.com/admob/ios/banner?hl=ja
       */
@@ -280,7 +288,7 @@ index c629139..62921ba 100644
                              final BannerAdSizeInfo sizeInfo = new BannerAdSizeInfo(mAdView);
  
                              notifyListeners(BannerAdPluginEvents.SizeChanged.getWebEventName(), sizeInfo);
-@@ -260,7 +320,7 @@ public class BannerExecutor extends Executor {
+@@ -260,7 +326,7 @@ public class BannerExecutor extends Executor {
  
                          @Override
                          public void onAdFailedToLoad(@NonNull LoadAdError adError) {
@@ -289,7 +297,7 @@ index c629139..62921ba 100644
                                  mViewGroup.removeView(mAdViewLayout);
                                  mAdViewLayout.removeView(mAdView);
                                  mAdView.destroy();
-@@ -297,7 +357,9 @@ public class BannerExecutor extends Executor {
+@@ -297,7 +363,9 @@ public class BannerExecutor extends Executor {
                  );
  
                  // Add AdViewLayout top of the WebView
