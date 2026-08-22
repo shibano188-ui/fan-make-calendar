@@ -107,12 +107,12 @@ export async function saveAiUsage(opts: {
   // ログにも出す。表を作る前でも、Vercelのログで実額を追える
   console.log(
     `[ai-usage] ${opts.endpoint} tier=${opts.tier ?? 'none'} calls=${t.calls} ` +
-    `in=${t.input} out=${t.output} cacheR=${t.cacheRead} jpy=${t.costJpy.toFixed(2)}`,
+    `in=${t.input} out=${t.output} cacheR=${t.cacheRead} cacheW=${t.cacheWrite} jpy=${t.costJpy.toFixed(2)}`,
   );
   const db = adminClient();
   if (!db) return;
   try {
-    await db.from('ai_usage').insert({
+    const { error } = await db.from('ai_usage').insert({
       user_id: opts.userId,
       endpoint: opts.endpoint,
       tier: opts.tier,
@@ -125,7 +125,10 @@ export async function saveAiUsage(opts: {
       cost_usd: Number(t.costUsd.toFixed(6)),
       cost_jpy: Number(t.costJpy.toFixed(4)),
     });
-  } catch {
-    /* 台帳が書けなくても機能は止めない */
+    // 書けなくても機能は止めない。ただし**黙って落とさない**——
+    // 表がまだ無い/権限が違うのに気づけないと、台帳が空のまま日が過ぎる。
+    if (error) console.warn(`[ai-usage][insert-failed] ${error.message}`);
+  } catch (e) {
+    console.warn(`[ai-usage][insert-threw] ${e instanceof Error ? e.message : String(e)}`);
   }
 }
