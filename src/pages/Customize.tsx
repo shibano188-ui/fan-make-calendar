@@ -2,14 +2,14 @@ import { useRef, useState, useEffect } from 'react';
 import { Upload, ChevronDown } from 'lucide-react';
 import Layout from '../components/Layout';
 import Header from '../components/Header';
-import { useTheme, COMMUNITY_THEMES, type UserSettings } from '../contexts/ThemeContext';
+import { useTheme, COMMUNITY_THEMES, resolveTheme, type UserSettings } from '../contexts/ThemeContext';
 import { listRecentWorks, type Work } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { WORK_COLORS } from './Calendar';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import { pushAppState } from '../lib/appState';
 import { hasNativePhotoPicker, pickPhoto } from '../lib/pickPhoto';
-import { SKINS, SKIN_IDS } from '../design/skins';
+import { SKINS, SKIN_IDS, type SkinDef } from '../design/skins';
 
 const CAL_COLOR_FIELDS: { key: keyof UserSettings; label: string; cssVar: string }[] = [
   { key: 'calWeekday',    label: '平日',        cssVar: '--cal-weekday-color' },
@@ -274,6 +274,11 @@ export default function Customize() {
   };
 
   const isCommunityActive = !!settings.communityThemeId;
+  // 見本は今の明るさに合わせる（暗い色のまま出すと、明るい画面で3つとも同じ絵に見える）
+  const swatchDark = isCommunityActive
+    ? !!COMMUNITY_THEMES.find(t => t.id === settings.communityThemeId)?.dark
+    : resolveTheme(settings.theme) === 'dark';
+  const sw = (def: SkinDef) => (swatchDark ? def.swatch : def.swatchLight);
   const themeButtonClass = (active: boolean) =>
     `rounded-xl overflow-hidden border-2 transition-colors ${active ? 'border-selected' : 'border-subtle'}`;
 
@@ -298,9 +303,11 @@ export default function Customize() {
               const on = skin === id;
               return (
                 <button key={id} onClick={() => setSkin(id)} aria-pressed={on} className={themeButtonClass(on)}>
-                  <div className="h-12 relative" style={{ backgroundColor: def.swatch[0] }}>
-                    <div className="w-full h-1/2" style={{ backgroundColor: def.swatch[1] }} />
-                    <div className="absolute bottom-1.5 right-1.5 w-3 h-3 rounded-full" style={{ backgroundColor: def.swatch[2] }} />
+                  {/* 見本は「地の上に面が1枚」。面の角の形が外皮の違いで一番効くので、
+                      色だけでなく角丸も外皮のものを使う */}
+                  <div className="h-12 relative flex items-center justify-center" style={{ backgroundColor: sw(def)[0] }}>
+                    <div className="w-3/5 h-1/2" style={{ backgroundColor: sw(def)[1], borderRadius: def.swatchRadius }} />
+                    <div className="absolute bottom-1.5 right-1.5 w-2.5 h-2.5" style={{ backgroundColor: sw(def)[2], borderRadius: def.swatchRadius ? 999 : 0 }} />
                   </div>
                   <div className="bg-bg-secondary py-1.5">
                     <p className="text-xs text-label-primary text-center truncate px-1">{def.name}</p>

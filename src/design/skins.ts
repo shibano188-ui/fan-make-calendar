@@ -23,8 +23,12 @@ export interface SkinDef {
   tagline: string;
   /** この外皮の署名色。切り替え時、アクセントが署名色のいずれかなら追従させる */
   accent: string;
-  /** 見本に出す3色（左から 地・面・アクセント） */
+  /** 見本に出す3色（地・面・アクセント）。暗いとき */
   swatch: [string, string, string];
+  /** 同じく、明るいとき。明暗で見本を出し分けないと3つとも同じ絵になる */
+  swatchLight: [string, string, string];
+  /** 見本の中の面の角丸(px)。**「面の形」が外皮の違いで一番効く**ので見本にも出す */
+  swatchRadius: number;
   /** Google Fonts のクエリ（classic は読み込み不要） */
   fontQuery: string | null;
   /** 色の上書き。コミュニティテーマ選択時は適用しない */
@@ -162,6 +166,8 @@ export const SKINS: Record<SkinId, SkinDef> = {
     tagline: '今のFanHive。iOS風のやわらかい面と丸み',
     accent: '#FBBF00',
     swatch: ['#0e0e10', '#1c1c1e', '#FBBF00'],
+    swatchLight: ['#f2f2f7', '#ffffff', '#FBBF00'],
+    swatchRadius: 8,
     fontQuery: null,
     vars: null,
   },
@@ -171,6 +177,8 @@ export const SKINS: Record<SkinId, SkinDef> = {
     tagline: '発売日と締切を読む計器。無彩色と点の格子、数字は点で組む',
     accent: '#FF5A1E',
     swatch: ['#101012', '#1b1b20', '#FF5A1E'],
+    swatchLight: ['#e7e4db', '#f6f4ef', '#FF5A1E'],
+    swatchRadius: 2,
     fontQuery:
       'family=BIZ+UDGothic:wght@400;700' +
       '&family=Martian+Mono:wght@300;400;500;700&family=Bitcount+Grid+Double:wght@400;700',
@@ -182,6 +190,8 @@ export const SKINS: Record<SkinId, SkinDef> = {
     tagline: '斜めに切って太い字で殴る。黄と黒、動きは瞬間だけ',
     accent: '#FFD400',
     swatch: ['#0b0b0c', '#151519', '#FFD400'],
+    swatchLight: ['#f4f2ec', '#ffffff', '#FFD400'],
+    swatchRadius: 0,
     fontQuery:
       'family=Zen+Kaku+Gothic+New:wght@500;700;900&family=Dela+Gothic+One' +
       '&family=Anybody:wght@400;700;900&family=Big+Shoulders+Display:wght@600;800;900',
