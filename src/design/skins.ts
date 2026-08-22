@@ -61,7 +61,7 @@ const PANEL_DARK: Record<string, string> = {
   '--status-preorder': '#ff5a1e',
   '--status-upcoming': '#a06bff',
   '--status-onsale': '#37cf7c',
-  '--status-ended': '#5a5a61',
+  '--status-ended': '#75757e',
 };
 
 const PANEL_LIGHT: Record<string, string> = {
@@ -152,13 +152,13 @@ const SURGE_LIGHT: Record<string, string> = {
   '--status-preorder': '#a37a00',
   '--status-upcoming': '#7c47c9',
   '--status-onsale': '#128a4d',
-  '--status-ended': 'rgba(11,11,12,0.34)',
+  '--status-ended': 'rgba(11,11,12,0.40)',
 };
 
 export const SKINS: Record<SkinId, SkinDef> = {
   classic: {
     id: 'classic',
-    name: '現行',
+    name: 'デフォルト',
     tagline: '今のFanHive。iOS風のやわらかい面と丸み',
     accent: '#FBBF00',
     swatch: ['#0e0e10', '#1c1c1e', '#FBBF00'],
@@ -167,18 +167,18 @@ export const SKINS: Record<SkinId, SkinDef> = {
   },
   panel: {
     id: 'panel',
-    name: 'PANEL ／ 計器',
+    name: 'PANEL',
     tagline: '発売日と締切を読む計器。無彩色と点の格子、数字は点で組む',
     accent: '#FF5A1E',
     swatch: ['#101012', '#1b1b20', '#FF5A1E'],
     fontQuery:
-      'family=BIZ+UDPGothic:wght@400;700&family=BIZ+UDGothic:wght@400;700' +
+      'family=BIZ+UDGothic:wght@400;700' +
       '&family=Martian+Mono:wght@300;400;500;700&family=Bitcount+Grid+Double:wght@400;700',
     vars: { dark: PANEL_DARK, light: PANEL_LIGHT },
   },
   surge: {
     id: 'surge',
-    name: 'SURGE ／ 高揚',
+    name: 'SURGE',
     tagline: '斜めに切って太い字で殴る。黄と黒、動きは瞬間だけ',
     accent: '#FFD400',
     swatch: ['#0b0b0c', '#151519', '#FFD400'],

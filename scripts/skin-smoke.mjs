@@ -26,6 +26,97 @@ const setSkinRaw = (page, skin) => page.evaluate(([s, a]) => {
 const MOBILE = { width: 390, height: 844 };
 const DESKTOP = { width: 1440, height: 900 };
 
+// コントラストを測る画面。外皮は色の変数を全画面に効かせるので、
+// 作り込んだ画面だけでなく「毎日踏む画面」を必ず通す
+const CONTRAST_SCREENS = [
+  ['/', 'ホーム'],
+  ['/explore', '探す'],
+  ['/saved', 'いいね'],
+  ['/mypage', 'マイページ'],
+  ['/customize', 'カスタマイズ'],
+  ['/post', '投稿'],
+  ['/notifications', '通知設定'],
+  ['/premium', 'プレミアム'],
+];
+// 既定（classic）の測定値。PANEL/SURGE はこれと比べる。
+// **絶対値で失格にしない**：薄い補助文字は元からの設計なので、
+// 見たいのは「外皮を出したせいで読めなくなっていないか」だけ
+const baseline = {};
+
+/** 外皮が定める色トークンどうしのコントラスト比を測る。
+ *  ページを走査する方式は読み込み量で要素数が変わって不安定だったので、
+ *  **判定はこちら（画面の中身に一切左右されない）で行う**。
+ *  絶対値では落とさない：既定のアプリ自体が補助文字を 1.7 付近で使っているため、
+ *  見るのは「外皮にしたことで、そのペアが既定より読みにくくなっていないか」。 */
+async function measureTokens(page, dark) {
+  await page.evaluate((d) => {
+    const s = JSON.parse(localStorage.getItem('user_settings') || '{}');
+    s.theme = d ? 'dark' : 'simple';
+    localStorage.setItem('user_settings', JSON.stringify(s));
+  }, dark);
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(500);
+  return page.evaluate(() => {
+    // [文字, 地, 名前, 満たすべき比]。WCAG AA: 本文 4.5 / 大きい字とUI部品 3.0
+    const PAIRS = [
+      ['--label-primary', '--bg-primary', '本文/地', 4.5],
+      ['--label-primary', '--bg-secondary', '本文/面', 4.5],
+      ['--label-primary', '--bg-tertiary', '本文/面2', 4.5],
+      ['--label-secondary', '--bg-primary', '副文/地', 4.5],
+      ['--label-secondary', '--bg-secondary', '副文/面', 4.5],
+      ['--label-tertiary', '--bg-primary', '補助/地', 4.5],
+      ['--label-tertiary', '--bg-secondary', '補助/面', 4.5],
+      ['--accent-on', '--accent-color', '色の上の字', 4.5],
+      ['--input-placeholder', '--bg-secondary', '入力の例示', 3],
+      ['--status-preorder', '--bg-secondary', '状態:予約', 3],
+      ['--status-onsale', '--bg-secondary', '状態:発売中', 3],
+      ['--status-ended', '--bg-secondary', '状態:終了', 3],
+      ['--color-destructive', '--bg-secondary', '警告', 3],
+      ['--color-success', '--bg-secondary', '成功', 3],
+    ];
+    const toRGB = (c) => {
+      c = String(c).trim();
+      if (c.startsWith('#')) {
+        const h = c.length === 4
+          ? c.slice(1).split('').map((x) => x + x).join('')
+          : c.slice(1);
+        return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16), a: 1 };
+      }
+      const m = c.match(/rgba?\(([^)]+)\)/);
+      if (!m) return null;
+      const p = m[1].split(',').map(Number);
+      return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
+    };
+    const over = (f, bk) => {
+      const a = f.a + bk.a * (1 - f.a);
+      if (a === 0) return { r: 0, g: 0, b: 0, a: 0 };
+      return {
+        r: (f.r * f.a + bk.r * bk.a * (1 - f.a)) / a,
+        g: (f.g * f.a + bk.g * bk.a * (1 - f.a)) / a,
+        b: (f.b * f.a + bk.b * bk.a * (1 - f.a)) / a,
+        a,
+      };
+    };
+    const lum = (c) => {
+      const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+      return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+    };
+    const ratio = (x, y) => {
+      const l1 = lum(x), l2 = lum(y);
+      return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+    };
+    const cs = getComputedStyle(document.documentElement);
+    const out = {};
+    for (const [fgN, bgN, label, req] of PAIRS) {
+      const bg = toRGB(cs.getPropertyValue(bgN));
+      const fg = toRGB(cs.getPropertyValue(fgN));
+      if (!bg || !fg) continue;
+      out[label] = { r: Math.round(ratio(over(fg, bg), bg) * 100) / 100, req };
+    }
+    return out;
+  });
+}
+
 let failures = 0;
 const log = (ok, msg) => {
   if (!ok) failures++;
@@ -105,25 +196,79 @@ async function run() {
     // ── マイページ ───────────────────────────────────
     await page.goto(`${BASE}/mypage`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(1200);
-    log(await page.getByText('アプリの見た目').isVisible(), '外皮の切り替えUIがある');
-    for (const label of ['現行', 'PANEL ／ 計器', 'SURGE ／ 高揚']) {
-      log(await page.getByText(label, { exact: true }).first().isVisible(), `  選択肢「${label}」がある`);
-    }
     // 既存の機能が消えていないこと
-    for (const label of ['アクセントカラー', 'フォロー中の作品', 'カレンダーの配色・テーマ', '通知の設定', 'お知らせ']) {
+    for (const label of ['アクセントカラー', 'フォロー中の作品', 'テーマ・カレンダーの配色', '通知の設定', 'お知らせ']) {
       log(await page.getByText(label, { exact: true }).first().isVisible(), `  既存項目「${label}」が残っている`);
     }
+    log(await page.getByText('アプリの見た目').count() === 0, 'マイページに外皮UIが二重に出ていない');
     await page.screenshot({ path: `${OUT}/${skin}-mypage.png`, fullPage: true });
 
-    // ── 切り替えが効くか（マイページから他の外皮へ）────
-    const other = skin === 'panel' ? 'SURGE ／ 高揚' : 'PANEL ／ 計器';
+    // ── カスタマイズ（テーマの切り替えはここに一本化した）──────
+    await page.goto(`${BASE}/customize`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(1000);
+    log(await page.getByText('テーマ', { exact: true }).first().isVisible(), 'カスタマイズに「テーマ」がある');
+    log(await page.getByText('明るさ', { exact: true }).first().isVisible(), 'カスタマイズに「明るさ」がある');
+    for (const label of ['デフォルト', 'PANEL', 'SURGE']) {
+      log(await page.getByText(label, { exact: true }).first().isVisible(), `  選択肢「${label}」がある`);
+    }
+    for (const label of ['システム', 'ライト', 'ダーク']) {
+      log(await page.getByText(label, { exact: true }).first().isVisible(), `  明るさ「${label}」がある`);
+    }
+    // 廃止したもの（導線が残っていないこと）
+    log(await page.getByText('みんなのテーマ').count() === 0, '「みんなのテーマ」の導線が消えている');
+    log(await page.getByText('フォント', { exact: true }).count() === 0, '「フォント」の欄が消えている');
+    // 残した既存の機能
+    for (const label of ['カレンダー文字色', 'カレンダー背景画像']) {
+      log(await page.getByText(label, { exact: true }).first().isVisible(), `  既存項目「${label}」が残っている`);
+    }
+    await page.screenshot({ path: `${OUT}/${skin}-customize.png`, fullPage: true });
+
+    // ── 切り替えが効くか ──────────────────────────────
+    const other = skin === 'panel' ? 'SURGE' : 'PANEL';
     const otherId = skin === 'panel' ? 'surge' : 'panel';
     await page.getByText(other, { exact: true }).first().click();
     await page.waitForTimeout(600);
     const after = await page.evaluate(() => document.documentElement.dataset.skin);
-    log(after === otherId, `マイページから ${otherId} に切り替わる（実際: ${after}）`);
-    const saved = await page.evaluate(() => localStorage.getItem('fan_skin'));
-    log(saved === otherId, `切り替えが保存される（${saved}）`);
+    log(after === otherId, `カスタマイズから ${otherId} に切り替わる（実際: ${after}）`);
+    const savedSkin = await page.evaluate(() => localStorage.getItem('fan_skin'));
+    log(savedSkin === otherId, `切り替えが保存される（${savedSkin}）`);
+    // 元に戻してから、この外皮のまま残りの画面を見る
+    await setSkinRaw(page, skin);
+    await page.reload({ waitUntil: 'networkidle' });
+
+    // ── 主要画面が描けるか（毎日踏む画面を必ず通す）────────
+    for (const [path, name] of CONTRAST_SCREENS) {
+      await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(800);
+      const body = await page.locator('body').innerText().catch(() => '');
+      log(body.trim().length > 0, `${name} が描けている`);
+      await page.screenshot({ path: `${OUT}/${skin}-${name}.png`, fullPage: true });
+    }
+
+    // ── 色トークンの検算（明・暗の両方）────────────────
+    for (const dark of [false, true]) {
+      const mode = dark ? 'ダーク' : 'ライト';
+      const t = await measureTokens(page, dark);
+      const base = baseline[mode];
+      const short = Object.entries(t).filter(([, v]) => v.r < v.req);
+      if (!base) {
+        baseline[mode] = t;
+        log(true, `色の検算（${mode}）: 基準に届かないペア ${short.length}件  ←既定を基準にする`);
+        short.forEach(([k, v]) => console.log(`        ${k}: ${v.r}（必要 ${v.req}）※既定のアプリが元から持っているもの`));
+      } else {
+        // 基準を満たしていれば通す。満たしていないものは、**既定より悪化したときだけ**落とす
+        // （元から薄い補助文字を、外皮の責任にしないため）
+        const bad = short.filter(([k, v]) => v.r < (base[k]?.r ?? v.req) * 0.98);
+        log(bad.length === 0, `色の検算（${mode}）: 基準未達 ${short.length}件 / うち既定より悪化 ${bad.length}件`);
+        bad.forEach(([k, v]) => console.log(`        ${k}: ${v.r}（必要 ${v.req} / 既定 ${base[k]?.r}）`));
+      }
+    }
+    // 明るさをシステムに戻してから次へ
+    await page.evaluate(() => {
+      const s = JSON.parse(localStorage.getItem('user_settings') || '{}');
+      s.theme = 'system';
+      localStorage.setItem('user_settings', JSON.stringify(s));
+    });
 
     // ── web版デモ ────────────────────────────────────
     await page.setViewportSize(DESKTOP);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Bell, BellRing, Crown, CalendarSync, Moon, Palette, Pencil, Plus, Droplet, Check, MessageCircle, MapPin, UserRound, Star, Trash2, Layers } from 'lucide-react';
+import { ChevronRight, Bell, BellRing, Crown, CalendarSync, Moon, Palette, Pencil, Plus, Droplet, Check, MessageCircle, MapPin, UserRound, Star, Trash2 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { getContrastText } from '../lib/color';
 
@@ -30,7 +30,6 @@ import {
   listDeviceCalendars, getTargetCalendarId, setTargetCalendarId, syncDeviceCalendar,
 } from '../lib/deviceCalendar';
 import { useTheme, type ThemeMode } from '../contexts/ThemeContext';
-import { SKINS, SKIN_IDS } from '../design/skins';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
 import { haptic, hapticsDebug } from '../lib/haptics';
@@ -160,7 +159,7 @@ export default function MyPage() {
     const r = await deleteAccount();  // 成功したら '/' に飛ぶので戻ってこない
     if (!r.ok) { setDeleting(false); setDelConfirm(false); toast(r.error, 'error'); }
   };
-  const { settings, updateSettings, skin, setSkin } = useTheme();
+  const { settings, updateSettings } = useTheme();
 
   const acctState = accountState(user);
   const acctEmail = accountEmail(user);
@@ -444,51 +443,10 @@ export default function MyPage() {
           <span className="text-[13px] text-label-tertiary">{works.length}作品</span>
           <ChevronRight size={16} className="text-label-tertiary" />
         </button>
-        {/* アプリの見た目（外皮）。テーマ・アクセント色とは独立した「形と書体と質感」の層。
-            色の設定（テーマ7種・アクセント6色）はこれまで通りカスタマイズから変えられる。 */}
-        <div className="px-3 py-2.5">
-          <div className="flex items-center gap-2 mb-2">
-            <Layers size={16} className="text-label-secondary" />
-            <span className="text-[14px] flex-1">アプリの見た目</span>
-            <span className="text-[12px] text-label-tertiary truncate max-w-[45%]">{SKINS[skin].name}</span>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            {SKIN_IDS.map((id) => {
-              const def = SKINS[id];
-              const on = skin === id;
-              return (
-                <button
-                  key={id}
-                  onClick={() => { haptic.select(); setSkin(id); }}
-                  aria-pressed={on}
-                  className="w-full flex items-center gap-2.5 px-2 py-2 rounded-[10px] pressable text-left"
-                  style={{
-                    backgroundColor: on ? 'var(--fill-tertiary)' : 'transparent',
-                    boxShadow: on ? 'inset 0 0 0 1.5px var(--accent-color)' : 'inset 0 0 0 1px var(--border-subtle)',
-                  }}
-                >
-                  <span className={`skin-chip is-${id}`} aria-hidden>
-                    <i style={{ backgroundColor: def.swatch[0] }} />
-                    <i style={{ backgroundColor: def.swatch[1] }} />
-                    <i style={{ backgroundColor: def.swatch[2] }} />
-                  </span>
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-[13px] font-semibold">{def.name}</span>
-                    <span className="block text-[11px] text-label-tertiary leading-snug">{def.tagline}</span>
-                  </span>
-                  {on && <Check size={16} className="flex-shrink-0" style={{ color: 'var(--accent-color)' }} />}
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-[11px] text-label-tertiary mt-2 leading-relaxed">
-            色とは別の層です。コミュニティテーマを選んでいるときは、見た目は形と書体だけを変えます。
-          </p>
-        </div>
-        {/* カレンダーの配色・テーマ */}
+        {/* テーマ・カレンダーの配色（外皮の切り替えもここに集約） */}
         <button onClick={() => { haptic.select(); navigate('/customize'); }} className="w-full flex items-center gap-2 px-3 py-2.5 pressable text-left">
           <Palette size={16} className="text-label-secondary" />
-          <span className="text-[14px] flex-1">カレンダーの配色・テーマ</span>
+          <span className="text-[14px] flex-1">テーマ・カレンダーの配色</span>
           <ChevronRight size={16} className="text-label-tertiary" />
         </button>
         {/* アカウント（デバイス間のデータ引き継ぎ） */}

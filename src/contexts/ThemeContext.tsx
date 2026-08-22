@@ -444,6 +444,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         ...(db.font       && { font:        db.font       as FontFamily }),
         ...(db.accentColor && { accentColor: db.accentColor }),
       };
+      // 外皮を切り替えると署名色（黄→橙など）もローカルで変わるが、その色はサーバーへ同期しない。
+      // ここで DB の古い署名色をそのまま戻すと、翌起動で外皮と色がちぐはぐになる。
+      // 署名色のときだけ今の外皮の色に寄せ、**自分で選んだ色は DB の値を尊重する**。
+      next.accentColor = accentForSkin(loadSkin(), next.accentColor);
       saveSettings('', next);
       // カレンダー未選択時のみ現在の表示に反映
       if (!currentWorkIdRef.current) {
