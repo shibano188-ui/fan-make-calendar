@@ -66,6 +66,7 @@ section{border-top:1px solid var(--rule);padding:52px 0 56px;}
 .w.s{width:158px;height:158px;}
 .w.m{width:338px;height:158px;}
 .w.l{width:338px;height:354px;}
+.w.xl{width:720px;height:354px;}
 .w.lock-r{width:160px;height:72px;border-radius:14px;background:rgba(20,20,23,.86);box-shadow:0 6px 16px rgba(0,0,0,.3),0 0 0 1px rgba(255,255,255,.14);}
 .w.lock-c{width:76px;height:76px;border-radius:50%;background:rgba(20,20,23,.86);box-shadow:0 6px 16px rgba(0,0,0,.3),0 0 0 1px rgba(255,255,255,.14);}
 .w.inline{width:290px;height:34px;border-radius:8px;background:transparent;box-shadow:none;}
@@ -144,7 +145,7 @@ ul.pts li::before{content:"";position:absolute;left:2px;top:10px;width:7px;heigh
     <h1>FanHive ウィジェット帳</h1>
     <div class="lead">
       <p>既存のカレンダーアプリと推し活アプリを見て組み立てた案です。
-      <strong>22種類</strong>、ホーム画面の小中大からロック画面・StandBy・コントロールまで。
+      <strong>25種類</strong>、ホーム画面の小中大からロック画面・StandBy・コントロールまで。
       すべて<strong>実寸の比率で描いて</strong>あるので、何件入るかがそのまま判断できます。</p>
       <p>参考にした2つ。<strong>Oshibana</strong>は「推しの画像＋あと何日」をホームにもロックにも置ける形で、
       推し活の定番になっています。<strong>ジョルテ</strong>が支持されている理由は見やすさと
@@ -189,6 +190,10 @@ ul.pts li::before{content:"";position:absolute;left:2px;top:10px;width:7px;heigh
     <p>カレンダーアプリの領分。ジョルテの評価が高いのは<strong>密度と見やすさ</strong>なので、
     月表示は「予定のある日に作品色の点」だけに絞って、文字を詰め込まない方向にします。</p>
     <div class="row" id="rowC"></div>
+    <p class="note"><strong>特大は iPhone に無い枠です。</strong>
+    iOS の特大（systemExtraLarge）は <strong>iPad と Mac だけ</strong>で、iPhone では選べません。
+    Android は自由に伸ばせるので、横長に広げれば同じものが置けます。
+    iPhone 向けには、同じ発想を縦に畳んだ「月＋直近3件」を用意しています。</p>
   </div>
 </section>
 
@@ -548,6 +553,145 @@ ul.pts li::before{content:"";position:absolute;left:2px;top:10px;width:7px;heigh
     p.appendChild(L);
     slot('rowC','保存した予定','中 338×158 ／ 大',
       'いいねしたものを近い順に。<b>タブを固定できる</b>（すべて／受注中／自分の投稿／通知ON）。アプリの一覧をそのまま外に出した形。',w);
+  })();
+
+
+  /* ── 大: 月＋直近（iPhone での現実解）── */
+  (function(){
+    var w = W('l'), p = pad(w);
+    var h = el('div'); h.style.cssText='display:flex;align-items:baseline;justify-content:space-between;margin-bottom:5px';
+    h.appendChild(el('span','mono','<span style="font-size:13px;font-weight:700">2026.08</span>'));
+    h.appendChild(el('span','brand','8件'));
+    p.appendChild(h);
+    var g = el('div','cal'); g.style.flex='0 0 auto';
+    ['日','月','火','水','木','金','土'].forEach(function(d){ g.appendChild(el('div','h',d)); });
+    var marks = {3:[WC.chi],5:[WC.hai],8:[WC.chi,WC.jjk],12:[WC.spy],15:[WC.jjk],18:[WC.oshi],21:[WC.chi,WC.hai],22:[WC.chi],25:[WC.chi],26:[WC.jjk],29:[WC.hai]};
+    for(var i=0;i<35;i++){
+      var day=i-5, out=day<1||day>31;
+      var d=el('div','d'+(out?' o':'')+(day===22?' t':''));
+      d.style.minHeight='24px';
+      d.appendChild(el('span',null,out?(day<1?31+day:day-31):day));
+      if(!out&&marks[day]){
+        var ps=el('span','pips');
+        marks[day].forEach(function(c){var x=document.createElement('i');x.style.background=c;ps.appendChild(x);});
+        d.appendChild(ps);
+      }
+      g.appendChild(d);
+    }
+    p.appendChild(g);
+    p.appendChild(el('div','rule'));
+    var L = el('div','list');
+    L.appendChild(li('ちいかわ もちもちぬいぐるみ','08.25',WC.chi));
+    L.appendChild(li('呪術廻戦 POP UP SHOP','08.26',WC.jjk));
+    L.appendChild(li('ハイキュー!! アクリルスタンド','09.02',WC.hai));
+    p.appendChild(L);
+    slot('rowC','月＋直近3件','大 338×354',
+      '<b>iPhone で特大が使えない</b>ぶんの答え。上に月、下に直近3件。マス目は小さくなるが、'
+      + '「今月の混み具合」と「次に来るもの」が1枚で分かる。',w);
+  })();
+
+  /* ── 特大: 月＋予定一覧（iPad / Android 横長）── */
+  (function(){
+    var w = W('xl'), p = pad(w);
+    p.style.cssText='padding:16px 18px;height:100%;display:flex;flex-direction:row;gap:18px';
+    // 左: 月
+    var lft = el('div'); lft.style.cssText='width:360px;display:flex;flex-direction:column;flex:0 0 auto';
+    var h = el('div'); h.style.cssText='display:flex;align-items:baseline;justify-content:space-between;margin-bottom:7px';
+    h.appendChild(el('span','mono','<span style="font-size:16px;font-weight:700">2026.08</span>'));
+    h.appendChild(el('span','brand','8件'));
+    lft.appendChild(h);
+    var g = el('div','cal'); g.style.gap='3px';
+    ['日','月','火','水','木','金','土'].forEach(function(d){ g.appendChild(el('div','h',d)); });
+    var marks = {3:[WC.chi],5:[WC.hai],8:[WC.chi,WC.jjk],12:[WC.spy],15:[WC.jjk],18:[WC.oshi],
+                 21:[WC.chi,WC.hai],22:[WC.chi],25:[WC.chi,WC.oshi,WC.spy],26:[WC.jjk],29:[WC.hai]};
+    for(var i=0;i<35;i++){
+      var day=i-5, out=day<1||day>31;
+      var d=el('div','d'+(out?' o':'')+(day===22?' t':''));
+      d.style.cssText+='align-items:stretch;padding:3px 3px 0;gap:2px;font-size:9.5px;';
+      var num = el('span'); num.textContent = out?(day<1?31+day:day-31):day;
+      num.style.textAlign='center';
+      d.appendChild(num);
+      if(!out&&marks[day]){
+        var bars = el('span'); bars.style.cssText='display:flex;flex-direction:column;gap:1.5px';
+        marks[day].forEach(function(c){
+          var b=document.createElement('i');
+          b.style.cssText='display:block;height:3px;border-radius:1px;background:'+c;
+          bars.appendChild(b);
+        });
+        d.appendChild(bars);
+      }
+      g.appendChild(d);
+    }
+    lft.appendChild(g);
+    p.appendChild(lft);
+    // 右: 予定一覧
+    var rgt = el('div'); rgt.style.cssText='flex:1;min-width:0;display:flex;flex-direction:column';
+    var rh = el('div'); rh.style.cssText='display:flex;align-items:baseline;justify-content:space-between;margin-bottom:5px';
+    rh.appendChild(el('span','brand','This month / 予定'));
+    rh.appendChild(el('span','brand','受付中 3 ／ 開催中 2'));
+    rgt.appendChild(rh);
+    rgt.appendChild(el('div','rule'));
+    var L = el('div','list');
+    [['08.25','ちいかわ もちもちぬいぐるみ','受付しめきり',WC.chi,1],
+     ['08.26','呪術廻戦 POP UP SHOP','開催 〜09.01',WC.jjk,0],
+     ['08.29','ハイキュー!! クッション第3弾','受付しめきり',WC.hai,0],
+     ['09.02','ハイキュー!! アクリルスタンド','発売',WC.hai,0],
+     ['09.06','ちいかわウォーターランド','開催おわり',WC.chi,0],
+     ['09.10','ちいかわ もちもちぬい 受付終了','受付しめきり',WC.chi,0],
+     ['09.12','SPY×FAMILY 一番くじ','受付かいし 10:00',WC.spy,0],
+     ['09.18','【推しの子】缶バッジBOX','発売',WC.oshi,0]]
+      .forEach(function(r){
+        var x = el('div','li');
+        var b = el('span','bar'); b.style.background = r[3]; x.appendChild(b);
+        var dt = el('span','d'); dt.style.cssText+='width:44px'; dt.textContent = r[0]; x.appendChild(dt);
+        x.appendChild(el('span','t',r[1]));
+        var st = el('span','d'+(r[4]?' warn':'')); st.textContent = r[2]; x.appendChild(st);
+        L.appendChild(x);
+      });
+    rgt.appendChild(L);
+    p.appendChild(rgt);
+    slot('rowC','月＋予定一覧','特大 720×354（iPad / Android 横長）',
+      '<b>左に月、右に予定名。</b>マス目が広いので、点ではなく<b>色の帯</b>で件数を出せる。'
+      + '右は日付・品名・何の日か（受付しめきり／発売／開催）まで。'
+      + '<b>iPhone には特大の枠がない</b>ので、これは iPad と Android の横長でだけ置ける。',w);
+  })();
+
+  /* ── 特大: 2ヶ月 ── */
+  (function(){
+    var w = W('xl'), p = pad(w);
+    p.style.cssText='padding:16px 18px;height:100%;display:flex;flex-direction:row;gap:22px';
+    function month(label, cnt, marks, today){
+      var col = el('div'); col.style.cssText='flex:1;display:flex;flex-direction:column;min-width:0';
+      var h = el('div'); h.style.cssText='display:flex;align-items:baseline;justify-content:space-between;margin-bottom:7px';
+      h.appendChild(el('span','mono','<span style="font-size:15px;font-weight:700">'+label+'</span>'));
+      h.appendChild(el('span','brand',cnt));
+      col.appendChild(h);
+      var g = el('div','cal'); g.style.gap='3px';
+      ['日','月','火','水','木','金','土'].forEach(function(d){ g.appendChild(el('div','h',d)); });
+      for(var i=0;i<35;i++){
+        var day=i-5, out=day<1||day>31;
+        var d=el('div','d'+(out?' o':'')+((!out&&day===today)?' t':''));
+        d.style.cssText+='align-items:stretch;padding:3px 3px 0;gap:2px;font-size:9.5px;';
+        var num=el('span'); num.textContent=out?(day<1?31+day:day-31):day; num.style.textAlign='center';
+        d.appendChild(num);
+        if(!out&&marks[day]){
+          var bars=el('span'); bars.style.cssText='display:flex;flex-direction:column;gap:1.5px';
+          marks[day].forEach(function(c){var b=document.createElement('i');
+            b.style.cssText='display:block;height:3px;border-radius:1px;background:'+c;bars.appendChild(b);});
+          d.appendChild(bars);
+        }
+        g.appendChild(d);
+      }
+      col.appendChild(g);
+      return col;
+    }
+    p.appendChild(month('2026.08','8件',{3:[WC.chi],5:[WC.hai],8:[WC.chi,WC.jjk],12:[WC.spy],15:[WC.jjk],
+      18:[WC.oshi],21:[WC.chi,WC.hai],22:[WC.chi],25:[WC.chi,WC.oshi],26:[WC.jjk],29:[WC.hai]},22));
+    p.appendChild(month('2026.09','11件',{2:[WC.hai],6:[WC.chi],10:[WC.chi,WC.spy],12:[WC.spy],
+      15:[WC.jjk],18:[WC.oshi,WC.hai],20:[WC.chi],23:[WC.jjk],27:[WC.hai],30:[WC.chi,WC.oshi]},0));
+    slot('rowC','今月と来月','特大 720×354（iPad / Android 横長）',
+      '予約は<b>月をまたぐ</b>ので、先まで見えるほうが役に立つ場面がある。'
+      + '受付が今月・発売が来月、という並びが1枚で見える。',w);
   })();
 
   /* ══ D 動く ══ */
