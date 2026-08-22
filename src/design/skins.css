@@ -659,10 +659,20 @@ html[data-skin='surge'] .material-bar.scroll-edge .text-label-secondary {
 /* 帯の中の入力欄・アイコンボタンの面は、黄の上で沈むように暗くする。
    帯はライト／ダークどちらでも黄色なので、ここは固定の墨色にする
    （--bg-primary を使うとライトのとき白になり、黄の上で沈まない） */
+/* ホームは帯の直下が button（探すは > div > div）。**直下も1階層下も両方**拾う。
+   片方だけだと、拾えなかった側が「黄色の上に薄いグレー」のまま残る（実機で発覚） */
 html[data-skin='surge'] .material-bar.scroll-edge > div > div,
-html[data-skin='surge'] .material-bar.scroll-edge > div > button {
+html[data-skin='surge'] .material-bar.scroll-edge > div > button,
+html[data-skin='surge'] .material-bar.scroll-edge > button,
+html[data-skin='surge'] .material-bar.scroll-edge > div[style*='fill'] {
   background-color: #17171a !important;
   color: #f4f2ec !important;
+}
+/* 中のアイコン（虫めがね等）も帯の墨面に合わせる */
+html[data-skin='surge'] .material-bar.scroll-edge > button svg,
+html[data-skin='surge'] .material-bar.scroll-edge > div > div > svg,
+html[data-skin='surge'] .material-bar.scroll-edge > div > button > svg {
+  color: rgba(244, 242, 236, 0.55) !important;
 }
 html[data-skin='surge'] .material-bar.scroll-edge input {
   color: #f4f2ec !important;

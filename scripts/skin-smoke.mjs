@@ -245,6 +245,62 @@ async function run() {
       await page.screenshot({ path: `${OUT}/${skin}-${name}.png`, fullPage: true });
     }
 
+    // ── 検索欄が「帯の中で沈んでいる」か ──────────────
+    // SURGE の上部は常に黄色い帯。中の入力面をテーマ相対の塗り(--fill-tertiary)のままにすると
+    // 黄の上で濁る／埋もれる。ホームと探すでマークアップの階層が違い、片方だけ拾えていなかった。
+    for (const [path, name] of [['/', 'ホーム'], ['/explore', '探す']]) {
+      await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(900);
+      const r = await page.evaluate(() => {
+        const input = document.querySelector('input[placeholder*="検索"]');
+        if (!input) return null;
+        const parse = (c) => {
+          const m = String(c).match(/rgba?\(([^)]+)\)/);
+          if (!m) return null;
+          const p = m[1].split(',').map(Number);
+          return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
+        };
+        const over = (f, bk) => {
+          const a = f.a + bk.a * (1 - f.a);
+          return a === 0 ? { r: 0, g: 0, b: 0, a: 0 } : {
+            r: (f.r * f.a + bk.r * bk.a * (1 - f.a)) / a,
+            g: (f.g * f.a + bk.g * bk.a * (1 - f.a)) / a,
+            b: (f.b * f.a + bk.b * bk.a * (1 - f.a)) / a, a };
+        };
+        const lum = (c) => {
+          const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+          return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+        };
+        const ratio = (x, y) => {
+          const l1 = lum(x), l2 = lum(y);
+          return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+        };
+        const bgOf = (el) => {
+          let acc = null;
+          for (let n = el; n; n = n.parentElement) {
+            const c = parse(getComputedStyle(n).backgroundColor);
+            if (c && c.a > 0) acc = acc ? over(acc, c) : c;
+            if (acc && acc.a >= 0.999) return acc;
+          }
+          return { r: 255, g: 255, b: 255, a: 1 };
+        };
+        const bg = bgOf(input);
+        const ph = parse(getComputedStyle(input, '::placeholder').color) ?? parse(getComputedStyle(input).color);
+        return { ratio: Math.round(ratio(over(ph, bg), bg) * 100) / 100 };
+      });
+      if (!r) { log(false, `${name}: 検索欄が見つからない`); continue; }
+      // 既定（classic）の値を基準にする。既定の例示文字は元から薄い（1.99）ので、
+      // 絶対値で落とすと外皮と関係なく毎回失敗する。見たいのは**外皮で悪化したか**だけ
+      const key = `search:${name}`;
+      if (baseline[key] == null) {
+        baseline[key] = r.ratio;
+        log(true, `${name}: 検索欄の文字と地（${r.ratio}）  ←既定を基準にする`);
+      } else {
+        log(r.ratio >= baseline[key] * 0.9,
+          `${name}: 検索欄の文字と地（${r.ratio} / 既定 ${baseline[key]}）`);
+      }
+    }
+
     // ── 色トークンの検算（明・暗の両方）────────────────
     for (const dark of [false, true]) {
       const mode = dark ? 'ダーク' : 'ライト';
