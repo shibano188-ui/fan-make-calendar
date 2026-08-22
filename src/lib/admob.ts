@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import type { PluginListenerHandle } from '@capacitor/core';
-import { AdMob, BannerAdSize, BannerAdPosition, BannerAdPluginEvents } from '@capacitor-community/admob';
+import { AdMob, BannerAdSize, BannerAdPosition, BannerAdPluginEvents, MaxAdContentRating } from '@capacitor-community/admob';
 import { waitForTrackingDecision } from './att';
 
 // バナーの広告ユニットはプラットフォームごとに別物。AdMobでは iOS と Android が
@@ -27,7 +27,16 @@ export function initAdMob(): Promise<void> {
   if (!ready) {
     ready = (async () => {
       await waitForTrackingDecision();
-      await AdMob.initialize();
+      // 広告の中身をアプリの年齢制限に合わせる。**未指定のままにしない**こと。
+      // App Store の年齢制限は 13+（他人の投稿が出る＝UGCがあるアプリの実質的な下限）。
+      // 指定が無いと、それより過激な広告が配信される余地が残る。
+      // tagForChildDirectedTreatment=false は「子ども向けアプリではない」という宣言(COPPA)。
+      // ⚠️ AdMobの管理画面側にも同じ設定（広告コンテンツのレーティング／子ども向けの有無）が
+      //    あるので、片方だけ直しても揃わない。両方合わせること。
+      await AdMob.initialize({
+        maxAdContentRating: MaxAdContentRating.Teen,
+        tagForChildDirectedTreatment: false,
+      });
     })().catch((e) => { ready = null; throw e; });   // 次の機会にやり直せるようにする
   }
   return ready;

@@ -4,8 +4,17 @@
 <dict>
     <key>CAPACITOR_DEBUG</key>
 	<string>$(CAPACITOR_DEBUG)</string>
+	<!-- App Store の「言語」欄は、ストアの説明文ではなく**アプリのバイナリが宣言している
+	     ローカライズ**から作られる。ここが en だけだったため、中身が全部日本語なのに
+	     製品ページに「言語: 英語」と出ていた（2026-08-23 実機のストアページで確認）。
+	     WebViewアプリは .lproj を持たず自前で日本語を描くので、CFBundleLocalizations で
+	     明示的に宣言するのが正しい直し方。反映は**次のビルドから**。 -->
 	<key>CFBundleDevelopmentRegion</key>
-	<string>en</string>
+	<string>ja</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>ja</string>
+	</array>
 	<key>CFBundleDisplayName</key>
         <string>FanHive</string>
 	<key>CFBundleExecutable</key>
