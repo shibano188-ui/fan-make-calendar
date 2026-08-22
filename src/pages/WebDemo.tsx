@@ -36,6 +36,7 @@ import { listExploreEvents } from '../lib/api';
 import { parseCategories, parseImageUrls, getPrimaryCategoryColor } from '../lib/constants';
 import { deriveStatus, deriveItemType, statusLabel, itemDateLines, todayStr, type ItemStatus } from '../design/tokens';
 import { REACTIONS, type ReactionType } from '../lib/reactions';
+import { downloadICS } from '../lib/ics';
 import { SKINS, SKIN_IDS } from '../design/skins';
 import { useTheme } from '../contexts/ThemeContext';
 import OptImg from '../components/ui/OptImg';
@@ -698,7 +699,10 @@ function DetailBody({ event, liked, reaction, onClose, onLike, onReact, say }: {
           <DetailAct label="リアクション" value={rx ? rx.label : ''} on={!!rx} onClick={onReact}>
             <SmilePlus size={15} />
           </DetailAct>
-          <DetailAct label="カレンダー" value="" on={false} onClick={() => say('カレンダーに追加しました')}>
+          {/* web でカレンダーに入れる正攻法は .ics を渡すこと。端末のカレンダーが
+              受け取って、Google でも Apple でも同じように開ける */}
+          <DetailAct label="カレンダー" value="" on={false}
+            onClick={() => say(downloadICS(event) ? 'カレンダー用のファイルを書き出しました' : '日付が未定なので書き出せません')}>
             <CalendarPlus size={15} />
           </DetailAct>
           <DetailAct label="共有" value="" on={false} onClick={share}>
