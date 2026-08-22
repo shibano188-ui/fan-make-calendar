@@ -316,7 +316,6 @@ export default function Customize() {
               );
             })}
           </div>
-          <p className="text-label-tertiary text-xs mt-1.5 px-1 leading-relaxed">{SKINS[skin].tagline}</p>
           {/* 以前の「みんなのテーマ」を選んだままの人への逃げ道。選択中は色がそちら優先のままなので、
               下の明るさを押せば解除される（communityThemeId を空にする）ことを明示する */}
           {isCommunityActive && (

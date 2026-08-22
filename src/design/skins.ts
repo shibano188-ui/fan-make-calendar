@@ -19,8 +19,6 @@ export interface SkinDef {
   id: SkinId;
   /** マイページに出す名前 */
   name: string;
-  /** 一行の説明 */
-  tagline: string;
   /** この外皮の署名色。切り替え時、アクセントが署名色のいずれかなら追従させる */
   accent: string;
   /** 見本に出す3色（地・面・アクセント）。暗いとき */
@@ -163,7 +161,6 @@ export const SKINS: Record<SkinId, SkinDef> = {
   classic: {
     id: 'classic',
     name: 'デフォルト',
-    tagline: '今のFanHive。iOS風のやわらかい面と丸み',
     accent: '#FBBF00',
     swatch: ['#0e0e10', '#1c1c1e', '#FBBF00'],
     swatchLight: ['#f2f2f7', '#ffffff', '#FBBF00'],
@@ -174,7 +171,6 @@ export const SKINS: Record<SkinId, SkinDef> = {
   panel: {
     id: 'panel',
     name: 'PANEL',
-    tagline: '発売日と締切を読む計器。無彩色と点の格子、数字は点で組む',
     accent: '#FF5A1E',
     swatch: ['#101012', '#1b1b20', '#FF5A1E'],
     swatchLight: ['#e7e4db', '#f6f4ef', '#FF5A1E'],
@@ -187,7 +183,6 @@ export const SKINS: Record<SkinId, SkinDef> = {
   surge: {
     id: 'surge',
     name: 'SURGE',
-    tagline: '斜めに切って太い字で殴る。黄と黒、動きは瞬間だけ',
     accent: '#FFD400',
     swatch: ['#0b0b0c', '#151519', '#FFD400'],
     swatchLight: ['#f4f2ec', '#ffffff', '#FFD400'],
