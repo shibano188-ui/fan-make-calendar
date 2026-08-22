@@ -260,11 +260,22 @@ html[data-skin='surge'] textarea {
   gap: 12px;
   grid-template-columns: repeat(auto-fill, minmax(178px, 1fr));
 }
+/* スマホ幅で1列になると1枚が巨大になって一覧の意味が薄れるので、2列に落とす */
+@media (max-width: 520px) {
+  .wd-grid { gap: 10px; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); }
+  .wd-card .wd-title { min-height: 2.6em; font-size: 12.5px; }
+}
 .wd-card { transition: border-color 0.15s ease, transform 0.15s ease; }
 @media (hover: hover) {
   .wd-card:hover { transform: translateY(-2px); border-color: var(--border-default) !important; }
-  .wd-nav:hover, .wd-icon:hover { background-color: var(--fill-quaternary); }
+  .wd-nav:hover, .wd-icon:hover, .wd-act:hover, .wd-chip:hover { background-color: var(--fill-quaternary); }
 }
+/* グリッドで見出しの高さをそろえる。2行ぶんを確保しておかないと
+   カードごとに日付と金額の位置がずれて、並びががたつく */
+.wd-card .wd-title { min-height: 2.6em; }
+/* かぶせて出す面の入り方 */
+@keyframes wdInLeft  { from { transform: translateX(-14px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes wdInRight { from { transform: translateX(14px);  opacity: 0; } to { transform: none; opacity: 1; } }
 .wd-detail { animation: wdSlideIn 0.18s cubic-bezier(0.32, 0.72, 0, 1) both; }
 @keyframes wdSlideIn { from { transform: translateX(14px); opacity: 0; } to { transform: none; opacity: 1; } }
 
@@ -305,6 +316,9 @@ html[data-skin='surge'] .wd-chip[aria-pressed='true'] {
 html[data-skin='surge'] .wd-card {
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - 14px), calc(100% - 16px) 100%, 0 100%);
 }
+/* 切り欠きに操作行がかからないよう、右下に逃げを作る */
+html[data-skin='surge'] .wd-card .wd-acts { padding-right: 22px; padding-bottom: 10px; }
+html[data-skin='surge'] .wd-rx { clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%); border-radius: 0 !important; }
 @media (hover: hover) {
   html[data-skin='surge'] .wd-card:hover {
     box-shadow: 5px 5px 0 color-mix(in srgb, var(--accent-color) 22%, transparent);
@@ -763,6 +777,7 @@ html[data-skin='panel'] .wd-card .tabular-nums {
   font-family: 'Bitcount Grid Double', 'BIZ UDGothic', monospace;
   font-weight: 700;
 }
+html[data-skin='panel'] .wd-rx { border-radius: 2px !important; font-family: var(--skin-font-label); }
 
 /* SURGE: 上部バーは黄の帯。左は黒。カードは角を切る */
 html[data-skin='surge'] .wd-top {
