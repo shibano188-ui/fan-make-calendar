@@ -109,11 +109,24 @@ export function showBanner(margin = 0): void {
   coalesce = setTimeout(() => { coalesce = null; apply(); }, SHOW_COALESCE_MS);
 }
 
-/** バナーを隠す。**待たせない**（居座るとボタンのタップを食うため）。 */
+/**
+ * バナーを隠す。**待たせない**（居座るとボタンのタップを食うため）。
+ *
+ * 消すほうだけは待ち行列を通さず、その場でネイティブへ投げる。
+ * 待ち行列は Promise なので、実行は**最短でも次のマイクロタスク**、実際には
+ * 直前の show の解決（最大 CALL_TIMEOUT_MS）や、次の画面のReact描画が終わるまで回ってこない。
+ * その間バナーはWebViewの外側に残り続け、カレンダー／マイページの上に数秒居座って見える。
+ * ネイティブの hideBanner は UIスレッドで setVisibility(GONE) するだけ、
+ * まだ一度も出していなければ reject されるだけなので、先に投げても害はない。
+ * （直列化そのものは残す。あとから来る show が hide を追い越さないための仕掛けなので、
+ *   apply() でも「消す意思」を待ち行列に積んでおく。）
+ */
 export function hideBanner(): void {
   if (!Capacitor.isNativePlatform()) return;
   wantVisible = false;
   if (coalesce) { clearTimeout(coalesce); coalesce = null; }
+  try { void AdMob.hideBanner().catch(() => { /* 未表示なら reject。無視してよい */ }); }
+  catch { /* ネイティブが居ない環境。次の apply() に任せる */ }
   apply();
 }
 

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
@@ -137,13 +137,58 @@ function ExternalLinkHandler() {
 // 「広告抑制の解除」と「ホームの離脱」が同時に起きて show が hide を追い越し、
 // プレミアムの案内画面にバナーが残って**×ボタンが押せなく**なっていた。
 const AD_PATHS = ['/', '/explore'];
+
+/**
+ * バナーを出さない画面へ移る**その瞬間**に消す（Reactの描画を待たない）。
+ *
+ * 下の AdBannerController は「新しい画面を描き終えて commit したあと」にしか動けない。
+ * カレンダーやマイページは描画も初回データ取得も重く、その間バナーはWebViewの外側に
+ * 残ったまま次の画面の上に居座る（実機Androidで「移動しても広告がしばらく消えない」の正体）。
+ * react-router の遷移は必ず history.pushState / popstate を通るので、そこを捕まえれば
+ * 描画より先に、しかもタブに限らずどの遷移でもネイティブへ hide を投げられる。
+ *
+ * ⚠️ ここで**出す**ことはしない。表示の判断は AdBannerController の一元管理のまま。
+ *    早出しすると、昔の「show が hide を追い越して /premium にバナーが残る」に逆戻りする。
+ */
+function useHideBannerOnLeave(): void {
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const hideIfLeaving = (path: string) => { if (!AD_PATHS.includes(path)) hideBanner(); };
+    const pathOf = (url: string | URL | null | undefined): string => {
+      if (url == null) return window.location.pathname;
+      try { return new URL(String(url), window.location.href).pathname; }
+      catch { return window.location.pathname; }
+    };
+    const origPush = window.history.pushState;
+    const origReplace = window.history.replaceState;
+    window.history.pushState = function (...args) {
+      hideIfLeaving(pathOf(args[2]));
+      return origPush.apply(this, args);
+    };
+    window.history.replaceState = function (...args) {
+      hideIfLeaving(pathOf(args[2]));
+      return origReplace.apply(this, args);
+    };
+    const onPop = () => hideIfLeaving(window.location.pathname);
+    window.addEventListener('popstate', onPop);
+    return () => {
+      window.history.pushState = origPush;
+      window.history.replaceState = origReplace;
+      window.removeEventListener('popstate', onPop);
+    };
+  }, []);
+}
+
 function AdBannerController() {
   const { pathname } = useLocation();
   const premiumNoAds = useFeature('noAds');
   const suppressed = useAdsSuppressed();
   const show = Capacitor.isNativePlatform()
     && AD_PATHS.includes(pathname) && !premiumNoAds && !suppressed;
-  useEffect(() => {
+  useHideBannerOnLeave();
+  // useEffect（描画後・後回しにされうる）ではなく useLayoutEffect。
+  // 消すのが1フレームでも遅れると、次の画面の上にバナーが乗って見える。
+  useLayoutEffect(() => {
     // nudge 0 = ステータスバー直下にフル表示（ステータスバーへ食い込ませない）
     if (show) showBanner(0); else hideBanner();
   }, [show]);
