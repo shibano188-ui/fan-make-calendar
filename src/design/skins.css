@@ -18,7 +18,7 @@ html[data-skin='panel'] {
   --skin-font-body: 'BIZ UDPGothic', 'Hiragino Kaku Gothic ProN', system-ui, sans-serif;
   --skin-font-label: 'BIZ UDGothic', 'Hiragino Kaku Gothic ProN', system-ui, sans-serif;
   --skin-font-meta: 'Martian Mono', ui-monospace, monospace;
-  --skin-font-num: 'Bitcount Grid Double', ui-monospace, monospace;
+  --skin-font-num: 'Martian Mono', ui-monospace, monospace;
   --skin-dot: rgba(128, 128, 132, 0.16);
 }
 html[data-skin='surge'] {
@@ -368,19 +368,12 @@ html[data-skin='panel'] [data-skin-part='card'] {
 html[data-theme='light'][data-skin='panel'] [data-skin-part='card'] {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
-/* 写真は網点をかけて、画面じゅうの素材を点の言語に揃える */
+/* 商品写真には**何もかけない**。
+   以前は網点をかけて「画面じゅうの素材を点の言語に揃える」ことを狙ったが、
+   実機のカードは幅140px程度しかなく、点が粗くて商品そのものが見えなくなった。
+   点の言語は地の格子と数字・ラベルの側だけで担わせる */
 html[data-skin='panel'] [data-skin-part='card-media'] {
   position: relative;
-}
-html[data-skin='panel'] [data-skin-part='card-media']::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image: radial-gradient(rgba(0, 0, 0, 0.5) 1px, transparent 1px);
-  background-size: 3.4px 3.4px;
-  mix-blend-mode: multiply;
-  opacity: 0.55;
 }
 html[data-skin='panel'] [data-skin-part='card-work'] {
   font-family: var(--skin-font-label);
@@ -399,10 +392,11 @@ html[data-skin='panel'] [data-skin-part='card-date'] {
   font-variant-numeric: tabular-nums;
 }
 /* 金額と件数は点で組む。「セット」等の日本語は後ろに落ちる */
+/* 金額と件数は等幅で組む。点で組む書体は13pxだと読めない（実機で確認） */
 html[data-skin='panel'] [data-skin-part='card-price'],
 html[data-skin='panel'] [data-skin-part='card-likes'] {
-  font-family: 'Bitcount Grid Double', 'BIZ UDGothic', monospace;
-  font-weight: 700;
+  font-family: 'Martian Mono', 'BIZ UDGothic', monospace;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 html[data-skin='panel'] [data-skin-part='card-price'] {
@@ -668,6 +662,16 @@ html[data-skin='surge'] .material-bar.scroll-edge > div[style*='fill'] {
   background-color: #17171a !important;
   color: #f4f2ec !important;
 }
+/* ⚠️ 上の一括指定は**選択中のボタンまで塗り潰す**。帯の中に表示切替（月/週/日/リスト）が
+   あるので、そのままだと押しても色が変わらず、どれを選んでいるか分からなくなる。
+   帯は黄色なので「選択＝アクセント」は使えない（帯と同化する）。
+   帯の中だけは **未選択＝墨 / 選択＝明るい面** の反転で見せる（チップと同じ扱い）。 */
+html[data-skin='surge'] .material-bar.scroll-edge > div > button[aria-pressed='true'],
+html[data-skin='surge'] .material-bar.scroll-edge > button[aria-pressed='true'] {
+  background-color: #f4f2ec !important;
+  color: #17171a !important;
+}
+
 /* 中のアイコン（虫めがね等）も帯の墨面に合わせる */
 html[data-skin='surge'] .material-bar.scroll-edge > button svg,
 html[data-skin='surge'] .material-bar.scroll-edge > div > div > svg,
@@ -784,8 +788,8 @@ html[data-skin='panel'] .wd-card h3 {
   font-weight: 700;
 }
 html[data-skin='panel'] .wd-card .tabular-nums {
-  font-family: 'Bitcount Grid Double', 'BIZ UDGothic', monospace;
-  font-weight: 700;
+  font-family: 'Martian Mono', 'BIZ UDGothic', monospace;
+  font-weight: 500;
 }
 html[data-skin='panel'] .wd-rx { border-radius: 2px !important; font-family: var(--skin-font-label); }
 

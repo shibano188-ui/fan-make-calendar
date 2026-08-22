@@ -143,6 +143,67 @@ function BgImageCropModal({
   );
 }
 
+// ─── テーマの見本 ──────────────────────────────────────────────────
+//
+// 外皮のCSSは `html[data-skin=…]` に紐づいているので、**入れ子の要素には効かない**。
+// ＝選んでいない外皮を「そのCSSで」描くことはできない。ここは skins.ts の値から
+// 直接組み立てて、上部の帯・面の形・地の質感・下タブという**違いが出る4か所**を写す。
+// （以前は3色の帯を出していたが、3つとも同じ絵に見えて選ぶ役に立たなかった）
+
+function SkinPreview({ def, dark }: { def: SkinDef; dark: boolean }) {
+  const [bg, surface, accent] = dark ? def.swatch : def.swatchLight;
+  const r = def.swatchRadius;
+  const headerBg = def.statusBar === 'accent' ? accent : surface;
+  // 帯の中の面（検索欄のつもり）。黄色い帯の上では墨、それ以外は薄い塗り
+  const headerFill = def.statusBar === 'accent'
+    ? '#17171a'
+    : dark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.16)';
+  const dim = dark ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.22)';
+  const cardShape: React.CSSProperties = def.shape === 'cut'
+    ? { clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 5px), calc(100% - 6px) 100%, 0 100%)' }
+    : { borderRadius: r };
+
+  return (
+    <div
+      className="relative w-full overflow-hidden"
+      style={{
+        height: 62,
+        backgroundColor: bg,
+        ...(def.texture
+          ? {
+              backgroundImage: 'radial-gradient(rgba(128,128,132,0.45) 0.5px, transparent 0.5px)',
+              backgroundSize: '4px 4px',
+            }
+          : null),
+      }}
+    >
+      {/* 上部の帯（SURGEはアクセント色）＋その中の面 */}
+      <div className="flex items-center px-1.5" style={{ height: 20, backgroundColor: headerBg }}>
+        <div style={{ height: 7, width: '100%', backgroundColor: headerFill, borderRadius: r ? 3 : 0 }} />
+      </div>
+      {/* 一覧の面2つ */}
+      <div className="flex gap-1 px-1.5 pt-1.5">
+        <div style={{ flex: 1, height: 18, backgroundColor: surface, ...cardShape }} />
+        <div style={{ flex: 1, height: 18, backgroundColor: surface, ...cardShape }} />
+      </div>
+      {/* 下タブ */}
+      <div
+        className="absolute flex items-center justify-center gap-1"
+        style={{
+          left: 6, right: 6, bottom: 4, height: 10,
+          backgroundColor: surface,
+          borderRadius: def.shape === 'round' ? 999 : 0,
+          borderTop: def.shape === 'cut' ? `1.5px solid ${accent}` : undefined,
+        }}
+      >
+        <i style={{ width: 4, height: 4, backgroundColor: accent, borderRadius: def.shape === 'round' ? 999 : 0 }} />
+        <i style={{ width: 4, height: 4, backgroundColor: dim, borderRadius: def.shape === 'round' ? 999 : 0 }} />
+        <i style={{ width: 4, height: 4, backgroundColor: dim, borderRadius: def.shape === 'round' ? 999 : 0 }} />
+      </div>
+    </div>
+  );
+}
+
 // ─── メイン画面 ────────────────────────────────────────────────────
 
 export default function Customize() {
@@ -278,9 +339,12 @@ export default function Customize() {
   const swatchDark = isCommunityActive
     ? !!COMMUNITY_THEMES.find(t => t.id === settings.communityThemeId)?.dark
     : resolveTheme(settings.theme) === 'dark';
-  const sw = (def: SkinDef) => (swatchDark ? def.swatch : def.swatchLight);
+  // 選んでいる方はアクセント色の枠にする。--border-selected は地との差が小さく、
+  // 外皮によっては「押しても変わらない」ように見えた
   const themeButtonClass = (active: boolean) =>
-    `rounded-xl overflow-hidden border-2 transition-colors ${active ? 'border-selected' : 'border-subtle'}`;
+    `rounded-xl overflow-hidden border-2 transition-colors ${active ? '' : 'border-subtle'}`;
+  const themeButtonStyle = (active: boolean) =>
+    active ? { borderColor: 'var(--accent-color)' } : undefined;
 
   const calColorPreviewDots = CAL_COLOR_FIELDS.map(f => settings[f.key] as string).filter(Boolean);
 
@@ -302,13 +366,9 @@ export default function Customize() {
               const def = SKINS[id];
               const on = skin === id;
               return (
-                <button key={id} onClick={() => setSkin(id)} aria-pressed={on} className={themeButtonClass(on)}>
-                  {/* 見本は「地の上に面が1枚」。面の角の形が外皮の違いで一番効くので、
-                      色だけでなく角丸も外皮のものを使う */}
-                  <div className="h-12 relative flex items-center justify-center" style={{ backgroundColor: sw(def)[0] }}>
-                    <div className="w-3/5 h-1/2" style={{ backgroundColor: sw(def)[1], borderRadius: def.swatchRadius }} />
-                    <div className="absolute bottom-1.5 right-1.5 w-2.5 h-2.5" style={{ backgroundColor: sw(def)[2], borderRadius: def.swatchRadius ? 999 : 0 }} />
-                  </div>
+                <button key={id} onClick={() => setSkin(id)} aria-pressed={on}
+                  className={themeButtonClass(on)} style={themeButtonStyle(on)}>
+                  <SkinPreview def={def} dark={swatchDark} />
                   <div className="bg-bg-secondary py-1.5">
                     <p className="text-xs text-label-primary text-center truncate px-1">{def.name}</p>
                   </div>
@@ -330,18 +390,24 @@ export default function Customize() {
         <section>
           <p className="text-label-tertiary text-xs mb-3">明るさ</p>
           <div className="grid grid-cols-3 gap-2">
-            <button onClick={() => updateSettings({ theme: 'system', communityThemeId: '' })} className={themeButtonClass(settings.theme === 'system' && !isCommunityActive)}>
+            <button onClick={() => updateSettings({ theme: 'system', communityThemeId: '' })}
+              aria-pressed={settings.theme === 'system' && !isCommunityActive}
+              className={themeButtonClass(settings.theme === 'system' && !isCommunityActive)} style={themeButtonStyle(settings.theme === 'system' && !isCommunityActive)}>
               <div className="h-12 flex">
                 <div className="flex-1 bg-[#f5f5f5]" />
                 <div className="flex-1 bg-[#1a1a1a]" />
               </div>
               <div className="bg-bg-secondary py-1.5"><p className="text-xs text-label-primary text-center">システム</p></div>
             </button>
-            <button onClick={() => updateSettings({ theme: 'simple', communityThemeId: '' })} className={themeButtonClass(settings.theme === 'simple' && !isCommunityActive)}>
+            <button onClick={() => updateSettings({ theme: 'simple', communityThemeId: '' })}
+              aria-pressed={settings.theme === 'simple' && !isCommunityActive}
+              className={themeButtonClass(settings.theme === 'simple' && !isCommunityActive)} style={themeButtonStyle(settings.theme === 'simple' && !isCommunityActive)}>
               <div className="h-12 bg-[#f5f5f5]" />
               <div className="bg-bg-secondary py-1.5"><p className="text-xs text-label-primary text-center">ライト</p></div>
             </button>
-            <button onClick={() => updateSettings({ theme: 'dark', communityThemeId: '' })} className={themeButtonClass(settings.theme === 'dark' && !isCommunityActive)}>
+            <button onClick={() => updateSettings({ theme: 'dark', communityThemeId: '' })}
+              aria-pressed={settings.theme === 'dark' && !isCommunityActive}
+              className={themeButtonClass(settings.theme === 'dark' && !isCommunityActive)} style={themeButtonStyle(settings.theme === 'dark' && !isCommunityActive)}>
               <div className="h-12 bg-[#1a1a1a]" />
               <div className="bg-bg-secondary py-1.5"><p className="text-xs text-label-primary text-center">ダーク</p></div>
             </button>

@@ -27,6 +27,10 @@ export interface SkinDef {
   swatchLight: [string, string, string];
   /** 見本の中の面の角丸(px)。**「面の形」が外皮の違いで一番効く**ので見本にも出す */
   swatchRadius: number;
+  /** 面の形。丸／直角／右下を切る。テーマ生成の「設定表」でも同じ語彙を使う予定 */
+  shape: 'round' | 'square' | 'cut';
+  /** 地に質感（点の格子）を敷くか。見本にも出す */
+  texture: boolean;
   /**
    * ステータスバーの裏に実際に出る色。アイコンを白にするか黒にするかをここから決める。
    *
@@ -175,6 +179,8 @@ export const SKINS: Record<SkinId, SkinDef> = {
     swatch: ['#0e0e10', '#1c1c1e', '#FBBF00'],
     swatchLight: ['#f2f2f7', '#ffffff', '#FBBF00'],
     swatchRadius: 8,
+    shape: 'round',
+    texture: false,
     statusBar: 'bg',
     fontQuery: null,
     vars: null,
@@ -186,10 +192,12 @@ export const SKINS: Record<SkinId, SkinDef> = {
     swatch: ['#101012', '#1b1b20', '#FF5A1E'],
     swatchLight: ['#e7e4db', '#f6f4ef', '#FF5A1E'],
     swatchRadius: 2,
+    shape: 'square',
+    texture: true,
     statusBar: 'bg',
     fontQuery:
       'family=BIZ+UDGothic:wght@400;700' +
-      '&family=Martian+Mono:wght@300;400;500;700&family=Bitcount+Grid+Double:wght@400;700',
+      '&family=Martian+Mono:wght@300;400;500;700',
     vars: { dark: PANEL_DARK, light: PANEL_LIGHT },
   },
   surge: {
@@ -199,6 +207,8 @@ export const SKINS: Record<SkinId, SkinDef> = {
     swatch: ['#0b0b0c', '#151519', '#FFD400'],
     swatchLight: ['#f4f2ec', '#ffffff', '#FFD400'],
     swatchRadius: 0,
+    shape: 'cut',
+    texture: false,
     // 上部の帯が accent（skins.css の [data-skin-part='header']）
     statusBar: 'accent',
     fontQuery:

@@ -456,6 +456,7 @@ export default function Explore() {
             style={filterOpen || activeCount > 0
               ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }
               : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}
+            aria-pressed={filterOpen || activeCount > 0}
             aria-label="絞り込み"
           >
             <SlidersHorizontal size={16} />

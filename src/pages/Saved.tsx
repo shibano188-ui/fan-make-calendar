@@ -266,6 +266,7 @@ export default function Saved() {
           <button onClick={() => { haptic.select(); setFilterOpen((v) => !v); }}
             className="pressable flex items-center gap-1 px-3 py-2 rounded-[10px]"
             style={filterOpen || activeCount > 0 ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' } : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}
+            aria-pressed={filterOpen || activeCount > 0}
             aria-label="絞り込み">
             <SlidersHorizontal size={16} />
             {activeCount > 0 && <span className="text-[11px] font-bold">{activeCount}</span>}
@@ -277,8 +278,12 @@ export default function Saved() {
           {VIEWS.map((v) => (
             <button key={v.key} onClick={() => { haptic.select(); setView(v.key); }}
               className="flex-1 text-[13px] font-semibold py-1.5 rounded-[8px] pressable transition-colors"
+              aria-pressed={view === v.key}
               style={view === v.key
-                ? { backgroundColor: 'var(--bg-primary)', color: 'var(--label-primary)', boxShadow: '0 1px 2px rgba(0,0,0,0.12)' }
+                // 選んでいる方はアクセント色で塗る。地の色（--bg-primary）との差は
+                // 暗いテーマでも外皮でもほとんど付かず、「押しても変わらない」に見えていた。
+                // 絞り込みチップ（Chip）と同じ「選択＝アクセントで塗る」に揃える
+                ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }
                 : { color: 'var(--label-secondary)' }}>
               {v.label}
             </button>

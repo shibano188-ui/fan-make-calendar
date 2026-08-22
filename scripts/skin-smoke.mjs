@@ -301,6 +301,64 @@ async function run() {
       }
     }
 
+    // ── 選んでいるものが見て分かるか ────────────────────
+    // 「押しても色が変わらない」を機械で拾う。選択中の面と、隣の未選択の面の
+    // 明るさの比を測り、はっきり差が付いているかを見る（外皮ごとに地の色が違うので、
+    // 固定色ではなく**その場の実測**で判断する）
+    {
+      await page.goto(`${BASE}/saved`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(1200);
+      const r = await page.evaluate(() => {
+        const btns = Array.from(document.querySelectorAll('button[aria-pressed]'))
+          .filter((b) => ['月', '週', '日', 'リスト'].includes(b.textContent.trim()));
+        if (btns.length < 2) return null;
+        const on = btns.find((b) => b.getAttribute('aria-pressed') === 'true');
+        const off = btns.find((b) => b.getAttribute('aria-pressed') !== 'true');
+        if (!on || !off) return null;
+        const parse = (c) => {
+          const m = String(c).match(/rgba?\(([^)]+)\)/);
+          if (!m) return null;
+          const p = m[1].split(',').map(Number);
+          return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
+        };
+        const over = (f, bk) => {
+          const a = f.a + bk.a * (1 - f.a);
+          return a === 0 ? { r: 0, g: 0, b: 0, a: 0 } : {
+            r: (f.r * f.a + bk.r * bk.a * (1 - f.a)) / a,
+            g: (f.g * f.a + bk.g * bk.a * (1 - f.a)) / a,
+            b: (f.b * f.a + bk.b * bk.a * (1 - f.a)) / a, a };
+        };
+        const bgOf = (el) => {
+          let acc = null;
+          for (let n = el; n; n = n.parentElement) {
+            const c = parse(getComputedStyle(n).backgroundColor);
+            if (c && c.a > 0) acc = acc ? over(acc, c) : c;
+            if (acc && acc.a >= 0.999) return acc;
+          }
+          return { r: 255, g: 255, b: 255, a: 1 };
+        };
+        // 明るさの比だけでは足りない。「黄色 vs 淡いグレー」は明るさがほぼ同じでも
+        // 目には全く違う色に見えるので、**色差（Lab の距離）**で判定する
+        const lab = (c) => {
+          const f = (v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+          const [r, g, b] = [f(c.r), f(c.g), f(c.b)];
+          const X = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047;
+          const Y = (0.2126 * r + 0.7152 * g + 0.0722 * b);
+          const Z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883;
+          const k = (t) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+          const [fx, fy, fz] = [k(X), k(Y), k(Z)];
+          return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+        };
+        const a = bgOf(on), b = bgOf(off);
+        const [l1, a1, b1] = lab(a), [l2, a2, b2] = lab(b);
+        const dE = Math.sqrt((l1 - l2) ** 2 + (a1 - a2) ** 2 + (b1 - b2) ** 2);
+        return { dE: Math.round(dE * 10) / 10 };
+      });
+      // 12 は「並べて置いたとき誰でも別の色だと分かる」あたり（目に見える差の目安は2〜3）
+      if (r) log(r.dE >= 12, `選択中の表示切替が未選択と見分けられる（色差 ${r.dE}）`);
+      else log(false, '表示切替のボタンが見つからない');
+    }
+
     // ── 色トークンの検算（明・暗の両方）────────────────
     for (const dark of [false, true]) {
       const mode = dark ? 'ダーク' : 'ライト';
