@@ -449,6 +449,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [userThemes, setUserThemes] = useState<UserTheme[]>([]);
   const [userThemeId, setUserThemeId] = useState<string | null>(() => loadActiveThemeId());
 
+  // 一覧の最新値。**保存した直後に selectUserTheme を呼ぶと、state はまだ古い**ので
+  // （同じ処理の中では再レンダリング前）、色を拾えずアクセントが前のままになる。
+  // そこを埋めるための参照。
+  const userThemesRef = useRef<UserTheme[]>([]);
+
   // 保存前の下書き。**あるときは何より優先して当てる**（見ながら直せるようにするため）
   const [draft, setDraft] = useState<ThemeDraft | null>(null);
   const draftSpec = draft?.spec ?? null;
@@ -458,10 +463,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const reloadUserThemes = useCallback(async () => {
     const list = await listUserThemes();
+    userThemesRef.current = list;
     setUserThemes(list);
     // 消されたテーマを選んだままにしない（形だけ残って混ざる）
     setUserThemeId(prev => {
-      if (prev && !list.some(t => t.id === prev)) { saveActiveThemeId(null); return null; }
+      if (prev && !list.some(t => t.id === prev)) { saveActiveThemeId(null); return null; }   // 消されたテーマは外す
       return prev;
     });
     return list;
@@ -497,7 +503,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const selectUserTheme = useCallback((id: string | null) => {
     saveActiveThemeId(id);
     setUserThemeId(id);
-    const spec = id ? userThemes.find(t => t.id === id)?.spec : null;
+    const list = userThemesRef.current.length ? userThemesRef.current : userThemes;
+    const spec = id ? list.find(t => t.id === id)?.spec : null;
     if (spec) followAccent(spec.accent);
   }, [userThemes, followAccent]);
 
