@@ -8,6 +8,7 @@ import { supabase } from './supabase';
 import { authHeaders } from './apiAuth';
 import type { ThemeSpec, UserTheme } from '../design/themeSpec';
 import { applyPatch, type ContrastReport } from '../design/themeCheck';
+import { PRESET_SPECS } from '../design/skins';
 
 const ACTIVE_KEY = 'fan_user_theme';
 
@@ -30,8 +31,18 @@ export function saveActiveThemeId(id: string | null): void {
 
 type Row = { id: string; name: string; spec: ThemeSpec; created_at: string };
 
+/**
+ * 保存済みのテーマを読み戻すときは**必ず素通しにしない**。
+ *
+ * 表に項目を足したあと、足す前に保存されたテーマには当然その項目が無い。
+ * そのまま CSS変数へ流すと `NaN px` のような壊れた値になる。
+ * `applyPatch` は「今の表に差分を当てる」関数なので、既定の表を土台にすれば
+ * **足りない項目が埋まり、範囲外の値も落ちる**（明暗差の検算もかかる）。
+ */
 function toTheme(r: Row): UserTheme {
-  return { id: r.id, spec: { ...r.spec, name: r.name || r.spec.name }, createdAt: r.created_at };
+  const base = { ...PRESET_SPECS.classic, radius: 12 };
+  const { spec } = applyPatch(base, { ...r.spec, name: r.name || r.spec?.name });
+  return { id: r.id, spec, createdAt: r.created_at };
 }
 
 export async function listUserThemes(): Promise<UserTheme[]> {
