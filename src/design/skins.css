@@ -689,6 +689,21 @@ html[data-bars='plate'] .material-sheet .rounded-full.h-\[5px\] {
    写真を横に断つ板がスクロール中ずっと付いてくる形になって壊れて見える。
    だから下の「形と動きを変える指定」は data-skin-bar="main" だけに当てる。 */
 
+/* 主要タブ以外の上部バーも、**帯の色は受け取る**（以前と同じく一色になる）。
+   受け取らないのは形と動きだけ——下辺のぼかしは残し、余白も斜めの切り欠きも足さない。
+   あそこは写真の上に重なったまま画面に貼り付くので、形をいじると
+   写真を横に断つ板がスクロール中ずっと付いてくる形になって壊れて見える。 */
+html[data-bars='band'] .material-bar.scroll-edge:not([data-skin-bar='main']) {
+  background-color: var(--accent-color);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+html[data-bars='band'] .material-bar.scroll-edge:not([data-skin-bar='main']) svg,
+html[data-bars='band'] .material-bar.scroll-edge:not([data-skin-bar='main']) button,
+html[data-bars='band'] .material-bar.scroll-edge:not([data-skin-bar='main']) p {
+  color: var(--accent-on) !important;
+}
+
 /* 帯: 上部をアクセント色一色にする。下辺だけ斜めに切る（文字は水平のまま）。
    帯の中の検索欄は暗い面にして、色の上でも読めるようにする。
 
