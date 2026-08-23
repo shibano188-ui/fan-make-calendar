@@ -16,6 +16,9 @@ import { withAiUsage, noteAiUsage, saveAiUsage, type AiCall } from './_aiusage.j
 // 版権の線引き（重要）:
 //   作品名は**入力としてだけ**受け取る。出力の名前にしない。**ログにも残さない**。
 //   返すのは数字と選択肢だけ。版権は使う人の側に置いたままにする。
+//   参考画像も同じ。**保存しない・ログに残さない・出力に残さない**。
+//   AIに渡して捨てるだけ（著作権法30条の4が想定する「解析のための利用」に収める）。
+//   端末側で長辺768pxに縮めてから送る（原本をそのまま渡さない）。
 // ═══════════════════════════════════════════════════════════════════
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -50,6 +53,12 @@ const SYSTEM_PROMPT = `あなたはモバイルアプリの外観を決める設
 - press 押した反応。spring=ばね／mechanical=沈む／bounce=弾く／none
 - ornament 飾り。**1テーマに1つだけ**。none／led=状態が表示灯のように灯る／tilt=札やチップが少し傾く
 - type 書体の性格。plain=素／mono=字間を開けた等幅の計器風／display=極太の見出し風
+
+## 参考画像が付いているとき
+- 画像は**見た目の手がかり**として読む。色の並び・明暗・粗さ・角の丸さ・書体の太さの印象を拾う
+- **描かれているもの（キャラクター・ロゴ・作品）には触れない。** name にも note にも出さない
+- 画像が複数あるときは、共通して流れている雰囲気を1つにまとめる
+- 言葉も一緒に来ていたら**言葉を優先**する（画像は補足）
 
 ## 色の決め方
 - bg=地、surface=カードやバーの面、surface2=一段沈んだ面（入力欄）、text=文字、line=罫線と薄い塗りのもと
@@ -134,7 +143,19 @@ const THEME_TOOL = {
   },
 };
 
-type Body = { prompt?: string; current?: unknown };
+type Body = { prompt?: string; current?: unknown; images?: unknown };
+
+// 参考画像。多いほど費用が増えるので枚数と大きさを切る
+// （端末側で長辺768px・JPEG品質80に縮めてから送っている ＝ 1枚あたり約100KB）
+const MAX_IMAGES = 3;
+const MAX_IMAGE_BASE64 = 600_000;   // 約450KB。縮小をすり抜けた原寸を弾く
+
+function pickImages(images: unknown): string[] {
+  if (!Array.isArray(images)) return [];
+  return images
+    .filter((v): v is string => typeof v === 'string' && v.length > 0 && v.length <= MAX_IMAGE_BASE64)
+    .slice(0, MAX_IMAGES);
+}
 
 /** 今の表を、AIに読ませる短い文にする。**会話履歴の代わり**がこれ */
 function currentTable(current: unknown): string {
@@ -163,9 +184,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(429).json({ error: 'rate_limited', retryAfterSec: rl.retryAfterSec });
   }
 
-  const { prompt, current } = (req.body ?? {}) as Body;
-  const wish = typeof prompt === 'string' ? prompt.trim().slice(0, 200) : '';
-  if (!wish) return res.status(400).json({ error: 'prompt is required' });
+  const { prompt, current, images } = (req.body ?? {}) as Body;
+  // 入力欄は複数行で長く書ける。表を埋めるのに必要な長さとして 600 文字まで受ける
+  const wish = typeof prompt === 'string' ? prompt.trim().slice(0, 600) : '';
+  const refs = pickImages(images);
+  if (!wish && refs.length === 0) return res.status(400).json({ error: 'prompt or images required' });
 
   const calls: AiCall[] = [];
   try {
@@ -180,7 +203,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
         messages: [{
           role: 'user',
-          content: `## 今の表\n${currentTable(current)}\n\n## 頼まれたこと\n${wish}`,
+          content: [
+            ...refs.map(data => ({
+              type: 'image' as const,
+              source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data },
+            })),
+            {
+              type: 'text' as const,
+              text: `## 今の表\n${currentTable(current)}\n\n## 頼まれたこと\n`
+                + (wish || '（言葉の指定なし。参考画像の雰囲気だけで作る）')
+                + (refs.length ? `\n\n参考画像を${refs.length}枚付けています。` : ''),
+            },
+          ],
         }],
       });
       noteAiUsage(MODEL, message.usage);

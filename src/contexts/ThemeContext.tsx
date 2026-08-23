@@ -8,6 +8,19 @@ import {
   SIGNATURE_ACCENTS, type SkinId,
 } from '../design/skins';
 import type { ThemeSpec, UserTheme } from '../design/themeSpec';
+
+/** 作りかけのテーマ。画面を移っても消えないよう、ここに置く */
+export type ThemeDraft = {
+  spec: ThemeSpec;
+  /** 手直しのたびに積む前の版。「元に戻す」はここから取る */
+  history: ThemeSpec[];
+  /** 既にあるテーマを直しているならそのid。null なら新規 */
+  editingId: string | null;
+  /** 言葉での手直しを使った回数 */
+  tweaks: number;
+  /** 直前の変更の説明（AIが返す1文） */
+  note: string;
+};
 import { listUserThemes, loadActiveThemeId, saveActiveThemeId } from '../lib/userThemes';
 
 export type ThemeMode = 'simple' | 'dark' | 'system';
@@ -395,10 +408,14 @@ interface ThemeContextValue {
   selectUserTheme: (id: string | null) => void;
   /**
    * 下書き。保存する前のテーマを**アプリ全体に当てて見せる**ための一時の層。
-   * 保存はしない（別の画面へ移っても消えないが、再起動すると消える）。
+   *
+   * 作っている途中の状態（版の積み重ね・手直しの回数）まで持たせているのは、
+   * **作りながら他のタブを見に行って戻ってこられるようにするため**。
+   * 画面の中に置くと、移動した時点で「元に戻す」も編集中のテーマも消える。
+   * 保存はしない（再起動すると消える）。
    */
-  draftSpec: ThemeSpec | null;
-  setDraftSpec: (spec: ThemeSpec | null) => void;
+  draft: ThemeDraft | null;
+  setDraft: (d: ThemeDraft | null) => void;
   /** 保存・削除のあとに一覧を取り直す */
   reloadUserThemes: () => Promise<UserTheme[]>;
 }
@@ -426,7 +443,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [userThemeId, setUserThemeId] = useState<string | null>(() => loadActiveThemeId());
 
   // 保存前の下書き。**あるときは何より優先して当てる**（見ながら直せるようにするため）
-  const [draftSpec, setDraftSpec] = useState<ThemeSpec | null>(null);
+  const [draft, setDraft] = useState<ThemeDraft | null>(null);
+  const draftSpec = draft?.spec ?? null;
 
   const activeUserTheme = userThemeId ? userThemes.find(t => t.id === userThemeId) ?? null : null;
   const activeSpec: ThemeSpec = draftSpec ?? activeUserTheme?.spec ?? PRESET_SPECS[skin];
@@ -600,7 +618,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     <ThemeContext.Provider value={{
       settings, updateSettings, currentWorkId, setCurrentCalendar, calFontFamily,
       skin, setSkin, userThemes, userThemeId, activeSpec, selectUserTheme, reloadUserThemes,
-      draftSpec, setDraftSpec,
+      draft, setDraft,
     }}>
       {children}
     </ThemeContext.Provider>

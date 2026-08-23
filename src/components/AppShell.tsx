@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom';
 import BottomNav from './nav/BottomNav';
+import DraftBar from './theme/DraftBar';
 import { useNotificationScheduler } from '../hooks/useNotificationScheduler';
 
 /** 新IAの共通シェル。コンテンツ(Outlet) + 下部ナビ。 */
@@ -12,6 +13,8 @@ export default function AppShell() {
         <main className="flex-1 pb-28">
           <Outlet />
         </main>
+        {/* 作りかけのテーマがあるときだけ出る。他の画面で見た目を確かめて戻ってこられる */}
+        <DraftBar />
         <BottomNav />
       </div>
     </div>

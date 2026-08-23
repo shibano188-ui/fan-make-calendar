@@ -1,11 +1,15 @@
-// テーマ生成画面の通し確認（AIを呼ばない範囲）。
+// テーマを作る画面の通し確認。
 //
-// 見るのは3つ:
-//   1. 作る画面が開くこと
-//   2. **ボタンでの手直しが即座にアプリ全体へ効くこと**（html の属性とCSS変数が動く）
-//   3. 「元に戻す」で前の版に戻ること
+// 見るのは:
+//   1. カスタマイズから専用ページへ移れること・入力欄が折り返す形であること
+//   2. **作る前に軸の操作を出していないこと**（プリセットを改造する画面ではない）
+//   3. 生成が通れば、アプリ全体に当たり・微調整が出て・元に戻せること
 //
-// 使い方: npm run dev を別で起こしてから  node scripts/theme-studio-check.mjs [URL]
+// 生成はAPIが要る。ローカルの `npm run dev` にはAPIが無いので、
+// **APIが使えないときは後半を飛ばす**（前半だけでも作りの崩れは拾える）。
+//
+// 使い方: node scripts/theme-studio-check.mjs [URL]
+//         プレビューのURLを渡すと生成まで通しで確認する
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
 
@@ -13,6 +17,7 @@ const BASE = process.argv[2] ?? 'http://localhost:5173';
 const OUT = 'scripts/.smoke';
 let failed = 0;
 const log = (ok, msg) => { if (!ok) failed++; console.log(`  ${ok ? 'ok  ' : 'NG  '} ${msg}`); };
+const skip = msg => console.log(`  --   ${msg}`);
 
 const readRoot = page => page.evaluate(() => {
   const r = document.documentElement;
@@ -32,51 +37,58 @@ const run = async () => {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   const errors = [];
+  let apiStatus = 0;
   page.on('pageerror', e => errors.push(e.message));
+  page.on('response', r => { if (r.url().includes('/api/generate-theme')) apiStatus = r.status(); });
 
   await page.goto(`${BASE}/customize`, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(600);
+  await page.waitForTimeout(1500);
 
   log(await page.getByText('自分のテーマ').isVisible(), '「自分のテーマ」の欄がある');
-  await page.getByText('AIで作る').click();
-  await page.waitForTimeout(300);
-  log(await page.getByPlaceholder(/.+/).first().isVisible(), '作る画面が開く');
+  log(await page.getByText('無料で保存できるのは1つまで。').isVisible(), '保存数の案内が出ている');
 
-  const before = await readRoot(page);
-  log(before.themed, '下書きを始めた時点でテーマが当たっている（data-themed）');
+  await page.getByRole('button', { name: '作る', exact: true }).click();
+  await page.waitForTimeout(800);
+  log(page.url().includes('/customize/theme'), '専用ページへ移る');
+  log(await page.locator('textarea').first().isVisible(), '折り返す入力欄がある');
+  log(await page.getByText(/参考画像は無くてもかまいません/).isVisible(), '参考画像が任意だと書いてある');
+  log(await page.getByRole('button', { name: '明るく' }).count() === 0, '作る前に微調整を出していない');
+  log(await page.getByRole('button', { name: '保存する' }).count() === 0, '作る前に保存を出していない');
+  log((await readRoot(page)).themed, '下書きが当たっている（data-themed）');
+  await page.screenshot({ path: `${OUT}/theme-create.png` });
 
-  // ボタンでの手直し（APIを呼ばない）
-  await page.getByRole('button', { name: '角ばらせる' }).click();
-  await page.waitForTimeout(200);
-  const squared = await readRoot(page);
-  log(squared.radius !== before.radius, `角丸が変わる（${before.radius} → ${squared.radius}）`);
+  // ── ここから先はAPIが要る ──────────────────────────────
+  await page.locator('textarea').first().fill('夜の海みたいに静かな青。角は丸めで、やわらかい書体。');
+  await page.getByRole('button', { name: '作る', exact: true }).click();
+  await page.waitForTimeout(25000);
 
-  await page.getByRole('button', { name: '上を帯にする' }).click();
-  await page.waitForTimeout(200);
-  const banded = await readRoot(page);
-  log(banded.bars === 'band', `上部バーが帯になる（${banded.bars}）`);
+  if (apiStatus !== 200) {
+    skip(`生成は飛ばした（API ${apiStatus || 'なし'}）。ローカルではAPIが動かないので、プレビューのURLを渡して確認すること`);
+  } else {
+    const made = await readRoot(page);
+    log(await page.getByRole('button', { name: '保存する' }).isVisible(), '作ったあとに保存が出る');
+    log(await page.getByRole('button', { name: '明るく' }).isVisible(), '作ったあとに微調整が出る');
+    await page.screenshot({ path: `${OUT}/theme-made.png` });
 
-  await page.getByRole('button', { name: '質感をつける' }).click();
-  await page.waitForTimeout(200);
-  log((await readRoot(page)).texture === 'dots', '地に質感が付く');
+    await page.getByRole('button', { name: '角ばらせる' }).click();
+    await page.waitForTimeout(400);
+    const squared = await readRoot(page);
+    log(squared.radius !== made.radius, `微調整で角丸が動く（${made.radius} → ${squared.radius}）`);
 
-  await page.getByRole('button', { name: '暗く' }).click();
-  await page.waitForTimeout(200);
-  const darker = await readRoot(page);
-  log(darker.bg !== banded.bg, `地の色が動く（${banded.bg} → ${darker.bg}）`);
+    await page.getByRole('button', { name: '元に戻す' }).click();
+    await page.waitForTimeout(400);
+    log((await readRoot(page)).radius === made.radius, '「元に戻す」で1つ前の版に戻る');
 
-  await page.screenshot({ path: `${OUT}/studio-tweaked.png` });
-
-  // 元に戻す（版を積んでいるので1つずつ戻る）
-  await page.getByRole('button', { name: '元に戻す' }).click();
-  await page.waitForTimeout(200);
-  log((await readRoot(page)).bg === banded.bg, '「元に戻す」で1つ前の版に戻る');
-
-  // やめると素の見た目へ
-  await page.getByRole('button', { name: 'やめる', exact: true }).click();
-  await page.waitForTimeout(300);
-  const closed = await readRoot(page);
-  log(!closed.themed, 'やめるとテーマが外れる（属性が残らない）');
+    // 他の画面で見てみる → 帯から戻る（下書きは画面でなくコンテキストが持つ）
+    await page.getByRole('button', { name: '他の画面で見てみる' }).click();
+    await page.waitForTimeout(1800);
+    log((await readRoot(page)).themed, '他の画面へ移ってもテーマが当たったまま');
+    log(await page.getByText('を試しています').isVisible(), '作成中の帯が出ている');
+    await page.screenshot({ path: `${OUT}/theme-other-tab.png` });
+    await page.getByRole('button', { name: /編集に戻る/ }).click();
+    await page.waitForTimeout(1200);
+    log(await page.getByRole('button', { name: '保存する' }).isVisible(), '帯から戻ると続きから直せる');
+  }
 
   log(errors.length === 0, `JSの例外が出ていない（${errors.length}件）`);
   await browser.close();

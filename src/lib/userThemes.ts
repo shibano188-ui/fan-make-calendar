@@ -86,12 +86,13 @@ export class ThemeLimitError extends Error {
 export async function generateTheme(
   prompt: string,
   current: ThemeSpec,
+  images: string[] = [],
 ): Promise<{ spec: ThemeSpec; note: string; report: ContrastReport[] }> {
   const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ?? '';
   const res = await fetch(`${apiBase}/api/generate-theme`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-    body: JSON.stringify({ prompt, current }),
+    body: JSON.stringify({ prompt, current, images }),
   });
   if (res.status === 429) {
     const body = await res.json().catch(() => ({}));

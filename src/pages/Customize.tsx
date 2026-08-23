@@ -10,7 +10,7 @@ import { useConfirm } from '../components/ui/ConfirmDialog';
 import { pushAppState } from '../lib/appState';
 import { hasNativePhotoPicker, pickPhoto } from '../lib/pickPhoto';
 import { SKINS, SKIN_IDS, type SkinDef } from '../design/skins';
-import ThemeStudio from '../components/theme/ThemeStudio';
+import ThemeList from '../components/theme/ThemeList';
 
 const CAL_COLOR_FIELDS: { key: keyof UserSettings; label: string; cssVar: string }[] = [
   { key: 'calWeekday',    label: '平日',        cssVar: '--cal-weekday-color' },
@@ -387,8 +387,8 @@ export default function Customize() {
           )}
         </section>
 
-        {/* 言葉から作るテーマ。上のプリセットと同じ「設定表」の別の組み合わせにすぎない */}
-        <ThemeStudio />
+        {/* 自分のテーマ。作るのは専用ページ（/customize/theme）でやる */}
+        <ThemeList />
 
         {/* 明るさ。テーマは明暗2組の色を持つので、この選択とは独立して効く */}
         <section>

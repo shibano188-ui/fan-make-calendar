@@ -23,6 +23,7 @@ const MyPage          = lazy(() => import('./pages/MyPage'));
 const PostNew         = lazy(() => import('./pages/PostNew'));
 const ItemDetail      = lazy(() => import('./pages/ItemDetail'));
 const Customize       = lazy(() => import('./pages/Customize'));
+const ThemeCreate     = lazy(() => import('./pages/ThemeCreate'));
 const PriceDrops      = lazy(() => import('./pages/PriceDrops'));
 const Follows         = lazy(() => import('./pages/Follows'));
 const NotificationSettings = lazy(() => import('./pages/NotificationSettings'));
@@ -255,6 +256,7 @@ export default function App() {
                     <Route path="/post"     element={<PostNew />} />
                     <Route path="/item/:id" element={<ItemDetail />} />
                     <Route path="/customize" element={<Customize />} />
+                    <Route path="/customize/theme" element={<ThemeCreate />} />
                     <Route path="/price-drops" element={<PriceDrops />} />
                     <Route path="/follows" element={<Follows />} />
                     <Route path="/notifications" element={<NotificationSettings />} />
