@@ -593,11 +593,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   // アクセントカラー + 派生トークンを CSS 変数に反映
   useEffect(() => {
-    // 下書き中はそのアクセントで見せる。ただし**自分で色を選んでいる人のものは奪わない**
-    // （プレビューだけテーマの色にすると、保存後と見え方が食い違う）
-    const useDraft = draftSpec && accentIsAuto(settings.accentColor);
-    applyAccentVars(useDraft ? draftSpec.accent : settings.accentColor);
-  }, [settings.accentColor, draftSpec, accentIsAuto]);
+    // テーマのアクセントは**当てるときに毎回テーマから引く**。
+    // 保存した値に頼ると、あとから走る「設定をサーバーから復元」に上書きされて
+    // 「水色のテーマなのにアクセントだけ前の色」という状態が残る（実際に起きた）。
+    // ただし**自分で色を選んでいる人のものは奪わない**。
+    const themeAccent = draftSpec?.accent ?? activeUserTheme?.spec.accent;
+    const useTheme = themeAccent && accentIsAuto(settings.accentColor);
+    applyAccentVars(useTheme ? themeAccent : settings.accentColor);
+  }, [settings.accentColor, draftSpec, activeUserTheme, accentIsAuto]);
 
   // カレンダー文字色・グリッド線色を CSS 変数に反映
   useEffect(() => {
