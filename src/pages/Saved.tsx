@@ -257,7 +257,7 @@ export default function Saved() {
       <div className="sticky top-0 z-20 -mx-3 px-3 pt-1 pb-3 material-bar scroll-edge" data-skin-bar="main" style={{ paddingTop: 'calc(var(--sat) + 4px)' }}>
         {/* 検索 ＋ 絞り込み（探すと同じ） */}
         <div className="flex items-center gap-2 mb-2">
-          <div className="flex-1 flex items-center gap-2 px-3 rounded-[10px]" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+          <div className="flex-1 min-w-0 flex items-center gap-2 px-3 rounded-[10px]" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
             <Search size={16} className="text-label-tertiary flex-shrink-0" />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="保存した予定を検索"
               className="flex-1 bg-transparent py-2 text-[14px] outline-none" style={{ color: 'var(--input-text)' }} />

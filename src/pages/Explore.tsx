@@ -435,7 +435,7 @@ export default function Explore() {
     <div ref={pageRef} className="relative">
       <div ref={headerRef} className="px-3 pt-3 pb-3 sticky top-0 z-20 material-bar scroll-edge" data-skin-bar="main" style={{ paddingTop: adPad }}>
         <div className="flex items-center gap-2">
-          <div className="flex-1 flex items-center gap-2 px-3 rounded-[10px]" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+          <div className="flex-1 min-w-0 flex items-center gap-2 px-3 rounded-[10px]" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
             <Search size={16} className="text-label-tertiary flex-shrink-0" />
             <input
               value={query}
