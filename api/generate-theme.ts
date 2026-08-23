@@ -35,31 +35,13 @@ const SYSTEM_PROMPT = `あなたはモバイルアプリの外観を決める設
 利用者の言葉から、アプリ全体の見た目を決める「設定表」を埋めます。
 
 ## 絶対の制約
-- CSSやコードは書かない。**下の表の項目を埋めた JSON だけ**を返す
-- 変える項目だけを返す（差分）。触らない項目はキーごと省く
+- CSSやコードは書かない。**道具 set_theme の引数を埋めるだけ**
+- 変える項目だけ渡す（差分）。触らない項目はキーごと省く
 - name は雰囲気を表す短い日本語（8文字以内）。**作品名・キャラクター名・ブランド名は使わない**
 - 色は必ず #rrggbb の6桁。明（light）と暗（dark）の2組を必ずそろえる
 - 押す場所と情報の順番は変えられない。変えられるのは色・形・書体・質感だけ
 
-## 返す JSON の形（変える項目だけ）
-{
-  "name": "夜の海",
-  "accent": "#4fc3f7",
-  "shape": "round" | "square" | "cut",
-  "radius": 0〜24 の整数,
-  "bars": "floating" | "plate" | "band",
-  "shadow": "float" | "raise" | "hard" | "none",
-  "texture": "none" | "dots" | "halftone",
-  "press": "spring" | "mechanical" | "bounce" | "none",
-  "ornament": "none" | "led" | "tilt",
-  "type": "plain" | "mono" | "display",
-  "fonts": { "body": …, "label": …, "meta": …, "num": …, "display": … },
-  "dark":  { "bg": "#…", "surface": "#…", "surface2": "#…", "text": "#…", "line": "#…" },
-  "light": { "bg": "#…", "surface": "#…", "surface2": "#…", "text": "#…", "line": "#…" },
-  "note": "何をどう変えたかを1文で（日本語・30文字以内）"
-}
-
-## 項目の意味
+## 項目の意味（set_theme の引数として渡す。変える項目だけ入れる）
 - shape 面の形。round=丸／square=直角／cut=右下を切る。**「別のアプリに見える」を一番作る**
 - radius 角丸(px)。アプリ中の角丸がこの1つに揃う。square なら0〜3、round なら10〜20が普通
 - bars 上部バーと下タブ。floating=浮いた丸バー／plate=塗りの板／band=アクセント色の帯。**形の次に効く**
@@ -88,6 +70,7 @@ const SYSTEM_PROMPT = `あなたはモバイルアプリの外観を決める設
 - fonts.body と fonts.label には**上の「本文に使えるもの」しか入れない**
 - fonts.meta と fonts.num は日付・金額に出る。数字が読みやすいものを選ぶ
 - 同時に使う書体は4種類まで
+- 新しく作るときは全部の項目を埋める。手直しのときは**変える項目だけ**入れる
 
 ## 組み合わせの作法
 - type=mono なら fonts.meta / fonts.num は等幅系（martian, jetbrains）が合う
@@ -97,7 +80,59 @@ const SYSTEM_PROMPT = `あなたはモバイルアプリの外観を決める設
 - 硬い・機械的 → square / plate / raise / dots / mono / radius 0〜3
 - 派手・勢い → cut / band / hard / display / tilt / radius 0
 
-JSON以外は何も書かない。`;
+必ず set_theme を1回だけ呼ぶ。それ以外の文章は書かない。`;
+
+// 表の形そのもの。**モデル側で値を縛れる**ので、テキストのJSONを拾うより崩れない
+const COLORS_SCHEMA = {
+  type: 'object' as const,
+  properties: {
+    bg: { type: 'string', description: '地の色 #rrggbb' },
+    surface: { type: 'string', description: 'カードやバーの面 #rrggbb' },
+    surface2: { type: 'string', description: '一段沈んだ面 #rrggbb' },
+    text: { type: 'string', description: '文字 #rrggbb' },
+    line: { type: 'string', description: '罫線と薄い塗りのもと #rrggbb' },
+  },
+};
+
+const FONT_IDS = [
+  'system', 'bizudp', 'bizud', 'zenkaku', 'zenmaru', 'mplusround', 'shippori', 'notoserifjp',
+  'dela', 'kaisei', 'rocknroll', 'yusei', 'dotgothic', 'martian', 'jetbrains', 'anybody',
+  'bigshoulder', 'spacegro', 'archivo',
+];
+const BODY_FONT_IDS = ['system', 'bizudp', 'bizud', 'zenkaku', 'zenmaru', 'mplusround', 'shippori', 'notoserifjp'];
+
+const THEME_TOOL = {
+  name: 'set_theme',
+  description: 'アプリの見た目を決める設定表を埋める。変える項目だけ渡す。',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      name: { type: 'string', description: '雰囲気を表す短い日本語（8文字以内）。作品名・キャラ名は使わない' },
+      accent: { type: 'string', description: 'アクセント色 #rrggbb' },
+      shape: { type: 'string', enum: ['round', 'square', 'cut'] },
+      radius: { type: 'integer', minimum: 0, maximum: 24 },
+      bars: { type: 'string', enum: ['floating', 'plate', 'band'] },
+      shadow: { type: 'string', enum: ['float', 'raise', 'hard', 'none'] },
+      texture: { type: 'string', enum: ['none', 'dots', 'halftone'] },
+      press: { type: 'string', enum: ['spring', 'mechanical', 'bounce', 'none'] },
+      ornament: { type: 'string', enum: ['none', 'led', 'tilt'] },
+      type: { type: 'string', enum: ['plain', 'mono', 'display'] },
+      fonts: {
+        type: 'object',
+        properties: {
+          body: { type: 'string', enum: BODY_FONT_IDS },
+          label: { type: 'string', enum: BODY_FONT_IDS },
+          meta: { type: 'string', enum: FONT_IDS },
+          num: { type: 'string', enum: FONT_IDS },
+          display: { type: 'string', enum: FONT_IDS },
+        },
+      },
+      dark: COLORS_SCHEMA,
+      light: COLORS_SCHEMA,
+      note: { type: 'string', description: '何をどう変えたかを1文で（日本語・30文字以内）' },
+    },
+  },
+};
 
 type Body = { prompt?: string; current?: unknown };
 
@@ -137,22 +172,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return await withAiUsage(calls, async () => {
       const message = await anthropic.messages.create({
         model: MODEL,
-        max_tokens: 1200,
-        // 静的なところにだけキャッシュを付ける。動く部分（今の表・頼まれごと）は user 側
+        max_tokens: 1500,
+        // 静的なところ（道具の形とルール）までをキャッシュする。
+        // 動く部分（今の表・頼まれごと）は user 側に置く
+        tools: [THEME_TOOL],
+        tool_choice: { type: 'tool', name: 'set_theme' },
         system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
         messages: [{
           role: 'user',
-          content: `## 今の表\n${currentTable(current)}\n\n## 頼まれたこと\n${wish}\n\n`
-            + `変える項目だけの JSON を返してください。`,
+          content: `## 今の表\n${currentTable(current)}\n\n## 頼まれたこと\n${wish}`,
         }],
       });
       noteAiUsage(MODEL, message.usage);
 
-      const block = message.content[0];
-      const raw = block && block.type === 'text' ? block.text : '';
-      const patch = extractJson(raw);
-      if (!patch) return res.status(422).json({ error: 'could_not_parse' });
-
+      const use = message.content.find(b => b.type === 'tool_use');
+      if (!use || use.type !== 'tool_use' || !use.input || typeof use.input !== 'object') {
+        console.warn(`[generate-theme] no tool_use stop=${message.stop_reason}`);
+        return res.status(422).json({ error: 'could_not_parse' });
+      }
+      const patch = { ...(use.input as Record<string, unknown>) };
       const note = typeof patch.note === 'string' ? patch.note.slice(0, 60) : '';
       delete patch.note;
       return res.status(200).json({ patch, note });
@@ -163,19 +201,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } finally {
     // **頼まれた文（作品名が入りうる）は記録しない。** 残すのは金額とトークン数だけ
     await saveAiUsage({ endpoint: 'generate-theme', userId: identity.userId, tier: identity.tier, calls });
-  }
-}
-
-/** ```json … ``` に包まれていても取り出す */
-function extractJson(text: string): Record<string, unknown> | null {
-  const body = text.replace(/```json\s*|```/g, '').trim();
-  const start = body.indexOf('{');
-  const end = body.lastIndexOf('}');
-  if (start < 0 || end <= start) return null;
-  try {
-    const parsed = JSON.parse(body.slice(start, end + 1));
-    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : null;
-  } catch {
-    return null;
   }
 }

@@ -163,6 +163,17 @@ function mergeColors(now: ThemeColors, patch: unknown): ThemeColors {
   return next;
 }
 
+/**
+ * 本文に使えない書体を本文に指定されたときの逃がし先。
+ * 黙って捨てると「素の書体のまま」になって、頼んだ雰囲気（ポップ・レトロ）が消える。
+ * **一番近い、本文に使える書体へ寄せる**（読めることは譲らない）。
+ */
+const BODY_ALIAS: Partial<Record<FontId, FontId>> = {
+  rocknroll: 'mplusround', yusei: 'mplusround', kaisei: 'mplusround', dotgothic: 'mplusround',
+  dela: 'zenkaku', archivo: 'zenkaku', anybody: 'zenkaku', spacegro: 'zenkaku',
+  bigshoulder: 'zenkaku', martian: 'bizud', jetbrains: 'bizud',
+};
+
 function mergeFonts(now: Record<FontRole, FontId>, patch: unknown): Record<FontRole, FontId> {
   if (!patch || typeof patch !== 'object') return now;
   const p = patch as Record<string, unknown>;
@@ -170,9 +181,14 @@ function mergeFonts(now: Record<FontRole, FontId>, patch: unknown): Record<FontR
   for (const role of FONT_ROLES) {
     const v = p[role];
     if (typeof v !== 'string' || !(v in FONTS)) continue;
-    const id = v as FontId;
-    // 本文とラベルに装飾書体を入れさせない（読めなくなる）
-    if ((role === 'body' || role === 'label') && !FONTS[id].body) continue;
+    let id = v as FontId;
+    // 本文とラベルに装飾書体を入れさせない（読めなくなる）。
+    // ただし雰囲気は残したいので、近い本文書体へ寄せる
+    if ((role === 'body' || role === 'label') && !FONTS[id].body) {
+      const alias = BODY_ALIAS[id];
+      if (!alias) continue;
+      id = alias;
+    }
     next[role] = id;
   }
   return next;
