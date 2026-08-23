@@ -351,7 +351,7 @@ function hashQuery(q: string): string {
 // （消し忘れると、前のテーマの形だけが残って混ざる）
 const MANAGED_ATTRS = [
   'data-shape', 'data-bars', 'data-shadow', 'data-texture',
-  'data-press', 'data-ornament', 'data-type', 'data-themed',
+  'data-press', 'data-ornament', 'data-type', 'data-themed', 'data-icon-cap',
 ];
 
 /**
