@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "check:parts": "node scripts/theme-parts-check.mjs",
     "check:theme": "node scripts/theme-studio-check.mjs",
     "smoke:skins": "node scripts/skin-smoke.mjs",
     "check:web": "node scripts/web-check.mjs",

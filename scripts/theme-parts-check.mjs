@@ -1,5 +1,11 @@
-// 新しく足した部品を、AIを呼ばずに直接当てて確かめる。
-// 「検品するのは部品であって組み合わせではない」ので、部品ごとに1枚ずつ見る。
+// テーマの部品を、**AIを呼ばずに**直接当てて確かめる。
+//
+// 「検品するのは部品であって組み合わせではない」ので、部品ごとに1枚ずつ撮る。
+// 生成APIには1日の栓があるうえ1回あたり実費がかかるので、
+// 部品を足したときの確認はこちらでやる（組み合わせの確認は不要）。
+//
+// 使い方: node scripts/theme-parts-check.mjs <URL>
+//        （中身のあるURLを渡すこと。ローカルのdevは投稿が0件で面が出ない）
 import { chromium } from 'playwright';
 const BASE = process.argv[2];
 const CASES = [
@@ -8,7 +14,8 @@ const CASES = [
   ['bars-knockout',{ bars: 'knockout' }],
   ['bars-clear',   { bars: 'clear' }],
   ['orn-rays',     { ornament: 'rays' }],
-  ['cap-square',   { 'icon-cap': 'square' }],
+  ['orn-corner',   { ornament: 'corner' }],
+  ['orn-stripe',   { ornament: 'stripe' }],
 ];
 const b = await chromium.launch();
 for (const [tag, attrs] of CASES) {

@@ -717,14 +717,15 @@ html[data-ornament='rays'] [data-skin-part='card']::before {
   pointer-events: none;
   z-index: 1;
 }
-/* 鉤: 左上に直角のかぎ印 */
+/* 鉤: 右上に直角のかぎ印。
+   **左上には状態バッジ（開催中・予約受付中）が載っている**ので、そこに置くと隠れる。 */
 html[data-ornament='corner'] [data-skin-part='card']::before {
   top: 5px;
-  left: 5px;
+  right: 5px;
   width: var(--skin-orn-size);
   height: var(--skin-orn-size);
   border-top: var(--skin-orn-weight) solid var(--accent-color);
-  border-left: var(--skin-orn-weight) solid var(--accent-color);
+  border-right: var(--skin-orn-weight) solid var(--accent-color);
 }
 /* 帯: 上辺にアクセント色の線 */
 html[data-ornament='stripe'] [data-skin-part='card']::before {
