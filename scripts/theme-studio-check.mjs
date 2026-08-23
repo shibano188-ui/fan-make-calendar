@@ -101,23 +101,19 @@ const run = async () => {
     await page.waitForTimeout(300);
     log((await readRoot(page)).radius === made.radius, `つまみを戻すと元の値に戻る（${made.radius}）`);
 
-    // にぎやかさのつまみ（1本目）。質感・影・飾りがまとめて動く
+    // 色の鮮やかさのつまみ（1本目）。地・面・アクセントの彩度だけが動く
     const vividBar = page.locator('input[type=range]').first();
-    await vividBar.fill('2');
+    await vividBar.fill('-3');
     await page.waitForTimeout(300);
-    const loud = await readRoot(page);
-    log(loud.shadow === 'hard' && loud.texture !== 'none',
-      `にぎやかにすると質感と影が付く（${loud.texture} / ${loud.shadow}）`);
-    await vividBar.fill('-2');
+    const dull = await readRoot(page);
+    log(dull.bg !== made.bg, `落ち着かせると色がくすむ（${made.bg} → ${dull.bg}）`);
+    await vividBar.fill('3');
     await page.waitForTimeout(300);
-    const quiet = await readRoot(page);
-    log(quiet.texture === 'none' && quiet.shadow === 'none',
-      `落ち着かせると質感と影が消える（${quiet.texture} / ${quiet.shadow}）`);
+    log((await readRoot(page)).bg !== dull.bg, '鮮やかにすると色が戻って濃くなる');
     await vividBar.fill('0');
     await page.waitForTimeout(300);
-    const back = await readRoot(page);
-    log(back.texture === made.texture && back.shadow === made.shadow,
-      'つまみを戻すとAIの選んだ状態にきっちり戻る（じりじりずれない）');
+    log((await readRoot(page)).bg === made.bg,
+      'つまみを戻すとAIの選んだ色にきっちり戻る（じりじりずれない）');
 
     await page.getByRole('button', { name: '元に戻す' }).click();
     await page.waitForTimeout(400);

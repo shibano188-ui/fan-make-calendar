@@ -681,9 +681,15 @@ html[data-bars='plate'] .material-sheet .rounded-full.h-\[5px\] {
   height: 3px !important;
 }
 
-/* SURGE: 上部は黄色い帯。下辺だけ斜めに切る（文字は水平のまま）。
-   帯の中の検索欄は暗い面にして、黄色の上でも読めるようにする */
-html[data-bars='band'] .material-bar.scroll-edge {
+/* 帯: 上部をアクセント色一色にする。下辺だけ斜めに切る（文字は水平のまま）。
+   帯の中の検索欄は暗い面にして、色の上でも読めるようにする。
+
+   ⚠️ **帯にしてよいのは主要タブ（ホーム/探す/カレンダー）の上部だけ**
+   （`data-skin-bar="main"`）。詳細ページや設定ページの上部バーは
+   「戻る」しか無いうえに sticky なので、アクセント色一色にすると
+   スクロール中ずっと色の板が付いてくる形になり、画面が壊れて見える。
+   そこは material-bar の共通の扱い（塗り＋薄い縁）のままにする。 */
+html[data-bars='band'] .material-bar.scroll-edge[data-skin-bar='main'] {
   background-color: var(--accent-color);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -692,8 +698,8 @@ html[data-bars='band'] .material-bar.scroll-edge {
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), 0 100%);
   padding-bottom: 18px;
 }
-html[data-bars='band'] .material-bar.scroll-edge .text-label-tertiary,
-html[data-bars='band'] .material-bar.scroll-edge .text-label-secondary {
+html[data-bars='band'] .material-bar.scroll-edge[data-skin-bar='main'] .text-label-tertiary,
+html[data-bars='band'] .material-bar.scroll-edge[data-skin-bar='main'] .text-label-secondary {
   color: color-mix(in srgb, var(--accent-on) 62%, transparent) !important;
 }
 /* 帯の中の入力欄・アイコンボタンの面は、黄の上で沈むように暗くする。
@@ -701,10 +707,10 @@ html[data-bars='band'] .material-bar.scroll-edge .text-label-secondary {
    （--bg-primary を使うとライトのとき白になり、黄の上で沈まない） */
 /* ホームは帯の直下が button（探すは > div > div）。**直下も1階層下も両方**拾う。
    片方だけだと、拾えなかった側が「黄色の上に薄いグレー」のまま残る（実機で発覚） */
-html[data-bars='band'] .material-bar.scroll-edge > div > div,
-html[data-bars='band'] .material-bar.scroll-edge > div > button,
-html[data-bars='band'] .material-bar.scroll-edge > button,
-html[data-bars='band'] .material-bar.scroll-edge > div[style*='fill'] {
+html[data-bars='band'] .material-bar.scroll-edge[data-skin-bar='main'] > div > div,
+html[data-bars='band'] .material-bar.scroll-edge[data-skin-bar='main'] > div > button,
+html[data-bars='band'] .material-bar.scroll-edge[data-skin-bar='main'] > button,
+html[data-bars='band'] .material-bar.scroll-edge[data-skin-bar='main'] > div[style*='fill'] {
   background-color: #17171a !important;
   color: #f4f2ec !important;
 }
@@ -712,29 +718,29 @@ html[data-bars='band'] .material-bar.scroll-edge > div[style*='fill'] {
    あるので、そのままだと押しても色が変わらず、どれを選んでいるか分からなくなる。
    帯は黄色なので「選択＝アクセント」は使えない（帯と同化する）。
    帯の中だけは **未選択＝墨 / 選択＝明るい面** の反転で見せる（チップと同じ扱い）。 */
-html[data-bars='band'] .material-bar.scroll-edge > div > button[aria-pressed='true'],
-html[data-bars='band'] .material-bar.scroll-edge > button[aria-pressed='true'] {
+html[data-bars='band'] .material-bar.scroll-edge[data-skin-bar='main'] > div > button[aria-pressed='true'],
+html[data-bars='band'] .material-bar.scroll-edge[data-skin-bar='main'] > button[aria-pressed='true'] {
   background-color: #f4f2ec !important;
   color: #17171a !important;
 }
 
 /* 中のアイコン（虫めがね等）も帯の墨面に合わせる */
-html[data-bars='band'] .material-bar.scroll-edge > button svg,
-html[data-bars='band'] .material-bar.scroll-edge > div > div > svg,
-html[data-bars='band'] .material-bar.scroll-edge > div > button > svg {
+html[data-bars='band'] .material-bar.scroll-edge[data-skin-bar='main'] > button svg,
+html[data-bars='band'] .material-bar.scroll-edge[data-skin-bar='main'] > div > div > svg,
+html[data-bars='band'] .material-bar.scroll-edge[data-skin-bar='main'] > div > button > svg {
   color: rgba(244, 242, 236, 0.55) !important;
 }
-html[data-bars='band'] .material-bar.scroll-edge input {
+html[data-bars='band'] .material-bar.scroll-edge[data-skin-bar='main'] input {
   color: #f4f2ec !important;
 }
-html[data-bars='band'] .material-bar.scroll-edge input::placeholder {
+html[data-bars='band'] .material-bar.scroll-edge[data-skin-bar='main'] input::placeholder {
   color: rgba(244, 242, 236, 0.45) !important;
 }
-html[data-bars='band'] .material-bar.scroll-edge [data-skin-part='chip'] {
+html[data-bars='band'] .material-bar.scroll-edge[data-skin-bar='main'] [data-skin-part='chip'] {
   background-color: #17171a !important;
   color: #f4f2ec !important;
 }
-html[data-bars='band'] .material-bar.scroll-edge [data-skin-part='chip'][data-active] {
+html[data-bars='band'] .material-bar.scroll-edge[data-skin-bar='main'] [data-skin-part='chip'][data-active] {
   background-color: #f4f2ec !important;
   color: #17171a !important;
   transform: rotate(-1.4deg);

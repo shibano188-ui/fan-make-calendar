@@ -78,6 +78,41 @@ function ensureContrast(color: string, bg: string, need: number): string {
   return out;
 }
 
+/**
+ * 色の鮮やかさを変える。1.0 がそのまま、0 に近いほど無彩色、1より大きいほど鮮やか。
+ * 明るさ（HSLのL）は動かさない——明るさを動かすと地と文字の関係が崩れて濁る。
+ * つまみ（AIを呼ばない即時の調整）が使う。
+ */
+export function saturate(hex: string, factor: number): string {
+  if (!HEX.test(hex)) return hex;
+  const [r, g, b] = toRgb(hex).map(v => v / 255);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return hex;   // 元から無彩色なら鮮やかにしようがない
+  const d = max - min;
+  let s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h = 0;
+  if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+  else if (max === g) h = ((b - r) / d + 2) / 6;
+  else h = ((r - g) / d + 4) / 6;
+  s = Math.max(0, Math.min(1, s * factor));
+
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  const hue = (t: number) => {
+    let x = t;
+    if (x < 0) x += 1;
+    if (x > 1) x -= 1;
+    if (x < 1 / 6) return p + (q - p) * 6 * x;
+    if (x < 1 / 2) return q;
+    if (x < 2 / 3) return p + (q - p) * (2 / 3 - x) * 6;
+    return p;
+  };
+  const out = [hue(h + 1 / 3), hue(h), hue(h - 1 / 3)]
+    .map(v => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0'));
+  return `#${out.join('')}`;
+}
+
 /** 色を明るい／暗い方へずらす。手直しボタン（AIを呼ばない即時の調整）が使う */
 export function shade(hex: string, amount: number): string {
   if (!HEX.test(hex)) return hex;

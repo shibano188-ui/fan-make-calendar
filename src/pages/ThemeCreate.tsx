@@ -10,7 +10,7 @@ import { useTheme, type ThemeAdjust, type ThemeDraft } from '../contexts/ThemeCo
 import { usePremium } from '../lib/premium';
 import { PRESET_SPECS } from '../design/skins';
 import type { ThemeSpec } from '../design/themeSpec';
-import { applyPatch, type ContrastReport } from '../design/themeCheck';
+import { applyPatch, saturate, type ContrastReport } from '../design/themeCheck';
 import { hasNativePhotoPicker, pickPhoto } from '../lib/pickPhoto';
 import { shrinkImage } from '../lib/shrinkImage';
 import {
@@ -43,8 +43,9 @@ const PLACEHOLDER = `例）夜の海みたいに静かな青。角は丸めで�
  * **毎回 base から作り直す**のが要点。前の結果に足していくと、
  * 右へ左へ動かすたびに値がじりじりずれて元の位置に戻らなくなる。
  *
- * にぎやかさは**1本で質感・影・飾り・押した反応をまとめて動かす**。
- * 軸を1本ずつ出すと「部品を組み立てる道具」になってしまう。
+ * 出すつまみは2本だけ。**色の鮮やかさ**と**角の丸み**——画面を見て一番わかる2つ。
+ * 質感・影・飾りは言葉で頼むもので、軸を1本ずつ並べると
+ * 「部品を組み立てる道具」に戻ってしまう。
  */
 function withAdjust(base: ThemeSpec, adjust: ThemeAdjust): { spec: ThemeSpec; report: ContrastReport[] } {
   const patch: Record<string, unknown> = {
@@ -53,25 +54,17 @@ function withAdjust(base: ThemeSpec, adjust: ThemeAdjust): { spec: ThemeSpec; re
     shape: adjust.radius === 0 && base.shape === 'round' ? 'square' : base.shape,
   };
 
-  const v = adjust.vivid;
-  if (v <= -2) {
-    Object.assign(patch, { texture: 'none', shadow: 'none', ornament: 'none', press: 'spring' });
-  } else if (v === -1) {
-    Object.assign(patch, { texture: 'none', shadow: 'float', ornament: 'none' });
-  } else if (v === 1) {
-    Object.assign(patch, {
-      texture: base.texture === 'none' ? 'dots' : base.texture,
-      shadow: base.shadow === 'none' || base.shadow === 'float' ? 'raise' : base.shadow,
-      ornament: base.ornament === 'none' ? 'corner' : base.ornament,
-    });
-  } else if (v >= 2) {
-    Object.assign(patch, {
-      texture: base.texture === 'none' ? 'halftone' : base.texture,
-      textureStrength: Math.min(40, base.textureStrength + 10),
-      shadow: 'hard',
-      ornament: base.ornament === 'none' ? 'tilt' : base.ornament,
-      press: 'bounce',
-    });
+  if (adjust.vivid !== 0) {
+    const f = 1 + adjust.vivid * 0.3;   // -3 → 0.1（ほぼ無彩色） / +3 → 1.9（かなり鮮やか）
+    patch.accent = saturate(base.accent, f);
+    patch.dark = {
+      ...base.dark,
+      bg: saturate(base.dark.bg, f), surface: saturate(base.dark.surface, f), surface2: saturate(base.dark.surface2, f),
+    };
+    patch.light = {
+      ...base.light,
+      bg: saturate(base.light.bg, f), surface: saturate(base.light.surface, f), surface2: saturate(base.light.surface2, f),
+    };
   }
   return applyPatch(base, patch);
 }
@@ -348,8 +341,8 @@ export default function ThemeCreate() {
         {made && !busy && (
           <div className="flex flex-col gap-3 pt-1">
             <Slider
-              label="にぎやかさ" left="落ち着き" right="にぎやか"
-              min={-2} max={2} step={1} value={draft.adjust.vivid}
+              label="色の鮮やかさ" left="落ち着いた" right="鮮やか"
+              min={-3} max={3} step={1} value={draft.adjust.vivid}
               onChange={v => setAdjust({ vivid: v })}
             />
             <Slider
