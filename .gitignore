@@ -27,3 +27,6 @@ ios/App/fastlane/README.md
 
 # 外皮の通し確認が吐くスクリーンショット
 scripts/.smoke/
+
+# Supabase CLI の作業ファイル
+supabase/.temp/
