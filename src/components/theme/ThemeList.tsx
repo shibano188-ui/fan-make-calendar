@@ -6,7 +6,7 @@ import { usePremium } from '../../lib/premium';
 import { useToast } from '../ui/Toast';
 import { useConfirm } from '../ui/ConfirmDialog';
 import SpecPreview from './SpecPreview';
-import { deleteUserTheme, FREE_THEME_LIMIT } from '../../lib/userThemes';
+import { deleteUserTheme, FREE_THEME_LIMIT, TWEAK_LIMIT, TWEAK_LIMIT_PREMIUM } from '../../lib/userThemes';
 
 // カスタマイズ画面に出す「自分のテーマ」。
 // ここは**並べて選ぶだけ**。作るのは専用ページ（/customize/theme）でやる
@@ -20,6 +20,9 @@ export default function ThemeList() {
   const confirmDialog = useConfirm();
   const navigate = useNavigate();
   const dark = resolveTheme(settings.theme) === 'dark';
+  // 無料の枠が埋まっているなら、**作りに行かせる前に**案内へ送る。
+  // 作らせてから保存で断ると、生成の待ち時間と手直しの回数が無駄になる
+  const capped = !premium && userThemes.length >= FREE_THEME_LIMIT;
 
   const remove = useCallback(async (id: string) => {
     const ok = await confirmDialog({
@@ -66,20 +69,25 @@ export default function ThemeList() {
           );
         })}
         <button
-          onClick={() => navigate('/customize/theme')}
+          onClick={() => navigate(capped ? '/premium' : '/customize/theme')}
           className="rounded-xl border-2 border-dashed border-subtle flex flex-col items-center justify-center gap-1 py-4"
         >
           <Plus size={18} className="text-label-secondary" />
           <span className="text-[11px] text-label-secondary text-center leading-tight px-1">作る</span>
         </button>
       </div>
-      {!premium && (
+      {!premium ? (
         <p className="text-label-tertiary text-xs mt-2 px-1 leading-relaxed">
           無料で保存できるのは{FREE_THEME_LIMIT}つまで。
           <button onClick={() => navigate('/premium')} className="underline" style={{ color: 'var(--accent-color)' }}>
             プレミアム
           </button>
-          なら無制限。
+          なら無制限。<br />
+          言葉での手直しは1つのテーマにつき{TWEAK_LIMIT}回まで（プレミアムは{TWEAK_LIMIT_PREMIUM}回）。
+        </p>
+      ) : (
+        <p className="text-label-tertiary text-xs mt-2 px-1 leading-relaxed">
+          言葉での手直しは1つのテーマにつき{TWEAK_LIMIT_PREMIUM}回まで。作り直すと戻ります。
         </p>
       )}
     </section>

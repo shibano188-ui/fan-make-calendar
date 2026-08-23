@@ -15,8 +15,11 @@ const ACTIVE_KEY = 'fan_user_theme';
 /** 無料で保存できる数。プレミアムは上限なし（DB側の天井20だけ効く） */
 export const FREE_THEME_LIMIT = 1;
 
-/** 1つのテーマを手直しできる回数。作り直せばリセットされる */
+/** 1つのテーマを言葉で手直しできる回数。作り直せばリセットされる。
+ *  プレミアムは多く回せる（1日の生成回数の栓は別にあるので、ここを緩めても総額は守れる）。 */
 export const TWEAK_LIMIT = 10;
+export const TWEAK_LIMIT_PREMIUM = 30;
+export const tweakLimit = (premium: boolean) => premium ? TWEAK_LIMIT_PREMIUM : TWEAK_LIMIT;
 
 export function loadActiveThemeId(): string | null {
   try { return localStorage.getItem(ACTIVE_KEY); } catch { return null; }

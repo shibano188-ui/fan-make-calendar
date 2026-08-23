@@ -15,7 +15,7 @@ import { hasNativePhotoPicker, pickPhoto } from '../lib/pickPhoto';
 import { shrinkImage } from '../lib/shrinkImage';
 import {
   generateTheme, createUserTheme, updateUserTheme,
-  ThemeLimitError, FREE_THEME_LIMIT, TWEAK_LIMIT,
+  ThemeLimitError, FREE_THEME_LIMIT, tweakLimit,
 } from '../lib/userThemes';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -84,7 +84,8 @@ export default function ThemeCreate() {
 
   const spec = draft?.spec ?? null;
   const made = (draft?.history.length ?? 0) > 0 || !!draft?.editingId;
-  const tweaksLeft = TWEAK_LIMIT - (draft?.tweaks ?? 0);
+  const limit = tweakLimit(premium);
+  const tweaksLeft = limit - (draft?.tweaks ?? 0);
   const fixedCount = report.filter(r => r.fixed).length;
 
   const undo = useCallback(() => {
@@ -290,9 +291,11 @@ export default function ThemeCreate() {
           </button>
         )}
         {error && <p className="text-xs" style={{ color: 'var(--color-destructive)' }}>{error}</p>}
-        {made && tweaksLeft <= 0 && (
+        {made && (
           <p className="text-label-tertiary text-xs leading-relaxed">
-            言葉での手直しは{TWEAK_LIMIT}回までです。
+            {tweaksLeft > 0
+              ? `言葉での手直しはあと${tweaksLeft}回（1つのテーマにつき${limit}回まで）。`
+              : `言葉での手直しは${limit}回までです。新しく作り直すと戻ります。`}
           </p>
         )}
 
