@@ -177,7 +177,7 @@ export default function ThemeCreate() {
       await reloadUserThemes();
       selectUserTheme(editingId);
       setDraft(null);
-      navigate('/customize');
+      navigate('/customize', { replace: true });
       toast('保存しました');
       return;
     }
@@ -191,7 +191,7 @@ export default function ThemeCreate() {
     await reloadUserThemes();
     selectUserTheme(created.id);
     setDraft(null);
-    navigate('/customize');
+    navigate('/customize', { replace: true });
     toast('保存しました');
   }, [draft, premium, userThemes.length, toast, reloadUserThemes, selectUserTheme, setDraft, navigate]);
 
@@ -206,7 +206,9 @@ export default function ThemeCreate() {
       if (!ok) return;
     }
     setDraft(null);
-    navigate('/customize');
+    // **履歴から作る画面を消す**。残すと「戻る」でここへ来るたびに下書きが作り直されて、
+    // ホームまで戻れなくなる（実機で発生）
+    navigate('/customize', { replace: true });
   }, [made, confirmDialog, setDraft, navigate]);
 
   if (!spec || !draft) return null;

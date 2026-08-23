@@ -653,21 +653,6 @@ html[data-ornament='stripe'] [data-skin-part='card']::before {
   z-index: 1;
 }
 
-/* 主要タブ以外の上部バー（詳細・設定など）は**テーマで塗りつぶさない**。
-   あそこは「戻る」だけを載せた薄い板で、商品写真の上に重なったまま画面に貼り付く。
-   塗りにすると写真を横に断つ板がスクロール中ずっと付いてくる形になり、壊れて見える
-   （実機のスクショで確認）。共通の .material-bar の指定より後に置いて上書きする。 */
-html[data-themed] .material-bar.scroll-edge:not([data-skin-bar='main']) {
-  background-color: color-mix(in srgb, var(--bg-primary) 72%, transparent);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border-bottom: 0;
-  box-shadow: none;
-  clip-path: none;
-  mask-image: linear-gradient(to bottom, black calc(100% - 8px), transparent);
-  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 8px), transparent);
-}
-
 /* ─────────────────────────────────────────────────────────────
    画面上部の帯・シート・トグル
    （.material-bar.scroll-edge はタブ画面の上部、.material-sheet は
@@ -695,6 +680,14 @@ html[data-bars='plate'] .material-sheet .rounded-full.h-\[5px\] {
   border-radius: 1px !important;
   height: 3px !important;
 }
+
+/* 主要タブ以外の上部バー（詳細・設定など）について:
+   **色と材質はテーマに従ってよい**（.material-bar の共通指定で塗りになる）。
+   ただし**形と動きは既定のまま**にする——下辺のぼかし(mask)を消したり、
+   余白を足したり、斜めに切ったりするのはここでは行わない。
+   あそこは商品写真の上に重なったまま画面に貼り付くので、形をいじると
+   写真を横に断つ板がスクロール中ずっと付いてくる形になって壊れて見える。
+   だから下の「形と動きを変える指定」は data-skin-bar="main" だけに当てる。 */
 
 /* 帯: 上部をアクセント色一色にする。下辺だけ斜めに切る（文字は水平のまま）。
    帯の中の検索欄は暗い面にして、色の上でも読めるようにする。
