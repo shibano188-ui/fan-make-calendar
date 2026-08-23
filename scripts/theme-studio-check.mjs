@@ -29,6 +29,7 @@ const readRoot = page => page.evaluate(() => {
     themed: r.hasAttribute('data-themed'),
     radius: cs.getPropertyValue('--skin-radius').trim(),
     bg: cs.getPropertyValue('--bg-primary').trim(),
+    accent: cs.getPropertyValue('--accent-color').trim(),
   };
 });
 
@@ -41,6 +42,13 @@ const run = async () => {
   page.on('pageerror', e => errors.push(e.message));
   page.on('response', r => { if (r.url().includes('/api/generate-theme')) apiStatus = r.status(); });
 
+  // 自分でアクセント色を選んでいる人を作る。**使う人が選んだ色はテーマより強い**
+  await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('user_settings') || '{}');
+    localStorage.setItem('user_settings', JSON.stringify({ ...s, accentColor: '#ff00ff' }));
+  });
+
   await page.goto(`${BASE}/customize`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(1500);
 
@@ -51,8 +59,8 @@ const run = async () => {
   await page.waitForTimeout(800);
   log(page.url().includes('/customize/theme'), '専用ページへ移る');
   log(await page.locator('textarea').first().isVisible(), '折り返す入力欄がある');
-  log(await page.getByText(/参考画像は無くてもかまいません/).isVisible(), '参考画像が任意だと書いてある');
-  log(await page.getByRole('button', { name: '明るく' }).count() === 0, '作る前に微調整を出していない');
+  log(await page.getByRole('button', { name: '参考画像' }).isVisible(), '参考画像の入口がある');
+  log(await page.locator('input[type=range]').count() === 0, '作る前につまみを出していない');
   log(await page.getByRole('button', { name: '保存する' }).count() === 0, '作る前に保存を出していない');
   log((await readRoot(page)).themed, '下書きが当たっている（data-themed）');
   await page.screenshot({ path: `${OUT}/theme-create.png` });
@@ -67,20 +75,48 @@ const run = async () => {
   } else {
     const made = await readRoot(page);
     log(await page.getByRole('button', { name: '保存する' }).isVisible(), '作ったあとに保存が出る');
-    log(await page.getByRole('button', { name: '明るく' }).isVisible(), '作ったあとに微調整が出る');
+    log(made.accent.toLowerCase() === '#ff00ff',
+      `自分で選んだアクセント色をテーマが奪わない（${made.accent}）`);
+    log(await page.locator('input[type=range]').count() === 2, '作ったあとにつまみが2本出る');
+    log(await page.getByLabel('テーマの名前').isVisible(), '名前を書き換えられる');
     await page.screenshot({ path: `${OUT}/theme-made.png` });
 
-    await page.getByRole('button', { name: '角ばらせる' }).click();
-    await page.waitForTimeout(400);
-    const squared = await readRoot(page);
-    log(squared.radius !== made.radius, `微調整で角丸が動く（${made.radius} → ${squared.radius}）`);
+    // 名前を自分で付ける
+    await page.getByLabel('テーマの名前').fill('わたしのテーマ');
+    await page.waitForTimeout(200);
+    log(await page.getByLabel('テーマの名前').inputValue() === 'わたしのテーマ', '付けた名前が残る');
+
+    // つまみ: 角の丸み（2本目）。動かして戻すと**元の値にきっちり戻る**こと
+    const radiusBar = page.locator('input[type=range]').nth(1);
+    const start = await radiusBar.inputValue();
+    await radiusBar.fill('0');
+    await page.waitForTimeout(300);
+    const flat = await readRoot(page);
+    log(flat.radius === '0px', `つまみで角丸が動く（${made.radius} → ${flat.radius}）`);
+    await radiusBar.fill(start);
+    await page.waitForTimeout(300);
+    log((await readRoot(page)).radius === made.radius, `つまみを戻すと元の値に戻る（${made.radius}）`);
+
+    // 明るさのつまみ（1本目）
+    const brightBar = page.locator('input[type=range]').first();
+    await brightBar.fill('-3');
+    await page.waitForTimeout(300);
+    const dimmed = await readRoot(page);
+    log(dimmed.bg !== made.bg, `つまみで明るさが動く（${made.bg} → ${dimmed.bg}）`);
+    await brightBar.fill('0');
+    await page.waitForTimeout(300);
+    log((await readRoot(page)).bg === made.bg, 'つまみを戻すと色も元に戻る（じりじりずれない）');
 
     await page.getByRole('button', { name: '元に戻す' }).click();
     await page.waitForTimeout(400);
-    log((await readRoot(page)).radius === made.radius, '「元に戻す」で1つ前の版に戻る');
+    log(await page.getByRole('button', { name: '保存する' }).count() === 0, '「元に戻す」で作る前に戻る');
+    // 続きの確認のためもう一度作る
+    await page.locator('textarea').first().fill('夜の海みたいに静かな青。');
+    await page.getByRole('button', { name: '作る', exact: true }).click();
+    await page.waitForTimeout(25000);
 
     // 他の画面で見てみる → 帯から戻る（下書きは画面でなくコンテキストが持つ）
-    await page.getByRole('button', { name: '他の画面で見てみる' }).click();
+    await page.getByRole('button', { name: '実際の画面で見てみる' }).click();
     await page.waitForTimeout(1800);
     log((await readRoot(page)).themed, '他の画面へ移ってもテーマが当たったまま');
     log(await page.getByText('を試しています').isVisible(), '作成中の帯が出ている');

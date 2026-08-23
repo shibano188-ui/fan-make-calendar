@@ -79,7 +79,7 @@ export default function ThemeList() {
           <button onClick={() => navigate('/premium')} className="underline" style={{ color: 'var(--accent-color)' }}>
             プレミアム
           </button>
-          ならいくつでも保存して切り替えられます。
+          なら無制限。
         </p>
       )}
     </section>

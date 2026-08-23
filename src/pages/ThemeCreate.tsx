@@ -6,9 +6,10 @@ import Header from '../components/Header';
 import LineLoader from '../components/ui/LineLoader';
 import { useToast } from '../components/ui/Toast';
 import { useConfirm } from '../components/ui/ConfirmDialog';
-import { useTheme, type ThemeDraft } from '../contexts/ThemeContext';
+import { useTheme, type ThemeAdjust, type ThemeDraft } from '../contexts/ThemeContext';
 import { usePremium } from '../lib/premium';
 import { PRESET_SPECS } from '../design/skins';
+import type { ThemeSpec } from '../design/themeSpec';
 import { applyPatch, shade, type ContrastReport } from '../design/themeCheck';
 import { hasNativePhotoPicker, pickPhoto } from '../lib/pickPhoto';
 import { shrinkImage } from '../lib/shrinkImage';
@@ -36,15 +37,43 @@ const MAX_REFS = 3;
 const PLACEHOLDER = `例）夜の海みたいに静かな青。角は丸めで、文字はやわらかい書体。
 派手にしないで、写真が主役に見えるように。`;
 
+/** 明るさのつまみ1目盛りぶん（RGB各値の増減） */
+const BRIGHT_STEP = 8;
+
+/**
+ * つまみの位置を AI が返した表に当てて、実際に当てる表を作る。
+ *
+ * **毎回 base から作り直す**のが要点。前の結果に足していくと、
+ * 右へ左へ動かすたびに色がじりじりずれて元の位置に戻らなくなる。
+ */
+function withAdjust(base: ThemeSpec, adjust: ThemeAdjust): { spec: ThemeSpec; report: ContrastReport[] } {
+  const b = adjust.brightness * BRIGHT_STEP;
+  const patch: Record<string, unknown> = {
+    radius: adjust.radius,
+    // 角を完全に落としたら、丸を前提にした形（ピルなど）からも降りる
+    shape: adjust.radius === 0 && base.shape === 'round' ? 'square' : base.shape,
+  };
+  if (b !== 0) {
+    patch.dark = {
+      ...base.dark,
+      bg: shade(base.dark.bg, b), surface: shade(base.dark.surface, b), surface2: shade(base.dark.surface2, b),
+    };
+    patch.light = {
+      ...base.light,
+      bg: shade(base.light.bg, b), surface: shade(base.light.surface, b), surface2: shade(base.light.surface2, b),
+    };
+  }
+  return applyPatch(base, patch);
+}
+
+function newVersion(base: ThemeSpec): { spec: ThemeSpec; base: ThemeSpec; adjust: ThemeAdjust } {
+  return { spec: base, base, adjust: { brightness: 0, radius: base.radius ?? 12 } };
+}
+
 function blankDraft(): ThemeDraft {
   // 角丸だけは必ず数字を入れる（null は「アプリ既定の角丸のまま」＝デフォルト専用の意味）
-  return {
-    spec: { ...PRESET_SPECS.classic, name: '新しいテーマ', radius: 12 },
-    history: [],
-    editingId: null,
-    tweaks: 0,
-    note: '',
-  };
+  const base: ThemeSpec = { ...PRESET_SPECS.classic, name: '新しいテーマ', radius: 12 };
+  return { ...newVersion(base), history: [], editingId: null, tweaks: 0, note: '', nameLocked: false };
 }
 
 export default function ThemeCreate() {
@@ -64,18 +93,19 @@ export default function ThemeCreate() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   // 入った時点で下書きを用意する。手直しなら既にあるテーマから始める。
-  // 他のタブを見に行って戻ってきたときは、続きから（下書きを作り直さない）
+  // 他の画面を見に行って戻ってきたときは、続きから（下書きを作り直さない）
   useEffect(() => {
     if (draft) return;
     if (editId) {
       const t = userThemes.find(x => x.id === editId);
       if (t) {
         setDraft({
-          spec: t.spec,
+          ...newVersion(t.spec),
           history: [],
           editingId: t.id,
           tweaks: Number(localStorage.getItem(`fan_theme_tweaks_${t.id}`) ?? 0),
           note: '',
+          nameLocked: true,
         });
         return;
       }
@@ -90,21 +120,29 @@ export default function ThemeCreate() {
   const tweaksLeft = TWEAK_LIMIT - (draft?.tweaks ?? 0);
   const fixedCount = report.filter(r => r.fixed).length;
 
-  /** 差分を当てて版を積む。ボタンでも言葉でも入口はここ1つ */
-  const push = useCallback((patch: Record<string, unknown>, why: string) => {
+  /** つまみを動かす。版は積まない（戻せばそのまま元に戻るので） */
+  const setAdjust = useCallback((patch: Partial<ThemeAdjust>) => {
     if (!draft) return;
-    const { spec: next, report: rep } = applyPatch(draft.spec, patch);
-    setDraft({ ...draft, spec: next, history: [...draft.history, draft.spec], note: why });
+    const adjust = { ...draft.adjust, ...patch };
+    const { spec: next, report: rep } = withAdjust(draft.base, adjust);
+    // 名前は使う人のものを残す（色や形が動いても名前は動かさない）
+    setDraft({ ...draft, adjust, spec: draft.nameLocked ? { ...next, name: draft.spec.name } : next });
     setReport(rep);
   }, [draft, setDraft]);
 
   const undo = useCallback(() => {
     if (!draft || draft.history.length === 0) return;
+    const prev = draft.history[draft.history.length - 1];
+    setDraft({ ...draft, ...prev, history: draft.history.slice(0, -1), note: '' });
+  }, [draft, setDraft]);
+
+  const rename = useCallback((name: string) => {
+    if (!draft) return;
     setDraft({
       ...draft,
-      spec: draft.history[draft.history.length - 1],
-      history: draft.history.slice(0, -1),
-      note: '',
+      spec: { ...draft.spec, name },
+      base: { ...draft.base, name },
+      nameLocked: true,
     });
   }, [draft, setDraft]);
 
@@ -147,10 +185,12 @@ export default function ThemeCreate() {
     setError('');
     try {
       const res = await generateTheme(wish, draft.spec, refs.map(r => r.base64));
+      // 名前を自分で付けている人のものは、AIの付ける名前で上書きしない
+      const base = draft.nameLocked ? { ...res.spec, name: draft.spec.name } : res.spec;
       setDraft({
         ...draft,
-        spec: res.spec,
-        history: [...draft.history, draft.spec],
+        ...newVersion(base),
+        history: [...draft.history, { spec: draft.spec, base: draft.base, adjust: draft.adjust }],
         note: res.note,
         // 最初の1回（作る）は手直しに数えない
         tweaks: made ? draft.tweaks + 1 : draft.tweaks,
@@ -211,44 +251,30 @@ export default function ThemeCreate() {
 
   if (!spec || !draft) return null;
 
-  // ボタンでの手直し。**AIを呼ばない＝無料・即時・手直しの回数も減らない**
-  const quickTweaks: { label: string; run: () => void }[] = [
-    { label: '明るく', run: () => push({
-      dark:  { ...spec.dark,  bg: shade(spec.dark.bg, 12),  surface: shade(spec.dark.surface, 12),  surface2: shade(spec.dark.surface2, 12) },
-      light: { ...spec.light, bg: shade(spec.light.bg, 10), surface: shade(spec.light.surface, 10), surface2: shade(spec.light.surface2, 10) },
-    }, '明るくしました') },
-    { label: '暗く', run: () => push({
-      dark:  { ...spec.dark,  bg: shade(spec.dark.bg, -12),  surface: shade(spec.dark.surface, -12),  surface2: shade(spec.dark.surface2, -12) },
-      light: { ...spec.light, bg: shade(spec.light.bg, -10), surface: shade(spec.light.surface, -10), surface2: shade(spec.light.surface2, -10) },
-    }, '暗くしました') },
-    { label: '角を丸く', run: () => push({ radius: Math.min(24, (spec.radius ?? 12) + 4), shape: 'round' }, '角を丸くしました') },
-    { label: '角ばらせる', run: () => push({ radius: Math.max(0, (spec.radius ?? 12) - 4), shape: spec.shape === 'round' ? 'square' : spec.shape }, '角を落としました') },
-  ];
-
   return (
     <Layout hideBottomTab>
       <Header title={draft.editingId ? 'テーマを直す' : 'テーマを作る'} onBack={quit} />
 
       <div className="px-4 pt-4 pb-8 flex flex-col gap-4">
-        {/* 出来たものの説明。作る前は出さない */}
+        {/* 名前は自分で付け替えられる。付けたらAIの付ける名前で上書きしない */}
         {made && (
           <div className="flex items-center gap-2">
-            <p className="text-label-primary text-[15px] flex-1 truncate">{spec.name}</p>
+            <input
+              value={spec.name}
+              onChange={e => rename(e.target.value.slice(0, 24))}
+              aria-label="テーマの名前"
+              className="flex-1 min-w-0 bg-transparent text-label-primary text-[17px] font-medium outline-none border-b border-subtle focus:border-strong py-1"
+            />
             <button
               onClick={undo}
               disabled={draft.history.length === 0}
-              className="flex items-center gap-1 text-[12px] text-label-secondary disabled:opacity-30 pressable"
+              className="flex items-center gap-1 text-[12px] text-label-secondary disabled:opacity-30 pressable flex-shrink-0"
             >
               <Undo2 size={13} />元に戻す
             </button>
           </div>
         )}
-        {made && (
-          <p className="text-label-tertiary text-xs leading-relaxed">
-            いまアプリ全体がこの見た目になっています。他の画面を見に行っても、下に出る帯から戻ってこられます。
-            {draft.note && <><br />{draft.note}</>}
-          </p>
-        )}
+        {made && draft.note && <p className="text-label-tertiary text-xs leading-relaxed">{draft.note}</p>}
 
         {/* 書き込む欄。ここが主役 */}
         <textarea
@@ -262,38 +288,32 @@ export default function ThemeCreate() {
         />
 
         {/* 参考画像は任意。無くても作れる */}
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {refs.map((r, i) => (
-              <div key={i} className="relative">
-                <img src={r.preview} alt="" className="w-14 h-14 object-cover rounded-lg border border-subtle" />
-                <button
-                  onClick={() => setRefs(prev => prev.filter((_, j) => j !== i))}
-                  aria-label="外す"
-                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: 'var(--label-primary)', color: 'var(--bg-primary)' }}
-                >
-                  <X size={11} />
-                </button>
-              </div>
-            ))}
-            {refs.length < MAX_REFS && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {refs.map((r, i) => (
+            <div key={i} className="relative">
+              <img src={r.preview} alt="" className="w-14 h-14 object-cover rounded-lg border border-subtle" />
               <button
-                onClick={openPicker}
-                className="w-14 h-14 rounded-lg border border-dashed border-subtle flex flex-col items-center justify-center gap-0.5 pressable"
+                onClick={() => setRefs(prev => prev.filter((_, j) => j !== i))}
+                aria-label="外す"
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: 'var(--label-primary)', color: 'var(--bg-primary)' }}
               >
-                <ImagePlus size={15} className="text-label-secondary" />
-                <span className="text-[9px] text-label-tertiary">参考画像</span>
+                <X size={11} />
               </button>
-            )}
-            {!hasNativePhotoPicker() && (
-              <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
-            )}
-          </div>
-          <p className="text-label-tertiary text-[11px] mt-1.5 leading-relaxed">
-            参考画像は無くてもかまいません。付けると色や雰囲気の手がかりに使います。
-            画像は見た目を読むためだけに使い、保存しません。
-          </p>
+            </div>
+          ))}
+          {refs.length < MAX_REFS && (
+            <button
+              onClick={openPicker}
+              className="w-14 h-14 rounded-lg border border-dashed border-subtle flex flex-col items-center justify-center gap-0.5 pressable"
+            >
+              <ImagePlus size={15} className="text-label-secondary" />
+              <span className="text-[9px] text-label-tertiary">参考画像</span>
+            </button>
+          )}
+          {!hasNativePhotoPicker() && (
+            <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
+          )}
         </div>
 
         {busy && <LineLoader label="AIが色と形を選んでいます…" />}
@@ -310,32 +330,36 @@ export default function ThemeCreate() {
         {error && <p className="text-xs" style={{ color: 'var(--color-destructive)' }}>{error}</p>}
         {made && tweaksLeft <= 0 && (
           <p className="text-label-tertiary text-xs leading-relaxed">
-            言葉での手直しは{TWEAK_LIMIT}回までです。下の微調整は続けられます。
+            言葉での手直しは{TWEAK_LIMIT}回までです。下のつまみは何度でも動かせます。
           </p>
         )}
 
-        {/* 微調整。作ったあとにだけ、控えめに出す */}
+        {/* つまみでの微調整。作ったあとにだけ出す。AIを呼ばないので何度動かしても無料 */}
         {made && !busy && (
-          <div className="flex flex-wrap gap-x-4 gap-y-2 pt-1">
-            {quickTweaks.map(t => (
-              <button key={t.label} onClick={t.run} className="text-[12px] text-label-secondary underline underline-offset-4 pressable">
-                {t.label}
-              </button>
-            ))}
+          <div className="flex flex-col gap-3 pt-1">
+            <Slider
+              label="明るさ" left="暗い" right="明るい"
+              min={-4} max={4} step={1} value={draft.adjust.brightness}
+              onChange={v => setAdjust({ brightness: v })}
+            />
+            <Slider
+              label="角の丸み" left="角ばる" right="丸い"
+              min={0} max={24} step={2} value={draft.adjust.radius}
+              onChange={v => setAdjust({ radius: v })}
+            />
           </div>
+        )}
+
+        {made && !busy && (
+          <button onClick={() => navigate('/explore')} className="text-[12px] text-left pressable" style={{ color: 'var(--accent-color)' }}>
+            実際の画面で見てみる
+          </button>
         )}
 
         {!busy && fixedCount > 0 && (
           <p className="text-label-tertiary text-xs leading-relaxed">
             読みにくい組み合わせが{fixedCount}か所あったので、文字の色を自動で寄せました。
           </p>
-        )}
-
-        {/* 他の画面で見てみる。テーマはアプリ全体に当たって初めて良し悪しが分かる */}
-        {made && !busy && (
-          <button onClick={() => navigate('/explore')} className="text-[12px] text-left pressable" style={{ color: 'var(--accent-color)' }}>
-            他の画面で見てみる
-          </button>
         )}
 
         {made && (
@@ -355,10 +379,33 @@ export default function ThemeCreate() {
 
         {made && !premium && !draft.editingId && userThemes.length >= FREE_THEME_LIMIT && (
           <button onClick={() => navigate('/premium')} className="text-xs text-left leading-relaxed pressable" style={{ color: 'var(--accent-color)' }}>
-            保存できるテーマは無料で{FREE_THEME_LIMIT}つまで。プレミアムならいくつでも保存して切り替えられます。
+            保存できるテーマは無料で{FREE_THEME_LIMIT}つまで。プレミアムなら無制限。
           </button>
         )}
       </div>
     </Layout>
+  );
+}
+
+function Slider({ label, left, right, min, max, step, value, onChange }: {
+  label: string; left: string; right: string;
+  min: number; max: number; step: number; value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-1">
+        <span className="text-[12px] text-label-secondary">{label}</span>
+        <span className="text-[11px] text-label-tertiary">{left} — {right}</span>
+      </div>
+      <input
+        type="range"
+        min={min} max={max} step={step} value={value}
+        onChange={e => onChange(Number(e.target.value))}
+        aria-label={label}
+        className="w-full"
+        style={{ accentColor: 'var(--accent-color)' }}
+      />
+    </div>
   );
 }
