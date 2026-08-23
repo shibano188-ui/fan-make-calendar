@@ -213,7 +213,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const rl = await checkRateLimitFor('theme', identity, getClientIp(req));
   if (!rl.ok) {
     res.setHeader('Retry-After', String(rl.retryAfterSec));
-    return res.status(429).json({ error: 'rate_limited', retryAfterSec: rl.retryAfterSec });
+    // 無料の人には「増やせる」ことを伝えたいので、加入状態も返す
+    return res.status(429).json({ error: 'rate_limited', retryAfterSec: rl.retryAfterSec, premium: identity.premium });
   }
 
   const { prompt, current, images } = (req.body ?? {}) as Body;

@@ -18,7 +18,12 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 /** 上限の段。owner は素通り、new（登録24時間以内）が一番きつい。 */
 export type Tier = 'owner' | 'registered' | 'anonymous' | 'new';
 
-export type Identity = { userId: string; tier: Tier };
+export type Identity = {
+  userId: string;
+  tier: Tier;
+  /** プレミアム加入中か。生成回数の段を分けるのに使う（保存数だけの差だと課金の理由が弱い） */
+  premium: boolean;
+};
 
 const NEW_ACCOUNT_MS = 24 * 60 * 60 * 1000;
 
@@ -37,6 +42,35 @@ function clients(): { user: SupabaseClient; admin: SupabaseClient } | null {
     });
   }
   return { user: userClient, admin: adminClient };
+}
+
+// 加入状態は user_private が正（書けるのは service_role だけ）。
+// 1リクエストごとに問い合わせると遅いので、インスタンス内で短くキャッシュする。
+// 短いのは、解約・加入の反映が遅れて「払ったのに増えない」になるのを避けるため。
+const premiumCache = new Map<string, { value: boolean; at: number }>();
+const PREMIUM_TTL_MS = 60 * 1000;
+
+async function isPremium(admin: SupabaseClient, userId: string): Promise<boolean> {
+  const hit = premiumCache.get(userId);
+  if (hit && Date.now() - hit.at < PREMIUM_TTL_MS) return hit.value;
+  let value = false;
+  try {
+    const { data } = await admin
+      .from('user_private')
+      .select('subscription_status, subscription_expires_at')
+      .eq('user_id', userId)
+      .maybeSingle();
+    const status = (data as { subscription_status?: string } | null)?.subscription_status;
+    const expires = (data as { subscription_expires_at?: string } | null)?.subscription_expires_at;
+    // grace（支払い猶予中）も有効に扱う。期限が無いものは手動付与＝無期限
+    const live = status === 'active' || status === 'grace';
+    const notExpired = !expires || Date.parse(expires) > Date.now();
+    value = live && notExpired;
+  } catch {
+    value = false;   // 聞けなかったら無料として扱う（栓を緩めない方向に倒す）
+  }
+  premiumCache.set(userId, { value, at: Date.now() });
+  return value;
 }
 
 // オーナーの一覧は滅多に変わらないので、インスタンス内で5分キャッシュする。
@@ -74,13 +108,14 @@ export async function getIdentity(req: VercelRequest): Promise<Identity | null> 
     const user = data?.user;
     if (error || !user) return null;
 
-    if ((await ownerIds(c.admin)).has(user.id)) return { userId: user.id, tier: 'owner' };
+    if ((await ownerIds(c.admin)).has(user.id)) return { userId: user.id, tier: 'owner', premium: true };
 
+    const premium = await isPremium(c.admin, user.id);
     const createdAt = user.created_at ? Date.parse(user.created_at) : NaN;
     const isNew = Number.isFinite(createdAt) && Date.now() - createdAt < NEW_ACCOUNT_MS;
-    if (isNew) return { userId: user.id, tier: 'new' };
+    if (isNew) return { userId: user.id, tier: 'new', premium };
 
-    return { userId: user.id, tier: user.is_anonymous ? 'anonymous' : 'registered' };
+    return { userId: user.id, tier: user.is_anonymous ? 'anonymous' : 'registered', premium };
   } catch {
     return null;   // 検証できない＝身元不明として扱う。機能は止めない
   }

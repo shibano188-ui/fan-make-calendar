@@ -85,7 +85,8 @@ export async function deleteUserTheme(id: string): Promise<boolean> {
 // ── 生成 ──────────────────────────────────────────────────────────
 
 export class ThemeLimitError extends Error {
-  constructor(public retryAfterSec?: number) {
+  /** premium=false なら「プレミアムなら増える」と案内できる */
+  constructor(public retryAfterSec?: number, public premium = false) {
     super('rate_limited');
   }
 }
@@ -110,7 +111,7 @@ export async function generateTheme(
   });
   if (res.status === 429) {
     const body = await res.json().catch(() => ({}));
-    throw new ThemeLimitError(body?.retryAfterSec);
+    throw new ThemeLimitError(body?.retryAfterSec, !!body?.premium);
   }
   if (!res.ok) throw new Error('generation_failed');
   const { patch, note } = await res.json() as { patch: unknown; note?: string };

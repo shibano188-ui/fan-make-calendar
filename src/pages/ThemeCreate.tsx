@@ -161,7 +161,9 @@ export default function ThemeCreate() {
       setRefs([]);
     } catch (e) {
       setError(e instanceof ThemeLimitError
-        ? '今日はこれ以上作れません。明日また試せます'
+        ? (e.premium
+          ? '今日はこれ以上作れません。明日また試せます'
+          : '今日の分を使い切りました。明日また作れます（プレミアムなら1日にもっと作れます）')
         : 'うまく作れませんでした。書き方を変えてもう一度お試しください');
     } finally {
       setBusy(false);

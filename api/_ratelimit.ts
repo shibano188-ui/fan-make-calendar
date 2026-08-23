@@ -100,23 +100,38 @@ const USER_LIMITS: Record<Exclude<Tier, 'owner'>, { min: number; day: number }> 
 //   → [[2026-08-22-ai-usage-limits]]）。
 const BUCKET_USER_LIMITS: Partial<Record<RateLimitBucket, Record<Exclude<Tier, 'owner'>, { min: number; day: number }>>> = {
   theme: {
-    registered: { min: 6, day: 20 },
-    anonymous:  { min: 6, day: 10 },
-    new:        { min: 4, day: 6 },
+    registered: { min: 3, day: 3 },
+    anonymous:  { min: 3, day: 3 },
+    new:        { min: 2, day: 2 },
   },
+};
+
+/**
+ * プレミアムのテーマ生成の栓。**無料と桁を分ける**。
+ *
+ * 無料の制限は「保存できる数」だけだったので、作って消してを繰り返せばいくらでも作れた。
+ * それだと課金の理由が「保存できる数」しか無いうえ、**全体の栓(30回/日)を無料の人が
+ * 使い切ると、払っている人が作れなくなる**。回数そのものを段で分ける。
+ * 無料3回は「試して気に入った1つを作る」には足りる量。
+ */
+const PREMIUM_LIMITS: Partial<Record<RateLimitBucket, { min: number; day: number }>> = {
+  theme: { min: 6, day: 20 },
 };
 
 const userCache = new Map<string, { perMinute: Ratelimit; perDay: Ratelimit }>();
 
-function userLimitersFor(bucket: RateLimitBucket, tier: Exclude<Tier, 'owner'>) {
+function userLimitersFor(bucket: RateLimitBucket, tier: Exclude<Tier, 'owner'>, premium = false) {
   if (!redis) return null;
-  const key = `${bucket}:${tier}`;
+  const variant = premium && PREMIUM_LIMITS[bucket] ? 'premium' : tier;
+  const key = `${bucket}:${variant}`;
   let l = userCache.get(key);
   if (!l) {
-    const c = BUCKET_USER_LIMITS[bucket]?.[tier] ?? USER_LIMITS[tier];
+    const c = (premium && PREMIUM_LIMITS[bucket])
+      || BUCKET_USER_LIMITS[bucket]?.[tier]
+      || USER_LIMITS[tier];
     l = {
-      perMinute: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(c.min, '1 m'), prefix: `rl:${bucket}:u:${tier}:min` }),
-      perDay:    new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(c.day, '1 d'), prefix: `rl:${bucket}:u:${tier}:day` }),
+      perMinute: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(c.min, '1 m'), prefix: `rl:${bucket}:u:${variant}:min` }),
+      perDay:    new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(c.day, '1 d'), prefix: `rl:${bucket}:u:${variant}:day` }),
     };
     userCache.set(key, l);
   }
@@ -137,7 +152,7 @@ export async function checkRateLimitFor(
   if (!identity) return checkRateLimit(bucket, ip);
   if (identity.tier === 'owner') return { ok: true };   // オーナーは素通り
 
-  const limiters = userLimitersFor(bucket, identity.tier);
+  const limiters = userLimitersFor(bucket, identity.tier, identity.premium);
   const global = limitersFor(bucket);
   if (!limiters || !global) return { ok: true };
   try {
