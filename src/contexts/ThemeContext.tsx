@@ -12,8 +12,12 @@ import type { ThemeSpec, UserTheme } from '../design/themeSpec';
 /** つまみでの調整。**AIが返した表そのものは動かさず、毎回そこから作り直す**
  *  （同じ操作を繰り返しても色がじりじりずれていかない） */
 export type ThemeAdjust = {
-  /** 明るさ。-4〜4。0 が AI の返したまま */
-  brightness: number;
+  /**
+   * にぎやかさ。-2〜2。0 が AI の返したまま。
+   * 1本で質感・影・飾り・押した反応をまとめて動かす
+   * （軸を1本ずつ出すと「部品を組み立てる道具」になってしまうため）。
+   */
+  vivid: number;
   /** 角丸(px)。0〜24 */
   radius: number;
 };

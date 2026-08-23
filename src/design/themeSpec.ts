@@ -28,10 +28,11 @@ export type ShapeId = 'round' | 'square' | 'cut';
 /** 上部バーと下タブの扱い。形に次いで効く */
 export type BarsId = 'floating' | 'plate' | 'band';
 export type ShadowId = 'float' | 'raise' | 'hard' | 'none';
-export type TextureId = 'none' | 'dots' | 'halftone';
+/** 地の質感。粗さと濃さは textureSize / textureStrength で連続に変えられる */
+export type TextureId = 'none' | 'dots' | 'halftone' | 'grid' | 'scanline' | 'paper';
 export type PressId = 'spring' | 'mechanical' | 'bounce' | 'none';
 /** 飾り。テーマごとに1つだけ決めて決まった場所に置く（2つ入れると全部盛りで破綻する） */
-export type OrnamentId = 'none' | 'led' | 'tilt';
+export type OrnamentId = 'none' | 'led' | 'tilt' | 'corner' | 'stripe';
 /** 書体の性格。字間と太さの取り方が書体の選択と一緒に動くので、1本の軸にしてある */
 export type TypeId = 'plain' | 'mono' | 'display';
 
@@ -133,9 +134,17 @@ export interface ThemeSpec {
   bars: BarsId;
   shadow: ShadowId;
   texture: TextureId;
+  /** 質感の粗さ(px)。3=細かい網点 〜 28=大きな格子 */
+  textureSize: number;
+  /** 質感の濃さ(%)。4=かすか 〜 40=はっきり */
+  textureStrength: number;
   press: PressId;
   ornament: OrnamentId;
   type: TypeId;
+  /** 面の縁の太さ(px)。0=縁なし 〜 3=太い枠 */
+  border: number;
+  /** アイコンの線の太さ。1=細い 〜 2.5=太い（2がふつう） */
+  iconStroke: number;
   fonts: Record<FontRole, FontId>;
   dark: ThemeColors;
   light: ThemeColors;
@@ -223,7 +232,11 @@ export function shapeToVars(spec: ThemeSpec): Record<string, string> {
     // 混植用。日付や金額のように「数字＋日本語」が1行に混ざるところで使う
     '--skin-font-meta-mix': stack(spec.fonts.meta, jp),
     '--skin-font-num-mix': stack(spec.fonts.num, jp),
-    '--skin-dot': spec.texture === 'dots' ? 'rgba(128,128,132,0.16)' : 'rgba(128,128,132,0.13)',
+    // 質感の色・粗さ・濃さ。CSSは形だけ持ち、数字はここから流し込む
+    '--skin-dot': `rgba(128,128,132,${Math.max(0, Math.min(60, spec.textureStrength)) / 100})`,
+    '--skin-texture-size': `${Math.max(2, Math.min(40, spec.textureSize))}px`,
+    '--skin-border': `${Math.max(0, Math.min(4, spec.border))}px`,
+    '--skin-icon-stroke': String(Math.max(0.75, Math.min(3, spec.iconStroke))),
   };
   if (r !== null) {
     vars['--skin-radius'] = `${r}px`;

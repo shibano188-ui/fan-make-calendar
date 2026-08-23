@@ -49,10 +49,15 @@ const SYSTEM_PROMPT = `あなたはモバイルアプリの外観を決める設
 - radius 角丸(px)。アプリ中の角丸がこの1つに揃う。square なら0〜3、round なら10〜20が普通
 - bars 上部バーと下タブ。floating=浮いた丸バー／plate=塗りの板／band=アクセント色の帯。**形の次に効く**
 - shadow float=浮く／raise=隆起した押しボタン／hard=硬いオフセット影／none=無し
-- texture 地の質感。none／dots=点の格子／halftone=細かい網点
+- texture 地の質感。none／dots=点の格子／halftone=網点／grid=方眼／scanline=走査線／paper=紙の織り目
+- textureSize 質感の粗さ(px) 3〜28。3〜6=細かくてほぼ無地に見える／12〜24=はっきり見える格子
+- textureStrength 質感の濃さ(%) 4〜40。8前後が上品、25以上ではっきり主張する
 - press 押した反応。spring=ばね／mechanical=沈む／bounce=弾く／none
-- ornament 飾り。**1テーマに1つだけ**。none／led=状態が表示灯のように灯る／tilt=札やチップが少し傾く
+- ornament 飾り。**1テーマに1つだけ**。none／led=状態が表示灯のように灯る／
+  tilt=札やチップが少し傾く／corner=面の左上に鉤(かぎ)の印／stripe=面の上辺にアクセント色の帯
 - type 書体の性格。plain=素／mono=字間を開けた等幅の計器風／display=極太の見出し風
+- border 面の縁の太さ(px) 0〜3。0=縁なしで地に溶ける／2〜3=枠で囲った紙のよう
+- iconStroke アイコンの線の太さ 1〜2.5。1〜1.5=細くて上品／2=ふつう／2.5=太くて元気
 
 ## 参考画像が付いているとき
 - 画像は**見た目の手がかり**として読む。色の並び・明暗・粗さ・角の丸さ・書体の太さの印象を拾う
@@ -85,9 +90,12 @@ const SYSTEM_PROMPT = `あなたはモバイルアプリの外観を決める設
 - type=mono なら fonts.meta / fonts.num は等幅系（martian, jetbrains）が合う
 - type=display なら fonts.display に極太（dela, archivo, kaisei）、fonts.num に bigshoulder が合う
 - bars=band を選ぶと上部が accent 一色になる。accent は明るく強い色にする
-- かわいい・やわらかい → round / floating / zenmaru か mplusround / radius 14〜20
-- 硬い・機械的 → square / plate / raise / dots / mono / radius 0〜3
-- 派手・勢い → cut / band / hard / display / tilt / radius 0
+- かわいい・やわらかい → round / floating / zenmaru か mplusround / radius 14〜20 / iconStroke 2.2
+- 硬い・機械的 → square / plate / raise / dots(size 16〜22) / mono / radius 0〜3 / iconStroke 1.5
+- 派手・勢い → cut / band / hard / display / tilt / radius 0 / border 0
+- 静か・上品 → floating / none か paper(strength 6) / border 1 / iconStroke 1.25 / shippori か notoserifjp
+- 紙・印刷物 → paper か grid / border 2〜3 / shadow none / plain
+- 画面・端末 → scanline か grid / mono / led / iconStroke 1.5
 
 必ず set_theme を1回だけ呼ぶ。それ以外の文章は書かない。`;
 
@@ -122,10 +130,14 @@ const THEME_TOOL = {
       radius: { type: 'integer', minimum: 0, maximum: 24 },
       bars: { type: 'string', enum: ['floating', 'plate', 'band'] },
       shadow: { type: 'string', enum: ['float', 'raise', 'hard', 'none'] },
-      texture: { type: 'string', enum: ['none', 'dots', 'halftone'] },
+      texture: { type: 'string', enum: ['none', 'dots', 'halftone', 'grid', 'scanline', 'paper'] },
+      textureSize: { type: 'integer', minimum: 3, maximum: 28 },
+      textureStrength: { type: 'integer', minimum: 4, maximum: 40 },
       press: { type: 'string', enum: ['spring', 'mechanical', 'bounce', 'none'] },
-      ornament: { type: 'string', enum: ['none', 'led', 'tilt'] },
+      ornament: { type: 'string', enum: ['none', 'led', 'tilt', 'corner', 'stripe'] },
       type: { type: 'string', enum: ['plain', 'mono', 'display'] },
+      border: { type: 'integer', minimum: 0, maximum: 3 },
+      iconStroke: { type: 'number', minimum: 1, maximum: 2.5 },
       fonts: {
         type: 'object',
         properties: {

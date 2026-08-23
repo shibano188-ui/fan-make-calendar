@@ -10,7 +10,7 @@ import { useTheme, type ThemeAdjust, type ThemeDraft } from '../contexts/ThemeCo
 import { usePremium } from '../lib/premium';
 import { PRESET_SPECS } from '../design/skins';
 import type { ThemeSpec } from '../design/themeSpec';
-import { applyPatch, shade, type ContrastReport } from '../design/themeCheck';
+import { applyPatch, type ContrastReport } from '../design/themeCheck';
 import { hasNativePhotoPicker, pickPhoto } from '../lib/pickPhoto';
 import { shrinkImage } from '../lib/shrinkImage';
 import {
@@ -37,37 +37,47 @@ const MAX_REFS = 3;
 const PLACEHOLDER = `例）夜の海みたいに静かな青。角は丸めで、文字はやわらかい書体。
 派手にしないで、写真が主役に見えるように。`;
 
-/** 明るさのつまみ1目盛りぶん（RGB各値の増減） */
-const BRIGHT_STEP = 8;
-
 /**
  * つまみの位置を AI が返した表に当てて、実際に当てる表を作る。
  *
  * **毎回 base から作り直す**のが要点。前の結果に足していくと、
- * 右へ左へ動かすたびに色がじりじりずれて元の位置に戻らなくなる。
+ * 右へ左へ動かすたびに値がじりじりずれて元の位置に戻らなくなる。
+ *
+ * にぎやかさは**1本で質感・影・飾り・押した反応をまとめて動かす**。
+ * 軸を1本ずつ出すと「部品を組み立てる道具」になってしまう。
  */
 function withAdjust(base: ThemeSpec, adjust: ThemeAdjust): { spec: ThemeSpec; report: ContrastReport[] } {
-  const b = adjust.brightness * BRIGHT_STEP;
   const patch: Record<string, unknown> = {
     radius: adjust.radius,
     // 角を完全に落としたら、丸を前提にした形（ピルなど）からも降りる
     shape: adjust.radius === 0 && base.shape === 'round' ? 'square' : base.shape,
   };
-  if (b !== 0) {
-    patch.dark = {
-      ...base.dark,
-      bg: shade(base.dark.bg, b), surface: shade(base.dark.surface, b), surface2: shade(base.dark.surface2, b),
-    };
-    patch.light = {
-      ...base.light,
-      bg: shade(base.light.bg, b), surface: shade(base.light.surface, b), surface2: shade(base.light.surface2, b),
-    };
+
+  const v = adjust.vivid;
+  if (v <= -2) {
+    Object.assign(patch, { texture: 'none', shadow: 'none', ornament: 'none', press: 'spring' });
+  } else if (v === -1) {
+    Object.assign(patch, { texture: 'none', shadow: 'float', ornament: 'none' });
+  } else if (v === 1) {
+    Object.assign(patch, {
+      texture: base.texture === 'none' ? 'dots' : base.texture,
+      shadow: base.shadow === 'none' || base.shadow === 'float' ? 'raise' : base.shadow,
+      ornament: base.ornament === 'none' ? 'corner' : base.ornament,
+    });
+  } else if (v >= 2) {
+    Object.assign(patch, {
+      texture: base.texture === 'none' ? 'halftone' : base.texture,
+      textureStrength: Math.min(40, base.textureStrength + 10),
+      shadow: 'hard',
+      ornament: base.ornament === 'none' ? 'tilt' : base.ornament,
+      press: 'bounce',
+    });
   }
   return applyPatch(base, patch);
 }
 
 function newVersion(base: ThemeSpec): { spec: ThemeSpec; base: ThemeSpec; adjust: ThemeAdjust } {
-  return { spec: base, base, adjust: { brightness: 0, radius: base.radius ?? 12 } };
+  return { spec: base, base, adjust: { vivid: 0, radius: base.radius ?? 12 } };
 }
 
 function blankDraft(): ThemeDraft {
@@ -338,9 +348,9 @@ export default function ThemeCreate() {
         {made && !busy && (
           <div className="flex flex-col gap-3 pt-1">
             <Slider
-              label="明るさ" left="暗い" right="明るい"
-              min={-4} max={4} step={1} value={draft.adjust.brightness}
-              onChange={v => setAdjust({ brightness: v })}
+              label="にぎやかさ" left="落ち着き" right="にぎやか"
+              min={-2} max={2} step={1} value={draft.adjust.vivid}
+              onChange={v => setAdjust({ vivid: v })}
             />
             <Slider
               label="角の丸み" left="角ばる" right="丸い"

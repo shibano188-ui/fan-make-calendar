@@ -34,17 +34,37 @@ html[data-type='display'] body {
   font-weight: 500;
 }
 
-/* ── 地の質感 ──────────────────────────────────────── */
-/* PANEL: Nothing の点の格子。SURGE: 細かい網点 */
-html[data-texture='dots'] body {
-  background-image: radial-gradient(var(--skin-dot) 1px, transparent 1px);
-  background-size: 19px 19px;
-  background-position: 9px 9px;
-  background-attachment: fixed;
-}
+/* ── 地の質感 ────────────────────────────────────────
+   種類だけをここが持ち、**粗さ(--skin-texture-size)と濃さ(--skin-dot)は
+   設定表から流し込む**。同じ「点の格子」でも 5px と 24px では別物に見えるので、
+   種類を増やすより数字を開けたほうが自由度が上がる。 */
+html[data-texture='dots'] body,
 html[data-texture='halftone'] body {
   background-image: radial-gradient(var(--skin-dot) 1px, transparent 1px);
-  background-size: 5px 5px;
+  background-size: var(--skin-texture-size) var(--skin-texture-size);
+  background-position: calc(var(--skin-texture-size) / 2) calc(var(--skin-texture-size) / 2);
+  background-attachment: fixed;
+}
+/* 方眼。細い線が縦横に走る */
+html[data-texture='grid'] body {
+  background-image:
+    linear-gradient(var(--skin-dot) 1px, transparent 1px),
+    linear-gradient(90deg, var(--skin-dot) 1px, transparent 1px);
+  background-size: var(--skin-texture-size) var(--skin-texture-size);
+  background-attachment: fixed;
+}
+/* 走査線。横に細い線が等間隔で入る（ブラウン管のような） */
+html[data-texture='scanline'] body {
+  background-image: repeating-linear-gradient(
+    0deg, var(--skin-dot) 0 1px, transparent 1px var(--skin-texture-size));
+  background-attachment: fixed;
+}
+/* 紙。斜めの細かい織り目 */
+html[data-texture='paper'] body {
+  background-image:
+    repeating-linear-gradient(45deg, var(--skin-dot) 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(-45deg, var(--skin-dot) 0 1px, transparent 1px 4px);
+  background-size: var(--skin-texture-size) var(--skin-texture-size);
   background-attachment: fixed;
 }
 
@@ -85,6 +105,22 @@ html[data-themed] .rounded-full.w-2\.5,
 html[data-themed] .rounded-full.w-3,
 html[data-themed] .rounded-full.animate-spin {
   border-radius: 9999px;
+}
+
+/* ── 面の縁 ────────────────────────────────────────
+   0 なら縁なし、太くすると枠で囲った見た目になる。
+   角を切る形（cut）は clip-path が縁を断つので当てない。 */
+html[data-themed]:not([data-shape='cut']) [data-skin-part='card'],
+html[data-themed]:not([data-shape='cut']) [data-skin-part='chip'] {
+  border-width: var(--skin-border);
+  border-style: solid;
+}
+
+/* ── アイコンの線の太さ ──────────────────────────────
+   lucide のアイコンは stroke-width を属性で持つが、CSS の指定が勝つ。
+   細くすると上品に、太くすると子どもっぽく見える。 */
+html[data-themed] svg.lucide {
+  stroke-width: var(--skin-icon-stroke);
 }
 
 /* ── 面の質感（材質） ───────────────────────────────
@@ -584,6 +620,37 @@ html[data-shape='cut'] [data-skin-part='nav-add'] {
   border-radius: var(--skin-radius) !important;
   clip-path: polygon(7px 0, 100% 0, calc(100% - 7px) 100%, 0 100%);
   box-shadow: none !important;
+}
+
+/* ── 飾り: 角のかぎ／上辺の帯 ────────────────────────
+   飾りは**テーマにつき1つだけ**。決まった場所（一覧の面）にだけ置く。
+   2つ入れると全部盛りになって破綻する。 */
+html[data-ornament='corner'] [data-skin-part='card'],
+html[data-ornament='stripe'] [data-skin-part='card'] {
+  position: relative;
+}
+html[data-ornament='corner'] [data-skin-part='card']::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  width: 11px;
+  height: 11px;
+  border-top: 2px solid var(--accent-color);
+  border-left: 2px solid var(--accent-color);
+  pointer-events: none;
+  z-index: 1;
+}
+html[data-ornament='stripe'] [data-skin-part='card']::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--accent-color);
+  pointer-events: none;
+  z-index: 1;
 }
 
 /* ─────────────────────────────────────────────────────────────

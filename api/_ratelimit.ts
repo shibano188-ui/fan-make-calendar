@@ -17,10 +17,12 @@ const BUCKETS = {
   // 円で数える本式の栓（ai_usage の月次集計）が入ったら、この行は撤去してよい。
   // ⚠️ owner は checkRateLimitFor で素通りするので、仕込み作業はこの栓に当たらない。
   parse:  { min: 20, day: 150, globalDay: 400 },   // Claude API
-  // テーマ生成。1回あたり Sonnet で ¥1〜2（システムはキャッシュが効く長さがある）。
-  // 月¥3,000 の枠 ÷ 30日 ÷ ¥2 ≒ 50回/日 を全体の栓に置く。
+  // テーマ生成。**本番実測 ¥3.4/回**（Sonnet 5・道具の定義とルールで約3,400トークン。
+  // 5分以内に続けて叩けばキャッシュが読まれて ¥1.6 まで下がるが、
+  // 人がばらけて来る前提だと毎回キャッシュの書き込み側になる）。
+  // 月¥3,000 の枠 ÷ 30日 ÷ ¥3.4 ≒ 30回/日 を全体の栓に置く。
   // 個人の栓は下の BUCKET_USER_LIMITS で別に切る（回数の桁が parse と違うため）。
-  theme:  { min: 6,  day: 40,  globalDay: 50 },    // Claude API（上位モデル）
+  theme:  { min: 6,  day: 40,  globalDay: 30 },    // Claude API（上位モデル）
   search: { min: 30, day: 300, globalDay: 5000 },  // 楽天/Yahoo API（投稿1件で複数回叩く）
   title:  { min: 10, day: 60,  globalDay: 1000 },  // events更新（重複時の地名付与のみ）
   delete: { min: 5,  day: 20,  globalDay: 200 },   // アカウント削除（破壊操作）

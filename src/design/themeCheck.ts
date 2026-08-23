@@ -20,9 +20,9 @@ export const VOCAB = {
   shape: ['round', 'square', 'cut'],
   bars: ['floating', 'plate', 'band'],
   shadow: ['float', 'raise', 'hard', 'none'],
-  texture: ['none', 'dots', 'halftone'],
+  texture: ['none', 'dots', 'halftone', 'grid', 'scanline', 'paper'],
   press: ['spring', 'mechanical', 'bounce', 'none'],
-  ornament: ['none', 'led', 'tilt'],
+  ornament: ['none', 'led', 'tilt', 'corner', 'stripe'],
   type: ['plain', 'mono', 'display'],
   statusBar: ['bg', 'accent'],
 } as const;
@@ -206,6 +206,13 @@ export function applyPatch(now: ThemeSpec, patch: unknown): { spec: ThemeSpec; r
     ? Math.round(p.radius)
     : now.radius;
 
+  /** 数値は必ず範囲で受ける。**表に無い形の値は捨てて今の値を残す** */
+  const num = (v: unknown, min: number, max: number, nowValue: number, round = true) => {
+    if (typeof v !== 'number' || !Number.isFinite(v)) return nowValue;
+    const clamped = Math.max(min, Math.min(max, v));
+    return round ? Math.round(clamped) : Math.round(clamped * 100) / 100;
+  };
+
   const merged: ThemeSpec = {
     v: 1,
     name: typeof p.name === 'string' && p.name.trim() ? p.name.trim().slice(0, 24) : now.name,
@@ -216,9 +223,13 @@ export function applyPatch(now: ThemeSpec, patch: unknown): { spec: ThemeSpec; r
     bars: pickEnum(p.bars, VOCAB.bars, now.bars),
     shadow: pickEnum(p.shadow, VOCAB.shadow, now.shadow),
     texture: pickEnum(p.texture, VOCAB.texture, now.texture),
+    textureSize: num(p.textureSize, 3, 28, now.textureSize),
+    textureStrength: num(p.textureStrength, 4, 40, now.textureStrength),
     press: pickEnum(p.press, VOCAB.press, now.press),
     ornament: pickEnum(p.ornament, VOCAB.ornament, now.ornament),
     type: pickEnum(p.type, VOCAB.type, now.type),
+    border: num(p.border, 0, 3, now.border),
+    iconStroke: num(p.iconStroke, 1, 2.5, now.iconStroke, false),
     fonts: mergeFonts(now.fonts, p.fonts),
     dark: mergeColors(now.dark, p.dark),
     light: mergeColors(now.light, p.light),

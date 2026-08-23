@@ -27,6 +27,10 @@ const readRoot = page => page.evaluate(() => {
     bars: r.getAttribute('data-bars'),
     texture: r.getAttribute('data-texture'),
     themed: r.hasAttribute('data-themed'),
+    shadow: r.getAttribute('data-shadow'),
+    ornament: r.getAttribute('data-ornament'),
+    iconStroke: cs.getPropertyValue('--skin-icon-stroke').trim(),
+    border: cs.getPropertyValue('--skin-border').trim(),
     radius: cs.getPropertyValue('--skin-radius').trim(),
     bg: cs.getPropertyValue('--bg-primary').trim(),
     accent: cs.getPropertyValue('--accent-color').trim(),
@@ -97,15 +101,23 @@ const run = async () => {
     await page.waitForTimeout(300);
     log((await readRoot(page)).radius === made.radius, `つまみを戻すと元の値に戻る（${made.radius}）`);
 
-    // 明るさのつまみ（1本目）
-    const brightBar = page.locator('input[type=range]').first();
-    await brightBar.fill('-3');
+    // にぎやかさのつまみ（1本目）。質感・影・飾りがまとめて動く
+    const vividBar = page.locator('input[type=range]').first();
+    await vividBar.fill('2');
     await page.waitForTimeout(300);
-    const dimmed = await readRoot(page);
-    log(dimmed.bg !== made.bg, `つまみで明るさが動く（${made.bg} → ${dimmed.bg}）`);
-    await brightBar.fill('0');
+    const loud = await readRoot(page);
+    log(loud.shadow === 'hard' && loud.texture !== 'none',
+      `にぎやかにすると質感と影が付く（${loud.texture} / ${loud.shadow}）`);
+    await vividBar.fill('-2');
     await page.waitForTimeout(300);
-    log((await readRoot(page)).bg === made.bg, 'つまみを戻すと色も元に戻る（じりじりずれない）');
+    const quiet = await readRoot(page);
+    log(quiet.texture === 'none' && quiet.shadow === 'none',
+      `落ち着かせると質感と影が消える（${quiet.texture} / ${quiet.shadow}）`);
+    await vividBar.fill('0');
+    await page.waitForTimeout(300);
+    const back = await readRoot(page);
+    log(back.texture === made.texture && back.shadow === made.shadow,
+      'つまみを戻すとAIの選んだ状態にきっちり戻る（じりじりずれない）');
 
     await page.getByRole('button', { name: '元に戻す' }).click();
     await page.waitForTimeout(400);
