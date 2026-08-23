@@ -13,6 +13,10 @@
 // （本番のスキーマを変更しないため）。
 // ═══════════════════════════════════════════════════════════════════
 
+import {
+  type ThemeSpec, specToAttrs, shapeToVars, specFontQuery, colorsToVars,
+} from './themeSpec';
+
 export type SkinId = 'classic' | 'panel' | 'surge';
 
 export interface SkinDef {
@@ -41,9 +45,16 @@ export interface SkinDef {
    * SURGE は上部の帯がアクセント色（黄）なので、暗いテーマでも黒アイコンでなければ読めない。
    */
   statusBar: 'bg' | 'accent';
-  /** Google Fonts のクエリ（classic は読み込み不要） */
-  fontQuery: string | null;
-  /** 色の上書き。コミュニティテーマ選択時は適用しない */
+  /**
+   * この外皮の設定表。**形・書体・質感・押した反応・飾りはすべてここから決まる**。
+   * 生成テーマも同じ型なので、適用の経路は1本で済む（applyThemeSpec）。
+   */
+  spec: ThemeSpec;
+  /**
+   * 手で作った色の表。生成テーマは持たない（表の色から階段で作る）。
+   * 既存の3つだけは、実機で確認済みの見た目をずらさないためにこちらを正とする。
+   * コミュニティテーマ選択時は適用しない。
+   */
   vars: { dark: Record<string, string>; light: Record<string, string> } | null;
 }
 
@@ -171,6 +182,71 @@ const SURGE_LIGHT: Record<string, string> = {
   '--status-ended': 'rgba(11,11,12,0.40)',
 };
 
+// ── 既存3つの設定表 ────────────────────────────────────────────────
+// **色以外はすべてここに書いてある**。skins.css はこの値を属性で引くだけなので、
+// 生成テーマも同じ語彙の別の組み合わせにすぎない。
+
+const CLASSIC_SPEC: ThemeSpec = {
+  v: 1,
+  name: 'デフォルト',
+  accent: '#FBBF00',
+  shape: 'round',
+  // null = アプリ既定の角丸の階層をそのまま残す（デフォルトは「素のアプリ」）
+  radius: null,
+  bars: 'floating',
+  shadow: 'float',
+  texture: 'none',
+  press: 'spring',
+  ornament: 'none',
+  type: 'plain',
+  fonts: { body: 'system', label: 'system', meta: 'system', num: 'system', display: 'system' },
+  dark:  { bg: '#0e0e10', surface: '#1c1c1e', surface2: '#2c2c2e', text: '#ffffff' },
+  light: { bg: '#f2f2f7', surface: '#ffffff', surface2: '#e5e5ea', text: '#000000' },
+  statusBar: 'bg',
+};
+
+const PANEL_SPEC: ThemeSpec = {
+  v: 1,
+  name: 'PANEL',
+  accent: '#FF5A1E',
+  shape: 'square',
+  radius: 2,
+  bars: 'plate',
+  shadow: 'raise',
+  texture: 'dots',
+  press: 'mechanical',
+  ornament: 'led',
+  type: 'mono',
+  fonts: { body: 'bizudp', label: 'bizud', meta: 'martian', num: 'martian', display: 'bizud' },
+  dark:  { bg: '#101012', surface: '#1b1b20', surface2: '#26262c', text: '#f3f0ea', line: '#8c8c96' },
+  light: { bg: '#e7e4db', surface: '#f6f4ef', surface2: '#d9d5c9', text: '#17171a' },
+  statusBar: 'bg',
+};
+
+const SURGE_SPEC: ThemeSpec = {
+  v: 1,
+  name: 'SURGE',
+  accent: '#FFD400',
+  shape: 'cut',
+  radius: 0,
+  bars: 'band',
+  shadow: 'hard',
+  texture: 'halftone',
+  press: 'bounce',
+  ornament: 'tilt',
+  type: 'display',
+  fonts: { body: 'zenkaku', label: 'zenkaku', meta: 'anybody', num: 'bigshoulder', display: 'dela' },
+  dark:  { bg: '#0b0b0c', surface: '#151519', surface2: '#1f1f24', text: '#ffffff' },
+  light: { bg: '#f4f2ec', surface: '#ffffff', surface2: '#e7e4db', text: '#0b0b0c' },
+  statusBar: 'accent',
+};
+
+export const PRESET_SPECS: Record<SkinId, ThemeSpec> = {
+  classic: CLASSIC_SPEC,
+  panel: PANEL_SPEC,
+  surge: SURGE_SPEC,
+};
+
 export const SKINS: Record<SkinId, SkinDef> = {
   classic: {
     id: 'classic',
@@ -182,7 +258,7 @@ export const SKINS: Record<SkinId, SkinDef> = {
     shape: 'round',
     texture: false,
     statusBar: 'bg',
-    fontQuery: null,
+    spec: CLASSIC_SPEC,
     vars: null,
   },
   panel: {
@@ -195,9 +271,7 @@ export const SKINS: Record<SkinId, SkinDef> = {
     shape: 'square',
     texture: true,
     statusBar: 'bg',
-    fontQuery:
-      'family=BIZ+UDGothic:wght@400;700' +
-      '&family=Martian+Mono:wght@300;400;500;700',
+    spec: PANEL_SPEC,
     vars: { dark: PANEL_DARK, light: PANEL_LIGHT },
   },
   surge: {
@@ -209,11 +283,9 @@ export const SKINS: Record<SkinId, SkinDef> = {
     swatchRadius: 0,
     shape: 'cut',
     texture: false,
-    // 上部の帯が accent（skins.css の [data-skin-part='header']）
+    // 上部の帯が accent（skins.css の [data-bars='band'] [data-skin-part='header']）
     statusBar: 'accent',
-    fontQuery:
-      'family=Zen+Kaku+Gothic+New:wght@500;700;900&family=Dela+Gothic+One' +
-      '&family=Anybody:wght@400;700;900&family=Big+Shoulders+Display:wght@600;800;900',
+    spec: SURGE_SPEC,
     vars: { dark: SURGE_DARK, light: SURGE_LIGHT },
   },
 };
@@ -234,33 +306,81 @@ export function saveSkin(id: SkinId): void {
   try { localStorage.setItem(SKIN_KEY, id); } catch { /* 保存できなくても表示は続ける */ }
 }
 
-/** 外皮の書体を必要になったときだけ読み込む（classic では1バイトも読まない） */
-export function ensureSkinFonts(id: SkinId): void {
-  const def = SKINS[id];
-  if (!def.fontQuery) return;
-  const elId = `skin-fonts-${id}`;
+/** テーマの書体を必要になったときだけ読み込む（デフォルトでは1バイトも読まない） */
+export function ensureSpecFonts(spec: ThemeSpec): void {
+  const q = specFontQuery(spec);
+  if (!q) return;
+  // クエリそのものを鍵にする。同じ書体の組み合わせなら二度読まない
+  const elId = `skin-fonts-${hashQuery(q)}`;
   if (document.getElementById(elId)) return;
   const link = document.createElement('link');
   link.id = elId;
   link.rel = 'stylesheet';
-  link.href = `https://fonts.googleapis.com/css2?${def.fontQuery}&display=swap`;
+  link.href = `https://fonts.googleapis.com/css2?${q}&display=swap`;
   document.head.appendChild(link);
 }
 
+function hashQuery(q: string): string {
+  let h = 0;
+  for (let i = 0; i < q.length; i++) h = (h * 31 + q.charCodeAt(i)) | 0;
+  return Math.abs(h).toString(36);
+}
+
+// このモジュールが html に付ける属性。テーマを外すときに**必ず全部消す**
+// （消し忘れると、前のテーマの形だけが残って混ざる）
+const MANAGED_ATTRS = [
+  'data-shape', 'data-bars', 'data-shadow', 'data-texture',
+  'data-press', 'data-ornament', 'data-type', 'data-themed',
+];
+
 /**
- * 外皮を documentElement に反映する。
+ * 設定表を documentElement に反映する。
+ *
+ * @param spec          設定表（プリセットでも生成テーマでも同じ）
+ * @param isDark        解決済みのライト/ダーク
+ * @param hasCommunity  コミュニティテーマ選択中か（true なら色は上書きしない）
+ * @param colorVars     手で作った色の表（既存3つ用）。無ければ設定表の色から階段で作る
+ */
+export function applyThemeSpec(
+  spec: ThemeSpec,
+  isDark: boolean,
+  hasCommunity: boolean,
+  colorVars?: Record<string, string>,
+): void {
+  const root = document.documentElement;
+  ensureSpecFonts(spec);
+
+  const attrs = specToAttrs(spec);
+  for (const name of MANAGED_ATTRS) {
+    if (name in attrs) root.setAttribute(name, attrs[name]);
+    else root.removeAttribute(name);
+  }
+
+  // 形・書体は色と独立。コミュニティテーマ選択中でもこちらは効かせる
+  Object.entries(shapeToVars(spec)).forEach(([k, v]) => root.style.setProperty(k, v));
+  // 角丸を指定しないテーマ（デフォルト）では、前のテーマの角丸を残さない
+  if (spec.radius === null) {
+    ['--skin-radius', '--skin-radius-sm', '--skin-radius-lg', '--skin-radius-pill']
+      .forEach(k => root.style.removeProperty(k));
+  }
+
+  if (hasCommunity) return;
+  const vars = colorVars ?? colorsToVars(isDark ? spec.dark : spec.light, isDark ? 'dark' : 'light');
+  Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
+}
+
+/**
+ * 外皮を documentElement に反映する（プリセット用の入口）。
  * @param id            外皮
  * @param isDark        解決済みのライト/ダーク
  * @param hasCommunity  コミュニティテーマ選択中か（true なら色は上書きしない）
  */
 export function applySkin(id: SkinId, isDark: boolean, hasCommunity: boolean): void {
-  const root = document.documentElement;
-  root.dataset.skin = id;
   const def = SKINS[id];
-  ensureSkinFonts(id);
-  if (!def.vars || hasCommunity) return;
-  const vars = isDark ? def.vars.dark : def.vars.light;
-  Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
+  document.documentElement.dataset.skin = id;
+  const colorVars = def.vars ? (isDark ? def.vars.dark : def.vars.light) : undefined;
+  // デフォルトは色を上書きしない（アプリ既定の THEME_VARS のまま）
+  applyThemeSpec(def.spec, isDark, hasCommunity || !def.vars, colorVars);
 }
 
 /** 外皮を切り替えたときのアクセント色。使う人が自分で選んだ色なら変えない */

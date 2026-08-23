@@ -1,56 +1,48 @@
 /* ═══════════════════════════════════════════════════════════════════
-   外皮（スキン）の形・書体・質感
-   色は skins.ts が CSS 変数で流し込む（ThemeContext が変数をインラインで
-   置くため、色だけは JS 側で上書きする必要がある）。
-   ここは「形・書体・質感」だけを担当する。
+   テーマの部品（形・書体・質感・影・押した反応・飾り）
 
-   規約:
-   - すべて html[data-skin="…"] の下にぶら下げる。classic では1行も効かない
+   色と、書体・角丸の**値**は JS（themeSpec.ts の specToVars）が
+   CSS変数で流し込む。ここが持つのは「部品の作り」だけ。
+
+   セレクタの規約 — **外皮の名前で引かない。部品の軸で引く**:
+     html[data-shape='round'|'square'|'cut']       面の形
+     html[data-bars='floating'|'plate'|'band']      上部バーと下タブ
+     html[data-shadow='float'|'raise'|'hard'|'none'] 影
+     html[data-texture='none'|'dots'|'halftone']    地の質感
+     html[data-press='spring'|'mechanical'|'bounce'|'none'] 押した反応
+     html[data-ornament='none'|'led'|'tilt']        飾り（テーマにつき1つ）
+     html[data-type='plain'|'mono'|'display']       書体の性格（字間と太さ）
+     html[data-themed]                              角丸を1つに揃えるテーマ
+
+   PANEL は square/plate/raise/dots/mechanical/led/mono、
+   SURGE は cut/band/hard/halftone/bounce/tilt/display の組み合わせにすぎない。
+   **AIが作るテーマも同じ語彙の別の組み合わせ**なので、ここに1行も足さずに増やせる。
+   逆に、ここに無い値を themeSpec.ts の型に足してはいけない
+   （選んでも何も変わらない設定になる）。
+
+   その他の規約:
    - 既存のクラス・変数は消さない。上書きと追加だけ
    - 機能に関わる指定（display:none 等）はしない。見た目のみ
+   - デフォルトテーマでは属性が1つも付かない＝ここは1行も効かない
    ═══════════════════════════════════════════════════════════════════ */
 
-/* ── 共通: 外皮が持つ形の変数 ───────────────────────────── */
-html[data-skin='panel'] {
-  --skin-radius: 2px;
-  --skin-radius-lg: 3px;
-  --skin-radius-pill: 3px;
-  --skin-font-body: 'BIZ UDPGothic', 'Hiragino Kaku Gothic ProN', system-ui, sans-serif;
-  --skin-font-label: 'BIZ UDGothic', 'Hiragino Kaku Gothic ProN', system-ui, sans-serif;
-  --skin-font-meta: 'Martian Mono', ui-monospace, monospace;
-  --skin-font-num: 'Martian Mono', ui-monospace, monospace;
-  --skin-dot: rgba(128, 128, 132, 0.16);
-}
-html[data-skin='surge'] {
-  --skin-radius: 0px;
-  --skin-radius-lg: 0px;
-  --skin-radius-pill: 0px;
-  --skin-font-body: 'Zen Kaku Gothic New', 'Hiragino Kaku Gothic ProN', system-ui, sans-serif;
-  --skin-font-label: 'Zen Kaku Gothic New', 'Hiragino Kaku Gothic ProN', system-ui, sans-serif;
-  --skin-font-meta: 'Anybody', system-ui, sans-serif;
-  --skin-font-num: 'Big Shoulders Display', system-ui, sans-serif;
-  --skin-display: 'Dela Gothic One', 'Hiragino Kaku Gothic ProN', sans-serif;
-  --skin-dot: rgba(128, 128, 132, 0.13);
-}
-
 /* ── 書体 ──────────────────────────────────────────── */
-html[data-skin='panel'] body,
-html[data-skin='surge'] body {
+html[data-themed] body {
   font-family: var(--skin-font-body);
 }
-html[data-skin='surge'] body {
+html[data-type='display'] body {
   font-weight: 500;
 }
 
 /* ── 地の質感 ──────────────────────────────────────── */
 /* PANEL: Nothing の点の格子。SURGE: 細かい網点 */
-html[data-skin='panel'] body {
+html[data-texture='dots'] body {
   background-image: radial-gradient(var(--skin-dot) 1px, transparent 1px);
   background-size: 19px 19px;
   background-position: 9px 9px;
   background-attachment: fixed;
 }
-html[data-skin='surge'] body {
+html[data-texture='halftone'] body {
   background-image: radial-gradient(var(--skin-dot) 1px, transparent 1px);
   background-size: 5px 5px;
   background-attachment: fixed;
@@ -59,86 +51,64 @@ html[data-skin='surge'] body {
 /* ── 角丸 ──────────────────────────────────────────
    アプリは Tailwind の任意値（rounded-[12px] など）で角丸を指定している。
    外皮の下でだけ、その値を外皮の形に差し替える。 */
-html[data-skin='panel'] .rounded-sm,
-html[data-skin='panel'] .rounded,
-html[data-skin='panel'] .rounded-md,
-html[data-skin='panel'] .rounded-lg,
-html[data-skin='panel'] .rounded-xl,
-html[data-skin='panel'] .rounded-2xl,
-html[data-skin='panel'] .rounded-3xl,
-html[data-skin='panel'] .rounded-\[6px\],
-html[data-skin='panel'] .rounded-\[8px\],
-html[data-skin='panel'] .rounded-\[10px\],
-html[data-skin='panel'] .rounded-\[12px\],
-html[data-skin='panel'] .rounded-\[14px\],
-html[data-skin='panel'] .rounded-\[16px\],
-html[data-skin='panel'] .rounded-\[18px\],
-html[data-skin='panel'] .rounded-\[20px\],
-html[data-skin='panel'] .rounded-\[22px\],
-html[data-skin='surge'] .rounded-sm,
-html[data-skin='surge'] .rounded,
-html[data-skin='surge'] .rounded-md,
-html[data-skin='surge'] .rounded-lg,
-html[data-skin='surge'] .rounded-xl,
-html[data-skin='surge'] .rounded-2xl,
-html[data-skin='surge'] .rounded-3xl,
-html[data-skin='surge'] .rounded-\[6px\],
-html[data-skin='surge'] .rounded-\[8px\],
-html[data-skin='surge'] .rounded-\[10px\],
-html[data-skin='surge'] .rounded-\[12px\],
-html[data-skin='surge'] .rounded-\[14px\],
-html[data-skin='surge'] .rounded-\[16px\],
-html[data-skin='surge'] .rounded-\[18px\],
-html[data-skin='surge'] .rounded-\[20px\],
-html[data-skin='surge'] .rounded-\[22px\] {
+html[data-themed] .rounded-sm,
+html[data-themed] .rounded,
+html[data-themed] .rounded-md,
+html[data-themed] .rounded-lg,
+html[data-themed] .rounded-xl,
+html[data-themed] .rounded-2xl,
+html[data-themed] .rounded-3xl,
+html[data-themed] .rounded-\[6px\],
+html[data-themed] .rounded-\[8px\],
+html[data-themed] .rounded-\[10px\],
+html[data-themed] .rounded-\[12px\],
+html[data-themed] .rounded-\[14px\],
+html[data-themed] .rounded-\[16px\],
+html[data-themed] .rounded-\[18px\],
+html[data-themed] .rounded-\[20px\],
+html[data-themed] .rounded-\[22px\] {
   border-radius: var(--skin-radius);
 }
 
 /* 丸ピル。アバターやチップも外皮の形に合わせる。
    ただし「丸いこと自体が意味を持つ」もの（状態の点・トグルのつまみ）は
    .skin-keep-round を付けずとも小さすぎて影響が出ないため一括で扱う。 */
-html[data-skin='panel'] .rounded-full,
-html[data-skin='surge'] .rounded-full {
+html[data-shape='square'] .rounded-full,
+html[data-shape='cut'] .rounded-full {
   border-radius: var(--skin-radius-pill);
 }
 /* 状態を表す小さな点・スピナー・パーティクルは丸のまま残す */
-html[data-skin='panel'] .rounded-full.w-1,
-html[data-skin='panel'] .rounded-full.w-1\.5,
-html[data-skin='panel'] .rounded-full.w-2,
-html[data-skin='panel'] .rounded-full.w-2\.5,
-html[data-skin='panel'] .rounded-full.w-3,
-html[data-skin='panel'] .rounded-full.animate-spin,
-html[data-skin='surge'] .rounded-full.w-1,
-html[data-skin='surge'] .rounded-full.w-1\.5,
-html[data-skin='surge'] .rounded-full.w-2,
-html[data-skin='surge'] .rounded-full.w-2\.5,
-html[data-skin='surge'] .rounded-full.w-3,
-html[data-skin='surge'] .rounded-full.animate-spin {
+html[data-themed] .rounded-full.w-1,
+html[data-themed] .rounded-full.w-1\.5,
+html[data-themed] .rounded-full.w-2,
+html[data-themed] .rounded-full.w-2\.5,
+html[data-themed] .rounded-full.w-3,
+html[data-themed] .rounded-full.animate-spin {
   border-radius: 9999px;
 }
 
 /* ── 面の質感（材質） ───────────────────────────────
    classic は磨りガラス。PANEL は塗りの筐体、SURGE は塗り＋黄の縁。 */
-html[data-skin='panel'] .material-bar,
-html[data-skin='panel'] .material-sheet {
+html[data-bars='plate'] .material-bar,
+html[data-bars='plate'] .material-sheet {
   background-color: var(--bg-secondary);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
-html[data-skin='panel'] .material-thick {
+html[data-bars='plate'] .material-thick {
   background-color: var(--bg-tertiary);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
-html[data-skin='surge'] .material-bar,
-html[data-skin='surge'] .material-sheet {
+html[data-bars='band'] .material-bar,
+html[data-bars='band'] .material-sheet {
   background-color: var(--bg-secondary);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   border-top: 2px solid var(--accent-color);
 }
-html[data-skin='surge'] .material-thick {
+html[data-bars='band'] .material-thick {
   background-color: var(--bg-tertiary);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -146,45 +116,45 @@ html[data-skin='surge'] .material-thick {
 
 /* ── 影 ────────────────────────────────────────────
    PANEL は「浮く」のではなく「隆起した押しボタン」。SURGE は硬いオフセット影。 */
-html[data-skin='panel'] .shadow-card {
+html[data-shadow='raise'] .shadow-card {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 1px 0 rgba(0, 0, 0, 0.5);
 }
-html[data-skin='panel'] .shadow-float {
+html[data-shadow='raise'] .shadow-float {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 2px 0 rgba(0, 0, 0, 0.55);
 }
-html[data-theme='light'][data-skin='panel'] .shadow-card {
+html[data-theme='light'][data-shadow='raise'] .shadow-card {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 1px 0 rgba(0, 0, 0, 0.14);
 }
-html[data-theme='light'][data-skin='panel'] .shadow-float {
+html[data-theme='light'][data-shadow='raise'] .shadow-float {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 2px 0 rgba(0, 0, 0, 0.16);
 }
-html[data-skin='surge'] .shadow-card {
+html[data-shadow='hard'] .shadow-card {
   box-shadow: 3px 3px 0 color-mix(in srgb, var(--accent-color) 16%, transparent);
 }
-html[data-skin='surge'] .shadow-float {
+html[data-shadow='hard'] .shadow-float {
   box-shadow: 5px 5px 0 color-mix(in srgb, var(--accent-color) 20%, transparent);
 }
 
 /* ── 下タブ ────────────────────────────────────────
    .material-bar.rounded-full はこのアプリでは下タブの丸バーだけ。 */
-html[data-skin='panel'] nav .material-bar.rounded-full {
+html[data-bars='plate'] nav .material-bar.rounded-full {
   border-radius: var(--skin-radius-lg);
   border-color: var(--border-default);
   padding-left: 4px;
   padding-right: 4px;
 }
-html[data-skin='surge'] nav .material-bar.rounded-full {
-  border-radius: 0;
+html[data-bars='band'] nav .material-bar.rounded-full {
+  border-radius: var(--skin-radius);
   border: 0;
   border-top: 2px solid var(--accent-color);
   background-color: var(--bg-secondary);
 }
 /* 下タブの文字。PANEL は等幅の小さなラベル、SURGE は極太 */
-html[data-skin='panel'] nav .material-bar .text-\[10px\] {
+html[data-type='mono'] nav .material-bar .text-\[10px\] {
   font-family: var(--skin-font-label);
   letter-spacing: 0.06em;
 }
-html[data-skin='surge'] nav .material-bar .text-\[10px\] {
+html[data-type='display'] nav .material-bar .text-\[10px\] {
   font-weight: 900;
   letter-spacing: 0.04em;
 }
@@ -192,22 +162,21 @@ html[data-skin='surge'] nav .material-bar .text-\[10px\] {
 /* ── 数値・日付・英字ラベル ─────────────────────────
    価格・件数・日付はアプリ全体で決まったサイズを使っているので、
    そのサイズのところだけ外皮の数字書体に差し替える。 */
-html[data-skin='panel'] .tabular-nums,
-html[data-skin='surge'] .tabular-nums {
+html[data-themed] .tabular-nums {
   font-family: var(--skin-font-num);
 }
 
 /* ── 見出し ────────────────────────────────────────
    SURGE の画面名だけ極太の日本語書体に。 */
-html[data-skin='surge'] .text-largetitle,
-html[data-skin='surge'] h1.text-\[19px\],
-html[data-skin='surge'] .text-\[22px\].font-bold,
-html[data-skin='surge'] .text-\[20px\].font-bold {
+html[data-type='display'] .text-largetitle,
+html[data-type='display'] h1.text-\[19px\],
+html[data-type='display'] .text-\[22px\].font-bold,
+html[data-type='display'] .text-\[20px\].font-bold {
   font-family: var(--skin-display);
   font-weight: 400;
   letter-spacing: 0.02em;
 }
-html[data-skin='panel'] .text-largetitle {
+html[data-type='mono'] .text-largetitle {
   font-family: var(--skin-font-label);
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -215,22 +184,22 @@ html[data-skin='panel'] .text-largetitle {
 
 /* ── 押した感じ ────────────────────────────────────
    classic はばね。PANEL は機械式スイッチのように沈む、SURGE は弾く。 */
-html[data-skin='panel'] .pressable:active {
+html[data-press='mechanical'] .pressable:active {
   transform: translateY(1px) scale(0.995);
   opacity: 0.85;
 }
-html[data-skin='surge'] .pressable:active {
+html[data-press='bounce'] .pressable:active {
   transform: scale(0.94) rotate(-0.6deg);
   opacity: 0.9;
 }
 
 /* ── 入力欄 ────────────────────────────────────────*/
-html[data-skin='panel'] input,
-html[data-skin='panel'] textarea {
+html[data-themed] input,
+html[data-themed] textarea {
   font-family: var(--skin-font-body);
 }
-html[data-skin='surge'] input,
-html[data-skin='surge'] textarea {
+html[data-type='display'] input,
+html[data-type='display'] textarea {
   font-family: var(--skin-font-body);
   font-weight: 700;
 }
@@ -280,51 +249,51 @@ html[data-skin='surge'] textarea {
 @keyframes wdSlideIn { from { transform: translateX(14px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* PANEL: 端子帯のような区切りと、隆起した押しボタン */
-html[data-skin='panel'] .wd-logo {
+html[data-type='mono'] .wd-logo {
   font-family: var(--skin-font-label);
   letter-spacing: 0.14em;
 }
-html[data-skin='panel'] .wd-side,
-html[data-skin='panel'] .wd-top,
-html[data-skin='panel'] .wd-detail {
+html[data-themed] .wd-side,
+html[data-themed] .wd-top,
+html[data-themed] .wd-detail {
   background-image: none;
 }
-html[data-skin='panel'] .wd-primary {
+html[data-shadow='raise'] .wd-primary {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 2px 0 rgba(0, 0, 0, 0.4);
   letter-spacing: 0.1em;
 }
-html[data-skin='panel'] .wd-card {
+html[data-shadow='raise'] .wd-card {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
-html[data-skin='panel'] .wd-kbd,
-html[data-skin='panel'] .wd-chip {
+html[data-type='mono'] .wd-kbd,
+html[data-type='mono'] .wd-chip {
   font-family: var(--skin-font-meta);
 }
 
 /* SURGE: 主ボタンと選択中の札を斜めに。面は角を切る */
-html[data-skin='surge'] .wd-logo {
+html[data-type='display'] .wd-logo {
   font-family: var(--skin-display);
   letter-spacing: 0.02em;
 }
-html[data-skin='surge'] .wd-primary {
+html[data-shape='cut'] .wd-primary {
   clip-path: polygon(9px 0, 100% 0, calc(100% - 9px) 100%, 0 100%);
   font-weight: 900;
 }
-html[data-skin='surge'] .wd-chip[aria-pressed='true'] {
+html[data-ornament='tilt'] .wd-chip[aria-pressed='true'] {
   transform: rotate(-1.2deg);
 }
-html[data-skin='surge'] .wd-card {
+html[data-shape='cut'] .wd-card {
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - 14px), calc(100% - 16px) 100%, 0 100%);
 }
 /* 切り欠きに操作行がかからないよう、右下に逃げを作る */
-html[data-skin='surge'] .wd-card .wd-acts { padding-right: 22px; padding-bottom: 10px; }
-html[data-skin='surge'] .wd-rx { clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%); border-radius: 0 !important; }
+html[data-shape='cut'] .wd-card .wd-acts { padding-right: 22px; padding-bottom: 10px; }
+html[data-shape='cut'] .wd-rx { clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%); border-radius: var(--skin-radius) !important; }
 @media (hover: hover) {
-  html[data-skin='surge'] .wd-card:hover {
+  html[data-shadow='hard'] .wd-card:hover {
     box-shadow: 5px 5px 0 color-mix(in srgb, var(--accent-color) 22%, transparent);
   }
 }
-html[data-skin='surge'] .wd-nav[aria-current='page'] {
+html[data-shape='cut'] .wd-nav[aria-current='page'] {
   clip-path: polygon(7px 0, 100% 0, calc(100% - 7px) 100%, 0 100%);
 }
 
@@ -347,79 +316,83 @@ html[data-skin='surge'] .wd-nav[aria-current='page'] {
    ───────────────────────────────────────────────────────────── */
 
 /* 上部バー: 磨りガラスをやめて塗りの前面板に。文字は字間を開ける */
-html[data-skin='panel'] [data-skin-part='header'] {
+html[data-bars='plate'] [data-skin-part='header'] {
   background-color: var(--bg-secondary) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   border-bottom-color: var(--border-default);
   box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.04);
 }
-html[data-skin='panel'] [data-skin-part='header-title'] {
+html[data-type='mono'] [data-skin-part='header-title'] {
   font-family: var(--skin-font-label);
   font-weight: 700;
   letter-spacing: 0.16em;
 }
 
 /* 一覧の1件 = 筐体に取り付けた板。浮かせず、上辺の光でわずかに隆起させる */
-html[data-skin='panel'] [data-skin-part='card'] {
+html[data-shadow='raise'] [data-skin-part='card'] {
   border-color: var(--border-subtle);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055);
 }
-html[data-theme='light'][data-skin='panel'] [data-skin-part='card'] {
+html[data-theme='light'][data-shadow='raise'] [data-skin-part='card'] {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 /* 商品写真には**何もかけない**。
    以前は網点をかけて「画面じゅうの素材を点の言語に揃える」ことを狙ったが、
    実機のカードは幅140px程度しかなく、点が粗くて商品そのものが見えなくなった。
    点の言語は地の格子と数字・ラベルの側だけで担わせる */
-html[data-skin='panel'] [data-skin-part='card-media'] {
+html[data-themed] [data-skin-part='card-media'] {
   position: relative;
 }
-html[data-skin='panel'] [data-skin-part='card-work'] {
+html[data-type='mono'] [data-skin-part='card-work'] {
   font-family: var(--skin-font-label);
   letter-spacing: 0.1em;
 }
-html[data-skin='panel'] [data-skin-part='card-title'] {
+html[data-type='mono'] [data-skin-part='card-title'] {
   font-family: var(--skin-font-body);
   font-weight: 700;
   letter-spacing: 0.01em;
 }
 /* 日付は欧文と数字だけ等幅に落とす。日本語（受付／開催）は和文書体のまま */
-html[data-skin='panel'] [data-skin-part='card-date'] {
-  font-family: 'Martian Mono', 'BIZ UDGothic', sans-serif;
+html[data-type='mono'] [data-skin-part='card-date'] {
+  font-family: var(--skin-font-meta-mix);
   font-size: 11px;
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 /* 金額と件数は点で組む。「セット」等の日本語は後ろに落ちる */
 /* 金額と件数は等幅で組む。点で組む書体は13pxだと読めない（実機で確認） */
-html[data-skin='panel'] [data-skin-part='card-price'],
-html[data-skin='panel'] [data-skin-part='card-likes'] {
-  font-family: 'Martian Mono', 'BIZ UDGothic', monospace;
+html[data-type='mono'] [data-skin-part='card-price'],
+html[data-type='mono'] [data-skin-part='card-likes'] {
+  font-family: var(--skin-font-num-mix);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
-html[data-skin='panel'] [data-skin-part='card-price'] {
+html[data-type='mono'] [data-skin-part='card-price'] {
   letter-spacing: 0.02em;
 }
 
 /* 状態バッジ = 黒い窓の中で灯る表示灯。
    バッジの背景色は JSX のインライン指定なので、ここだけ !important で上書きする */
-html[data-skin='panel'] [data-skin-part='status'] {
-  background-color: rgba(0, 0, 0, 0.72) !important;
-  color: var(--label-primary) !important;
-  border-radius: 2px !important;
+html[data-themed] [data-skin-part='status'] {
+  border-radius: var(--skin-radius-sm) !important;
+}
+html[data-type='mono'] [data-skin-part='status'] {
   font-family: var(--skin-font-label);
   font-weight: 700;
   letter-spacing: 0.06em;
+}
+html[data-ornament='led'] [data-skin-part='status'] {
+  background-color: rgba(0, 0, 0, 0.72) !important;
+  color: var(--label-primary) !important;
   gap: 4px;
   padding-left: 5px !important;
 }
-html[data-theme='light'][data-skin='panel'] [data-skin-part='status'] {
+html[data-theme='light'][data-ornament='led'] [data-skin-part='status'] {
   background-color: rgba(23, 23, 26, 0.82) !important;
   color: #f3f0ea !important;
 }
-html[data-skin='panel'] [data-skin-part='status']::before {
+html[data-ornament='led'] [data-skin-part='status']::before {
   content: '';
   width: 5px;
   height: 5px;
@@ -427,53 +400,57 @@ html[data-skin='panel'] [data-skin-part='status']::before {
   flex: 0 0 auto;
   background: var(--status-ended);
 }
-html[data-skin='panel'] [data-skin-part='status'][data-status='preorder']::before {
+html[data-ornament='led'] [data-skin-part='status'][data-status='preorder']::before {
   background: var(--status-preorder);
   box-shadow: 0 0 5px var(--status-preorder);
 }
-html[data-skin='panel'] [data-skin-part='status'][data-status='preorder_soon']::before { background: var(--status-info); }
-html[data-skin='panel'] [data-skin-part='status'][data-status='sale_soon']::before { background: var(--status-upcoming); }
-html[data-skin='panel'] [data-skin-part='status'][data-status='onsale']::before {
+html[data-ornament='led'] [data-skin-part='status'][data-status='preorder_soon']::before { background: var(--status-info); }
+html[data-ornament='led'] [data-skin-part='status'][data-status='sale_soon']::before { background: var(--status-upcoming); }
+html[data-ornament='led'] [data-skin-part='status'][data-status='onsale']::before {
   background: var(--status-onsale);
   box-shadow: 0 0 5px var(--status-onsale);
 }
 
 /* しぼり込みのチップ = 角のない押しボタン */
-html[data-skin='panel'] [data-skin-part='chip'] {
-  border-radius: 2px !important;
+html[data-themed] [data-skin-part='chip'] {
+  border-radius: var(--skin-radius-sm) !important;
+}
+html[data-type='mono'] [data-skin-part='chip'] {
   font-family: var(--skin-font-label);
   font-weight: 700;
   letter-spacing: 0.08em;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
-html[data-skin='panel'] [data-skin-part='chip'][data-active] {
+html[data-type='mono'] [data-skin-part='chip'][data-active] {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
 /* 下タブ = 機器の操作面。キーが並び、選択中は点灯する */
-html[data-skin='panel'] [data-skin-part='nav'] {
-  border-radius: 3px !important;
+html[data-bars='plate'] [data-skin-part='nav'] {
+  border-radius: var(--skin-radius-lg) !important;
   padding: 5px !important;
   gap: 4px;
   border-color: var(--border-default) !important;
 }
-html[data-skin='panel'] [data-skin-part='nav-ind'] {
-  border-radius: 2px !important;
+html[data-bars='plate'] [data-skin-part='nav-ind'] {
+  border-radius: var(--skin-radius-sm) !important;
   background-color: var(--fill-secondary) !important;
   box-shadow: inset 0 0 0 1px var(--border-default);
 }
-html[data-skin='panel'] [data-skin-part='nav-item'] {
-  border-radius: 2px !important;
+html[data-themed] [data-skin-part='nav-item'] {
+  border-radius: var(--skin-radius-sm) !important;
 }
-html[data-skin='panel'] [data-skin-part='nav-item'] span {
+html[data-type='mono'] [data-skin-part='nav-item'] span {
   font-family: var(--skin-font-label);
   letter-spacing: 0.04em;
 }
-html[data-skin='panel'] [data-skin-part='nav-item'][aria-current='page'] svg {
+html[data-ornament='led'] [data-skin-part='nav-item'][aria-current='page'] svg {
   filter: drop-shadow(0 0 5px var(--accent-color));
 }
-html[data-skin='panel'] [data-skin-part='nav-add'] {
-  border-radius: 2px !important;
+html[data-themed] [data-skin-part='nav-add'] {
+  border-radius: var(--skin-radius-sm) !important;
+}
+html[data-shadow='raise'] [data-skin-part='nav-add'] {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 0 rgba(0, 0, 0, 0.45) !important;
 }
 
@@ -483,7 +460,7 @@ html[data-skin='panel'] [data-skin-part='nav-add'] {
 
 /* 上部バー = 黄色い帯。下辺だけを斜めに切る。
    面は斜めでも文字は水平のまま（回転させないので絶対に切れない） */
-html[data-skin='surge'] [data-skin-part='header'] {
+html[data-bars='band'] [data-skin-part='header'] {
   background-color: var(--accent-color) !important;
   color: var(--accent-on);
   backdrop-filter: none !important;
@@ -492,16 +469,16 @@ html[data-skin='surge'] [data-skin-part='header'] {
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - 9px), 0 100%);
   padding-bottom: 14px;
 }
-html[data-skin='surge'] [data-skin-part='header'] .text-label-primary,
-html[data-skin='surge'] [data-skin-part='header'] .text-label-secondary,
-html[data-skin='surge'] [data-skin-part='header'] p,
-html[data-skin='surge'] [data-skin-part='header'] button {
+html[data-bars='band'] [data-skin-part='header'] .text-label-primary,
+html[data-bars='band'] [data-skin-part='header'] .text-label-secondary,
+html[data-bars='band'] [data-skin-part='header'] p,
+html[data-bars='band'] [data-skin-part='header'] button {
   color: var(--accent-on) !important;
 }
-html[data-skin='surge'] [data-skin-part='header'] button {
+html[data-bars='band'] [data-skin-part='header'] button {
   background-color: rgba(0, 0, 0, 0.12) !important;
 }
-html[data-skin='surge'] [data-skin-part='header-title'] {
+html[data-type='display'] [data-skin-part='header-title'] {
   font-family: var(--skin-display);
   font-weight: 400;
   font-size: 16px;
@@ -509,100 +486,102 @@ html[data-skin='surge'] [data-skin-part='header-title'] {
 }
 
 /* 一覧の1件 = 右下を切った面。硬いオフセット影を落とす */
-html[data-skin='surge'] [data-skin-part='card'] {
+html[data-shape='cut'] [data-skin-part='card'] {
   border: 0 !important;
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - 13px), calc(100% - 15px) 100%, 0 100%);
   box-shadow: 4px 4px 0 color-mix(in srgb, var(--accent-color) 18%, transparent);
 }
 /* 切り欠きに文字が入らないよう、最終行の右に逃げをつくる */
-html[data-skin='surge'] [data-skin-part='card'] [data-skin-part='card-actions'] {
+html[data-shape='cut'] [data-skin-part='card'] [data-skin-part='card-actions'] {
   padding-right: 14px;
 }
-html[data-skin='surge'] [data-skin-part='card-media']::after {
+html[data-ornament='tilt'] [data-skin-part='card-media']::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
   background: linear-gradient(color-mix(in srgb, var(--accent-color) 18%, transparent), transparent 60%);
 }
-html[data-skin='surge'] [data-skin-part='card-work'] {
+html[data-type='display'] [data-skin-part='card-work'] {
   font-family: var(--skin-font-meta);
   font-weight: 700;
   letter-spacing: 0.08em;
 }
-html[data-skin='surge'] [data-skin-part='card-title'] {
+html[data-type='display'] [data-skin-part='card-title'] {
   font-weight: 900;
   letter-spacing: 0.005em;
 }
-html[data-skin='surge'] [data-skin-part='card-date'] {
-  font-family: 'Anybody', 'Zen Kaku Gothic New', sans-serif;
+html[data-type='display'] [data-skin-part='card-date'] {
+  font-family: var(--skin-font-meta-mix);
   font-weight: 400;
   letter-spacing: 0.02em;
 }
-html[data-skin='surge'] [data-skin-part='card-price'] {
-  font-family: 'Big Shoulders Display', 'Zen Kaku Gothic New', sans-serif;
+html[data-type='display'] [data-skin-part='card-price'] {
+  font-family: var(--skin-font-num-mix);
   font-weight: 900;
   font-size: 19px !important;
   letter-spacing: 0.01em;
 }
-html[data-skin='surge'] [data-skin-part='card-likes'] {
-  font-family: 'Big Shoulders Display', sans-serif;
+html[data-type='display'] [data-skin-part='card-likes'] {
+  font-family: var(--skin-font-num-mix);
   font-weight: 900;
   font-size: 13px !important;
 }
 
 /* 状態バッジ = 傾いた札 */
-html[data-skin='surge'] [data-skin-part='status'] {
-  border-radius: 0 !important;
+html[data-type='display'] [data-skin-part='status'] {
   font-weight: 900;
-  transform: rotate(-1.6deg);
   letter-spacing: 0.04em;
+}
+html[data-ornament='tilt'] [data-skin-part='status'] {
+  transform: rotate(-1.6deg);
 }
 
 /* チップ = 平行四辺形 */
-html[data-skin='surge'] [data-skin-part='chip'] {
-  border-radius: 0 !important;
+html[data-type='display'] [data-skin-part='chip'] {
   font-weight: 900;
+}
+html[data-shape='cut'] [data-skin-part='chip'] {
   clip-path: polygon(7px 0, 100% 0, calc(100% - 7px) 100%, 0 100%);
   padding-left: 16px !important;
   padding-right: 16px !important;
 }
-html[data-skin='surge'] [data-skin-part='chip'][data-active] {
+html[data-ornament='tilt'] [data-skin-part='chip'][data-active] {
   transform: rotate(-1deg);
 }
 
 /* 下タブ = 白い帯に黒。上辺に黄色い縁 */
-html[data-skin='surge'] [data-skin-part='nav'] {
-  border-radius: 0 !important;
+html[data-bars='band'] [data-skin-part='nav'] {
+  border-radius: var(--skin-radius) !important;
   border: 0 !important;
   border-top: 2px solid var(--accent-color) !important;
   background-color: var(--label-primary) !important;
   padding: 6px 6px 8px !important;
   box-shadow: 0 -4px 14px rgba(0, 0, 0, 0.35) !important;
 }
-html[data-skin='surge'] [data-skin-part='nav-ind'] {
-  border-radius: 0 !important;
+html[data-bars='band'] [data-skin-part='nav-ind'] {
+  border-radius: var(--skin-radius) !important;
   background-color: color-mix(in srgb, var(--accent-color) 90%, transparent) !important;
   clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
 }
-html[data-skin='surge'] [data-skin-part='nav-item'] {
-  border-radius: 0 !important;
+html[data-bars='band'] [data-skin-part='nav-item'] {
+  border-radius: var(--skin-radius) !important;
   color: color-mix(in srgb, var(--bg-primary) 55%, transparent);
 }
-html[data-skin='surge'] [data-skin-part='nav-item'] svg,
-html[data-skin='surge'] [data-skin-part='nav-item'] span {
+html[data-bars='band'] [data-skin-part='nav-item'] svg,
+html[data-bars='band'] [data-skin-part='nav-item'] span {
   color: color-mix(in srgb, var(--bg-primary) 52%, transparent) !important;
 }
-html[data-skin='surge'] [data-skin-part='nav-item'][aria-current='page'] svg,
-html[data-skin='surge'] [data-skin-part='nav-item'][aria-current='page'] span {
+html[data-bars='band'] [data-skin-part='nav-item'][aria-current='page'] svg,
+html[data-bars='band'] [data-skin-part='nav-item'][aria-current='page'] span {
   color: var(--bg-primary) !important;
 }
-html[data-skin='surge'] [data-skin-part='nav-item'] span {
+html[data-type='display'] [data-skin-part='nav-item'] span {
   font-weight: 900;
   letter-spacing: 0.04em;
 }
-html[data-skin='surge'] [data-skin-part='nav-add'] {
-  border-radius: 0 !important;
+html[data-shape='cut'] [data-skin-part='nav-add'] {
+  border-radius: var(--skin-radius) !important;
   clip-path: polygon(7px 0, 100% 0, calc(100% - 7px) 100%, 0 100%);
   box-shadow: none !important;
 }
@@ -615,7 +594,7 @@ html[data-skin='surge'] [data-skin-part='nav-add'] {
    ───────────────────────────────────────────────────────────── */
 
 /* PANEL: 磨りガラスをやめ、下辺をぼかしで溶かすのもやめて硬い境界にする */
-html[data-skin='panel'] .material-bar.scroll-edge {
+html[data-bars='plate'] .material-bar.scroll-edge {
   background-color: var(--bg-secondary);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -624,20 +603,20 @@ html[data-skin='panel'] .material-bar.scroll-edge {
   border-bottom: 1px solid var(--border-default);
   box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.04);
 }
-html[data-skin='panel'] .material-sheet {
-  border-radius: 3px 3px 0 0 !important;
+html[data-bars='plate'] .material-sheet {
+  border-radius: var(--skin-radius-lg) var(--skin-radius-lg) 0 0 !important;
   border-top: 1px solid var(--border-default);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 /* シートのつまみは丸棒ではなく短い直線に */
-html[data-skin='panel'] .material-sheet .rounded-full.h-\[5px\] {
+html[data-bars='plate'] .material-sheet .rounded-full.h-\[5px\] {
   border-radius: 1px !important;
   height: 3px !important;
 }
 
 /* SURGE: 上部は黄色い帯。下辺だけ斜めに切る（文字は水平のまま）。
    帯の中の検索欄は暗い面にして、黄色の上でも読めるようにする */
-html[data-skin='surge'] .material-bar.scroll-edge {
+html[data-bars='band'] .material-bar.scroll-edge {
   background-color: var(--accent-color);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -646,8 +625,8 @@ html[data-skin='surge'] .material-bar.scroll-edge {
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), 0 100%);
   padding-bottom: 18px;
 }
-html[data-skin='surge'] .material-bar.scroll-edge .text-label-tertiary,
-html[data-skin='surge'] .material-bar.scroll-edge .text-label-secondary {
+html[data-bars='band'] .material-bar.scroll-edge .text-label-tertiary,
+html[data-bars='band'] .material-bar.scroll-edge .text-label-secondary {
   color: color-mix(in srgb, var(--accent-on) 62%, transparent) !important;
 }
 /* 帯の中の入力欄・アイコンボタンの面は、黄の上で沈むように暗くする。
@@ -655,10 +634,10 @@ html[data-skin='surge'] .material-bar.scroll-edge .text-label-secondary {
    （--bg-primary を使うとライトのとき白になり、黄の上で沈まない） */
 /* ホームは帯の直下が button（探すは > div > div）。**直下も1階層下も両方**拾う。
    片方だけだと、拾えなかった側が「黄色の上に薄いグレー」のまま残る（実機で発覚） */
-html[data-skin='surge'] .material-bar.scroll-edge > div > div,
-html[data-skin='surge'] .material-bar.scroll-edge > div > button,
-html[data-skin='surge'] .material-bar.scroll-edge > button,
-html[data-skin='surge'] .material-bar.scroll-edge > div[style*='fill'] {
+html[data-bars='band'] .material-bar.scroll-edge > div > div,
+html[data-bars='band'] .material-bar.scroll-edge > div > button,
+html[data-bars='band'] .material-bar.scroll-edge > button,
+html[data-bars='band'] .material-bar.scroll-edge > div[style*='fill'] {
   background-color: #17171a !important;
   color: #f4f2ec !important;
 }
@@ -666,66 +645,66 @@ html[data-skin='surge'] .material-bar.scroll-edge > div[style*='fill'] {
    あるので、そのままだと押しても色が変わらず、どれを選んでいるか分からなくなる。
    帯は黄色なので「選択＝アクセント」は使えない（帯と同化する）。
    帯の中だけは **未選択＝墨 / 選択＝明るい面** の反転で見せる（チップと同じ扱い）。 */
-html[data-skin='surge'] .material-bar.scroll-edge > div > button[aria-pressed='true'],
-html[data-skin='surge'] .material-bar.scroll-edge > button[aria-pressed='true'] {
+html[data-bars='band'] .material-bar.scroll-edge > div > button[aria-pressed='true'],
+html[data-bars='band'] .material-bar.scroll-edge > button[aria-pressed='true'] {
   background-color: #f4f2ec !important;
   color: #17171a !important;
 }
 
 /* 中のアイコン（虫めがね等）も帯の墨面に合わせる */
-html[data-skin='surge'] .material-bar.scroll-edge > button svg,
-html[data-skin='surge'] .material-bar.scroll-edge > div > div > svg,
-html[data-skin='surge'] .material-bar.scroll-edge > div > button > svg {
+html[data-bars='band'] .material-bar.scroll-edge > button svg,
+html[data-bars='band'] .material-bar.scroll-edge > div > div > svg,
+html[data-bars='band'] .material-bar.scroll-edge > div > button > svg {
   color: rgba(244, 242, 236, 0.55) !important;
 }
-html[data-skin='surge'] .material-bar.scroll-edge input {
+html[data-bars='band'] .material-bar.scroll-edge input {
   color: #f4f2ec !important;
 }
-html[data-skin='surge'] .material-bar.scroll-edge input::placeholder {
+html[data-bars='band'] .material-bar.scroll-edge input::placeholder {
   color: rgba(244, 242, 236, 0.45) !important;
 }
-html[data-skin='surge'] .material-bar.scroll-edge [data-skin-part='chip'] {
+html[data-bars='band'] .material-bar.scroll-edge [data-skin-part='chip'] {
   background-color: #17171a !important;
   color: #f4f2ec !important;
 }
-html[data-skin='surge'] .material-bar.scroll-edge [data-skin-part='chip'][data-active] {
+html[data-bars='band'] .material-bar.scroll-edge [data-skin-part='chip'][data-active] {
   background-color: #f4f2ec !important;
   color: #17171a !important;
   transform: rotate(-1.4deg);
 }
-html[data-skin='surge'] .material-sheet {
-  border-radius: 0 !important;
+html[data-bars='band'] .material-sheet {
+  border-radius: var(--skin-radius) !important;
   border-top: 2px solid var(--accent-color);
 }
-html[data-skin='surge'] .material-sheet .rounded-full.h-\[5px\] {
-  border-radius: 0 !important;
+html[data-bars='band'] .material-sheet .rounded-full.h-\[5px\] {
+  border-radius: var(--skin-radius) !important;
   background-color: var(--accent-color) !important;
 }
 
 /* トグル: 丸いスイッチをやめる。PANEL は機械式、SURGE は角の切れた札 */
-html[data-skin='panel'] [role='switch'] {
-  border-radius: 2px !important;
+html[data-themed] [role='switch'] {
+  border-radius: var(--skin-radius-sm) !important;
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.7);
 }
-html[data-skin='panel'] [role='switch'] > span {
+html[data-themed] [role='switch'] > span {
   border-radius: 1px !important;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.45) !important;
 }
-html[data-skin='panel'] [role='switch'][aria-checked='true'] {
+html[data-themed] [role='switch'][aria-checked='true'] {
   background-color: var(--accent-color) !important;
 }
-html[data-skin='surge'] [role='switch'] {
-  border-radius: 0 !important;
+html[data-shape='cut'] [role='switch'] {
+  border-radius: var(--skin-radius) !important;
   clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
 }
-html[data-skin='surge'] [role='switch'] > span {
-  border-radius: 0 !important;
+html[data-shape='cut'] [role='switch'] > span {
+  border-radius: var(--skin-radius) !important;
   box-shadow: none !important;
 }
-html[data-skin='surge'] [role='switch'][aria-checked='true'] {
+html[data-shape='cut'] [role='switch'][aria-checked='true'] {
   background-color: var(--accent-color) !important;
 }
-html[data-skin='surge'] [role='switch'][aria-checked='true'] > span {
+html[data-shape='cut'] [role='switch'][aria-checked='true'] > span {
   background-color: var(--bg-primary) !important;
 }
 
@@ -734,43 +713,43 @@ html[data-skin='surge'] [role='switch'][aria-checked='true'] > span {
    ───────────────────────────────────────────────────────────── */
 
 /* PANEL: 左は筐体の側面。上は端子帯。詳細は黒い表示窓 */
-html[data-skin='panel'] .wd-side {
+html[data-bars='plate'] .wd-side {
   border-right-color: var(--border-default);
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.03);
 }
-html[data-skin='panel'] .wd-top {
+html[data-bars='plate'] .wd-top {
   border-bottom-color: var(--border-default);
   box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.03);
 }
-html[data-skin='panel'] .wd-nav {
-  border-radius: 2px !important;
+html[data-type='mono'] .wd-nav {
+  border-radius: var(--skin-radius-sm) !important;
   font-family: var(--skin-font-label);
   letter-spacing: 0.06em;
 }
-html[data-skin='panel'] .wd-nav[aria-current='page'] {
+html[data-bars='plate'] .wd-nav[aria-current='page'] {
   box-shadow: inset 0 0 0 1px var(--border-default), inset 2px 0 0 var(--accent-color);
 }
-html[data-skin='panel'] .wd-primary,
-html[data-skin='panel'] .wd-chip,
-html[data-skin='panel'] .wd-icon,
-html[data-skin='panel'] .wd-select,
-html[data-skin='panel'] .wd-search,
-html[data-skin='panel'] .wd-act,
-html[data-skin='panel'] .wd-kbd {
-  border-radius: 2px !important;
+html[data-themed] .wd-primary,
+html[data-themed] .wd-chip,
+html[data-themed] .wd-icon,
+html[data-themed] .wd-select,
+html[data-themed] .wd-search,
+html[data-themed] .wd-act,
+html[data-themed] .wd-kbd {
+  border-radius: var(--skin-radius-sm) !important;
 }
-html[data-skin='panel'] .wd-search {
+html[data-shadow='raise'] .wd-search {
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.55);
   background-color: var(--bg-primary) !important;
 }
-html[data-skin='panel'] .wd-card {
-  border-radius: 2px !important;
+html[data-themed] .wd-card {
+  border-radius: var(--skin-radius-sm) !important;
 }
-html[data-skin='panel'] .wd-card img {
+html[data-themed] .wd-card img {
   filter: none;
 }
 /* 一覧の写真にも網点をかけて、アプリ版と同じ素材にそろえる */
-html[data-skin='panel'] .wd-card > div:first-child::after {
+html[data-texture='dots'] .wd-card > div:first-child::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -780,67 +759,67 @@ html[data-skin='panel'] .wd-card > div:first-child::after {
   mix-blend-mode: multiply;
   opacity: 0.5;
 }
-html[data-skin='panel'] .wd-detail {
+html[data-bars='plate'] .wd-detail {
   border-left-color: var(--border-default);
 }
-html[data-skin='panel'] .wd-card h3 {
+html[data-themed] .wd-card h3 {
   font-family: var(--skin-font-body);
   font-weight: 700;
 }
-html[data-skin='panel'] .wd-card .tabular-nums {
-  font-family: 'Martian Mono', 'BIZ UDGothic', monospace;
+html[data-type='mono'] .wd-card .tabular-nums {
+  font-family: var(--skin-font-num-mix);
   font-weight: 500;
 }
-html[data-skin='panel'] .wd-rx { border-radius: 2px !important; font-family: var(--skin-font-label); }
+html[data-themed] .wd-rx { border-radius: var(--skin-radius-sm) !important; font-family: var(--skin-font-label); }
 
 /* SURGE: 上部バーは黄の帯。左は黒。カードは角を切る */
-html[data-skin='surge'] .wd-top {
+html[data-bars='band'] .wd-top {
   background-color: var(--accent-color) !important;
   border-bottom: 0 !important;
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), 0 100%);
   padding-bottom: 20px;
 }
-html[data-skin='surge'] .wd-top .wd-search {
+html[data-bars='band'] .wd-top .wd-search {
   background-color: var(--bg-primary) !important;
   border-color: transparent !important;
 }
-html[data-skin='surge'] .wd-top .wd-search input {
+html[data-bars='band'] .wd-top .wd-search input {
   color: var(--label-primary) !important;
 }
-html[data-skin='surge'] .wd-top .wd-icon,
-html[data-skin='surge'] .wd-top .wd-select {
+html[data-bars='band'] .wd-top .wd-icon,
+html[data-bars='band'] .wd-top .wd-select {
   color: var(--accent-on) !important;
   background-color: rgba(0, 0, 0, 0.1) !important;
   border-color: transparent !important;
-  border-radius: 0 !important;
+  border-radius: var(--skin-radius) !important;
   font-weight: 900;
 }
-html[data-skin='surge'] .wd-side {
+html[data-bars='band'] .wd-side {
   border-right: 0;
   box-shadow: inset -2px 0 0 var(--accent-color);
 }
-html[data-skin='surge'] .wd-nav {
-  border-radius: 0 !important;
+html[data-type='display'] .wd-nav {
+  border-radius: var(--skin-radius) !important;
   font-weight: 900;
 }
-html[data-skin='surge'] .wd-chip {
-  border-radius: 0 !important;
+html[data-shape='cut'] .wd-chip {
+  border-radius: var(--skin-radius) !important;
   clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
   font-weight: 900;
 }
-html[data-skin='surge'] .wd-act {
-  border-radius: 0 !important;
+html[data-shape='cut'] .wd-act {
+  border-radius: var(--skin-radius) !important;
   clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%);
 }
-html[data-skin='surge'] .wd-detail {
+html[data-bars='band'] .wd-detail {
   border-left: 0;
   box-shadow: inset 2px 0 0 var(--accent-color);
 }
-html[data-skin='surge'] .wd-card h3 {
+html[data-type='display'] .wd-card h3 {
   font-weight: 900;
 }
-html[data-skin='surge'] .wd-card .tabular-nums {
-  font-family: 'Big Shoulders Display', 'Zen Kaku Gothic New', sans-serif;
+html[data-type='display'] .wd-card .tabular-nums {
+  font-family: var(--skin-font-num-mix);
   font-weight: 900;
 }
 
