@@ -13,6 +13,20 @@ const BANNER_GAP = 12;
 // 直近に実測した reserveTop の保存キー。次回以降は初回フレームから正しい余白を確保でき、
 // 「広告ロード後に一段下がる」ガクつきを無くす（バナー下端位置は端末ごとにほぼ一定）。
 const RESERVE_CACHE_KEY = 'fan_ad_reserve_top';
+// 直近に実測したバナーの高さ。**iOSには reserveTop を送る仕組みが無い**（あのパッチは
+// Android のファイルにしか当たっていない）ので、iOSはこちらが初回フレームの拠り所になる。
+const BANNER_H_CACHE_KEY = 'fan_ad_banner_h';
+
+function loadCachedNumber(key: string): number | null {
+  try {
+    const v = localStorage.getItem(key);
+    if (!v) return null;
+    const n = parseFloat(v);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
 
 function loadCachedReserve(): number | null {
   try {
@@ -37,7 +51,10 @@ function loadCachedReserve(): number | null {
  * （ネイティブが実測して注入）を使う。Web版・非ネイティブではバナー無しの余白のみ。
  */
 export function useAdBanner(): string {
-  const [adH, setAdH] = useState(BANNER_FALLBACK);
+  // 実測が来るまでの暫定値。前回の実測があればそれを使う（初回フレームから正しい余白になる）
+  const [adH, setAdH] = useState(
+    () => (Capacitor.isNativePlatform() ? loadCachedNumber(BANNER_H_CACHE_KEY) : null) ?? BANNER_FALLBACK,
+  );
   const [reserveTop, setReserveTop] = useState<number | null>(() =>
     Capacitor.isNativePlatform() ? loadCachedReserve() : null,
   );
@@ -63,7 +80,13 @@ export function useAdBanner(): string {
     (async () => {
       sizeHandle = await onBannerSize((h) => {
         if (!alive || h <= 0) return;
-        setAdH(Math.max(h, BANNER_FALLBACK));
+        // ⚠️ ここで Math.max(h, BANNER_FALLBACK) をしてはいけない。
+        //    **実測より大きい値に引き上げてしまい、測った意味が無くなる**。
+        //    iPhone SE では実測50pxが90pxに持ち上がり、バナーの下が約52px余っていた
+        //    （Androidは reserveTop が優先されるので隠れていた）。
+        //    フォールバックは「まだ何も測れていないとき」だけの初期値。
+        setAdH(h);
+        try { localStorage.setItem(BANNER_H_CACHE_KEY, String(Math.round(h))); } catch { /* 保存できなくても表示は続く */ }
         setFailed(false);   // 次の更新で表示できたら余白を戻す
       });
       failHandle = await onBannerFailed(() => { if (alive) setFailed(true); });

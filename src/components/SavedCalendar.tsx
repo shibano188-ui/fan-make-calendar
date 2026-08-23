@@ -220,7 +220,7 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, 
           const dayColor = !inMonth ? 'var(--cal-other-month-color)' : dow === 0 ? 'var(--cal-sunday-color)' : dow === 6 ? 'var(--cal-saturday-color)' : 'var(--label-primary)';
           return (
             <button key={day} onClick={() => { haptic.select(); setAnchor(day); }}
-              className="relative min-h-[58px] flex flex-col items-center pt-1.5 pressable"
+              className="relative min-h-[var(--cal-cell-h)] flex flex-col items-center pt-1.5 pressable"
               style={{ backgroundColor: cellBg(isSel) }}>
               <span className="text-[12px] leading-none flex items-center justify-center w-5 h-5 rounded-full"
                 style={isToday
