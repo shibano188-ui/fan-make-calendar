@@ -45,9 +45,13 @@ const SYSTEM_PROMPT = `あなたはモバイルアプリの外観を決める設
 - 押す場所と情報の順番は変えられない。変えられるのは色・形・書体・質感だけ
 
 ## 項目の意味（set_theme の引数として渡す。変える項目だけ入れる）
-- shape 面の形。round=丸／square=直角／cut=右下を切る。**「別のアプリに見える」を一番作る**
+- shape 面の形。round=丸／square=直角／cut=右下を切る／notch=左上を切る（切符のよう）／
+  frame=角は直角のまま縁の内側にもう一本線を入れる（額縁・印刷物のよう）。
+  **「別のアプリに見える」を一番作るのがここ**
 - radius 角丸(px)。アプリ中の角丸がこの1つに揃う。square なら0〜3、round なら10〜20が普通
-- bars 上部バーと下タブ。floating=浮いた丸バー／plate=塗りの板／band=アクセント色の帯。**形の次に効く**
+- bars 上部バーと下タブ。floating=浮いた丸バー／plate=塗りの板／band=アクセント色の帯／
+  knockout=文字の色で塗りつぶして中身を抜く（印刷物の白抜き見出し）／clear=何も敷かず地が透ける。
+  **形の次に効く**
 - shadow float=浮く／raise=隆起した押しボタン／hard=硬いオフセット影／none=無し
 - texture 地の質感。none／dots=点の格子／halftone=網点／grid=方眼／scanline=走査線／paper=紙の織り目
 - textureSize 質感の粗さ(px) 3〜28。3〜6=細かくてほぼ無地に見える／12〜24=はっきり見える格子
@@ -104,8 +108,10 @@ const SYSTEM_PROMPT = `あなたはモバイルアプリの外観を決める設
 - かわいい・やわらかい → round / floating / zenmaru か mplusround / radius 14〜20 / iconStroke 2.2 / iconCap round
 - 硬い・機械的 → square / plate / raise / dots(size 16〜22) / mono / radius 0〜3 / iconStroke 1.5 / iconCap square
 - 派手・勢い → cut / band / hard / display / tilt / radius 0 / border 0
-- 静か・上品 → floating / none か paper(strength 6) / border 1 / iconStroke 1.25 / shippori か notoserifjp
-- 紙・印刷物 → paper か grid / border 2〜3 / shadow none / plain
+- 静か・上品 → clear か floating / none か paper(strength 6) / border 1 / iconStroke 1.25 / shippori か notoserifjp
+- 雑誌・ポスター → knockout / display / border 0 / radius 0〜2
+- 紙・印刷物 → frame / paper か grid / border 2〜3 / shadow none / plain
+- 切符・半券・整理券 → notch / border 1〜2 / mono / dots
 - 画面・端末 → scanline か grid / mono / led / iconStroke 1.5
 
 必ず set_theme を1回だけ呼ぶ。それ以外の文章は書かない。`;
@@ -137,9 +143,9 @@ const THEME_TOOL = {
     properties: {
       name: { type: 'string', description: '雰囲気を表す短い日本語（8文字以内）。作品名・キャラ名は使わない' },
       accent: { type: 'string', description: 'アクセント色 #rrggbb' },
-      shape: { type: 'string', enum: ['round', 'square', 'cut'] },
+      shape: { type: 'string', enum: ['round', 'square', 'cut', 'notch', 'frame'] },
       radius: { type: 'integer', minimum: 0, maximum: 24 },
-      bars: { type: 'string', enum: ['floating', 'plate', 'band'] },
+      bars: { type: 'string', enum: ['floating', 'plate', 'band', 'knockout', 'clear'] },
       shadow: { type: 'string', enum: ['float', 'raise', 'hard', 'none'] },
       texture: { type: 'string', enum: ['none', 'dots', 'halftone', 'grid', 'scanline', 'paper'] },
       textureSize: { type: 'integer', minimum: 3, maximum: 28 },

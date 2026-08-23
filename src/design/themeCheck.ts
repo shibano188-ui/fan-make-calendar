@@ -17,8 +17,8 @@ import {
 // skins.css に実体のある値だけを並べる。ここに無い値は捨てる
 
 export const VOCAB = {
-  shape: ['round', 'square', 'cut'],
-  bars: ['floating', 'plate', 'band'],
+  shape: ['round', 'square', 'cut', 'notch', 'frame'],
+  bars: ['floating', 'plate', 'band', 'knockout', 'clear'],
   shadow: ['float', 'raise', 'hard', 'none'],
   texture: ['none', 'dots', 'halftone', 'grid', 'scanline', 'paper'],
   press: ['spring', 'mechanical', 'bounce', 'none'],
@@ -277,7 +277,7 @@ export function applyPatch(now: ThemeSpec, patch: unknown): { spec: ThemeSpec; r
 
   // 上の帯がアクセント一色になるテーマは、ステータスバーのアイコンを帯の色から決めないと読めない
   // （Android 15 は setBackgroundColor が効かず、アプリが描いた色がそのまま見える）
-  merged.statusBar = merged.bars === 'band' ? 'accent' : 'bg';
+  merged.statusBar = merged.bars === 'band' || merged.bars === 'knockout' ? 'accent' : 'bg';
 
   const d = fixColors(merged.dark, merged.accent);
   const l = fixColors(merged.light, merged.accent);

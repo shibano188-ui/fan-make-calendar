@@ -94,7 +94,9 @@ html[data-themed] .rounded-\[22px\] {
    ただし「丸いこと自体が意味を持つ」もの（状態の点・トグルのつまみ）は
    .skin-keep-round を付けずとも小さすぎて影響が出ないため一括で扱う。 */
 html[data-shape='square'] .rounded-full,
-html[data-shape='cut'] .rounded-full {
+html[data-shape='cut'] .rounded-full,
+html[data-shape='notch'] .rounded-full,
+html[data-shape='frame'] .rounded-full {
   border-radius: var(--skin-radius-pill);
 }
 /* 状態を表す小さな点・スピナー・パーティクルは丸のまま残す */
@@ -107,11 +109,32 @@ html[data-themed] .rounded-full.animate-spin {
   border-radius: 9999px;
 }
 
+/* ── 面の形: 左上を切る（notch）／額縁（frame） ──────
+   cut が右下を切るのに対し、notch は左上を切る。向きが変わるだけで
+   受ける印象がかなり変わる（切符・チケットのような見え方になる）。
+   frame は角は保ったまま、縁の内側にもう一本線を入れて額のように見せる。 */
+html[data-shape='notch'] [data-skin-part='card'] {
+  clip-path: polygon(14px 0, 100% 0, 100% 100%, 0 100%, 0 14px);
+}
+html[data-shape='notch'] [data-skin-part='chip'],
+html[data-shape='notch'] [data-skin-part='nav-add'] {
+  clip-path: polygon(7px 0, 100% 0, 100% 100%, 0 100%, 0 7px);
+}
+/* 額縁: 縁から少し内側にもう一本。二重線は「印刷物」の記号 */
+html[data-shape='frame'] [data-skin-part='card'] {
+  outline: 1px solid var(--border-subtle);
+  outline-offset: -4px;
+}
+html[data-shape='frame'] [data-skin-part='nav'] {
+  outline: 1px solid var(--border-subtle);
+  outline-offset: -4px;
+}
+
 /* ── 面の縁 ────────────────────────────────────────
    0 なら縁なし、太くすると枠で囲った見た目になる。
    角を切る形（cut）は clip-path が縁を断つので当てない。 */
-html[data-themed]:not([data-shape='cut']) [data-skin-part='card'],
-html[data-themed]:not([data-shape='cut']) [data-skin-part='chip'] {
+html[data-themed]:not([data-shape='cut']):not([data-shape='notch']) [data-skin-part='card'],
+html[data-themed]:not([data-shape='cut']):not([data-shape='notch']) [data-skin-part='chip'] {
   border-width: var(--skin-border);
   border-style: solid;
 }
@@ -169,6 +192,59 @@ html[data-shadow='hard'] .shadow-card {
 }
 html[data-shadow='hard'] .shadow-float {
   box-shadow: 5px 5px 0 color-mix(in srgb, var(--accent-color) 20%, transparent);
+}
+
+/* ── 上部と下タブ: 白抜き（knockout）／透ける（clear） ────
+   knockout = 文字の色で塗りつぶし、中身をアクセント色で抜く。印刷物の白抜き見出し。
+   clear    = 何も敷かない。地がそのまま透けて、中身だけが浮いて見える。
+   どちらも**主要タブの上部と下タブ**だけに当てる（詳細ページの薄い板は既定のまま）。 */
+html[data-bars='knockout'] .material-bar.scroll-edge[data-skin-bar='main'] {
+  background-color: var(--label-primary);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  mask-image: none;
+  -webkit-mask-image: none;
+}
+html[data-bars='knockout'] .material-bar.scroll-edge[data-skin-bar='main'] input,
+html[data-bars='knockout'] .material-bar.scroll-edge[data-skin-bar='main'] svg,
+html[data-bars='knockout'] [data-skin-part='header'] {
+  color: var(--bg-primary);
+}
+html[data-bars='knockout'] .material-bar.scroll-edge[data-skin-bar='main'] > div > div,
+html[data-bars='knockout'] .material-bar.scroll-edge[data-skin-bar='main'] > div > button,
+html[data-bars='knockout'] .material-bar.scroll-edge[data-skin-bar='main'] > button {
+  background-color: color-mix(in srgb, var(--bg-primary) 18%, transparent) !important;
+}
+html[data-bars='knockout'] [data-skin-part='nav'] {
+  background-color: var(--label-primary) !important;
+  border: 0 !important;
+}
+html[data-bars='knockout'] [data-skin-part='nav-item'] svg,
+html[data-bars='knockout'] [data-skin-part='nav-item'] span {
+  color: color-mix(in srgb, var(--bg-primary) 55%, transparent) !important;
+}
+html[data-bars='knockout'] [data-skin-part='nav-item'][aria-current='page'] svg,
+html[data-bars='knockout'] [data-skin-part='nav-item'][aria-current='page'] span {
+  color: var(--accent-color) !important;
+}
+html[data-bars='knockout'] [data-skin-part='nav-ind'] {
+  background-color: color-mix(in srgb, var(--bg-primary) 14%, transparent) !important;
+}
+
+/* 透ける: 板を敷かず、地の上に中身だけを置く */
+html[data-bars='clear'] .material-bar.scroll-edge[data-skin-bar='main'] {
+  background-color: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  border-bottom: 0;
+}
+html[data-bars='clear'] [data-skin-part='nav'] {
+  background-color: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
 }
 
 /* ── 下タブ ────────────────────────────────────────
@@ -665,9 +741,10 @@ html[data-ornament='rays'] [data-skin-part='card']::before {
   width: var(--skin-orn-size);
   height: var(--skin-orn-size);
   border-radius: 50%;
+  /* 楔の角度は固定（px と deg は掛けられないので、太さの変数はここでは使えない）。
+     大きさ（半径）は --skin-orn-size で変わる */
   background: repeating-conic-gradient(
-    var(--accent-color) 0deg calc(var(--skin-orn-weight) * 2deg),
-    transparent calc(var(--skin-orn-weight) * 2deg) 24deg);
+    var(--accent-color) 0deg 5deg, transparent 5deg 24deg);
 }
 
 /* アイコンの線の端と継ぎ目。丸いとやわらかく、角ばると硬く見える */

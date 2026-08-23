@@ -24,9 +24,9 @@
 //   フォント機能が実体を失ったまま残っていたのと同じ失敗をしない）
 
 /** 面の形。「別のアプリに見える」を作っている一番の要因 */
-export type ShapeId = 'round' | 'square' | 'cut';
+export type ShapeId = 'round' | 'square' | 'cut' | 'notch' | 'frame';
 /** 上部バーと下タブの扱い。形に次いで効く */
-export type BarsId = 'floating' | 'plate' | 'band';
+export type BarsId = 'floating' | 'plate' | 'band' | 'knockout' | 'clear';
 export type ShadowId = 'float' | 'raise' | 'hard' | 'none';
 /** 地の質感。粗さと濃さは textureSize / textureStrength で連続に変えられる */
 export type TextureId = 'none' | 'dots' | 'halftone' | 'grid' | 'scanline' | 'paper';
