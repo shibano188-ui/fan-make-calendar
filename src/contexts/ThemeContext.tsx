@@ -9,31 +9,11 @@ import {
 } from '../design/skins';
 import type { ThemeSpec, UserTheme } from '../design/themeSpec';
 
-/** つまみでの調整。**AIが返した表そのものは動かさず、毎回そこから作り直す**
- *  （同じ操作を繰り返しても色がじりじりずれていかない） */
-export type ThemeAdjust = {
-  /**
-   * 色の鮮やかさ。-3〜3。0 が AI の返したまま。
-   * 地・面・アクセントの彩度だけを動かす（明るさは動かさない。
-   * 明るさを動かすと地と文字の関係が崩れて、どちらに振っても濁るだけだった）。
-   */
-  vivid: number;
-  /** 角丸(px)。0〜24 */
-  radius: number;
-};
-
-/** 版1つぶん。「元に戻す」はこれを積んでいく */
-export type ThemeVersion = {
-  /** 実際に当てているもの（base に adjust を当てた結果） */
-  spec: ThemeSpec;
-  /** AIが返したままのもの。つまみはここから作り直す */
-  base: ThemeSpec;
-  adjust: ThemeAdjust;
-};
-
 /** 作りかけのテーマ。画面を移っても消えないよう、ここに置く */
-export type ThemeDraft = ThemeVersion & {
-  history: ThemeVersion[];
+export type ThemeDraft = {
+  spec: ThemeSpec;
+  /** 手直しのたびに積む前の版。「元に戻す」はここから取る */
+  history: ThemeSpec[];
   /** 既にあるテーマを直しているならそのid。null なら新規 */
   editingId: string | null;
   /** 言葉での手直しを使った回数 */

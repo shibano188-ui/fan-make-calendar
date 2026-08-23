@@ -6,11 +6,11 @@ import Header from '../components/Header';
 import LineLoader from '../components/ui/LineLoader';
 import { useToast } from '../components/ui/Toast';
 import { useConfirm } from '../components/ui/ConfirmDialog';
-import { useTheme, type ThemeAdjust, type ThemeDraft } from '../contexts/ThemeContext';
+import { useTheme, type ThemeDraft } from '../contexts/ThemeContext';
 import { usePremium } from '../lib/premium';
 import { PRESET_SPECS } from '../design/skins';
 import type { ThemeSpec } from '../design/themeSpec';
-import { applyPatch, saturate, type ContrastReport } from '../design/themeCheck';
+import { type ContrastReport } from '../design/themeCheck';
 import { hasNativePhotoPicker, pickPhoto } from '../lib/pickPhoto';
 import { shrinkImage } from '../lib/shrinkImage';
 import {
@@ -37,46 +37,10 @@ const MAX_REFS = 3;
 const PLACEHOLDER = `例）夜の海みたいに静かな青。角は丸めで、文字はやわらかい書体。
 派手にしないで、写真が主役に見えるように。`;
 
-/**
- * つまみの位置を AI が返した表に当てて、実際に当てる表を作る。
- *
- * **毎回 base から作り直す**のが要点。前の結果に足していくと、
- * 右へ左へ動かすたびに値がじりじりずれて元の位置に戻らなくなる。
- *
- * 出すつまみは2本だけ。**色の鮮やかさ**と**角の丸み**——画面を見て一番わかる2つ。
- * 質感・影・飾りは言葉で頼むもので、軸を1本ずつ並べると
- * 「部品を組み立てる道具」に戻ってしまう。
- */
-function withAdjust(base: ThemeSpec, adjust: ThemeAdjust): { spec: ThemeSpec; report: ContrastReport[] } {
-  const patch: Record<string, unknown> = {
-    radius: adjust.radius,
-    // 角を完全に落としたら、丸を前提にした形（ピルなど）からも降りる
-    shape: adjust.radius === 0 && base.shape === 'round' ? 'square' : base.shape,
-  };
-
-  if (adjust.vivid !== 0) {
-    const f = 1 + adjust.vivid * 0.3;   // -3 → 0.1（ほぼ無彩色） / +3 → 1.9（かなり鮮やか）
-    patch.accent = saturate(base.accent, f);
-    patch.dark = {
-      ...base.dark,
-      bg: saturate(base.dark.bg, f), surface: saturate(base.dark.surface, f), surface2: saturate(base.dark.surface2, f),
-    };
-    patch.light = {
-      ...base.light,
-      bg: saturate(base.light.bg, f), surface: saturate(base.light.surface, f), surface2: saturate(base.light.surface2, f),
-    };
-  }
-  return applyPatch(base, patch);
-}
-
-function newVersion(base: ThemeSpec): { spec: ThemeSpec; base: ThemeSpec; adjust: ThemeAdjust } {
-  return { spec: base, base, adjust: { vivid: 0, radius: base.radius ?? 12 } };
-}
-
 function blankDraft(): ThemeDraft {
   // 角丸だけは必ず数字を入れる（null は「アプリ既定の角丸のまま」＝デフォルト専用の意味）
-  const base: ThemeSpec = { ...PRESET_SPECS.classic, name: '新しいテーマ', radius: 12 };
-  return { ...newVersion(base), history: [], editingId: null, tweaks: 0, note: '', nameLocked: false };
+  const spec: ThemeSpec = { ...PRESET_SPECS.classic, name: '新しいテーマ', radius: 12 };
+  return { spec, history: [], editingId: null, tweaks: 0, note: '', nameLocked: false };
 }
 
 export default function ThemeCreate() {
@@ -103,7 +67,7 @@ export default function ThemeCreate() {
       const t = userThemes.find(x => x.id === editId);
       if (t) {
         setDraft({
-          ...newVersion(t.spec),
+          spec: t.spec,
           history: [],
           editingId: t.id,
           tweaks: Number(localStorage.getItem(`fan_theme_tweaks_${t.id}`) ?? 0),
@@ -123,20 +87,14 @@ export default function ThemeCreate() {
   const tweaksLeft = TWEAK_LIMIT - (draft?.tweaks ?? 0);
   const fixedCount = report.filter(r => r.fixed).length;
 
-  /** つまみを動かす。版は積まない（戻せばそのまま元に戻るので） */
-  const setAdjust = useCallback((patch: Partial<ThemeAdjust>) => {
-    if (!draft) return;
-    const adjust = { ...draft.adjust, ...patch };
-    const { spec: next, report: rep } = withAdjust(draft.base, adjust);
-    // 名前は使う人のものを残す（色や形が動いても名前は動かさない）
-    setDraft({ ...draft, adjust, spec: draft.nameLocked ? { ...next, name: draft.spec.name } : next });
-    setReport(rep);
-  }, [draft, setDraft]);
-
   const undo = useCallback(() => {
     if (!draft || draft.history.length === 0) return;
-    const prev = draft.history[draft.history.length - 1];
-    setDraft({ ...draft, ...prev, history: draft.history.slice(0, -1), note: '' });
+    setDraft({
+      ...draft,
+      spec: draft.history[draft.history.length - 1],
+      history: draft.history.slice(0, -1),
+      note: '',
+    });
   }, [draft, setDraft]);
 
   const rename = useCallback((name: string) => {
@@ -144,7 +102,6 @@ export default function ThemeCreate() {
     setDraft({
       ...draft,
       spec: { ...draft.spec, name },
-      base: { ...draft.base, name },
       nameLocked: true,
     });
   }, [draft, setDraft]);
@@ -189,11 +146,11 @@ export default function ThemeCreate() {
     try {
       const res = await generateTheme(wish, draft.spec, refs.map(r => r.base64));
       // 名前を自分で付けている人のものは、AIの付ける名前で上書きしない
-      const base = draft.nameLocked ? { ...res.spec, name: draft.spec.name } : res.spec;
+      const next = draft.nameLocked ? { ...res.spec, name: draft.spec.name } : res.spec;
       setDraft({
         ...draft,
-        ...newVersion(base),
-        history: [...draft.history, { spec: draft.spec, base: draft.base, adjust: draft.adjust }],
+        spec: next,
+        history: [...draft.history, draft.spec],
         note: res.note,
         // 最初の1回（作る）は手直しに数えない
         tweaks: made ? draft.tweaks + 1 : draft.tweaks,
@@ -333,24 +290,8 @@ export default function ThemeCreate() {
         {error && <p className="text-xs" style={{ color: 'var(--color-destructive)' }}>{error}</p>}
         {made && tweaksLeft <= 0 && (
           <p className="text-label-tertiary text-xs leading-relaxed">
-            言葉での手直しは{TWEAK_LIMIT}回までです。下のつまみは何度でも動かせます。
+            言葉での手直しは{TWEAK_LIMIT}回までです。
           </p>
-        )}
-
-        {/* つまみでの微調整。作ったあとにだけ出す。AIを呼ばないので何度動かしても無料 */}
-        {made && !busy && (
-          <div className="flex flex-col gap-3 pt-1">
-            <Slider
-              label="色の鮮やかさ" left="落ち着いた" right="鮮やか"
-              min={-3} max={3} step={1} value={draft.adjust.vivid}
-              onChange={v => setAdjust({ vivid: v })}
-            />
-            <Slider
-              label="角の丸み" left="角ばる" right="丸い"
-              min={0} max={24} step={2} value={draft.adjust.radius}
-              onChange={v => setAdjust({ radius: v })}
-            />
-          </div>
         )}
 
         {made && !busy && (
@@ -387,28 +328,5 @@ export default function ThemeCreate() {
         )}
       </div>
     </Layout>
-  );
-}
-
-function Slider({ label, left, right, min, max, step, value, onChange }: {
-  label: string; left: string; right: string;
-  min: number; max: number; step: number; value: number;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <div>
-      <div className="flex items-baseline justify-between mb-1">
-        <span className="text-[12px] text-label-secondary">{label}</span>
-        <span className="text-[11px] text-label-tertiary">{left} — {right}</span>
-      </div>
-      <input
-        type="range"
-        min={min} max={max} step={step} value={value}
-        onChange={e => onChange(Number(e.target.value))}
-        aria-label={label}
-        className="w-full"
-        style={{ accentColor: 'var(--accent-color)' }}
-      />
-    </div>
   );
 }

@@ -64,7 +64,7 @@ const run = async () => {
   log(page.url().includes('/customize/theme'), '専用ページへ移る');
   log(await page.locator('textarea').first().isVisible(), '折り返す入力欄がある');
   log(await page.getByRole('button', { name: '参考画像' }).isVisible(), '参考画像の入口がある');
-  log(await page.locator('input[type=range]').count() === 0, '作る前につまみを出していない');
+  log(await page.locator('input[type=range]').count() === 0, '軸のつまみを出していない');
   log(await page.getByRole('button', { name: '保存する' }).count() === 0, '作る前に保存を出していない');
   log((await readRoot(page)).themed, '下書きが当たっている（data-themed）');
   await page.screenshot({ path: `${OUT}/theme-create.png` });
@@ -81,7 +81,6 @@ const run = async () => {
     log(await page.getByRole('button', { name: '保存する' }).isVisible(), '作ったあとに保存が出る');
     log(made.accent.toLowerCase() === '#ff00ff',
       `自分で選んだアクセント色をテーマが奪わない（${made.accent}）`);
-    log(await page.locator('input[type=range]').count() === 2, '作ったあとにつまみが2本出る');
     log(await page.getByLabel('テーマの名前').isVisible(), '名前を書き換えられる');
     await page.screenshot({ path: `${OUT}/theme-made.png` });
 
@@ -89,31 +88,6 @@ const run = async () => {
     await page.getByLabel('テーマの名前').fill('わたしのテーマ');
     await page.waitForTimeout(200);
     log(await page.getByLabel('テーマの名前').inputValue() === 'わたしのテーマ', '付けた名前が残る');
-
-    // つまみ: 角の丸み（2本目）。動かして戻すと**元の値にきっちり戻る**こと
-    const radiusBar = page.locator('input[type=range]').nth(1);
-    const start = await radiusBar.inputValue();
-    await radiusBar.fill('0');
-    await page.waitForTimeout(300);
-    const flat = await readRoot(page);
-    log(flat.radius === '0px', `つまみで角丸が動く（${made.radius} → ${flat.radius}）`);
-    await radiusBar.fill(start);
-    await page.waitForTimeout(300);
-    log((await readRoot(page)).radius === made.radius, `つまみを戻すと元の値に戻る（${made.radius}）`);
-
-    // 色の鮮やかさのつまみ（1本目）。地・面・アクセントの彩度だけが動く
-    const vividBar = page.locator('input[type=range]').first();
-    await vividBar.fill('-3');
-    await page.waitForTimeout(300);
-    const dull = await readRoot(page);
-    log(dull.bg !== made.bg, `落ち着かせると色がくすむ（${made.bg} → ${dull.bg}）`);
-    await vividBar.fill('3');
-    await page.waitForTimeout(300);
-    log((await readRoot(page)).bg !== dull.bg, '鮮やかにすると色が戻って濃くなる');
-    await vividBar.fill('0');
-    await page.waitForTimeout(300);
-    log((await readRoot(page)).bg === made.bg,
-      'つまみを戻すとAIの選んだ色にきっちり戻る（じりじりずれない）');
 
     await page.getByRole('button', { name: '元に戻す' }).click();
     await page.waitForTimeout(400);
