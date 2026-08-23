@@ -83,11 +83,11 @@ export default function ThemeList() {
             プレミアム
           </button>
           なら無制限。<br />
-          言葉での手直しは1つのテーマにつき{TWEAK_LIMIT}回まで（プレミアムは{TWEAK_LIMIT_PREMIUM}回）。
+          手直しは1つのテーマにつき{TWEAK_LIMIT}回まで（プレミアムは{TWEAK_LIMIT_PREMIUM}回）。
         </p>
       ) : (
         <p className="text-label-tertiary text-xs mt-2 px-1 leading-relaxed">
-          言葉での手直しは1つのテーマにつき{TWEAK_LIMIT_PREMIUM}回まで。作り直すと戻ります。
+          手直しは1つのテーマにつき{TWEAK_LIMIT_PREMIUM}回まで。作り直すと戻ります。
         </p>
       )}
     </section>

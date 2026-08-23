@@ -294,8 +294,8 @@ export default function ThemeCreate() {
         {made && (
           <p className="text-label-tertiary text-xs leading-relaxed">
             {tweaksLeft > 0
-              ? `言葉での手直しはあと${tweaksLeft}回（1つのテーマにつき${limit}回まで）。`
-              : `言葉での手直しは${limit}回までです。新しく作り直すと戻ります。`}
+              ? `手直しはあと${tweaksLeft}回（1つのテーマにつき${limit}回まで）。`
+              : `手直しは${limit}回までです。新しく作り直すと戻ります。`}
           </p>
         )}
 

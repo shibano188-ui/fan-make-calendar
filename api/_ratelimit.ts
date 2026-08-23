@@ -22,9 +22,7 @@ const BUCKETS = {
   // 人がばらけて来る前提だと毎回キャッシュの書き込み側になる）。
   // 月¥3,000 の枠 ÷ 30日 ÷ ¥3.4 ≒ 30回/日 を全体の栓に置く。
   // 個人の栓は下の BUCKET_USER_LIMITS で別に切る（回数の桁が parse と違うため）。
-  // ⚠️ 2026-08-23 の実機確認のため一時的に 30 → 80 に広げている。
-  //    確認が済んだら **30 に戻すこと**（月¥3,000の枠 ÷ 30日 ÷ ¥3.4 ≒ 30回/日）。
-  theme:  { min: 6,  day: 40,  globalDay: 80 },    // Claude API（上位モデル）
+  theme:  { min: 6,  day: 40,  globalDay: 30 },    // Claude API（上位モデル）
   search: { min: 30, day: 300, globalDay: 5000 },  // 楽天/Yahoo API（投稿1件で複数回叩く）
   title:  { min: 10, day: 60,  globalDay: 1000 },  // events更新（重複時の地名付与のみ）
   delete: { min: 5,  day: 20,  globalDay: 200 },   // アカウント削除（破壊操作）
