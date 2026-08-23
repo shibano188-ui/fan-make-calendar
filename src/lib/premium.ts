@@ -44,6 +44,8 @@ export const PREMIUM_FEATURES = {
   calendarAutoSync: 'カレンダー自動同期',
   /** フォロー数の上限なし */
   unlimitedFollow: '無制限フォロー',
+  /** 言葉から作るテーマを、いくつでも保存して切り替えられる（2026-08-23 追加） */
+  themes: 'テーマを何個でも',
 } as const;
 
 export type PremiumFeature = keyof typeof PREMIUM_FEATURES;
@@ -57,7 +59,7 @@ export const FREE_FOLLOW_LIMIT = 5;
 /** 案内画面に出す並び順。効き目の大きい順に置く（上から読まれて途中でやめられる前提）。
  *  PREMIUM_FEATURES に足したらここにも足す（漏れると案内に出ない）。 */
 export const PREMIUM_FEATURE_ORDER: PremiumFeature[] = [
-  'instantAlerts', 'priceAlerts', 'newEventDigest', 'noAds',
+  'instantAlerts', 'priceAlerts', 'themes', 'newEventDigest', 'noAds',
   'calendarAutoSync', 'unlimitedFollow',
 ];
 
@@ -70,6 +72,7 @@ export const PREMIUM_FEATURE_NOTES: Record<PremiumFeature, string> = {
   noAds: 'アプリの下に出る広告が消えます。',
   calendarAutoSync: 'いいねした予定と自分の投稿が、Google・Appleのカレンダーに自動で入ります。',
   unlimitedFollow: `フォローできる作品の数が無制限になります（無料プランは${FREE_FOLLOW_LIMIT}作品まで）。`,
+  themes: '好きな雰囲気を言葉で伝えると、色・形・書体をまとめて作ります。作ったテーマを何個でも保存して切り替えられます（無料プランは1つまで）。',
 };
 
 /** もう1作品フォローできるか。`count` は今フォローしている数。 */
