@@ -3,7 +3,27 @@ import { useAuth } from './AuthContext';
 import { getUserSettings, updateUserSettings } from '../lib/api';
 import { accentTokens, getContrastText } from '../lib/color';
 import { syncStatusBar } from '../lib/statusbar';
-import { SKINS, applySkin, loadSkin, saveSkin, accentForSkin, type SkinId } from '../design/skins';
+import {
+  SKINS, PRESET_SPECS, applySkin, applyThemeSpec, loadSkin, saveSkin, accentForSkin,
+  SIGNATURE_ACCENTS, type SkinId,
+} from '../design/skins';
+import type { ThemeSpec, UserTheme } from '../design/themeSpec';
+
+/** 作りかけのテーマ。画面を移っても消えないよう、ここに置く */
+export type ThemeDraft = {
+  spec: ThemeSpec;
+  /** 手直しのたびに積む前の版。「元に戻す」はここから取る */
+  history: ThemeSpec[];
+  /** 既にあるテーマを直しているならそのid。null なら新規 */
+  editingId: string | null;
+  /** 言葉での手直しを使った回数 */
+  tweaks: number;
+  /** 直前の変更の説明（AIが返す1文） */
+  note: string;
+  /** 名前を自分で付けたか。付けていたら AI の付ける名前で上書きしない */
+  nameLocked: boolean;
+};
+import { listUserThemes, loadActiveThemeId, saveActiveThemeId } from '../lib/userThemes';
 
 export type ThemeMode = 'simple' | 'dark' | 'system';
 export type FontFamily = 'system' | 'serif' | 'rounded' | 'custom';
@@ -277,7 +297,7 @@ function fontStack(settings: UserSettings): string {
 // テーマ変数の適用 + data-theme / theme-color / ステータスバー同期（共通処理）
 // 外皮(skin)は色の上に「形・書体・質感」を重ねる層。コミュニティテーマを
 // 選んでいるときは色は使う人のものを優先し、外皮は色を上書きしない。
-function applyThemeVars(settings: UserSettings, skin: SkinId) {
+function applyThemeVars(settings: UserSettings, skin: SkinId, userSpec?: ThemeSpec | null) {
   const root = document.documentElement;
   const communityTheme = settings.communityThemeId
     ? COMMUNITY_THEMES.find(t => t.id === settings.communityThemeId)
@@ -289,19 +309,34 @@ function applyThemeVars(settings: UserSettings, skin: SkinId) {
   const isDark = communityTheme ? communityTheme.dark : resolved === 'dark';
   root.dataset.theme = isDark ? 'dark' : 'light';
 
-  // 外皮を重ねる（data-skin の付与・書体の読み込み・色の上書き）
-  applySkin(skin, isDark, !!communityTheme);
+  // テーマを重ねる（部品の属性・書体の読み込み・色の上書き）。
+  // 生成テーマは色を「7色＋階段」から作るので、手の表を持たない経路を通る
+  if (userSpec) {
+    root.dataset.skin = 'custom';
+    applyThemeSpec(userSpec, isDark, !!communityTheme);
+  } else {
+    applySkin(skin, isDark, !!communityTheme);
+  }
+
+  // 背景画像を選んでいる人からは、テーマの質感（点格子・網点）を取り下げる。
+  // 画像の上に点を重ねると両方とも汚れて見える。**使う人が置いた画像のほうが強い**
+  // （テーマ側の値は書き換えない。ここで属性だけ切る）
+  if (settings.backgroundImageUrl) root.setAttribute('data-texture', 'none');
 
   // ブラウザクローム・ネイティブステータスバーをテーマに追従させる。
-  // 外皮が地の色を上書きしているときはそちらを見る
+  // テーマが地の色を上書きしているときはそちらを見る
+  const activeSpec = userSpec ?? SKINS[skin].spec;
   const skinVars = communityTheme ? null : SKINS[skin].vars;
-  const skinBg = skinVars ? (isDark ? skinVars.dark : skinVars.light)['--bg-primary'] : undefined;
+  const skinBg = communityTheme ? undefined
+    : userSpec ? (isDark ? userSpec.dark.bg : userSpec.light.bg)
+    : skinVars ? (isDark ? skinVars.dark : skinVars.light)['--bg-primary']
+    : undefined;
   const bgPrimary = skinBg ?? vars['--bg-primary'] ?? (isDark ? '#0e0e10' : '#f2f2f7');
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', bgPrimary);
   // ステータスバーのアイコンは「テーマが暗いか」ではなく、**バーの裏に実際に出ている色**で決める。
   // SURGE は上部の帯がアクセント色（黄）なので、暗いテーマのまま白アイコンにすると読めない
   // （実機で確認済み。Android 15 は setBackgroundColor が効かず、裏のアプリの色がそのまま見える）。
-  const statusColor = SKINS[skin].statusBar === 'accent' ? settings.accentColor : bgPrimary;
+  const statusColor = activeSpec.statusBar === 'accent' ? settings.accentColor : bgPrimary;
   syncStatusBar(getContrastText(statusColor) === '#ffffff', statusColor);
 }
 
@@ -368,9 +403,28 @@ interface ThemeContextValue {
   currentWorkId: string;
   setCurrentCalendar: (workId: string) => void;
   calFontFamily: string;
-  /** 見た目の外皮。テーマ・アクセント色とは独立した層 */
+  /** 見た目のテーマ（部品の組）。明るさ・アクセント色とは独立した層 */
   skin: SkinId;
   setSkin: (id: SkinId) => void;
+  /** 使う人が作ったテーマ。空なら1つも作っていない */
+  userThemes: UserTheme[];
+  /** 今選んでいる生成テーマのid。null ならプリセット（skin）を使っている */
+  userThemeId: string | null;
+  /** 今効いている設定表（プリセットでも生成テーマでも同じ型） */
+  activeSpec: ThemeSpec;
+  selectUserTheme: (id: string | null) => void;
+  /**
+   * 下書き。保存する前のテーマを**アプリ全体に当てて見せる**ための一時の層。
+   *
+   * 作っている途中の状態（版の積み重ね・手直しの回数）まで持たせているのは、
+   * **作りながら他のタブを見に行って戻ってこられるようにするため**。
+   * 画面の中に置くと、移動した時点で「元に戻す」も編集中のテーマも消える。
+   * 保存はしない（再起動すると消える）。
+   */
+  draft: ThemeDraft | null;
+  setDraft: (d: ThemeDraft | null) => void;
+  /** 保存・削除のあとに一覧を取り直す */
+  reloadUserThemes: () => Promise<UserTheme[]>;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -391,9 +445,68 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // 外皮。保存先は localStorage のみ（本番の user_settings スキーマに触らない）
   const [skin, setSkinState] = useState<SkinId>(() => loadSkin());
 
+  // 生成テーマ。選択は端末に、中身はサーバー（user_themes）に置く
+  const [userThemes, setUserThemes] = useState<UserTheme[]>([]);
+  const [userThemeId, setUserThemeId] = useState<string | null>(() => loadActiveThemeId());
+
+  // 保存前の下書き。**あるときは何より優先して当てる**（見ながら直せるようにするため）
+  const [draft, setDraft] = useState<ThemeDraft | null>(null);
+  const draftSpec = draft?.spec ?? null;
+
+  const activeUserTheme = userThemeId ? userThemes.find(t => t.id === userThemeId) ?? null : null;
+  const activeSpec: ThemeSpec = draftSpec ?? activeUserTheme?.spec ?? PRESET_SPECS[skin];
+
+  const reloadUserThemes = useCallback(async () => {
+    const list = await listUserThemes();
+    setUserThemes(list);
+    // 消されたテーマを選んだままにしない（形だけ残って混ざる）
+    setUserThemeId(prev => {
+      if (prev && !list.some(t => t.id === prev)) { saveActiveThemeId(null); return null; }
+      return prev;
+    });
+    return list;
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    reloadUserThemes().catch(console.error);
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * 今のアクセント色が「テーマから来たもの」か「使う人が自分で選んだもの」か。
+   *
+   * **使う人が明示的に指定したものは、テーマより強い。**
+   * テーマは既定値の供給元であって、他の設定値を書き換えない——という原則を、
+   * アクセントについてはここ1か所で判定する（プレビューも保存もこれを見る）。
+   */
+  const accentIsAuto = useCallback((accent: string) => (
+    SIGNATURE_ACCENTS.includes(accent.toUpperCase())
+    || userThemes.some(t => t.spec.accent.toLowerCase() === accent.toLowerCase())
+  ), [userThemes]);
+
+  const followAccent = useCallback((nextAccent: string) => {
+    setSettings(prev => {
+      if (!accentIsAuto(prev.accentColor)) return prev;
+      if (nextAccent.toLowerCase() === prev.accentColor.toLowerCase()) return prev;
+      const next = { ...prev, accentColor: nextAccent };
+      saveSettings(currentWorkIdRef.current, next);
+      return next;
+    });
+  }, [accentIsAuto]);
+
+  const selectUserTheme = useCallback((id: string | null) => {
+    saveActiveThemeId(id);
+    setUserThemeId(id);
+    const spec = id ? userThemes.find(t => t.id === id)?.spec : null;
+    if (spec) followAccent(spec.accent);
+  }, [userThemes, followAccent]);
+
   const setSkin = useCallback((id: SkinId) => {
     saveSkin(id);
     setSkinState(id);
+    // プリセットを選んだら生成テーマの選択は外す（両方は効かせられない）
+    saveActiveThemeId(null);
+    setUserThemeId(null);
     // アクセントが署名色のままなら外皮の色に合わせる。
     // 自分で別の色を選んでいる人の設定は変えない。サーバーへは同期しない
     // （外皮の切り替えで本番の設定を書き換えないため）。
@@ -462,18 +575,22 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   // テーマカラーを CSS 変数に反映（theme='system' のときは OS 設定変更にも追従）
   useEffect(() => {
-    applyThemeVars(settings, skin);
+    applyThemeVars(settings, skin, draftSpec ?? activeUserTheme?.spec ?? null);
     if (settings.theme !== 'system') return;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const onChange = () => applyThemeVars(settings, skin);
+    const onChange = () => applyThemeVars(settings, skin, draftSpec ?? activeUserTheme?.spec ?? null);
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
-  }, [settings.theme, settings.communityThemeId, skin]); // eslint-disable-line react-hooks/exhaustive-deps
+    // activeUserTheme は中身が変われば適用し直す（手直しの結果を即反映するため）
+  }, [settings.theme, settings.communityThemeId, skin, activeUserTheme, draftSpec]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // アクセントカラー + 派生トークンを CSS 変数に反映
   useEffect(() => {
-    applyAccentVars(settings.accentColor);
-  }, [settings.accentColor]);
+    // 下書き中はそのアクセントで見せる。ただし**自分で色を選んでいる人のものは奪わない**
+    // （プレビューだけテーマの色にすると、保存後と見え方が食い違う）
+    const useDraft = draftSpec && accentIsAuto(settings.accentColor);
+    applyAccentVars(useDraft ? draftSpec.accent : settings.accentColor);
+  }, [settings.accentColor, draftSpec, accentIsAuto]);
 
   // カレンダー文字色・グリッド線色を CSS 変数に反映
   useEffect(() => {
@@ -517,7 +634,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const calFontFamily = fontStack(settings);
 
   return (
-    <ThemeContext.Provider value={{ settings, updateSettings, currentWorkId, setCurrentCalendar, calFontFamily, skin, setSkin }}>
+    <ThemeContext.Provider value={{
+      settings, updateSettings, currentWorkId, setCurrentCalendar, calFontFamily,
+      skin, setSkin, userThemes, userThemeId, activeSpec, selectUserTheme, reloadUserThemes,
+      draft, setDraft,
+    }}>
       {children}
     </ThemeContext.Provider>
   );

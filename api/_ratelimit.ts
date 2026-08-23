@@ -17,6 +17,12 @@ const BUCKETS = {
   // 円で数える本式の栓（ai_usage の月次集計）が入ったら、この行は撤去してよい。
   // ⚠️ owner は checkRateLimitFor で素通りするので、仕込み作業はこの栓に当たらない。
   parse:  { min: 20, day: 150, globalDay: 400 },   // Claude API
+  // テーマ生成。**本番実測 ¥3.4/回**（Sonnet 5・道具の定義とルールで約3,400トークン。
+  // 5分以内に続けて叩けばキャッシュが読まれて ¥1.6 まで下がるが、
+  // 人がばらけて来る前提だと毎回キャッシュの書き込み側になる）。
+  // 月¥3,000 の枠 ÷ 30日 ÷ ¥3.4 ≒ 30回/日 を全体の栓に置く。
+  // 個人の栓は下の BUCKET_USER_LIMITS で別に切る（回数の桁が parse と違うため）。
+  theme:  { min: 6,  day: 40,  globalDay: 30 },    // Claude API（上位モデル）
   search: { min: 30, day: 300, globalDay: 5000 },  // 楽天/Yahoo API（投稿1件で複数回叩く）
   title:  { min: 10, day: 60,  globalDay: 1000 },  // events更新（重複時の地名付与のみ）
   delete: { min: 5,  day: 20,  globalDay: 200 },   // アカウント削除（破壊操作）
@@ -88,6 +94,18 @@ const USER_LIMITS: Record<Exclude<Tier, 'owner'>, { min: number; day: number }> 
   new:        { min: 20, day: 30 },
 };
 
+// エンドポイントごとに桁が違うときの上書き。
+// テーマ生成は「気に入るまで作り直す」が普通に起きるので**個人にも1日の栓を付ける**
+// （プレミアムは保存数が無制限になるだけで、生成回数は無制限にしない
+//   → [[2026-08-22-ai-usage-limits]]）。
+const BUCKET_USER_LIMITS: Partial<Record<RateLimitBucket, Record<Exclude<Tier, 'owner'>, { min: number; day: number }>>> = {
+  theme: {
+    registered: { min: 6, day: 20 },
+    anonymous:  { min: 6, day: 10 },
+    new:        { min: 4, day: 6 },
+  },
+};
+
 const userCache = new Map<string, { perMinute: Ratelimit; perDay: Ratelimit }>();
 
 function userLimitersFor(bucket: RateLimitBucket, tier: Exclude<Tier, 'owner'>) {
@@ -95,7 +113,7 @@ function userLimitersFor(bucket: RateLimitBucket, tier: Exclude<Tier, 'owner'>) 
   const key = `${bucket}:${tier}`;
   let l = userCache.get(key);
   if (!l) {
-    const c = USER_LIMITS[tier];
+    const c = BUCKET_USER_LIMITS[bucket]?.[tier] ?? USER_LIMITS[tier];
     l = {
       perMinute: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(c.min, '1 m'), prefix: `rl:${bucket}:u:${tier}:min` }),
       perDay:    new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(c.day, '1 d'), prefix: `rl:${bucket}:u:${tier}:day` }),

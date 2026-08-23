@@ -248,3 +248,41 @@ select {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* つまみ（テーマの微調整）。既定の見た目は地の色に合わないので、
+   軌道はテーマの薄い塗り・つまみはアクセント色にそろえる */
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 24px;
+  background: transparent;
+}
+input[type='range']::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--fill-secondary);
+}
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -8px;
+  border-radius: 50%;
+  background: var(--accent-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+input[type='range']::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--fill-secondary);
+}
+input[type='range']::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}

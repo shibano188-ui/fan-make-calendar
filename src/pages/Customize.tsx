@@ -10,6 +10,7 @@ import { useConfirm } from '../components/ui/ConfirmDialog';
 import { pushAppState } from '../lib/appState';
 import { hasNativePhotoPicker, pickPhoto } from '../lib/pickPhoto';
 import { SKINS, SKIN_IDS, type SkinDef } from '../design/skins';
+import ThemeList from '../components/theme/ThemeList';
 
 const CAL_COLOR_FIELDS: { key: keyof UserSettings; label: string; cssVar: string }[] = [
   { key: 'calWeekday',    label: '平日',        cssVar: '--cal-weekday-color' },
@@ -207,7 +208,7 @@ function SkinPreview({ def, dark }: { def: SkinDef; dark: boolean }) {
 // ─── メイン画面 ────────────────────────────────────────────────────
 
 export default function Customize() {
-  const { settings, updateSettings, currentWorkId, skin, setSkin } = useTheme();
+  const { settings, updateSettings, currentWorkId, skin, setSkin, userThemeId } = useTheme();
   const { user } = useAuth();
   const confirmDialog = useConfirm();
   const currentWorkName = localStorage.getItem('last_calendar_work_name') ?? '';
@@ -364,7 +365,7 @@ export default function Customize() {
           <div className="grid grid-cols-3 gap-2">
             {SKIN_IDS.map(id => {
               const def = SKINS[id];
-              const on = skin === id;
+              const on = skin === id && !userThemeId;
               return (
                 <button key={id} onClick={() => setSkin(id)} aria-pressed={on}
                   className={themeButtonClass(on)} style={themeButtonStyle(on)}>
@@ -385,6 +386,9 @@ export default function Customize() {
             </p>
           )}
         </section>
+
+        {/* 自分のテーマ。作るのは専用ページ（/customize/theme）でやる */}
+        <ThemeList />
 
         {/* 明るさ。テーマは明暗2組の色を持つので、この選択とは独立して効く */}
         <section>
