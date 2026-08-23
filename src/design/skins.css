@@ -625,32 +625,55 @@ html[data-shape='cut'] [data-skin-part='nav-add'] {
 /* ── 飾り: 角のかぎ／上辺の帯 ────────────────────────
    飾りは**テーマにつき1つだけ**。決まった場所（一覧の面）にだけ置く。
    2つ入れると全部盛りになって破綻する。 */
+/* 形はここが持ち、**大きさと太さは設定表から数値で流し込む**。
+   同じ鉤でも 4px の細いものと 20px の太いものでは別の飾りに見えるので、
+   種類を増やすより数字を開けたほうが幅が出る。 */
 html[data-ornament='corner'] [data-skin-part='card'],
-html[data-ornament='stripe'] [data-skin-part='card'] {
+html[data-ornament='stripe'] [data-skin-part='card'],
+html[data-ornament='rays'] [data-skin-part='card'] {
   position: relative;
 }
-html[data-ornament='corner'] [data-skin-part='card']::before {
+html[data-ornament='corner'] [data-skin-part='card']::before,
+html[data-ornament='stripe'] [data-skin-part='card']::before,
+html[data-ornament='rays'] [data-skin-part='card']::before {
   content: '';
   position: absolute;
-  top: 5px;
-  left: 5px;
-  width: 11px;
-  height: 11px;
-  border-top: 2px solid var(--accent-color);
-  border-left: 2px solid var(--accent-color);
   pointer-events: none;
   z-index: 1;
 }
+/* 鉤: 左上に直角のかぎ印 */
+html[data-ornament='corner'] [data-skin-part='card']::before {
+  top: 5px;
+  left: 5px;
+  width: var(--skin-orn-size);
+  height: var(--skin-orn-size);
+  border-top: var(--skin-orn-weight) solid var(--accent-color);
+  border-left: var(--skin-orn-weight) solid var(--accent-color);
+}
+/* 帯: 上辺にアクセント色の線 */
 html[data-ornament='stripe'] [data-skin-part='card']::before {
-  content: '';
-  position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  height: 3px;
+  height: var(--skin-orn-weight);
   background: var(--accent-color);
-  pointer-events: none;
-  z-index: 1;
+}
+/* 放射: 右上に線が放射状に伸びる印。太さで本数の詰まり方が変わる */
+html[data-ornament='rays'] [data-skin-part='card']::before {
+  top: 4px;
+  right: 4px;
+  width: var(--skin-orn-size);
+  height: var(--skin-orn-size);
+  border-radius: 50%;
+  background: repeating-conic-gradient(
+    var(--accent-color) 0deg calc(var(--skin-orn-weight) * 2deg),
+    transparent calc(var(--skin-orn-weight) * 2deg) 24deg);
+}
+
+/* アイコンの線の端と継ぎ目。丸いとやわらかく、角ばると硬く見える */
+html[data-icon-cap='square'] svg.lucide {
+  stroke-linecap: butt;
+  stroke-linejoin: miter;
 }
 
 /* ─────────────────────────────────────────────────────────────

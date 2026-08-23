@@ -54,10 +54,14 @@ const SYSTEM_PROMPT = `あなたはモバイルアプリの外観を決める設
 - textureStrength 質感の濃さ(%) 4〜40。8前後が上品、25以上ではっきり主張する
 - press 押した反応。spring=ばね／mechanical=沈む／bounce=弾く／none
 - ornament 飾り。**1テーマに1つだけ**。none／led=状態が表示灯のように灯る／
-  tilt=札やチップが少し傾く／corner=面の左上に鉤(かぎ)の印／stripe=面の上辺にアクセント色の帯
+  tilt=札やチップが少し傾く／corner=面の左上に鉤(かぎ)の印／stripe=面の上辺にアクセント色の帯／
+  rays=面の右上に線が放射状に伸びる印
+- ornamentSize 飾りの大きさ(px) 2〜24。鉤の長さ・放射の半径。4〜8=控えめ／16〜24=はっきり主張する
+- ornamentWeight 飾りの線の太さ(px) 1〜6。鉤の枠・帯の高さ。1〜2=繊細／4〜6=太くて元気
 - type 書体の性格。plain=素／mono=字間を開けた等幅の計器風／display=極太の見出し風
 - border 面の縁の太さ(px) 0〜3。0=縁なしで地に溶ける／2〜3=枠で囲った紙のよう
 - iconStroke アイコンの線の太さ 1〜2.5。1〜1.5=細くて上品／2=ふつう／2.5=太くて元気
+- iconCap アイコンの線の端と継ぎ目。round=丸くてやわらかい／square=角ばって硬い
 
 ## 作品名やブランド名で頼まれたとき
 - **知っている範囲の「色と形の雰囲気」を思い出して表に落とす。** 調べに行く必要はない
@@ -97,8 +101,8 @@ const SYSTEM_PROMPT = `あなたはモバイルアプリの外観を決める設
 - type=mono なら fonts.meta / fonts.num は等幅系（martian, jetbrains）が合う
 - type=display なら fonts.display に極太（dela, archivo, kaisei）、fonts.num に bigshoulder が合う
 - bars=band を選ぶと上部が accent 一色になる。accent は明るく強い色にする
-- かわいい・やわらかい → round / floating / zenmaru か mplusround / radius 14〜20 / iconStroke 2.2
-- 硬い・機械的 → square / plate / raise / dots(size 16〜22) / mono / radius 0〜3 / iconStroke 1.5
+- かわいい・やわらかい → round / floating / zenmaru か mplusround / radius 14〜20 / iconStroke 2.2 / iconCap round
+- 硬い・機械的 → square / plate / raise / dots(size 16〜22) / mono / radius 0〜3 / iconStroke 1.5 / iconCap square
 - 派手・勢い → cut / band / hard / display / tilt / radius 0 / border 0
 - 静か・上品 → floating / none か paper(strength 6) / border 1 / iconStroke 1.25 / shippori か notoserifjp
 - 紙・印刷物 → paper か grid / border 2〜3 / shadow none / plain
@@ -141,10 +145,13 @@ const THEME_TOOL = {
       textureSize: { type: 'integer', minimum: 3, maximum: 28 },
       textureStrength: { type: 'integer', minimum: 4, maximum: 40 },
       press: { type: 'string', enum: ['spring', 'mechanical', 'bounce', 'none'] },
-      ornament: { type: 'string', enum: ['none', 'led', 'tilt', 'corner', 'stripe'] },
+      ornament: { type: 'string', enum: ['none', 'led', 'tilt', 'corner', 'stripe', 'rays'] },
+      ornamentSize: { type: 'integer', minimum: 2, maximum: 24 },
+      ornamentWeight: { type: 'integer', minimum: 1, maximum: 6 },
       type: { type: 'string', enum: ['plain', 'mono', 'display'] },
       border: { type: 'integer', minimum: 0, maximum: 3 },
       iconStroke: { type: 'number', minimum: 1, maximum: 2.5 },
+      iconCap: { type: 'string', enum: ['round', 'square'] },
       fonts: {
         type: 'object',
         properties: {

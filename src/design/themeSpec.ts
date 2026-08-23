@@ -32,7 +32,9 @@ export type ShadowId = 'float' | 'raise' | 'hard' | 'none';
 export type TextureId = 'none' | 'dots' | 'halftone' | 'grid' | 'scanline' | 'paper';
 export type PressId = 'spring' | 'mechanical' | 'bounce' | 'none';
 /** 飾り。テーマごとに1つだけ決めて決まった場所に置く（2つ入れると全部盛りで破綻する） */
-export type OrnamentId = 'none' | 'led' | 'tilt' | 'corner' | 'stripe';
+export type OrnamentId = 'none' | 'led' | 'tilt' | 'corner' | 'stripe' | 'rays';
+/** アイコンの線の端と継ぎ目。丸いとやわらかく、角ばると硬く見える */
+export type IconCapId = 'round' | 'square';
 /** 書体の性格。字間と太さの取り方が書体の選択と一緒に動くので、1本の軸にしてある */
 export type TypeId = 'plain' | 'mono' | 'display';
 
@@ -140,11 +142,17 @@ export interface ThemeSpec {
   textureStrength: number;
   press: PressId;
   ornament: OrnamentId;
+  /** 飾りの大きさ(px)。鉤の長さ・放射の半径。2〜24 */
+  ornamentSize: number;
+  /** 飾りの線の太さ(px)。鉤の枠・帯の高さ。1〜6 */
+  ornamentWeight: number;
   type: TypeId;
   /** 面の縁の太さ(px)。0=縁なし 〜 3=太い枠 */
   border: number;
   /** アイコンの線の太さ。1=細い 〜 2.5=太い（2がふつう） */
   iconStroke: number;
+  /** アイコンの線の端と継ぎ目 */
+  iconCap: IconCapId;
   fonts: Record<FontRole, FontId>;
   dark: ThemeColors;
   light: ThemeColors;
@@ -237,6 +245,8 @@ export function shapeToVars(spec: ThemeSpec): Record<string, string> {
     '--skin-texture-size': `${Math.max(2, Math.min(40, spec.textureSize))}px`,
     '--skin-border': `${Math.max(0, Math.min(4, spec.border))}px`,
     '--skin-icon-stroke': String(Math.max(0.75, Math.min(3, spec.iconStroke))),
+    '--skin-orn-size': `${Math.max(2, Math.min(24, spec.ornamentSize))}px`,
+    '--skin-orn-weight': `${Math.max(1, Math.min(6, spec.ornamentWeight))}px`,
   };
   if (r !== null) {
     vars['--skin-radius'] = `${r}px`;
@@ -271,6 +281,7 @@ export function specToAttrs(spec: ThemeSpec): Record<string, string> {
     'data-press': spec.press,
     'data-ornament': spec.ornament,
     'data-type': spec.type,
+    'data-icon-cap': spec.iconCap,
   };
   // 角丸を1つに揃えるテーマだけ data-themed が付く。
   // デフォルト（radius=null）はアプリ既存の角丸の階層をそのまま残す
