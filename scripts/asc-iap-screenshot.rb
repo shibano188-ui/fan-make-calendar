@@ -37,7 +37,10 @@ def req(method, url, body: nil, headers: {}, raw: nil)
   klass = { get: Net::HTTP::Get, post: Net::HTTP::Post, patch: Net::HTTP::Patch, put: Net::HTTP::Put,
             delete: Net::HTTP::Delete }.fetch(method)
   r = klass.new(uri)
-  r['Authorization'] = "Bearer #{$jwt}"
+  # 認証ヘッダは **App Store Connect のAPIにだけ** 付ける。
+  # アセットの実体を置く先は署名付きURL（X-Amz-Signature）なので、
+  # 余計な Authorization があると 400 で弾かれる。
+  r['Authorization'] = "Bearer #{$jwt}" if uri.host.end_with?('appstoreconnect.apple.com')
   if raw
     raw.each { |k, v| r[k] = v }
     r.body = body
@@ -75,9 +78,14 @@ when 'list'
     puts "  screenshot: #{a ? "#{a['fileName']} #{a['assetDeliveryState'] && a['assetDeliveryState']['state']} id=#{shot['id']}" : 'なし'}"
   end
 when 'replace'
-  path = ARGV[1] or abort 'usage: replace <画像パス>'
+  # 商品ごとに違う画像を貼れるようにする。**月払いの審査には月払いを選んだ画面、
+  # 年払いには年払いを選んだ画面**を出すのが正しい（同じ画像を全部に貼らない）。
+  path = ARGV[1] or abort 'usage: replace <画像パス> [商品IDの一部]'
+  filter = ARGV[2]
   data = File.binread(path)
-  subscriptions.each do |s|
+  targets = subscriptions.select { |s| filter.nil? || s['attributes']['productId'].include?(filter) }
+  abort "該当する商品がありません: #{filter}" if targets.empty?
+  targets.each do |s|
     old = shots_of(s['id'])
     req(:delete, "subscriptionAppStoreReviewScreenshots/#{old['id']}") if old
     created = req(:post, 'subscriptionAppStoreReviewScreenshots', body: {
@@ -102,5 +110,5 @@ when 'replace'
     puts "差し替えた: #{s['attributes']['name']}"
   end
 else
-  abort 'usage: asc-iap-screenshot.rb list | replace <画像パス>'
+  abort 'usage: asc-iap-screenshot.rb list | replace <画像パス> [商品IDの一部]'
 end
