@@ -34,7 +34,11 @@ export async function suggestWorkNames(input: string): Promise<WorkNameCandidate
 export function autoCanonicalName(candidates: WorkNameCandidate[]): string | null {
   const top = candidates[0];
   if (!top || !CERTAIN.includes(top.match)) return null;
-  const rival = candidates.find(c => c.name !== top.name && c.popularity >= Math.max(top.popularity, 1) * 2);
+  // 比べる相手は「入力を名前に含む作品」だけ。誤字候補まで見ると、
+  // たまたま有名な別作品（ぼざろ→ラザロ）に邪魔されて自動にならない
+  const rival = candidates.find(
+    c => c.match === 'partial' && c.name !== top.name && c.popularity >= Math.max(top.popularity, 1) * 2,
+  );
   return rival ? null : top.name;
 }
 
@@ -46,6 +50,8 @@ export type WorkNameResolution = {
 };
 
 export async function resolveWorkName(input: string): Promise<WorkNameResolution> {
-  const candidates = await suggestWorkNames(input);
-  return { canonical: autoCanonicalName(candidates), candidates };
+  const all = await suggestWorkNames(input);
+  // 部分一致が取れているなら誤字候補は雑音でしかないので、見せる候補からは外す
+  const candidates = all.some(c => c.match === 'partial') ? all.filter(c => c.match !== 'typo') : all;
+  return { canonical: autoCanonicalName(all), candidates };
 }
