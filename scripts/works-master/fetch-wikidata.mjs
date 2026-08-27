@@ -13,21 +13,28 @@ const OUT = 'scripts/.works-master/wikidata.jsonl';
 const SEP = '|';
 
 // 種別ごとに分けて投げる。ひとまとめにすると60秒の実行制限に引っかかる。
-const TYPES = {
-  anime: ['Q63952888', 'Q20650540', 'Q220898', 'Q1107'],    // アニメTVシリーズ / アニメ映画 / OVA / アニメ
-  manga: ['Q21198342', 'Q8274', 'Q747381', 'Q104213567'],   // 漫画シリーズ / 漫画 / ライトノベル / ライトノベルシリーズ
-  game: ['Q7889', 'Q7058673'],                              // ゲーム / ゲームシリーズ
-  // 「作品」としてはこれが本命。ラブライブ! や 呪術廻戦 のように
-  // アニメ・漫画・ゲームにまたがるものは、この型に本体がある
-  franchise: ['Q196600', 'Q18591554'],                      // メディア・フランチャイズ / メディアミックス
+// 作品は「何であるか(P31)」、人は「職業(P106)」で引くので、条件を文字列で持たせる。
+const T = qids => `?item wdt:P31 ?type . VALUES ?type { ${qids.map(q => `wd:${q}`).join(' ')} }`;
+const GROUPS = {
+  anime: T(['Q63952888', 'Q20650540', 'Q220898', 'Q1107']),      // アニメTVシリーズ / アニメ映画 / OVA / アニメ
+  manga: T(['Q21198342', 'Q8274', 'Q747381', 'Q104213567']),     // 漫画シリーズ / 漫画 / ライトノベル / ライトノベルシリーズ
+  game: T(['Q7889', 'Q7058673']),                                // ゲーム / ゲームシリーズ
+  // アニメ・漫画・ゲームにまたがる作品は、この型に本体がある（ラブライブ! 呪術廻戦 など）
+  franchise: T(['Q196600', 'Q18591554']),                        // メディア・フランチャイズ / メディアミックス
+  // 「推し」は作品だけではない。アイドル・バンド・声優・VTuberも同じカレンダーの単位になる
+  group: T(['Q215380', 'Q11446438', 'Q641066', 'Q20643955', 'Q11447112', 'Q742421', 'Q14635346']),
+                                                                 // 音楽グループ / 女性アイドルG / ガールG / ボーイバンド / 男性アイドルG / 劇団 / MCN
+  vtuber: '?item wdt:P106 wd:Q55155641 .',                       // バーチャルYouTuber（職業）
+  voice: '?item wdt:P106 ?occ . VALUES ?occ { wd:Q622807 wd:Q2405480 }',  // 声優
+  // 事務所（ホロライブ・にじさんじ等）は「企業」としか書かれておらず型で引けないので、
+  // VTuberの所属先をたどって拾う
+  agency: '?v wdt:P106 wd:Q55155641 . { ?v wdt:P1416 ?item } UNION { ?v wdt:P361 ?item }',
 };
 
-function sparql(qids) {
-  const values = qids.map(q => `wd:${q}`).join(' ');
+function sparql(clause) {
   return `
 SELECT ?item ?label ?article ?sitelinks (GROUP_CONCAT(DISTINCT ?alias; separator="${SEP}") AS ?aliases) (SAMPLE(?kanaRaw) AS ?kana) WHERE {
-  VALUES ?type { ${values} }
-  ?item wdt:P31 ?type .
+  ${clause}
   ?article schema:about ?item ; schema:isPartOf <https://ja.wikipedia.org/> .
   ?item rdfs:label ?label . FILTER(lang(?label) = "ja")
   OPTIONAL { ?item skos:altLabel ?alias . FILTER(lang(?alias) = "ja") }
@@ -54,9 +61,9 @@ async function run(query, tries = 3) {
 
 const rows = new Map(); // qid → row（同じ作品が複数の種別に該当することがあるので統合）
 
-for (const [kind, qids] of Object.entries(TYPES)) {
+for (const [kind, clause] of Object.entries(GROUPS)) {
   process.stderr.write(`${kind} を取得中…\n`);
-  const bindings = await run(sparql(qids));
+  const bindings = await run(sparql(clause));
   for (const b of bindings) {
     const qid = b.item.value.replace('http://www.wikidata.org/entity/', '');
     const article = decodeURIComponent(b.article.value.replace('https://ja.wikipedia.org/wiki/', '')).replace(/_/g, ' ');

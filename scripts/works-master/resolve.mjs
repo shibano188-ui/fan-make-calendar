@@ -37,6 +37,8 @@ function kanaKey(s) {
 }
 
 const stripDisamb = s => s.replace(/\s*[(（][^()（）]*[)）]\s*$/, '').trim();
+// Wikipediaの記事名は「ドラゴンクエストシリーズ」のように接尾辞が付く。作品名としては不自然なので落とす
+const stripSeries = s => { const t = s.replace(/\s*シリーズ$/, '').trim(); return t.length >= 2 ? t : s; };
 function isSubsequence(a, b) { let i = 0; for (const c of b) if (c === a[i] && ++i === a.length) return true; return i === a.length; }
 
 // ── 選別 ──────────────────────────────────────────────
@@ -49,7 +51,7 @@ for (const w of works) {
   const kana = w.kana ?? r?.defaultsort ?? null;
   // 正式名は Wikipedia の記事名（曖昧さ回避の括弧だけ落とす）を採る。
   // Wikidataのラベルは誤字が混ざる（例:「Re:ゼロから始める異世界生活」）ので別名側に回す
-  const title = stripDisamb(w.article) || w.title;
+  const title = stripSeries(stripDisamb(w.article) || w.title);
   const tN = norm(title), tK = kana ? kanaKey(kana) : '';
   const aliases = [];
   const add = (a, why) => {
@@ -59,7 +61,7 @@ for (const w of works) {
     aliases.push(a); stats[why]++; kept.push([a, title, why]);
     return true;
   };
-  for (const a of [w.title, ...w.aliases]) add(stripDisamb(a), 'wd');
+  for (const a of [w.title, stripDisamb(w.article), ...w.aliases]) add(stripDisamb(a), 'wd');
   for (const a of (r?.redirects ?? [])) {
     const s = stripDisamb(a), aN = norm(s), aK = kanaKey(s);
     if (!s || s === title || aN.length < 2) continue;
@@ -142,12 +144,23 @@ function resolve(input) {
   const q = norm(input);
   if (q.length < 2) return null;
   const hit = byNorm.get(q);
-  if (hit) return { title: hit.title, how: '表記一致', auto: true };
+  if (hit) {
+    let rival = null;
+    for (const [k, e] of byNorm) {
+      if (e.qid === hit.qid || !k.includes(q)) continue;
+      if (e.sitelinks >= hit.sitelinks * 2 && (!rival || e.sitelinks > rival.sitelinks)) rival = e;
+    }
+    if (rival) return { title: hit.title, how: '表記一致だが紛らわしい', auto: false, others: [rival.title] };
+    return { title: hit.title, how: '表記一致', auto: true };
+  }
   const kq = kanaKey(input);
   if (kq.length >= 2 && byKana.has(kq)) return { title: byKana.get(kq).title, how: 'かな読み一致', auto: true };
   // 部分一致（「ガッシュ」→「金色のガッシュ!!」）。1件だけなら自動、複数なら選ばせる
   const subs = [];
-  for (const [k, e] of byNorm) if (k.includes(q) && !subs.some(x => x.qid === e.qid)) { subs.push(e); if (subs.length > 8) break; }
+  const push = e => { if (!subs.some(x => x.qid === e.qid)) subs.push(e); };
+  for (const [k, e] of byNorm) if (k.includes(q)) { push(e); if (subs.length > 8) break; }
+  // かな読みでも拾う。「のぎざか46」は読みが「のきさかふおおていいしつくす」なので前方一致でしか当たらない
+  if (subs.length < 8 && kq.length >= 3) for (const [k, e] of byKana) if (k.startsWith(kq)) { push(e); if (subs.length > 8) break; }
   if (subs.length >= 1) {
     subs.sort((a, b) => norm(a.title).length - norm(b.title).length);
     return { title: subs[0].title, how: `部分一致 ${subs.length}件`, auto: false, others: subs.slice(1, 4).map(e => e.title) };
@@ -166,12 +179,18 @@ const TESTS = [
   ['ガッシュ', '略称'], ['ハイキュー', '記号落ち'], ['ドラクエ', '略称'], ['ぼっちざろっく', '中黒落ち'],
   ['ぼざろ', '略称'], ['呪術回戦', '誤字'], ['まほあこ', '略称'], ['俺ガイル', '略称'], ['リゼロ', '略称'],
   ['あの花', '略称'], ['けいおん', '記号落ち'], ['SAO', '略称'], ['Fate stay night', '記号落ち'],
-  ['進撃の巨神', '誤字'], ['じゅじゅつかいせん', 'かな入力'], ['ヴァイオレットエヴァーガーデン', 'ヴ揺れ'],
-  ['バイオレットエバーガーデン', 'ヴ揺れ'], ['鬼滅', '略称'], ['スパイファミリー', 'カナ表記'],
-  ['ハイキュー!!', 'そのまま'], ['転スラ', '略称'], ['推しの子', '記号落ち'], ['ウマ娘', '略称'],
-  ['ラブライブ', '記号落ち'], ['ドラゴンボール', 'そのまま'], ['ポケモン', '略称'], ['あんスタ', '略称'],
-  ['ゆるキャン', '記号落ち'], ['よふかしのうた', 'そのまま'], ['ホロライブ', 'マスタ対象外'],
+  ['進撃の巨神', '誤字'], ['じゅじゅつかいせん', 'かな入力'], ['バイオレットエバーガーデン', 'ヴ揺れ'],
+  ['鬼滅', '略称'], ['スパイファミリー', 'カナ表記'], ['転スラ', '略称'], ['推しの子', '記号落ち'],
+  ['ウマ娘', '略称'], ['ラブライブ', '記号落ち'], ['ポケモン', '略称'], ['あんスタ', '略称'],
+  ['ゆるキャン', '記号落ち'], ['プリキュア', 'シリーズ名'], ['ガンダム', 'シリーズ名'],
+  // ここから今回広げた範囲
+  ['ホロライブ', 'VTuber事務所'], ['にじさんじ', 'VTuber事務所'], ['兎田ぺこら', 'VTuber'],
+  ['ぺこら', 'VTuber略称'], ['ぶいすぽ', 'VTuber事務所略称'], ['星街すいせい', 'VTuber'],
+  ['乃木坂46', 'アイドル'], ['のぎざか46', 'かな入力'], ['櫻坂', 'アイドル記号落ち'],
+  ['ヒゲダン', 'バンド略称'], ['キングヌー', 'バンドかな'], ['ヨルシカ', 'バンド'],
+  ['梶裕貴', '声優'], ['花澤香菜', '声優'], ['はなざわかな', '声優かな入力'], ['宝塚歌劇団', '劇団'],
 ];
+
 console.log(`\n実際に引いてみる`);
 let auto = 0, ask = 0, miss = 0;
 for (const [q, kind] of TESTS) {
