@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { X, Plus, Check, Sparkles, Link2, Loader2, Search, Share2 } from 'lucide-react';
 import Chip from '../components/ui/Chip';
-import { resolveWorkName } from '../lib/workName';
+import { resolveWorkName, sameWorkName } from '../lib/workName';
 import { searchWorks, getOrCreateWork, createEvents, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, getUserPublicProfile, listAllParticipatedWorks, type Work } from '../lib/api';
 import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES, GOODS_TAG, ONBOARDING_DEMO_KEY, FEATURE_PREMIUM, oneShotTip } from '../lib/constants';
 import { DEMO_POST_TEXT } from '../lib/demoPost';
@@ -666,7 +666,9 @@ export default function PostNew() {
                     <button key={w.id} onClick={() => { haptic.select(); if (workQuery.trim() && w.name !== workQuery.trim()) { logSearch('post_work', workQuery, workResults.length, user?.id, w.name); maybeAddWorkAlias(w, workQuery); } setWorkId(w.id); setWorkName(w.name); setWorkResults([]); }}
                       className="pressable w-full text-left px-3 py-2.5 text-[14px] border-b border-subtle">{w.name}</button>
                   ))}
-                  {masterNames.map((n) => (
+                  {(workResults.some((w) => sameWorkName(w.name, workQuery)) ? [] : masterNames)
+                    .filter((n) => !workResults.some((w) => sameWorkName(w.name, n)))
+                    .map((n) => (
                     <button key={n} onClick={() => pickWorkName(n)}
                       className="pressable w-full text-left px-3 py-2.5 text-[14px] border-b border-subtle flex items-center justify-between gap-2">
                       <span className="truncate">{n}</span>

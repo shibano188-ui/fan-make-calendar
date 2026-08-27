@@ -4,7 +4,7 @@ import { X, Search, Plus, Check } from 'lucide-react';
 import Sheet from './ui/Sheet';
 import { logSearch } from '../lib/dataLogs';
 import { maybeAddWorkAlias } from '../lib/workAliases';
-import { resolveWorkName } from '../lib/workName';
+import { resolveWorkName, sameWorkName } from '../lib/workName';
 import { searchWorks, getOrCreateWork, upsertParticipation, leaveCalendar, listAllParticipatedWorks, type Work } from '../lib/api';
 import { getCached, setCached } from '../lib/swrCache';
 import { useAuth } from '../contexts/AuthContext';
@@ -140,7 +140,7 @@ export default function WorkFollowSheet({ open, onClose, onChanged, onPick }: Pr
     onClose();
   };
 
-  const exactMatch = (results ?? []).some((w) => w.name === query.trim());
+  const exactMatch = (results ?? []).some((w) => sameWorkName(w.name, query));
 
   const row = (w: Work, isFollowed: boolean) => (
     <div key={w.id} className="flex items-center justify-between gap-2 px-1 py-2.5 border-b border-subtle">
@@ -190,7 +190,7 @@ export default function WorkFollowSheet({ open, onClose, onChanged, onPick }: Pr
           {results !== null && !exactMatch && (
             <>
               {/* 表記ゆれの受け止め。新しく作らせる前に正式表記を出す */}
-              {masterNames.filter((n) => !(results ?? []).some((w) => w.name === n)).map((n) => (
+              {masterNames.filter((n) => !(results ?? []).some((w) => sameWorkName(w.name, n))).map((n) => (
                 <button key={n} onClick={() => createAndFollow(n)} disabled={busyId !== null}
                   className="pressable w-full flex items-center justify-between gap-2 px-1 py-3 text-[14px]">
                   <span className="truncate font-medium text-label-primary">{n}</span>

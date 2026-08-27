@@ -8,7 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { Work } from '../lib/api';
 import { POST_CATEGORIES, loadCategoryFilters, saveCategoryFilters, loadRegionFilter, saveRegionFilter, SHOW_POPULAR_CALENDARS, type FilterMode } from '../lib/constants';
 import { getCached, setCached } from '../lib/swrCache';
-import { resolveWorkName, type WorkNameResolution } from '../lib/workName';
+import { resolveWorkName, sameWorkName, type WorkNameResolution } from '../lib/workName';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { PrefectureSearch } from '../components/UserSettingsSheet';
 import { useConfirm } from '../components/ui/ConfirmDialog';
@@ -225,14 +225,17 @@ export default function WorkSelect() {
   };
 
   const q = query.trim();
-  const exactMatch = q ? searchResults.some(w => w.name.toLowerCase() === q.toLowerCase()) : false;
-  const inResults = (name: string) => searchResults.some(w => w.name === name);
-  // 入力そのものが正式表記なら出す意味がない。検索結果に既にあるものも重ねて出さない
+  const exactMatch = q ? searchResults.some(w => sameWorkName(w.name, q)) : false;
+  const inResults = (name: string) => searchResults.some(w => sameWorkName(w.name, name));
+  // 既に同じ名前のカレンダーがあるなら、辞書の正式表記は出さない。
+  // 「ちいかわ」の正式名は「ちいかわ なんか小さくてかわいいやつ」だが、
+  // 既にみんなが集まっているカレンダーの隣に別名義の作成口を出すと、参加者が二手に割れる。
   const canonicalSuggestion =
-    nameRes?.canonical && nameRes.canonical !== q && !inResults(nameRes.canonical) ? nameRes.canonical : null;
-  const maybeNames = canonicalSuggestion
+    !exactMatch && nameRes?.canonical && !sameWorkName(nameRes.canonical, q) && !inResults(nameRes.canonical)
+      ? nameRes.canonical : null;
+  const maybeNames = canonicalSuggestion || exactMatch
     ? []
-    : (nameRes?.candidates ?? []).map(c => c.name).filter(n => n !== q && !inResults(n)).slice(0, 4);
+    : (nameRes?.candidates ?? []).map(c => c.name).filter(n => !sameWorkName(n, q) && !inResults(n)).slice(0, 4);
   const suggesting = !!canonicalSuggestion || maybeNames.length > 0;
   const canCreate = q.length > 0 && !exactMatch;
   const showSearchResults = q.length > 0;

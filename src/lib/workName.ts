@@ -13,6 +13,22 @@ export type WorkNameCandidate = {
   match: WorkNameMatch;
 };
 
+// 表示の判断（既にある作品と同じものか）にだけ使う軽い正規化。
+// 正のキーはDB側の work_name_norm が作る。ここは近似でよく、ずれても候補が1つ出るか出ないかの差にしかならない。
+const KANA_FOLD: [RegExp, string][] = [[/[ヴゔ]ぁ/g, 'ば'], [/[ヴゔ]ぃ/g, 'び'], [/[ヴゔ]ぇ/g, 'べ'], [/[ヴゔ]ぉ/g, 'ぼ'], [/[ヴゔ]/g, 'ぶ']];
+
+function looseKey(s: string): string {
+  let t = s.normalize('NFKC').toLowerCase().replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
+  for (const [re, to] of KANA_FOLD) t = t.replace(re, to);
+  return t.replace(/[ー〜~‐‑–—―-]/g, '').replace(/[^\p{Letter}\p{Number}]/gu, '');
+}
+
+/** 表記のゆれを無視して同じ作品名か */
+export function sameWorkName(a: string, b: string): boolean {
+  const ka = looseKey(a);
+  return ka.length > 0 && ka === looseKey(b);
+}
+
 /** 確信度が高く、黙って正式表記に直してよい当たり方 */
 const CERTAIN: WorkNameMatch[] = ['exact', 'alias', 'kana'];
 
