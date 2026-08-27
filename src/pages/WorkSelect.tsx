@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { Work } from '../lib/api';
 import { POST_CATEGORIES, loadCategoryFilters, saveCategoryFilters, loadRegionFilter, saveRegionFilter, SHOW_POPULAR_CALENDARS, type FilterMode } from '../lib/constants';
 import { getCached, setCached } from '../lib/swrCache';
+import { resolveWorkName, type WorkNameResolution } from '../lib/workName';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { PrefectureSearch } from '../components/UserSettingsSheet';
 import { useConfirm } from '../components/ui/ConfirmDialog';
@@ -122,6 +123,7 @@ export default function WorkSelect() {
   const [popularWorks, setPopularWorks] = useState<Work[]>([]);
   const [recentWorks, setRecentWorks] = useState<Work[]>([]);
   const [searchResults, setSearchResults] = useState<Work[]>([]);
+  const [nameRes, setNameRes] = useState<WorkNameResolution | null>(null);
   const [loadingPopular, setLoadingPopular] = useState(true);
   const [error, setError] = useState('');
   const [pendingWork, setPendingWork] = useState<Work | null>(null);
@@ -162,9 +164,11 @@ export default function WorkSelect() {
 
   useEffect(() => {
     const q = query.trim();
-    if (!q) { setSearchResults([]); return; }
+    if (!q) { setSearchResults([]); setNameRes(null); return; }
     const timer = setTimeout(() => {
       searchWorks(q).then(setSearchResults).catch(console.error);
+      // 表記ゆれの辞書を引く。「ぼざろ」「ドラクエ」は作品名の部分一致では出てこない
+      resolveWorkName(q).then(setNameRes).catch(() => setNameRes(null));
     }, 300);
     return () => clearTimeout(timer);
   }, [query]);
@@ -195,8 +199,8 @@ export default function WorkSelect() {
     }
   };
 
-  const handleCreate = async () => {
-    const name = query.trim();
+  const handleCreate = async (override?: string) => {
+    const name = (override ?? query).trim();
     if (!name || !user) return;
     try {
       const work = await getOrCreateWork(name);
@@ -222,6 +226,14 @@ export default function WorkSelect() {
 
   const q = query.trim();
   const exactMatch = q ? searchResults.some(w => w.name.toLowerCase() === q.toLowerCase()) : false;
+  const inResults = (name: string) => searchResults.some(w => w.name === name);
+  // 入力そのものが正式表記なら出す意味がない。検索結果に既にあるものも重ねて出さない
+  const canonicalSuggestion =
+    nameRes?.canonical && nameRes.canonical !== q && !inResults(nameRes.canonical) ? nameRes.canonical : null;
+  const maybeNames = canonicalSuggestion
+    ? []
+    : (nameRes?.candidates ?? []).map(c => c.name).filter(n => n !== q && !inResults(n)).slice(0, 4);
+  const suggesting = !!canonicalSuggestion || maybeNames.length > 0;
   const canCreate = q.length > 0 && !exactMatch;
   const showSearchResults = q.length > 0;
   const noResults = showSearchResults && searchResults.length === 0;
@@ -294,18 +306,56 @@ export default function WorkSelect() {
               <p className="text-label-tertiary text-sm text-center py-4">「{q}」に一致する作品が見つかりません</p>
             )}
 
-            {canCreate && (
+            {/* 表記ゆれの受け止め。「ぼざろ」「ドラクエ」「呪術回戦」は作品名の部分一致では出てこないので、
+                新しく作らせる前に正式表記を提示する */}
+            {canonicalSuggestion && (
               <div className="mt-2">
                 <button
-                  onClick={handleCreate}
+                  onClick={() => handleCreate(canonicalSuggestion)}
                   className="w-full flex items-center justify-between px-4 py-3.5 rounded-[14px] text-left active:opacity-70 transition-opacity"
                   style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)', color: 'var(--accent-color)' }}
                 >
-                  <div>
-                    <p className="font-semibold text-[15px]">「{q}」を新しく作る</p>
-                    <p className="text-xs mt-0.5 opacity-70">このカレンダーを最初に作成する</p>
+                  <div className="min-w-0">
+                    <p className="text-xs opacity-70">正式な作品名</p>
+                    <p className="font-semibold text-[15px] mt-0.5 truncate">{canonicalSuggestion}</p>
                   </div>
                   <ChevronRight size={16} className="flex-shrink-0 ml-2 opacity-60" />
+                </button>
+              </div>
+            )}
+
+            {maybeNames.length > 0 && (
+              <div className="mt-4">
+                <p className="text-label-secondary text-xs mb-2">もしかして</p>
+                <div className="flex flex-col gap-2">
+                  {maybeNames.map(name => (
+                    <button
+                      key={name}
+                      onClick={() => handleCreate(name)}
+                      className="w-full flex items-center justify-between px-4 py-3 bg-bg-secondary rounded-[14px] text-left active:opacity-70 transition-opacity"
+                    >
+                      <p className="font-semibold text-[15px] text-label-primary truncate">{name}</p>
+                      <ChevronRight size={16} className="text-label-tertiary flex-shrink-0 ml-2" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {canCreate && (
+              <div className="mt-4">
+                <button
+                  onClick={() => handleCreate()}
+                  className={`w-full flex items-center justify-between px-4 py-3.5 rounded-[14px] text-left active:opacity-70 transition-opacity ${suggesting ? 'bg-bg-secondary' : ''}`}
+                  style={suggesting ? undefined : { backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)', color: 'var(--accent-color)' }}
+                >
+                  <div className="min-w-0">
+                    <p className={`font-semibold text-[15px] truncate ${suggesting ? 'text-label-primary' : ''}`}>「{q}」を新しく作る</p>
+                    <p className={`text-xs mt-0.5 ${suggesting ? 'text-label-secondary' : 'opacity-70'}`}>
+                      {suggesting ? '上に無ければこちら' : 'このカレンダーを最初に作成する'}
+                    </p>
+                  </div>
+                  <ChevronRight size={16} className={`flex-shrink-0 ml-2 ${suggesting ? 'text-label-tertiary' : 'opacity-60'}`} />
                 </button>
               </div>
             )}

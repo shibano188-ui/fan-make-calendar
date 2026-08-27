@@ -4,6 +4,7 @@ import { X, Search, Plus, Check } from 'lucide-react';
 import Sheet from './ui/Sheet';
 import { logSearch } from '../lib/dataLogs';
 import { maybeAddWorkAlias } from '../lib/workAliases';
+import { resolveWorkName } from '../lib/workName';
 import { searchWorks, getOrCreateWork, upsertParticipation, leaveCalendar, listAllParticipatedWorks, type Work } from '../lib/api';
 import { getCached, setCached } from '../lib/swrCache';
 import { useAuth } from '../contexts/AuthContext';
@@ -30,6 +31,8 @@ export default function WorkFollowSheet({ open, onClose, onChanged, onPick }: Pr
   const [follows, setFollows] = useState<Work[]>([]);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Work[] | null>(null);
+  // 表記ゆれ辞書からの正式名候補
+  const [masterNames, setMasterNames] = useState<string[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const premium = usePremium();
   // 上限に達していたら新規フォローだけ止める。**今フォロー中のものは触らない**（不利益変更にしない）。
@@ -60,9 +63,16 @@ export default function WorkFollowSheet({ open, onClose, onChanged, onPick }: Pr
   useEffect(() => {
     if (!open) return;
     const q = query.trim();
-    if (!q) { setResults(null); return; }
+    if (!q) { setResults(null); setMasterNames([]); return; }
     let alive = true;
-    const t = setTimeout(() => { searchWorks(q).then((r) => alive && setResults(r)).catch(() => {}); }, 250);
+    const t = setTimeout(() => {
+      searchWorks(q).then((r) => alive && setResults(r)).catch(() => {});
+      resolveWorkName(q).then((res) => {
+        if (!alive) return;
+        const names = res.canonical ? [res.canonical] : res.candidates.map((c) => c.name).slice(0, 4);
+        setMasterNames(names.filter((n) => n !== q));
+      }).catch(() => setMasterNames([]));
+    }, 250);
     return () => { alive = false; clearTimeout(t); };
   }, [query, open]);
 
@@ -104,8 +114,8 @@ export default function WorkFollowSheet({ open, onClose, onChanged, onPick }: Pr
     setBusyId(null);
   };
 
-  const createAndFollow = async () => {
-    const name = query.trim();
+  const createAndFollow = async (override?: string) => {
+    const name = (override ?? query).trim();
     if (!user || !name || busyId) return;
     if (await blocked()) return;
     haptic.select();
@@ -178,11 +188,21 @@ export default function WorkFollowSheet({ open, onClose, onChanged, onPick }: Pr
         <>
           {(results ?? []).map((w) => row(w, followedIds.has(w.id)))}
           {results !== null && !exactMatch && (
-            <button onClick={createAndFollow} disabled={busyId !== null}
-              className="pressable w-full flex items-center gap-2 px-1 py-3 text-[14px] font-medium"
-              style={{ color: 'var(--accent-text)' }}>
-              <Plus size={16} /> 「{query.trim()}」を作成してフォロー
-            </button>
+            <>
+              {/* 表記ゆれの受け止め。新しく作らせる前に正式表記を出す */}
+              {masterNames.filter((n) => !(results ?? []).some((w) => w.name === n)).map((n) => (
+                <button key={n} onClick={() => createAndFollow(n)} disabled={busyId !== null}
+                  className="pressable w-full flex items-center justify-between gap-2 px-1 py-3 text-[14px]">
+                  <span className="truncate font-medium text-label-primary">{n}</span>
+                  <span className="text-[11px] text-label-tertiary flex-shrink-0">正式名</span>
+                </button>
+              ))}
+              <button onClick={() => createAndFollow()} disabled={busyId !== null}
+                className="pressable w-full flex items-center gap-2 px-1 py-3 text-[14px] font-medium"
+                style={{ color: 'var(--accent-text)' }}>
+                <Plus size={16} /> 「{query.trim()}」を作成してフォロー
+              </button>
+            </>
           )}
           {results !== null && results.length === 0 && (
             <p className="px-1 pt-1 text-[12px] text-label-tertiary">見つかりません。表記ゆれ（略称・正式名）でも検索してみてください。</p>

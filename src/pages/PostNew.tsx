@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { X, Plus, Check, Sparkles, Link2, Loader2, Search, Share2 } from 'lucide-react';
 import Chip from '../components/ui/Chip';
+import { resolveWorkName } from '../lib/workName';
 import { searchWorks, getOrCreateWork, createEvents, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, getUserPublicProfile, listAllParticipatedWorks, type Work } from '../lib/api';
 import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES, GOODS_TAG, ONBOARDING_DEMO_KEY, FEATURE_PREMIUM, oneShotTip } from '../lib/constants';
 import { DEMO_POST_TEXT } from '../lib/demoPost';
@@ -74,6 +75,8 @@ export default function PostNew() {
   const [workName, setWorkName] = useState<string>(draft0?.workName ?? '');
   const [workQuery, setWorkQuery] = useState<string>(draft0?.workQuery ?? '');
   const [workResults, setWorkResults] = useState<Work[]>([]);
+  // 表記ゆれ辞書からの候補。「ぼざろ」「ドラクエ」は既存作品名の部分一致では出てこない
+  const [masterNames, setMasterNames] = useState<string[]>([]);
   const [workSheetOpen, setWorkSheetOpen] = useState(false);
   const [title, setTitle] = useState<string>(draft0?.title ?? '');
   const [cats, setCats] = useState<Set<string>>(new Set(draft0?.cats ?? []));
@@ -178,7 +181,7 @@ export default function PostNew() {
   // 作品オートコンプリート（名寄せ簡易版: 既存検索＋新規作成）
   useEffect(() => {
     const q = workQuery.trim();
-    if (!q || workId) { setWorkResults([]); return; }
+    if (!q || workId) { setWorkResults([]); setMasterNames([]); return; }
     let alive = true;
     const t = setTimeout(() => {
       searchWorks(q).then((r) => {
@@ -187,6 +190,11 @@ export default function PostNew() {
         // 検索クエリログ（データ資産化②の素材）
         logSearch('post_work', q, r.length, user?.id);
       }).catch(() => {});
+      resolveWorkName(q).then((res) => {
+        if (!alive) return;
+        const names = res.canonical ? [res.canonical] : res.candidates.map((c) => c.name).slice(0, 4);
+        setMasterNames(names.filter((n) => n !== q));
+      }).catch(() => setMasterNames([]));
     }, 250);
     return () => { alive = false; clearTimeout(t); };
   }, [workQuery, workId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -270,19 +278,38 @@ export default function PostNew() {
     finally { setSearchingProduct(false); }
   };
 
+  /** 正式表記の候補を選んだとき。既に同名の作品があればそれに確定し、無ければ入力欄を正式表記にする */
+  const pickWorkName = (name: string) => {
+    haptic.select();
+    setWorkQuery(name); setWorkName(name); setWorkId(null);
+    setWorkResults([]); setMasterNames([]);
+    searchWorks(name).then((rs) => {
+      const exact = rs.find((w) => w.name === name);
+      if (exact) { setWorkId(exact.id); setWorkName(exact.name); }
+    }).catch(() => {});
+  };
+
   const applyParsed = (p: ParsedEvent) => {
     if (aiSourceRef.current) aiLogRef.current = { ...aiSourceRef.current, output: p };
     const parsedType = deriveItemType({ category: p.category ?? undefined });
     setType(parsedType);
     if (p.title) setTitle(p.title);
     if (p.work) {
-      // 作品の名寄せ: 既存に完全一致があれば確定、無ければ入力欄に入れて確認/新規作成
+      // 作品の名寄せ: まず表記ゆれ辞書で正式表記に直し、既存に完全一致があれば確定。
+      // AIは「略称は正式名称に直す」と指示していても表記が揺れるので、ここで揃える
       const name = p.work;
       setWorkId(null); setWorkName(''); setWorkQuery(name);
-      searchWorks(name).then((rs) => {
-        const exact = rs.find((w) => w.name === name);
-        if (exact) { setWorkId(exact.id); setWorkName(exact.name); }
-      }).catch(() => {});
+      resolveWorkName(name)
+        .then((res) => res.canonical ?? name)
+        .catch(() => name)
+        .then((canonical) => {
+          if (canonical !== name) setWorkQuery(canonical);
+          return searchWorks(canonical).then((rs) => {
+            const exact = rs.find((w) => w.name === canonical);
+            if (exact) { setWorkId(exact.id); setWorkName(exact.name); }
+          });
+        })
+        .catch(() => {});
     }
     if (p.price != null) setPrice(String(p.price));
     // カテゴリ。イベントで物販あり（AI検出）なら「グッズあり」を付与（グッズ一覧にも出る）
@@ -633,11 +660,18 @@ export default function PostNew() {
           ) : (
             <div className="relative">
               <input value={workQuery} onChange={(e) => setWorkQuery(e.target.value)} placeholder="作品名を入力" className={inputCls} style={inputStyle} />
-              {(workResults.length > 0 || workQuery.trim()) && (
+              {(workResults.length > 0 || masterNames.length > 0 || workQuery.trim()) && (
                 <div className="absolute left-0 right-0 mt-1 z-10 rounded-[10px] border border-subtle overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>
                   {workResults.map((w) => (
                     <button key={w.id} onClick={() => { haptic.select(); if (workQuery.trim() && w.name !== workQuery.trim()) { logSearch('post_work', workQuery, workResults.length, user?.id, w.name); maybeAddWorkAlias(w, workQuery); } setWorkId(w.id); setWorkName(w.name); setWorkResults([]); }}
                       className="pressable w-full text-left px-3 py-2.5 text-[14px] border-b border-subtle">{w.name}</button>
+                  ))}
+                  {masterNames.map((n) => (
+                    <button key={n} onClick={() => pickWorkName(n)}
+                      className="pressable w-full text-left px-3 py-2.5 text-[14px] border-b border-subtle flex items-center justify-between gap-2">
+                      <span className="truncate">{n}</span>
+                      <span className="text-[11px] text-label-tertiary flex-shrink-0">正式名</span>
+                    </button>
                   ))}
                   {workQuery.trim() && !workResults.some((w) => w.name === workQuery.trim()) && (
                     <button onClick={() => { haptic.select(); setWorkName(workQuery.trim()); setWorkId(null); setWorkResults([]); }}
