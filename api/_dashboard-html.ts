@@ -6,7 +6,7 @@ export const PAGE = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>FanHive 指標</title>
+<title>ダッシュボード</title>
 <style>
   :root{
     --bg:#0e0e10; --card:#17171b; --line:#26262c; --ink:#eceef1;
@@ -19,7 +19,7 @@ export const PAGE = `<!doctype html>
     font-size:14px;line-height:1.7;-webkit-font-smoothing:antialiased}
   .wrap{max-width:1180px;margin:0 auto;padding:0 20px 80px}
 
-  /* 合言葉 */
+  /* パスワード */
   #gate{min-height:100vh;display:grid;place-items:center;padding:20px}
   #gate form{width:100%;max-width:320px;text-align:center}
   #gate h1{font-size:19px;margin:0 0 6px;font-weight:700}
@@ -69,8 +69,8 @@ export const PAGE = `<!doctype html>
 
 <div id="gate">
   <form onsubmit="return enter(event)">
-    <h1>FanHive 指標</h1>
-    <p>合言葉を入れてください</p>
+    <h1>ダッシュボード</h1>
+    <p>パスワードを入れてください</p>
     <input id="pw" type="password" autocomplete="current-password" autofocus>
     <button type="submit">開く</button>
     <div class="err" id="gerr"></div>
@@ -80,7 +80,7 @@ export const PAGE = `<!doctype html>
 <div class="wrap" id="app" hidden>
   <header>
     <div>
-      <h1>FanHive 指標</h1>
+      <h1>ダッシュボード</h1>
       <div class="meta" id="meta"></div>
     </div>
     <div class="range">
@@ -113,7 +113,7 @@ function load(){
     .then(function(r){
       if(r.status === 401){
         try{ sessionStorage.removeItem('fh_metrics'); }catch(e){}
-        document.getElementById('gerr').textContent = '合言葉が違います';
+        document.getElementById('gerr').textContent = 'パスワードが違います';
         throw new Error('401');
       }
       if(!r.ok){ throw new Error('読み込みに失敗しました (' + r.status + ')'); }
