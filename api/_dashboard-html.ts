@@ -97,23 +97,41 @@ export const PAGE = `<!doctype html>
 <script>
 var DATA = null, RANGE = 90;
 
-function tok(){ try{ return sessionStorage.getItem('fh_metrics') || ''; }catch(e){ return ''; } }
-function setTok(v){ try{ sessionStorage.setItem('fh_metrics', v); }catch(e){} }
+// パスワードはまずこの変数に持つ。sessionStorage は使えれば使う程度に留める
+// （プライベート閲覧や保存を切っている環境だと例外になり、黙って止まってしまうため）。
+var TOKEN = '';
+function tok(){
+  if(TOKEN) return TOKEN;
+  try{ return sessionStorage.getItem('fh_metrics') || ''; }catch(e){ return ''; }
+}
+function setTok(v){
+  TOKEN = v;
+  try{ sessionStorage.setItem('fh_metrics', v); }catch(e){}
+}
+function gerr(msg){ document.getElementById('gerr').textContent = msg; }
 
 function enter(e){
-  e.preventDefault();
-  setTok(document.getElementById('pw').value);
-  load();
+  if(e && e.preventDefault) e.preventDefault();
+  try{
+    var v = document.getElementById('pw').value;
+    if(!v){ gerr('パスワードを入れてください'); return false; }
+    gerr('確認しています…');
+    setTok(v);
+    load();
+  }catch(err){
+    gerr('エラー: ' + (err && err.message ? err.message : String(err)));
+  }
   return false;
 }
 
 function load(){
-  if(!tok()){ return; }
+  if(!tok()){ gerr('パスワードを入れてください'); return; }
   fetch('/api/metrics?data=1&token=' + encodeURIComponent(tok()))
     .then(function(r){
       if(r.status === 401){
+        TOKEN = '';
         try{ sessionStorage.removeItem('fh_metrics'); }catch(e){}
-        document.getElementById('gerr').textContent = 'パスワードが違います';
+        gerr('パスワードが違います');
         throw new Error('401');
       }
       if(!r.ok){ throw new Error('読み込みに失敗しました (' + r.status + ')'); }
@@ -121,16 +139,31 @@ function load(){
     })
     .then(function(j){
       DATA = j;
+      gerr('');
       document.getElementById('gate').hidden = true;
       document.getElementById('app').hidden = false;
-      render();
+      try{
+        render();
+      }catch(err){
+        document.getElementById('err').textContent =
+          '表示でエラー: ' + (err && err.message ? err.message : String(err));
+      }
     })
     .catch(function(err){
       if(err.message !== '401'){
-        document.getElementById('err').textContent = err.message;
+        gerr(err && err.message ? err.message : String(err));
       }
     });
 }
+
+// 何かの拍子に onsubmit が効かない環境でも押せるようにしておく
+window.addEventListener('DOMContentLoaded', function(){
+  var b = document.querySelector('#gate button');
+  if(b) b.addEventListener('click', enter);
+});
+window.addEventListener('error', function(ev){
+  gerr('エラー: ' + (ev.message || 'unknown'));
+});
 
 /* ---------- 見せ方の設定 ---------- */
 
