@@ -1,13 +1,17 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { PAGE } from './_dashboard-html.js';
+import { loginPage, dashboardPage } from './_dashboard-html.js';
 
 // 指標まわりの入口。Hobbyプランは1デプロイ12関数までで、既に11個あるため
 // 「集める・返す・見せる」の3つを1本にまとめてある。呼ばれ方で分岐する:
 //
 //   Authorization: Bearer <CRON_SECRET>   … 毎日のCron。metrics_daily に貯める
-//   ?data=1&token=<METRICS_TOKEN>         … ダッシュボードが読むJSON
-//   それ以外                               … ダッシュボードのHTML
+//   POST（pw=…）                          … パスワード確認。合えばCookieを置く
+//   GET（Cookieあり）                      … データを埋め込んだダッシュボード
+//   GET（Cookieなし）                      … パスワードの入力画面
+//
+// 画面側からは一切通信しない。Service Worker や sessionStorage の状態で
+// 「押しても何も起きない」が起きないようにするため。
 //
 // 集計の中身は SQL 側（collect_daily_metrics）。指標を足してもここは触らなくてよい。
 //
@@ -65,10 +69,10 @@ export async function collect(req: VercelRequest, res: VercelResponse) {
   return res.status(200).json({ ok: true, days: [yesterday, today] });
 }
 
-/** ダッシュボードが読むJSON。縦持ちを「1日1行」に畳んで返す。 */
-async function series(res: VercelResponse) {
+/** 縦持ちの metrics_daily を「1日1行」に畳む。 */
+async function series() {
   const client = db();
-  if (!client) return res.status(500).json({ error: 'Server config error' });
+  if (!client) throw new Error('Server config error');
 
   // PostgREST は1回の応答が最大1000行（db-max-rows）。指標が16本あると
   // 60日ぶんちょっとで頭打ちになるので、range でページ送りして全部取る。
@@ -82,7 +86,7 @@ async function series(res: VercelResponse) {
       .order('day', { ascending: true })
       .order('metric', { ascending: true })
       .range(from, from + PAGE_SIZE - 1);
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) throw new Error(error.message);
     for (const r of data ?? []) {
       const row = byDay.get(r.day) ?? {};
       row[r.metric] = Number(r.value);
@@ -95,8 +99,25 @@ async function series(res: VercelResponse) {
   const out: Record<string, (number | null)[]> = {};
   for (const m of METRICS) out[m] = days.map((d) => byDay.get(d)?.[m] ?? null);
 
+  return { days, series: out, updatedAt: new Date().toISOString() };
+}
+
+/** <script> の中に安全に置ける JSON。`</script>` で抜けられないようにする。 */
+function embed(v: unknown): string {
+  return JSON.stringify(v).replace(/</g, '\\u003c');
+}
+
+function cookieToken(req: VercelRequest): string {
+  const raw = req.headers.cookie ?? '';
+  const hit = raw.split(';').map((c) => c.trim()).find((c) => c.startsWith('fh_m='));
+  return hit ? decodeURIComponent(hit.slice(5)) : '';
+}
+
+function html(res: VercelResponse, body: string, status = 200) {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
-  return res.status(200).json({ days, series: out, updatedAt: new Date().toISOString() });
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+  return res.status(status).send(body);
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -106,17 +127,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return collect(req, res);
   }
 
-  // ② データ
-  if (req.query.data) {
-    const token = process.env.METRICS_TOKEN;
-    const given = (req.query.token as string | undefined) ?? '';
-    if (!token || given !== token) return res.status(401).json({ error: 'Unauthorized' });
-    return series(res);
+  const pass = process.env.METRICS_TOKEN;
+  if (!pass) return html(res, loginPage('サーバー側のパスワードが未設定です'), 500);
+
+  // ② パスワードの送信
+  if (req.method === 'POST') {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const given = typeof body.pw === 'string' ? body.pw : '';
+    if (given !== pass) return html(res, loginPage('パスワードが違います'), 401);
+    // 30日もつ。HttpOnly なので画面側のJavaScriptからは触れない
+    res.setHeader('Set-Cookie',
+      `fh_m=${encodeURIComponent(pass)}; Path=/api/metrics; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`);
+    return render(res);
   }
 
-  // ③ 画面
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store');
-  res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-  return res.status(200).send(PAGE);
+  // ③ 表示
+  if (cookieToken(req) === pass) return render(res);
+  return html(res, loginPage(''));
+}
+
+async function render(res: VercelResponse) {
+  try {
+    const data = await series();
+    return html(res, dashboardPage(embed(data)));
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return html(res, loginPage('データの読み込みに失敗しました: ' + msg), 500);
+  }
 }

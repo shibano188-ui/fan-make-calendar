@@ -1,6 +1,11 @@
-// チーム用ダッシュボードの中身。api/dashboard.ts がこれをそのまま返す。
+// チーム用ダッシュボードの中身。api/metrics.ts が返す。
 // 依存なし（外部のグラフ用ライブラリを読まない）。グラフはSVGを自前で描く。
-export const PAGE = `<!doctype html>
+//
+// 画面側から通信しない作りにしてある。パスワードは普通のHTMLフォームでPOSTし、
+// データはサーバーが埋め込んだ状態で返す。Service Worker や sessionStorage の
+// 状態に左右されず、JavaScriptが動かなくてもログインだけは必ず反応する。
+
+const HEAD = `<!doctype html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
@@ -65,19 +70,28 @@ export const PAGE = `<!doctype html>
   #err{color:var(--down);padding:20px 0}
 </style>
 </head>
-<body>
+`;
 
+/** パスワード入力の画面。JavaScriptが動かなくても押せる普通のフォーム。 */
+export function loginPage(error: string): string {
+  return HEAD + `<body>
 <div id="gate">
-  <form onsubmit="return enter(event)">
+  <form method="post" action="/api/metrics">
     <h1>ダッシュボード</h1>
     <p>パスワードを入れてください</p>
-    <input id="pw" type="password" autocomplete="current-password" autofocus>
+    <input id="pw" name="pw" type="password" autocomplete="current-password" autofocus>
     <button type="submit">開く</button>
-    <div class="err" id="gerr"></div>
+    <div class="err">${error}</div>
   </form>
 </div>
+</body>
+</html>`;
+}
 
-<div class="wrap" id="app" hidden>
+/** データを埋め込んだダッシュボード本体。 */
+export function dashboardPage(dataJson: string): string {
+  return HEAD + `<body>
+<div class="wrap" id="app">
   <header>
     <div>
       <h1>ダッシュボード</h1>
@@ -93,89 +107,11 @@ export const PAGE = `<!doctype html>
   <div class="grid" id="grid"></div>
   <div id="err"></div>
 </div>
-
+<script>window.__DATA__ = ${dataJson};</script>
 <script>
-var DATA = null, RANGE = 90;
-
-// パスワードはまずこの変数に持つ。sessionStorage は使えれば使う程度に留める
-// （プライベート閲覧や保存を切っている環境だと例外になり、黙って止まってしまうため）。
-var TOKEN = '';
-function tok(){
-  if(TOKEN) return TOKEN;
-  try{ return sessionStorage.getItem('fh_metrics') || ''; }catch(e){ return ''; }
-}
-function setTok(v){
-  TOKEN = v;
-  try{ sessionStorage.setItem('fh_metrics', v); }catch(e){}
-}
-function gerr(msg){ document.getElementById('gerr').textContent = msg; }
-
-function enter(e){
-  if(e && e.preventDefault) e.preventDefault();
-  try{
-    var v = document.getElementById('pw').value;
-    if(!v){ gerr('パスワードを入れてください'); return false; }
-    gerr('確認しています…');
-    setTok(v);
-    load();
-  }catch(err){
-    gerr('エラー: ' + (err && err.message ? err.message : String(err)));
-  }
-  return false;
-}
-
-function load(){
-  if(!tok()){ gerr('パスワードを入れてください'); return; }
-
-  // 応答が返らないまま黙って止まるのを防ぐ。Service Worker の入れ替わりに
-  // 巻き込まれると fetch が返らないことがあるので、状況も一緒に出す。
-  var done = false;
-  setTimeout(function(){
-    if(done) return;
-    var sw = ('serviceWorker' in navigator && navigator.serviceWorker.controller) ? 'あり' : 'なし';
-    gerr('応答がありません（15秒）。Service Worker: ' + sw + '。ページを再読み込みして試してください');
-  }, 15000);
-
-  fetch('/api/metrics?data=1&token=' + encodeURIComponent(tok()), { cache: 'no-store' })
-    .then(function(r){
-      done = true;
-      if(r.status === 401){
-        TOKEN = '';
-        try{ sessionStorage.removeItem('fh_metrics'); }catch(e){}
-        gerr('パスワードが違います');
-        throw new Error('401');
-      }
-      if(!r.ok){ throw new Error('読み込みに失敗しました (' + r.status + ')'); }
-      return r.json();
-    })
-    .then(function(j){
-      DATA = j;
-      gerr('');
-      document.getElementById('gate').hidden = true;
-      document.getElementById('app').hidden = false;
-      try{
-        render();
-      }catch(err){
-        document.getElementById('err').textContent =
-          '表示でエラー: ' + (err && err.message ? err.message : String(err));
-      }
-    })
-    .catch(function(err){
-      done = true;
-      if(err.message !== '401'){
-        gerr(err && err.message ? err.message : String(err));
-      }
-    });
-}
-
-// 何かの拍子に onsubmit が効かない環境でも押せるようにしておく
-window.addEventListener('DOMContentLoaded', function(){
-  var b = document.querySelector('#gate button');
-  if(b) b.addEventListener('click', enter);
-});
-window.addEventListener('error', function(ev){
-  gerr('エラー: ' + (ev.message || 'unknown'));
-});
+// データはサーバーが埋め込み済み。画面側から通信はしない。
+var DATA = window.__DATA__;
+var RANGE = 90;
 
 /* ---------- 見せ方の設定 ---------- */
 
@@ -394,7 +330,8 @@ document.querySelectorAll('.range button').forEach(function(btn){
   });
 });
 
-if(tok()) load();
+render();
 </script>
 </body>
 </html>`;
+}
