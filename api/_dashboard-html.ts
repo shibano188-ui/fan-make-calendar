@@ -116,6 +116,9 @@ var RANGE = 90;
 /* ---------- 見せ方の設定 ---------- */
 
 var YEN = function(v){ return '¥' + Math.round(v).toLocaleString('ja-JP'); };
+var USD = function(v){ return '$' + v.toLocaleString('ja-JP', { maximumFractionDigits: 2 }); };
+var RATE = 155; // api/_aiusage.ts と同じ。円の概算に使うだけ
+var USDJPY = function(v){ return USD(v) + '（約' + YEN(v * RATE) + '）'; };
 var NUM = function(v){ return Math.round(v).toLocaleString('ja-JP'); };
 
 var BOXES = [
@@ -160,6 +163,18 @@ var BOXES = [
     note:'縦軸＝その日1日の回数。横軸＝日付。購入リンクが押された回数と、作品を検索された回数。',
     kind:'bar', keys:[{k:'buy_clicks', name:'購入リンクを押した', c:'#d0a24a'},
                       {k:'searches',   name:'検索した', c:'#5b7f96'}], fmt:NUM },
+
+  { title:'課金の人数（RevenueCat）',
+    note:'縦軸＝その日時点の人数。横軸＝日付。iPhoneとAndroidを合わせた数。' +
+         '過去にさかのぼれないので、記録を始めた日から伸びる。',
+    kind:'line', keys:[{k:'rc_active_subscriptions', name:'課金中', c:'#d0a24a'},
+                       {k:'rc_active_trials', name:'無料お試し中', c:'#8a7a4e'}], fmt:NUM, zero:false },
+
+  { title:'入ってくるお金（RevenueCat）',
+    note:'縦軸＝ドル。横軸＝日付。継続収入は「いまの契約が続いた場合の月あたり」、' +
+         '売上は「直近28日の実績」。どちらもRevenueCatの集計で、iPhoneとAndroidの合計。',
+    kind:'line', keys:[{k:'rc_mrr', name:'継続収入（月）', c:'#4ea87a'},
+                       {k:'rc_revenue', name:'売上（28日）', c:'#7fb6d9'}], fmt:USD, zero:false },
 
   { title:'AIにかかったお金',
     note:'縦軸＝その日1日にAIへ払った金額（円）。横軸＝日付。出ていく側の数字。',
@@ -223,6 +238,7 @@ function cards(S){
 
   var ua = S.users_app, ue = S.users_engaged;
   var na = last(ua);
+  var mrr = last(S.rc_mrr || []), rev = last(S.rc_revenue || []);
   var items = [
     ['アプリを入れた人', na == null ? '—' : NUM(na),
       na == null ? '記録はこれから' :
@@ -231,6 +247,10 @@ function cards(S){
     ['有料会員', NUM(last(pa) || 0), delta(pa, 7)],
     ['動いた人（1日平均・7日）', NUM(d7('active_users') / 7), ''],
     ['AI費用（直近30日）', YEN(d30('ai_cost_jpy')), '1日あたり ' + YEN(d30('ai_cost_jpy') / 30)],
+    ['継続収入（月あたり）', mrr == null ? '—' : USD(mrr),
+      mrr == null ? '記録はこれから' : '約' + YEN(mrr * RATE) + '（1ドル' + RATE + '円で計算）'],
+    ['売上（直近28日）', rev == null ? '—' : USD(rev),
+      rev == null ? '記録はこれから' : '約' + YEN(rev * RATE)],
     ['のべ訪問端末', NUM(last(ut) || 0), 'Web含む・利用者数ではない']
   ];
 
