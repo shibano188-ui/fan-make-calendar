@@ -39,7 +39,7 @@ create or replace function public.collect_daily_metrics(
 language plpgsql
 security definer
 set search_path = public, auth, pg_temp
-as $$
+as $fn$
 declare
   d0 timestamptz := (target_day::timestamp at time zone 'Asia/Tokyo');
   d1 timestamptz := ((target_day + 1)::timestamp at time zone 'Asia/Tokyo');
@@ -115,7 +115,7 @@ begin
 
   return n;
 end;
-$$;
+$fn$;
 
 
 -- 過去を埋める。created_at から再現できる指標だけが入る（スナップショットは入らない）。
@@ -125,7 +125,7 @@ returns int
 language plpgsql
 security definer
 set search_path = public, auth, pg_temp
-as $$
+as $bf$
 declare
   d date;
   n int := 0;
@@ -135,7 +135,7 @@ begin
   end loop;
   return n;
 end;
-$$;
+$bf$;
 
 
 -- security definer の関数は、既定だと誰でも実行できてしまう。service_role だけに絞る。
