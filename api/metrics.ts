@@ -19,14 +19,8 @@ import { loginPage, dashboardPage } from './_dashboard-html.js';
 //   curl -H "Authorization: Bearer $CRON_SECRET" \
 //        "https://fanhive.jp/api/metrics?from=2026-05-22"
 
-const METRICS = [
-  'signups', 'active_users', 'events_created', 'likes', 'calendar_adds',
-  'searches', 'buy_clicks', 'ai_calls', 'ai_cost_jpy',
-  'users_total', 'users_registered', 'users_engaged',
-  'users_app', 'users_ios', 'users_android',
-  'events_total', 'follows_total',
-  'paid_active', 'paid_trial', 'paid_monthly', 'paid_yearly',
-] as const;
+// 指標は metrics_daily にあるものを全部返す（固定の一覧を持たない）。
+// RevenueCat 側は名前がぶつからないよう rc_ を頭に付ける。
 
 /** 日本時間の「今日」。Cronは03:00 JSTに走るので、前日は締まっている。 */
 function todayJst(): string {
@@ -68,7 +62,11 @@ export async function collect(req: VercelRequest, res: VercelResponse) {
   const now = await client.rpc('collect_daily_metrics', { target_day: today, include_snapshot: true });
   if (now.error) return res.status(500).json({ error: now.error.message });
 
-  return res.status(200).json({ ok: true, days: [yesterday, today] });
+  // ストア側。失敗してもアプリ側の集計は成功扱いにする（片方の障害で全部止めない）
+  let rc: { ok: boolean; detail: unknown } = { ok: false, detail: 'skipped' };
+  try { rc = await collectRevenueCat(today); } catch (e) { rc = { ok: false, detail: String(e) }; }
+
+  return res.status(200).json({ ok: true, days: [yesterday, today], revenuecat: rc });
 }
 
 /** 縦持ちの metrics_daily を「1日1行」に畳む。 */
@@ -76,22 +74,24 @@ async function series() {
   const client = db();
   if (!client) throw new Error('Server config error');
 
-  // PostgREST は1回の応答が最大1000行（db-max-rows）。指標が16本あると
-  // 60日ぶんちょっとで頭打ちになるので、range でページ送りして全部取る。
+  // PostgREST は1回の応答が最大1000行（db-max-rows）。指標の本数×日数はすぐ
+  // それを超えるので、range でページ送りして全部取る。
   const byDay = new Map<string, Record<string, number>>();
+  const names = new Set<string>();
   const PAGE_SIZE = 1000;
   for (let from = 0; ; from += PAGE_SIZE) {
     const { data, error } = await client
       .from('metrics_daily')
-      .select('day, metric, value')
-      .eq('source', 'app')
+      .select('day, source, metric, value')
       .order('day', { ascending: true })
       .order('metric', { ascending: true })
       .range(from, from + PAGE_SIZE - 1);
     if (error) throw new Error(error.message);
     for (const r of data ?? []) {
+      const key = r.source === 'app' ? r.metric : `${r.source === 'revenuecat' ? 'rc' : r.source}_${r.metric}`;
       const row = byDay.get(r.day) ?? {};
-      row[r.metric] = Number(r.value);
+      row[key] = Number(r.value);
+      names.add(key);
       byDay.set(r.day, row);
     }
     if (!data || data.length < PAGE_SIZE) break;
@@ -99,9 +99,41 @@ async function series() {
 
   const days = [...byDay.keys()].sort();
   const out: Record<string, (number | null)[]> = {};
-  for (const m of METRICS) out[m] = days.map((d) => byDay.get(d)?.[m] ?? null);
+  for (const m of names) out[m] = days.map((d) => byDay.get(d)?.[m] ?? null);
 
   return { days, series: out, updatedAt: new Date().toISOString() };
+}
+
+/** RevenueCat から今の数字を取って metrics_daily に入れる。
+ *
+ *  返ってくる指標の名前を決め打ちしない。overview が返したものを
+ *  そのまま metric 名として貯める（増えても減ってもコードを触らずに済む）。
+ *  失敗しても呼び出し側は続行する＝アプリ側の集計は止めない。 */
+async function collectRevenueCat(day: string): Promise<{ ok: boolean; detail: unknown }> {
+  const key = process.env.REVENUECAT_API_KEY;
+  const project = process.env.REVENUECAT_PROJECT_ID;
+  if (!key || !project) return { ok: false, detail: 'REVENUECAT_API_KEY / REVENUECAT_PROJECT_ID が未設定' };
+
+  const url = `https://api.revenuecat.com/v2/projects/${encodeURIComponent(project)}/metrics/overview`;
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' } });
+  const text = await r.text();
+  if (!r.ok) return { ok: false, detail: { status: r.status, body: text.slice(0, 600) } };
+
+  let json: { metrics?: { id?: string; name?: string; value?: unknown; unit?: string }[] };
+  try { json = JSON.parse(text); } catch { return { ok: false, detail: { parse: text.slice(0, 300) } }; }
+
+  const list = Array.isArray(json.metrics) ? json.metrics : [];
+  const rows = list
+    .filter((m) => m && typeof m.id === 'string' && typeof m.value === 'number' && Number.isFinite(m.value))
+    .map((m) => ({ day, source: 'revenuecat', metric: m.id as string, value: m.value as number }));
+  if (!rows.length) return { ok: false, detail: { metrics: list.slice(0, 8) } };
+
+  const client = db();
+  if (!client) return { ok: false, detail: 'Server config error' };
+  const { error } = await client.from('metrics_daily').upsert(rows, { onConflict: 'day,source,metric' });
+  if (error) return { ok: false, detail: error.message };
+
+  return { ok: true, detail: { saved: rows.length, ids: list.map((m) => ({ id: m.id, name: m.name, unit: m.unit })) } };
 }
 
 /** <script> の中に安全に置ける JSON。`</script>` で抜けられないようにする。 */
@@ -143,8 +175,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return render(res);
   }
 
-  // ③ 表示
-  if (cookieToken(req) === pass) return render(res);
+  // ③ 表示（?rc=1 を付けると RevenueCat の取り込みをその場で走らせて結果を返す。
+  //     返ってくる指標の名前を確かめるための確認用。パスワードで守られている）
+  if (cookieToken(req) === pass) {
+    if (req.query.rc) {
+      const day = todayJst();
+      let out: { ok: boolean; detail: unknown };
+      try { out = await collectRevenueCat(day); } catch (e) { out = { ok: false, detail: String(e) }; }
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(200).json({ day, ...out });
+    }
+    return render(res);
+  }
   return html(res, loginPage(''));
 }
 
