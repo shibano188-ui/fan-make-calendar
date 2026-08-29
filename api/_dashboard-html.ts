@@ -126,8 +126,19 @@ function enter(e){
 
 function load(){
   if(!tok()){ gerr('パスワードを入れてください'); return; }
-  fetch('/api/metrics?data=1&token=' + encodeURIComponent(tok()))
+
+  // 応答が返らないまま黙って止まるのを防ぐ。Service Worker の入れ替わりに
+  // 巻き込まれると fetch が返らないことがあるので、状況も一緒に出す。
+  var done = false;
+  setTimeout(function(){
+    if(done) return;
+    var sw = ('serviceWorker' in navigator && navigator.serviceWorker.controller) ? 'あり' : 'なし';
+    gerr('応答がありません（15秒）。Service Worker: ' + sw + '。ページを再読み込みして試してください');
+  }, 15000);
+
+  fetch('/api/metrics?data=1&token=' + encodeURIComponent(tok()), { cache: 'no-store' })
     .then(function(r){
+      done = true;
       if(r.status === 401){
         TOKEN = '';
         try{ sessionStorage.removeItem('fh_metrics'); }catch(e){}
@@ -150,6 +161,7 @@ function load(){
       }
     })
     .catch(function(err){
+      done = true;
       if(err.message !== '401'){
         gerr(err && err.message ? err.message : String(err));
       }
