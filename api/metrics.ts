@@ -22,7 +22,9 @@ import { loginPage, dashboardPage } from './_dashboard-html.js';
 const METRICS = [
   'signups', 'active_users', 'events_created', 'likes', 'calendar_adds',
   'searches', 'buy_clicks', 'ai_calls', 'ai_cost_jpy',
-  'users_total', 'events_total', 'follows_total',
+  'users_total', 'users_registered', 'users_engaged',
+  'users_app', 'users_ios', 'users_android',
+  'events_total', 'follows_total',
   'paid_active', 'paid_trial', 'paid_monthly', 'paid_yearly',
 ] as const;
 

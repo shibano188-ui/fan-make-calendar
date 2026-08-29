@@ -119,13 +119,28 @@ var YEN = function(v){ return '¥' + Math.round(v).toLocaleString('ja-JP'); };
 var NUM = function(v){ return Math.round(v).toLocaleString('ja-JP'); };
 
 var BOXES = [
-  { title:'総ユーザー数',
-    note:'縦軸＝その日までに登録された人の合計（累計）。横軸＝日付。右上がりなら増えている。',
-    kind:'line', keys:[{k:'users_total', name:'総ユーザー数', c:'#7fb6d9'}], fmt:NUM, zero:false },
+  { title:'アプリを入れた人',
+    note:'縦軸＝アプリを入れて通知を許可した人の数（累計）。横軸＝日付。' +
+         'Webだけの訪問者は入らない。過去にさかのぼれないので、記録を始めた日から伸びる。',
+    kind:'line', keys:[{k:'users_app',     name:'合計', c:'#7fb6d9'},
+                       {k:'users_ios',     name:'iPhone', c:'#4ea87a'},
+                       {k:'users_android', name:'Android', c:'#d0a24a'}], fmt:NUM, zero:false },
 
-  { title:'新規登録',
-    note:'縦軸＝その日1日に新しく登録した人の数。横軸＝日付。棒が高い日は何かが当たった日。',
-    kind:'bar', keys:[{k:'signups', name:'新規登録', c:'#7fb6d9'}], fmt:NUM },
+  { title:'実際に使った人',
+    note:'縦軸＝投稿・いいね・保存のどれかを1回でもした人の数（累計）。横軸＝日付。' +
+         'ふらっと開いただけの訪問者は入らない。',
+    kind:'line', keys:[{k:'users_engaged', name:'使った人', c:'#4ea87a'},
+                       {k:'users_registered', name:'登録した人', c:'#7fb6d9'}], fmt:NUM, zero:false },
+
+  { title:'のべ訪問端末（Web含む）',
+    note:'縦軸＝これまでに開かれた端末・ブラウザの延べ数。横軸＝日付。' +
+         '⚠️ 利用者数ではない。同じ人でもブラウザを変えれば別に数えられ、Webのふらっと訪問も全部入る。',
+    kind:'line', keys:[{k:'users_total', name:'のべ訪問端末', c:'#5b7f96'}], fmt:NUM, zero:false },
+
+  { title:'新しく開かれた数',
+    note:'縦軸＝その日に新しく開かれた端末・ブラウザの数。横軸＝日付。棒が高い日は何かが当たった日。' +
+         'これも利用者数ではなく、増減の勢いを見るためのもの。',
+    kind:'bar', keys:[{k:'signups', name:'新しく開かれた数', c:'#5b7f96'}], fmt:NUM },
 
   { title:'動いた人',
     note:'縦軸＝その日に投稿・いいね・保存・閲覧・検索のどれかをした人の数。横軸＝日付。',
@@ -206,12 +221,17 @@ function cards(S){
     return '<span class="' + cls + '">' + (d > 0 ? '+' : '') + NUM(d) + '</span> 7日前から';
   }
 
+  var ua = S.users_app, ue = S.users_engaged;
+  var na = last(ua);
   var items = [
-    ['総ユーザー数', NUM(last(ut) || 0), delta(ut, 7)],
+    ['アプリを入れた人', na == null ? '—' : NUM(na),
+      na == null ? '記録はこれから' :
+        'iPhone ' + NUM(last(S.users_ios) || 0) + ' / Android ' + NUM(last(S.users_android) || 0)],
+    ['実際に使った人', NUM(last(ue) || 0), delta(ue, 7)],
     ['有料会員', NUM(last(pa) || 0), delta(pa, 7)],
-    ['新規登録（直近7日）', NUM(d7('signups')), '1日あたり ' + NUM(d7('signups') / 7)],
     ['動いた人（1日平均・7日）', NUM(d7('active_users') / 7), ''],
-    ['AI費用（直近30日）', YEN(d30('ai_cost_jpy')), '1日あたり ' + YEN(d30('ai_cost_jpy') / 30)]
+    ['AI費用（直近30日）', YEN(d30('ai_cost_jpy')), '1日あたり ' + YEN(d30('ai_cost_jpy') / 30)],
+    ['のべ訪問端末', NUM(last(ut) || 0), 'Web含む・利用者数ではない']
   ];
 
   document.getElementById('cards').innerHTML = items.map(function(it){
