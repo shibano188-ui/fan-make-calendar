@@ -1,5 +1,8 @@
 {
-  "crons": [{ "path": "/api/refresh-offers", "schedule": "0 18 * * *" }],
+  "crons": [
+    { "path": "/api/refresh-offers", "schedule": "0 18 * * *" },
+    { "path": "/api/collect-metrics", "schedule": "35 15 * * *" }
+  ],
   "functions": { "api/refresh-offers.ts": { "maxDuration": 300 } },
   "images": {
     "sizes": [192, 384, 640, 828],
