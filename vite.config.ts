@@ -35,6 +35,9 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: '/index.html',
+        // /api/ 配下は SPA ではない（指標ダッシュボード等）。除外しないと
+        // Service Worker が index.html を返してしまい、PWAを一度開いた端末では開けない。
+        navigateFallbackDenylist: [/^\/api\//],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,

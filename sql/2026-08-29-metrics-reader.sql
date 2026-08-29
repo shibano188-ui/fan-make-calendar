@@ -55,3 +55,15 @@ where source = 'app'
 group by day;
 
 grant select on public.metrics_daily_wide to metrics_reader;
+
+
+-- ── 4) service_role への権限（2026-08-29 追記・不具合の修正）────────
+-- collect_daily_metrics / backfill_daily_metrics は `revoke all ... from public` で
+-- PUBLIC の既定付与を外した。service_role はその PUBLIC 経由でしか EXECUTE を
+-- 持っていなかったため、Cron から呼ぶと permission denied になる。明示的に付け直す。
+grant execute on function public.collect_daily_metrics(date, boolean) to service_role;
+grant execute on function public.backfill_daily_metrics(date, date)   to service_role;
+
+-- 念のためテーブルとビューも明示（既定付与に頼らない）
+grant select, insert, update on public.metrics_daily to service_role;
+grant select on public.metrics_daily_wide to service_role;
