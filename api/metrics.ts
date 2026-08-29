@@ -70,19 +70,25 @@ async function series(res: VercelResponse) {
   const client = db();
   if (!client) return res.status(500).json({ error: 'Server config error' });
 
-  const { data, error } = await client
-    .from('metrics_daily')
-    .select('day, metric, value')
-    .eq('source', 'app')
-    .order('day', { ascending: true })
-    .limit(20000);
-  if (error) return res.status(500).json({ error: error.message });
-
+  // PostgREST は1回の応答が最大1000行（db-max-rows）。指標が16本あると
+  // 60日ぶんちょっとで頭打ちになるので、range でページ送りして全部取る。
   const byDay = new Map<string, Record<string, number>>();
-  for (const r of data ?? []) {
-    const row = byDay.get(r.day) ?? {};
-    row[r.metric] = Number(r.value);
-    byDay.set(r.day, row);
+  const PAGE_SIZE = 1000;
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await client
+      .from('metrics_daily')
+      .select('day, metric, value')
+      .eq('source', 'app')
+      .order('day', { ascending: true })
+      .order('metric', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) return res.status(500).json({ error: error.message });
+    for (const r of data ?? []) {
+      const row = byDay.get(r.day) ?? {};
+      row[r.metric] = Number(r.value);
+      byDay.set(r.day, row);
+    }
+    if (!data || data.length < PAGE_SIZE) break;
   }
 
   const days = [...byDay.keys()].sort();
