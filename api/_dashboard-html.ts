@@ -109,7 +109,7 @@ function enter(e){
 
 function load(){
   if(!tok()){ return; }
-  fetch('/api/metrics-data?token=' + encodeURIComponent(tok()))
+  fetch('/api/metrics?data=1&token=' + encodeURIComponent(tok()))
     .then(function(r){
       if(r.status === 401){
         try{ sessionStorage.removeItem('fh_metrics'); }catch(e){}
