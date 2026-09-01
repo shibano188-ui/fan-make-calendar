@@ -22,6 +22,7 @@ import AccountSheet from '../components/AccountSheet';
 import { accountState, accountEmail, signOutAccount, deleteAccount } from '../lib/account';
 import FanStarChart from '../components/FanStarChart';
 import { calcTitle, calcRadarData, calcGrade, type AchievementStats } from '../lib/achievements';
+import { listMyNushi, getMyTotalRank, shortWorkName, NUSHI_BADGE_LIMIT, type WorkNushi } from '../lib/ranking';
 import { REGIONS } from '../lib/prefectures';
 import { clearAccountScopedCache, FEATURE_GOOGLE_CALENDAR, FEATURE_PREMIUM, ANON_NAME } from '../lib/constants';
 import { isGoogleConfigured, isGoogleLinked, linkGoogle, unlinkGoogle } from '../lib/googleCalendar';
@@ -57,6 +58,8 @@ export default function MyPage() {
   const toast = useToast();
   const navigate = useNavigate();
   const [stats, setStats] = useState<AchievementStats | null>(null);
+  const [nushi, setNushi] = useState<WorkNushi[]>([]);
+  const [myRank, setMyRank] = useState<{ rank: number; score: number; total: number } | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [homePref, setHomePref] = useState('');
@@ -190,6 +193,9 @@ export default function MyPage() {
     listAllParticipatedWorks(user.id).then((ws) => alive && setWorks(ws)).catch(() => {});
     listBlockedUsers(user.id).then((bs) => alive && setBlockedUsers(bs)).catch(() => {});
     getProfileExtras(user.id).then((x) => { if (!alive) return; setBio(x.bio ?? ''); setOshi(x.oshi ?? ''); setFavWorks(x.favWorks ?? ''); }).catch(() => {});
+    // ランキングとヌシ。落ちてもプロフィールは出す（順位が出ないだけ）
+    listMyNushi(user.id).then((ns) => alive && setNushi(ns)).catch(() => {});
+    getMyTotalRank(user.id).then((r) => alive && setMyRank(r)).catch(() => {});
     return () => { alive = false; };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -268,6 +274,22 @@ export default function MyPage() {
             )}
             {stats && <span className="text-[12px] text-label-tertiary">Gr.{grade}</span>}
           </div>
+          {/* ヌシは既存の称号と**行を分ける**。あちらは全体の実績＝縦の成長、
+              こちらは作品ごとの立ち位置＝横の居場所で、別物なので混ぜると読めない。 */}
+          {nushi.length > 0 && (
+            <div className="mt-1 flex flex-wrap items-center gap-1">
+              {nushi.slice(0, NUSHI_BADGE_LIMIT).map((n) => (
+                <span key={n.workId}
+                  className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                  style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 16%, transparent)', color: 'var(--accent-text)' }}>
+                  <Crown size={10} strokeWidth={2.5} />{shortWorkName(n.workName)}のヌシ
+                </span>
+              ))}
+              {nushi.length > NUSHI_BADGE_LIMIT && (
+                <span className="text-[11px] text-label-tertiary">他{nushi.length - NUSHI_BADGE_LIMIT}件</span>
+              )}
+            </div>
+          )}
           {bio && (
             <button onClick={() => { haptic.select(); setEditingField('bio'); }} className="pressable mt-1 max-w-full text-left">
               <span className="text-[12px] text-label-secondary line-clamp-1">💬 {bio}</span>
@@ -368,6 +390,31 @@ export default function MyPage() {
           ))}
         </div>
       )}
+
+      {/* ランキングの入口。ボタンだけだと押す理由がないので、**今の順位をここに出す**。
+          順位が見えて初めて「あと少しで上がる」が働く。まだ誰も投稿していない月は
+          順位ではなく「席が空いている」を出す（空欄を見せない）。 */}
+      <button onClick={() => { haptic.select(); navigate('/ranking'); }}
+        className="pressable w-full flex items-center gap-3 mt-3 px-3 py-3 rounded-[12px] border border-subtle text-left"
+        style={{ backgroundColor: 'var(--bg-secondary)' }}>
+        <Crown size={18} style={{ color: 'var(--accent-color)' }} />
+        <div className="flex-1 min-w-0">
+          <div className="text-[14px] font-semibold">ランキング</div>
+          <div className="text-[11px] text-label-secondary">
+            {myRank === null
+              ? '今月はまだ誰も投稿していません'
+              : myRank.rank === 0
+                ? `今月はまだ0点（${myRank.total}人が参加中）`
+                : `今月 ${myRank.rank}位 / ${myRank.total}人・${myRank.score}点`}
+          </div>
+        </div>
+        {myRank !== null && myRank.rank > 0 && (
+          <span className="text-[20px] font-bold tabular-nums" style={{ color: 'var(--accent-color)' }}>
+            {myRank.rank}<span className="text-[12px] font-semibold">位</span>
+          </span>
+        )}
+        <ChevronRight size={16} className="text-label-tertiary" />
+      </button>
 
       {/* プレミアムの入口。設定リストの中に埋めると「設定項目のひとつ」にしか見えず、
           一番下だと見つけられない。無料の人には何が良くなるかを添えたカードとして出し、

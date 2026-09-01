@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { loginPage, dashboardPage } from './_dashboard-html.js';
+import { sendPushes, fcmConfigured, type PushMessage } from './_fcm.js';
 
 // 指標まわりの入口。Hobbyプランは1デプロイ12関数までで、既に11個あるため
 // 「集める・返す・見せる」の3つを1本にまとめてある。呼ばれ方で分岐する:
@@ -66,7 +67,107 @@ export async function collect(req: VercelRequest, res: VercelResponse) {
   let rc: { ok: boolean; detail: unknown } = { ok: false, detail: 'skipped' };
   try { rc = await collectRevenueCat(today); } catch (e) { rc = { ok: false, detail: String(e) }; }
 
-  return res.status(200).json({ ok: true, days: [yesterday, today], revenuecat: rc });
+  // ヌシとランキング。ここに相乗りしているのは **Cron が2本までで空きが無い**から
+  // （refresh-offers と、この metrics で埋まっている）。関数も12/12で足せない。
+  let nushi: { ok: boolean; detail: unknown } = { ok: false, detail: 'skipped' };
+  try { nushi = await collectNushi(client, today); } catch (e) { nushi = { ok: false, detail: String(e) }; }
+
+  return res.status(200).json({ ok: true, days: [yesterday, today], revenuecat: rc, nushi });
+}
+
+/** ランキングの集計と、月初だけ走る前月の確定。
+ *
+ *  毎日: 今月を数え直す（ランキングは途中経過を見せるので当月が最新でないと意味がない）
+ *  1日 : 前月を締めてヌシを確定する。締めた月は二度と変わらない
+ *
+ *  ここが失敗しても日次指標は成功扱いにする。順位が1日古くなるだけで、
+ *  元データ（events / likes）から翌日また作り直せるため。
+ */
+async function collectNushi(
+  client: ReturnType<typeof db> & object,
+  today: string,
+): Promise<{ ok: boolean; detail: unknown }> {
+  const thisMonth = `${today.slice(0, 7)}-01`;
+
+  const cur = await client.rpc('refresh_work_month_scores', { target_month: thisMonth });
+  if (cur.error) return { ok: false, detail: cur.error.message };
+
+  // 日付は JST（todayJst）なので、月初判定もそのまま JST で正しい
+  if (!today.endsWith('-01')) return { ok: true, detail: { refreshed: thisMonth, rows: cur.data } };
+
+  const d = new Date(`${thisMonth}T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() - 1);
+  const prevMonth = d.toISOString().slice(0, 10);
+
+  const fin = await client.rpc('finalize_nushi', { target_month: prevMonth });
+  if (fin.error) return { ok: false, detail: fin.error.message };
+
+  // 通知が失敗しても確定は成功扱い。席は既に確定しており、やり直すと二重に送ってしまう
+  let notified: unknown = 'skipped';
+  try { notified = await notifyNewNushi(client, prevMonth); } catch (e) { notified = String(e); }
+
+  return { ok: true, detail: { refreshed: thisMonth, rows: cur.data, finalized: prevMonth, nushi: fin.data, notified } };
+}
+
+/** 新しく席に着いた人にだけ知らせる。
+ *
+ *  「なったときだけ通知。失ったときは知らせない」（仕様）。
+ *  **前の月にも席に着いていた人には送らない** ＝ 続投は通知しない。
+ *  毎月1日に1回しか呼ばれないので、ここが二重に走らない限り重複は出ない。
+ */
+async function notifyNewNushi(
+  client: ReturnType<typeof db> & object,
+  month: string,
+): Promise<unknown> {
+  const prev = new Date(`${month}T00:00:00Z`);
+  prev.setUTCMonth(prev.getUTCMonth() - 1);
+  const prevMonth = prev.toISOString().slice(0, 10);
+
+  const [nowRes, beforeRes] = await Promise.all([
+    client.from('work_nushi').select('work_id, user_id, rank').eq('month', month),
+    client.from('work_nushi').select('work_id, user_id').eq('month', prevMonth),
+  ]);
+  if (nowRes.error) return nowRes.error.message;
+
+  const held = new Set((beforeRes.data ?? []).map((r) => `${r.work_id}:${r.user_id}`));
+  const fresh = (nowRes.data ?? []).filter((r) => !held.has(`${r.work_id}:${r.user_id}`));
+  if (fresh.length === 0) return { newNushi: 0 };
+
+  const { data: works } = await client
+    .from('works').select('id, name').in('id', [...new Set(fresh.map((r) => r.work_id as string))]);
+  const workName = new Map((works ?? []).map((w) => [w.id as string, w.name as string]));
+
+  const rows = fresh.map((r) => ({
+    user_id: r.user_id as string,
+    kind: 'nushi',
+    title: `${workName.get(r.work_id as string) ?? '作品'}のヌシになりました`,
+    body: `先月の${r.rank}位です。作品の情報を直せるようになりました`,
+    path: `/ranking?work=${r.work_id}`,
+    event_id: null,
+  }));
+  await client.from('notifications').insert(rows);
+
+  if (!fcmConfigured()) return { newNushi: fresh.length, pushed: 0 };
+
+  const { data: tokens } = await client
+    .from('push_tokens').select('user_id, token').in('user_id', rows.map((r) => r.user_id));
+  const byUser = new Map<string, string[]>();
+  for (const t of tokens ?? []) {
+    const list = byUser.get(t.user_id as string) ?? [];
+    list.push(t.token as string);
+    byUser.set(t.user_id as string, list);
+  }
+
+  const messages: PushMessage[] = [];
+  for (const r of rows) {
+    for (const token of byUser.get(r.user_id) ?? []) {
+      messages.push({ token, title: r.title, body: r.body, data: { path: r.path } });
+    }
+  }
+  if (messages.length === 0) return { newNushi: fresh.length, pushed: 0 };
+
+  const { sent, failed } = await sendPushes(messages);
+  return { newNushi: fresh.length, sent, failed };
 }
 
 /** 縦持ちの metrics_daily を「1日1行」に畳む。 */

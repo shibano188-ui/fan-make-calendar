@@ -636,6 +636,8 @@ export default function ItemDetail() {
       {viewingUserId && (
         <UserProfileModal
           userId={viewingUserId}
+          workId={event.workId}
+          workName={workName}
           onClose={() => setViewingUserId(null)}
           onBlocked={() => { setViewingUserId(null); navigate(-1); }}
         />

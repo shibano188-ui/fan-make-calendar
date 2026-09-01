@@ -28,6 +28,7 @@ const PriceDrops      = lazy(() => import('./pages/PriceDrops'));
 const Follows         = lazy(() => import('./pages/Follows'));
 const NotificationSettings = lazy(() => import('./pages/NotificationSettings'));
 const Notices         = lazy(() => import('./pages/Notices'));
+const Ranking         = lazy(() => import('./pages/Ranking'));
 const Premium         = lazy(() => import('./pages/Premium'));
 const PremiumWelcome  = lazy(() => import('./pages/PremiumWelcome'));
 const WidgetCountdown = lazy(() => import('./pages/WidgetCountdown'));
@@ -259,6 +260,7 @@ export default function App() {
                     <Route path="/customize/theme" element={<ThemeCreate />} />
                     <Route path="/price-drops" element={<PriceDrops />} />
                     <Route path="/follows" element={<Follows />} />
+                    <Route path="/ranking" element={<Ranking />} />
                     <Route path="/notifications" element={<NotificationSettings />} />
                     <Route path="/notices" element={<Notices />} />
                     <Route path="/premium" element={<Premium />} />

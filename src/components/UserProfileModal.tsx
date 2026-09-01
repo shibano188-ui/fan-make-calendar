@@ -9,6 +9,7 @@ import { useHiddenContent } from '../hooks/useHiddenContent';
 import { useConfirm } from './ui/ConfirmDialog';
 import { useToast } from './ui/Toast';
 import { ANON_NAME } from '../lib/constants';
+import { listWorkNushi, shortWorkName } from '../lib/ranking';
 
 interface Profile {
   displayName: string | null;
@@ -24,10 +25,16 @@ interface Profile {
 
 export default function UserProfileModal({
   userId,
+  workId,
+  workName,
   onClose,
   onBlocked,
 }: {
   userId: string;
+  /** いま見ている投稿の作品。渡すと「この作品のヌシか」だけをバッジに出す。
+   *  パネルが狭いので、他の作品のヌシは出さない（仕様）。 */
+  workId?: string;
+  workName?: string;
   onClose: () => void;
   /** ブロックが成立したとき。開いていた投稿はもう見えないので、呼び出し側で画面を離れる */
   onBlocked?: () => void;
@@ -40,6 +47,7 @@ export default function UserProfileModal({
   const confirm = useConfirm();
   const toast = useToast();
   const [working, setWorking] = useState(false);
+  const [isNushi, setIsNushi] = useState(false);
   const isSelf = !!user && user.id === userId;
   const blocked = isBlocked(userId);
 
@@ -49,7 +57,12 @@ export default function UserProfileModal({
       .catch(() => setProfile(null))
       .finally(() => setLoading(false));
     getProfileExtras(userId).then(setExtras).catch(() => {});
-  }, [userId]);
+    if (workId) {
+      listWorkNushi(workId)
+        .then((ns) => setIsNushi(ns.some((n) => n.userId === userId)))
+        .catch(() => {});
+    }
+  }, [userId, workId]);
 
   const name = profile?.displayName ?? ANON_NAME;
   const initials = name.slice(0, 2).toUpperCase();
@@ -157,6 +170,15 @@ export default function UserProfileModal({
                     <Crown size={13} strokeWidth={2.5} /> {title}
                   </span>
                   {grade !== null && <span className="text-[12px] text-label-tertiary">Gr.{grade}</span>}
+                </div>
+              )}
+              {/* ヌシは既存の称号と行を分ける。狭いので、いま見ている作品のぶんだけ */}
+              {isNushi && workName && (
+                <div className="mt-1">
+                  <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                    style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 16%, transparent)', color: 'var(--accent-text)' }}>
+                    <Crown size={10} strokeWidth={2.5} />{shortWorkName(workName)}のヌシ
+                  </span>
                 </div>
               )}
 
