@@ -634,12 +634,17 @@ export async function toggleLike(eventId: string, userId: string): Promise<{ lik
     await supabase.from('likes').insert({ event_id: eventId, user_id: userId });
   }
 
+  // 画面に返す件数は likes を直接数える（ここは誰でも読めるので必ず正しい）
   const { count } = await supabase
     .from('likes')
     .select('*', { count: 'exact', head: true })
     .eq('event_id', eventId);
 
-  await supabase.from('events').update({ like_count: count ?? 0 }).eq('id', eventId);
+  // 保存してある events.like_count も揃える。**直接UPDATEしないこと**:
+  // events の UPDATE は本人のみに絞られているので、他人の投稿だと黙って弾かれ、
+  // 件数が上がらないまま残る（→ sql/2026-09-01-like-count-fix.sql）。
+  // RPC が未適用の環境でも表示は上の count で成立するので、失敗は無視してよい。
+  await supabase.rpc('sync_like_count', { p_event_id: eventId });
 
   // 端末カレンダーに書く設定なら、起動・復帰を待たずに反映する（外したら消える）
   requestDeviceCalendarSync(userId);
