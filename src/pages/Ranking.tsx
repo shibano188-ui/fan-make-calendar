@@ -109,6 +109,8 @@ export default function Ranking() {
     return items;
   }, [data, tab]);
 
+  const firstEmptyRank = rows.find((r) => r.kind === 'seat')?.rank ?? -1;
+
   const workName = tab === TOTAL ? null : (works.find((w) => w.id === tab)?.name ?? '作品');
 
   return (
@@ -167,10 +169,23 @@ export default function Ranking() {
 
                   上の見出しは**先月までに確定したヌシ**、この一覧は**今月の途中経過**。
                   別のものなので、ラベルを分けないと「ヌシがいるのに空席」に見える。 */}
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[12px] font-semibold text-label-secondary">今月の順位</span>
-                <span className="text-[11px] text-label-tertiary">残り{daysLeft}日</span>
-              </div>
+              <div className="text-[12px] font-semibold text-label-secondary mb-1">今月の順位</div>
+              {/* 総合には席が無いので、0件だと本当に何も出ない。ここだけ言葉で埋める */}
+              {rows.length === 0 && (
+                <button onClick={() => { haptic.select(); navigate('/post'); }}
+                  className="w-full pressable flex items-center gap-2 py-4 border-b border-subtle text-left">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[14px] font-semibold text-label-tertiary">
+                      今月はまだ誰も投稿していません
+                    </div>
+                    <div className="text-[11px]" style={{ color: 'var(--accent-text)' }}>
+                      最初の1件を投稿する
+                    </div>
+                  </div>
+                  <ChevronRight size={16} className="text-label-tertiary flex-shrink-0" />
+                </button>
+              )}
+
               <div className="flex flex-col">
                 {rows.map((r) =>
                   r.kind === 'row'
@@ -178,6 +193,8 @@ export default function Ranking() {
                         onSetName={() => { haptic.select(); navigate('/mypage'); }}
                         onOpenUser={() => { haptic.select(); setViewingUserId(r.row.userId); }} />
                     : <EmptySeat key={`seat-${r.rank}`} rank={r.rank} need={r.need}
+                        // 同じ文言が3行並ぶと読み飛ばされる。空席の先頭だけに出す
+                        showHint={r.rank === firstEmptyRank}
                         onPost={() => { haptic.select(); navigate('/post'); }} />,
                 )}
               </div>
@@ -282,7 +299,9 @@ function Row({ row, isWork, me, onSetName, onOpenUser }: {
 /** まだ誰も居ない順位。人が集まる前に出す機能なので、
  *  大半の人が最初に見るのはこの行が並んだ画面になる。
  *  空欄で終わらせず、あと何件でヌシになれるかだけを添える。 */
-function EmptySeat({ rank, need, onPost }: { rank: number; need: number; onPost: () => void }) {
+function EmptySeat({ rank, need, showHint, onPost }: {
+  rank: number; need: number; showHint: boolean; onPost: () => void;
+}) {
   return (
     <button onClick={onPost}
       className="w-full pressable flex items-center gap-2 py-2.5 border-b border-subtle text-left">
@@ -292,9 +311,11 @@ function EmptySeat({ rank, need, onPost }: { rank: number; need: number; onPost:
       </span>
       <div className="flex-1 min-w-0">
         <div className="text-[14px] font-semibold text-label-tertiary">—</div>
-        <div className="text-[11px]" style={{ color: 'var(--accent-text)' }}>
-          {need > 0 ? `あと${need}件でヌシになれます` : '投稿するとヌシになれます'}
-        </div>
+        {showHint && (
+          <div className="text-[11px]" style={{ color: 'var(--accent-text)' }}>
+            {need > 0 ? `あと${need}件でヌシになれます` : '投稿するとヌシになれます'}
+          </div>
+        )}
       </div>
       <ChevronRight size={16} className="text-label-tertiary flex-shrink-0" />
     </button>
