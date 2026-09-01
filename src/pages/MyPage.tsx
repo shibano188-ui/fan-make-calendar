@@ -391,31 +391,6 @@ export default function MyPage() {
         </div>
       )}
 
-      {/* ランキングの入口。ボタンだけだと押す理由がないので、**今の順位をここに出す**。
-          順位が見えて初めて「あと少しで上がる」が働く。まだ誰も投稿していない月は
-          順位ではなく「席が空いている」を出す（空欄を見せない）。 */}
-      <button onClick={() => { haptic.select(); navigate('/ranking'); }}
-        className="pressable w-full flex items-center gap-3 mt-3 px-3 py-3 rounded-[12px] border border-subtle text-left"
-        style={{ backgroundColor: 'var(--bg-secondary)' }}>
-        <Crown size={18} style={{ color: 'var(--accent-color)' }} />
-        <div className="flex-1 min-w-0">
-          <div className="text-[14px] font-semibold">ランキング</div>
-          <div className="text-[11px] text-label-secondary">
-            {myRank === null
-              ? '今月はまだ誰も投稿していません'
-              : myRank.rank === 0
-                ? `今月はまだ0点（${myRank.total}人が参加中）`
-                : `今月 ${myRank.rank}位 / ${myRank.total}人・${myRank.score}点`}
-          </div>
-        </div>
-        {myRank !== null && myRank.rank > 0 && (
-          <span className="text-[20px] font-bold tabular-nums" style={{ color: 'var(--accent-color)' }}>
-            {myRank.rank}<span className="text-[12px] font-semibold">位</span>
-          </span>
-        )}
-        <ChevronRight size={16} className="text-label-tertiary" />
-      </button>
-
       {/* プレミアムの入口。設定リストの中に埋めると「設定項目のひとつ」にしか見えず、
           一番下だと見つけられない。無料の人には何が良くなるかを添えたカードとして出し、
           既に会員の人には主張しない1行に落とす。 */}
@@ -453,6 +428,31 @@ export default function MyPage() {
           </button>
         )
       )}
+
+      {/* ランキングの入口。ボタンだけだと押す理由がないので、**今の順位をここに出す**。
+          順位が見えて初めて「あと少しで上がる」が働く。まだ誰も投稿していない月は
+          順位ではなく「席が空いている」を出す（空欄を見せない）。 */}
+      <button onClick={() => { haptic.select(); navigate('/ranking'); }}
+        className="pressable w-full flex items-center gap-3 mt-5 px-3 py-3 rounded-[12px] border border-subtle text-left"
+        style={{ backgroundColor: 'var(--bg-secondary)' }}>
+        <Crown size={18} style={{ color: 'var(--accent-color)' }} />
+        <div className="flex-1 min-w-0">
+          <div className="text-[14px] font-semibold">ランキング</div>
+          <div className="text-[11px] text-label-secondary">
+            {myRank === null
+              ? '今月はまだ誰も投稿していません'
+              : myRank.rank === 0
+                ? `今月はまだ0点（${myRank.total}人が参加中）`
+                : `今月 ${myRank.rank}位 / ${myRank.total}人・${myRank.score}点`}
+          </div>
+        </div>
+        {myRank !== null && myRank.rank > 0 && (
+          <span className="text-[20px] font-bold tabular-nums" style={{ color: 'var(--accent-color)' }}>
+            {myRank.rank}<span className="text-[12px] font-semibold">位</span>
+          </span>
+        )}
+        <ChevronRight size={16} className="text-label-tertiary" />
+      </button>
 
       {/* 設定 */}
       <div className="mt-5 text-[12px] text-label-secondary mb-1">設定</div>
