@@ -109,13 +109,75 @@ function apply(): void {
   });
 }
 
+// ── 広告が取れなかったときの取り直し ──────────────────────────────
+//
+// プラグインは広告が返らなかったとき onAdFailedToLoad で**バナーを破棄する**
+// （mViewGroup.removeView → mAdView.destroy() → mAdView = null。プラグイン本来の動き）。
+// AdMob SDK の自動更新もバナーごと消えるので、黙っていると二度と出ない。
+// showBanner は「広告のある画面にルートが変わった瞬間」しか呼んでいなかったため、
+// ホーム／探すに留まっている限り復活しなかった
+// （Android実機で発見・2026-09-14 → [[admob-banner-disappears-android]]）。
+//
+// ⚠️ **60秒より短くしない。** AdMob は自動更新の間隔より速い要求を嫌う
+//    （無効なトラフィック扱いになる恐れがある）。
+// ⚠️ **画面が見えていないあいだは要求しない。** 見えない広告を取りに行くことになる。
+//    裏に回っているあいだは取り直しを見送り、前面に戻ったときに拾い直す。
+const RETRY_MS = [60_000, 120_000, 240_000, 300_000];
+let retryIdx = 0;
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+let failedSinceShow = false;   // 直近の要求が失敗したまま＝出すつもりなのに出ていない
+let listenersBound = false;
+
+function clearRetry(): void {
+  if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+  retryIdx = 0;
+}
+
+function scheduleRetry(): void {
+  if (!wantVisible || retryTimer) return;
+  const wait = RETRY_MS[Math.min(retryIdx, RETRY_MS.length - 1)];
+  retryIdx += 1;
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    if (!wantVisible || !failedSinceShow) return;
+    // 裏に回っているならここでは出さない。前面に戻ったときの購読が拾う
+    if (document.visibilityState !== 'visible') return;
+    request(wantMargin, false);
+  }, wait);
+}
+
+/** バナーの成否を一度だけ購読する。取り直しの起点になる。 */
+function bindBannerListeners(): void {
+  if (listenersBound || !Capacitor.isNativePlatform()) return;
+  listenersBound = true;
+  // 失敗 → 後退させながら取り直す
+  void onBannerFailed(() => { failedSinceShow = true; scheduleRetry(); });
+  // 出せた（高さが返った）→ 後退をやり直しに戻す。h=0 は失敗と hide のときにも来るので見ない
+  void onBannerSize((h) => { if (h > 0) { failedSinceShow = false; clearRetry(); } });
+  // 前面に戻ったとき、出すつもりなのに出ていないなら待たずに取り直す
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (!wantVisible || !failedSinceShow) return;
+    clearRetry();
+    request(wantMargin, false);
+  });
+}
+
+function request(margin: number, fromUi: boolean): void {
+  bindBannerListeners();
+  wantVisible = true;
+  wantMargin = margin;
+  // 画面の切り替えで来た要求は「新しい機会」なので後退をやり直す。
+  // 取り直し自身の呼び出し（fromUi=false）でここを通すと、後退が効かず60秒ごとに叩き続ける
+  if (fromUi) { clearRetry(); failedSinceShow = false; }
+  if (coalesce) clearTimeout(coalesce);
+  coalesce = setTimeout(() => { coalesce = null; apply(); }, SHOW_COALESCE_MS);
+}
+
 /** バナーを出す。近接した複数回の呼び出しは1回にまとめる（上の (2)）。 */
 export function showBanner(margin = 0): void {
   if (!Capacitor.isNativePlatform()) return;
-  wantVisible = true;
-  wantMargin = margin;
-  if (coalesce) clearTimeout(coalesce);
-  coalesce = setTimeout(() => { coalesce = null; apply(); }, SHOW_COALESCE_MS);
+  request(margin, true);
 }
 
 /**
@@ -133,6 +195,8 @@ export function showBanner(margin = 0): void {
 export function hideBanner(): void {
   if (!Capacitor.isNativePlatform()) return;
   wantVisible = false;
+  failedSinceShow = false;
+  clearRetry();   // 消すと決めたあとに取り直しが走って出戻るのを防ぐ
   if (coalesce) { clearTimeout(coalesce); coalesce = null; }
   try { void AdMob.hideBanner().catch(() => { /* 未表示なら reject。無視してよい */ }); }
   catch { /* ネイティブが居ない環境。次の apply() に任せる */ }

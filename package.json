@@ -12,6 +12,7 @@
     "check:theme": "node scripts/theme-studio-check.mjs",
     "smoke:skins": "node scripts/skin-smoke.mjs",
     "check:web": "node scripts/web-check.mjs",
+    "check:admob": "node scripts/admob-retry-check.mjs",
     "preview": "vite preview",
     "sync:android": "npm run build && CAP_REMOTE=1 npx cap sync android",
     "sync:ios": "npm run build && CAP_REMOTE=0 npx cap sync ios",
