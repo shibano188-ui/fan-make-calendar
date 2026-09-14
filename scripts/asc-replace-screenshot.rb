@@ -10,11 +10,19 @@
 #   さらに screenshots_download レーンは中身が deliver（＝アップロード側）なので、
 #   空のディレクトリで走らせると取得どころか消しにいく。名前に反するので使わない。
 #
-# ここでは対象の1枚を消して同じ位置に入れ直すだけなので、他の枚には触れない。
-# 並び順は appScreenshots の配列順で、消した末尾に足せば元の位置に戻る。
-# **末尾以外を差し替えるときは、入れ直したあとに並び替えが要る**（このスクリプトは末尾専用）。
+# ここでは対象の1枚を消して入れ直すだけなので、他の枚には触れない。
+# 入れ直した画像は**必ず末尾に付く**ので、末尾以外を差し替えたときは並び順を直す。
+# 並べ替えは appScreenshotSets の relationships に「全部の id を並べた配列」を投げる。
 
 require_relative 'asc_client'
+
+# ファイル名の比較は**必ず正規化してから**行う。
+# App Store Connect が返す「カレンダー」は NFD（濁点が別の文字。24バイト）、
+# コマンドラインから渡す方は NFC（21バイト）で、そのまま == すると一致しない。
+# 実際これで「見つからなかった」と言われた（2026-09-14）。
+def same_name?(a, b)
+  a.unicode_normalize(:nfc) == b.unicode_normalize(:nfc)
+end
 
 version, target_name, new_path = ARGV
 unless version && target_name && new_path && File.exist?(new_path)
@@ -35,15 +43,15 @@ abort 'スクショのセットが無い' if sets.empty?
 
 sets.each do |set|
   shots = ASC.req(:get, "appScreenshotSets/#{set['id']}/appScreenshots?limit=20")['data']
-  idx = shots.index { |s| s['attributes']['fileName'] == target_name }
+  idx = shots.index { |s| same_name?(s['attributes']['fileName'], target_name) }
   next unless idx
 
   type = set['attributes']['screenshotDisplayType']
   puts "#{type}: #{shots.size}枚のうち #{idx + 1}枚目「#{target_name}」を差し替える"
 
-  if idx != shots.size - 1
-    abort "末尾以外なので並び替えが要る（#{idx + 1}/#{shots.size}枚目）。このスクリプトは末尾専用"
-  end
+  # 差し替える前の並びを、対象だけ nil にして覚えておく（あとで同じ位置に戻す）
+  order = shots.map { |x| x['id'] }
+  order[idx] = nil
 
   ASC.req(:delete, "appScreenshots/#{shots[idx]['id']}")
   puts '  古い画像を消した'
@@ -56,9 +64,19 @@ sets.each do |set|
   )
   puts "  新しい画像を入れた（#{id}）"
 
+  # 入れ直した画像は末尾に付くので、元の位置へ戻す。
+  # 並べ替えは「セットに属する全部の id を、出したい順に並べた配列」を投げる。
+  if idx != order.size - 1
+    order[idx] = id
+    ASC.req(:patch, "appScreenshotSets/#{set['id']}/relationships/appScreenshots",
+            body: { data: order.map { |x| { type: 'appScreenshots', id: x } } })
+    puts "  #{idx + 1}枚目へ並べ直した"
+  end
+
   after = ASC.req(:get, "appScreenshotSets/#{set['id']}/appScreenshots?limit=20")['data']
   puts "  結果: #{after.size}枚"
   after.each_with_index { |s, i| puts "    #{i + 1}. #{s['attributes']['fileName']}" }
+  abort '並びが元と違う。App Store Connect で確認すること' if after.size != shots.size
   exit 0
 end
 
