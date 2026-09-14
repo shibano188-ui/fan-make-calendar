@@ -231,20 +231,35 @@ html[data-bars='knockout'] [data-skin-part='nav-ind'] {
   background-color: color-mix(in srgb, var(--bg-primary) 14%, transparent) !important;
 }
 
-/* 透ける: 板を敷かず、地の上に中身だけを置く */
+/* 透ける: 板の縁を消して地に溶かす。ただし**中身は必ずぼかして沈める**。
+   以前は完全に透明（backdrop-filter: none）にしていたが、上部バーも下タブも
+   真下をコンテンツがスクロールして通る場所なので、グッズ写真の上に来ると
+   アイコンと文字が埋もれて**押せるものだと分からなくなっていた**（チームから指摘）。
+   「板に見せない」＝縁と影を消すところは残し、読める分の地だけ敷く。
+   下タブは常に中身の上に浮いているので、上部バーより濃くする。 */
 html[data-bars='clear'] .material-bar.scroll-edge[data-skin-bar='main'] {
-  background-color: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  background-color: color-mix(in srgb, var(--bg-primary) 72%, transparent);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   box-shadow: none;
   border-bottom: 0;
 }
 html[data-bars='clear'] [data-skin-part='nav'] {
-  background-color: transparent !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+  background-color: color-mix(in srgb, var(--bg-primary) 86%, transparent) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
   border: 0 !important;
   box-shadow: none !important;
+}
+/* 透明度を下げる設定・コントラスト強化の設定では、ぼかしをやめて塗りにする
+   （index.css の .material-bar と同じ扱い。こちらの方が詳細度が高いので明示的に書く） */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  html[data-bars='clear'] .material-bar.scroll-edge[data-skin-bar='main'],
+  html[data-bars='clear'] [data-skin-part='nav'] {
+    background-color: var(--bg-primary) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
 }
 
 /* ── 下タブ ────────────────────────────────────────

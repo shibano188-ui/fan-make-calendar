@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, CalendarDays, CalendarCheck } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from './item/ItemCard';
@@ -10,6 +10,20 @@ import { useTheme } from '../contexts/ThemeContext';
 type Scope = 'month' | 'week' | 'day';
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
+
+/** 月カレンダーの予定チップ1枚ぶんの高さ（文字13px + 下の隙間2px）。何枚入るかの計算に使う */
+const CHIP_H = 15;
+/** マスの中でチップに使えない高さ（日付の丸20px + 上下の余白6px） */
+const CHIP_RESERVE = 26;
+
+/** 作品色の上に乗せる文字の色。WORK_COLORS は淡い色が多いので、たいていは黒が乗る */
+function textOn(bg: string): string {
+  if (!/^#[0-9a-fA-F]{6}$/.test(bg)) return 'var(--accent-on)';
+  const [r, g, b] = [1, 3, 5]
+    .map((i) => parseInt(bg.slice(i, i + 2), 16) / 255)
+    .map((v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.42 ? '#141414' : '#ffffff';
+}
 
 function parse(s: string): Date {
   return new Date(s + 'T00:00:00');
@@ -168,6 +182,27 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, 
   const goNext = () => setAnchor(addMonths(anchor, 1));
   const swipe = useSwipe(goPrev, goNext);
 
+  // 1マスに予定チップを何枚出せるか。マスの高さは画面の高さで変わる（--cal-cell-h）ので、
+  // 枚数を決め打ちにすると小さい機種ではみ出す。実物の高さを測って決める。
+  // ⚠ マスの高さは CSS で固定してある（h-[var(--cal-cell-h)]）。min-height にすると
+  //    「チップが増える→マスが伸びる→もっと入る」で測り直しが止まらなくなる。
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [maxChips, setMaxChips] = useState(3);
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const measure = () => {
+      const cell = grid.firstElementChild as HTMLElement | null;
+      if (!cell) return;
+      const room = cell.clientHeight - CHIP_RESERVE;
+      setMaxChips(Math.max(1, Math.min(4, Math.floor(room / CHIP_H))));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(grid);
+    return () => ro.disconnect();
+  }, []);
+
   // カレンダーの背景画像。設定はずっと前からあるのに、実際に描いていたのは
   // ルートから外れた Calendar.tsx（死にコード）とウィジェットだけで、
   // **本物のカレンダーに出ていなかった**。ここで出す。
@@ -209,7 +244,7 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, 
           backgroundPosition: `${settings.bgImageOffsetX ?? 50}% ${settings.bgImageOffsetY ?? 50}%`,
         } : undefined}
       >
-      <div className="grid grid-cols-7 gap-px" style={{ backgroundColor: bgImage ? 'transparent' : 'var(--separator)' }}>
+      <div ref={gridRef} className="grid grid-cols-7 gap-px" style={{ backgroundColor: bgImage ? 'transparent' : 'var(--separator)' }}>
         {days.map((day) => {
           const d = parse(day);
           const inMonth = d.getMonth() === month;
@@ -218,20 +253,40 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, 
           const isSel = day === selected;
           const dayEvents = eventsOnDay(events, day);
           const dayColor = !inMonth ? 'var(--cal-other-month-color)' : dow === 0 ? 'var(--cal-sunday-color)' : dow === 6 ? 'var(--cal-saturday-color)' : 'var(--label-primary)';
+          const over = dayEvents.length - maxChips;
           return (
             <button key={day} onClick={() => { haptic.select(); setAnchor(day); }}
-              className="relative min-h-[var(--cal-cell-h)] flex flex-col items-center pt-1.5 pressable"
+              className="relative h-[var(--cal-cell-h)] overflow-hidden flex flex-col items-stretch pt-1 px-[1px] pressable text-left"
               style={{ backgroundColor: cellBg(isSel) }}>
-              <span className="text-[12px] leading-none flex items-center justify-center w-5 h-5 rounded-full"
+              <span className="self-center flex-shrink-0 text-[12px] leading-none flex items-center justify-center w-5 h-5 rounded-full"
                 style={isToday
                   ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)', fontWeight: 700 }
                   : { color: dayColor }}>
                 {d.getDate()}
               </span>
-              <div className="flex flex-wrap justify-center gap-[2px] mt-1 px-0.5">
-                {dayEvents.slice(0, 4).map((e) => (
-                  <span key={e.id} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: colorOf(e) }} />
-                ))}
+              {/* 入りきらなかった件数は日付の横に出す。チップと同じ列に置くと、
+                  マスが低い機種（--cal-cell-h が縮む）でこれ自体がはみ出して切れる */}
+              {over > 0 && (
+                <span className="absolute top-[3px] right-[3px] text-[9px] leading-none font-semibold text-label-secondary">
+                  +{over}
+                </span>
+              )}
+              {/* 予定は点ではなく、作品色の帯にタイトルを載せて出す（Googleカレンダーと同じ見せ方）。
+                  点だけだと「何件かある」しか分からず、開かないと中身が読めなかった。 */}
+              <div className="mt-[3px] flex flex-col gap-[2px]" style={{ opacity: inMonth ? 1 : 0.45 }}>
+                {dayEvents.slice(0, maxChips).map((e) => {
+                  const c = colorOf(e);
+                  const solid = !c.startsWith('var(');
+                  return (
+                    <span key={e.id}
+                      className="block rounded-[3px] px-[3px] text-[9px] leading-[13px] font-medium truncate"
+                      style={solid
+                        ? { backgroundColor: c, color: textOn(c) }
+                        : { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+                      {e.title}
+                    </span>
+                  );
+                })}
               </div>
             </button>
           );

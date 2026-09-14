@@ -21,6 +21,10 @@ export const ONBOARDING_KEY = 'fan_onboarding_done_v2';
  *  オンボーディングを閉じるときに一緒に消す。 */
 export const ONBOARDING_DEMO_KEY = 'fan_onboarding_demo_done';
 
+/** 起動したときに最初に出す画面。カレンダーが主役のアプリなので既定はカレンダー。
+ *  ホームに戻すなら '/' にする。 */
+export const START_PATH: string = '/saved';
+
 // ─── 一度きりのヒント（コンテキスト内チュートリアル用） ─────────────────
 // 初めて呼ばれたときだけ true（＝ヒントを出す）。以後は false。端末ごと・localStorage。
 export function oneShotTip(key: string): boolean {
