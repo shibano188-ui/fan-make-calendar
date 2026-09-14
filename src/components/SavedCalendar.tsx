@@ -255,8 +255,19 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, 
           const dayColor = !inMonth ? 'var(--cal-other-month-color)' : dow === 0 ? 'var(--cal-sunday-color)' : dow === 6 ? 'var(--cal-saturday-color)' : 'var(--label-primary)';
           const over = dayEvents.length - maxChips;
           return (
-            <button key={day} onClick={() => { haptic.select(); setAnchor(day); }}
-              className="relative h-[var(--cal-cell-h)] overflow-hidden flex flex-col items-stretch pt-1 px-[1px] pressable text-left"
+            // マス＝日付の選択、チップ＝その予定へ、と役割を分けている。
+            // ボタンの中にボタンは置けない（HTMLとして不正で、入れ子の挙動も機種依存になる）ので
+            // マスの方は div + role="button" にしてある。
+            <div key={day} role="button" tabIndex={0}
+              aria-label={`${d.getMonth() + 1}月${d.getDate()}日`}
+              onClick={() => { haptic.select(); setAnchor(day); }}
+              onKeyDown={(ev) => {
+                if (ev.key !== 'Enter' && ev.key !== ' ') return;
+                ev.preventDefault();
+                haptic.select();
+                setAnchor(day);
+              }}
+              className="relative h-[var(--cal-cell-h)] overflow-hidden flex flex-col items-stretch pt-1 px-[1px] pressable text-left cursor-pointer"
               style={{ backgroundColor: cellBg(isSel) }}>
               <span className="self-center flex-shrink-0 text-[12px] leading-none flex items-center justify-center w-5 h-5 rounded-full"
                 style={isToday
@@ -278,17 +289,21 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, 
                   const c = colorOf(e);
                   const solid = !c.startsWith('var(');
                   return (
-                    <span key={e.id}
-                      className="block rounded-[3px] px-[3px] text-[9px] leading-[13px] font-medium truncate"
+                    // チップを押したらその予定へ直行する。マスの幅が51pxしかなく
+                    // タイトルは5文字ほどしか出せないので、全文は詳細か下のリストで読んでもらう。
+                    // stopPropagation しないと、下のマス（日付の選択）にも届いて二重に動く。
+                    <button key={e.id} type="button" title={e.title}
+                      onClick={(ev) => { ev.stopPropagation(); haptic.select(); onOpen(e); }}
+                      className="block w-full rounded-[3px] px-[3px] text-[9px] leading-[13px] font-medium truncate text-left pressable"
                       style={solid
                         ? { backgroundColor: c, color: textOn(c) }
                         : { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
                       {e.title}
-                    </span>
+                    </button>
                   );
                 })}
               </div>
-            </button>
+            </div>
           );
         })}
       </div>
