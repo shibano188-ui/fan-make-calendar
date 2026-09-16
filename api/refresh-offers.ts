@@ -289,7 +289,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!hasAff) {
       // 取り消し済みのURLも existing に含める（取り消したリンクをバックフィルで復活させない）
       const existing = new Set(offers.map((o) => o.url));
-      for (const c of highConfidence(title, cands)) {
+      for (const c of highConfidence(title, cands, workName)) {
         if (existing.has(c.url)) continue;
         offers.push({ retailer: c.retailer || '楽天', shop: c.shop || undefined, url: c.url, affiliateUrl: c.url, hasAffiliate: c.hasAffiliate, price: c.price, fetchedAt: now, official: c.official, isSet: isSetTitle(c.title), inStock: c.inStock, stockLabel: c.stockLabel });
         changed = true; backfilled++;

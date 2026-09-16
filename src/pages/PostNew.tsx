@@ -264,7 +264,7 @@ export default function PostNew() {
     setSearchingProduct(true); setCandidates(null);
     try {
       const items = await searchProductCandidates(searchKeyword(w, t));
-      const picks = highConfidenceCandidates(t, items);
+      const picks = highConfidenceCandidates(t, items, w);
       if (picks.length) {
         const now = new Date().toISOString();
         setOffers((prev) => picks.reduce((acc, c) => addOffer(acc, offerFromCandidate(c, now)), prev));
@@ -276,6 +276,16 @@ export default function PostNew() {
       }
     } catch { /* 検索失敗は無視（「販売先を探す」で手動リトライできる） */ }
     finally { setSearchingProduct(false); }
+  };
+
+  // グッズのタイトルを入れ終えたら販売先を探す（AI入力を使わない投稿でも候補が見えるように）。
+  // 確実なものだけ自動で付き、怪しいものは候補に並ぶだけ＝選ばないと付かない。同じタイトルでは探し直さない。
+  const lastSearchedTitle = useRef('');
+  const onTitleBlur = () => {
+    const t = title.trim();
+    if (type !== 'goods' || !t || demo || t === lastSearchedTitle.current) return;
+    lastSearchedTitle.current = t;
+    void autoFindOffers(t, workName || workQuery, offers);
   };
 
   /** 正式表記の候補を選んだとき。既に同名の作品があればそれに確定し、無ければ入力欄を正式表記にする */
@@ -441,7 +451,7 @@ export default function PostNew() {
       if (type === 'goods' && title.trim() && !autoOffers.some((o) => isAffiliateUrl(offerUrl(o)))) {
         const kw = searchKeyword(workName || workQuery, title);
         try {
-          const picks = highConfidenceCandidates(title.trim(), await searchProductCandidates(kw));
+          const picks = highConfidenceCandidates(title.trim(), await searchProductCandidates(kw), workName || workQuery);
           const now = new Date().toISOString();
           for (const c of picks) autoOffers = addOffer(autoOffers, offerFromCandidate(c, now));
           if (!imageUrl && picks[0]?.image) autoImage = picks[0].image;
@@ -688,7 +698,7 @@ export default function PostNew() {
 
           {/* タイトル */}
           <div className={labelCls}>タイトル <span style={{ color: 'var(--color-destructive)' }}>*</span></div>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={type === 'goods' ? '例: アクリルスタンド 全8種' : '例: POP UP STORE'} className={inputCls} style={inputStyle} />
+          <input value={title} onChange={(e) => setTitle(e.target.value)} onBlur={onTitleBlur} placeholder={type === 'goods' ? '例: ぬいっぽ ハイキュー!!（商品名で）' : '例: POP UP STORE'} className={inputCls} style={inputStyle} />
 
           {/* カテゴリ */}
           <div className={labelCls}>カテゴリ</div>
@@ -844,7 +854,7 @@ export default function PostNew() {
               <p className="text-[12px] text-label-tertiary mt-1">候補が見つかりませんでした</p>
             ) : (
               <div className="mt-2 flex flex-col gap-1.5 rounded-[10px] border border-subtle p-2" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                <p className="text-[11px] text-label-tertiary">タイトルに一致する候補だけ選べます</p>
+                <p className="text-[11px] text-label-tertiary">商品を特定できなかったので、リンクはまだ付けていません。同じ商品があれば選んでください</p>
                 {candidates.map((c, i) => {
                   // 一致度は自動添付(highConfidenceCandidates)と揃えてタイトル基準で見る
                   const ok = titleMatchScore(title, c.title) >= 0.5;
