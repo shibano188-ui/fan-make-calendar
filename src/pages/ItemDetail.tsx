@@ -7,7 +7,7 @@ import EventEditForm from '../components/item/EventEditForm';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME } from '../lib/constants';
-import { deriveStatus, deriveItemType, itemDateLines } from '../design/tokens';
+import { deriveStatus, deriveItemType, itemDateLines, todayStr } from '../design/tokens';
 import { resolveBuy, getOffers, buildOffer, offerUrl, primaryOffer, isSearchPageUrl } from '../lib/affiliate';
 import { openBuyLink } from '../lib/dataLogs';
 import { openExternal } from '../lib/openExternal';
@@ -24,6 +24,7 @@ import LineLoader from '../components/ui/LineLoader';
 import UserProfileModal from '../components/UserProfileModal';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import { usePremium, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
+import { countdownLabel } from '../lib/relativeDay';
 
 // 外部カレンダー連携（Google/ics への追加）は一旦保留。再開時は true に戻す。
 const EXTERNAL_CALENDAR_ENABLED = false;
@@ -351,7 +352,16 @@ export default function ItemDetail() {
             <h1 className="text-[19px] font-bold leading-snug mt-1">{event.title}</h1>
 
             {/* 状態 */}
-            <div className="mt-2"><StatusBadge status={status} type={type} size="md" /></div>
+            {/* 状態＋「あと◯日」（カレンダーの日付の行と同じ考え方。一番気になる日までを1つだけ） */}
+            {(() => {
+              const countdown = countdownLabel({ ...eff, visits }, type === 'goods', todayStr());
+              return (
+                <div className="mt-2 flex items-center gap-2">
+                  <StatusBadge status={status} type={type} size="md" />
+                  {countdown && <span className="text-[12px] font-bold" style={{ color: 'var(--accent-text)' }}>{countdown}</span>}
+                </div>
+              );
+            })()}
 
             {/* 価格（セット品バッジ＋取得日「M/D時点」で価格の誤解を防ぐ）
                 代表は実効値(eff)から選ぶ。取り消されたリンクの価格・セット・取得日を出し続けると、

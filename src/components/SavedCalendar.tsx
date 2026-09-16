@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, CalendarDays, CalendarCheck } from 'lucide-r
 import type { CalendarEvent } from '../types';
 import ItemCard from './item/ItemCard';
 import { todayStr, deriveStatus } from '../design/tokens';
+import { relativeDayLabel } from '../lib/relativeDay';
 import { haptic } from '../lib/haptics';
 import { buildWorkColorMap } from '../lib/workColors';
 import { useTheme } from '../contexts/ThemeContext';
@@ -311,7 +312,7 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, 
 
       {/* 選択日の予定 */}
       <div className="mt-4">
-        <DayHeading day={selected} count={selectedEvents.length} />
+        <DayHeading day={selected} count={selectedEvents.length} today={today} />
         <DayList events={selectedEvents} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />
       </div>
     </div>
@@ -334,7 +335,7 @@ function WeekView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, o
       <div className="flex flex-col gap-4">
         {days.map((day) => (
           <div key={day}>
-            <DayHeading day={day} count={eventsOnDay(events, day).length} isToday={day === today} />
+            <DayHeading day={day} count={eventsOnDay(events, day).length} today={today} />
             <DayList events={eventsOnDay(events, day)} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />
           </div>
         ))}
@@ -355,12 +356,13 @@ function DayView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, on
       <NavHeader label={label}
         onPrev={goPrev} onNext={goNext}
         onToday={() => setAnchor(today)} />
+      <div className="flex justify-center -mt-1 mb-2"><RelativeBadge day={anchor} today={today} /></div>
       <DayList events={dayEvents} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />
     </div>
   );
 }
 
-function DayHeading({ day, count, isToday }: { day: string; count: number; isToday?: boolean }) {
+function DayHeading({ day, count, today }: { day: string; count: number; today: string }) {
   const d = parse(day);
   const dow = d.getDay();
   const color = dow === 0 ? 'var(--cal-sunday-color)' : dow === 6 ? 'var(--cal-saturday-color)' : 'var(--label-primary)';
@@ -369,9 +371,24 @@ function DayHeading({ day, count, isToday }: { day: string; count: number; isTod
       <span className="text-[14px] font-bold" style={{ color }}>
         {d.getMonth() + 1}月{d.getDate()}日（{WEEKDAYS[dow]}）
       </span>
-      {isToday && <span className="text-[10px] font-bold rounded-full px-1.5 py-0.5" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>今日</span>}
+      <RelativeBadge day={day} today={today} />
       <span className="text-[12px] text-label-tertiary ml-auto">{count > 0 ? `${count}件` : ''}</span>
     </div>
+  );
+}
+
+/** 選んだ日が今日から何日後か。今日なら「今日」、それ以外は「あと4日」「6日前」。 */
+function RelativeBadge({ day, today }: { day: string; today: string }) {
+  if (day === today) {
+    return <span className="text-[10px] font-bold rounded-full px-1.5 py-0.5" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>今日</span>;
+  }
+  const label = relativeDayLabel(day, today);
+  const past = day < today;
+  return (
+    <span className="text-[10px] font-bold rounded-full px-1.5 py-0.5"
+      style={{ backgroundColor: 'var(--fill-tertiary)', color: past ? 'var(--label-tertiary)' : 'var(--accent-text)' }}>
+      {label}
+    </span>
   );
 }
 
