@@ -582,16 +582,13 @@ export default function PostNew() {
                 <div className="flex items-start gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
                   <Share2 size={15} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--accent-text)' }} />
                   <p className="text-[12px] leading-relaxed">
-                    Xで告知を見つけたら、共有から FanHive を選ぶだけ。自動で予定が入力されます。
+                    XのポストをFanHiveに共有するだけ！<br />AIが自動で予定にします。
                   </p>
                 </div>
-                <p className="text-[11px] text-label-tertiary mt-3 mb-1.5">
-                  Xのポストのリンクや、告知の本文を貼り付けても読み取れます
-                </p>
-                <div className="flex gap-2">
+                <div className="flex gap-2 mt-3">
                   <div className="flex-1 relative">
                     <Link2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary pointer-events-none" />
-                    <input value={aiText} onChange={(e) => setAiText(e.target.value)} placeholder="Xのポストのリンク / 告知の本文"
+                    <input value={aiText} onChange={(e) => setAiText(e.target.value)} placeholder="Xのポストのリンク"
                       onKeyDown={(e) => e.key === 'Enter' && onAnalyzeText()}
                       className="w-full rounded-[10px] pl-8 pr-3 py-2.5 text-[13px] outline-none" style={inputStyle} />
                   </div>
