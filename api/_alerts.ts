@@ -65,19 +65,40 @@ function premiumActive(status: string | null, expiresAt: string | null): boolean
   return Number.isNaN(t) ? true : t > Date.now();
 }
 
+/** `.in()` に渡すIDの1回あたりの件数。UUIDは1件37文字なので、1000件まとめるとURLが長すぎて
+ *  PostgREST が 400 を返す（2026-09-16 実測）。エラーは data=null になるだけなので静かに0件扱いになる。 */
+const IN_CHUNK = 100;
+/** Supabase の1回の取得上限（既定1000行）。これを超える表は range で続きを取る。 */
+const PAGE = 1000;
+
+/** 条件に合う行を上限を超えても全部取る。`build` は毎回新しいクエリを組み立てること。 */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function selectAll<T>(build: () => any): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await build().range(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    out.push(...((data ?? []) as T[]));
+    if (!data || data.length < PAGE) return out;
+  }
+}
+
 /** 渡したユーザーのうち、今プレミアムが有効な人だけを返す。
  *  プッシュを出す経路が増えても判定が散らばらないよう、ここ1か所に置く。 */
 export async function activePremiumUsers(db: Db, userIds: string[]): Promise<Set<string>> {
-  if (!userIds.length) return new Set();
-  const { data } = await db
-    .from('user_private')
-    .select('user_id, subscription_status, subscription_expires_at')
-    .in('user_id', userIds);
-  return new Set(
-    (data ?? [])
-      .filter((s) => premiumActive(s.subscription_status as string | null, s.subscription_expires_at as string | null))
-      .map((s) => s.user_id as string),
-  );
+  const out = new Set<string>();
+  for (let i = 0; i < userIds.length; i += IN_CHUNK) {
+    const { data, error } = await db
+      .from('user_private')
+      .select('user_id, subscription_status, subscription_expires_at')
+      .in('user_id', userIds.slice(i, i + IN_CHUNK));
+    // 失敗を「会員0人」と区別できないと、通知が止まっても気づけない（実際に1か月気づかなかった）
+    if (error) throw new Error(`user_private: ${error.message}`);
+    for (const s of data ?? []) {
+      if (premiumActive(s.subscription_status as string | null, s.subscription_expires_at as string | null)) out.add(s.user_id as string);
+    }
+  }
+  return out;
 }
 
 function asIdSet(v: unknown): Set<string> {
@@ -100,8 +121,15 @@ export async function pushAlerts(db: Db, alerts: Alert[]): Promise<{ sent: numbe
   if (!alerts.length) return { sent: 0, failed: 0 };
 
   const eventIds = [...new Set(alerts.map((c) => c.eventId))];
-  const { data: likes } = await db.from('likes').select('user_id, event_id').in('event_id', eventIds);
-  if (!likes?.length) return { sent: 0, failed: 0 };
+  // 人気の予定はいいねが1000件を超えるので、上限で切れないように全部取る
+  const likes: { user_id: string; event_id: string }[] = [];
+  for (let i = 0; i < eventIds.length; i += IN_CHUNK) {
+    const ids = eventIds.slice(i, i + IN_CHUNK);
+    likes.push(...await selectAll<{ user_id: string; event_id: string }>(
+      () => db.from('likes').select('user_id, event_id').in('event_id', ids).order('user_id'),
+    ));
+  }
+  if (!likes.length) return { sent: 0, failed: 0 };
 
   const userIds = [...new Set(likes.map((l) => l.user_id as string))];
 

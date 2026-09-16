@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { sendPushes, fcmConfigured, type PushMessage } from './_fcm.js';
-import { activePremiumUsers, logNotifications } from './_alerts.js';
+import { activePremiumUsers, logNotifications, selectAll } from './_alerts.js';
 
 // フォロー作品の新着まとめ（毎朝9時・**プレミアム限定**）。
 //
@@ -59,11 +59,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     byWork.set(wid, list);
   }
 
-  const { data: follows } = await db
-    .from('participations')
-    .select('user_id, work_id')
-    .in('work_id', [...byWork.keys()]);
-  if (!follows?.length) return res.status(200).json({ newEvents: newEvents.length, sent: 0, failed: 0 });
+  // 人気作品はフォロワーが1000人を超える（ハイキュー!!は1035人）。上限で切れないように全部取る
+  const workIds = [...byWork.keys()];
+  const follows = await selectAll<{ user_id: string; work_id: string }>(
+    () => db.from('participations').select('user_id, work_id').in('work_id', workIds).order('user_id').order('work_id'),
+  );
+  if (!follows.length) return res.status(200).json({ newEvents: newEvents.length, sent: 0, failed: 0 });
 
   const followers = [...new Set(follows.map((f) => f.user_id as string))];
   const premium = await activePremiumUsers(db, followers);

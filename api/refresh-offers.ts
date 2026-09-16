@@ -334,7 +334,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // 検知したものを、いいねしているプレミアム会員（ミュートしていない人）へプッシュ。
   // FCM未設定なら 0 が返るだけで、検知そのものは今までどおり price_changes に残る。
-  const push = await pushAlerts(db, changes);
+  // 送り先の取得に失敗したら応答に出す（pg_cron の net._http_response / Vercelのログで気づけるように）
+  const push = await pushAlerts(db, changes).catch((e: unknown) => ({ sent: 0, failed: 0, error: String(e) }));
 
   return res.status(200).json({ doBackfill, promoted, scanned, backfilled, updated, detected, push, total: (rows ?? []).length, tookMs: Date.now() - started });
 }

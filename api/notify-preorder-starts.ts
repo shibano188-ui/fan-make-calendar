@@ -77,6 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       kind: 'preorder_start' as const,
     }));
 
-  const push = await pushAlerts(db, alerts);
+  // 送り先の取得に失敗したら応答に出す（pg_cron の net._http_response / Vercelのログで気づけるように）
+  const push = await pushAlerts(db, alerts).catch((e: unknown) => ({ sent: 0, failed: 0, error: String(e) }));
   return res.status(200).json({ due: due.length, fresh: fresh.size, push });
 }
