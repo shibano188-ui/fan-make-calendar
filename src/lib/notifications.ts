@@ -51,15 +51,15 @@ function triggersFor(e: CalendarEvent): Trigger[] {
     out.push({ kind: 'pend1', at: morningOf(e.preorderEnd, -lead), title: `${tag}予約締切まであと${lead}日`, body: `「${e.title}」の予約締切が近づいています` });
     out.push({ kind: 'pend0', at: morningOf(e.preorderEnd), title: `${tag}本日が予約締切`, body: `「${e.title}」の予約は本日までです` });
   }
-  // 来店予定があれば直近の来店日を基準にする（無ければイベント本来の日）
+  // ピンした日があれば直近のピンを基準にする（無ければ予定本来の日）
   const today = new Date().toISOString().slice(0, 10);
   const nextVisit = (e.visits ?? [])
     .map((v) => v.start).filter((d) => d >= today).sort()[0];
   const baseDate = nextVisit ?? e.date;
   if (baseDate) {
-    const word = nextVisit ? '来店予定' : onsaleWord;
+    const word = nextVisit ? 'ピンした日' : onsaleWord;
     out.push({ kind: 'd1', at: morningOf(baseDate, -lead), title: `${tag}${word}まであと${lead}日`, body: `「${e.title}」の${word}が近づいています` });
-    out.push({ kind: 'd0', at: morningOf(baseDate), title: `${tag}本日${word}`, body: `「${e.title}」は本日です` });
+    out.push({ kind: 'd0', at: morningOf(baseDate), title: nextVisit ? `${tag}本日はピンした日です` : `${tag}本日${word}`, body: `「${e.title}」は本日です` });
   }
   return out;
 }

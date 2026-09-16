@@ -181,14 +181,14 @@ export default function ItemDetail() {
     }
     try { const r = await toggleCalendarAdd(event.id, user.id); setCalAdded(r.added); setCalCount(r.count); } catch { setCalAdded(prev); }
   };
-  // 「ここ行く！」: 期間内の日/期間を登録。登録時に自動でいいねし保存カレンダーに出す。
+  // 「この日にピン！」: 期間内の日/期間を登録（イベント・グッズ共通）。登録時に自動でいいねし保存カレンダーに出す。
   const openVisitPicker = () => {
     haptic.select();
     setVisitStart(eff.date ?? '');
     setVisitEnd(eff.date ?? '');
     setVisitOpen(true);
   };
-  // 行く日は単日で足す人がほとんど。終了日が開始日と同じ＝単日のままなら一緒に動かす
+  // ピンは単日で足す人がほとんど。終了日が開始日と同じ＝単日のままなら一緒に動かす
   // （投稿フォームと同じ扱い。期間で指定し直した人は終了日が違うので触らない）
   const changeVisitStart = (next: string) => {
     if (visitEnd === visitStart || !visitEnd) setVisitEnd(next);
@@ -203,7 +203,7 @@ export default function ItemDetail() {
       setVisits((vs) => [...vs, v].sort((a, b) => a.start.localeCompare(b.start)));
       if (!liked) setLike(event.id, { liked: true, count: likeCount + 1 }); // 自動いいね
       setVisitOpen(false);
-      toast('行く日に追加しました');
+      toast('この日にピンしました');
     }
   };
   const onRemoveVisit = async (visitId: string) => {
@@ -385,14 +385,14 @@ export default function ItemDetail() {
               </div>
             )}
 
-            {/* 行く日（期間イベントのみ）。登録すると自分のカレンダーはその日だけ表示する */}
-            {type === 'event' && !!eff.endDate && eff.endDate !== eff.date && (
+            {/* ピンした日（期間のある予定のみ・イベント/グッズ共通）。登録すると自分のカレンダーはその日だけ表示する */}
+            {!!eff.endDate && eff.endDate !== eff.date && (
               <div className="mt-3">
                 {visits.length > 0 && (
                   <div className="flex flex-col gap-1.5 mb-2">
                     {visits.map((v) => (
                       <div key={v.id} className="flex items-center justify-between rounded-[8px] px-3 py-1.5 text-[13px]" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-                        <span>{v.start.slice(5).replace('-', '/')}{v.end !== v.start ? `〜${v.end.slice(5).replace('-', '/')}` : ''} に行く</span>
+                        <span>{v.start.slice(5).replace('-', '/')}{v.end !== v.start ? `〜${v.end.slice(5).replace('-', '/')}` : ''} にピン</span>
                         <button onClick={() => onRemoveVisit(v.id)} aria-label="削除" className="pressable tap-44 text-label-secondary"><X size={16} /></button>
                       </div>
                     ))}
@@ -401,9 +401,9 @@ export default function ItemDetail() {
                 {!visitOpen ? (
                   <div className="flex items-center gap-2 flex-wrap">
                     <button onClick={openVisitPicker} className="pressable flex items-center gap-1.5 px-3 py-2 rounded-[10px] text-[13px] font-semibold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
-                      <Pin size={15} /> {visits.length > 0 ? '別の日も追加' : 'ここ行く！'}
+                      <Pin size={15} /> {visits.length > 0 ? '別の日にもピン！' : 'この日にピン！'}
                     </button>
-                    {visits.length === 0 && <span className="text-[11px] text-label-tertiary">登録した日だけカレンダーに表示</span>}
+                    {visits.length === 0 && <span className="text-[11px] text-label-tertiary">ピンした日だけカレンダーに表示</span>}
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2">

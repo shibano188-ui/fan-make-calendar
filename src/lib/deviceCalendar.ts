@@ -154,7 +154,7 @@ export function buildDesired(events: CalendarEvent[]): Record<string, Desired> {
     const color = e.workId ? colors.get(e.workId) : undefined;
     const visits = e.visits ?? [];
     if (visits.length) {
-      // 「ここ行く!」を登録したら、**その日だけ**を入れる。
+      // 「この日にピン！」を登録したら、**その日だけ**を入れる。
       // 長期のコラボカフェ等を全期間の1件で入れると、実際のカレンダーが何週間も埋まる
       // （アプリ内の表示とローカル通知は既に行く日基準なのに、ここだけ全期間だった）。
       // キーが変わるので、前に入れた全期間の1件は stale として自動的に消える。
