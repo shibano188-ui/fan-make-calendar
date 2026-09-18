@@ -4,7 +4,8 @@
 Web（React + Vite）を Capacitor で包んで iOS / Android に出している。API は Vercel の関数（`api/`）、DB は Supabase。
 
 最初に読むもの: `docs/SETUP.md`（動かすまで）→ `docs/WORKFLOW.md`（作業の流れ）→ `docs/GOTCHAS.md`（ハマりどころ）。
-いまの全体像は `docs/STATUS.md`。
+いまの全体像は `docs/STATUS.md`。使っているサービス（GitHub・Supabase・App Store Connect・Play Console・Vercel など）の
+役割と、誰が何をできるかは `docs/SERVICES.md`。
 
 ## 本番の出し方と怖さ
 
