@@ -16,7 +16,7 @@
     "preview": "vite preview",
     "sync:android": "npm run build && CAP_REMOTE=1 npx cap sync android",
     "sync:ios": "npm run build && CAP_REMOTE=0 npx cap sync ios",
-    "postinstall": "[ \"$VERCEL\" = \"1\" ] || patch-package || true"
+    "postinstall": "node -e \"if(process.env.VERCEL!=='1'){try{require('child_process').execSync('npx patch-package',{stdio:'inherit'})}catch{}}\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.102.0",
