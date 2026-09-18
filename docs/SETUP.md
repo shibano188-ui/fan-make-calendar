@@ -25,6 +25,9 @@ VITE_SUPABASE_ANON_KEY=（開発用の anon key）
 npm run dev   # http://localhost:5173
 ```
 
+**手元では `api/` が動かない**（Vite だけが動く）。AI の読み取り・商品検索・通知・アカウント削除など
+`/api/...` を呼ぶ機能はエラーになるので、プレビュー（下）で確かめる。鍵は Vercel の中にあるので、手元に置く必要はない。
+
 `.env.local` を作らずに動かすと**本番の Supabase** につながる（`src/lib/supabase.ts` の既定値）。
 画面を見るだけなら問題ないが、投稿・いいねなどは本番のデータになるので避ける。
 
