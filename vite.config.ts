@@ -37,7 +37,8 @@ export default defineConfig({
         navigateFallback: '/index.html',
         // /api/ 配下は SPA ではない（指標ダッシュボード等）。除外しないと
         // Service Worker が index.html を返してしまい、PWAを一度開いた端末では開けない。
-        navigateFallbackDenylist: [/^\/api\//],
+        // 規約類の .html も同じ（/about.html → /tokushoho.html の転送もサーバーに届かなくなる）。
+        navigateFallbackDenylist: [/^\/api\//, /\.html$/],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,

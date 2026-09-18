@@ -9,7 +9,6 @@ const LEGAL_LINKS = [
   ['利用規約', '/terms.html'],
   ['プライバシーポリシー', '/privacy.html'],
   ['特定商取引法に基づく表記', '/tokushoho.html'],
-  ['運営者情報・お問い合わせ', '/about.html'],
 ] as const;
 
 // アクセント色の選択肢（先頭=デフォルトの黄色）

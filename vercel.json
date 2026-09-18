@@ -11,6 +11,7 @@
     "formats": ["image/webp"],
     "minimumCacheTTL": 2678400
   },
+  "redirects": [{ "source": "/about.html", "destination": "/tokushoho.html", "permanent": true }],
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
   "headers": [
     {
