@@ -115,7 +115,8 @@ claude
 ## プレビュー（ブラウザで確かめる）
 
 ブランチを push すると Vercel が自動でビルドし、PR に URL が付く。
-ブランチごとの固定 URL は `https://fan-make-calendar-git-<ブランチ名>-shibano-s-projects.vercel.app`。
+ブランチごとの固定 URL は `https://fan-make-calendar-git-<ブランチ名>-shibano-s-projects.vercel.app`
+（ブランチ名が長いと途中で切られて別の文字が付くので、PR に付く URL を使うのが確実）。
 ログインなしで開ける。スマホでもそのまま見られる。
 
 ## アプリ（iOS / Android）のビルド
