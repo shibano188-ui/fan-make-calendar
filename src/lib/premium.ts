@@ -70,7 +70,7 @@ export const PREMIUM_FEATURE_NOTES: Record<PremiumFeature, string> = {
   priceAlerts: 'いいねしたグッズが過去の最安値を更新したとき、売り切れから在庫が戻ったときに知らせます。',
   newEventDigest: 'フォロー中の作品に追加された予定を、毎朝9時に1通でまとめて届けます。',
   noAds: 'アプリの下に出る広告が消えます。',
-  calendarAutoSync: 'いいねした予定と自分の投稿が、Google・Appleのカレンダーに自動で入ります。',
+  calendarAutoSync: 'いいねした予定と自分の投稿が、Apple・Google・Outlookのカレンダーに自動で入ります。',
   unlimitedFollow: `フォローできる作品の数が無制限になります（無料プランは${FREE_FOLLOW_LIMIT}作品まで）。`,
   themes: '好きな雰囲気を言葉で伝えると、色・形・書体をまとめて作ります。作ったテーマを何個でも保存して切り替えられます（無料プランは1つまで）。',
 };

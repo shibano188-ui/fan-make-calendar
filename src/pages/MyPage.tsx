@@ -1,23 +1,30 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, Bell, BellRing, Crown, CalendarSync, Moon, Palette, Pencil, Plus, Droplet, Check, MessageCircle, MapPin, UserRound, Star, Trash2 } from 'lucide-react';
-import { Capacitor } from '@capacitor/core';
 import { getContrastText } from '../lib/color';
+
+// マイページ下部の規約類。iOS は画面を同梱していて住所が capacitor://localhost になるので、
+// 本番の URL を固定で開く（openExternal は http(s) しか開かない）
+const LEGAL_LINKS = [
+  ['利用規約', '/terms.html'],
+  ['プライバシーポリシー', '/privacy.html'],
+  ['特定商取引法に基づく表記', '/tokushoho.html'],
+  ['運営者情報・お問い合わせ', '/about.html'],
+] as const;
 
 // アクセント色の選択肢（先頭=デフォルトの黄色）
 const MYPAGE_ACCENTS = ['#FBBF00', '#D85A30', '#1D9E75', '#378ADD', '#D4537E'] as const;
 import {
   getUserPublicProfile, getHomePrefecture, saveHomePrefecture, saveDisplayName, saveAvatarEmoji,
-  listAllParticipatedWorks, leaveCalendar, listSavedEvents, getProfileExtras, saveProfileExtras,
-  getOrCreateIcsToken, regenerateIcsToken, icsSubscribeUrl, icsWebcalUrl, listNotices, listBlockedUsers, type Work,
+  listAllParticipatedWorks, leaveCalendar, getProfileExtras, saveProfileExtras,
+  listNotices, listBlockedUsers, type Work,
 } from '../lib/api';
 import { useHiddenContent } from '../hooks/useHiddenContent';
 import { unseenNotices } from '../lib/notices';
 import { useFeature, usePremium } from '../lib/premium';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import WorkFollowSheet from '../components/WorkFollowSheet';
-import DeviceCalendarSheet from '../components/DeviceCalendarSheet';
-import Toggle from '../components/ui/Toggle';
+import CalendarSubscribe from '../components/CalendarSubscribe';
 import AccountSheet from '../components/AccountSheet';
 import { accountState, accountEmail, signOutAccount, deleteAccount } from '../lib/account';
 import FanStarChart from '../components/FanStarChart';
@@ -26,13 +33,10 @@ import { listMyNushi, getMyTotalRank, shortWorkName, NUSHI_BADGE_LIMIT, type Wor
 import { REGIONS } from '../lib/prefectures';
 import { clearAccountScopedCache, FEATURE_GOOGLE_CALENDAR, FEATURE_PREMIUM, ANON_NAME } from '../lib/constants';
 import { isGoogleConfigured, isGoogleLinked, linkGoogle, unlinkGoogle } from '../lib/googleCalendar';
-import {
-  deviceCalendarSupported, isDeviceCalendarOn, enableDeviceCalendar, disableDeviceCalendar,
-  listDeviceCalendars, getTargetCalendarId, setTargetCalendarId, syncDeviceCalendar,
-} from '../lib/deviceCalendar';
 import { useTheme, type ThemeMode } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
+import { openExternal } from '../lib/openExternal';
 import { haptic, hapticsDebug } from '../lib/haptics';
 
 const ALL_PREFS = REGIONS.flatMap((r) => r.prefectures);
@@ -81,77 +85,7 @@ export default function MyPage() {
   // カレンダー自動同期（プレミアム）。URLは開いたときに初めて作る（使わない人の行を作らない）
   const calendarSync = useFeature('calendarAutoSync');
   const premium = usePremium();
-  // Androidには webcal: を受けるアプリが無い（タップしても何も起きない）ので出さない
-  const isAndroid = Capacitor.getPlatform() === 'android' || /Android/i.test(navigator.userAgent);
   const [icsOpen, setIcsOpen] = useState(false);
-  const [icsUrl, setIcsUrl] = useState<string | null>(null);
-  const [icsWebcal, setIcsWebcal] = useState<string | null>(null);
-  const onToggleIcs = async () => {
-    haptic.select();
-    const next = !icsOpen;
-    setIcsOpen(next);
-    if (next && !icsUrl && user) {
-      const t = await getOrCreateIcsToken(user.id);
-      setIcsUrl(t ? icsSubscribeUrl(t) : null);
-      setIcsWebcal(t ? icsWebcalUrl(t) : null);
-      if (!t) toast('URLを作れませんでした', 'error');
-    }
-  };
-  // 端末カレンダーへの直接書き込み（プレミアム・アプリ版のみ）。ics購読より早く反映される。
-  // 書き込み先は端末に既にあるカレンダーから選ぶ（Googleを選べばPCでも見える）。
-  const [devCalOn, setDevCalOn] = useState(isDeviceCalendarOn());
-  const [devCalId, setDevCalId] = useState<string | null>(getTargetCalendarId());
-  const [devCalName, setDevCalName] = useState<string | null>(null);
-  const [devCalSheet, setDevCalSheet] = useState(false);
-  const syncDevCal = () => { if (user) listSavedEvents(user.id).then(syncDeviceCalendar).catch(() => {}); };
-  const onToggleDevCal = async () => {
-    haptic.select();
-    if (devCalOn) {
-      await disableDeviceCalendar();
-      setDevCalOn(false);
-      toast('端末のカレンダーから FanHive の予定を消しました');
-      return;
-    }
-    // ONにしただけでは書き込まない。**先に書き込み先を選んで「決定」を押してもらう**
-    // （既定のカレンダーに黙って入れると、意図しない場所に予定が増える）
-    setDevCalSheet(true);
-  };
-  const onDecideDevCal = async (id: string) => {
-    setDevCalSheet(false);
-    const changing = devCalOn && devCalId !== null && devCalId !== id;
-    // 書き込み先を変えるときは、前のカレンダーに入れた分を消してから入れ直す
-    if (changing) await disableDeviceCalendar();
-    setTargetCalendarId(id);
-    setDevCalId(id);
-    const ok = await enableDeviceCalendar();
-    if (!ok) { toast('カレンダーへのアクセスが許可されていません。端末の設定から許可してください'); return; }
-    setDevCalOn(true);
-    syncDevCal();
-    toast(changing ? '書き込み先を変えました' : '端末のカレンダーに書き込みます');
-  };
-  // 選んだカレンダーの名前だけ表示する（一覧はシートの中に閉じ込める）
-  useEffect(() => {
-    if (!devCalOn || !devCalId || !deviceCalendarSupported()) { setDevCalName(null); return; }
-    listDeviceCalendars()
-      .then((cs) => setDevCalName(cs.find((c) => c.id === devCalId)?.title ?? null))
-      .catch(() => {});
-  }, [devCalOn, devCalId]);
-
-  const onCopyIcs = async () => {
-    if (!icsUrl) return;
-    haptic.select();
-    try { await navigator.clipboard.writeText(icsUrl); toast('URLをコピーしました'); }
-    catch { toast('コピーできませんでした。長押しで選択してください'); }
-  };
-  const onRegenIcs = async () => {
-    if (!user) return;
-    haptic.select();
-    const ok = await confirm({ title: 'URLを作り直しますか？', message: '今のURLで購読しているカレンダーは更新されなくなります', confirmLabel: '作り直す', destructive: true });
-    if (!ok) return;
-    const t = await regenerateIcsToken(user.id);
-    if (t) { setIcsUrl(icsSubscribeUrl(t)); setIcsWebcal(icsWebcalUrl(t)); toast('新しいURLを作りました'); }
-    else toast('作り直せませんでした', 'error');
-  };
   const [signOutConfirm, setSignOutConfirm] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   // アカウント削除。5.1.1(v)で「アカウント設定の中の見つけやすい場所」に置くことが要る。
@@ -569,68 +503,15 @@ export default function MyPage() {
           <span className="text-[14px] flex-1">通知の設定</span>
           <ChevronRight size={16} className="text-label-tertiary" />
         </button>
-        {/* 端末のカレンダーへ直接書き込む（プレミアム・アプリ版のみ）。
-            ics購読はカレンダー側が取りに来るまで反映されない（Googleは8〜24時間）ので、
-            アプリが動いた時点で書けるこちらを上位の手段として置く。Webには出さない。 */}
-        {calendarSync && deviceCalendarSupported() && (
+        {/* 外部カレンダー連携（プレミアム）。購読URLだけで Apple / Google / Outlook に入れる */}
+        {calendarSync && user && (
           <div className="px-3 py-2.5">
-            <div className="flex items-center gap-2">
+            <button onClick={() => { haptic.select(); setIcsOpen((v) => !v); }} className="pressable w-full flex items-center gap-2 text-left">
               <CalendarSync size={16} className="text-label-secondary" />
-              <span className="text-[14px] flex-1">端末のカレンダーに書き込む</span>
-              <Toggle checked={devCalOn} onChange={onToggleDevCal} />
-            </div>
-            <p className="text-[11px] text-label-secondary mt-1 ml-6">
-              いいねした予定と自分の投稿が、選んだカレンダーに入ります（締切は別の予定として入ります）。
-            </p>
-            {devCalOn && (
-              <button onClick={() => { haptic.select(); setDevCalSheet(true); }}
-                className="pressable mt-2 ml-6 flex items-center gap-2 w-[calc(100%-1.5rem)] text-left">
-                <span className="text-[11px] text-label-tertiary">書き込み先</span>
-                <span className="text-[13px] flex-1 truncate">{devCalName ?? '—'}</span>
-                <ChevronRight size={16} className="text-label-tertiary" />
-              </button>
-            )}
-          </div>
-        )}
-        {/* カレンダー自動同期（プレミアム）: 購読URLをGoogle/Appleに登録してもらう方式。
-            無料の人には出さない（購入導線ができるまで案内UIは出さない方針）。
-            PC専用の人・アプリを入れていない人はこちらしか使えないので残す。 */}
-        {calendarSync && (
-          <div className="px-3 py-2.5">
-            <button onClick={onToggleIcs} className="pressable w-full flex items-center gap-2 text-left">
-              <CalendarSync size={16} className="text-label-secondary" />
-              <span className="text-[14px] flex-1">カレンダー自動同期</span>
+              <span className="text-[14px] flex-1">カレンダー連携</span>
               <ChevronRight size={16} className="text-label-tertiary" style={{ transform: icsOpen ? 'rotate(90deg)' : undefined }} />
             </button>
-            {icsOpen && (
-              <div className="mt-2 ml-6 flex flex-col gap-2">
-                <p className="text-[11px] text-label-secondary">
-                  いいねした予定と自分の投稿が、カレンダーに自動で入ります（締切は別の予定として入ります）。登録は1回だけ。
-                  Googleカレンダーは「他のカレンダーを追加 → URLで追加」に下のURLを貼ってください（スマホアプリからは登録できません）。
-                </p>
-                {icsWebcal && !isAndroid && (
-                  <a href={icsWebcal} onClick={() => haptic.select()}
-                    className="pressable inline-flex items-center justify-center gap-1 px-3 py-2 rounded-[10px] text-[12px] font-semibold"
-                    style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
-                    iPhone・Macで追加（タップで購読）
-                  </a>
-                )}
-                <div className="flex gap-2">
-                  <input readOnly value={icsUrl ?? '準備中…'} onFocus={(e) => e.currentTarget.select()}
-                    className="flex-1 min-w-0 rounded-[10px] px-3 py-2 text-[11px] outline-none"
-                    style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
-                  <button onClick={onCopyIcs} disabled={!icsUrl}
-                    className="pressable px-3 rounded-[10px] text-[12px] font-semibold flex-shrink-0"
-                    style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>コピー</button>
-                </div>
-                <p className="text-[11px] text-label-tertiary">
-                  反映はカレンダー側が取りに来たときです（Appleは更新間隔を5分〜1日から選べます。Googleは8〜24時間おき）。
-                </p>
-                <button onClick={onRegenIcs} className="pressable text-[11px] text-label-tertiary text-left">
-                  URLを作り直す（今のURLは使えなくなります）
-                </button>
-              </div>
-            )}
+            {icsOpen && <div className="mt-2 ml-6"><CalendarSubscribe userId={user.id} /></div>}
           </div>
         )}
         {/* Googleカレンダー連携。フラグが立つまで**何も出さない**。
@@ -728,8 +609,6 @@ export default function MyPage() {
       <WorkFollowSheet open={followSheetOpen} onClose={() => setFollowSheetOpen(false)}
         onChanged={() => { if (user) listAllParticipatedWorks(user.id).then(setWorks).catch(() => {}); }} />
 
-      <DeviceCalendarSheet open={devCalSheet} onClose={() => setDevCalSheet(false)} onDecide={onDecideDevCal} />
-
       {acctSheet && (
         <AccountSheet mode={acctSheet} onClose={() => setAcctSheet(null)}
           onDone={(email) => {
@@ -743,11 +622,16 @@ export default function MyPage() {
           }} />
       )}
 
-      {/* 規約類（審査・ストア要件で外部から辿れる必要がある。static HTMLなので通常のリンク） */}
-      <div className="mt-8 flex justify-center gap-4 text-[11px] text-label-tertiary">
-        <a href="/terms.html" className="pressable">利用規約</a>
-        <a href="/privacy.html" className="pressable">プライバシーポリシー</a>
-        <a href="/about.html" className="pressable">運営者情報</a>
+      {/* 規約類（審査・ストア要件で辿れる必要がある）。static HTML をアプリ内ブラウザで開く。
+          WebView の中で開くと iOS はスワイプで戻れず、ページ側の「戻る」も上端が見切れていたため */}
+      <div className="mt-8 rounded-[12px] overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+        {LEGAL_LINKS.map(([label, path], i) => (
+          <button key={path} onClick={() => { haptic.select(); openExternal(`https://fanhive.jp${path}`); }}
+            className={`pressable w-full flex items-center px-4 py-3.5 text-left ${i > 0 ? 'border-t border-subtle' : ''}`}>
+            <span className="text-[14px] flex-1">{label}</span>
+            <ChevronRight size={16} className="text-label-tertiary" />
+          </button>
+        ))}
       </div>
 
       {/* ビルド刻印（キャッシュ判別用）。タップで隠しハプティクス診断（バイブしない端末の切り分け用） */}

@@ -5,10 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>プライバシーポリシー - FanHive</title>
   <style>
-    /* アプリ内（WKWebView）から開かれる。ブラウザのバーが無いので、
-       上のノッチ分の余白と「戻る」を自前で用意しないと読めないし戻れない。 */
+    /* アプリからはアプリ内ブラウザ（SFSafariViewController / Custom Tabs）で開く。
+       閉じるボタンはブラウザ側にあるので、ページに「戻る」は置かない。 */
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 720px; margin: 0 auto; padding: 16px 16px 24px; color: #1a1a1a; line-height: 1.7; padding-top: calc(16px + env(safe-area-inset-top)); }
-    .back { display: inline-block; margin-bottom: 16px; font-size: 0.95rem; color: #0066cc; text-decoration: none; }
     h1 { font-size: 1.5rem; margin-bottom: 8px; }
     h2 { font-size: 1.1rem; margin-top: 32px; }
     p, li { font-size: 0.95rem; color: #333; }
@@ -22,12 +21,11 @@
       th { color: #f2f2f7; }
       .updated { color: #8e8e93; }
       nav { border-top-color: #38383a; }
-      a, nav a, .back { color: #6cb0ff; }
+      a, nav a { color: #6cb0ff; }
     }
   </style>
 </head>
 <body>
-  <a class="back" href="/" onclick="if (history.length > 1) { history.back(); return false; }">&larr; 戻る</a>
   <h1>プライバシーポリシー</h1>
   <p class="updated">最終更新日：2026年8月14日</p>
 
@@ -98,8 +96,8 @@
 
   <nav style="margin-top:48px;padding-top:16px;border-top:1px solid #e2e2e2;font-size:0.9rem;">
     <a href="/terms.html" style="color:#0066cc;margin-right:16px;">利用規約</a>
-    <a href="/about.html" style="color:#0066cc;margin-right:16px;">運営者情報・お問い合わせ</a>
-    <a href="/" style="color:#0066cc;">FanHive を開く</a>
+    <a href="/tokushoho.html" style="color:#0066cc;margin-right:16px;">特定商取引法に基づく表記</a>
+    <a href="/about.html" style="color:#0066cc;">運営者情報・お問い合わせ</a>
   </nav>
 </body>
 </html>

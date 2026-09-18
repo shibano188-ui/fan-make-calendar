@@ -5,10 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { listSavedEvents } from '../lib/api';
 import { PREMIUM_FEATURES, PREMIUM_FEATURE_ORDER, PREMIUM_FEATURE_NOTES } from '../lib/premium';
 import { ensurePermission, notificationPermission, rescheduleAll } from '../lib/notifications';
-import {
-  deviceCalendarSupported, enableDeviceCalendar, getTargetCalendarId, listDeviceCalendars,
-} from '../lib/deviceCalendar';
-import DeviceCalendarSheet from '../components/DeviceCalendarSheet';
+import CalendarSubscribe from '../components/CalendarSubscribe';
 import AccountSheet from '../components/AccountSheet';
 import { accountEmail, accountState } from '../lib/account';
 import { useToast } from '../components/ui/Toast';
@@ -33,8 +30,6 @@ export default function PremiumWelcome() {
 
   const [step, setStep] = useState(params.get('step') === 'settings' ? 1 : 0);
   const [perm, setPerm] = useState<'granted' | 'denied' | 'prompt' | 'unsupported' | null>(null);
-  const [calName, setCalName] = useState<string | null>(null);
-  const [calSheet, setCalSheet] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
 
   // 引き継ぎのメール登録は**購入の前ではなくここで**案内する。
@@ -43,16 +38,7 @@ export default function PremiumWelcome() {
 
   const refreshPerm = useCallback(() => { notificationPermission().then(setPerm).catch(() => {}); }, []);
 
-  // 書き込み先の「名前」まで出す。IDだけ覚えていても、どこに入るのか本人には分からない
-  const refreshCal = useCallback(() => {
-    const id = getTargetCalendarId();
-    if (!id) { setCalName(null); return; }
-    listDeviceCalendars()
-      .then((cs) => setCalName(cs.find((c) => c.id === id)?.title ?? null))
-      .catch(() => setCalName(null));
-  }, []);
-
-  useEffect(() => { refreshPerm(); refreshCal(); }, [refreshPerm, refreshCal]);
+  useEffect(() => { refreshPerm(); }, [refreshPerm]);
 
   const askNotify = async () => {
     haptic.select();
@@ -62,13 +48,6 @@ export default function PremiumWelcome() {
       toast('通知を受け取ります');
       if (user) listSavedEvents(user.id).then(rescheduleAll).catch(() => {});
     }
-  };
-
-  const askCalendar = async () => {
-    haptic.select();
-    const ok = await enableDeviceCalendar();
-    if (!ok) { toast('カレンダーへのアクセスを許可してください'); return; }
-    setCalSheet(true);
   };
 
   const done = (label: string) => (
@@ -153,16 +132,10 @@ export default function PremiumWelcome() {
                   )}
               </div>
 
-              {/* カレンダー */}
+              {/* カレンダー連携。購読URLで Apple / Google / Outlook に入れる */}
               <div className="rounded-[12px] p-3.5 mt-3" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                <p className="text-[14px] font-semibold">カレンダーの書き込み先を選ぶ</p>
-                {!deviceCalendarSupported() ? (
-                  <p className="text-[12px] text-label-secondary mt-2.5">
-                    この端末では直接の書き込みに対応していません。マイページの「カレンダー自動同期」から
-                    購読URLを登録すると、Google・Appleのカレンダーに入ります。
-                  </p>
-                ) : calName ? done(calName)
-                  : <button onClick={askCalendar} className={actionBtn} style={accent}>書き込み先を選ぶ</button>}
+                <p className="text-[14px] font-semibold mb-2.5">カレンダーに連携する</p>
+                {user ? <CalendarSubscribe userId={user.id} /> : null}
               </div>
 
             </div>
@@ -183,13 +156,6 @@ export default function PremiumWelcome() {
         />
       )}
 
-      {calSheet && (
-        <DeviceCalendarSheet
-          open
-          onClose={() => setCalSheet(false)}
-          onDecide={() => { setCalSheet(false); refreshCal(); toast('カレンダーに書き込みます'); }}
-        />
-      )}
     </div>
   );
 }
