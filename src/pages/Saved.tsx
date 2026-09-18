@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Search, SlidersHorizontal, X, Crown, CalendarDays, CalendarRange, Calendar, List, Check } from 'lucide-react';
@@ -70,6 +70,13 @@ export default function Saved() {
   // 探すと同じ絞り込み
   const [query, setQuery] = useState<string>(_ss.query ?? '');
   const [filterOpen, setFilterOpen] = useState<boolean>(_ss.filterOpen ?? false);
+  // 絞り込みはカレンダーの上に重ねて出す（開いてもカレンダーの大きさを変えない）。
+  // 上部バーの下端から出すので、開いたときにバーの位置を測る
+  const headerRef = useRef<HTMLDivElement>(null);
+  const [filterTop, setFilterTop] = useState(0);
+  useLayoutEffect(() => {
+    if (filterOpen && headerRef.current) setFilterTop(headerRef.current.getBoundingClientRect().bottom);
+  }, [filterOpen]);
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set(_ss.statuses ?? []));
   const [excludedWorks, setExcludedWorks] = useState<Set<string>>(new Set(_ss.excludedWorks ?? []));
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set(_ss.categories ?? []));
@@ -277,7 +284,7 @@ export default function Saved() {
         height: 'calc(100dvh - env(safe-area-inset-bottom) - 76px)',
         marginBottom: 'calc(env(safe-area-inset-bottom) + 76px - 7rem)',
       } : undefined}>
-      <div className="sticky top-0 z-20 flex-shrink-0 -mx-3 px-3 pt-1 pb-2 material-bar scroll-edge" data-skin-bar="main" style={{ paddingTop: 'calc(var(--sat) + 4px)' }}>
+      <div ref={headerRef} className="sticky top-0 z-20 flex-shrink-0 -mx-3 px-3 pt-1 pb-2 material-bar scroll-edge" data-skin-bar="main" style={{ paddingTop: 'calc(var(--sat) + 4px)' }}>
         {/* 1行だけ: 見出し（＋今日）／プレミアム／表示切替／絞り込み。文字は見出しだけで、ボタンはアイコンのみ */}
         <div className="flex items-center gap-1.5 h-10">
           <div className="flex-1 min-w-0 flex items-center gap-2">
@@ -336,10 +343,17 @@ export default function Saved() {
           </IconButton>
         </div>
 
-        {/* 絞り込み: 検索・対象（すべて/予約受注中/自分の投稿/通知ON）・細かい条件をここにまとめる */}
-        {filterOpen && (
-          // 月表示はページがスクロールしないので、条件が多いときはこの中だけスクロールさせる
-          <div className="pt-2 max-h-[60dvh] overflow-y-auto overscroll-contain">
+      </div>
+
+      {/* 絞り込み: 検索・対象（すべて/予約受注中/自分の投稿/通知ON）・細かい条件をここにまとめる */}
+      {filterOpen && createPortal(
+        <>
+          {/* 外を押したら閉じる。カレンダーが透けて見える程度に暗くする */}
+          <div className="fixed inset-0" style={{ zIndex: 90, top: filterTop, backgroundColor: 'rgba(0,0,0,0.25)' }}
+            onClick={() => setFilterOpen(false)} />
+          {/* 上部バーは下端を mask でぼかしていて、はみ出した部分が消えるので body に出す */}
+          <div className="fixed inset-x-0 max-w-app mx-auto px-3 pt-2 pb-3 rounded-b-[16px] shadow-float overflow-y-auto overscroll-contain"
+            style={{ zIndex: 91, top: filterTop, maxHeight: `calc(100dvh - ${filterTop}px - 110px)`, backgroundColor: 'var(--bg-primary)' }}>
             <div className="flex items-center gap-2 px-3 rounded-[10px] mb-2" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
               <Search size={16} className="text-label-tertiary flex-shrink-0" />
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="保存した予定を検索"
@@ -372,8 +386,9 @@ export default function Saved() {
               onClear={clearFilters} resultCount={filtered.length}
             />
           </div>
-        )}
-      </div>
+        </>,
+        document.body,
+      )}
 
       {items === null ? (
         <SkeletonList count={4} />
