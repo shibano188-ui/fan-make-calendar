@@ -55,6 +55,17 @@ export default function Saved() {
   // 表示中の月・週・日。見出しと「今日」ボタンのためにここで持つ
   const [anchor, setAnchor] = useState<string>(todayStr());
   const premium = usePremium();
+  // 月表示は1画面に収めて、下へスクロールできないようにする
+  const monthFit = view === 'month';
+  useEffect(() => {
+    if (!monthFit) return;
+    const html = document.documentElement, body = document.body;
+    const prev = [html.style.overflow, body.style.overflow];
+    html.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    window.scrollTo(0, 0);
+    return () => { html.style.overflow = prev[0]; body.style.overflow = prev[1]; };
+  }, [monthFit]);
 
   // 探すと同じ絞り込み
   const [query, setQuery] = useState<string>(_ss.query ?? '');
@@ -257,10 +268,16 @@ export default function Saved() {
   return (
     // ⚠️ ルートに上の余白を付けないこと。上部バーは自分で var(--sat) を持っているので、
     // ここに余白を足すと**帯の外側に地の色の帯**ができる（外皮で帯の色が変わると目立つ）
-    // 月のマスを画面いっぱいに広げる。上の行・曜日・下の浮遊ナビのぶん（約170px）を引いて6行で割る
-    <div ref={rootRef} className="px-3"
-      style={{ '--cal-cell-h': 'clamp(56px, calc((100dvh - var(--sat) - env(safe-area-inset-bottom) - 170px) / 6), 150px)' } as React.CSSProperties}>
-      <div className="sticky top-0 z-20 -mx-3 px-3 pt-1 pb-2 material-bar scroll-edge" data-skin-bar="main" style={{ paddingTop: 'calc(var(--sat) + 4px)' }}>
+    // 月表示は画面ぴったり（下の浮遊ナビの上端まで）にして、ページごとスクロールさせない。
+    // 76px = ナビの下の余白10px + ナビの高さ約56px + 隙間
+    <div ref={rootRef} className={monthFit ? 'px-3 flex flex-col overflow-hidden' : 'px-3'}
+      // 外枠（AppShell の main）が下に 7rem の逃げを持っているので、そのぶん下の余白を打ち消して
+      // ページ全体の高さを画面ぴったりにする（はみ出すと、少しだけ下にスクロールできてしまう）
+      style={monthFit ? {
+        height: 'calc(100dvh - env(safe-area-inset-bottom) - 76px)',
+        marginBottom: 'calc(env(safe-area-inset-bottom) + 76px - 7rem)',
+      } : undefined}>
+      <div className="sticky top-0 z-20 flex-shrink-0 -mx-3 px-3 pt-1 pb-2 material-bar scroll-edge" data-skin-bar="main" style={{ paddingTop: 'calc(var(--sat) + 4px)' }}>
         {/* 1行だけ: 見出し（＋今日）／プレミアム／表示切替／絞り込み。文字は見出しだけで、ボタンはアイコンのみ */}
         <div className="flex items-center gap-1.5 h-10">
           <div className="flex-1 min-w-0 flex items-center gap-2">
@@ -321,7 +338,8 @@ export default function Saved() {
 
         {/* 絞り込み: 検索・対象（すべて/予約受注中/自分の投稿/通知ON）・細かい条件をここにまとめる */}
         {filterOpen && (
-          <div className="pt-2">
+          // 月表示はページがスクロールしないので、条件が多いときはこの中だけスクロールさせる
+          <div className="pt-2 max-h-[60dvh] overflow-y-auto overscroll-contain">
             <div className="flex items-center gap-2 px-3 rounded-[10px] mb-2" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
               <Search size={16} className="text-label-tertiary flex-shrink-0" />
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="保存した予定を検索"

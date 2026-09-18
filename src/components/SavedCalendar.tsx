@@ -135,7 +135,8 @@ export default function SavedCalendar({ events, scope, anchor, setAnchor, onOpen
   const pickedEvents = useMemo(() => (picked ? eventsOnDay(events, picked) : []), [events, picked]);
 
   return (
-    <div className="pb-4">
+    // 月表示は親が画面ぴったりの高さにしているので、残りを全部カレンダーに使う
+    <div className={scope === 'month' ? 'flex-1 min-h-0 flex flex-col pb-1' : 'pb-4'}>
       {scope === 'month' && (
         <MonthView events={events} anchor={anchor} setAnchor={setAnchor} today={today} colorOf={colorOf}
           picked={picked} onPick={setPicked} />
@@ -149,7 +150,8 @@ export default function SavedCalendar({ events, scope, anchor, setAnchor, onOpen
           onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />
       )}
 
-      {undated.length > 0 && (
+      {/* 日付未定はカレンダーに乗らない。月表示はスクロールさせないので出さない（リスト表示で見られる） */}
+      {scope !== 'month' && undated.length > 0 && (
         <div className="mt-5">
           <div className="px-1 text-[12px] text-label-secondary mb-2">日付未定 {undated.length}件</div>
           <div className="flex flex-col gap-2">
@@ -210,9 +212,8 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, picked, onPick }
   const goNext = () => setAnchor(addMonths(anchor, 1));
   const swipe = useSwipe(goPrev, goNext);
 
-  // 1マスに予定チップを何枚出せるか。マスの高さは画面の高さで変わる（--cal-cell-h）ので、
-  // 枚数を決め打ちにすると小さい機種ではみ出す。実物の高さを測って決める。
-  // ⚠ マスの高さは CSS で固定してある（h-[var(--cal-cell-h)]）。min-height にすると
+  // 1マスに予定チップを何枚出せるか。マスの高さは画面の高さで変わるので、実物の高さを測って決める。
+  // ⚠ 行の高さは minmax(0, 1fr) で固定してある。auto を許すと
   //    「チップが増える→マスが伸びる→もっと入る」で測り直しが止まらなくなる。
   const gridRef = useRef<HTMLDivElement>(null);
   const [maxChips, setMaxChips] = useState(3);
@@ -243,7 +244,7 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, picked, onPick }
   };
 
   return (
-    <div {...swipe}>
+    <div {...swipe} className="flex-1 min-h-0 flex flex-col">
       {/* 曜日見出し */}
       <div className="grid grid-cols-7 mb-1">
         {WEEKDAYS.map((w, i) => (
@@ -254,17 +255,17 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, picked, onPick }
         ))}
       </div>
 
-      {/* 日グリッド。画面いっぱいに広げる（--cal-cell-h を画面の高さから決める。Saved.tsx）。
-          背景画像があるときは、その上にマスを半透明で重ねる */}
+      {/* 日グリッド。残りの高さを6行で等分する。背景画像があるときは、その上にマスを半透明で重ねる */}
       <div
-        className="rounded-[12px] overflow-hidden"
+        className="flex-1 min-h-0 rounded-[12px] overflow-hidden"
         style={bgImage ? {
           backgroundImage: `url(${bgImage})`,
           backgroundSize: 'cover',
           backgroundPosition: `${settings.bgImageOffsetX ?? 50}% ${settings.bgImageOffsetY ?? 50}%`,
         } : undefined}
       >
-      <div ref={gridRef} className="grid grid-cols-7 gap-px" style={{ backgroundColor: bgImage ? 'transparent' : 'var(--separator)' }}>
+      <div ref={gridRef} className="grid grid-cols-7 gap-px h-full"
+        style={{ gridTemplateRows: 'repeat(6, minmax(0, 1fr))', backgroundColor: bgImage ? 'transparent' : 'var(--separator)' }}>
         {days.map((day) => {
           const d = parse(day);
           const inMonth = d.getMonth() === month;
@@ -279,7 +280,7 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, picked, onPick }
             <button key={day} type="button"
               aria-label={`${d.getMonth() + 1}月${d.getDate()}日`}
               onClick={() => { haptic.select(); onPick(day); }}
-              className="relative h-[var(--cal-cell-h)] overflow-hidden flex flex-col items-stretch pt-1 px-[1px] pressable text-left cursor-pointer"
+              className="relative h-full min-h-0 overflow-hidden flex flex-col items-stretch pt-1 px-[1px] pressable text-left cursor-pointer"
               style={{ backgroundColor: cellBg(isSel) }}>
               <span className="self-center flex-shrink-0 text-[12px] leading-none flex items-center justify-center w-5 h-5 rounded-full"
                 style={isToday
