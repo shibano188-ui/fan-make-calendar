@@ -8,6 +8,11 @@ const url = process.env.KV_REST_API_URL;
 const token = process.env.KV_REST_API_TOKEN;
 const redis = url && token ? new Redis({ url, token }) : null;
 
+// Redis は本番とプレビューで同じものを使っている。キーに環境名を混ぜないと、
+// プレビューで試した回数が本番の利用者の枠（特に全体の1日の栓）を直接食う。
+// 本番だけは今までと同じキーのままにする（数え直しで枠がリセットされないように）。
+const ENV = process.env.VERCEL_ENV === 'production' ? '' : `${process.env.VERCEL_ENV ?? 'dev'}:`;
+
 // エンドポイントごとの上限。IP単位（分・日）＋全体（日＝分散攻撃時のコスト上限）。
 // parse/search は外部API課金、title/delete はDBへの書き込み・破壊操作なので桁を分けている。
 const BUCKETS = {
@@ -42,9 +47,9 @@ function limitersFor(bucket: RateLimitBucket) {
   if (!l) {
     const c = BUCKETS[bucket];
     l = {
-      perMinute: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(c.min, '1 m'), prefix: `rl:${bucket}:min` }),
-      perDay:    new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(c.day, '1 d'), prefix: `rl:${bucket}:day` }),
-      globalDay: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(c.globalDay, '1 d'), prefix: `rl:${bucket}:all` }),
+      perMinute: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(c.min, '1 m'), prefix: `rl:${ENV}${bucket}:min` }),
+      perDay:    new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(c.day, '1 d'), prefix: `rl:${ENV}${bucket}:day` }),
+      globalDay: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(c.globalDay, '1 d'), prefix: `rl:${ENV}${bucket}:all` }),
     };
     cache.set(bucket, l);
   }
@@ -134,8 +139,8 @@ function userLimitersFor(bucket: RateLimitBucket, tier: Exclude<Tier, 'owner'>, 
       || BUCKET_USER_LIMITS[bucket]?.[tier]
       || USER_LIMITS[tier];
     l = {
-      perMinute: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(c.min, '1 m'), prefix: `rl:${bucket}:u:${variant}:min` }),
-      perDay:    new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(c.day, '1 d'), prefix: `rl:${bucket}:u:${variant}:day` }),
+      perMinute: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(c.min, '1 m'), prefix: `rl:${ENV}${bucket}:u:${variant}:min` }),
+      perDay:    new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(c.day, '1 d'), prefix: `rl:${ENV}${bucket}:u:${variant}:day` }),
     };
     userCache.set(key, l);
   }
