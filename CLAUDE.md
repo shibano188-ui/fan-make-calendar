@@ -6,30 +6,36 @@ Web（React + Vite）を Capacitor で包んで iOS / Android に出している
 最初に読むもの: `docs/SETUP.md`（動かすまで）→ `docs/WORKFLOW.md`（作業の流れ）→ `docs/GOTCHAS.md`（ハマりどころ）。
 いまの全体像は `docs/STATUS.md`。
 
-## 絶対にやらないこと
+## 本番の出し方と怖さ
 
-- **本番に直接触らない。** `vercel --prod`、本番 Supabase への SQL、ストア（App Store Connect / Play Console）の操作は柴野だけがやる
-- **main に直接 push しない。** ブランチを切って PR を出す
+- **main に入った時点で本番（`https://fanhive.jp`）に出る。** 4人とも main に push・マージできる
+- **Android アプリは `https://fanhive.jp` をそのまま表示している。** 本番の Web を壊すと、配信中の Android アプリが即座に壊れる
+- ビルドが通らない変更は Vercel が本番に出さない（前の版のまま動き続ける）。怖いのは**ビルドは通るが画面が壊れる**変更
+- だから、main に入れる前に**必ずプレビューで触って確かめる**。壊したら `git revert` して push すれば数分で戻る
+
+## やらないこと
+
 - **鍵をコミットしない。** リポジトリは公開（public）。`.env*` `*.p8` `*.p12` は `.gitignore` 済みだが、コードに直接書かない
   （Supabase の anon key と Firebase の設定ファイルは公開前提の値なので入っていてよい）
-
-なぜ厳しいか: **Android アプリは `https://fanhive.jp` をそのまま表示している**。本番の Web を壊すと、配信中の Android アプリが即座に壊れる。
+- **本番の Supabase で、確かめていない SQL を流さない。** 先に開発用（`fanhive-dev`）で流して動きを見る
+- `git push --force` と main の削除はできないようにしてある
 
 ## コードを書くときの前提
 
 - **Android と iOS で届き方が違う**（`capacitor.config.ts`）
-  - Android … 本番の Web を開くだけ。Web を直せば即反映
+  - Android … 本番の Web を開くだけ。main に入れば即反映
   - iOS … ビルドに Web を同梱。Web を直しても**次の審査が通るまで iOS には届かない**
   - だから `api/` は**古い iOS の画面から呼ばれても壊れないように**変える（引数を消す・意味を変えるのは NG、足すのは OK）
 - 使われていない古い画面がある: `src/pages/Calendar.tsx` `Discover.tsx` `Preorders.tsx` はルーティングされていない。
   実際のカレンダーは `src/components/SavedCalendar.tsx`。どこが表示されているかは `src/App.tsx` の Route を見る
 - Vercel の無料プランは**関数が12個まで**で、今ちょうど12個。`api/` に新しいファイルを足すとデプロイが落ちる。
   共通部品は `_` で始まる名前にする（`api/_xxx.ts` は関数に数えられない）。新しい入口が要るときは既存の関数に相乗りする
-- DB の変更は `sql/YYYY-MM-DD-内容.sql` に書いて PR に入れる。本番への適用は柴野がやる（PR に `needs:prod-sql` ラベル）
+- DB の変更は `sql/YYYY-MM-DD-内容.sql` に書いてコミットする。**本番に流したら PR かコミットにそう書く**（誰が流したか分からなくなるため）
+- 環境変数の追加・変更と Vercel のログは柴野しか触れない（無料プランは1人用）。必要なら `needs:env` を付けて頼む
 - 文言・コメントは日本語。既存のコードの書き方（命名・コメントの量）に合わせる
 
-## PR を出す前に
+## main に入れる前に
 
-- `npm run build` が通ること（GitHub Actions でも同じものが走る）
-- 画面を変えたら、PR に付くプレビュー URL で実際に触って確かめる
-- PR の説明に「何を・なぜ・どう確かめたか」を書く
+- `npm run build` が通ること
+- 画面を変えたら、プレビュー URL を**スマホで**触って確かめる
+- 大きい変更・DB を変える変更は PR にして、誰か1人に見てもらう（必須ではないが強く推奨）
