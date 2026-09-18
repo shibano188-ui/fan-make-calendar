@@ -111,8 +111,15 @@ type Props = {
 
 export default function SavedCalendar({ events, scope, anchor, setAnchor, onOpen, onLike, onCalendar, onAdd }: Props) {
   const today = todayStr();
-  // 月表示で押した日。null ならパネルは閉じている
+  // 月表示で選んでいる日（色が付く）と、パネルで開いている日（null なら閉じている）。
+  // パネルが閉じているときは「1回目で選ぶ → 同じ日をもう1回で開く」。
+  // 開いているときは別の日を1回押すだけで中身が切り替わる
+  const [selected, setSelected] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
+  const onTapDay = (day: string) => {
+    if (picked !== null || selected === day) setPicked(day);
+    setSelected(day);
+  };
 
   // 日付未定の保存分（カレンダーに乗らないので別枠で件数表示）。
   // 受付終了したものは消さずに残す（本人のいいね記録）が、後ろに回して薄く表示する
@@ -139,7 +146,7 @@ export default function SavedCalendar({ events, scope, anchor, setAnchor, onOpen
     <div className={scope === 'month' ? 'flex-1 min-h-0 flex flex-col pb-1' : 'pb-4'}>
       {scope === 'month' && (
         <MonthView events={events} anchor={anchor} setAnchor={setAnchor} today={today} colorOf={colorOf}
-          picked={picked} onPick={setPicked} />
+          selected={selected} onTapDay={onTapDay} />
       )}
       {scope === 'week' && (
         <WeekView events={events} anchor={anchor} setAnchor={setAnchor} today={today} colorOf={colorOf}
@@ -197,11 +204,11 @@ type ViewProps = {
 };
 
 type MonthProps = Pick<ViewProps, 'events' | 'anchor' | 'setAnchor' | 'today' | 'colorOf'> & {
-  picked: string | null;
-  onPick: (day: string) => void;
+  selected: string | null;
+  onTapDay: (day: string) => void;
 };
 
-function MonthView({ events, anchor, setAnchor, today, colorOf, picked, onPick }: MonthProps) {
+function MonthView({ events, anchor, setAnchor, today, colorOf, selected, onTapDay }: MonthProps) {
   const cur = parse(anchor);
   const year = cur.getFullYear();
   const month = cur.getMonth();
@@ -236,7 +243,8 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, picked, onPick }
   const { settings } = useTheme();
   const bgImage = settings.backgroundImageUrl;
   const cellBg = (sel: boolean) => {
-    if (!bgImage) return sel ? 'var(--fill-tertiary)' : 'var(--bg-primary)';
+    // 選んだ日は「もう1回押すと開く」の合図なので、グレーではなくアクセント色を薄く敷いて目立たせる
+    if (!bgImage) return sel ? 'color-mix(in srgb, var(--accent-color) 22%, var(--bg-primary))' : 'var(--bg-primary)';
     // 選んでいるマスは濃く（＝画像が引っ込む）、それ以外は薄く
     return sel
       ? 'color-mix(in srgb, var(--bg-primary) 90%, transparent)'
@@ -271,15 +279,16 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, picked, onPick }
           const inMonth = d.getMonth() === month;
           const dow = d.getDay();
           const isToday = day === today;
-          const isSel = day === picked;
+          const isSel = day === selected;
           const dayEvents = eventsOnDay(events, day);
           const dayColor = !inMonth ? 'var(--cal-other-month-color)' : dow === 0 ? 'var(--cal-sunday-color)' : dow === 6 ? 'var(--cal-saturday-color)' : 'var(--label-primary)';
           const over = dayEvents.length - maxChips;
           return (
-            // マスのどこを押しても「その日を開く」。予定の帯を押して詳細へ飛ぶのは誤タップが多かったのでやめた
+            // マスのどこを押しても「その日」を押した扱い。予定の帯を押して詳細へ飛ぶのは誤タップが多かったのでやめた
             <button key={day} type="button"
               aria-label={`${d.getMonth() + 1}月${d.getDate()}日`}
-              onClick={() => { haptic.select(); onPick(day); }}
+              aria-pressed={isSel}
+              onClick={() => { haptic.select(); onTapDay(day); }}
               className="relative h-full min-h-0 overflow-hidden flex flex-col items-stretch pt-1 px-[1px] pressable text-left cursor-pointer"
               style={{ backgroundColor: cellBg(isSel) }}>
               <span className="self-center flex-shrink-0 text-[12px] leading-none flex items-center justify-center w-5 h-5 rounded-full"
