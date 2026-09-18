@@ -405,7 +405,6 @@ export default function Saved() {
                   すべて表示
                 </button>
               )}
-              <button onClick={() => navigate('/customize')} className="pressable text-label-secondary">画像・色を変える</button>
               <button onClick={() => { haptic.select(); setWorksOpen(false); }} aria-label="閉じる"
                 className="pressable ml-auto w-7 h-7 rounded-full flex items-center justify-center text-label-secondary">
                 <ChevronsUp size={18} />
