@@ -22,11 +22,12 @@ const KEYS = {
   work_colors:         'fan_work_colors',
   muted_event_ids:     'fan_muted_event_ids',
   muted_work_ids:      'fan_muted_work_ids',
+  work_images:         'fan_work_images',
 } as const;
 
 export type AppStateColumn = keyof typeof KEYS;
 
-// 配列で持つもの（それ以外＝work_colors はオブジェクト）
+// 配列で持つもの（それ以外＝work_colors / work_images はオブジェクト）
 const IS_ARRAY: Record<AppStateColumn, boolean> = {
   important_event_ids: true,
   bell_event_ids:      true,
@@ -35,6 +36,7 @@ const IS_ARRAY: Record<AppStateColumn, boolean> = {
   work_colors:         false,
   muted_event_ids:     true,
   muted_work_ids:      true,
+  work_images:         false,
 };
 
 function readLocal(col: AppStateColumn): unknown {

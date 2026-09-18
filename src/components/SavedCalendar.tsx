@@ -13,10 +13,10 @@ export type Scope = 'month' | 'week' | 'day';
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 
-/** 月カレンダーの予定チップ1枚ぶんの高さ（文字13px + 下の隙間2px）。何枚入るかの計算に使う */
-const CHIP_H = 15;
-/** マスの中でチップに使えない高さ（日付の丸20px + 上下の余白6px） */
-const CHIP_RESERVE = 26;
+/** 月カレンダーの予定の帯1段ぶんの高さ（帯14px + 下の隙間2px）。何段入るかの計算に使う */
+const CHIP_H = 16;
+/** 帯を置き始める高さ（マスの上の余白4px + 日付の丸20px + 隙間2px） */
+const BAR_TOP = 26;
 
 /** 作品色の上に乗せる文字の色。WORK_COLORS は淡い色が多いので、たいていは黒が乗る */
 function textOn(bg: string): string {
@@ -203,6 +203,46 @@ type ViewProps = {
   onCalendar: (e: CalendarEvent) => void;
 };
 
+/** 予定が掛かる期間。来店予定（visits）があればその期間ごと、無ければ date〜endDate の1本 */
+function rangesOf(e: CalendarEvent): { start: string; end: string }[] {
+  if (e.visits && e.visits.length > 0) return e.visits.map((v) => ({ start: v.start, end: v.end }));
+  if (!e.date) return [];
+  return [{ start: e.date, end: e.endDate || e.date }];
+}
+
+/** 週の中での1本の帯。start/end はその週の何日目か（0=日曜） */
+type Seg = { e: CalendarEvent; start: number; end: number; lane: number; contL: boolean; contR: boolean };
+
+function dayIndex(weekStart: string, day: string): number {
+  return Math.round((parse(day).getTime() - parse(weekStart).getTime()) / 86400000);
+}
+
+/** 1週間ぶんの帯を、重ならないように段（lane）へ積む。
+ *  長い予定を先に置くと、日をまたぐ帯がまっすぐ1段に並ぶ（Googleカレンダーと同じ積み方） */
+function layoutWeek(events: CalendarEvent[], weekStart: string): Seg[] {
+  const weekEnd = addDays(weekStart, 6);
+  const segs: Omit<Seg, 'lane'>[] = [];
+  for (const e of events) {
+    for (const r of rangesOf(e)) {
+      if (r.end < weekStart || r.start > weekEnd) continue;
+      segs.push({
+        e,
+        start: dayIndex(weekStart, r.start < weekStart ? weekStart : r.start),
+        end: dayIndex(weekStart, r.end > weekEnd ? weekEnd : r.end),
+        contL: r.start < weekStart,
+        contR: r.end > weekEnd,
+      });
+    }
+  }
+  segs.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
+  const laneEnds: number[] = [];
+  return segs.map((s) => {
+    let lane = laneEnds.findIndex((end) => end < s.start);
+    if (lane === -1) { lane = laneEnds.length; laneEnds.push(s.end); } else laneEnds[lane] = s.end;
+    return { ...s, lane };
+  });
+}
+
 type MonthProps = Pick<ViewProps, 'events' | 'anchor' | 'setAnchor' | 'today' | 'colorOf'> & {
   selected: string | null;
   onTapDay: (day: string) => void;
@@ -214,24 +254,27 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, selected, onTapD
   const month = cur.getMonth();
   const firstStr = todayStr(new Date(year, month, 1));
   const gridStart = startOfWeek(firstStr);
-  const days = useMemo(() => Array.from({ length: 42 }, (_, i) => addDays(gridStart, i)), [gridStart]);
+  // 行数はその月に必要なぶんだけ（4〜6行）。いつも6行にすると、ほとんどの月で最後の行が翌月だけになる
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const weekCount = Math.ceil((parse(firstStr).getDay() + daysInMonth) / 7);
+  const weeks = useMemo(() => Array.from({ length: weekCount }, (_, i) => addDays(gridStart, i * 7)), [gridStart, weekCount]);
+  const layouts = useMemo(() => weeks.map((w) => layoutWeek(events, w)), [weeks, events]);
   const goPrev = () => setAnchor(addMonths(anchor, -1));
   const goNext = () => setAnchor(addMonths(anchor, 1));
   const swipe = useSwipe(goPrev, goNext);
 
-  // 1マスに予定チップを何枚出せるか。マスの高さは画面の高さで変わるので、実物の高さを測って決める。
-  // ⚠ 行の高さは minmax(0, 1fr) で固定してある。auto を許すと
-  //    「チップが増える→マスが伸びる→もっと入る」で測り直しが止まらなくなる。
+  // 1週の行に帯を何段出せるか。行の高さは画面と行数で変わるので、実物を測って決める。
+  // ⚠ 行の高さは flex で等分して固定してある。中身で伸びる作りにすると
+  //    「帯が増える→行が伸びる→もっと入る」で測り直しが止まらなくなる。
   const gridRef = useRef<HTMLDivElement>(null);
-  const [maxChips, setMaxChips] = useState(3);
+  const [maxLanes, setMaxLanes] = useState(3);
   useLayoutEffect(() => {
     const grid = gridRef.current;
     if (!grid) return;
     const measure = () => {
-      const cell = grid.firstElementChild as HTMLElement | null;
-      if (!cell) return;
-      const room = cell.clientHeight - CHIP_RESERVE;
-      setMaxChips(Math.max(1, Math.min(6, Math.floor(room / CHIP_H))));
+      const row = grid.firstElementChild as HTMLElement | null;
+      if (!row) return;
+      setMaxLanes(Math.max(1, Math.floor((row.clientHeight - BAR_TOP - 2) / CHIP_H)));
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -263,7 +306,7 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, selected, onTapD
         ))}
       </div>
 
-      {/* 日グリッド。残りの高さを6行で等分する。背景画像があるときは、その上にマスを半透明で重ねる */}
+      {/* 週の行を縦に等分する。背景画像があるときは、その上にマスを半透明で重ねる */}
       <div
         className="flex-1 min-h-0 rounded-[12px] overflow-hidden"
         style={bgImage ? {
@@ -272,56 +315,71 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, selected, onTapD
           backgroundPosition: `${settings.bgImageOffsetX ?? 50}% ${settings.bgImageOffsetY ?? 50}%`,
         } : undefined}
       >
-      <div ref={gridRef} className="grid grid-cols-7 gap-px h-full"
-        style={{ gridTemplateRows: 'repeat(6, minmax(0, 1fr))', backgroundColor: bgImage ? 'transparent' : 'var(--separator)' }}>
-        {days.map((day) => {
-          const d = parse(day);
-          const inMonth = d.getMonth() === month;
-          const dow = d.getDay();
-          const isToday = day === today;
-          const isSel = day === selected;
-          const dayEvents = eventsOnDay(events, day);
-          const dayColor = !inMonth ? 'var(--cal-other-month-color)' : dow === 0 ? 'var(--cal-sunday-color)' : dow === 6 ? 'var(--cal-saturday-color)' : 'var(--label-primary)';
-          const over = dayEvents.length - maxChips;
+      <div ref={gridRef} className="h-full flex flex-col gap-px" style={{ backgroundColor: bgImage ? 'transparent' : 'var(--separator)' }}>
+        {weeks.map((weekStart, wi) => {
+          const segs = layouts[wi];
           return (
-            // マスのどこを押しても「その日」を押した扱い。予定の帯を押して詳細へ飛ぶのは誤タップが多かったのでやめた
-            <button key={day} type="button"
-              aria-label={`${d.getMonth() + 1}月${d.getDate()}日`}
-              aria-pressed={isSel}
-              onClick={() => { haptic.select(); onTapDay(day); }}
-              className="relative h-full min-h-0 overflow-hidden flex flex-col items-stretch pt-1 px-[1px] pressable text-left cursor-pointer"
-              style={{ backgroundColor: cellBg(isSel) }}>
-              <span className="self-center flex-shrink-0 text-[12px] leading-none flex items-center justify-center w-5 h-5 rounded-full"
-                style={isToday
-                  ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)', fontWeight: 700 }
-                  : { color: dayColor }}>
-                {d.getDate()}
-              </span>
-              {/* 入りきらなかった件数は日付の横に出す。チップと同じ列に置くと、
-                  マスが低い機種（--cal-cell-h が縮む）でこれ自体がはみ出して切れる */}
-              {over > 0 && (
-                <span className="absolute top-[3px] right-[3px] text-[9px] leading-none font-semibold text-label-secondary">
-                  +{over}
-                </span>
-              )}
-              {/* 予定は作品色の帯にタイトルを載せて出す（Googleカレンダーと同じ見せ方） */}
-              <div className="mt-[3px] flex flex-col gap-[2px]" style={{ opacity: inMonth ? 1 : 0.45 }}>
-                {dayEvents.slice(0, maxChips).map((e) => {
-                  const c = colorOf(e);
-                  const solid = !c.startsWith('var(');
-                  return (
-                    // 帯は見せるだけ。タイトルは5文字ほどしか出ないので、全文は日付のパネルで読んでもらう
-                    <span key={e.id}
-                      className="block w-full rounded-[3px] px-[3px] text-[9px] leading-[13px] font-medium truncate text-left"
-                      style={solid
-                        ? { backgroundColor: c, color: textOn(c) }
-                        : { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
-                      {e.title}
+            <div key={weekStart} className="relative flex-1 min-h-0 grid grid-cols-7 gap-px">
+              {Array.from({ length: 7 }, (_, di) => {
+                const day = addDays(weekStart, di);
+                const d = parse(day);
+                const inMonth = d.getMonth() === month;
+                const dow = d.getDay();
+                const isToday = day === today;
+                const isSel = day === selected;
+                const dayColor = !inMonth ? 'var(--cal-other-month-color)' : dow === 0 ? 'var(--cal-sunday-color)' : dow === 6 ? 'var(--cal-saturday-color)' : 'var(--label-primary)';
+                // 出しきれなかった段の予定の数
+                const over = segs.filter((s) => s.lane >= maxLanes && s.start <= di && di <= s.end).length;
+                return (
+                  // マスのどこを押しても「その日」を押した扱い。予定の帯を押して詳細へ飛ぶのは誤タップが多かったのでやめた
+                  <button key={day} type="button"
+                    aria-label={`${d.getMonth() + 1}月${d.getDate()}日`}
+                    aria-pressed={isSel}
+                    onClick={() => { haptic.select(); onTapDay(day); }}
+                    className="relative h-full min-h-0 overflow-hidden flex flex-col items-center pt-1 pressable cursor-pointer"
+                    style={{ backgroundColor: cellBg(isSel) }}>
+                    <span className="flex-shrink-0 text-[12px] leading-none flex items-center justify-center w-5 h-5 rounded-full"
+                      style={isToday
+                        ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)', fontWeight: 700 }
+                        : { color: dayColor }}>
+                      {d.getDate()}
                     </span>
+                    {over > 0 && (
+                      <span className="absolute top-[3px] right-[3px] text-[9px] leading-none font-semibold text-label-secondary">
+                        +{over}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+
+              {/* 予定の帯。日をまたぐ予定は1本の帯にして、名前は1回だけ出す（TimeTree / Googleカレンダーと同じ）。
+                  帯は見せるだけで、押すと下のマス（その日）に届く */}
+              <div className="absolute inset-0 pointer-events-none">
+                {segs.filter((s) => s.lane < maxLanes).map((s) => {
+                  const c = colorOf(s.e);
+                  const solid = !c.startsWith('var(');
+                  const span = s.end - s.start + 1;
+                  return (
+                    <div key={`${s.e.id}-${s.start}`}
+                      className="absolute h-[14px] px-[3px] text-[10px] leading-[14px] font-medium whitespace-nowrap overflow-hidden"
+                      style={{
+                        top: BAR_TOP + s.lane * CHIP_H,
+                        left: `calc(${(s.start / 7) * 100}% + ${s.contL ? 0 : 1}px)`,
+                        width: `calc(${(span / 7) * 100}% - ${(s.contL ? 0 : 1) + (s.contR ? 0 : 1)}px)`,
+                        // 前の週・次の週へ続く側は角を落とさない（続いていることが分かるように）
+                        borderRadius: `${s.contL ? 0 : 3}px ${s.contR ? 0 : 3}px ${s.contR ? 0 : 3}px ${s.contL ? 0 : 3}px`,
+                        letterSpacing: '-0.02em',
+                        ...(solid
+                          ? { backgroundColor: c, color: textOn(c) }
+                          : { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }),
+                      }}>
+                      {s.e.title}
+                    </div>
                   );
                 })}
               </div>
-            </button>
+            </div>
           );
         })}
       </div>
