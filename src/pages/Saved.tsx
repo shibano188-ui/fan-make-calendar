@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Search, SlidersHorizontal, X, Crown, CalendarDays, CalendarRange, Calendar, List, Check } from 'lucide-react';
+import { Search, SlidersHorizontal, X, Crown, CalendarDays, CalendarRange, Calendar, List, Check, ChevronsDown, ChevronsUp } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import Chip from '../components/ui/Chip';
@@ -9,7 +9,8 @@ import SavedCalendar, { periodLabel, includesToday } from '../components/SavedCa
 import FilterPanel, { type Facet } from '../components/item/FilterPanel';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveStatus, todayStr, STATUS, type ItemStatus } from '../design/tokens';
-import { listSavedEvents, getHomePrefecture, toggleLike, toggleCalendarAdd } from '../lib/api';
+import { listSavedEvents, getHomePrefecture, toggleLike, toggleCalendarAdd, listAllParticipatedWorks, type Work } from '../lib/api';
+import { loadWorkImages } from '../lib/workImages';
 import { parseCategories, isNotifyOn } from '../lib/constants';
 import { buildWorkColorMap } from '../lib/workColors';
 import { logSearch } from '../lib/dataLogs';
@@ -70,6 +71,25 @@ export default function Saved() {
   // 探すと同じ絞り込み
   const [query, setQuery] = useState<string>(_ss.query ?? '');
   const [filterOpen, setFilterOpen] = useState<boolean>(_ss.filterOpen ?? false);
+  // 上部の作品の並び（TimeTree 風）。フォロー中の作品だけを出し、押すとその作品を隠す（もう一度で戻す）
+  const [followedWorks, setFollowedWorks] = useState<Work[]>([]);
+  const [workImages, setWorkImages] = useState<Record<string, string>>(loadWorkImages);
+  const [worksOpen, setWorksOpen] = useState(false);
+  const worksRowRef = useRef<HTMLDivElement>(null);
+  const [worksTop, setWorksTop] = useState(0);
+  useEffect(() => {
+    if (!user) return;
+    listAllParticipatedWorks(user.id).then(setFollowedWorks).catch(() => {});
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const onChange = () => setWorkImages(loadWorkImages());
+    window.addEventListener('fan-work-images', onChange);
+    return () => window.removeEventListener('fan-work-images', onChange);
+  }, []);
+  useLayoutEffect(() => {
+    if (worksOpen && worksRowRef.current) setWorksTop(worksRowRef.current.getBoundingClientRect().top);
+  }, [worksOpen]);
+
   // 絞り込みはカレンダーの上に重ねて出す（開いてもカレンダーの大きさを変えない）。
   // 上部バーの下端から出すので、開いたときにバーの位置を測る
   const headerRef = useRef<HTMLDivElement>(null);
@@ -145,6 +165,9 @@ export default function Saved() {
     );
     return buildWorkColorMap(works);
   }, [items]);
+
+  // 作品の並びの四角の色。カレンダーの帯と同じ保存先なので、同じ作品は同じ色になる
+  const followedColor = useMemo(() => buildWorkColorMap(followedWorks), [followedWorks]);
 
   // スコープ（すべて / いいね / 自分の投稿）→ 検索語 で絞った集合
   const scopeItems = useMemo(() => {
@@ -254,10 +277,11 @@ export default function Saved() {
   };
   const clearFilters = () => {
     haptic.select();
-    setSelectedStatuses(new Set()); setExcludedWorks(new Set()); setSelectedCategories(new Set());
+    setSelectedStatuses(new Set()); setSelectedCategories(new Set());
     setSelectedPrefs(new Set()); setSelectedRegions(new Set()); setNeighborActive(false);
   };
-  const facetCount = selectedStatuses.size + excludedWorks.size + selectedCategories.size + selectedPrefs.size + selectedRegions.size + (neighborActive ? 1 : 0);
+  // 作品は上の並びで切り替えるので、絞り込みの件数には数えない
+  const facetCount = selectedStatuses.size + selectedCategories.size + selectedPrefs.size + selectedRegions.size + (neighborActive ? 1 : 0);
 
   const onCalendar = async (e: CalendarEvent) => {
     haptic.select();
@@ -343,7 +367,53 @@ export default function Saved() {
           </IconButton>
         </div>
 
+        {/* 作品の並び。入りきらない分は右端の︾で広げて選ぶ */}
+        {followedWorks.length > 0 && (
+          <div ref={worksRowRef} className="flex items-center gap-1 mt-1.5">
+            <div className="flex-1 min-w-0 flex gap-1.5 overflow-hidden">
+              {followedWorks.map((w) => (
+                <WorkChip key={w.id} work={w} color={followedColor.get(w.id)} image={workImages[w.id]}
+                  hidden={excludedWorks.has(w.id)} onClick={() => toggleIn(setExcludedWorks, w.id)} />
+              ))}
+            </div>
+            <button onClick={() => { haptic.select(); setWorksOpen(true); }} aria-label="作品をすべて表示"
+              className="pressable flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-label-secondary">
+              <ChevronsDown size={18} />
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* 作品の並びを広げたところ。カレンダーは縮めず、上に重ねる。ここだけスクロールできる */}
+      {worksOpen && createPortal(
+        <>
+          <div className="fixed inset-0" style={{ zIndex: 90, top: worksTop, backgroundColor: 'rgba(0,0,0,0.25)' }}
+            onClick={() => setWorksOpen(false)} />
+          <div className="fixed inset-x-0 max-w-app mx-auto px-3 pt-0.5 pb-3 rounded-b-[16px] shadow-float flex flex-col"
+            style={{ zIndex: 91, top: worksTop, maxHeight: `calc(100dvh - ${worksTop}px - 110px)`, backgroundColor: 'var(--bg-primary)' }}>
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                {followedWorks.map((w) => (
+                  <WorkChip key={w.id} work={w} color={followedColor.get(w.id)} image={workImages[w.id]}
+                    hidden={excludedWorks.has(w.id)} onClick={() => toggleIn(setExcludedWorks, w.id)} />
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-3 pt-2.5 text-[12px] font-medium">
+              {excludedWorks.size > 0 && (
+                <button onClick={() => { haptic.select(); setExcludedWorks(new Set()); }} className="pressable" style={{ color: 'var(--accent-color)' }}>
+                  すべて表示
+                </button>
+              )}
+              <button onClick={() => { haptic.select(); setWorksOpen(false); }} aria-label="閉じる"
+                className="pressable ml-auto w-7 h-7 rounded-full flex items-center justify-center text-label-secondary">
+                <ChevronsUp size={18} />
+              </button>
+            </div>
+          </div>
+        </>,
+        document.body,
+      )}
 
       {/* 絞り込み: 検索・対象（すべて/予約受注中/自分の投稿/通知ON）・細かい条件をここにまとめる */}
       {filterOpen && createPortal(
@@ -375,7 +445,7 @@ export default function Saved() {
               )}
             </div>
             <FilterPanel
-              statuses={statusFacets} works={workFacets} categories={categoryFacets} prefectures={prefFacets} regions={regionFacets}
+              statuses={statusFacets} works={[]} categories={categoryFacets} prefectures={prefFacets} regions={regionFacets}
               selectedStatuses={selectedStatuses} selectedWorks={includedWorks} selectedCategories={selectedCategories} selectedPrefs={selectedPrefs} selectedRegions={selectedRegions}
               onToggleStatus={(k) => toggleIn(setSelectedStatuses, k)}
               onToggleWork={(k) => toggleIn(setExcludedWorks, k)}
@@ -427,6 +497,22 @@ function IconButton({ label, onClick, pressed, active, children }: {
         ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }
         : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
       {children}
+    </button>
+  );
+}
+
+/** 作品の並びの1つ。左に作品の画像（無ければ作品カラーの四角）。隠している作品は薄くする */
+function WorkChip({ work, color, image, hidden, onClick }: {
+  work: Work; color?: string; image?: string; hidden: boolean; onClick: () => void;
+}) {
+  return (
+    <button onClick={onClick} aria-pressed={!hidden} title={work.name}
+      className="pressable flex-shrink-0 flex items-center gap-1.5 h-7 pl-1 pr-2.5 rounded-full max-w-[11rem]"
+      style={{ backgroundColor: 'var(--fill-tertiary)', opacity: hidden ? 0.4 : 1 }}>
+      {image
+        ? <img src={image} alt="" className="w-5 h-5 rounded-[5px] object-cover flex-shrink-0" />
+        : <span className="w-5 h-5 rounded-[5px] flex-shrink-0" style={{ backgroundColor: color ?? 'var(--accent-color)' }} />}
+      <span className={`text-[12px] font-medium truncate ${hidden ? 'line-through' : ''}`}>{work.name}</span>
     </button>
   );
 }

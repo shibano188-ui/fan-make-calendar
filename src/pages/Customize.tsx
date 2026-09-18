@@ -1,9 +1,10 @@
 import { useRef, useState, useEffect } from 'react';
-import { Upload, ChevronDown } from 'lucide-react';
+import { Upload, ChevronDown, ImagePlus, X } from 'lucide-react';
 import Layout from '../components/Layout';
 import Header from '../components/Header';
 import { useTheme, COMMUNITY_THEMES, resolveTheme, type UserSettings } from '../contexts/ThemeContext';
-import { listRecentWorks, type Work } from '../lib/api';
+import { listAllParticipatedWorks, type Work } from '../lib/api';
+import { loadWorkImages, setWorkImage, toWorkImage, fileToDataUrl } from '../lib/workImages';
 import { useAuth } from '../contexts/AuthContext';
 import { WORK_COLORS } from './Calendar';
 import { useConfirm } from '../components/ui/ConfirmDialog';
@@ -246,9 +247,33 @@ export default function Customize() {
   const workBtnRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const workCustomInputRef = useRef<HTMLInputElement>(null);
 
+  // 作品ごとの画像（カレンダー上部の作品の並びで、名前の左に出す）
+  const [workImages, setWorkImages] = useState<Record<string, string>>(loadWorkImages);
+  const workImageInputRef = useRef<HTMLInputElement>(null);
+  const workImageTarget = useRef<string | null>(null);
+  const applyWorkImage = async (workId: string, dataUrl: string | null) => {
+    const img = dataUrl ? await toWorkImage(dataUrl) : null;
+    if (dataUrl && !img) return;
+    setWorkImage(workId, img);
+    setWorkImages(loadWorkImages());
+  };
+  const pickWorkImage = async (workId: string) => {
+    if (!hasNativePhotoPicker()) { workImageTarget.current = workId; workImageInputRef.current?.click(); return; }
+    const res = await pickPhoto();
+    if (res.status === 'denied') {
+      await confirmDialog({
+        title: '写真へのアクセスが必要です',
+        message: '設定アプリ ＞ FanHive ＞ 写真 で許可すると、作品の画像を選べます。',
+        hideCancel: true,
+      });
+      return;
+    }
+    if (res.status === 'picked') await applyWorkImage(workId, res.dataUrl);
+  };
+
   useEffect(() => {
     if (!user) return;
-    listRecentWorks(user.id).then(setParticipatedWorks).catch(console.error);
+    listAllParticipatedWorks(user.id).then(setParticipatedWorks).catch(console.error);
   }, [user?.id]);
 
   // パレット外クリックで閉じる
@@ -552,7 +577,7 @@ export default function Customize() {
               onClick={() => { setWorkColorOpen(v => !v); setOpenWorkColorKey(null); }}
               className="w-full flex items-center justify-between mb-2"
             >
-              <p className="text-label-tertiary text-xs">作品カラー</p>
+              <p className="text-label-tertiary text-xs">作品の色と画像</p>
               <div className="flex items-center gap-2">
                 <div className="flex gap-1">
                   {participatedWorks.slice(0, 5).map((w, i) => (
@@ -570,8 +595,25 @@ export default function Customize() {
                   {participatedWorks.map((w, i) => {
                     const currentColor = workColors[w.id] ?? WORK_COLORS[i % WORK_COLORS.length];
                     return (
-                      <div key={w.id} className="flex items-center justify-between">
-                        <span className="text-label-secondary text-sm">{w.name}</span>
+                      <div key={w.id} className="flex items-center justify-between gap-2">
+                        {/* 作品の画像。押すと写真を選ぶ。無ければ作品カラーの四角 */}
+                        <div className="relative flex-shrink-0">
+                          <button onClick={() => pickWorkImage(w.id)} aria-label={`${w.name}の画像を選ぶ`}
+                            className="w-9 h-9 rounded-[8px] overflow-hidden flex items-center justify-center active:opacity-70"
+                            style={{ backgroundColor: currentColor }}>
+                            {workImages[w.id]
+                              ? <img src={workImages[w.id]} alt="" className="w-full h-full object-cover" />
+                              : <ImagePlus size={16} color="#fff" />}
+                          </button>
+                          {workImages[w.id] && (
+                            <button onClick={() => applyWorkImage(w.id, null)} aria-label="画像を外す"
+                              className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center"
+                              style={{ backgroundColor: 'var(--label-secondary)', color: 'var(--bg-primary)' }}>
+                              <X size={12} />
+                            </button>
+                          )}
+                        </div>
+                        <span className="flex-1 min-w-0 truncate text-label-secondary text-sm">{w.name}</span>
                         <button
                           ref={el => { workBtnRefs.current[i] = el; }}
                           onClick={() => handleWorkColorToggle(w.id, i)}
@@ -665,6 +707,17 @@ export default function Customize() {
           <p className="text-label-tertiary text-xs mb-3">カレンダー背景画像</p>
           {!hasNativePhotoPicker() && (
             <input ref={bgInputRef} type="file" accept="image/*" onChange={handleBgUpload} className="hidden" />
+          )}
+          {!hasNativePhotoPicker() && (
+            <input ref={workImageInputRef} type="file" accept="image/*" className="hidden"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                const id = workImageTarget.current;
+                e.target.value = '';
+                if (!file || !id) return;
+                const url = await fileToDataUrl(file);
+                if (url) await applyWorkImage(id, url);
+              }} />
           )}
           {settings.backgroundImageUrl ? (
             <div className="flex gap-3 items-start">
