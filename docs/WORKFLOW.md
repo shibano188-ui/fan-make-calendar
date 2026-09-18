@@ -24,7 +24,7 @@ git push -u origin HEAD
 ## 3. 確かめる — プレビュー
 
 push すると数分で Vercel がプレビューを作る。
-`https://fan-make-calendar-git-<ブランチ名>-shibano-s-projects.vercel.app`（PR を作ると URL が自動で付く）。
+`https://fan-make-calendar-git-<ブランチ名>-shibano-s-projects.vercel.app`（PR を作ると URL が自動で付く。ブランチ名が長いと URL が短縮されるので、PR の URL を使うのが確実）。
 **スマホで触って確かめる。** プレビューは開発用の DB につながっているので、投稿・いいねを試してよい。
 
 ## 4. 本番に出す — main に入れる

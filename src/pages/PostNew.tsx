@@ -70,6 +70,9 @@ export default function PostNew() {
   const share = readShare(searchParams);
   const draft0 = useRef(share.url ? null : readDraft()).current;
   const today = todayStr();
+  // カレンダーの「この日に追加」から来たときは、その日付を入れて開く（下書きの日付より優先）
+  const dateParam = searchParams.get('date');
+  const presetDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null;
   const [type, setType] = useState<ItemType>(draft0?.type ?? 'goods');
   const [workId, setWorkId] = useState<string | null>(draft0?.workId ?? null);
   const [workName, setWorkName] = useState<string>(draft0?.workName ?? '');
@@ -81,10 +84,10 @@ export default function PostNew() {
   const [title, setTitle] = useState<string>(draft0?.title ?? '');
   const [cats, setCats] = useState<Set<string>>(new Set(draft0?.cats ?? []));
   const [allDay, setAllDay] = useState<boolean>(draft0?.allDay ?? true);
-  const [dateTBD, setDateTBD] = useState<boolean>(draft0?.dateTBD ?? false);
-  const [dateLabel, setDateLabel] = useState<string>(draft0?.dateLabel ?? ''); // 上旬/中旬/下旬/中/春頃…
-  const [date, setDate] = useState<string>(draft0?.date ?? today);
-  const [endDate, setEndDate] = useState<string>(draft0?.endDate ?? today);
+  const [dateTBD, setDateTBD] = useState<boolean>(presetDate ? false : (draft0?.dateTBD ?? false));
+  const [dateLabel, setDateLabel] = useState<string>(presetDate ? '' : (draft0?.dateLabel ?? '')); // 上旬/中旬/下旬/中/春頃…
+  const [date, setDate] = useState<string>(presetDate ?? draft0?.date ?? today);
+  const [endDate, setEndDate] = useState<string>(presetDate ?? draft0?.endDate ?? today);
   const [time, setTime] = useState<string>(draft0?.time ?? '');
   const [endTime, setEndTime] = useState<string>(draft0?.endTime ?? '');
   const [isOrder, setIsOrder] = useState<boolean>(draft0?.isOrder ?? false);
