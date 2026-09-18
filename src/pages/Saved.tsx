@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Search, SlidersHorizontal, X, Bell } from 'lucide-react';
+import { Search, SlidersHorizontal, X, Crown, CalendarDays, CalendarRange, Calendar, List, Check } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import Chip from '../components/ui/Chip';
-import SavedCalendar from '../components/SavedCalendar';
+import SavedCalendar, { periodLabel, includesToday } from '../components/SavedCalendar';
 import FilterPanel, { type Facet } from '../components/item/FilterPanel';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveStatus, todayStr, STATUS, type ItemStatus } from '../design/tokens';
@@ -18,15 +19,16 @@ import { useHiddenContent } from '../hooks/useHiddenContent';
 import { useToast } from '../components/ui/Toast';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { haptic } from '../lib/haptics';
+import { usePremium } from '../lib/premium';
 
 type Tab = 'all' | 'preorder' | 'mine' | 'notify';
 type View = 'list' | 'month' | 'week' | 'day';
 
-const VIEWS: { key: View; label: string }[] = [
-  { key: 'month', label: '月' },
-  { key: 'week', label: '週' },
-  { key: 'day', label: '日' },
-  { key: 'list', label: 'リスト' },
+const VIEWS: { key: View; label: string; icon: typeof Calendar }[] = [
+  { key: 'month', label: '月', icon: CalendarDays },
+  { key: 'week', label: '週', icon: CalendarRange },
+  { key: 'day', label: '日', icon: Calendar },
+  { key: 'list', label: 'リスト', icon: List },
 ];
 
 const STATUS_ORDER: ItemStatus[] = ['preorder_soon', 'preorder', 'sale_soon', 'onsale', 'preorder_ended', 'ended'];
@@ -47,6 +49,12 @@ export default function Saved() {
   const [items, setItems] = useState<CalendarEvent[] | null>(null);
   const [tab, setTab] = useState<Tab>(['all', 'preorder', 'mine', 'notify'].includes(_ss.tab) ? _ss.tab : 'all');
   const [view, setView] = useState<View>(_ss.view ?? 'month');
+  // 表示切替のメニューの位置（開いているときだけ）。上部バーは下端をぼかす mask で
+  // はみ出した部分が消えるので、メニューは body に出して画面の座標で置く
+  const [viewMenuAt, setViewMenuAt] = useState<{ top: number; right: number } | null>(null);
+  // 表示中の月・週・日。見出しと「今日」ボタンのためにここで持つ
+  const [anchor, setAnchor] = useState<string>(todayStr());
+  const premium = usePremium();
 
   // 探すと同じ絞り込み
   const [query, setQuery] = useState<string>(_ss.query ?? '');
@@ -61,14 +69,6 @@ export default function Saved() {
 
   const today = todayStr();
   const rootRef = useRef<HTMLDivElement>(null);
-
-  // 通知機能の案内バナー。「通知が欲しい」との声が多い＝🔔に気づかれていないため、
-  // ×で消すまで表示する（トーストだと見逃す）。ネイティブ＆予定ありのときだけ。
-  const [notifyHintDismissed, setNotifyHintDismissed] = useState(() => !!localStorage.getItem('fan_tip_notify_banner'));
-  const dismissNotifyHint = () => {
-    localStorage.setItem('fan_tip_notify_banner', '1');
-    setNotifyHintDismissed(true);
-  };
 
   // フィルター状態を sessionStorage に同期（詳細から戻っても維持）
   useEffect(() => {
@@ -239,7 +239,7 @@ export default function Saved() {
     setSelectedStatuses(new Set()); setExcludedWorks(new Set()); setSelectedCategories(new Set());
     setSelectedPrefs(new Set()); setSelectedRegions(new Set()); setNeighborActive(false);
   };
-  const activeCount = selectedStatuses.size + excludedWorks.size + selectedCategories.size + selectedPrefs.size + selectedRegions.size + (neighborActive ? 1 : 0);
+  const facetCount = selectedStatuses.size + excludedWorks.size + selectedCategories.size + selectedPrefs.size + selectedRegions.size + (neighborActive ? 1 : 0);
 
   const onCalendar = async (e: CalendarEvent) => {
     haptic.select();
@@ -248,99 +248,122 @@ export default function Saved() {
     toast(r === 'google' ? 'Googleカレンダーに追加しました' : r === 'ics' ? 'カレンダーに追加しました' : '日付未定のため追加できません');
   };
 
+  // 絞り込みボタンに出す件数。上に出ていた検索・すべて/予約受注中…もボタンの中に入ったので、それも数える
+  const activeCount = facetCount + (tab !== 'all' ? 1 : 0) + (query.trim() ? 1 : 0);
+  const clearAll = () => { clearFilters(); setTab('all'); setQuery(''); };
+
   const emptyMsg = tab === 'mine' ? 'まだ投稿がありません' : tab === 'preorder' ? '予約・受注中の予定はありません' : '保存した予定がありません';
 
   return (
     // ⚠️ ルートに上の余白を付けないこと。上部バーは自分で var(--sat) を持っているので、
     // ここに余白を足すと**帯の外側に地の色の帯**ができる（外皮で帯の色が変わると目立つ）
-    <div ref={rootRef} className="px-3">
-      <div className="sticky top-0 z-20 -mx-3 px-3 pt-1 pb-3 material-bar scroll-edge" data-skin-bar="main" style={{ paddingTop: 'calc(var(--sat) + 4px)' }}>
-        {/* 検索 ＋ 絞り込み（探すと同じ） */}
-        <div className="flex items-center gap-2 mb-2">
-          <div className="flex-1 min-w-0 flex items-center gap-2 px-3 rounded-[10px]" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-            <Search size={16} className="text-label-tertiary flex-shrink-0" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="保存した予定を検索"
-              className="flex-1 bg-transparent py-2 text-[14px] outline-none" style={{ color: 'var(--input-text)' }} />
-            {query && (
-              <button onClick={() => setQuery('')} aria-label="クリア" className="pressable text-label-tertiary flex-shrink-0"><X size={16} /></button>
+    // 月のマスを画面いっぱいに広げる。上の行・曜日・下の浮遊ナビのぶん（約170px）を引いて6行で割る
+    <div ref={rootRef} className="px-3"
+      style={{ '--cal-cell-h': 'clamp(56px, calc((100dvh - var(--sat) - env(safe-area-inset-bottom) - 170px) / 6), 150px)' } as React.CSSProperties}>
+      <div className="sticky top-0 z-20 -mx-3 px-3 pt-1 pb-2 material-bar scroll-edge" data-skin-bar="main" style={{ paddingTop: 'calc(var(--sat) + 4px)' }}>
+        {/* 1行だけ: 見出し（＋今日）／プレミアム／表示切替／絞り込み。文字は見出しだけで、ボタンはアイコンのみ */}
+        <div className="flex items-center gap-1.5 h-10">
+          <div className="flex-1 min-w-0 flex items-center gap-2">
+            <h1 className="text-[20px] font-bold tracking-tight truncate">
+              {view === 'list' ? '保存した予定' : periodLabel(view, anchor)}
+            </h1>
+            {/* 今日を含まない期間を見ているときだけ出す */}
+            {view !== 'list' && !includesToday(view, anchor, today) && (
+              <button onClick={() => { haptic.select(); setAnchor(today); }}
+                className="pressable flex-shrink-0 text-[12px] font-semibold px-2.5 py-1 rounded-full"
+                style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
+                今日
+              </button>
             )}
           </div>
-          <button onClick={() => { haptic.select(); setFilterOpen((v) => !v); }}
-            className="pressable flex items-center gap-1 px-3 py-2 rounded-[10px]"
-            style={filterOpen || activeCount > 0 ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' } : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}
-            aria-pressed={filterOpen || activeCount > 0}
-            aria-label="絞り込み">
-            <SlidersHorizontal size={16} />
-            {activeCount > 0 && <span className="text-[11px] font-bold">{activeCount}</span>}
-          </button>
-        </div>
 
-        {/* 表示切替: 月 / 週 / 日 / リスト */}
-        <div className="flex p-0.5 rounded-[10px] mb-2" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-          {VIEWS.map((v) => (
-            <button key={v.key} onClick={() => { haptic.select(); setView(v.key); }}
-              className="flex-1 text-[13px] font-semibold py-1.5 rounded-[8px] pressable transition-colors"
-              aria-pressed={view === v.key}
-              style={view === v.key
-                // 選んでいる方はアクセント色で塗る。地の色（--bg-primary）との差は
-                // 暗いテーマでも外皮でもほとんど付かず、「押しても変わらない」に見えていた。
-                // 絞り込みチップ（Chip）と同じ「選択＝アクセントで塗る」に揃える
-                ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }
-                : { color: 'var(--label-secondary)' }}>
-              {v.label}
-            </button>
-          ))}
-        </div>
-
-        {/* スコープ: すべて / いいね / 自分の投稿 / 通知ON（全ビューで有効） */}
-        <div className="flex items-center flex-wrap gap-2">
-          <Chip active={tab === 'all'} onClick={() => { haptic.select(); setTab('all'); }}>すべて</Chip>
-          <Chip active={tab === 'preorder'} onClick={() => { haptic.select(); setTab('preorder'); }}>予約・受注中</Chip>
-          <Chip active={tab === 'mine'} onClick={() => { haptic.select(); setTab('mine'); }}>自分の投稿</Chip>
-          <Chip active={tab === 'notify'} onClick={() => { haptic.select(); setTab('notify'); }}>通知ON</Chip>
-          {activeCount > 0 && !filterOpen && (
-            <div className="ml-auto flex items-center gap-1 rounded-full border overflow-hidden flex-shrink-0"
-              style={{ background: 'color-mix(in srgb, var(--accent-color) 12%, transparent)', borderColor: 'var(--accent-color)' }}>
-              <button onClick={() => { haptic.select(); setFilterOpen(true); }} className="pl-2.5 pr-1 py-1 text-[11px] font-medium pressable" style={{ color: 'var(--accent-color)' }}>絞り込み中 {activeCount}件</button>
-              <button onClick={() => { haptic.select(); clearFilters(); }} className="pr-2 py-1 text-[13px] font-medium pressable leading-none" style={{ color: 'var(--accent-color)' }} aria-label="絞り込みをクリア">×</button>
-            </div>
+          {!premium && (
+            <IconButton label="プレミアム" onClick={() => navigate('/premium')}>
+              <Crown size={18} />
+            </IconButton>
           )}
+
+          <IconButton label="表示を切り替える" pressed={!!viewMenuAt}
+            onClick={(el) => {
+              const r = el.getBoundingClientRect();
+              setViewMenuAt((cur) => (cur ? null : { top: r.bottom + 6, right: window.innerWidth - r.right }));
+            }}>
+            {(() => { const I = VIEWS.find((v) => v.key === view)?.icon ?? CalendarDays; return <I size={18} />; })()}
+          </IconButton>
+          {viewMenuAt && createPortal(
+            <>
+              <div className="fixed inset-0" style={{ zIndex: 200 }} onClick={() => setViewMenuAt(null)} />
+              <div className="fixed min-w-[132px] rounded-[12px] py-1 shadow-float border border-subtle" role="menu"
+                style={{ zIndex: 201, top: viewMenuAt.top, right: viewMenuAt.right, backgroundColor: 'var(--bg-primary)' }}>
+                {VIEWS.map((v) => (
+                  <button key={v.key} role="menuitemradio" aria-checked={view === v.key}
+                    onClick={() => { haptic.select(); setView(v.key); setViewMenuAt(null); }}
+                    className="pressable w-full flex items-center gap-2.5 px-3 py-2 text-[14px] text-left">
+                    <v.icon size={16} className="text-label-secondary" />
+                    <span className="flex-1">{v.label}</span>
+                    {view === v.key && <Check size={16} style={{ color: 'var(--accent-color)' }} />}
+                  </button>
+                ))}
+              </div>
+            </>,
+            document.body,
+          )}
+
+          <IconButton label="絞り込み" pressed={filterOpen} active={activeCount > 0}
+            onClick={() => setFilterOpen((v) => !v)}>
+            <SlidersHorizontal size={18} />
+            {activeCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold leading-4 text-center"
+                style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>{activeCount}</span>
+            )}
+          </IconButton>
         </div>
 
+        {/* 絞り込み: 検索・対象（すべて/予約受注中/自分の投稿/通知ON）・細かい条件をここにまとめる */}
         {filterOpen && (
-          <FilterPanel
-            statuses={statusFacets} works={workFacets} categories={categoryFacets} prefectures={prefFacets} regions={regionFacets}
-            selectedStatuses={selectedStatuses} selectedWorks={includedWorks} selectedCategories={selectedCategories} selectedPrefs={selectedPrefs} selectedRegions={selectedRegions}
-            onToggleStatus={(k) => toggleIn(setSelectedStatuses, k)}
-            onToggleWork={(k) => toggleIn(setExcludedWorks, k)}
-            onToggleCategory={(k) => toggleIn(setSelectedCategories, k)}
-            onTogglePref={(k) => toggleIn(setSelectedPrefs, k)}
-            onToggleRegion={(k) => toggleIn(setSelectedRegions, k)}
-            homePref={homePref} neighborActive={neighborActive} onToggleNeighbor={() => { haptic.select(); setNeighborActive((v) => !v); }}
-            onClear={clearFilters} resultCount={filtered.length}
-          />
+          <div className="pt-2">
+            <div className="flex items-center gap-2 px-3 rounded-[10px] mb-2" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+              <Search size={16} className="text-label-tertiary flex-shrink-0" />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="保存した予定を検索"
+                className="flex-1 bg-transparent py-2 text-[14px] outline-none" style={{ color: 'var(--input-text)' }} />
+              {query && (
+                <button onClick={() => setQuery('')} aria-label="クリア" className="pressable text-label-tertiary flex-shrink-0"><X size={16} /></button>
+              )}
+            </div>
+            <div className="flex items-center flex-wrap gap-2 mb-1">
+              <Chip active={tab === 'all'} onClick={() => { haptic.select(); setTab('all'); }}>すべて</Chip>
+              <Chip active={tab === 'preorder'} onClick={() => { haptic.select(); setTab('preorder'); }}>予約・受注中</Chip>
+              <Chip active={tab === 'mine'} onClick={() => { haptic.select(); setTab('mine'); }}>自分の投稿</Chip>
+              <Chip active={tab === 'notify'} onClick={() => { haptic.select(); setTab('notify'); }}>通知ON</Chip>
+              {activeCount > 0 && (
+                <button onClick={() => { haptic.select(); clearAll(); }}
+                  className="ml-auto text-[12px] font-medium pressable px-1" style={{ color: 'var(--accent-color)' }}>
+                  すべて解除
+                </button>
+              )}
+            </div>
+            <FilterPanel
+              statuses={statusFacets} works={workFacets} categories={categoryFacets} prefectures={prefFacets} regions={regionFacets}
+              selectedStatuses={selectedStatuses} selectedWorks={includedWorks} selectedCategories={selectedCategories} selectedPrefs={selectedPrefs} selectedRegions={selectedRegions}
+              onToggleStatus={(k) => toggleIn(setSelectedStatuses, k)}
+              onToggleWork={(k) => toggleIn(setExcludedWorks, k)}
+              onToggleCategory={(k) => toggleIn(setSelectedCategories, k)}
+              onTogglePref={(k) => toggleIn(setSelectedPrefs, k)}
+              onToggleRegion={(k) => toggleIn(setSelectedRegions, k)}
+              homePref={homePref} neighborActive={neighborActive} onToggleNeighbor={() => { haptic.select(); setNeighborActive((v) => !v); }}
+              onClear={clearFilters} resultCount={filtered.length}
+            />
+          </div>
         )}
       </div>
-
-      {!notifyHintDismissed && !!items?.length && (
-        <div className="flex items-center gap-2.5 rounded-[12px] px-3 py-2.5 mb-2"
-          style={{ background: 'color-mix(in srgb, var(--accent-color) 12%, transparent)' }}>
-          <Bell size={18} className="flex-shrink-0" style={{ color: 'var(--accent-text)' }} />
-          <p className="flex-1 text-[12px] leading-relaxed" style={{ color: 'var(--label-primary)' }}>
-            予定の <Bell size={12} className="inline align-[-1px]" /> をタップすると、発売日や予約締切の前に通知が届きます
-          </p>
-          <button onClick={dismissNotifyHint} aria-label="閉じる" className="pressable tap-44 text-label-tertiary flex-shrink-0">
-            <X size={16} />
-          </button>
-        </div>
-      )}
 
       {items === null ? (
         <SkeletonList count={4} />
       ) : view !== 'list' ? (
         // カレンダー（月/週/日）は予定が0件でも枠を表示する
-        <SavedCalendar events={filtered} scope={view}
-          onOpen={(e) => navigate(`/item/${e.id}`)} onLike={onLike} onCalendar={onCalendar} />
+        <SavedCalendar events={filtered} scope={view} anchor={anchor} setAnchor={setAnchor}
+          onOpen={(e) => navigate(`/item/${e.id}`)} onLike={onLike} onCalendar={onCalendar}
+          onAdd={(day) => navigate(`/post?date=${day}`)} />
       ) : listItems.length === 0 ? (
         <p className="text-center text-label-secondary text-[13px] py-20">
           {emptyMsg}<br />
@@ -356,5 +379,21 @@ export default function Saved() {
         </div>
       )}
     </div>
+  );
+}
+
+/** 上の行のアイコンだけのボタン。色は白黒（塗りは薄いグレー）で、絞り込み中だけアクセント色 */
+function IconButton({ label, onClick, pressed, active, children }: {
+  label: string; onClick: (el: HTMLButtonElement) => void; pressed?: boolean; active?: boolean; children: React.ReactNode;
+}) {
+  return (
+    <button onClick={(e) => { haptic.select(); onClick(e.currentTarget); }} aria-label={label} title={label}
+      aria-pressed={pressed}
+      className="pressable relative w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+      style={active
+        ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }
+        : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
+      {children}
+    </button>
   );
 }

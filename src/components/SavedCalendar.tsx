@@ -1,14 +1,15 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, CalendarDays, CalendarCheck } from 'lucide-react';
+import { CalendarDays, Plus } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from './item/ItemCard';
+import DaySheet from './DaySheet';
 import { todayStr, deriveStatus } from '../design/tokens';
 import { relativeDayLabel } from '../lib/relativeDay';
 import { haptic } from '../lib/haptics';
 import { buildWorkColorMap } from '../lib/workColors';
 import { useTheme } from '../contexts/ThemeContext';
 
-type Scope = 'month' | 'week' | 'day';
+export type Scope = 'month' | 'week' | 'day';
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 
@@ -43,6 +44,24 @@ function startOfWeek(s: string): string {
   const d = parse(s);
   return addDays(s, -d.getDay());
 }
+
+/** 上の行に出す見出し。月＝「2026年9月」、週＝「9/13〜9/19」、日＝「9月18日（金）」 */
+export function periodLabel(scope: Scope, anchor: string): string {
+  const d = parse(anchor);
+  if (scope === 'month') return `${d.getFullYear()}年${d.getMonth() + 1}月`;
+  if (scope === 'day') return `${d.getMonth() + 1}月${d.getDate()}日（${WEEKDAYS[d.getDay()]}）`;
+  const s0 = parse(startOfWeek(anchor));
+  const e0 = parse(addDays(startOfWeek(anchor), 6));
+  return `${s0.getMonth() + 1}/${s0.getDate()}〜${e0.getMonth() + 1}/${e0.getDate()}`;
+}
+
+/** 今見ている期間に今日が入っているか（入っていなければ「今日」ボタンを出す） */
+export function includesToday(scope: Scope, anchor: string, today: string): boolean {
+  if (scope === 'month') return anchor.slice(0, 7) === today.slice(0, 7);
+  if (scope === 'day') return anchor === today;
+  return startOfWeek(anchor) === startOfWeek(today);
+}
+
 /** 横スワイプで前後ナビ。左→次・右→前。縦スクロールは阻害しない。 */
 function useSwipe(onPrev: () => void, onNext: () => void) {
   const start = useRef<{ x: number; y: number } | null>(null);
@@ -80,14 +99,20 @@ function eventsOnDay(events: CalendarEvent[], day: string): CalendarEvent[] {
 type Props = {
   events: CalendarEvent[];
   scope: Scope;
+  /** 基準日（表示中の月・週・日を決める）。上の行の見出しと「今日」ボタンのために親が持つ */
+  anchor: string;
+  setAnchor: (s: string) => void;
   onOpen: (e: CalendarEvent) => void;
   onLike: (e: CalendarEvent) => void;
   onCalendar: (e: CalendarEvent) => void;
+  /** 日付のパネルの「＋」。その日付で投稿を始める */
+  onAdd: (day: string) => void;
 };
 
-export default function SavedCalendar({ events, scope, onOpen, onLike, onCalendar }: Props) {
+export default function SavedCalendar({ events, scope, anchor, setAnchor, onOpen, onLike, onCalendar, onAdd }: Props) {
   const today = todayStr();
-  const [anchor, setAnchor] = useState(today); // 基準日（選択日 / 表示中の日）
+  // 月表示で押した日。null ならパネルは閉じている
+  const [picked, setPicked] = useState<string | null>(null);
 
   // 日付未定の保存分（カレンダーに乗らないので別枠で件数表示）。
   // 受付終了したものは消さずに残す（本人のいいね記録）が、後ろに回して薄く表示する
@@ -107,11 +132,13 @@ export default function SavedCalendar({ events, scope, onOpen, onLike, onCalenda
   const colorOf = (e: CalendarEvent): string =>
     e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
 
+  const pickedEvents = useMemo(() => (picked ? eventsOnDay(events, picked) : []), [events, picked]);
+
   return (
     <div className="pb-4">
       {scope === 'month' && (
         <MonthView events={events} anchor={anchor} setAnchor={setAnchor} today={today} colorOf={colorOf}
-          onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />
+          picked={picked} onPick={setPicked} />
       )}
       {scope === 'week' && (
         <WeekView events={events} anchor={anchor} setAnchor={setAnchor} today={today} colorOf={colorOf}
@@ -135,26 +162,23 @@ export default function SavedCalendar({ events, scope, onOpen, onLike, onCalenda
           </div>
         </div>
       )}
-    </div>
-  );
-}
 
-/** 前後ナビ＋「今日」ボタンの共通ヘッダー。 */
-function NavHeader({ label, onPrev, onNext, onToday }: { label: string; onPrev: () => void; onNext: () => void; onToday: () => void }) {
-  return (
-    <div className="flex items-center gap-2 mb-3">
-      <button onClick={() => { haptic.select(); onPrev(); }} aria-label="前へ" className="pressable p-2 -ml-2 rounded-full">
-        <ChevronLeft size={20} />
-      </button>
-      <div className="flex-1 text-center text-[15px] font-bold">{label}</div>
-      <button onClick={() => { haptic.select(); onNext(); }} aria-label="次へ" className="pressable p-2 rounded-full">
-        <ChevronRight size={20} />
-      </button>
-      <button onClick={() => { haptic.select(); onToday(); }} aria-label="今日へ" title="今日へ"
-        className="pressable rounded-full p-2"
-        style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
-        <CalendarCheck size={18} />
-      </button>
+      {/* 日付を押すと下から出る、その日の予定。予定の詳細へは月表示ではここからだけ行ける */}
+      <DaySheet open={scope === 'month' && picked !== null} onClose={() => setPicked(null)}
+        header={picked && (
+          <div className="flex items-center gap-2 px-4 pt-1 pb-2">
+            <DayHeading day={picked} count={pickedEvents.length} today={today} />
+            <button onClick={() => { haptic.select(); onAdd(picked); }}
+              onPointerDown={(e) => e.stopPropagation()}
+              aria-label="この日に予定を追加"
+              className="pressable tap-44 ml-auto w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+              <Plus size={18} />
+            </button>
+          </div>
+        )}>
+        {picked && <DayList events={pickedEvents} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />}
+      </DaySheet>
     </div>
   );
 }
@@ -170,15 +194,18 @@ type ViewProps = {
   onCalendar: (e: CalendarEvent) => void;
 };
 
-function MonthView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, onCalendar }: ViewProps) {
+type MonthProps = Pick<ViewProps, 'events' | 'anchor' | 'setAnchor' | 'today' | 'colorOf'> & {
+  picked: string | null;
+  onPick: (day: string) => void;
+};
+
+function MonthView({ events, anchor, setAnchor, today, colorOf, picked, onPick }: MonthProps) {
   const cur = parse(anchor);
   const year = cur.getFullYear();
   const month = cur.getMonth();
   const firstStr = todayStr(new Date(year, month, 1));
   const gridStart = startOfWeek(firstStr);
   const days = useMemo(() => Array.from({ length: 42 }, (_, i) => addDays(gridStart, i)), [gridStart]);
-  const selected = anchor;
-  const selectedEvents = useMemo(() => eventsOnDay(events, selected), [events, selected]);
   const goPrev = () => setAnchor(addMonths(anchor, -1));
   const goNext = () => setAnchor(addMonths(anchor, 1));
   const swipe = useSwipe(goPrev, goNext);
@@ -196,7 +223,7 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, 
       const cell = grid.firstElementChild as HTMLElement | null;
       if (!cell) return;
       const room = cell.clientHeight - CHIP_RESERVE;
-      setMaxChips(Math.max(1, Math.min(4, Math.floor(room / CHIP_H))));
+      setMaxChips(Math.max(1, Math.min(6, Math.floor(room / CHIP_H))));
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -204,11 +231,7 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, 
     return () => ro.disconnect();
   }, []);
 
-  // カレンダーの背景画像。設定はずっと前からあるのに、実際に描いていたのは
-  // ルートから外れた Calendar.tsx（死にコード）とウィジェットだけで、
-  // **本物のカレンダーに出ていなかった**。ここで出す。
-  // 画像の上でも日付が読めるように、マスの地は透かして残す（＝そのまま暗幕になる）。
-  // 濃さの調整と明るさの自動判定はテーマ生成のときに足す。
+  // カレンダーの背景画像。画像の上でも日付が読めるように、マスの地は透かして残す（＝そのまま暗幕になる）。
   const { settings } = useTheme();
   const bgImage = settings.backgroundImageUrl;
   const cellBg = (sel: boolean) => {
@@ -221,10 +244,6 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, 
 
   return (
     <div {...swipe}>
-      <NavHeader label={`${year}年${month + 1}月`}
-        onPrev={goPrev} onNext={goNext}
-        onToday={() => setAnchor(today)} />
-
       {/* 曜日見出し */}
       <div className="grid grid-cols-7 mb-1">
         {WEEKDAYS.map((w, i) => (
@@ -235,8 +254,8 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, 
         ))}
       </div>
 
-      {/* 日グリッド。背景画像があるときは、その上にマスを半透明で重ねる
-          （マスを不透明のままにすると 1px の隙間からしか画像が見えない） */}
+      {/* 日グリッド。画面いっぱいに広げる（--cal-cell-h を画面の高さから決める。Saved.tsx）。
+          背景画像があるときは、その上にマスを半透明で重ねる */}
       <div
         className="rounded-[12px] overflow-hidden"
         style={bgImage ? {
@@ -251,23 +270,15 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, 
           const inMonth = d.getMonth() === month;
           const dow = d.getDay();
           const isToday = day === today;
-          const isSel = day === selected;
+          const isSel = day === picked;
           const dayEvents = eventsOnDay(events, day);
           const dayColor = !inMonth ? 'var(--cal-other-month-color)' : dow === 0 ? 'var(--cal-sunday-color)' : dow === 6 ? 'var(--cal-saturday-color)' : 'var(--label-primary)';
           const over = dayEvents.length - maxChips;
           return (
-            // マス＝日付の選択、チップ＝その予定へ、と役割を分けている。
-            // ボタンの中にボタンは置けない（HTMLとして不正で、入れ子の挙動も機種依存になる）ので
-            // マスの方は div + role="button" にしてある。
-            <div key={day} role="button" tabIndex={0}
+            // マスのどこを押しても「その日を開く」。予定の帯を押して詳細へ飛ぶのは誤タップが多かったのでやめた
+            <button key={day} type="button"
               aria-label={`${d.getMonth() + 1}月${d.getDate()}日`}
-              onClick={() => { haptic.select(); setAnchor(day); }}
-              onKeyDown={(ev) => {
-                if (ev.key !== 'Enter' && ev.key !== ' ') return;
-                ev.preventDefault();
-                haptic.select();
-                setAnchor(day);
-              }}
+              onClick={() => { haptic.select(); onPick(day); }}
               className="relative h-[var(--cal-cell-h)] overflow-hidden flex flex-col items-stretch pt-1 px-[1px] pressable text-left cursor-pointer"
               style={{ backgroundColor: cellBg(isSel) }}>
               <span className="self-center flex-shrink-0 text-[12px] leading-none flex items-center justify-center w-5 h-5 rounded-full"
@@ -283,37 +294,27 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, 
                   +{over}
                 </span>
               )}
-              {/* 予定は点ではなく、作品色の帯にタイトルを載せて出す（Googleカレンダーと同じ見せ方）。
-                  点だけだと「何件かある」しか分からず、開かないと中身が読めなかった。 */}
+              {/* 予定は作品色の帯にタイトルを載せて出す（Googleカレンダーと同じ見せ方） */}
               <div className="mt-[3px] flex flex-col gap-[2px]" style={{ opacity: inMonth ? 1 : 0.45 }}>
                 {dayEvents.slice(0, maxChips).map((e) => {
                   const c = colorOf(e);
                   const solid = !c.startsWith('var(');
                   return (
-                    // チップを押したらその予定へ直行する。マスの幅が51pxしかなく
-                    // タイトルは5文字ほどしか出せないので、全文は詳細か下のリストで読んでもらう。
-                    // stopPropagation しないと、下のマス（日付の選択）にも届いて二重に動く。
-                    <button key={e.id} type="button" title={e.title}
-                      onClick={(ev) => { ev.stopPropagation(); haptic.select(); onOpen(e); }}
-                      className="block w-full rounded-[3px] px-[3px] text-[9px] leading-[13px] font-medium truncate text-left pressable"
+                    // 帯は見せるだけ。タイトルは5文字ほどしか出ないので、全文は日付のパネルで読んでもらう
+                    <span key={e.id}
+                      className="block w-full rounded-[3px] px-[3px] text-[9px] leading-[13px] font-medium truncate text-left"
                       style={solid
                         ? { backgroundColor: c, color: textOn(c) }
                         : { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
                       {e.title}
-                    </button>
+                    </span>
                   );
                 })}
               </div>
-            </div>
+            </button>
           );
         })}
       </div>
-      </div>
-
-      {/* 選択日の予定 */}
-      <div className="mt-4">
-        <DayHeading day={selected} count={selectedEvents.length} today={today} />
-        <DayList events={selectedEvents} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />
       </div>
     </div>
   );
@@ -322,41 +323,30 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, 
 function WeekView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, onCalendar }: ViewProps) {
   const weekStart = startOfWeek(anchor);
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-  const end = days[6];
-  const label = `${parse(weekStart).getMonth() + 1}/${parse(weekStart).getDate()}〜${parse(end).getMonth() + 1}/${parse(end).getDate()}`;
   const goPrev = () => setAnchor(addDays(weekStart, -7));
   const goNext = () => setAnchor(addDays(weekStart, 7));
   const swipe = useSwipe(goPrev, goNext);
   return (
-    <div {...swipe}>
-      <NavHeader label={label}
-        onPrev={goPrev} onNext={goNext}
-        onToday={() => setAnchor(today)} />
-      <div className="flex flex-col gap-4">
-        {days.map((day) => (
-          <div key={day}>
-            <DayHeading day={day} count={eventsOnDay(events, day).length} today={today} />
-            <DayList events={eventsOnDay(events, day)} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />
-          </div>
-        ))}
-      </div>
+    <div {...swipe} className="flex flex-col gap-4">
+      {days.map((day) => (
+        <div key={day}>
+          <div className="mb-2"><DayHeading day={day} count={eventsOnDay(events, day).length} today={today} /></div>
+          <DayList events={eventsOnDay(events, day)} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />
+        </div>
+      ))}
     </div>
   );
 }
 
 function DayView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, onCalendar }: ViewProps) {
-  const d = parse(anchor);
-  const label = `${d.getMonth() + 1}月${d.getDate()}日（${WEEKDAYS[d.getDay()]}）`;
   const dayEvents = eventsOnDay(events, anchor);
   const goPrev = () => setAnchor(addDays(anchor, -1));
   const goNext = () => setAnchor(addDays(anchor, 1));
   const swipe = useSwipe(goPrev, goNext);
   return (
-    <div {...swipe}>
-      <NavHeader label={label}
-        onPrev={goPrev} onNext={goNext}
-        onToday={() => setAnchor(today)} />
-      <div className="flex justify-center -mt-1 mb-2"><RelativeBadge day={anchor} today={today} /></div>
+    // 予定が少ない日でも左右スワイプを受けられるよう、面を確保しておく
+    <div {...swipe} className="min-h-[60dvh]">
+      <div className="flex justify-center mb-2"><RelativeBadge day={anchor} today={today} /></div>
       <DayList events={dayEvents} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />
     </div>
   );
@@ -367,7 +357,7 @@ function DayHeading({ day, count, today }: { day: string; count: number; today: 
   const dow = d.getDay();
   const color = dow === 0 ? 'var(--cal-sunday-color)' : dow === 6 ? 'var(--cal-saturday-color)' : 'var(--label-primary)';
   return (
-    <div className="flex items-baseline gap-2 mb-2 px-1">
+    <div className="flex items-baseline gap-2 px-1 flex-1 min-w-0">
       <span className="text-[14px] font-bold" style={{ color }}>
         {d.getMonth() + 1}月{d.getDate()}日（{WEEKDAYS[dow]}）
       </span>
