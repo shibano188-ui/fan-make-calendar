@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Bell, BellRing, Crown, CalendarSync, Moon, Palette, Pencil, Plus, Droplet, Check, MessageCircle, MapPin, UserRound, Star, Trash2 } from 'lucide-react';
-import { getContrastText } from '../lib/color';
+import { ChevronRight, Bell, BellRing, Crown, CalendarSync, Palette, Pencil, Plus, Check, MessageCircle, MapPin, UserRound, Star, Trash2 } from 'lucide-react';
 
 // マイページ下部の規約類。iOS は画面を同梱していて住所が capacitor://localhost になるので、
 // 本番の URL を固定で開く（openExternal は http(s) しか開かない）
@@ -11,8 +10,6 @@ const LEGAL_LINKS = [
   ['特定商取引法に基づく表記', '/tokushoho.html'],
 ] as const;
 
-// アクセント色の選択肢（先頭=デフォルトの黄色）
-const MYPAGE_ACCENTS = ['#FBBF00', '#D85A30', '#1D9E75', '#378ADD', '#D4537E'] as const;
 import {
   getUserPublicProfile, getHomePrefecture, saveHomePrefecture, saveDisplayName, saveAvatarEmoji,
   listAllParticipatedWorks, leaveCalendar, getProfileExtras, saveProfileExtras,
@@ -32,7 +29,6 @@ import { listMyNushi, getMyTotalRank, shortWorkName, NUSHI_BADGE_LIMIT, type Wor
 import { REGIONS } from '../lib/prefectures';
 import { clearAccountScopedCache, FEATURE_GOOGLE_CALENDAR, FEATURE_PREMIUM, ANON_NAME } from '../lib/constants';
 import { isGoogleConfigured, isGoogleLinked, linkGoogle, unlinkGoogle } from '../lib/googleCalendar';
-import { useTheme, type ThemeMode } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
 import { openExternal } from '../lib/openExternal';
@@ -95,7 +91,6 @@ export default function MyPage() {
     const r = await deleteAccount();  // 成功したら '/' に飛ぶので戻ってこない
     if (!r.ok) { setDeleting(false); setDelConfirm(false); toast(r.error, 'error'); }
   };
-  const { settings, updateSettings } = useTheme();
 
   const acctState = accountState(user);
   const acctEmail = accountEmail(user);
@@ -390,43 +385,17 @@ export default function MyPage() {
       {/* 設定 */}
       <div className="mt-5 text-[12px] text-label-secondary mb-1">設定</div>
       <div className="rounded-[12px] border border-subtle divide-y" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-subtle)' }}>
-        {/* カラーモード */}
-        <div className="flex items-center gap-2 px-3 py-2.5">
-          <Moon size={16} className="text-label-secondary" />
-          <span className="text-[14px] flex-1">カラーモード</span>
-          <select value={settings.theme} onChange={(e) => updateSettings({ theme: e.target.value as ThemeMode })}
-            className="bg-transparent text-[14px] outline-none" style={{ color: 'var(--input-text)' }}>
-            <option value="system">システム</option>
-            <option value="simple">ライト</option>
-            <option value="dark">ダーク</option>
-          </select>
-        </div>
-        {/* アクセントカラー */}
-        <div className="flex items-center gap-2 px-3 py-2.5">
-          <Droplet size={16} className="text-label-secondary" />
-          <span className="text-[14px] flex-1">アクセントカラー</span>
-          <div className="flex items-center gap-1.5">
-            {MYPAGE_ACCENTS.map((c) => (
-              <button key={c} onClick={() => { haptic.select(); updateSettings({ accentColor: c }); }}
-                aria-label={`アクセントカラー ${c}`}
-                className="pressable w-6 h-6 rounded-full flex items-center justify-center"
-                style={{ backgroundColor: c, boxShadow: settings.accentColor === c ? '0 0 0 2px var(--bg-primary), 0 0 0 4px var(--label-primary)' : 'none' }}>
-                {settings.accentColor === c && <Check size={13} style={{ color: getContrastText(c) }} strokeWidth={3} />}
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* テーマ・カレンダーの配色（カスタマイズ）。カラーモードとアクセントカラーもこの先に移した */}
+        <button onClick={() => { haptic.select(); navigate('/customize'); }} className="w-full flex items-center gap-2 px-3 py-2.5 pressable text-left">
+          <Palette size={16} className="text-label-secondary" />
+          <span className="text-[14px] flex-1">テーマ・カレンダーの配色</span>
+          <ChevronRight size={16} className="text-label-tertiary" />
+        </button>
         {/* フォロー中の作品（フォロー解除・作品ごとの通知はここから） */}
         <button onClick={() => { haptic.select(); navigate('/follows'); }} className="w-full flex items-center gap-2 px-3 py-2.5 pressable text-left">
           <Star size={16} className="text-label-secondary" />
           <span className="text-[14px] flex-1">フォロー中の作品</span>
           <span className="text-[13px] text-label-tertiary">{works.length}作品</span>
-          <ChevronRight size={16} className="text-label-tertiary" />
-        </button>
-        {/* テーマ・カレンダーの配色（外皮の切り替えもここに集約） */}
-        <button onClick={() => { haptic.select(); navigate('/customize'); }} className="w-full flex items-center gap-2 px-3 py-2.5 pressable text-left">
-          <Palette size={16} className="text-label-secondary" />
-          <span className="text-[14px] flex-1">テーマ・カレンダーの配色</span>
           <ChevronRight size={16} className="text-label-tertiary" />
         </button>
         {/* アカウント（デバイス間のデータ引き継ぎ） */}

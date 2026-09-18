@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
-import { Upload, ChevronDown, ImagePlus, X } from 'lucide-react';
+import { Upload, ChevronDown, ImagePlus, X, Check } from 'lucide-react';
+import { getContrastText } from '../lib/color';
 import Layout from '../components/Layout';
 import Header from '../components/Header';
 import { useTheme, COMMUNITY_THEMES, resolveTheme, type UserSettings } from '../contexts/ThemeContext';
@@ -208,6 +209,9 @@ function SkinPreview({ def, dark }: { def: SkinDef; dark: boolean }) {
 
 // ─── メイン画面 ────────────────────────────────────────────────────
 
+// アクセントカラーの選択肢（先頭=デフォルトの黄色）。マイページから移した
+const ACCENTS = ['#FBBF00', '#D85A30', '#1D9E75', '#378ADD', '#D4537E'] as const;
+
 export default function Customize() {
   const { settings, updateSettings, currentWorkId, skin, setSkin, userThemeId } = useTheme();
   const { user } = useAuth();
@@ -240,7 +244,7 @@ export default function Customize() {
   const [workColors, setWorkColors] = useState<Record<string, string>>(() => {
     try { return JSON.parse(localStorage.getItem('fan_work_colors') ?? '{}'); } catch { return {}; }
   });
-  const [workColorOpen, setWorkColorOpen] = useState(false);
+  const [workColorOpen, setWorkColorOpen] = useState(true);
   const [openWorkColorKey, setOpenWorkColorKey] = useState<string | null>(null);
   const [workColorPaletteTop, setWorkColorPaletteTop] = useState(0);
   const workColorWrapperRef = useRef<HTMLDivElement>(null);
@@ -383,194 +387,7 @@ export default function Customize() {
 
       <div ref={rootRef} className="px-4 pt-4 pb-8 flex flex-col gap-6">
 
-        {/* テーマ（外皮）＝ 形・書体・質感・色をひとまとめにした層。アプリ全体に効く。
-            AIで作ったテーマも、いずれこの一覧に並ぶ。 */}
-        <section>
-          <p className="text-label-tertiary text-xs mb-3">テーマ</p>
-          <div className="grid grid-cols-3 gap-2">
-            {SKIN_IDS.map(id => {
-              const def = SKINS[id];
-              const on = skin === id && !userThemeId;
-              return (
-                <button key={id} onClick={() => setSkin(id)} aria-pressed={on}
-                  className={themeButtonClass(on)} style={themeButtonStyle(on)}>
-                  <SkinPreview def={def} dark={swatchDark} />
-                  <div className="bg-bg-secondary py-1.5">
-                    <p className="text-xs text-label-primary text-center truncate px-1">{def.name}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          {/* 以前の「みんなのテーマ」を選んだままの人への逃げ道。選択中は色がそちら優先のままなので、
-              下の明るさを押せば解除される（communityThemeId を空にする）ことを明示する */}
-          {isCommunityActive && (
-            <p className="text-label-tertiary text-xs mt-1.5 px-1 leading-relaxed">
-              以前の配色「{COMMUNITY_THEMES.find(t => t.id === settings.communityThemeId)?.name}」を使用中です。
-              下の明るさを選ぶと解除され、テーマの配色に戻ります。
-            </p>
-          )}
-        </section>
-
-        {/* 自分のテーマ。作るのは専用ページ（/customize/theme）でやる */}
-        <ThemeList />
-
-        {/* 明るさ。テーマは明暗2組の色を持つので、この選択とは独立して効く */}
-        <section>
-          <p className="text-label-tertiary text-xs mb-3">明るさ</p>
-          <div className="grid grid-cols-3 gap-2">
-            <button onClick={() => updateSettings({ theme: 'system', communityThemeId: '' })}
-              aria-pressed={settings.theme === 'system' && !isCommunityActive}
-              className={themeButtonClass(settings.theme === 'system' && !isCommunityActive)} style={themeButtonStyle(settings.theme === 'system' && !isCommunityActive)}>
-              <div className="h-12 flex">
-                <div className="flex-1 bg-[#f5f5f5]" />
-                <div className="flex-1 bg-[#1a1a1a]" />
-              </div>
-              <div className="bg-bg-secondary py-1.5"><p className="text-xs text-label-primary text-center">システム</p></div>
-            </button>
-            <button onClick={() => updateSettings({ theme: 'simple', communityThemeId: '' })}
-              aria-pressed={settings.theme === 'simple' && !isCommunityActive}
-              className={themeButtonClass(settings.theme === 'simple' && !isCommunityActive)} style={themeButtonStyle(settings.theme === 'simple' && !isCommunityActive)}>
-              <div className="h-12 bg-[#f5f5f5]" />
-              <div className="bg-bg-secondary py-1.5"><p className="text-xs text-label-primary text-center">ライト</p></div>
-            </button>
-            <button onClick={() => updateSettings({ theme: 'dark', communityThemeId: '' })}
-              aria-pressed={settings.theme === 'dark' && !isCommunityActive}
-              className={themeButtonClass(settings.theme === 'dark' && !isCommunityActive)} style={themeButtonStyle(settings.theme === 'dark' && !isCommunityActive)}>
-              <div className="h-12 bg-[#1a1a1a]" />
-              <div className="bg-bg-secondary py-1.5"><p className="text-xs text-label-primary text-center">ダーク</p></div>
-            </button>
-          </div>
-        </section>
-
-        {/* カレンダー文字色（折りたたみ） */}
-        <section>
-          <button
-            onClick={() => { setCalColorOpen(v => !v); setOpenCalKey(null); }}
-            className="w-full flex items-center justify-between mb-2"
-          >
-            <p className="text-label-tertiary text-xs">カレンダー文字色</p>
-            <div className="flex items-center gap-2">
-              {calColorPreviewDots.length > 0 && (
-                <div className="flex gap-1">
-                  {calColorPreviewDots.map((c, i) => (
-                    <div key={i} className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c }} />
-                  ))}
-                </div>
-              )}
-              <ChevronDown size={13} className="text-label-tertiary transition-transform"
-                style={{ transform: calColorOpen ? 'rotate(180deg)' : undefined }} />
-            </div>
-          </button>
-
-          {calColorOpen && (
-            // このdivがposition:relativeの基準点。ドロップダウンはここを基準に中央配置する
-            <div className="relative" ref={calColorWrapperRef}>
-              <div className="flex flex-col gap-3">
-                {CAL_COLOR_FIELDS.map(({ key, label, cssVar }, i) => (
-                  <div key={key as string} className="flex items-center justify-between">
-                    <span className="text-label-secondary text-sm">{label}</span>
-                    {/* トリガーボタン */}
-                    <button
-                      ref={el => { calBtnRefs.current[i] = el; }}
-                      onClick={() => handleCalToggle(key as string, i)}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl border active:opacity-70"
-                      style={{ borderColor: 'var(--border-default)', backgroundColor: 'var(--bg-primary)' }}
-                    >
-                      <div className="flex flex-col items-center gap-[3px]">
-                        {key === 'calGridColor' ? (
-                          <div className="w-5 h-5 rounded-[2px] border-[1.5px]" style={{ borderColor: `var(${cssVar})` }} />
-                        ) : (
-                          <>
-                            <span className="text-[15px] font-bold leading-none w-5 text-center tabular-nums"
-                              style={{ color: `var(${cssVar})` }}>15</span>
-                            <div className="w-5 h-[2.5px] rounded-full" style={{ backgroundColor: `var(${cssVar})` }} />
-                          </>
-                        )}
-                      </div>
-                      <ChevronDown size={11} className="text-label-tertiary"
-                        style={{ transform: openCalKey === key ? 'rotate(180deg)' : undefined }} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              {/* ドロップダウンパレット：wrapperを基準に中央配置 */}
-              {openCalKey && (() => {
-                const field = CAL_COLOR_FIELDS.find(f => f.key === openCalKey);
-                if (!field) return null;
-                const value = settings[field.key] as string;
-                const isCustom = !!(value && !PALETTE_FLAT.includes(value));
-                return (
-                  <div
-                    className="absolute z-[300] rounded-xl shadow-2xl"
-                    style={{
-                      top: paletteTop,
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      backgroundColor: 'var(--bg-secondary)',
-                      border: '1px solid var(--border-default)',
-                      padding: 8,
-                      width: 224,
-                    }}
-                  >
-                    {/* 自動（デフォルト）*/}
-                    <button
-                      onClick={() => { updateSettings({ [field.key]: '' }); setOpenCalKey(null); }}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs mb-1.5 active:opacity-70"
-                      style={{ color: 'var(--label-secondary)', backgroundColor: value === '' ? 'var(--border-subtle)' : undefined }}
-                    >
-                      <div className="w-4 h-4 rounded border-[1.5px] flex items-center justify-center"
-                        style={{ borderColor: 'var(--border-strong)', color: 'var(--label-tertiary)', fontSize: 7 }}>自</div>
-                      自動（デフォルト）
-                    </button>
-
-                    {/* 10×7 カラーグリッド */}
-                    <div className="grid gap-[2px]" style={{ gridTemplateColumns: `repeat(${PALETTE_COLS}, 1fr)` }}>
-                      {PALETTE_FLAT.map((color, ci) => (
-                        <button
-                          key={ci}
-                          onClick={() => { updateSettings({ [field.key]: color }); setOpenCalKey(null); }}
-                          className="rounded-[3px] active:scale-90 transition-transform"
-                          style={{ backgroundColor: color, width: 19, height: 19,
-                            outline: value === color ? '2px solid var(--label-primary)' : undefined, outlineOffset: 1 }}
-                          title={color}
-                        />
-                      ))}
-                    </div>
-
-                    <div className="my-2 h-px" style={{ backgroundColor: 'var(--border-subtle)' }} />
-
-                    {/* その他の色 */}
-                    <div className="relative">
-                      <button
-                        onClick={() => calCustomInputRef.current?.click()}
-                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs active:opacity-70"
-                        style={{ color: 'var(--label-secondary)' }}
-                      >
-                        <div className="w-4 h-4 rounded-[3px] border flex-shrink-0"
-                          style={{ borderColor: 'var(--border-default)',
-                            background: isCustom ? value : 'conic-gradient(red 0deg,yellow 60deg,lime 120deg,cyan 180deg,blue 240deg,magenta 300deg,red 360deg)',
-                            outline: isCustom ? '2px solid var(--label-primary)' : undefined, outlineOffset: 1 }} />
-                        その他の色...
-                      </button>
-                      <input
-                        ref={calCustomInputRef}
-                        type="color"
-                        value={value && value.startsWith('#') ? value : '#888888'}
-                        onChange={e => updateSettings({ [field.key]: e.target.value })}
-                        className="absolute opacity-0 pointer-events-none"
-                        style={{ width: 0, height: 0, top: 0, left: 0 }}
-                      />
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-          )}
-        </section>
-
-        {/* 作品カラー */}
+        {/* 作品の色と画像。変えたい人が一番多いので先頭に置き、最初から開いておく */}
         {participatedWorks.length > 0 && (
           <section>
             <button
@@ -702,6 +519,53 @@ export default function Customize() {
           </section>
         )}
 
+        {/* テーマ（外皮）＝ 形・書体・質感・色をひとまとめにした層。アプリ全体に効く。
+            AIで作ったテーマも、いずれこの一覧に並ぶ。 */}
+        <section>
+          <p className="text-label-tertiary text-xs mb-3">テーマ</p>
+          <div className="grid grid-cols-3 gap-2">
+            {SKIN_IDS.map(id => {
+              const def = SKINS[id];
+              const on = skin === id && !userThemeId;
+              return (
+                <button key={id} onClick={() => setSkin(id)} aria-pressed={on}
+                  className={themeButtonClass(on)} style={themeButtonStyle(on)}>
+                  <SkinPreview def={def} dark={swatchDark} />
+                  <div className="bg-bg-secondary py-1.5">
+                    <p className="text-xs text-label-primary text-center truncate px-1">{def.name}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          {/* 以前の「みんなのテーマ」を選んだままの人への逃げ道。選択中は色がそちら優先のままなので、
+              下の明るさを押せば解除される（communityThemeId を空にする）ことを明示する */}
+          {isCommunityActive && (
+            <p className="text-label-tertiary text-xs mt-1.5 px-1 leading-relaxed">
+              以前の配色「{COMMUNITY_THEMES.find(t => t.id === settings.communityThemeId)?.name}」を使用中です。
+              下の明るさを選ぶと解除され、テーマの配色に戻ります。
+            </p>
+          )}
+        </section>
+
+        {/* 自分のテーマ。作るのは専用ページ（/customize/theme）でやる */}
+        <ThemeList />
+
+        {/* アクセントカラー（マイページから移した） */}
+        <section>
+          <p className="text-label-tertiary text-xs mb-3">アクセントカラー</p>
+          <div className="flex items-center gap-3">
+            {ACCENTS.map((c) => (
+              <button key={c} onClick={() => updateSettings({ accentColor: c })}
+                aria-label={`アクセントカラー ${c}`} aria-pressed={settings.accentColor === c}
+                className="w-9 h-9 rounded-full flex items-center justify-center active:opacity-70"
+                style={{ backgroundColor: c, boxShadow: settings.accentColor === c ? '0 0 0 2px var(--bg-primary), 0 0 0 4px var(--label-primary)' : 'none' }}>
+                {settings.accentColor === c && <Check size={16} style={{ color: getContrastText(c) }} strokeWidth={3} />}
+              </button>
+            ))}
+          </div>
+        </section>
+
         {/* 背景画像 */}
         <section>
           <p className="text-label-tertiary text-xs mb-3">カレンダー背景画像</p>
@@ -756,6 +620,161 @@ export default function Customize() {
               <Upload size={14} />画像をアップロード
             </button>
           )}
+        </section>
+
+        {/* カレンダー文字色（折りたたみ） */}
+        <section>
+          <button
+            onClick={() => { setCalColorOpen(v => !v); setOpenCalKey(null); }}
+            className="w-full flex items-center justify-between mb-2"
+          >
+            <p className="text-label-tertiary text-xs">カレンダー文字色</p>
+            <div className="flex items-center gap-2">
+              {calColorPreviewDots.length > 0 && (
+                <div className="flex gap-1">
+                  {calColorPreviewDots.map((c, i) => (
+                    <div key={i} className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c }} />
+                  ))}
+                </div>
+              )}
+              <ChevronDown size={13} className="text-label-tertiary transition-transform"
+                style={{ transform: calColorOpen ? 'rotate(180deg)' : undefined }} />
+            </div>
+          </button>
+
+          {calColorOpen && (
+            // このdivがposition:relativeの基準点。ドロップダウンはここを基準に中央配置する
+            <div className="relative" ref={calColorWrapperRef}>
+              <div className="flex flex-col gap-3">
+                {CAL_COLOR_FIELDS.map(({ key, label, cssVar }, i) => (
+                  <div key={key as string} className="flex items-center justify-between">
+                    <span className="text-label-secondary text-sm">{label}</span>
+                    {/* トリガーボタン */}
+                    <button
+                      ref={el => { calBtnRefs.current[i] = el; }}
+                      onClick={() => handleCalToggle(key as string, i)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl border active:opacity-70"
+                      style={{ borderColor: 'var(--border-default)', backgroundColor: 'var(--bg-primary)' }}
+                    >
+                      <div className="flex flex-col items-center gap-[3px]">
+                        {key === 'calGridColor' ? (
+                          <div className="w-5 h-5 rounded-[2px] border-[1.5px]" style={{ borderColor: `var(${cssVar})` }} />
+                        ) : (
+                          <>
+                            <span className="text-[15px] font-bold leading-none w-5 text-center tabular-nums"
+                              style={{ color: `var(${cssVar})` }}>15</span>
+                            <div className="w-5 h-[2.5px] rounded-full" style={{ backgroundColor: `var(${cssVar})` }} />
+                          </>
+                        )}
+                      </div>
+                      <ChevronDown size={11} className="text-label-tertiary"
+                        style={{ transform: openCalKey === key ? 'rotate(180deg)' : undefined }} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* ドロップダウンパレット：wrapperを基準に中央配置 */}
+              {openCalKey && (() => {
+                const field = CAL_COLOR_FIELDS.find(f => f.key === openCalKey);
+                if (!field) return null;
+                const value = settings[field.key] as string;
+                const isCustom = !!(value && !PALETTE_FLAT.includes(value));
+                return (
+                  <div
+                    className="absolute z-[300] rounded-xl shadow-2xl"
+                    style={{
+                      top: paletteTop,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      backgroundColor: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-default)',
+                      padding: 8,
+                      width: 224,
+                    }}
+                  >
+                    {/* 自動（デフォルト）*/}
+                    <button
+                      onClick={() => { updateSettings({ [field.key]: '' }); setOpenCalKey(null); }}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs mb-1.5 active:opacity-70"
+                      style={{ color: 'var(--label-secondary)', backgroundColor: value === '' ? 'var(--border-subtle)' : undefined }}
+                    >
+                      <div className="w-4 h-4 rounded border-[1.5px] flex items-center justify-center"
+                        style={{ borderColor: 'var(--border-strong)', color: 'var(--label-tertiary)', fontSize: 7 }}>自</div>
+                      自動（デフォルト）
+                    </button>
+
+                    {/* 10×7 カラーグリッド */}
+                    <div className="grid gap-[2px]" style={{ gridTemplateColumns: `repeat(${PALETTE_COLS}, 1fr)` }}>
+                      {PALETTE_FLAT.map((color, ci) => (
+                        <button
+                          key={ci}
+                          onClick={() => { updateSettings({ [field.key]: color }); setOpenCalKey(null); }}
+                          className="rounded-[3px] active:scale-90 transition-transform"
+                          style={{ backgroundColor: color, width: 19, height: 19,
+                            outline: value === color ? '2px solid var(--label-primary)' : undefined, outlineOffset: 1 }}
+                          title={color}
+                        />
+                      ))}
+                    </div>
+
+                    <div className="my-2 h-px" style={{ backgroundColor: 'var(--border-subtle)' }} />
+
+                    {/* その他の色 */}
+                    <div className="relative">
+                      <button
+                        onClick={() => calCustomInputRef.current?.click()}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs active:opacity-70"
+                        style={{ color: 'var(--label-secondary)' }}
+                      >
+                        <div className="w-4 h-4 rounded-[3px] border flex-shrink-0"
+                          style={{ borderColor: 'var(--border-default)',
+                            background: isCustom ? value : 'conic-gradient(red 0deg,yellow 60deg,lime 120deg,cyan 180deg,blue 240deg,magenta 300deg,red 360deg)',
+                            outline: isCustom ? '2px solid var(--label-primary)' : undefined, outlineOffset: 1 }} />
+                        その他の色...
+                      </button>
+                      <input
+                        ref={calCustomInputRef}
+                        type="color"
+                        value={value && value.startsWith('#') ? value : '#888888'}
+                        onChange={e => updateSettings({ [field.key]: e.target.value })}
+                        className="absolute opacity-0 pointer-events-none"
+                        style={{ width: 0, height: 0, top: 0, left: 0 }}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+        </section>
+
+        {/* カラーモード（旧「明るさ」。マイページから移した）。テーマは明暗2組の色を持つので、この選択とは独立して効く */}
+        <section>
+          <p className="text-label-tertiary text-xs mb-3">カラーモード</p>
+          <div className="grid grid-cols-3 gap-2">
+            <button onClick={() => updateSettings({ theme: 'system', communityThemeId: '' })}
+              aria-pressed={settings.theme === 'system' && !isCommunityActive}
+              className={themeButtonClass(settings.theme === 'system' && !isCommunityActive)} style={themeButtonStyle(settings.theme === 'system' && !isCommunityActive)}>
+              <div className="h-12 flex">
+                <div className="flex-1 bg-[#f5f5f5]" />
+                <div className="flex-1 bg-[#1a1a1a]" />
+              </div>
+              <div className="bg-bg-secondary py-1.5"><p className="text-xs text-label-primary text-center">システム</p></div>
+            </button>
+            <button onClick={() => updateSettings({ theme: 'simple', communityThemeId: '' })}
+              aria-pressed={settings.theme === 'simple' && !isCommunityActive}
+              className={themeButtonClass(settings.theme === 'simple' && !isCommunityActive)} style={themeButtonStyle(settings.theme === 'simple' && !isCommunityActive)}>
+              <div className="h-12 bg-[#f5f5f5]" />
+              <div className="bg-bg-secondary py-1.5"><p className="text-xs text-label-primary text-center">ライト</p></div>
+            </button>
+            <button onClick={() => updateSettings({ theme: 'dark', communityThemeId: '' })}
+              aria-pressed={settings.theme === 'dark' && !isCommunityActive}
+              className={themeButtonClass(settings.theme === 'dark' && !isCommunityActive)} style={themeButtonStyle(settings.theme === 'dark' && !isCommunityActive)}>
+              <div className="h-12 bg-[#1a1a1a]" />
+              <div className="bg-bg-secondary py-1.5"><p className="text-xs text-label-primary text-center">ダーク</p></div>
+            </button>
+          </div>
         </section>
 
       </div>

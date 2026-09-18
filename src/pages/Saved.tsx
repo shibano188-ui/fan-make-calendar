@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Search, SlidersHorizontal, X, Crown, CalendarDays, CalendarRange, Calendar, List, Check, ChevronsDown, ChevronsUp } from 'lucide-react';
+import { Search, SlidersHorizontal, X, Crown, Palette, CalendarDays, CalendarRange, Calendar, List, Check, ChevronsDown, ChevronsUp } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import Chip from '../components/ui/Chip';
@@ -309,7 +309,7 @@ export default function Saved() {
         marginBottom: 'calc(env(safe-area-inset-bottom) + 76px - 7rem)',
       } : undefined}>
       <div ref={headerRef} className="sticky top-0 z-20 flex-shrink-0 -mx-3 px-3 pt-1 pb-2 material-bar scroll-edge" data-skin-bar="main" style={{ paddingTop: 'calc(var(--sat) + 4px)' }}>
-        {/* 1行だけ: 見出し（＋今日）／プレミアム／表示切替／絞り込み。文字は見出しだけで、ボタンはアイコンのみ */}
+        {/* 1行だけ: 見出し（＋今日）／プレミアム／表示切替／カスタマイズ／絞り込み。文字は見出しだけで、ボタンはアイコンのみ */}
         <div className="flex items-center gap-1.5 h-10">
           <div className="flex-1 min-w-0 flex items-center gap-2">
             <h1 className="text-[20px] font-bold tracking-tight truncate">
@@ -356,6 +356,10 @@ export default function Saved() {
             </>,
             document.body,
           )}
+
+          <IconButton label="カスタマイズ" onClick={() => navigate('/customize')}>
+            <Palette size={18} />
+          </IconButton>
 
           <IconButton label="絞り込み" pressed={filterOpen} active={activeCount > 0}
             onClick={() => setFilterOpen((v) => !v)}>
