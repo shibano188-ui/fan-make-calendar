@@ -113,6 +113,24 @@ export function dashboardPage(dataJson: string): string {
 var DATA = window.__DATA__;
 var RANGE = 90;
 
+// 「アプリを入れた人」はストアの数字だけで出す（アプリ側の記録は通知許可やWebが混ざってずれる）。
+//   iPhone … App Store の新規ダウンロードを初日から足し上げたもの
+//   Android … Play Console のその日にインストールされている数
+// 全期間で積み上げてから表示範囲を切るので、30日表示にしても累計は変わらない。
+var ANDROID_INSTALLED = 'play_active_devices';
+(function(){
+  var dl = DATA.series.asc_downloads || [], an = DATA.series[ANDROID_INSTALLED] || [];
+  var ios = [], total = [], acc = 0, seen = false;
+  for(var i = 0; i < DATA.days.length; i++){
+    if(dl[i] != null){ acc += dl[i]; seen = true; }
+    ios.push(seen ? acc : null);
+    total.push(seen && an[i] != null ? acc + an[i] : null);
+  }
+  DATA.series.installed_ios = ios;
+  DATA.series.installed_android = an.slice();
+  DATA.series.installed_total = total;
+})();
+
 /* ---------- 見せ方の設定 ---------- */
 
 var YEN = function(v){ return '¥' + Math.round(v).toLocaleString('ja-JP'); };
@@ -123,11 +141,24 @@ var NUM = function(v){ return Math.round(v).toLocaleString('ja-JP'); };
 
 var BOXES = [
   { title:'アプリを入れた人',
-    note:'縦軸＝アプリを入れて通知を許可した人の数（累計）。横軸＝日付。' +
-         'Webだけの訪問者は入らない。過去にさかのぼれないので、記録を始めた日から伸びる。',
-    kind:'line', keys:[{k:'users_app',     name:'合計', c:'#7fb6d9'},
-                       {k:'users_ios',     name:'iPhone', c:'#4ea87a'},
-                       {k:'users_android', name:'Android', c:'#d0a24a'}], fmt:NUM, zero:false },
+    note:'縦軸＝人数。横軸＝日付。ストアの数字だけで数えている。' +
+         'iPhone＝App Storeの新規ダウンロードの累計、Android＝Play Consoleのその日にインストールされている数。' +
+         '合計はAndroidの数字がある日だけ出る。',
+    kind:'line', keys:[{k:'installed_total',   name:'合計', c:'#7fb6d9'},
+                       {k:'installed_ios',     name:'iPhone', c:'#4ea87a'},
+                       {k:'installed_android', name:'Android', c:'#d0a24a'}], fmt:NUM, zero:false },
+
+  { title:'ストアからの新規ダウンロード',
+    note:'縦軸＝その日に初めてアプリを入れた数。横軸＝日付。ストアの公式の数字で、' +
+         'iPhoneはApp Store Connect（太平洋時間で1日を区切る）、AndroidはPlay Console（アカウント単位）。' +
+         '入れ直し・アップデートは含まない。1〜2日遅れで入る。',
+    kind:'bar', keys:[{k:'asc_downloads', name:'iPhone', c:'#4ea87a'},
+                      {k:'play_installs', name:'Android', c:'#d0a24a'}], fmt:NUM },
+
+  { title:'Androidで入っている端末',
+    note:'縦軸＝その日にアプリが入っていた端末の数（Play Console）。横軸＝日付。' +
+         '消した人は減るので、「残っている人」の目安になる。',
+    kind:'line', keys:[{k:'play_active_devices', name:'入っている端末', c:'#d0a24a'}], fmt:NUM, zero:false },
 
   { title:'実際に使った人',
     note:'縦軸＝投稿・いいね・保存のどれかを1回でもした人の数（累計）。横軸＝日付。' +
@@ -222,8 +253,8 @@ function render(){
 }
 
 function cards(S){
-  var d7  = function(k){ return sum(slice(S[k], 7)); };
-  var d30 = function(k){ return sum(slice(S[k], 30)); };
+  var d7  = function(k){ return sum(slice(S[k] || [], 7)); };
+  var d30 = function(k){ return sum(slice(S[k] || [], 30)); };
   var ut  = S.users_total, pa = S.paid_active;
 
   function delta(arr, back){
@@ -236,13 +267,14 @@ function cards(S){
     return '<span class="' + cls + '">' + (d > 0 ? '+' : '') + NUM(d) + '</span> 7日前から';
   }
 
-  var ua = S.users_app, ue = S.users_engaged;
-  var na = last(ua);
+  var ue = S.users_engaged;
+  var ni = last(DATA.series.installed_ios), nd = last(DATA.series.installed_android);
   var mrr = last(S.rc_mrr || []), rev = last(S.rc_revenue || []);
   var items = [
-    ['アプリを入れた人', na == null ? '—' : NUM(na),
-      na == null ? '記録はこれから' :
-        'iPhone ' + NUM(last(S.users_ios) || 0) + ' / Android ' + NUM(last(S.users_android) || 0)],
+    ['アプリを入れた人', ni == null ? '—' : NUM((ni || 0) + (nd || 0)),
+      'iPhone ' + (ni == null ? '—' : NUM(ni)) + ' / Android ' + (nd == null ? '取り込み待ち' : NUM(nd))],
+    ['新規ダウンロード（直近7日）', NUM(d7('asc_downloads') + d7('play_installs')),
+      'iPhone ' + NUM(d7('asc_downloads')) + ' / Android ' + NUM(d7('play_installs'))],
     ['実際に使った人', NUM(last(ue) || 0), delta(ue, 7)],
     ['有料会員', NUM(last(pa) || 0), delta(pa, 7)],
     ['動いた人（1日平均・7日）', NUM(d7('active_users') / 7), ''],

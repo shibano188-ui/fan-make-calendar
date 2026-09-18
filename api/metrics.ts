@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { loginPage, dashboardPage } from './_dashboard-html.js';
 import { sendPushes, fcmConfigured, type PushMessage } from './_fcm.js';
+import { collectAppStore, collectPlay, type StoreResult } from './_stores.js';
 
 // 指標まわりの入口。Hobbyプランは1デプロイ12関数までで、既に11個あるため
 // 「集める・返す・見せる」の3つを1本にまとめてある。呼ばれ方で分岐する:
@@ -10,6 +11,7 @@ import { sendPushes, fcmConfigured, type PushMessage } from './_fcm.js';
 //   POST（pw=…）                          … パスワード確認。合えばCookieを置く
 //   GET（Cookieあり）                      … データを埋め込んだダッシュボード
 //   GET（Cookieなし）                      … パスワードの入力画面
+//   GET ?key=<パスワード>                  … チームに配るリンク。Cookieを置いて本体へ飛ばす
 //
 // 画面側からは一切通信しない。Service Worker や sessionStorage の状態で
 // 「押しても何も起きない」が起きないようにするため。
@@ -67,12 +69,32 @@ export async function collect(req: VercelRequest, res: VercelResponse) {
   let rc: { ok: boolean; detail: unknown } = { ok: false, detail: 'skipped' };
   try { rc = await collectRevenueCat(today); } catch (e) { rc = { ok: false, detail: String(e) }; }
 
+  const stores = await collectStores(today, 7);
+
   // ヌシとランキング。ここに相乗りしているのは **Cron が2本までで空きが無い**から
   // （refresh-offers と、この metrics で埋まっている）。関数も12/12で足せない。
   let nushi: { ok: boolean; detail: unknown } = { ok: false, detail: 'skipped' };
   try { nushi = await collectNushi(client, today); } catch (e) { nushi = { ok: false, detail: String(e) }; }
 
-  return res.status(200).json({ ok: true, days: [yesterday, today], revenuecat: rc, nushi });
+  return res.status(200).json({ ok: true, days: [yesterday, today], revenuecat: rc, stores, nushi });
+}
+
+/** App Store と Google Play。どちらかが落ちても、もう片方とアプリ側の集計は止めない。 */
+async function collectStores(today: string, days: number) {
+  const run = async (f: () => Promise<StoreResult>) => {
+    let r: StoreResult;
+    try { r = await f(); } catch (e) { return { ok: false, detail: String(e) }; }
+    if (!r.rows.length) return { ok: r.ok, detail: r.detail };
+    const client = db();
+    if (!client) return { ok: false, detail: 'Server config error' };
+    const { error } = await client.from('metrics_daily').upsert(r.rows, { onConflict: 'day,source,metric' });
+    return error ? { ok: false, detail: error.message } : { ok: r.ok, detail: r.detail };
+  };
+  const [appStore, play] = await Promise.all([
+    run(() => collectAppStore(today, days)),
+    run(() => collectPlay(today, days)),
+  ]);
+  return { appStore, play };
 }
 
 /** ランキングの集計と、月初だけ走る前月の確定。
@@ -248,6 +270,11 @@ function cookieToken(req: VercelRequest): string {
   return hit ? decodeURIComponent(hit.slice(5)) : '';
 }
 
+/** 30日もつ。HttpOnly なので画面側のJavaScriptからは触れない */
+function sessionCookie(pass: string): string {
+  return `fh_m=${encodeURIComponent(pass)}; Path=/api/metrics; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`;
+}
+
 function html(res: VercelResponse, body: string, status = 200) {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
@@ -270,10 +297,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const body = (req.body ?? {}) as Record<string, unknown>;
     const given = typeof body.pw === 'string' ? body.pw : '';
     if (given !== pass) return html(res, loginPage('パスワードが違います'), 401);
-    // 30日もつ。HttpOnly なので画面側のJavaScriptからは触れない
-    res.setHeader('Set-Cookie',
-      `fh_m=${encodeURIComponent(pass)}; Path=/api/metrics; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`);
+    res.setHeader('Set-Cookie', sessionCookie(pass));
     return render(res);
+  }
+
+  // ②' チームに配るリンク（?key=パスワード）。Cookieを置いてから key を消したURLへ飛ばす
+  //     （アドレスバーや履歴にパスワードを残さないため）
+  if (typeof req.query.key === 'string') {
+    if (req.query.key !== pass) return html(res, loginPage('リンクが古いか、間違っています'), 401);
+    res.setHeader('Set-Cookie', sessionCookie(pass));
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Location', '/api/metrics');
+    return res.status(302).end();
   }
 
   // ③ 表示（?rc=1 を付けると RevenueCat の取り込みをその場で走らせて結果を返す。
@@ -285,6 +320,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       try { out = await collectRevenueCat(day); } catch (e) { out = { ok: false, detail: String(e) }; }
       res.setHeader('Cache-Control', 'no-store');
       return res.status(200).json({ day, ...out });
+    }
+    // ?stores=1&days=60 で、ストア側をその場で取り直す（過去を埋める・設定の確認用）
+    if (req.query.stores) {
+      const days = Math.min(400, Math.max(1, Number(req.query.days) || 7));
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(200).json(await collectStores(todayJst(), days));
     }
     return render(res);
   }
