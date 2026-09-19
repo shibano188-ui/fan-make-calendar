@@ -7,18 +7,18 @@ import EventEditForm from '../components/item/EventEditForm';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME } from '../lib/constants';
-import { deriveStatus, deriveItemType, itemDateLines, todayStr } from '../design/tokens';
+import { deriveItemType, itemDateLines, todayStr, isDateUncertain, stageFlow } from '../design/tokens';
 import { resolveBuy, getOffers, buildOffer, offerUrl, primaryOffer, isSearchPageUrl } from '../lib/affiliate';
 import { openBuyLink } from '../lib/dataLogs';
 import { openExternal } from '../lib/openExternal';
 import ReactionButton from '../components/item/ReactionButton';
 import { checkStockNote } from '../lib/stockCheck';
+import StageStepper from '../components/item/StageStepper';
 import { useAuth } from '../contexts/AuthContext';
 import { useHiddenContent } from '../hooks/useHiddenContent';
 import { haptic } from '../lib/haptics';
 import { likeEffect } from '../lib/likeEffect';
 import { useLike, setLike, getLike } from '../lib/likeStore';
-import StatusBadge from '../components/ui/StatusBadge';
 import ImageCarousel from '../components/item/ImageCarousel';
 import NotifyBell from '../components/item/NotifyBell';
 import LineLoader from '../components/ui/LineLoader';
@@ -134,7 +134,6 @@ export default function ItemDetail() {
   const event = ev;
   const eff = applyEdits(event, edits); // 編集パッチを重ねた実効値
   const type = deriveItemType(eff);
-  const status = deriveStatus(eff);
   const images = parseImageUrls(event.imageUrl);
   let cats = parseCategories(event.category);
   if (cats.length > 1) cats = cats.filter((c) => c !== 'グッズ');
@@ -354,9 +353,10 @@ export default function ItemDetail() {
             {(() => {
               const countdown = countdownLabel({ ...eff, visits }, type === 'goods', todayStr());
               return (
-                <div className="mt-2 flex items-center gap-2">
-                  <StatusBadge status={status} type={type} size="md" />
-                  {countdown && <span className="text-[12px] font-bold" style={{ color: 'var(--accent-text)' }}>{countdown}</span>}
+                <div className="mt-1">
+                  {/* 段階の流れ（今いる段階に色）。その下に、一番気になる日までの日数 */}
+                  <StageStepper event={eff} />
+                  {countdown && <div className="mt-2 text-[13px] font-bold" style={{ color: 'var(--accent-text)' }}>{countdown}</div>}
                 </div>
               );
             })()}
@@ -369,6 +369,11 @@ export default function ItemDetail() {
               <CalendarDays size={16} className="text-label-secondary mt-0.5 flex-shrink-0" />
               <div className="text-[14px]">
                 {dateLines.map((l, i) => <div key={i}>{l}</div>)}
+                {/* 日付が未定・曖昧（9月下旬・春頃など）なら、まだ確かでないことを添える（終わった予定には出さない） */}
+                {isDateUncertain(eff) && (() => { const f = stageFlow(eff); return f.current < f.steps.length - 1; })() && (
+                  <span className="inline-block mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded"
+                    style={{ color: 'var(--status-info)', backgroundColor: 'color-mix(in srgb, var(--status-info) 14%, transparent)' }}>未確定</span>
+                )}
               </div>
             </div>
 

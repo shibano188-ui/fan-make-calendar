@@ -154,3 +154,30 @@ export const SPACE = {
   gridGap: 8, // カード間（詰め気味）
   pagePad: 12,
 } as const;
+
+/** 予定の段階の流れ（詳細ページで横に並べ、今いる段階に色を付ける）。
+ *  予約・受付のある予定は5段、無い予定は3段。グッズとイベントで呼び方を変える */
+export function stageFlow(
+  e: Pick<CalendarEvent, 'date' | 'endDate' | 'preorderStart' | 'preorderEnd' | 'type' | 'category'>,
+  today = todayStr(),
+): { steps: string[]; current: number } {
+  const goods = deriveItemType(e) === 'goods';
+  const hasPreorder = !!(e.preorderStart || e.preorderEnd);
+  const s = deriveStatus(e, today);
+  if (hasPreorder) {
+    const steps = goods
+      ? ['予約開始前', '予約受付中', '締切', '発売中', '発売済']
+      : ['受付開始前', '受付中', '受付終了', '開催中', '終了'];
+    const at: Record<ItemStatus, number> = { preorder_soon: 0, preorder: 1, preorder_ended: 2, sale_soon: 2, onsale: 3, ended: 4 };
+    return { steps, current: at[s] };
+  }
+  const steps = goods ? ['発売前', '発売中', '発売済'] : ['開催前', '開催中', '終了'];
+  const at: Record<ItemStatus, number> = { preorder_soon: 0, preorder: 0, preorder_ended: 0, sale_soon: 0, onsale: 1, ended: 2 };
+  return { steps, current: at[s] };
+}
+
+/** 日付がまだ確かでない（未定・「9月下旬」「春頃」のような曖昧な日付）。
+ *  ソース（情報源）の仕組みができたら、ソースの数・公式かどうかで判定し直す */
+export function isDateUncertain(e: Pick<CalendarEvent, 'date' | 'dateLabel'>): boolean {
+  return !e.date || !!e.dateLabel;
+}
