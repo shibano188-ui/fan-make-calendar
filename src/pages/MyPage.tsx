@@ -404,10 +404,7 @@ export default function MyPage() {
                 この端末からログアウト
               </button>
             ) : (
-              <div className="mt-2 ml-6 flex flex-col gap-1.5">
-                <p className="text-[11px] text-label-secondary">
-                  投稿・いいね・保存した予定はクラウドに残ります。同じメールでログインすれば元に戻ります。この端末の設定（重要マーク・通知ベル・配色）はそのままです。
-                </p>
+              <div className="mt-2 ml-6">
                 <div className="flex gap-2">
                   <button onClick={async () => { haptic.select(); setSigningOut(true); const r = await signOutAccount(); if (!r.ok) { setSigningOut(false); setSignOutConfirm(false); toast(r.error, 'error'); } }}
                     disabled={signingOut}
