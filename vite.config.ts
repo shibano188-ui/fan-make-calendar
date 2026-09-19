@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -57,7 +58,7 @@ export default defineConfig({
       // @capacitor-firebase/messaging のWeb実装が読む firebase/messaging を空実装に差し替える。
       // このプラグインは iOSネイティブ専用（Androidは @capacitor/push-notifications のまま）なので、
       // Web用に firebase パッケージ本体を抱える必要がない。詳細は firebaseMessagingWebStub.ts
-      'firebase/messaging': new URL('./src/lib/firebaseMessagingWebStub.ts', import.meta.url).pathname,
+      'firebase/messaging': fileURLToPath(new URL('./src/lib/firebaseMessagingWebStub.ts', import.meta.url)),
     },
   },
 })
