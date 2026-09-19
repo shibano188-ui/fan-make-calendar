@@ -7,6 +7,7 @@ import { todayStr, deriveStatus } from '../design/tokens';
 import { relativeDayLabel } from '../lib/relativeDay';
 import { haptic } from '../lib/haptics';
 import { buildWorkColorMap } from '../lib/workColors';
+import { stripWorkName } from '../lib/stripWorkName';
 import { useTheme } from '../contexts/ThemeContext';
 
 export type Scope = 'month' | 'week' | 'day';
@@ -374,7 +375,8 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, selected, onTapD
                           ? { backgroundColor: c, color: textOn(c) }
                           : { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }),
                       }}>
-                      {s.e.title}
+                      {/* 帯は作品の色で見分けられるので、先頭の作品名は省いて中身を出す */}
+                      {stripWorkName(s.e.title, s.e.workName)}
                     </div>
                   );
                 })}

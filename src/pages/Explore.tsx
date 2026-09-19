@@ -344,12 +344,12 @@ export default function Explore() {
   }, [queryItems, selectedStatuses, excludedWorks, selectedCategories, allowedPrefs]);
 
   // 今日起点: 過去（上）／これから（下）に分割（並びは取得順=日付昇順のまま）。
-  // 「新着のみ」ON のときは閲覧済み（スナップショット）を除外する。
+  // 「未読のみ」ON のときは閲覧済み（スナップショット）を除外する。
   const { past, upcoming } = useMemo(() => {
     const p: CalendarEvent[] = [];
     const u: CalendarEvent[] = [];
     for (const e of visible) {
-      if (showUnseenOnly && seenSnapshot.has(e.id)) continue; // 新着のみ＝未閲覧に絞る
+      if (showUnseenOnly && seenSnapshot.has(e.id)) continue; // 未読のみ＝未閲覧に絞る
       const ref = e.endDate || e.date || '';
       (ref && ref < today ? p : u).push(e);
     }
@@ -417,15 +417,15 @@ export default function Explore() {
     toast(r === 'google' ? 'Googleカレンダーに追加しました' : r === 'ics' ? 'カレンダーに追加しました' : '日付未定のため追加できません');
   };
 
-  const gridClass = mode === 'goods' ? 'grid grid-cols-2 gap-2 items-stretch' : 'flex flex-col gap-2';
+  const gridClass = 'flex flex-col gap-2';
   const workColorMap = useMemo(() => buildWorkColorMap([...followed].map((id) => ({ id }))), [followed]);
 
   // content-visibility: 画面外カードの描画・レイアウト計算をスキップして長いリストを軽くする。
   // containIntrinsicSize は未描画時の高さの見積もり（スクロールバー・復元位置の安定用）。
   const renderCard = (e: CalendarEvent) => (
     <div key={e.id} ref={observeSeen} data-event-id={e.id}
-      style={{ contentVisibility: 'auto', containIntrinsicSize: mode === 'goods' ? 'auto 250px' : 'auto 114px' }}>
-      <ItemCard event={e} layout={mode === 'goods' ? 'grid' : 'list'} isNew={isNewItem(e.id, e.createdAt, seenSnapshot)} likedInit={likedIds.has(e.id)}
+      style={{ contentVisibility: 'auto', containIntrinsicSize: mode === 'goods' ? 'auto 158px' : 'auto 114px' }}>
+      <ItemCard event={e} layout={mode === 'goods' ? 'wide' : 'list'} isNew={isNewItem(e.id, e.createdAt, seenSnapshot)} likedInit={likedIds.has(e.id)}
         workColor={e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)'}
         onOpen={() => { sessionStorage.setItem('explore_scroll', String(getScrollTop())); navigate(`/item/${e.id}`); }} onLike={() => onLikeTile(e)} onCalendar={() => onCalendarTile(e)} />
     </div>
@@ -467,7 +467,7 @@ export default function Explore() {
         <div className="flex items-center gap-2 mt-2 overflow-x-auto no-scrollbar">
           <Chip active={mode === 'goods'} onClick={() => { haptic.select(); setMode('goods'); }}>グッズ</Chip>
           <Chip active={mode === 'event'} onClick={() => { haptic.select(); setMode('event'); }}>イベント</Chip>
-          <Chip active={showUnseenOnly} onClick={() => { haptic.select(); setShowUnseenOnly((v) => !v); }}>新着のみ</Chip>
+          <Chip active={showUnseenOnly} onClick={() => { haptic.select(); setShowUnseenOnly((v) => !v); }}>未読のみ</Chip>
           <button onClick={() => { haptic.select(); setFollowSheetOpen(true); }}
             className="pressable flex items-center gap-1 px-3 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap border border-dashed flex-shrink-0"
             style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-text)' }}>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Bell, BellRing, Crown, CalendarSync, Palette, Pencil, Plus, Check, MessageCircle, MapPin, UserRound, Star, Trash2 } from 'lucide-react';
+import { ChevronRight, Bell, BellRing, Crown, CalendarSync, Palette, Pencil, Check, MessageCircle, MapPin, UserRound, Star, Trash2 } from 'lucide-react';
 
 // マイページ下部の規約類。iOS は画面を同梱していて住所が capacitor://localhost になるので、
 // 本番の URL を固定で開く（openExternal は http(s) しか開かない）
@@ -12,14 +12,13 @@ const LEGAL_LINKS = [
 
 import {
   getUserPublicProfile, getHomePrefecture, saveHomePrefecture, saveDisplayName, saveAvatarEmoji,
-  listAllParticipatedWorks, leaveCalendar, getProfileExtras, saveProfileExtras,
+  listAllParticipatedWorks, getProfileExtras, saveProfileExtras,
   listNotices, listBlockedUsers, type Work,
 } from '../lib/api';
 import { useHiddenContent } from '../hooks/useHiddenContent';
 import { unseenNotices } from '../lib/notices';
 import { useFeature, usePremium } from '../lib/premium';
 import { useConfirm } from '../components/ui/ConfirmDialog';
-import WorkFollowSheet from '../components/WorkFollowSheet';
 import CalendarSubscribe from '../components/CalendarSubscribe';
 import AccountSheet from '../components/AccountSheet';
 import { accountState, accountEmail, signOutAccount, deleteAccount } from '../lib/account';
@@ -66,10 +65,8 @@ export default function MyPage() {
   const [oshi, setOshi] = useState('');
   const [favWorks, setFavWorks] = useState('');
   const [works, setWorks] = useState<Work[]>([]);
-  const [worksOpen, setWorksOpen] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState<{ userId: string; displayName: string | null }[]>([]);
   const [blocksOpen, setBlocksOpen] = useState(false);
-  const [followSheetOpen, setFollowSheetOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [editingField, setEditingField] = useState<EditableField | null>(null);
   const confirm = useConfirm();
@@ -149,14 +146,6 @@ export default function MyPage() {
     setAvatar(emoji);
     setAvatarOpen(false);
     if (user) saveAvatarEmoji(user.id, emoji).catch(() => {});
-  };
-  const onLeave = async (w: Work) => {
-    if (!user) return;
-    haptic.select();
-    const ok = await confirm({ title: `「${w.name}」のフォローを解除しますか？`, message: '探すタブにこの作品の予定が表示されなくなります', confirmLabel: '解除する', destructive: true });
-    if (!ok) return;
-    setWorks((prev) => prev.filter((x) => x.id !== w.id));
-    await leaveCalendar(w.id, user.id);
   };
 
   const onUnblock = async (b: { userId: string; displayName: string | null }) => {
@@ -527,32 +516,6 @@ export default function MyPage() {
         )}
       </div>
 
-      {/* フォロー作品（ドロップダウン） */}
-      <div className="w-full flex items-center justify-between mt-5 mb-1">
-        <button onClick={() => setWorksOpen((v) => !v)} className="pressable flex-1 flex items-center justify-between">
-          <span className="text-[12px] text-label-secondary">フォロー作品（{works.length}）</span>
-          <ChevronRight size={16} className="text-label-tertiary" style={{ transform: worksOpen ? 'rotate(90deg)' : 'none' }} />
-        </button>
-        <button onClick={() => { haptic.select(); setFollowSheetOpen(true); }}
-          className="pressable ml-3 flex items-center gap-0.5 text-[12px] font-medium flex-shrink-0" style={{ color: 'var(--accent-text)' }}>
-          <Plus size={14} /> 追加
-        </button>
-      </div>
-      {worksOpen && (
-        works.length === 0 ? (
-          <p className="text-[13px] text-label-tertiary">フォロー中の作品はありません。「＋追加」から作品を探せます</p>
-        ) : (
-          <div className="flex flex-col gap-1.5 max-h-[40vh] overflow-y-auto no-scrollbar">
-            {works.map((w) => (
-              <div key={w.id} className="flex items-center justify-between gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-                <span className="text-[14px] truncate">{w.name}</span>
-                <button onClick={() => onLeave(w)} className="pressable text-[12px] text-label-secondary flex-shrink-0">解除</button>
-              </div>
-            ))}
-          </div>
-        )
-      )}
-
       {/* ブロック中のユーザー（0人のときは出さない。ブロックは投稿者のプロフィールから行う） */}
       {blockedUsers.length > 0 && (
         <>
@@ -573,9 +536,6 @@ export default function MyPage() {
           )}
         </>
       )}
-
-      <WorkFollowSheet open={followSheetOpen} onClose={() => setFollowSheetOpen(false)}
-        onChanged={() => { if (user) listAllParticipatedWorks(user.id).then(setWorks).catch(() => {}); }} />
 
       {acctSheet && (
         <AccountSheet mode={acctSheet} onClose={() => setAcctSheet(null)}

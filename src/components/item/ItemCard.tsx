@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Heart, ImageOff } from 'lucide-react';
 import type { CalendarEvent } from '../../types';
 import { useLike, setLike } from '../../lib/likeStore';
-import { deriveStatus, deriveItemType, itemDateLines } from '../../design/tokens';
+import { deriveStatus, deriveItemType, itemDateLines, todayStr } from '../../design/tokens';
+import { countdownLabel } from '../../lib/relativeDay';
 import { parseCategories, getPrimaryCategoryColor, parseImageUrls } from '../../lib/constants';
 import { likeEffect } from '../../lib/likeEffect';
 import { primaryOffer, getOffers } from '../../lib/affiliate';
@@ -13,7 +14,8 @@ import NotifyBell from './NotifyBell';
 
 interface Props {
   event: CalendarEvent;
-  layout?: 'grid' | 'list';
+  /** wide＝1行に1件の大きいカード（探すのグッズ）。画像を大きく、締切までの日数と販路の在庫まで出す */
+  layout?: 'grid' | 'list' | 'wide';
   isNew?: boolean;
   likedInit?: boolean;
   /** 作品ごとの色。カード左端の縦バーで示す。未指定なら表示しない。 */
@@ -135,6 +137,42 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
       )}
     </div>
   );
+
+  if (layout === 'wide') {
+    const countdown = countdownLabel(event, type === 'goods', todayStr());
+    const offer = primaryOffer(getOffers(event));
+    const stock = offer && (offer.inStock === false ? '売り切れ' : offer.stockLabel || (offer.inStock ? '在庫あり' : ''));
+    return (
+      <div data-skin-part="card" data-status={status} data-layout="wide"
+        className="rounded-[12px] border border-subtle overflow-hidden bg-bg-secondary p-2.5 flex gap-3"
+        style={workColor ? { borderLeft: `3px solid ${workColor}` } : undefined}>
+        <button onClick={onOpen} data-skin-part="card-media" className="pressable flex-shrink-0 w-[136px] h-[136px] rounded-[8px] overflow-hidden relative">
+          {Thumb}
+          <div className="absolute top-1.5 left-1.5"><StatusBadge status={status} type={type} /></div>
+          {isNew && (
+            <span className="absolute top-1.5 right-1.5 text-[10px] font-bold rounded-full px-1.5 py-0.5" style={{ backgroundColor: 'var(--color-destructive)', color: '#fff' }}>新着</span>
+          )}
+        </button>
+        <div className="flex-1 min-w-0 flex flex-col">
+          <button onClick={onOpen} className="pressable text-left">
+            {event.workName && <div data-skin-part="card-work" className="text-[11px] text-label-secondary truncate">{event.workName}</div>}
+            <div data-skin-part="card-title" className="text-[15px] font-semibold leading-snug line-clamp-3">{event.title}</div>
+            <CategoryLine event={event} />
+            {price && <div data-skin-part="card-price" className="text-[17px] font-bold mt-0.5 flex items-center gap-1" style={{ color: 'var(--accent-text)' }}>{price}{isSet && setTag}</div>}
+            {countdown && <div className="text-[12px] font-semibold mt-0.5" style={{ color: 'var(--accent-text)' }}>{countdown}</div>}
+            <div data-skin-part="card-date" className="text-[12px] text-label-secondary mt-0.5">{itemDateLines(event).join(' / ')}</div>
+            {offer?.retailer && (
+              <div className="text-[12px] text-label-secondary mt-0.5 truncate">
+                {offer.retailer}
+                {stock && <span className="ml-1.5 font-semibold" style={{ color: offer.inStock === false ? 'var(--color-destructive)' : 'var(--label-primary)' }}>{stock}</span>}
+              </div>
+            )}
+          </button>
+          <div className="mt-auto pt-1.5"><CardActions liked={liked} likeCount={likeCount} onLike={handleLike} event={event} /></div>
+        </div>
+      </div>
+    );
+  }
 
   if (layout === 'list') {
     return (
