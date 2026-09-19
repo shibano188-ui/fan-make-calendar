@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Plus, Check, Bell, BellOff, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Plus, Check, ChevronRight } from 'lucide-react';
 import { listAllParticipatedWorks, leaveCalendar, type Work } from '../lib/api';
-import { loadMutedWorkIds, toggleMutedWorkId } from '../lib/constants';
 import { getCached, setCached } from '../lib/swrCache';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
@@ -10,9 +9,8 @@ import { useConfirm } from '../components/ui/ConfirmDialog';
 import { haptic } from '../lib/haptics';
 import WorkFollowSheet from '../components/WorkFollowSheet';
 
-// フォロー管理ページ。1行 = 作品名（タップでその作品の予定）／通知ベル／フォロー中ボタン。
-// ベルは**作品ごとの通知ミュート**（値下げ・再入荷）。フォローを外すのとは別なので分けてある
-// （「予定は見たいけど通知はいらない」が言える）。
+// フォロー管理ページ。1行 = 作品名（タップでその作品の予定）／フォロー中ボタン。
+// 作品ごとの通知の切り替えは、通知の設定ページ（/notifications）に集めた（ここから飛ぶのが手間だったため）。
 
 export default function Follows() {
   const navigate = useNavigate();
@@ -21,7 +19,6 @@ export default function Follows() {
   const confirm = useConfirm();
   const [params, setParams] = useSearchParams();
   const [follows, setFollows] = useState<Work[] | null>(null);
-  const [muted, setMuted] = useState<Set<string>>(() => loadMutedWorkIds());
   const [sheetOpen, setSheetOpen] = useState(params.get('add') === '1');
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -38,13 +35,6 @@ export default function Follows() {
 
   const openAdd = () => { haptic.select(); setSheetOpen(true); };
   const closeAdd = () => { setSheetOpen(false); if (params.get('add')) { params.delete('add'); setParams(params, { replace: true }); } };
-
-  const toggleMute = (w: Work) => {
-    haptic.select();
-    const next = toggleMutedWorkId(w.id);
-    setMuted(next);
-    toast(next.has(w.id) ? `「${w.name}」の通知を止めました` : `「${w.name}」の通知を受け取ります`);
-  };
 
   const unfollow = async (w: Work) => {
     if (!user || busyId) return;
@@ -84,20 +74,12 @@ export default function Follows() {
           ) : (
             <div className="flex flex-col">
               {follows.map((w) => {
-                const off = muted.has(w.id);
                 return (
                   <div key={w.id} className="flex items-center gap-1 py-2.5 border-b border-subtle">
                     <button onClick={() => { haptic.select(); navigate(`/explore?q=${encodeURIComponent(w.name)}`); }}
                       className="pressable flex-1 min-w-0 flex items-center gap-1 text-left">
                       <span className="text-[15px] font-semibold truncate">{w.name}</span>
                       <ChevronRight size={15} className="text-label-tertiary flex-shrink-0" />
-                    </button>
-                    {/* ベルのアイコンだけでは何の通知か読めないので字を添える。
-                        ここで止まるのは値下げ・再入荷（作品まるごと）。発売日リマインダーは予定ごとのベル。 */}
-                    <button onClick={() => toggleMute(w)} aria-label={off ? '値下げ通知をオン' : '値下げ通知をオフ'}
-                      className="pressable tap-44 flex flex-col items-center justify-center gap-0.5 px-1.5">
-                      {off ? <BellOff size={19} className="text-label-tertiary" /> : <Bell size={19} style={{ color: 'var(--accent-color)' }} />}
-                      <span className="text-[9px] leading-none text-label-tertiary">値下げ</span>
                     </button>
                     <button onClick={() => unfollow(w)} disabled={busyId !== null}
                       className="pressable flex-shrink-0 flex items-center gap-1 text-[12px] px-3 py-1.5 rounded-full font-medium"

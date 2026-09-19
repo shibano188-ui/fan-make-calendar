@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Bell, BellRing, ChevronRight, TrendingDown } from 'lucide-react';
+import { ArrowLeft, Bell, BellRing, ChevronRight, TrendingDown } from 'lucide-react';
 import { App } from '@capacitor/app';
-import { listSavedEvents } from '../lib/api';
-import { loadNotifyLeadDays, saveNotifyLeadDays, loadBellPrefs, saveBellPrefs, type BellPrefs } from '../lib/constants';
+import { listSavedEvents, listAllParticipatedWorks, type Work } from '../lib/api';
+import { getCached, setCached } from '../lib/swrCache';
+import { buildWorkColorMap } from '../lib/workColors';
+import { loadWorkImages } from '../lib/workImages';
+import { loadNotifyLeadDays, saveNotifyLeadDays, loadBellPrefs, saveBellPrefs, type BellPrefs, loadMutedWorkIds, toggleMutedWorkId } from '../lib/constants';
 import { ensurePermission, notificationPermission, notificationsSupported, rescheduleAll } from '../lib/notifications';
 import { pushSupported, isDigestOn, setDigestOn } from '../lib/push';
 import { useFeature } from '../lib/premium';
@@ -26,6 +29,21 @@ export default function NotificationSettings() {
   const [leadDays, setLeadDays] = useState(loadNotifyLeadDays());
   const [digestOn, setDigestEnabled] = useState(isDigestOn());
   const [bell, setBell] = useState<BellPrefs>(loadBellPrefs());
+  // 作品ごとの通知（値下げ・再入荷と新着のまとめ）。フォロー中の作品を並べて、ここで切り替える
+  const [works, setWorks] = useState<Work[]>(() => (user ? getCached<Work[]>(`follows:${user.id}`) ?? [] : []));
+  const [mutedWorks, setMutedWorks] = useState<Set<string>>(() => loadMutedWorkIds());
+  const workColors = buildWorkColorMap(works);
+  const workImages = loadWorkImages();
+  useEffect(() => {
+    if (!user) return;
+    listAllParticipatedWorks(user.id).then((ws) => { setWorks(ws); setCached(`follows:${user.id}`, ws); }).catch(() => {});
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const onToggleWork = (w: Work) => {
+    haptic.select();
+    const next = toggleMutedWorkId(w.id);
+    setMutedWorks(next);
+    toast(next.has(w.id) ? `「${w.name}」の通知を止めました` : `「${w.name}」の通知を受け取ります`);
+  };
   const newEventDigest = useFeature('newEventDigest');
   const priceAlerts = useFeature('priceAlerts');
   const instantAlerts = useFeature('instantAlerts');
@@ -127,14 +145,6 @@ export default function NotificationSettings() {
             </button>
           )}
 
-          {/* 届いたお知らせの見返し先。設定ページに来る人は「来ない・見逃した」が動機なので上に置く */}
-          <button onClick={() => { haptic.select(); navigate('/notices'); }}
-            className="pressable w-full text-left rounded-[12px] p-3 mb-3 flex items-center gap-2"
-            style={{ backgroundColor: 'var(--bg-secondary)' }}>
-            <BellRing size={16} className="text-label-secondary" />
-            <span className="text-[14px] flex-1">これまでのお知らせを見る</span>
-            <ChevronRight size={16} className="text-label-tertiary" />
-          </button>
 
           {/* 予定のベルを押したときに何をONにするか。ベルは1回押すだけにしたので、細かい選択はここで */}
           <p className="text-[12px] text-label-secondary px-1 mb-1.5">予定のベルを押したときにONにするもの</p>
@@ -217,18 +227,26 @@ export default function NotificationSettings() {
               </div>
             )}
 
-            {/* 作品ごとの通知の止め方 */}
-            <button onClick={() => { haptic.select(); navigate('/follows'); }} className="pressable w-full text-left px-3 py-2.5">
-              <div className="flex items-center gap-2">
-                <ArrowRight size={16} className="text-label-secondary" />
-                <span className="text-[14px] flex-1">作品ごとに通知を止める</span>
-                <ChevronRight size={16} className="text-label-tertiary" />
-              </div>
-              <p className="text-[11px] text-label-secondary mt-1 ml-6">
-                フォロー中のページのベルから、作品まるごと止められます。
-              </p>
-            </button>
           </div>
+
+          {/* 作品ごとに止める。フォロー中の作品ページから飛ばずに、ここで切り替える */}
+          {works.length > 0 && (
+            <>
+              <p className="text-[12px] text-label-secondary px-1 mt-4 mb-0.5">作品ごとに通知を止める</p>
+              <p className="text-[11px] text-label-tertiary px-1 mb-1.5">OFFにすると、その作品の値下げ・再入荷と新着のまとめを止めます</p>
+              <div className="rounded-[12px] overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                {works.map((w, i) => (
+                  <div key={w.id} className={`flex items-center gap-2 px-3 py-2.5 ${i < works.length - 1 ? 'border-b border-subtle' : ''}`}>
+                    {workImages[w.id]
+                      ? <img src={workImages[w.id]} alt="" className="w-5 h-5 rounded-[5px] object-cover flex-shrink-0" />
+                      : <span className="w-5 h-5 rounded-[5px] flex-shrink-0" style={{ backgroundColor: workColors.get(w.id) ?? 'var(--accent-color)' }} />}
+                    <span className="text-[14px] flex-1 truncate">{w.name}</span>
+                    <Toggle checked={!mutedWorks.has(w.id)} onChange={() => onToggleWork(w)} />
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
           {!notificationsSupported() && (
             <p className="text-[11px] text-label-tertiary mt-3 px-1">

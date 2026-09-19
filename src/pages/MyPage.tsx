@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Bell, BellRing, Crown, CalendarSync, Palette, Pencil, Check, MessageCircle, MapPin, UserRound, Star, Trash2 } from 'lucide-react';
+import { ChevronRight, Bell, Crown, CalendarSync, Palette, Pencil, Check, MessageCircle, MessageSquareText, MapPin, UserRound, Star, Trash2 } from 'lucide-react';
 
 // マイページ下部の規約類。iOS は画面を同梱していて住所が capacitor://localhost になるので、
 // 本番の URL を固定で開く（openExternal は http(s) しか開かない）
@@ -442,7 +442,8 @@ export default function MyPage() {
         {/* 届いたお知らせの履歴。端末の通知欄は消えると戻せないので、見返す場所をここに置く */}
         <button onClick={() => { haptic.select(); navigate('/notices'); }}
           className="pressable w-full flex items-center gap-2 px-3 py-2.5 text-left">
-          <BellRing size={16} className="text-label-secondary" />
+          {/* 通知の設定（ベル）と見分けるため、お知らせは吹き出し */}
+          <MessageSquareText size={16} className="text-label-secondary" />
           <span className="text-[14px] flex-1">お知らせ</span>
           {unreadNotices > 0 && (
             <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full"
