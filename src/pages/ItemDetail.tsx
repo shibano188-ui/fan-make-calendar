@@ -12,6 +12,7 @@ import { resolveBuy, getOffers, buildOffer, offerUrl, primaryOffer, isSearchPage
 import { openBuyLink } from '../lib/dataLogs';
 import { openExternal } from '../lib/openExternal';
 import ReactionButton from '../components/item/ReactionButton';
+import { checkStockNote } from '../lib/stockCheck';
 import { useAuth } from '../contexts/AuthContext';
 import { useHiddenContent } from '../hooks/useHiddenContent';
 import { haptic } from '../lib/haptics';
@@ -259,6 +260,8 @@ export default function ItemDetail() {
   const onAddStock = async () => {
     const n = stockInput.trim();
     if (!n || !user || addingStock) return;
+    const chk = checkStockNote(n);
+    if (!chk.ok) { toast(chk.reason, 'error'); return; }
     setAddingStock(true);
     const r = await addStockReport(event.id, n, user.id);
     if (r) setStockReports((prev) => [r, ...prev]);
@@ -382,6 +385,33 @@ export default function ItemDetail() {
               </div>
             </div>
 
+            {/* 日時・予約の修正は日付のすぐ下（投稿者だけに絞ることになっても置き場所はここ） */}
+            {/* 日時/予約の共同編集（即反映＋履歴で戻せる） */}
+            {!editing ? (
+              <button onClick={() => { haptic.select(); setEditing(true); }} className="pressable mt-2 text-[12px]" style={{ color: 'var(--accent-text)' }}>日時・予約を編集</button>
+            ) : (
+              <EventEditForm event={eff} onClose={() => setEditing(false)} onSave={onSaveEdit} />
+            )}
+            {edits.length > 0 && (
+              <div className="mt-2">
+                <button onClick={() => setHistoryOpen((v) => !v)} className="pressable text-[12px] text-label-tertiary">
+                  編集履歴（{edits.length}）{historyOpen ? ' ▲' : ' ▼'}
+                </button>
+                {historyOpen && (
+                  <div className="mt-1 flex flex-col gap-1">
+                    {[...edits].reverse().map((ed) => (
+                      <div key={ed.id} className="flex items-center justify-between gap-2 text-[11px] text-label-secondary">
+                        <span className="truncate">{ed.createdAt.slice(5, 10).replace('-', '/')} {summarizePatch(ed.patch)}</span>
+                        {user && (ed.createdBy === user.id || event.authorId === user.id) && (
+                          <button onClick={() => onRevertEdit(ed.id)} className="pressable flex-shrink-0" style={{ color: 'var(--accent-text)' }}>戻す</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* ピンした日（期間のある予定のみ・イベント/グッズ共通）。登録すると自分のカレンダーはその日だけ表示する */}
             {!!eff.endDate && eff.endDate !== eff.date && (
               <div className="mt-3">
@@ -464,33 +494,7 @@ export default function ItemDetail() {
             {/* メモ */}
             {event.memo && <p className="text-[14px] text-label-secondary whitespace-pre-wrap mt-3">{event.memo}</p>}
 
-            {/* 日時/予約の共同編集（即反映＋履歴で戻せる） */}
-            {!editing ? (
-              <button onClick={() => { haptic.select(); setEditing(true); }} className="pressable mt-2 text-[12px]" style={{ color: 'var(--accent-text)' }}>日時・予約を編集</button>
-            ) : (
-              <EventEditForm event={eff} onClose={() => setEditing(false)} onSave={onSaveEdit} />
-            )}
-            {edits.length > 0 && (
-              <div className="mt-2">
-                <button onClick={() => setHistoryOpen((v) => !v)} className="pressable text-[12px] text-label-tertiary">
-                  編集履歴（{edits.length}）{historyOpen ? ' ▲' : ' ▼'}
-                </button>
-                {historyOpen && (
-                  <div className="mt-1 flex flex-col gap-1">
-                    {[...edits].reverse().map((ed) => (
-                      <div key={ed.id} className="flex items-center justify-between gap-2 text-[11px] text-label-secondary">
-                        <span className="truncate">{ed.createdAt.slice(5, 10).replace('-', '/')} {summarizePatch(ed.patch)}</span>
-                        {user && (ed.createdBy === user.id || event.authorId === user.id) && (
-                          <button onClick={() => onRevertEdit(ed.id)} className="pressable flex-shrink-0" style={{ color: 'var(--accent-text)' }}>戻す</button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-                {!event.memo && edits.length === 0 && <p className="text-[13px] text-label-tertiary mt-3">メモはまだありません</p>}
+                {!event.memo && <p className="text-[13px] text-label-tertiary mt-3">メモはまだありません</p>}
               </div>
             )}
             {tab === 'links' && (
@@ -594,7 +598,7 @@ export default function ItemDetail() {
               )}
               <div className="flex gap-2">
                 <input value={stockInput} onChange={(e) => setStockInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onAddStock()}
-                  placeholder="在庫情報を追加（例: 池袋本店 残りわずか）"
+                  placeholder="在庫情報を追加"
                   className="flex-1 rounded-[10px] px-3 py-2 text-[13px] outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
                 <button onClick={onAddStock} disabled={!stockInput.trim() || addingStock} className="pressable px-3 rounded-[10px] text-[13px] font-semibold flex-shrink-0" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>追加</button>
               </div>
