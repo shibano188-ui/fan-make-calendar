@@ -29,21 +29,22 @@ function shiftMonths(base: string, n: number): string {
 }
 
 type SectionKey = 'followNew' | 'preorderOpen' | 'popular';
-const COLLAPSED_KEY = 'home_collapsed';
-function loadCollapsed(): Set<SectionKey> {
-  try { return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? '[]') as SectionKey[]); } catch { return new Set(); }
-}
+/** 0件のときに見出しの下に出す一言 */
+const EMPTY_TEXT: Record<SectionKey, string> = {
+  followNew: '新着はすべて見ました',
+  preorderOpen: '受付中の予定はありません',
+  popular: 'まだいいねの付いた予定はありません',
+};
 
 /** ホームの1かたまり。見出しは上部バーの下に貼りついたまま残るので、どこまでスクロールしていても
  *  見出しを押せば畳める。貼りついた状態で畳んだときは、見出しが上に来るようにスクロールを戻す */
-function Section({ title, items, open, onToggle, stickyTop, seen, likedIds, workColorMap, onOpen, onLike, onCalendar }: {
-  title: string; items: CalendarEvent[]; open: boolean; onToggle: () => void; stickyTop: number;
+function Section({ title, empty, items, open, onToggle, stickyTop, seen, likedIds, workColorMap, onOpen, onLike, onCalendar }: {
+  title: string; empty: string; items: CalendarEvent[]; open: boolean; onToggle: () => void; stickyTop: number;
   seen: Set<string>; likedIds: Set<string>; workColorMap: Map<string, string>;
   onOpen: (e: CalendarEvent) => void;
   onLike: (e: CalendarEvent) => void | Promise<{ liked: boolean; count: number } | void>; onCalendar: (e: CalendarEvent) => void;
 }) {
   const ref = useRef<HTMLElement>(null);
-  if (items.length === 0) return null;
   const toggle = () => {
     haptic.select();
     const el = ref.current;
@@ -61,7 +62,10 @@ function Section({ title, items, open, onToggle, stickyTop, seen, likedIds, work
         <ChevronDown size={18} className="ml-auto text-label-secondary"
           style={{ transform: open ? 'none' : 'rotate(-90deg)', transition: 'transform 0.3s cubic-bezier(0.32,0.72,0,1)' }} />
       </button>
-      {open && (
+      {open && items.length === 0 && (
+        <p className="px-3 pt-1 pb-3 text-[13px] text-label-tertiary">{empty}</p>
+      )}
+      {open && items.length > 0 && (
         <div className="flex flex-col gap-2 px-3 pt-1">
           {items.map((e) => (
             <ItemCard key={e.id} event={e} layout="compact" isNew={isNewItem(e.id, e.createdAt, seen)} likedInit={likedIds.has(e.id)}
@@ -97,10 +101,10 @@ export default function Home() {
     window.addEventListener('fan-work-images', onChange);
     return () => window.removeEventListener('fan-work-images', onChange);
   }, []);
-  const [collapsed, setCollapsed] = useState<Set<SectionKey>>(loadCollapsed);
+  // 畳んだ状態は覚えない。ホームを開くたびに全部開いた状態から始める
+  const [collapsed, setCollapsed] = useState<Set<SectionKey>>(new Set());
   const toggleSection = (k: SectionKey) => setCollapsed((p) => {
     const n = new Set(p); n.has(k) ? n.delete(k) : n.add(k);
-    try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...n])); } catch { /* noop */ }
     return n;
   });
   // 見出しを貼りつける高さ＝上部バーの高さ
@@ -195,7 +199,7 @@ export default function Home() {
     });
     const preorderOpen = all.filter((e) => deriveStatus(e) === 'preorder')
       .sort((a, b) => (a.preorderEnd ?? '9999').localeCompare(b.preorderEnd ?? '9999')).slice(0, 12);
-    // 新着は、まだ見ていないものだけ（探すの一覧で見た・詳細を開いたものは外す。0件ならこの見出しごと出さない）
+    // 新着は、まだ見ていないものだけ（探すの一覧で見た・詳細を開いたものは外す。0件でも見出しは出す）
     const seenIds = loadSeenEventIds();
     const followNew = all.filter((e) => !seenIds.has(e.id))
       .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? '')).slice(0, 12);
@@ -214,7 +218,6 @@ export default function Home() {
     toast(r === 'google' ? 'Googleカレンダーに追加しました' : r === 'ics' ? 'カレンダーに追加しました' : '日付未定のため追加できません');
   };
 
-  const empty = items && sections.preorderOpen.length === 0 && sections.followNew.length === 0 && sections.popular.length === 0;
 
   // 一番上の行。値下がり・再入荷があればその件数（中身は専用ページ）。
   // 無料の人には受け取れることの案内（決済が繋がるまでは出さない＝FEATURE_PREMIUM）。どちらも無ければ見出しだけ
@@ -265,12 +268,10 @@ export default function Home() {
 
       {items === null ? (
         <div className="px-3 pt-3"><SkeletonList count={3} /></div>
-      ) : empty ? (
-        <p className="text-center text-label-secondary text-[13px] py-20">おすすめがまだありません。<br />「探す」から見てみてください。</p>
       ) : (
         <div className="pb-4">
           {([['followNew', 'フォロー作品の新着'], ['preorderOpen', '受付中'], ['popular', '人気']] as const).map(([k, title]) => (
-            <Section key={k} title={title} items={sections[k]} open={!collapsed.has(k)} onToggle={() => toggleSection(k)} stickyTop={headerH}
+            <Section key={k} title={title} empty={follows.length === 0 ? '作品をフォローすると、ここに予定が出ます' : EMPTY_TEXT[k]} items={sections[k]} open={!collapsed.has(k)} onToggle={() => toggleSection(k)} stickyTop={headerH}
               seen={seen} likedIds={likedIds} workColorMap={workColorMap} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />
           ))}
         </div>
