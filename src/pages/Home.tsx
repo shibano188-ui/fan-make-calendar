@@ -195,7 +195,9 @@ export default function Home() {
     });
     const preorderOpen = all.filter((e) => deriveStatus(e) === 'preorder')
       .sort((a, b) => (a.preorderEnd ?? '9999').localeCompare(b.preorderEnd ?? '9999')).slice(0, 12);
-    const followNew = [...all]
+    // 新着は、まだ見ていないものだけ（探すの一覧で見た・詳細を開いたものは外す。0件ならこの見出しごと出さない）
+    const seenIds = loadSeenEventIds();
+    const followNew = all.filter((e) => !seenIds.has(e.id))
       .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? '')).slice(0, 12);
     const popular = [...all].sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0)).filter((e) => (e.likes ?? 0) > 0).slice(0, 12);
     return { preorderOpen, followNew, popular };
@@ -242,7 +244,8 @@ export default function Home() {
   return (
     <div ref={rootRef}>
       {/* 上部: 値下がり・再入荷のバー（右端の虫眼鏡を押すとバーが削れて検索欄になる）／作品の並び */}
-      <div ref={headerRef} className="px-3 pt-3 pb-2 sticky top-0 z-20 material-bar scroll-edge" data-skin-bar="main" style={{ paddingTop: adPad }}>
+      {/* 下端を透かす scroll-edge は付けない。すぐ下に見出しが貼りつくので、透かすと間に隙間が見える */}
+      <div ref={headerRef} className="px-3 pt-3 pb-2 sticky top-0 z-20 material-bar" data-skin-bar="main" style={{ paddingTop: adPad }}>
         <div className="flex items-center">
           <ExpandingSearch value={query} onChange={setQuery} placeholder="グッズ・イベントを検索"
             onSubmit={(q) => navigate(`/explore?q=${encodeURIComponent(q)}`)}

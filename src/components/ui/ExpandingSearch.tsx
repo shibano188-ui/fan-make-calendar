@@ -17,6 +17,11 @@ import { haptic } from '../../lib/haptics';
 
 const D = 36; // 閉じているときの丸の直径
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+// fluid.ts のばねは「目標との差が 0.1 未満」で止まる。0〜1 のまま回すと最後に1割ぶん飛ぶので、
+// 0〜100 で回して 100 で割る
+const S = 100;
+const run = (from: number, to: number, damping: number, response: number, onUpdate: (v: number) => void) =>
+  spring({ from: from * S, to: to * S, damping, response, onUpdate: (v) => onUpdate(v / S) });
 // iOS の WebView は、タップの処理の中で focus しないとキーボードが出ない。
 // iOS だけは最初に focus し（キーボードは①と同時に上がる）、他は④で focus する
 const FOCUS_ON_TAP = Capacitor.getPlatform() === 'ios';
@@ -41,12 +46,21 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
   const [focused, setFocused] = useState(false);
   const [shield, setShield] = useState(false);
 
+  // 丸は右端に留めておき、動いている間だけ幅から位置を計算する。
+  // 閉じている／開ききっているときは幅に頼らない（タブを切り替えた直後など、幅が決まる前に
+  // 位置を計算すると、何もしていないのに丸が滑って見えるため）
   const paint = () => {
-    const W = areaRef.current?.clientWidth ?? 0;
     const pill = pillRef.current;
     if (pill) {
-      pill.style.transform = `translateX(${(W - D) * (1 - clamp01(m.current))}px)`;
-      pill.style.width = `${D + (W - D) * Math.max(0, g.current)}px`;
+      const mv = clamp01(m.current), gr = Math.max(0, g.current);
+      if (mv === 0 && gr === 0) { pill.style.transform = 'none'; pill.style.width = `${D}px`; }
+      else if (mv === 1 && gr === 1) { pill.style.transform = 'none'; pill.style.width = '100%'; }
+      else {
+        const W = areaRef.current?.clientWidth ?? 0;
+        // 右端を基準に置いているので、左端＝(W−D)(1−mv)・幅＝D+(W−D)gr になるように右からずらす
+        pill.style.transform = `translateX(${(W - D) * (gr - mv)}px)`;
+        pill.style.width = `${D + (W - D) * gr}px`;
+      }
     }
     const t = titleRef.current;
     if (t) {
@@ -88,9 +102,7 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
     }
     // ① 左端へ
     let arrived = false;
-    moveRef.current = spring({
-      from: m.current, to: 1, damping: 0.9, response: 0.24,
-      onUpdate: (v) => {
+    moveRef.current = run(m.current, 1, 0.9, 0.24, (v) => {
         m.current = v; paint();
         if (!arrived && v > 0.94) {
           arrived = true;
@@ -99,9 +111,7 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
           haptic.light();
           later(() => {
             let grown = false;
-            growRef.current = spring({
-              from: g.current, to: 1, damping: 0.74, response: 0.28,
-              onUpdate: (w) => {
+            growRef.current = run(g.current, 1, 0.74, 0.28, (w) => {
                 g.current = w; paint();
                 // ④ ほぼ伸びたら入力欄にしてキーボードを出す
                 if (!grown && w > 0.85) {
@@ -109,11 +119,9 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
                   showField(true);
                   if (!FOCUS_ON_TAP) inputRef.current?.focus({ preventScroll: true });
                 }
-              },
             });
           }, 110);
         }
-      },
     });
   };
 
@@ -124,15 +132,12 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
     inputRef.current?.blur();
     if (prefersReducedMotion()) { m.current = 0; g.current = 0; paint(); return; }
     let shrunk = false;
-    growRef.current = spring({
-      from: g.current, to: 0, damping: 1, response: 0.24,
-      onUpdate: (w) => {
+    growRef.current = run(g.current, 0, 1, 0.24, (w) => {
         g.current = w; paint();
         if (!shrunk && w < 0.08) {
           shrunk = true;
-          moveRef.current = spring({ from: m.current, to: 0, damping: 0.92, response: 0.28, onUpdate: (v) => { m.current = v; paint(); } });
+          moveRef.current = run(m.current, 0, 0.92, 0.28, (v) => { m.current = v; paint(); });
         }
-      },
     });
   };
 
@@ -164,7 +169,7 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
         {title}
       </div>
       <div ref={pillRef} onClick={expand}
-        className={`absolute top-0 left-0 h-9 rounded-full flex items-center overflow-hidden ${open ? '' : 'pressable cursor-pointer'}`}
+        className={`absolute top-0 right-0 h-9 rounded-full flex items-center overflow-hidden ${open ? '' : 'pressable cursor-pointer'}`}
         style={{ width: D, backgroundColor: 'var(--fill-tertiary)', willChange: 'transform, width' }}
         role={open ? undefined : 'button'} aria-label={open ? undefined : '検索'}>
         <span ref={iconRef} className="flex-shrink-0 w-9 h-9 flex items-center justify-center">
