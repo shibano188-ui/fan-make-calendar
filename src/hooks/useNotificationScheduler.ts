@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { App } from '@capacitor/app';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { useAuth } from '../contexts/AuthContext';
-import { listSavedEvents } from '../lib/api';
+import { loadSaved } from '../lib/savedStore';
 import { rescheduleAll, notificationsSupported } from '../lib/notifications';
 import { syncDeviceCalendar } from '../lib/deviceCalendar';
 import { registerPush, onPushOpened, loadDigestSetting } from '../lib/push';
@@ -42,7 +42,8 @@ export function useNotificationScheduler() {
     if (!user || !notificationsSupported()) return;
     // 保存内容は1回だけ取って、通知の組み直しと端末カレンダーの同期の両方に使う
     const run = () => {
-      listSavedEvents(user.id)
+      // カレンダーと同じ取得を共有する（起動時に同じ問い合わせを2回投げない）
+      loadSaved(user.id)
         .then(async (events) => { await rescheduleAll(events); await syncDeviceCalendar(events); })
         .catch(() => {});
     };

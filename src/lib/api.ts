@@ -1124,31 +1124,36 @@ export async function listLikedEventIds(userId: string): Promise<Set<string>> {
 }
 
 // いいね（保存）タブ: 自分がいいねした予定 ＋ 自分が投稿した予定 を取得（重複排除）。
+//
+// 問い合わせは**同時に投げる**。以前は「取り消し販路 → いいね → 予定 → 行く日 → 名前」を
+// 1つずつ順番に待っていて、スマホの回線だと往復の待ちだけで1秒前後かかっていた。
+// いいねした予定は likes から events を埋め込んで1回で取る（events を id で引き直さない）。
+// 画面側は savedStore.ts を通して使う（覚えておいた分をすぐ出し、裏で取り直す）。
 export async function listSavedEvents(userId: string): Promise<CalendarEvent[]> {
-  await ensureRemovedOffers(); // 取り消された販路を差し引いた実効値で返す
-  const { data: likeRows } = await supabase.from('likes').select('event_id').eq('user_id', userId);
-  const likedIds = (likeRows ?? []).map((r) => r.event_id as string);
-  const queries = [
+  const [, likesRes, ownRes, visitsRes] = await Promise.all([
+    ensureRemovedOffers(), // 取り消された販路を差し引いた実効値で返す（rowToEvent より先に終わっている必要がある）
+    supabase.from('likes').select('event_id, events!likes_event_id_fkey(*, works(name))').eq('user_id', userId),
     supabase.from('events').select('*, works(name)').eq('pool', 0).eq('author_id', userId),
+    supabase.from('event_visits').select('id, event_id, start_date, end_date').eq('user_id', userId),
+  ]);
+  const likedIds = new Set((likesRes.data ?? []).map((r) => r.event_id as string));
+  const rows: Record<string, unknown>[] = [
+    ...((ownRes.data ?? []) as Record<string, unknown>[]),
+    ...(likesRes.data ?? [])
+      .map((r) => (r as Record<string, unknown>).events as Record<string, unknown> | null)
+      .filter((e): e is Record<string, unknown> => !!e && e.pool === 0),
   ];
-  if (likedIds.length) queries.push(supabase.from('events').select('*, works(name)').eq('pool', 0).in('id', likedIds));
-  const results = await Promise.all(queries);
   const map = new Map<string, CalendarEvent>();
-  for (const { data } of results) {
-    for (const row of data ?? []) {
-      const r = row as Record<string, unknown>;
-      const id = r.id as string;
-      if (map.has(id)) continue;
-      const works = r.works as { name: string } | null;
-      const ev = { ...rowToEvent(r), workName: works?.name ?? '' };
-      ev.likedByMe = likedIds.includes(id);
-      map.set(id, ev);
-    }
+  for (const r of rows) {
+    const id = r.id as string;
+    if (map.has(id)) continue;
+    const works = r.works as { name: string } | null;
+    const ev = { ...rowToEvent(r), workName: works?.name ?? '' };
+    ev.likedByMe = likedIds.has(id);
+    map.set(id, ev);
   }
   // 個人の来店予定を結合（保存カレンダーの表示絞り込み・通知の基準に使う）
-  const { data: visitRows } = await supabase
-    .from('event_visits').select('id, event_id, start_date, end_date').eq('user_id', userId);
-  for (const r of visitRows ?? []) {
+  for (const r of visitsRes.data ?? []) {
     const ev = map.get(r.event_id as string);
     if (!ev) continue;
     (ev.visits ??= []).push({ id: r.id as string, start: r.start_date as string, end: r.end_date as string });

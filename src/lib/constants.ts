@@ -194,6 +194,8 @@ const ACCOUNT_SCOPED_KEYS = [
   'fan_calendar_event_ids', // calendar_adds テーブル
   'fan_reactions',          // reactions テーブル
   'fan_default_joined_v2',  // 既定フォロー済みフラグ（新しい匿名ユーザーには再適用が要る）
+  'fan_saved_events_v1',    // 保存した予定の控え（savedStore.ts）
+  'fan_followed_works_v1',  // フォロー中の作品の控え（カレンダー上部の並び）
 ];
 
 export function clearAccountScopedCache(): void {

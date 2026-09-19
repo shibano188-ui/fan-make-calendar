@@ -20,6 +20,8 @@ const AuthContext = createContext<AuthContextValue>({ user: null, loading: true 
 // v2: 旧レース条件でフォロー0のまま詰まった既存端末を回復させるためキーをバージョンアップ。
 // 未設定の端末（新規／旧フラグのみ持つ端末）で一度だけ再参加する。
 const DEFAULT_JOINED_KEY = 'fan_default_joined_v2';
+// 端末設定をこの端末で一度でも同期できた人（値は user_id）。2回目からは起動時に同期を待たない
+const SYNCED_ONCE_KEY = 'fan_app_state_synced_v1';
 let defaultJoinPromise: Promise<void> | null = null;
 function ensureDefaultJoined(userId: string): Promise<void> {
   if (localStorage.getItem(DEFAULT_JOINED_KEY)) return Promise.resolve();
@@ -44,10 +46,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    let activatedId: string | null = null;
 
     // user を公開する前にデフォルト参加とアプリ状態の同期を確定させる。
     // 同期はサーバーが遅い/落ちている場合に起動を止めないよう上限を切り、超えたらローカルのまま進む。
     const activate = async (u: User) => {
+      // getSession と onAuthStateChange の両方から同じ人で呼ばれるので、2回目は何もしない
+      if (activatedId === u.id) return;
+      activatedId = u.id;
       setAppStateUser(u.id);
       // 端末設定（通知ベル・ミュート・作品の色など）の同期は**全員**に開放している。
       // 元は有料機能だったが、投稿・いいね・フォローはそもそもアカウントに紐付いていて
@@ -55,10 +61,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // （2026-08-14 本人判断で有料リストから外した）。
       setAppStateSync(true);
       await ensureDefaultJoined(u.id);
-      await Promise.race([
-        syncAppState(u.id),
-        new Promise((resolve) => setTimeout(resolve, 4000)),
-      ]);
+      // 端末設定の同期を待つのは**その端末で初めて同期するときだけ**。
+      // 2回目からは手元に前回の写しがあるので、画面を先に出して裏で同期する
+      // （毎回待っていたため、起動のたびにデータの表示が1往復以上遅れていた）。
+      if (localStorage.getItem(SYNCED_ONCE_KEY) === u.id) {
+        syncAppState(u.id).catch(() => { /* 失敗してもローカルは無事 */ });
+      } else {
+        await Promise.race([
+          syncAppState(u.id).then(() => { try { localStorage.setItem(SYNCED_ONCE_KEY, u.id); } catch { /* noop */ } }),
+          new Promise((resolve) => setTimeout(resolve, 4000)),
+        ]);
+      }
       if (cancelled) return;
       setUser(u);
       setLoading(false);
@@ -94,6 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const u = session.user;
         setTimeout(() => { if (!cancelled) activate(u); }, 0);
       } else {
+        activatedId = null;
         setUser(null);
         setLoading(false);
         clearPremium();       // 別アカウントに有料状態を持ち越さない

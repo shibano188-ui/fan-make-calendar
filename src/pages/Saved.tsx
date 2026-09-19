@@ -9,8 +9,9 @@ import SavedCalendar, { periodLabel, includesToday } from '../components/SavedCa
 import FilterPanel, { type Facet } from '../components/item/FilterPanel';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveStatus, todayStr, STATUS, type ItemStatus } from '../design/tokens';
-import { listSavedEvents, getHomePrefecture, toggleLike, toggleCalendarAdd, listAllParticipatedWorks, type Work } from '../lib/api';
+import { getHomePrefecture, toggleLike, toggleCalendarAdd, listAllParticipatedWorks, type Work } from '../lib/api';
 import { loadWorkImages } from '../lib/workImages';
+import { peekSaved, loadSaved, updateSaved } from '../lib/savedStore';
 import { parseCategories, isNotifyOn } from '../lib/constants';
 import { buildWorkColorMap } from '../lib/workColors';
 import { logSearch } from '../lib/dataLogs';
@@ -32,6 +33,8 @@ const VIEWS: { key: View; label: string; icon: typeof Calendar }[] = [
   { key: 'list', label: 'リスト', icon: List },
 ];
 
+const FOLLOWED_KEY = 'fan_followed_works_v1';
+
 const STATUS_ORDER: ItemStatus[] = ['preorder_soon', 'preorder', 'sale_soon', 'onsale', 'preorder_ended', 'ended'];
 
 const PREF_TO_REGION: Record<string, string> = {};
@@ -47,7 +50,8 @@ export default function Saved() {
   const { isHidden } = useHiddenContent(user?.id);
   const toast = useToast();
   const _ss = loadSavedSession();
-  const [items, setItems] = useState<CalendarEvent[] | null>(null);
+  // 覚えている予定があれば最初の描画から出す（詳細から戻ったときに読み込み表示を挟まない）
+  const [items, setItems] = useState<CalendarEvent[] | null>(() => (user ? peekSaved(user.id) : null));
   const [tab, setTab] = useState<Tab>(['all', 'preorder', 'mine', 'notify'].includes(_ss.tab) ? _ss.tab : 'all');
   const [view, setView] = useState<View>(_ss.view ?? 'month');
   // 表示切替のメニューの位置（開いているときだけ）。上部バーは下端をぼかす mask で
@@ -72,14 +76,20 @@ export default function Saved() {
   const [query, setQuery] = useState<string>(_ss.query ?? '');
   const [filterOpen, setFilterOpen] = useState<boolean>(_ss.filterOpen ?? false);
   // 上部の作品の並び（TimeTree 風）。フォロー中の作品だけを出し、押すとその作品を隠す（もう一度で戻す）
-  const [followedWorks, setFollowedWorks] = useState<Work[]>([]);
+  // 前回の並びを覚えておき、最初の描画から出す（後から出ると、カレンダーが1段下にずれて見える）
+  const [followedWorks, setFollowedWorks] = useState<Work[]>(() => {
+    try { return JSON.parse(localStorage.getItem(FOLLOWED_KEY) ?? '[]') as Work[]; } catch { return []; }
+  });
   const [workImages, setWorkImages] = useState<Record<string, string>>(loadWorkImages);
   const [worksOpen, setWorksOpen] = useState(false);
   const worksRowRef = useRef<HTMLDivElement>(null);
   const [worksTop, setWorksTop] = useState(0);
   useEffect(() => {
     if (!user) return;
-    listAllParticipatedWorks(user.id).then(setFollowedWorks).catch(() => {});
+    listAllParticipatedWorks(user.id).then((ws) => {
+      setFollowedWorks(ws);
+      try { localStorage.setItem(FOLLOWED_KEY, JSON.stringify(ws)); } catch { /* 表示は続ける */ }
+    }).catch(() => {});
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const onChange = () => setWorkImages(loadWorkImages());
@@ -132,14 +142,13 @@ export default function Saved() {
   useEffect(() => {
     if (!user) return;
     let alive = true;
-    Promise.all([
-      listSavedEvents(user.id),
-      getHomePrefecture(user.id).catch(() => null),
-    ]).then(([d, hp]) => {
-      if (!alive) return;
-      setItems(d);
-      setHomePref(hp);
-    }).catch(() => alive && setItems([]));
+    // 覚えている分を先に出し、裏で取り直して差し替える。地元の県は予定の表示を待たせない
+    const cached = peekSaved(user.id);
+    if (cached) setItems(cached);
+    loadSaved(user.id)
+      .then((d) => { if (alive) setItems(d); })
+      .catch(() => { if (alive && !cached) setItems([]); });
+    getHomePrefecture(user.id).then((hp) => { if (alive) setHomePref(hp); }).catch(() => {});
     return () => { alive = false; };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -148,14 +157,13 @@ export default function Saved() {
     haptic.select();
     if (!user) return;
     const r = await toggleLike(e.id, user.id);
-    setItems((prev) => {
-      if (!prev) return prev;
-      return prev.flatMap((it) => {
-        if (it.id !== e.id) return [it];
-        if (!r.liked && it.authorId !== user.id) return [];
-        return [{ ...it, likedByMe: r.liked, likes: r.count }];
-      });
+    const apply = (list: CalendarEvent[]) => list.flatMap((it) => {
+      if (it.id !== e.id) return [it];
+      if (!r.liked && it.authorId !== user.id) return [];
+      return [{ ...it, likedByMe: r.liked, likes: r.count }];
     });
+    setItems((prev) => (prev ? apply(prev) : prev));
+    updateSaved(user.id, apply);
   };
 
   // 保存中の予定に出てくる作品の色マップ（未割当はパレットから付与して永続化）
