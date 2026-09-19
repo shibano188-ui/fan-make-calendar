@@ -375,6 +375,28 @@ export function setNotifyOn(id: string, on: boolean): Set<string> {
   return new Set(set);
 }
 
+// ─── ベルを押したときにONにするもの（通知の設定ページで選ぶ・既定はどちらもON）──────
+const BELL_PREFS_KEY = 'fan_bell_prefs';
+export interface BellPrefs { reminder: boolean; price: boolean; }
+export function loadBellPrefs(): BellPrefs {
+  try { return { reminder: true, price: true, ...JSON.parse(localStorage.getItem(BELL_PREFS_KEY) ?? '{}') as Partial<BellPrefs> }; }
+  catch { return { reminder: true, price: true }; }
+}
+export function saveBellPrefs(p: BellPrefs): void {
+  try { localStorage.setItem(BELL_PREFS_KEY, JSON.stringify(p)); } catch { /* noop */ }
+}
+
+// 無料の人がグッズのベルを押したときの「値下げ通知はプレミアムで」は週1回まで
+const PRICE_HINT_KEY = 'fan_price_hint_at';
+export function takePriceHint(now = Date.now()): boolean {
+  try {
+    const last = Number(localStorage.getItem(PRICE_HINT_KEY) ?? 0);
+    if (now - last < 7 * 86400000) return false;
+    localStorage.setItem(PRICE_HINT_KEY, String(now));
+    return true;
+  } catch { return false; }
+}
+
 // ─── 作品表示ON/OFF（hiddenWorkIds）永続化 ─────────────────────────────
 const HIDDEN_WORK_IDS_KEY = 'fan_hidden_work_ids';
 export function loadHiddenWorkIds(): Set<string> {

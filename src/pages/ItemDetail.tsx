@@ -532,7 +532,7 @@ export default function ItemDetail() {
                     <span className="text-[10px] text-label-tertiary leading-none">{calAdded ? '追加済み' : 'カレンダー'}</span>
                   </button>
                 )}
-                <NotifyBell event={eff} liked={liked} variant="labeled" />
+                <NotifyBell event={eff} liked={liked} onSave={onLike} variant="labeled" />
                 <button onClick={onShare} className="pressable flex flex-col items-center gap-0.5" aria-label="Xで共有">
                   <Share2 size={22} className="text-label-secondary" />
                   <span className="text-[10px] text-label-tertiary leading-none">共有</span>

@@ -217,7 +217,7 @@ function CardActions({ liked, likeCount, onLike, event, large }: { liked?: boole
         {!!likeCount && likeCount > 0 && <span data-skin-part="card-likes" className={`${large ? 'text-[13px]' : 'text-[11px]'} text-label-secondary`}>{likeCount}</span>}
       </button>
       <ReactionButton eventId={event.id} size={size} />
-      <NotifyBell event={event} liked={!!liked} size={size} />
+      <NotifyBell event={event} liked={!!liked} onSave={onLike} size={size} />
     </div>
   );
 }

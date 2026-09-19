@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Bell, BellRing, ChevronRight, TrendingDown } from 'lucide-react';
 import { App } from '@capacitor/app';
 import { listSavedEvents } from '../lib/api';
-import { loadNotifyLeadDays, saveNotifyLeadDays } from '../lib/constants';
+import { loadNotifyLeadDays, saveNotifyLeadDays, loadBellPrefs, saveBellPrefs, type BellPrefs } from '../lib/constants';
 import { ensurePermission, notificationPermission, notificationsSupported, rescheduleAll } from '../lib/notifications';
 import { pushSupported, isDigestOn, setDigestOn } from '../lib/push';
 import { useFeature } from '../lib/premium';
@@ -25,6 +25,7 @@ export default function NotificationSettings() {
   const [perm, setPerm] = useState<'granted' | 'denied' | 'prompt' | 'unsupported' | null>(null);
   const [leadDays, setLeadDays] = useState(loadNotifyLeadDays());
   const [digestOn, setDigestEnabled] = useState(isDigestOn());
+  const [bell, setBell] = useState<BellPrefs>(loadBellPrefs());
   const newEventDigest = useFeature('newEventDigest');
   const priceAlerts = useFeature('priceAlerts');
   const instantAlerts = useFeature('instantAlerts');
@@ -60,6 +61,13 @@ export default function NotificationSettings() {
     setDigestEnabled(next);
     if (user) await setDigestOn(user.id, next);
     toast(next ? '毎朝9時にまとめてお知らせします' : '新着のまとめ通知を止めました');
+  };
+
+  const onToggleBell = (key: keyof BellPrefs, next: boolean) => {
+    haptic.select();
+    const p = { ...bell, [key]: next };
+    setBell(p);
+    saveBellPrefs(p);
   };
 
   const row = 'px-3 py-2.5 border-b border-subtle';
@@ -128,6 +136,29 @@ export default function NotificationSettings() {
             <ChevronRight size={16} className="text-label-tertiary" />
           </button>
 
+          {/* 予定のベルを押したときに何をONにするか。ベルは1回押すだけにしたので、細かい選択はここで */}
+          <p className="text-[12px] text-label-secondary px-1 mb-1.5">予定のベルを押したときにONにするもの</p>
+          <div className="rounded-[12px] overflow-hidden mb-4" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+            <div className={row}>
+              <div className="flex items-center gap-2">
+                <Bell size={16} className="text-label-secondary" />
+                <span className="text-[14px] flex-1">受付開始・締切・発売の前</span>
+                <Toggle checked={bell.reminder} onChange={(v) => onToggleBell('reminder', v)} />
+              </div>
+            </div>
+            <div className="px-3 py-2.5">
+              <div className="flex items-center gap-2">
+                <TrendingDown size={16} className="text-label-secondary" />
+                <span className="text-[14px] flex-1">値下げ・再入荷（グッズ）</span>
+                {priceAlerts
+                  ? <Toggle checked={bell.price} onChange={(v) => onToggleBell('price', v)} />
+                  : <button onClick={() => { haptic.select(); navigate('/premium'); }}
+                      className="pressable text-[10px] font-bold px-1.5 py-0.5 rounded"
+                      style={{ color: 'var(--accent-on)', backgroundColor: 'var(--accent-color)' }}>プレミアム</button>}
+              </div>
+            </div>
+          </div>
+
           <div className="rounded-[12px] overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>
             {/* 予定のリマインダー（端末で組む・無料） */}
             <div className={row}>
@@ -140,7 +171,7 @@ export default function NotificationSettings() {
                 </select>
               </div>
               <p className="text-[11px] text-label-secondary mt-1 ml-6">
-                いいねした予定のうち、ベルをONにしたものが対象です。当日の朝にもお知らせします。
+                ベルをONにした予定が対象です。当日の朝にもお知らせします。
               </p>
             </div>
 
@@ -168,7 +199,7 @@ export default function NotificationSettings() {
                 </div>
                 <p className="text-[11px] text-label-secondary mt-1 ml-6">
                   いいねしたグッズが安くなったとき、在庫が戻ったときにお知らせします。
-                  うるさいものは各グッズのベルから止められます。
+                  ベルをONにしたグッズが対象です。止めたいものは、そのグッズのベルをもう一度押します。
                 </p>
               </button>
             )}
