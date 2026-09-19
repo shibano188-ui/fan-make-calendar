@@ -285,9 +285,11 @@ export function loadSeenEventIds(): Set<string> {
 }
 // 通知リードタイム（何日前に通知するか）。一括設定。
 const NOTIFY_LEAD_KEY = 'fan_notify_lead_days';
+/** 何日前に知らせるか。0＝当日のみ（前もっての通知は出さず、当日の朝だけ） */
 export function loadNotifyLeadDays(): number {
-  const v = Number(localStorage.getItem(NOTIFY_LEAD_KEY));
-  return Number.isFinite(v) && v > 0 ? v : 3;
+  const raw = localStorage.getItem(NOTIFY_LEAD_KEY);
+  const v = Number(raw);
+  return raw != null && Number.isFinite(v) && v >= 0 ? v : 3;
 }
 export function saveNotifyLeadDays(days: number): void {
   try { localStorage.setItem(NOTIFY_LEAD_KEY, String(days)); } catch { /* noop */ }

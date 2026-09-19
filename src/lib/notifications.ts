@@ -44,11 +44,14 @@ function triggersFor(e: CalendarEvent): Trigger[] {
   const onsaleWord = isGoods ? '発売' : '開催';
   const lead = loadNotifyLeadDays(); // マイページの「◯日前」設定
 
+  // lead=0（当日のみ）のときは前もっての通知は出さない。受付開始だけは当日の通知が他に無いので、当日の朝に出す
   if (e.preorderStart) {
-    out.push({ kind: 'pstart', at: morningOf(e.preorderStart, -lead), title: `${tag}受付開始まであと${lead}日`, body: `「${e.title}」の予約受付がもうすぐ始まります` });
+    out.push(lead > 0
+      ? { kind: 'pstart', at: morningOf(e.preorderStart, -lead), title: `${tag}受付開始まであと${lead}日`, body: `「${e.title}」の予約受付がもうすぐ始まります` }
+      : { kind: 'pstart', at: morningOf(e.preorderStart), title: `${tag}本日受付開始`, body: `「${e.title}」の予約受付が本日始まります` });
   }
   if (e.preorderEnd) {
-    out.push({ kind: 'pend1', at: morningOf(e.preorderEnd, -lead), title: `${tag}予約締切まであと${lead}日`, body: `「${e.title}」の予約締切が近づいています` });
+    if (lead > 0) out.push({ kind: 'pend1', at: morningOf(e.preorderEnd, -lead), title: `${tag}予約締切まであと${lead}日`, body: `「${e.title}」の予約締切が近づいています` });
     out.push({ kind: 'pend0', at: morningOf(e.preorderEnd), title: `${tag}本日が予約締切`, body: `「${e.title}」の予約は本日までです` });
   }
   // ピンした日があれば直近のピンを基準にする（無ければ予定本来の日）
@@ -58,7 +61,7 @@ function triggersFor(e: CalendarEvent): Trigger[] {
   const baseDate = nextVisit ?? e.date;
   if (baseDate) {
     const word = nextVisit ? 'ピンした日' : onsaleWord;
-    out.push({ kind: 'd1', at: morningOf(baseDate, -lead), title: `${tag}${word}まであと${lead}日`, body: `「${e.title}」の${word}が近づいています` });
+    if (lead > 0) out.push({ kind: 'd1', at: morningOf(baseDate, -lead), title: `${tag}${word}まであと${lead}日`, body: `「${e.title}」の${word}が近づいています` });
     out.push({ kind: 'd0', at: morningOf(baseDate), title: nextVisit ? `${tag}本日はピンした日です` : `${tag}本日${word}`, body: `「${e.title}」は本日です` });
   }
   return out;

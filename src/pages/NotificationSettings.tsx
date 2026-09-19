@@ -167,11 +167,11 @@ export default function NotificationSettings() {
                 <span className="text-[14px] flex-1">受付開始・締切・発売の前に</span>
                 <select value={leadDays} onChange={(e) => onChangeLead(Number(e.target.value))}
                   className="bg-transparent text-[14px] outline-none" style={{ color: 'var(--input-text)' }}>
-                  {[1, 2, 3, 5, 7].map((d) => <option key={d} value={d}>{d}日前</option>)}
+                  {[0, 1, 2, 3, 5, 7].map((d) => <option key={d} value={d}>{d === 0 ? '当日のみ' : `${d}日前`}</option>)}
                 </select>
               </div>
               <p className="text-[11px] text-label-secondary mt-1 ml-6">
-                ベルをONにした予定が対象です。当日の朝にもお知らせします。
+                ベルをONにした予定が対象です。{leadDays > 0 ? '当日の朝にもお知らせします。' : '当日の朝にだけお知らせします。'}
               </p>
             </div>
 

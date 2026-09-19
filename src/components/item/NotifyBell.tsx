@@ -44,7 +44,7 @@ export default function NotifyBell({ event, liked, onSave, size = 18, variant = 
       }
       setNotifyOn(event.id, true);
       setReminder(true);
-      if (supported) { await scheduleForEvent(event); msg = `${loadNotifyLeadDays()}日前と当日の朝にお知らせします`; }
+      if (supported) { await scheduleForEvent(event); const lead = loadNotifyLeadDays(); msg = lead > 0 ? `${lead}日前と当日の朝にお知らせします` : '当日の朝にお知らせします'; }
       else msg = '保存しました。通知の配信はアプリ版のみです';
     }
     if (isGoods && priceAlerts && prefs.price) {
