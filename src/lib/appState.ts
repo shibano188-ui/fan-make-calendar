@@ -13,6 +13,10 @@ import { supabase } from './supabase';
 // 注意: キー名はここが正。constants.ts から import すると循環参照になるため、あえて文字列で持つ。
 
 const TABLE = 'user_app_state';
+/** AuthContext の SYNCED_ONCE_KEY と同じ（この端末で一度でも同期したか） */
+const SYNCED_ONCE_KEY = 'fan_app_state_synced_v1';
+/** 手元を正にして上げ直すのを済ませたか（1回だけ行う） */
+const LOCAL_WINS_KEY = 'fan_app_state_local_wins_v1';
 
 const KEYS = {
   important_event_ids: 'fan_important_event_ids',
@@ -68,12 +72,8 @@ export function setAppStateUser(userId: string | null): void {
 }
 
 /**
- * 端末設定のサーバー同期を使えるか（プレミアム）。
- *
- * 線引き: **アカウントのデータ（投稿・いいね・フォロー・行く日）はログインすれば無料で戻る**。
- * ここで有料にしているのは「端末の設定」＝重要マーク・通知ベル・非表示作品・配色・通知ミュートで、
- * 機種変や2台目に持っていけるかどうか。無効のあいだは localStorage だけで完結し、
- * サーバーには一切書かない・読まない（＝今まで通り単体では普通に動く）。
+ * 端末設定のサーバー同期を使うか。ログイン中は全員 true（2026-08-14 に有料から外した）。
+ * 無効のあいだは localStorage だけで完結し、サーバーには一切書かない・読まない。
  */
 export function setAppStateSync(enabled: boolean): void {
   syncEnabled = enabled;
@@ -121,10 +121,16 @@ export async function syncAppState(userId: string): Promise<void> {
 
     const row = (data ?? null) as Record<string, unknown> | null;
     const upload: Record<string, unknown> = {};
+    // 2026-09-20 まで、無料の人は起動後の変更がサーバーに届いていなかった（AuthContext 参照）。
+    // その端末で前に同期したことがあるなら手元が最新なので、一度だけ手元を正としてサーバーへ上げ直す。
+    const localWins = localStorage.getItem(LOCAL_WINS_KEY) !== userId && localStorage.getItem(SYNCED_ONCE_KEY) === userId;
 
     for (const col of Object.keys(KEYS) as AppStateColumn[]) {
       const server = row ? row[col] : null;
-      if (server == null) {
+      const local = localWins ? readLocal(col) : null;
+      if (localWins && !isEmpty(local)) {
+        upload[col] = local;
+      } else if (server == null) {
         // 未同期の項目。手元の値をサーバーへ上げる（空なら上げる必要もない）
         const local = readLocal(col);
         if (!isEmpty(local)) upload[col] = local;
@@ -139,6 +145,7 @@ export async function syncAppState(userId: string): Promise<void> {
         .upsert({ user_id: userId, ...upload, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
       if (upErr) return;
     }
+    if (localWins) { try { localStorage.setItem(LOCAL_WINS_KEY, userId); } catch { /* noop */ } }
     synced = true;
   } catch {
     // オフライン・テーブル未作成でもアプリは通常どおり動く（ローカルが正のまま）

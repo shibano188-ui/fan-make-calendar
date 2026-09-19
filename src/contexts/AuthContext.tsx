@@ -79,13 +79,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // ここがズレると Webhook から user_private に引き当てられない
       configureBilling(u.id).catch(() => { /* 購入時にもう一度試す */ });
       // 会員状態は起動を待たせない（キャッシュで即答し、確定したらストア経由で切り替わる）
-      refreshPremium(u.id)
-        .then((active) => {
-          setAppStateSync(active);
-          // キャッシュが無料でサーバーが有料だったときは、ここで初めて同期する
-          if (active) syncAppState(u.id).catch(() => { /* 失敗してもローカルは無事 */ });
-        })
-        .catch(() => { /* 取れなければ無料のまま */ });
+      // 端末設定の同期は会員状態に関係なく続ける。ここで無料の人の同期を止めていたため、
+      // 起動後に変えた作品の色・通知ベルなどがサーバーに届かず、次の起動で古い値に戻っていた（2026-09-20 修正）
+      refreshPremium(u.id).catch(() => { /* 取れなければ無料のまま */ });
     };
 
     // 既存セッションを確認し、なければ匿名サインイン（成功時は onAuthStateChange 経由で activate）
