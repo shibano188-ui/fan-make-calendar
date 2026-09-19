@@ -79,7 +79,7 @@ FanHive 利用規約 https://fanhive.jp/terms.html
 
 | 項目 | 値 |
 |---|---|
-| サポートURL | `https://fanhive.jp/about.html`（2026-09-19 以降は `/tokushoho.html` へ転送。次の版で書き換える） |
+| サポートURL | `https://fanhive.jp/tokushoho.html`（1.5 で書き換え済み） |
 | マーケティングURL | `https://fanhive.jp` |
 | プライバシーポリシーURL | `https://fanhive.jp/privacy.html` |
 
