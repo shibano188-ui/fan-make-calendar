@@ -157,12 +157,12 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
       <div data-skin-part="card" data-status={status} data-layout="list"
         className="rounded-[12px] border border-subtle overflow-hidden bg-bg-secondary p-2.5 flex gap-3"
         style={workColor ? { borderLeft: `3px solid ${workColor}` } : undefined}>
-        <button onClick={onOpen} className="pressable flex-shrink-0 w-[128px] flex flex-col items-stretch">
-          <div data-skin-part="card-media" className="w-[128px] h-[128px] rounded-[8px] overflow-hidden">{Thumb}</div>
+        <button onClick={onOpen} className="pressable flex-shrink-0 w-[144px] flex flex-col items-stretch">
+          <div data-skin-part="card-media" className="w-[144px] h-[144px] rounded-[8px] overflow-hidden">{Thumb}</div>
           {countdown && (
-            <div data-skin-part="card-countdown" className="mt-1.5 text-center leading-tight" style={{ color: 'var(--accent-text)' }}>
-              {countdown.label && <div className="text-[11px] font-medium">{countdown.label}</div>}
-              <div className="text-[15px] font-bold">{countdown.value}</div>
+            <div data-skin-part="card-countdown" className="mt-1 text-center leading-tight" style={{ color: 'var(--accent-text)' }}>
+              {countdown.label && <div className="text-[10px] font-medium">{countdown.label}</div>}
+              <div className="text-[13px] font-bold">{countdown.value}</div>
             </div>
           )}
         </button>
