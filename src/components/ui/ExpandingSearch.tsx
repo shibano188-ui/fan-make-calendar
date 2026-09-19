@@ -69,7 +69,7 @@ export default function ExpandingSearch({ value, onChange, placeholder, title }:
     iconRef.current?.animate(
       [{ transform: 'rotate(0)' }, { transform: 'rotate(-16deg) scale(1.08)' }, { transform: 'rotate(11deg) scale(1.04)' },
        { transform: 'rotate(-6deg)' }, { transform: 'rotate(2deg)' }, { transform: 'rotate(0)' }],
-      { duration: 380, easing: 'ease-out' },
+      { duration: 260, easing: 'ease-out' },
     );
   };
 
@@ -87,10 +87,10 @@ export default function ExpandingSearch({ value, onChange, placeholder, title }:
     // ① 左端へ
     let arrived = false;
     moveRef.current = spring({
-      from: m.current, to: 1, damping: 0.88, response: 0.42,
+      from: m.current, to: 1, damping: 0.9, response: 0.3,
       onUpdate: (v) => {
         m.current = v; paint();
-        if (!arrived && v > 0.97) {
+        if (!arrived && v > 0.94) {
           arrived = true;
           // ② 揺れる → ③ 伸びる
           wiggle();
@@ -98,18 +98,18 @@ export default function ExpandingSearch({ value, onChange, placeholder, title }:
           later(() => {
             let grown = false;
             growRef.current = spring({
-              from: g.current, to: 1, damping: 0.68, response: 0.46,
+              from: g.current, to: 1, damping: 0.72, response: 0.34,
               onUpdate: (w) => {
                 g.current = w; paint();
                 // ④ ほぼ伸びたら入力欄にしてキーボードを出す
-                if (!grown && w > 0.9) {
+                if (!grown && w > 0.85) {
                   grown = true;
                   showField(true);
                   if (!FOCUS_ON_TAP) inputRef.current?.focus({ preventScroll: true });
                 }
               },
             });
-          }, 300);
+          }, 170);
         }
       },
     });
@@ -123,12 +123,12 @@ export default function ExpandingSearch({ value, onChange, placeholder, title }:
     if (prefersReducedMotion()) { m.current = 0; g.current = 0; paint(); return; }
     let shrunk = false;
     growRef.current = spring({
-      from: g.current, to: 0, damping: 1, response: 0.3,
+      from: g.current, to: 0, damping: 1, response: 0.24,
       onUpdate: (w) => {
         g.current = w; paint();
         if (!shrunk && w < 0.08) {
           shrunk = true;
-          moveRef.current = spring({ from: m.current, to: 0, damping: 0.92, response: 0.36, onUpdate: (v) => { m.current = v; paint(); } });
+          moveRef.current = spring({ from: m.current, to: 0, damping: 0.92, response: 0.28, onUpdate: (v) => { m.current = v; paint(); } });
         }
       },
     });

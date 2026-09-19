@@ -7,6 +7,7 @@ import ItemCard from '../components/item/ItemCard';
 import Chip from '../components/ui/Chip';
 import WorkChipsRow from '../components/WorkChipsRow';
 import ExpandingSearch from '../components/ui/ExpandingSearch';
+import { useTyping } from '../hooks/useTyping';
 import SavedCalendar, { periodLabel, includesToday } from '../components/SavedCalendar';
 import FilterPanel, { type Facet } from '../components/item/FilterPanel';
 import { SkeletonList } from '../components/ui/Skeleton';
@@ -300,6 +301,10 @@ export default function Saved() {
 
   const emptyMsg = tab === 'mine' ? 'まだ投稿がありません' : '保存した予定がありません';
 
+  const typing = useTyping();
+  const screenH = useRef(window.innerHeight);
+  if (!typing) screenH.current = window.innerHeight;
+
   return (
     // ⚠️ ルートに上の余白を付けないこと。上部バーは自分で var(--sat) を持っているので、
     // ここに余白を足すと**帯の外側に地の色の帯**ができる（外皮で帯の色が変わると目立つ）
@@ -309,7 +314,8 @@ export default function Saved() {
       // 外枠（AppShell の main）が下に 7rem の逃げを持っているので、そのぶん下の余白を打ち消して
       // ページ全体の高さを画面ぴったりにする（はみ出すと、少しだけ下にスクロールできてしまう）
       style={monthFit ? {
-        height: 'calc(100dvh - env(safe-area-inset-bottom) - 76px)',
+        // 入力中は Android で画面がキーボードの分だけ縮むので、縮む前の高さのまま止める（カレンダーはキーボードに隠れてよい）
+        height: typing ? `calc(${screenH.current}px - env(safe-area-inset-bottom) - 76px)` : 'calc(100dvh - env(safe-area-inset-bottom) - 76px)',
         marginBottom: 'calc(env(safe-area-inset-bottom) + 76px - 7rem)',
       } : undefined}>
       <div ref={headerRef} className="sticky top-0 z-20 flex-shrink-0 -mx-3 px-3 pt-1 pb-2 material-bar scroll-edge" data-skin-bar="main" style={{ paddingTop: 'calc(var(--sat) + 4px)' }}>
