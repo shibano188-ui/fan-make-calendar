@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { loginPage, dashboardPage } from './_dashboard-html.js';
 import { sendPushes, fcmConfigured, type PushMessage } from './_fcm.js';
-import { collectAppStore, collectPlay, type StoreResult } from './_stores.js';
+import { collectAppStore, collectAppStoreAnalytics, collectPlay, type StoreResult } from './_stores.js';
 
 // 指標まわりの入口。Hobbyプランは1デプロイ12関数までで、既に11個あるため
 // 「集める・返す・見せる」の3つを1本にまとめてある。呼ばれ方で分岐する:
@@ -90,11 +90,13 @@ async function collectStores(today: string, days: number) {
     const { error } = await client.from('metrics_daily').upsert(r.rows, { onConflict: 'day,source,metric' });
     return error ? { ok: false, detail: error.message } : { ok: r.ok, detail: r.detail };
   };
-  const [appStore, play] = await Promise.all([
+  const [appStore, play, appStoreAnalytics] = await Promise.all([
     run(() => collectAppStore(today, days)),
     run(() => collectPlay(today, days)),
+    // 分析レポートは Apple が作った分を毎回まとめて取り直す（日数の指定は関係ない）
+    run(() => collectAppStoreAnalytics()),
   ]);
-  return { appStore, play };
+  return { appStore, play, appStoreAnalytics };
 }
 
 /** ランキングの集計と、月初だけ走る前月の確定。

@@ -129,6 +129,18 @@ var ANDROID_INSTALLED = 'play_active_devices';
   DATA.series.installed_ios = ios;
   DATA.series.installed_android = an.slice();
   DATA.series.installed_total = total;
+
+  // iPhone の新規ダウンロードは、分析レポート（App Analytics と同じ数え方）がある日はそちらを使い、
+  // 無い日（2026-08-22 より前と、まだ届いていない直近）は売上レポートの数字で埋める
+  var an1 = DATA.series.asc_an_first_downloads || [];
+  DATA.series.ios_first = DATA.days.map(function(_, i){ return an1[i] != null ? an1[i] : (dl[i] != null ? dl[i] : null); });
+
+  // どこから入れたか（分析レポート）を、初日からの累計にする
+  ['search','browse','app','web','other'].forEach(function(k){
+    var a = DATA.series['asc_an_first_from_' + k] || [], out = [], sum = 0, on = false;
+    for(var i = 0; i < DATA.days.length; i++){ if(a[i] != null){ sum += a[i]; on = true; } out.push(on ? sum : null); }
+    DATA.series['ios_from_' + k] = out;
+  });
 })();
 
 /* ---------- 見せ方の設定 ---------- */
@@ -150,10 +162,19 @@ var BOXES = [
 
   { title:'ストアからの新規ダウンロード',
     note:'縦軸＝その日に初めてアプリを入れた数。横軸＝日付。ストアの公式の数字で、' +
-         'iPhoneはApp Store Connect（太平洋時間で1日を区切る）、AndroidはPlay Console（アカウント単位）。' +
-         '入れ直し・アップデートは含まない。1〜2日遅れで入る。',
-    kind:'bar', keys:[{k:'asc_downloads', name:'iPhone', c:'#4ea87a'},
+         'iPhoneはApp Store Connect の App Analytics の「初回ダウンロード」（8/22より前は売上レポートの新規ダウンロード）、' +
+         'AndroidはPlay Console（アカウント単位）。入れ直し・アップデートは含まない。1〜2日遅れで入る。',
+    kind:'bar', keys:[{k:'ios_first', name:'iPhone', c:'#4ea87a'},
                       {k:'play_installs', name:'Android', c:'#d0a24a'}], fmt:NUM },
+
+  { title:'iPhoneはどこから入れたか',
+    note:'縦軸＝初回ダウンロードの累計（App Store Connect の App Analytics）。横軸＝日付。' +
+         '検索＝App Storeの検索から、ブラウズ＝App Storeのおすすめ・ランキングなどから、' +
+         '他のアプリ＝XなどのアプリのリンクからApp Storeへ来た、Web＝ブラウザのリンクから。2026-08-22以降のみ。',
+    kind:'line', keys:[{k:'ios_from_search', name:'検索', c:'#4ea87a'},
+                       {k:'ios_from_browse', name:'ブラウズ', c:'#7fb6d9'},
+                       {k:'ios_from_app',    name:'他のアプリ', c:'#d0a24a'},
+                       {k:'ios_from_web',    name:'Web', c:'#b58ad0'}], fmt:NUM },
 
   { title:'Androidで入っている端末',
     note:'縦軸＝その日にアプリが入っていた端末の数（Play Console）。横軸＝日付。' +
@@ -273,8 +294,8 @@ function cards(S){
   var items = [
     ['アプリを入れた人', ni == null ? '—' : NUM((ni || 0) + (nd || 0)),
       'iPhone ' + (ni == null ? '—' : NUM(ni)) + ' / Android ' + (nd == null ? '取り込み待ち' : NUM(nd))],
-    ['新規ダウンロード（直近7日）', NUM(d7('asc_downloads') + d7('play_installs')),
-      'iPhone ' + NUM(d7('asc_downloads')) + ' / Android ' + NUM(d7('play_installs'))],
+    ['新規ダウンロード（直近7日）', NUM(d7('ios_first') + d7('play_installs')),
+      'iPhone ' + NUM(d7('ios_first')) + ' / Android ' + NUM(d7('play_installs'))],
     ['実際に使った人', NUM(last(ue) || 0), delta(ue, 7)],
     ['有料会員', NUM(last(pa) || 0), delta(pa, 7)],
     ['動いた人（1日平均・7日）', NUM(d7('active_users') / 7), ''],

@@ -98,6 +98,92 @@ export async function collectAppStore(today: string, days = 7): Promise<StoreRes
   return { ok: true, detail: { saved: rows.length, notYet: missing }, rows };
 }
 
+// ── App Store の分析レポート（App Analytics） ────────────────────
+//   売上レポートとは別物。App Store Connect の「App Analytics」と同じ数え方の「初回ダウンロード」と、
+//   どこから入れたか（App Store の検索・ブラウズ・Web・他のアプリ）が取れる。鍵は売上と同じ（売上とレポート の役割で読める）。
+//   申請（analyticsReportRequests）は一度作ればよく、Apple が毎日レポートを足していく。
+//   申請を作るには Admin の鍵が要るので、2026-09-18 に一時的な Admin 鍵で作った。IDは秘密ではない。
+const AN_ONGOING = 'e71ac8b7-2307-40ce-a85b-92a04771b65c';      // 毎日足される分（2026-09-17〜）
+const AN_SNAPSHOT = 'a104d3a0-17fe-4225-a8db-675dc730e57c';     // 一度だけの過去分（2026-08-22〜09-18）
+const AN_REPORT = 'App Downloads Standard';
+
+/** どこから入れたか。Apple の Source Type を短い名前に寄せる */
+function sourceKey(t: string): string {
+  if (/search/i.test(t)) return 'search';
+  if (/browse/i.test(t)) return 'browse';
+  if (/web/i.test(t)) return 'web';
+  if (/app referrer/i.test(t)) return 'app';
+  return 'other';
+}
+
+async function ascGet(token: string, url: string): Promise<any> {
+  const r = await fetch(url.startsWith('http') ? url : `https://api.appstoreconnect.apple.com${url}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!r.ok) throw new Error(`ASC analytics ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  return r.json();
+}
+
+/** 申請1つぶんの「App Downloads Standard」を、日ごとの数字にして返す。
+ *  同じ日が複数のレポートに入っていることがあるので、処理日の新しいレポートの値で上書きする */
+async function analyticsDays(token: string, requestId: string, into: Map<string, Record<string, number>>): Promise<number> {
+  const reps = await ascGet(token, `/v1/analyticsReportRequests/${requestId}/reports?filter[name]=${encodeURIComponent(AN_REPORT)}`);
+  const rep = reps.data?.[0];
+  if (!rep) return 0;
+  const instances: any[] = [];
+  for (let url: string | null = `/v1/analyticsReports/${rep.id}/instances?filter[granularity]=DAILY&limit=200`; url;) {
+    const page = await ascGet(token, url);
+    instances.push(...(page.data ?? []));
+    url = page.links?.next ?? null;
+  }
+  instances.sort((a, b) => String(a.attributes.processingDate).localeCompare(String(b.attributes.processingDate)));
+  for (const ins of instances) {
+    const perDay = new Map<string, Record<string, number>>();
+    const segs = await ascGet(token, `/v1/analyticsReportInstances/${ins.id}/segments`);
+    for (const seg of segs.data ?? []) {
+      const buf = Buffer.from(await (await fetch(seg.attributes.url)).arrayBuffer());
+      const [head, ...lines] = gunzipSync(buf).toString('utf8').trim().split('\n');
+      const col = head.split('\t');
+      const at = (n: string) => col.indexOf(n);
+      const iDate = at('Date'), iType = at('Download Type'), iSrc = at('Source Type'), iCount = at('Counts'), iApp = at('App Apple Identifier');
+      for (const line of lines) {
+        const c = line.split('\t');
+        if (iApp >= 0 && c[iApp] !== APP_ID) continue;
+        const n = Number(c[iCount]) || 0;
+        const row = perDay.get(c[iDate]) ?? { first_downloads: 0, redownloads: 0, updates: 0 };
+        const type = c[iType] ?? '';
+        if (/first-time/i.test(type)) {
+          row.first_downloads += n;
+          const k = `first_from_${sourceKey(c[iSrc] ?? '')}`;
+          row[k] = (row[k] ?? 0) + n;
+        } else if (/redownload/i.test(type)) row.redownloads += n;
+        else if (/update/i.test(type)) row.updates += n;
+        perDay.set(c[iDate], row);
+      }
+    }
+    perDay.forEach((v, d) => into.set(d, v));
+  }
+  return instances.length;
+}
+
+/** 分析レポートを取り込む。過去分（一度だけ）→ 毎日分 の順に重ね、新しい方で上書きする */
+export async function collectAppStoreAnalytics(): Promise<StoreResult> {
+  const token = ascToken();
+  if (!token) return { ok: false, detail: 'ASC_KEY_ID / ASC_ISSUER_ID / ASC_PRIVATE_KEY が未設定', rows: [] };
+  const byDay = new Map<string, Record<string, number>>();
+  const snapshot = await analyticsDays(token, AN_SNAPSHOT, byDay);
+  const ongoing = await analyticsDays(token, AN_ONGOING, byDay);
+  const rows: StoreRow[] = [];
+  const SOURCES = ['search', 'browse', 'web', 'app', 'other'];
+  byDay.forEach((v, day) => {
+    if (day < START) return;
+    // どこから入れたか は、その日に無かった経路も 0 で入れる（積み上げのグラフが歯抜けにならないように）
+    for (const s of SOURCES) v[`first_from_${s}`] ??= 0;
+    for (const [metric, value] of Object.entries(v)) rows.push({ day, source: 'asc_an', metric, value });
+  });
+  return { ok: true, detail: { days: byDay.size, reports: { snapshot, ongoing }, saved: rows.length }, rows };
+}
+
 // ── Google Play ──────────────────────────────────────────
 
 let gcsToken: { value: string; expiresAt: number } | null = null;
