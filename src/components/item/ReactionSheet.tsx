@@ -75,7 +75,7 @@ export default function ReactionSheet({ eventId, onClose }: { eventId: string; o
                 className="pressable rounded-full h-10 pl-2 pr-2.5 flex items-center gap-1"
                 style={{ backgroundColor: on ? STAMP_ON_BG : 'var(--fill-tertiary)' }}>
                 {/* スタンプの絵に文字が入っているので、名前は出さず数だけ */}
-                <img src={r.image} alt="" className="w-7 h-7" />
+                <img src={r.image} alt="" className="stamp w-7 h-7" />
                 {n > 0 && <span className="text-[13px] font-bold" style={{ color: on ? 'var(--accent-text)' : 'var(--label-secondary)' }}>{n}</span>}
               </button>
             );

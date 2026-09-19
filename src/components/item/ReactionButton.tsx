@@ -19,7 +19,7 @@ export default function ReactionButton({ eventId, size = 18, variant = 'icon' }:
   const reacted = stamps.mine.length > 0;
 
   const icon = top
-    ? <img src={top.image} alt={top.label} style={{ width: size + 2, height: size + 2 }} />
+    ? <img src={top.image} alt={top.label} className="stamp" style={{ width: size + 2, height: size + 2 }} />
     : <SmilePlus size={size} className="text-label-secondary" />;
 
   return (

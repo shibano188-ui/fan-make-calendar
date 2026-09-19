@@ -164,6 +164,12 @@
   100% { transform: translateY(-48px) scale(0.3); opacity: 0; }
 }
 
+/* リアクションのスタンプ。絵の文字に色が付いているので、選んだときの地の色（アクセント）と
+   同じ系統の色だと読めなくなる。LINE のスタンプのように白いふちを付けて、どの地の上でも浮かせる */
+.stamp {
+  filter: drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff) drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff)
+          drop-shadow(0 0.5px 1px rgba(0,0,0,0.18));
+}
 /* 探すの「グッズ⇄イベント」の文字の入れ替え */
 @keyframes labelSwap {
   from { opacity: 0; transform: translateY(45%); filter: blur(2px); }

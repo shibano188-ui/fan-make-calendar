@@ -49,6 +49,7 @@ export default function ItemDetail() {
   const [ev, setEv] = useState<CalendarEvent | null | undefined>(undefined); // undefined=loading
   const [workName, setWorkName] = useState('');
   const [authorName, setAuthorName] = useState<string | null>(null);
+  const [tab, setTab] = useState<DetailTab>('detail');
   const [viewingUserId, setViewingUserId] = useState<string | null>(null);
   // タイルと共有するいいねストア。fallback は読み込んだ予定の値。
   const { liked, count: likeCount } = useLike(id ?? '', { liked: !!ev?.likedByMe, count: ev?.likes ?? 0 });
@@ -292,6 +293,16 @@ export default function ItemDetail() {
     await removeEventEdit(eid);
   };
 
+  // 情報を足した人（投稿者以外）。日時の編集・リンクの追加・在庫の報告の回数が多い順
+  const contributorIds = (() => {
+    const n = new Map<string, number>();
+    for (const x of [...edits, ...contribs, ...stockReports]) {
+      if (!x.createdBy || x.createdBy === eff.authorId) continue;
+      n.set(x.createdBy, (n.get(x.createdBy) ?? 0) + 1);
+    }
+    return [...n.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id);
+  })();
+
   return (
     <div ref={rootRef} className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--bg-primary)' }}>
       <div className="mx-auto w-full max-w-app flex-1 flex flex-col">
@@ -301,18 +312,8 @@ export default function ItemDetail() {
         </div>
 
         <div className={`flex-1 ${buyMode !== 'none' ? 'pb-28' : 'pb-10'}`}>
-          <div className="relative">
-            <ImageCarousel images={images} alt={event.title} />
-            {EXTERNAL_CALENDAR_ENABLED && calCount > 0 && (
-              <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium"
-                style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff' }}>
-                <CalendarPlus size={12} />
-                {calCount}人が追加
-              </div>
-            )}
-          </div>
-
-          <div className="px-4 pt-3">
+          {/* 作品・カテゴリ・フォロー → タイトル を画像より上に（開いた瞬間に何のページか分かるように） */}
+          <div className="px-4 pt-1 pb-3">
             {/* 作品・カテゴリ＋フォロー */}
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center gap-1.5 text-[12px] text-label-secondary">
@@ -331,6 +332,20 @@ export default function ItemDetail() {
             {/* タイトル */}
             <h1 className="text-[19px] font-bold leading-snug mt-1">{event.title}</h1>
 
+          </div>
+
+          <div className="relative">
+            <ImageCarousel images={images} alt={event.title} />
+            {EXTERNAL_CALENDAR_ENABLED && calCount > 0 && (
+              <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium"
+                style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff' }}>
+                <CalendarPlus size={12} />
+                {calCount}人が追加
+              </div>
+            )}
+          </div>
+
+          <div className="px-4 pt-3">
             {/* 状態 */}
             {/* 状態＋「あと◯日」（カレンダーの日付の行と同じ考え方。一番気になる日までを1つだけ） */}
             {(() => {
@@ -343,22 +358,9 @@ export default function ItemDetail() {
               );
             })()}
 
-            {/* 価格（セット品バッジ＋取得日「M/D時点」で価格の誤解を防ぐ）
-                代表は実効値(eff)から選ぶ。取り消されたリンクの価格・セット・取得日を出し続けると、
-                「リンクが違うから取り消した」のに誤った価格が残ってしまう。 */}
-            {(() => {
-              const prim = primaryOffer(getOffers(eff));
-              const price = prim?.price ?? event.price;
-              if (price == null) return null;
-              return (
-                <div className="mt-2 flex items-baseline flex-wrap gap-2">
-                  <span className="text-[22px] font-bold" style={{ color: 'var(--accent-text)' }}>¥{price.toLocaleString()}</span>
-                  {prim?.isSet && <span className="text-[11px] font-bold text-label-secondary px-1.5 py-0.5 rounded" style={{ background: 'var(--fill-tertiary, rgba(120,120,128,0.12))' }}>セット</span>}
-                  {prim?.fetchedAt && <span className="text-[11px] text-label-tertiary">{new Date(prim.fetchedAt).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}時点</span>}
-                </div>
-              );
-            })()}
-
+            {/* 日付と場所は同じ行に */}
+            <div className="flex items-start gap-3">
+              <div className="flex-1 min-w-0">
             {/* 日程 */}
             <div className="mt-3 flex items-start gap-2">
               <CalendarDays size={16} className="text-label-secondary mt-0.5 flex-shrink-0" />
@@ -367,13 +369,18 @@ export default function ItemDetail() {
               </div>
             </div>
 
+              </div>
+              <div className="flex-shrink-0 max-w-[45%]">
             {/* 会場・地域 */}
             {(event.prefecture || event.locationDetail) && (
-              <div className="mt-2 flex items-start gap-2">
+              <div className="mt-3 flex items-start gap-2">
                 <MapPin size={16} className="text-label-secondary mt-0.5 flex-shrink-0" />
                 <div className="text-[14px]">{[event.prefecture, event.locationDetail].filter(Boolean).join(' ')}</div>
               </div>
             )}
+
+              </div>
+            </div>
 
             {/* ピンした日（期間のある予定のみ・イベント/グッズ共通）。登録すると自分のカレンダーはその日だけ表示する */}
             {!!eff.endDate && eff.endDate !== eff.date && (
@@ -412,6 +419,51 @@ export default function ItemDetail() {
               </div>
             )}
 
+            {/* 価格（セット品バッジ＋取得日「M/D時点」で価格の誤解を防ぐ）
+                代表は実効値(eff)から選ぶ。取り消されたリンクの価格・セット・取得日を出し続けると、
+                「リンクが違うから取り消した」のに誤った価格が残ってしまう。 */}
+            {(() => {
+              const prim = primaryOffer(getOffers(eff));
+              const price = prim?.price ?? event.price;
+              if (price == null) return null;
+              return (
+                <div className="mt-2 flex items-baseline flex-wrap gap-2">
+                  <span className="text-[22px] font-bold" style={{ color: 'var(--accent-text)' }}>¥{price.toLocaleString()}</span>
+                  {prim?.isSet && <span className="text-[11px] font-bold text-label-secondary px-1.5 py-0.5 rounded" style={{ background: 'var(--fill-tertiary, rgba(120,120,128,0.12))' }}>セット</span>}
+                  {prim?.fetchedAt && <span className="text-[11px] text-label-tertiary">{new Date(prim.fetchedAt).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}時点</span>}
+                </div>
+              );
+            })()}
+
+            {/* アクション: いいね・リアクション・カレンダー・共有 */}
+            <div className="relative mt-5">
+              <div className="flex items-center justify-around py-2 rounded-[12px] border border-subtle" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                <button onClick={(e) => { if (!liked) likeEffect(e.currentTarget); onLike(); }} className="pressable flex flex-col items-center gap-0.5" aria-label="いいね">
+                  <Heart size={22} fill={liked ? 'var(--accent-color)' : 'none'} style={{ color: liked ? 'var(--accent-color)' : 'var(--label-secondary)' }} />
+                  <span className="text-[10px] text-label-tertiary leading-none">{likeCount > 0 ? likeCount : 'いいね'}</span>
+                </button>
+                <ReactionButton eventId={event.id} size={22} variant="labeled" />
+                {EXTERNAL_CALENDAR_ENABLED && (
+                  <button onClick={onCalendar} className="pressable flex flex-col items-center gap-0.5" aria-label="カレンダーに追加">
+                    <CalendarPlus size={22} style={{ color: calAdded ? 'var(--accent-color)' : 'var(--label-secondary)' }} />
+                    <span className="text-[10px] text-label-tertiary leading-none">{calAdded ? '追加済み' : 'カレンダー'}</span>
+                  </button>
+                )}
+                <NotifyBell event={eff} liked={liked} onSave={onLike} variant="labeled" />
+                <button onClick={onShare} className="pressable flex flex-col items-center gap-0.5" aria-label="Xで共有">
+                  <Share2 size={22} className="text-label-secondary" />
+                  <span className="text-[10px] text-label-tertiary leading-none">共有</span>
+                </button>
+              </div>
+            </div>
+
+            {/* ここから下はタブで切り替える */}
+            <DetailTabs tab={tab} onChange={(t) => { haptic.select(); setTab(t); }} />
+            {tab === 'detail' && (
+              <div>
+            {/* メモ */}
+            {event.memo && <p className="text-[14px] text-label-secondary whitespace-pre-wrap mt-3">{event.memo}</p>}
+
             {/* 日時/予約の共同編集（即反映＋履歴で戻せる） */}
             {!editing ? (
               <button onClick={() => { haptic.select(); setEditing(true); }} className="pressable mt-2 text-[12px]" style={{ color: 'var(--accent-text)' }}>日時・予約を編集</button>
@@ -438,17 +490,11 @@ export default function ItemDetail() {
               </div>
             )}
 
-            {/* 在庫 */}
-            {event.stockNote && (
-              <div className="mt-2 flex items-start gap-2">
-                <Package size={16} className="text-label-secondary mt-0.5 flex-shrink-0" />
-                <div className="text-[14px]">{event.stockNote}</div>
+                {!event.memo && edits.length === 0 && <p className="text-[13px] text-label-tertiary mt-3">メモはまだありません</p>}
               </div>
             )}
-
-            {/* メモ */}
-            {event.memo && <p className="text-[14px] text-label-secondary whitespace-pre-wrap mt-3">{event.memo}</p>}
-
+            {tab === 'links' && (
+              <div>
             {/* 購入リンク（共同編集で追記可・発売に向けて増える） */}
             <div className="mt-4">
               <div className="text-[12px] text-label-secondary mb-1.5">購入リンク（広告を含みます）</div>
@@ -518,27 +564,17 @@ export default function ItemDetail() {
               </div>
             </div>
 
-            {/* アクション: いいね・リアクション・カレンダー・共有 */}
-            <div className="relative mt-5">
-              <div className="flex items-center justify-around py-2 rounded-[12px] border border-subtle" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                <button onClick={(e) => { if (!liked) likeEffect(e.currentTarget); onLike(); }} className="pressable flex flex-col items-center gap-0.5" aria-label="いいね">
-                  <Heart size={22} fill={liked ? 'var(--accent-color)' : 'none'} style={{ color: liked ? 'var(--accent-color)' : 'var(--label-secondary)' }} />
-                  <span className="text-[10px] text-label-tertiary leading-none">{likeCount > 0 ? likeCount : 'いいね'}</span>
-                </button>
-                <ReactionButton eventId={event.id} size={22} variant="labeled" />
-                {EXTERNAL_CALENDAR_ENABLED && (
-                  <button onClick={onCalendar} className="pressable flex flex-col items-center gap-0.5" aria-label="カレンダーに追加">
-                    <CalendarPlus size={22} style={{ color: calAdded ? 'var(--accent-color)' : 'var(--label-secondary)' }} />
-                    <span className="text-[10px] text-label-tertiary leading-none">{calAdded ? '追加済み' : 'カレンダー'}</span>
-                  </button>
-                )}
-                <NotifyBell event={eff} liked={liked} onSave={onLike} variant="labeled" />
-                <button onClick={onShare} className="pressable flex flex-col items-center gap-0.5" aria-label="Xで共有">
-                  <Share2 size={22} className="text-label-secondary" />
-                  <span className="text-[10px] text-label-tertiary leading-none">共有</span>
-                </button>
               </div>
-            </div>
+            )}
+            {tab === 'stock' && (
+              <div>
+            {/* 在庫 */}
+            {event.stockNote && (
+              <div className="mt-2 flex items-start gap-2">
+                <Package size={16} className="text-label-secondary mt-0.5 flex-shrink-0" />
+                <div className="text-[14px]">{event.stockNote}</div>
+              </div>
+            )}
 
             {/* 在庫情報（共同編集・追記ログ） */}
             <div className="mt-4">
@@ -564,18 +600,11 @@ export default function ItemDetail() {
               </div>
             </div>
 
-            {/* 投稿者（タップでプロフィール表示） */}
-            {authorName && (
-              <div className="mt-4">
-                {eff.authorId ? (
-                  <button onClick={() => { haptic.select(); setViewingUserId(eff.authorId!); }}
-                    className="pressable text-[12px] text-label-tertiary underline underline-offset-2 decoration-dotted">
-                    投稿: {authorName}
-                  </button>
-                ) : (
-                  <span className="text-[12px] text-label-tertiary">投稿: {authorName}</span>
-                )}
               </div>
+            )}
+            {tab === 'contributors' && (
+              <Contributors authorId={eff.authorId ?? null} authorName={authorName}
+                others={contributorIds} onOpen={(id) => { haptic.select(); setViewingUserId(id); }} />
             )}
 
             {/* 通報（確認ダイアログあり） */}
@@ -609,6 +638,59 @@ export default function ItemDetail() {
           onBlocked={() => { setViewingUserId(null); navigate(-1); }}
         />
       )}
+    </div>
+  );
+}
+
+type DetailTab = 'detail' | 'links' | 'stock' | 'contributors';
+const TABS: { key: DetailTab; label: string }[] = [
+  { key: 'detail', label: '詳細' },
+  { key: 'links', label: 'リンク' },
+  { key: 'stock', label: '在庫情報' },
+  { key: 'contributors', label: 'Contributors' },
+];
+
+/** 詳細の下半分の切り替え。選んでいるものの下に線を引く */
+function DetailTabs({ tab, onChange }: { tab: DetailTab; onChange: (t: DetailTab) => void }) {
+  return (
+    <div className="mt-5 flex border-b border-subtle" role="tablist">
+      {TABS.map((t) => (
+        <button key={t.key} role="tab" aria-selected={tab === t.key} onClick={() => onChange(t.key)}
+          className="pressable flex-1 py-2.5 text-[13px] font-semibold relative"
+          style={{ color: tab === t.key ? 'var(--label-primary)' : 'var(--label-tertiary)' }}>
+          {t.label}
+          <span className="absolute left-3 right-3 -bottom-px h-[2px] rounded-full"
+            style={{ backgroundColor: 'var(--accent-color)', opacity: tab === t.key ? 1 : 0, transition: 'opacity 0.2s' }} />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Contributors: 先頭に投稿者、続けて情報を足した人（多い順）。名前を押すとプロフィール */
+function Contributors({ authorId, authorName, others, onOpen }: {
+  authorId: string | null; authorName: string | null; others: string[]; onOpen: (id: string) => void;
+}) {
+  const [names, setNames] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let alive = true;
+    others.slice(0, 20).forEach((id) => {
+      getDisplayName(id).then((n) => alive && setNames((p) => ({ ...p, [id]: n ?? ANON_NAME }))).catch(() => {});
+    });
+    return () => { alive = false; };
+  }, [others.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+  const row = (id: string | null, name: string, role: string) => (
+    <button key={id ?? 'author'} disabled={!id} onClick={() => id && onOpen(id)}
+      className="pressable w-full flex items-center gap-2 py-2.5 border-b border-subtle text-left">
+      <span className="text-[14px] font-medium flex-1 truncate">{name}</span>
+      <span className="text-[11px] text-label-tertiary flex-shrink-0">{role}</span>
+    </button>
+  );
+  return (
+    <div className="mt-1">
+      {row(authorId, authorName ?? ANON_NAME, '投稿')}
+      {others.slice(0, 20).map((id) => row(id, names[id] ?? '…', '情報を追加'))}
+      {others.length === 0 && <p className="text-[12px] text-label-tertiary mt-3">ほかに情報を足した人はまだいません</p>}
     </div>
   );
 }
