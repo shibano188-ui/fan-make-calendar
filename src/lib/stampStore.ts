@@ -84,7 +84,3 @@ export function topStamp(s: StampState, order: readonly string[]): string | null
   for (const t of order) if ((s.counts[t] ?? 0) > (best ? s.counts[best] : 0)) best = t;
   return best;
 }
-
-export function totalStamps(s: StampState): number {
-  return Object.values(s.counts).reduce((a, b) => a + b, 0);
-}

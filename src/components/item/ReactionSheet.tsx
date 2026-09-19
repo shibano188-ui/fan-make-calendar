@@ -5,7 +5,7 @@ import { useStamps, toggleStamp } from '../../lib/stampStore';
 import { haptic } from '../../lib/haptics';
 
 // リアクションを選ぶ、下から出るパネル。カレンダーの日付を押したときのパネル（DaySheet）と同じく
-// 後ろを暗くしない。外を押すか、下に引くと閉じる。何個でも押せるので、押しても閉じない。
+// 後ろを暗くしない。外を押すか、下に引くと閉じる。1つ押したら閉じる（別のを足すときはもう一度開く）。
 
 /** 選んだものは Slack と同じく、枠ではなく地の色で示す */
 export const STAMP_ON_BG = 'color-mix(in srgb, var(--accent-color) 24%, transparent)';
@@ -64,20 +64,19 @@ export default function ReactionSheet({ eventId, onClose }: { eventId: string; o
           </div>
           <div className="px-4 pt-1 pb-3 text-[15px] font-bold">リアクション</div>
         </div>
-        <div className="grid grid-cols-3 gap-2 px-3" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
+        {/* Slack と同じく小さく並べて左に寄せる。右は空いてよい（スタンプが増えたら折り返す） */}
+        <div className="flex flex-wrap gap-2 px-4" style={{ paddingBottom: 'max(20px, env(safe-area-inset-bottom))' }}>
           {REACTIONS.map((r) => {
             const on = mine.includes(r.type);
             const n = counts[r.type] ?? 0;
             return (
               <button key={r.type} aria-pressed={on} aria-label={r.label}
-                onClick={() => { haptic.select(); toggleStamp(eventId, r.type); }}
-                className="pressable rounded-[14px] py-2.5 flex flex-col items-center gap-1"
+                onClick={() => { haptic.select(); toggleStamp(eventId, r.type); close(); }}
+                className="pressable rounded-full h-10 pl-2 pr-2.5 flex items-center gap-1"
                 style={{ backgroundColor: on ? STAMP_ON_BG : 'var(--fill-tertiary)' }}>
                 {/* スタンプの絵に文字が入っているので、名前は出さず数だけ */}
-                <img src={r.image} alt="" className="w-11 h-11" />
-                <span className="text-[13px] font-bold min-h-[1.2em]" style={{ color: on ? 'var(--accent-text)' : 'var(--label-secondary)' }}>
-                  {n > 0 ? n : ''}
-                </span>
+                <img src={r.image} alt="" className="w-7 h-7" />
+                {n > 0 && <span className="text-[13px] font-bold" style={{ color: on ? 'var(--accent-text)' : 'var(--label-secondary)' }}>{n}</span>}
               </button>
             );
           })}

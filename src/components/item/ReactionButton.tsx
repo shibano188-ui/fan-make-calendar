@@ -1,21 +1,21 @@
 import { useState } from 'react';
 import { SmilePlus } from 'lucide-react';
 import { REACTIONS } from '../../lib/reactions';
-import { useStamps, topStamp, totalStamps } from '../../lib/stampStore';
+import { useStamps, topStamp } from '../../lib/stampStore';
 import { useAuth } from '../../contexts/AuthContext';
 import { haptic } from '../../lib/haptics';
 import ReactionSheet, { STAMP_ON_BG } from './ReactionSheet';
 
 const ORDER = REACTIONS.map((r) => r.type);
 
-/** リアクションのボタン。一番多く押されたスタンプと合計数を出し、押すと下から選ぶパネルを開く。
+/** リアクションのボタン。一番多く押されたスタンプとその数を出し、押すと下から選ぶパネルを開く。
  *  自分が1つでも押していれば、Slack と同じく地の色で示す。 */
 export default function ReactionButton({ eventId, size = 18, variant = 'icon' }: { eventId: string; size?: number; variant?: 'icon' | 'labeled' }) {
   const { user } = useAuth();
   const stamps = useStamps(eventId);
   const [open, setOpen] = useState(false);
   const top = REACTIONS.find((r) => r.type === topStamp(stamps, ORDER));
-  const total = totalStamps(stamps);
+  const count = top ? stamps.counts[top.type] ?? 0 : 0;
   const reacted = stamps.mine.length > 0;
 
   const icon = top
@@ -30,12 +30,12 @@ export default function ReactionButton({ eventId, size = 18, variant = 'icon' }:
         <span className="flex items-center gap-1 rounded-full px-1.5 py-0.5"
           style={reacted ? { backgroundColor: STAMP_ON_BG } : undefined}>
           {icon}
-          {total > 0 && variant === 'icon' && (
-            <span className="text-[12px] font-semibold" style={{ color: reacted ? 'var(--accent-text)' : 'var(--label-secondary)' }}>{total}</span>
+          {count > 0 && variant === 'icon' && (
+            <span className="text-[12px] font-semibold" style={{ color: reacted ? 'var(--accent-text)' : 'var(--label-secondary)' }}>{count}</span>
           )}
         </span>
         {variant === 'labeled' && (
-          <span className="text-[10px] text-label-tertiary leading-none">{total > 0 ? total : 'リアクション'}</span>
+          <span className="text-[10px] text-label-tertiary leading-none">{count > 0 ? count : 'リアクション'}</span>
         )}
       </button>
       {open && <ReactionSheet eventId={eventId} onClose={() => setOpen(false)} />}
