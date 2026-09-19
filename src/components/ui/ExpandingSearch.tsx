@@ -85,7 +85,7 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
     iconRef.current?.animate(
       [{ transform: 'rotate(0)' }, { transform: 'rotate(-16deg) scale(1.08)' }, { transform: 'rotate(11deg) scale(1.04)' },
        { transform: 'rotate(-6deg)' }, { transform: 'rotate(2deg)' }, { transform: 'rotate(0)' }],
-      { duration: 200, easing: 'ease-out' },
+      { duration: 170, easing: 'ease-out' },
     );
   };
 
@@ -102,7 +102,7 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
     }
     // ① 左端へ
     let arrived = false;
-    moveRef.current = run(m.current, 1, 0.9, 0.24, (v) => {
+    moveRef.current = run(m.current, 1, 0.9, 0.2, (v) => {
         m.current = v; paint();
         if (!arrived && v > 0.94) {
           arrived = true;
@@ -111,7 +111,7 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
           haptic.light();
           later(() => {
             let grown = false;
-            growRef.current = run(g.current, 1, 0.74, 0.28, (w) => {
+            growRef.current = run(g.current, 1, 0.74, 0.24, (w) => {
                 g.current = w; paint();
                 // ④ ほぼ伸びたら入力欄にしてキーボードを出す
                 if (!grown && w > 0.85) {
@@ -120,7 +120,7 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
                   if (!FOCUS_ON_TAP) inputRef.current?.focus({ preventScroll: true });
                 }
             });
-          }, 110);
+          }, 70);
         }
     });
   };
