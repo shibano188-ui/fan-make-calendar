@@ -21,8 +21,10 @@ const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 // iOS だけは最初に focus し（キーボードは①と同時に上がる）、他は④で focus する
 const FOCUS_ON_TAP = Capacitor.getPlatform() === 'ios';
 
-export default function ExpandingSearch({ value, onChange, placeholder, title }: {
+export default function ExpandingSearch({ value, onChange, placeholder, title, onSubmit }: {
   value: string; onChange: (v: string) => void; placeholder: string; title: ReactNode;
+  /** Enter を押したとき（ホームは探すへ移る）。無ければキーボードを閉じるだけ */
+  onSubmit?: (v: string) => void;
 }) {
   const areaRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
@@ -69,7 +71,7 @@ export default function ExpandingSearch({ value, onChange, placeholder, title }:
     iconRef.current?.animate(
       [{ transform: 'rotate(0)' }, { transform: 'rotate(-16deg) scale(1.08)' }, { transform: 'rotate(11deg) scale(1.04)' },
        { transform: 'rotate(-6deg)' }, { transform: 'rotate(2deg)' }, { transform: 'rotate(0)' }],
-      { duration: 260, easing: 'ease-out' },
+      { duration: 200, easing: 'ease-out' },
     );
   };
 
@@ -87,7 +89,7 @@ export default function ExpandingSearch({ value, onChange, placeholder, title }:
     // ① 左端へ
     let arrived = false;
     moveRef.current = spring({
-      from: m.current, to: 1, damping: 0.9, response: 0.3,
+      from: m.current, to: 1, damping: 0.9, response: 0.24,
       onUpdate: (v) => {
         m.current = v; paint();
         if (!arrived && v > 0.94) {
@@ -98,7 +100,7 @@ export default function ExpandingSearch({ value, onChange, placeholder, title }:
           later(() => {
             let grown = false;
             growRef.current = spring({
-              from: g.current, to: 1, damping: 0.72, response: 0.34,
+              from: g.current, to: 1, damping: 0.74, response: 0.28,
               onUpdate: (w) => {
                 g.current = w; paint();
                 // ④ ほぼ伸びたら入力欄にしてキーボードを出す
@@ -109,7 +111,7 @@ export default function ExpandingSearch({ value, onChange, placeholder, title }:
                 }
               },
             });
-          }, 170);
+          }, 110);
         }
       },
     });
@@ -173,7 +175,7 @@ export default function ExpandingSearch({ value, onChange, placeholder, title }:
             onFocus={() => { setFocused(true); setShield(true); }}
             onBlur={() => { setFocused(false); if (!value.trim() && open) collapse(); }}
             placeholder={placeholder} tabIndex={open ? 0 : -1} enterKeyHint="search"
-            onKeyDown={(e) => { if (e.key === 'Enter') inputRef.current?.blur(); }}
+            onKeyDown={(e) => { if (e.key !== 'Enter') return; if (onSubmit && value.trim()) onSubmit(value.trim()); else inputRef.current?.blur(); }}
             className="flex-1 min-w-0 bg-transparent text-[14px] outline-none"
             style={{ color: 'var(--input-text)' }} />
           {value && (

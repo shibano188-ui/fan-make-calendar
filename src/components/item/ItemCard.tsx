@@ -15,7 +15,7 @@ import NotifyBell from './NotifyBell';
 interface Props {
   event: CalendarEvent;
   /** wide＝1行に1件の大きいカード（探すのグッズ）。画像を大きく、締切までの日数と販路の在庫まで出す */
-  layout?: 'grid' | 'list' | 'wide';
+  layout?: 'grid' | 'list' | 'wide' | 'compact';
   isNew?: boolean;
   likedInit?: boolean;
   /** 作品ごとの色。カード左端の縦バーで示す。未指定なら表示しない。 */
@@ -149,7 +149,9 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
   // 予定パネル（探すのグッズ・イベント、カレンダーの一覧で共通）。
   // 左＝画像とその下に「あと◯日」、右＝文字、右下にいいね・リアクション・通知を大きめにまとめる。
   // 購入リンクは出さない（PR表記が要るので詳細ページに一本化したまま）。
-  if (layout === 'list' || layout === 'wide') {
+  // compact＝ホーム用に少し低くしたもの（画像を小さく・タイトルは2行まで）
+  if (layout === 'list' || layout === 'wide' || layout === 'compact') {
+    const img = layout === 'compact' ? 'w-[108px] h-[108px]' : 'w-[144px] h-[144px]';
     const countdown = splitCountdown(countdownLabel(event, type === 'goods', todayStr()));
     const offer = primaryOffer(getOffers(event));
     const stock = offer && (offer.inStock === false ? '売り切れ' : offer.stockLabel || (offer.inStock ? '在庫あり' : ''));
@@ -157,8 +159,8 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
       <div data-skin-part="card" data-status={status} data-layout="list"
         className="rounded-[12px] border border-subtle overflow-hidden bg-bg-secondary p-2.5 flex gap-3"
         style={workColor ? { borderLeft: `3px solid ${workColor}` } : undefined}>
-        <button onClick={onOpen} className="pressable flex-shrink-0 w-[144px] flex flex-col items-stretch">
-          <div data-skin-part="card-media" className="w-[144px] h-[144px] rounded-[8px] overflow-hidden">{Thumb}</div>
+        <button onClick={onOpen} className={`pressable flex-shrink-0 ${layout === 'compact' ? 'w-[108px]' : 'w-[144px]'} flex flex-col items-stretch`}>
+          <div data-skin-part="card-media" className={`${img} rounded-[8px] overflow-hidden`}>{Thumb}</div>
           {countdown && (
             <div data-skin-part="card-countdown" className="mt-1 text-center leading-tight" style={{ color: 'var(--accent-text)' }}>
               {countdown.label && <div className="text-[10px] font-medium">{countdown.label}</div>}
@@ -169,7 +171,7 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
         <div className="flex-1 min-w-0 flex flex-col">
           <button onClick={onOpen} className="pressable text-left">
             {event.workName && <div data-skin-part="card-work" className="text-[11px] text-label-secondary truncate">{event.workName}</div>}
-            <div data-skin-part="card-title" className="text-[15px] font-semibold leading-snug line-clamp-3">{event.title}</div>
+            <div data-skin-part="card-title" className={`text-[15px] font-semibold leading-snug ${layout === 'compact' ? 'line-clamp-2' : 'line-clamp-3'}`}>{event.title}</div>
             <CategoryLine event={event} />
             {price && <div data-skin-part="card-price" className="text-[17px] font-bold mt-0.5 flex items-center gap-1" style={{ color: 'var(--accent-text)' }}>{price}{isSet && setTag}</div>}
             <div data-skin-part="card-date" className="text-[12px] text-label-secondary mt-0.5">{itemDateLines(event).join(' / ')}</div>
