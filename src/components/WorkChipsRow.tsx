@@ -5,7 +5,7 @@ import type { Work } from '../lib/api';
 import { haptic } from '../lib/haptics';
 
 // 上部の作品の並び（TimeTree 風）。カレンダーと探すで共通。
-// 押すとその作品を隠す（もう一度で戻す）。入りきらない分は右端の︾で広げて選ぶ。
+// 押すとその作品を隠す（もう一度で戻す）。入りきらない分は横にスクロールするか、右端の︾で広げて選ぶ。
 // 広げたときは下の中身を縮めず、上に重ねる。ここだけスクロールできる。
 
 export default function WorkChipsRow({ works, colors, images, excluded, onToggle, onShowAll, trailing }: {
@@ -33,7 +33,7 @@ export default function WorkChipsRow({ works, colors, images, excluded, onToggle
   return (
     <>
       <div ref={rowRef} className="flex items-center gap-1 mt-1.5">
-        <div className="flex-1 min-w-0 flex gap-1.5 overflow-hidden">
+        <div className="flex-1 min-w-0 flex gap-1.5 overflow-x-auto no-scrollbar overscroll-x-contain">
           {chips}
           {trailing}
         </div>

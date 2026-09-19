@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Home, Search, CalendarDays, User, Plus, type LucideIcon } from 'lucide-react';
 import { haptic } from '../../lib/haptics';
 import { spring, prefersReducedMotion, type SpringHandle } from '../../lib/fluid';
+import { useTyping } from '../../hooks/useTyping';
 
 const tabs: { label: string; icon: LucideIcon; path: string }[] = [
   { label: 'ホーム', icon: Home,     path: '/' },
@@ -24,6 +25,8 @@ export default function BottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
   const go = (p: string) => { haptic.select(); navigate(p); };
+  // 入力中は隠す（Android はキーボードの分だけ画面が縮み、バーがキーボードの上に乗ってしまう）
+  const typing = useTyping();
 
   const rowRef = useRef<HTMLDivElement>(null);
   const indRef = useRef<HTMLDivElement>(null);
@@ -60,7 +63,15 @@ export default function BottomNav() {
   return (
     <nav
       className="fixed inset-x-0 z-[100] flex justify-center pointer-events-none"
-      style={{ bottom: 'calc(env(safe-area-inset-bottom) + 10px)' }}
+      style={{
+        bottom: 'calc(env(safe-area-inset-bottom) + 10px)',
+        transform: typing ? 'translateY(calc(100% + 40px))' : 'none',
+        opacity: typing ? 0 : 1,
+        visibility: typing ? 'hidden' : 'visible',
+        transition: typing
+          ? 'transform 0.18s ease-in, opacity 0.12s ease-in, visibility 0s 0.18s'
+          : 'transform 0.36s cubic-bezier(0.32,0.72,0,1), opacity 0.2s ease-out',
+      }}
     >
       <div
         ref={rowRef}

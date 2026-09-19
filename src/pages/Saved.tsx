@@ -1,11 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Search, SlidersHorizontal, X, Crown, Palette, CalendarDays, CalendarRange, Calendar, List, Check } from 'lucide-react';
+import { SlidersHorizontal, Crown, Palette, CalendarDays, CalendarRange, Calendar, List, Check } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import Chip from '../components/ui/Chip';
 import WorkChipsRow from '../components/WorkChipsRow';
+import ExpandingSearch from '../components/ui/ExpandingSearch';
 import SavedCalendar, { periodLabel, includesToday } from '../components/SavedCalendar';
 import FilterPanel, { type Facet } from '../components/item/FilterPanel';
 import { SkeletonList } from '../components/ui/Skeleton';
@@ -293,9 +294,9 @@ export default function Saved() {
     toast(r === 'google' ? 'Googleカレンダーに追加しました' : r === 'ics' ? 'カレンダーに追加しました' : '日付未定のため追加できません');
   };
 
-  // 絞り込みボタンに出す件数。上に出ていた検索・すべて/自分の投稿…もボタンの中に入ったので、それも数える
-  const activeCount = facetCount + (tab !== 'all' ? 1 : 0) + (query.trim() ? 1 : 0);
-  const clearAll = () => { clearFilters(); setTab('all'); setQuery(''); };
+  // 絞り込みボタンに出す件数。すべて/自分の投稿… も数える（検索は上の検索欄に文字が見えているので数えない）
+  const activeCount = facetCount + (tab !== 'all' ? 1 : 0);
+  const clearAll = () => { clearFilters(); setTab('all'); };
 
   const emptyMsg = tab === 'mine' ? 'まだ投稿がありません' : '保存した予定がありません';
 
@@ -314,19 +315,23 @@ export default function Saved() {
       <div ref={headerRef} className="sticky top-0 z-20 flex-shrink-0 -mx-3 px-3 pt-1 pb-2 material-bar scroll-edge" data-skin-bar="main" style={{ paddingTop: 'calc(var(--sat) + 4px)' }}>
         {/* 1行だけ: 見出し（＋今日）／プレミアム／表示切替／カスタマイズ／絞り込み。文字は見出しだけで、ボタンはアイコンのみ */}
         <div className="flex items-center gap-1.5 h-10">
-          <div className="flex-1 min-w-0 flex items-center gap-2">
-            <h1 className="text-[20px] font-bold tracking-tight truncate">
-              {view === 'list' ? '保存した予定' : periodLabel(view, anchor)}
-            </h1>
-            {/* 今日を含まない期間を見ているときだけ出す */}
-            {view !== 'list' && !includesToday(view, anchor, today) && (
-              <button onClick={() => { haptic.select(); setAnchor(today); }}
-                className="pressable flex-shrink-0 text-[12px] font-semibold px-2.5 py-1 rounded-full"
-                style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
-                今日
-              </button>
-            )}
-          </div>
+          {/* 見出し（＋今日）。右端の虫眼鏡を押すと、見出しと入れ替わって検索欄に広がる */}
+          <ExpandingSearch value={query} onChange={setQuery} placeholder="保存した予定を検索"
+            title={
+              <div className="flex items-center gap-2 min-w-0">
+                <h1 className="text-[20px] font-bold tracking-tight truncate">
+                  {view === 'list' ? '保存した予定' : periodLabel(view, anchor)}
+                </h1>
+                {/* 今日を含まない期間を見ているときだけ出す */}
+                {view !== 'list' && !includesToday(view, anchor, today) && (
+                  <button onClick={() => { haptic.select(); setAnchor(today); }}
+                    className="pressable flex-shrink-0 text-[12px] font-semibold px-2.5 py-1 rounded-full"
+                    style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
+                    今日
+                  </button>
+                )}
+              </div>
+            } />
 
           {!premium && (
             <IconButton label="プレミアム" onClick={() => navigate('/premium')}>
@@ -382,7 +387,7 @@ export default function Saved() {
       </div>
 
 
-      {/* 絞り込み: 検索・対象（すべて/自分の投稿/通知ON）・細かい条件をここにまとめる */}
+      {/* 絞り込み: 対象（すべて/自分の投稿/通知ON）・細かい条件をここにまとめる */}
       {filterOpen && createPortal(
         <>
           {/* 外を押したら閉じる。カレンダーが透けて見える程度に暗くする */}
@@ -391,14 +396,6 @@ export default function Saved() {
           {/* 上部バーは下端を mask でぼかしていて、はみ出した部分が消えるので body に出す */}
           <div className="fixed inset-x-0 max-w-app mx-auto px-3 pt-2 pb-3 rounded-b-[16px] shadow-float overflow-y-auto overscroll-contain"
             style={{ zIndex: 91, top: filterTop, maxHeight: `calc(100dvh - ${filterTop}px - 110px)`, backgroundColor: 'var(--bg-primary)' }}>
-            <div className="flex items-center gap-2 px-3 rounded-[10px] mb-2" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-              <Search size={16} className="text-label-tertiary flex-shrink-0" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="保存した予定を検索"
-                className="flex-1 bg-transparent py-2 text-[14px] outline-none" style={{ color: 'var(--input-text)' }} />
-              {query && (
-                <button onClick={() => setQuery('')} aria-label="クリア" className="pressable text-label-tertiary flex-shrink-0"><X size={16} /></button>
-              )}
-            </div>
             <div className="flex items-center flex-wrap gap-2 mb-1">
               <Chip active={tab === 'all'} onClick={() => { haptic.select(); setTab('all'); }}>すべて</Chip>
               <Chip active={tab === 'mine'} onClick={() => { haptic.select(); setTab('mine'); }}>自分の投稿</Chip>
