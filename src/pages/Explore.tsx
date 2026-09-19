@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams, useNavigationType, useLocation } from 'react-router-dom';
-import { ArrowDownToLine, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowLeftRight, Plus, SlidersHorizontal } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import FilterPanel, { type Facet } from '../components/item/FilterPanel';
 import WorkFollowSheet from '../components/WorkFollowSheet';
-import Chip from '../components/ui/Chip';
+import ExpandingSearch from '../components/ui/ExpandingSearch';
+import WorkChipsRow from '../components/WorkChipsRow';
+import { loadWorkImages } from '../lib/workImages';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveItemType, deriveStatus, todayStr, STATUS, type ItemStatus, type ItemType } from '../design/tokens';
 import { listExploreEvents, getHomePrefecture, searchWorks, listAllParticipatedWorks, upsertParticipation, leaveCalendar, toggleLike, toggleCalendarAdd, listLikedEventIds, type Work } from '../lib/api';
@@ -58,6 +60,14 @@ export default function Explore() {
   const [neighborActive, setNeighborActive] = useState<boolean>(_ss.neighborActive ?? false);
   const [homePref, setHomePref] = useState<string | null>(null);
   const [followed, setFollowed] = useState<Set<string>>(new Set());
+  // 上部の作品の並びに出す、フォロー中の作品（名前つき）
+  const [followedWorks, setFollowedWorks] = useState<Work[]>([]);
+  const [workImages, setWorkImages] = useState<Record<string, string>>(loadWorkImages);
+  useEffect(() => {
+    const onChange = () => setWorkImages(loadWorkImages());
+    window.addEventListener('fan-work-images', onChange);
+    return () => window.removeEventListener('fan-work-images', onChange);
+  }, []);
   const [followSheetOpen, setFollowSheetOpen] = useState(false);
   const [workMatches, setWorkMatches] = useState<Work[]>([]);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
@@ -156,6 +166,8 @@ export default function Explore() {
   // カードが画面に半分入ったら閲覧済みにして localStorage 保存。新着/閲覧済みの区分は
   // スナップショットで固定し（スクロール中に消えない）、タブに入り直すたびに取り直す。
   const [seenSnapshot, setSeenSnapshot] = useState<Set<string>>(loadSeenEventIds);
+  // 見た予定が増えるたびに進める（未読の円を、スクロールに合わせて減らすため）
+  const [seenTick, setSeenTick] = useState(0);
   const seenIdsRef = useRef(loadSeenEventIds());
   const seenObserverRef = useRef<IntersectionObserver | null>(null);
   if (!seenObserverRef.current && typeof window !== 'undefined' && 'IntersectionObserver' in window) {
@@ -167,7 +179,7 @@ export default function Explore() {
         if (id && !seenIdsRef.current.has(id)) { seenIdsRef.current.add(id); changed = true; }
         seenObserverRef.current?.unobserve(entry.target);
       }
-      if (changed) saveSeenEventIds(seenIdsRef.current);
+      if (changed) { saveSeenEventIds(seenIdsRef.current); setSeenTick((t) => t + 1); }
     }, { threshold: 0.5 });
   }
   useEffect(() => () => seenObserverRef.current?.disconnect(), []);
@@ -206,8 +218,8 @@ export default function Explore() {
     if (!user) return;
     const fkey = `follows:${user.id}`;
     const cachedF = getCached<Work[]>(fkey);
-    if (cachedF) setFollowed(new Set(cachedF.map((w) => w.id)));
-    listAllParticipatedWorks(user.id).then((ws) => { setFollowed(new Set(ws.map((w) => w.id))); setCached(fkey, ws); }).catch(() => {});
+    if (cachedF) { setFollowed(new Set(cachedF.map((w) => w.id))); setFollowedWorks(cachedF); }
+    listAllParticipatedWorks(user.id).then((ws) => { setFollowed(new Set(ws.map((w) => w.id))); setFollowedWorks(ws); setCached(fkey, ws); }).catch(() => {});
   };
   useEffect(() => { reloadFollows(); }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -238,6 +250,7 @@ export default function Explore() {
     }
     haptic.select();
     setFollowed((prev) => { const n = new Set(prev); has ? n.delete(w.id) : n.add(w.id); return n; });
+    setFollowedWorks((prev) => has ? prev.filter((x) => x.id !== w.id) : [...prev, w]);
     try { if (has) await leaveCalendar(w.id, user.id); else await upsertParticipation(w.id, user.id); } catch { /* noop */ }
   };
 
@@ -343,6 +356,12 @@ export default function Explore() {
     });
   }, [queryItems, selectedStatuses, excludedWorks, selectedCategories, allowedPrefs]);
 
+  // 未読の円: 今の絞り込み（未読のみ 以外）をかけた一覧のうち、まだ見ていないものの割合
+  const unread = useMemo(() => {
+    const n = visible.filter((e) => !seenIdsRef.current.has(e.id)).length;
+    return { n, total: visible.length };
+  }, [visible, seenTick]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // 今日起点: 過去（上）／これから（下）に分割（並びは取得順=日付昇順のまま）。
   // 「未読のみ」ON のときは閲覧済み（スナップショット）を除外する。
   const { past, upcoming } = useMemo(() => {
@@ -407,7 +426,8 @@ export default function Explore() {
     setSelectedStatuses(new Set()); setExcludedWorks(new Set()); setSelectedCategories(new Set());
     setSelectedPrefs(new Set()); setSelectedRegions(new Set()); setNeighborActive(false);
   };
-  const activeCount = selectedStatuses.size + excludedWorks.size + selectedCategories.size + selectedPrefs.size + selectedRegions.size + (neighborActive ? 1 : 0);
+  // 隠した作品は上の作品の並びで見えるので、絞り込みの数には入れない（カレンダーと同じ）
+  const activeCount = selectedStatuses.size + selectedCategories.size + selectedPrefs.size + selectedRegions.size + (neighborActive ? 1 : 0);
 
   const onLikeTile = async (e: CalendarEvent) => { haptic.select(); return user ? toggleLike(e.id, user.id) : undefined; };
   const onCalendarTile = async (e: CalendarEvent) => {
@@ -434,61 +454,37 @@ export default function Explore() {
   return (
     <div ref={pageRef} className="relative">
       <div ref={headerRef} className="px-3 pt-3 pb-3 sticky top-0 z-20 material-bar scroll-edge" data-skin-bar="main" style={{ paddingTop: adPad }}>
+        {/* 上段: 見出し・検索（虫眼鏡から広がる）・グッズ⇄イベント・未読・絞り込み */}
         <div className="flex items-center gap-2">
-          <div className="flex-1 min-w-0 flex items-center gap-2 px-3 rounded-[10px]" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-            <Search size={16} className="text-label-tertiary flex-shrink-0" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="グッズ・イベントを検索"
-              className="flex-1 bg-transparent py-2 text-[14px] outline-none"
-              style={{ color: 'var(--input-text)' }}
-            />
-            {query && (
-              <button onClick={() => setQuery('')} aria-label="クリア" className="pressable text-label-tertiary flex-shrink-0">
-                <X size={16} />
-              </button>
-            )}
-          </div>
-          <button
-            onClick={() => { haptic.select(); setFilterOpen((v) => !v); }}
-            className="pressable flex items-center gap-1 px-3 py-2 rounded-[10px]"
+          <ExpandingSearch value={query} onChange={setQuery} placeholder={mode === 'goods' ? 'グッズを検索' : 'イベントを検索'}
+            title={<span className="text-[22px] font-bold tracking-tight">探す</span>} />
+          <ModeToggle mode={mode} onToggle={() => { haptic.select(); setMode((m) => (m === 'goods' ? 'event' : 'goods')); }} />
+          <UnreadButton unread={unread.n} total={unread.total} active={showUnseenOnly}
+            onClick={() => { haptic.select(); setShowUnseenOnly((v) => !v); }} />
+          <button onClick={() => { haptic.select(); setFilterOpen((v) => !v); }}
+            aria-label="絞り込み" aria-pressed={filterOpen}
+            className="pressable relative w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
             style={filterOpen || activeCount > 0
               ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }
-              : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}
-            aria-pressed={filterOpen || activeCount > 0}
-            aria-label="絞り込み"
-          >
-            <SlidersHorizontal size={16} />
-            {activeCount > 0 && <span className="text-[11px] font-bold">{activeCount}</span>}
+              : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
+            <SlidersHorizontal size={17} />
+            {activeCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold leading-4 text-center"
+                style={{ backgroundColor: 'var(--label-primary)', color: 'var(--bg-primary)' }}>{activeCount}</span>
+            )}
           </button>
         </div>
 
-        <div className="flex items-center gap-2 mt-2 overflow-x-auto no-scrollbar">
-          <Chip active={mode === 'goods'} onClick={() => { haptic.select(); setMode('goods'); }}>グッズ</Chip>
-          <Chip active={mode === 'event'} onClick={() => { haptic.select(); setMode('event'); }}>イベント</Chip>
-          <Chip active={showUnseenOnly} onClick={() => { haptic.select(); setShowUnseenOnly((v) => !v); }}>未読のみ</Chip>
-          <button onClick={() => { haptic.select(); setFollowSheetOpen(true); }}
-            className="pressable flex items-center gap-1 px-3 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap border border-dashed flex-shrink-0"
-            style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-text)' }}>
-            <Plus size={14} /> 作品
-          </button>
-          {/* フィルターアクティブ時: パネルを開かずに確認・全クリアできるチップ */}
-          {activeCount > 0 && !filterOpen && (
-            <div className="ml-auto flex items-center gap-1 rounded-full border overflow-hidden flex-shrink-0"
-              style={{ background: 'color-mix(in srgb, var(--accent-color) 12%, transparent)', borderColor: 'var(--accent-color)' }}>
-              <button onClick={() => { haptic.select(); setFilterOpen(true); }}
-                className="pl-2.5 pr-1 py-1 text-[11px] font-medium pressable"
-                style={{ color: 'var(--accent-color)' }}>
-                絞り込み中 {activeCount}件
-              </button>
-              <button onClick={() => { haptic.select(); clearFilters(); }}
-                className="pr-2 py-1 text-[13px] font-medium pressable leading-none"
-                style={{ color: 'var(--accent-color)' }}
-                aria-label="絞り込みをクリア">×</button>
-            </div>
-          )}
-        </div>
+        {/* 下段: 作品の並び（カレンダーと同じ。押すとその作品を隠す）＋ 作品を足す */}
+        <WorkChipsRow works={followedWorks} colors={workColorMap} images={workImages} excluded={excludedWorks}
+          onToggle={(id) => toggleIn(setExcludedWorks, id)} onShowAll={() => setExcludedWorks(new Set())}
+          trailing={
+            <button onClick={() => { haptic.select(); setFollowSheetOpen(true); }}
+              className="pressable flex-shrink-0 flex items-center gap-0.5 h-7 px-2.5 rounded-full text-[12px] font-medium whitespace-nowrap border border-dashed"
+              style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-text)' }}>
+              <Plus size={13} /> 作品
+            </button>
+          } />
 
         {/* 検索が未フォロー作品にヒット → フォロー導線（検索バー直下で常に見える） */}
         {workMatches.some((w) => !followed.has(w.id)) && (
@@ -505,7 +501,7 @@ export default function Explore() {
 
         {filterOpen && (
           <FilterPanel
-            statuses={statusFacets} works={workFacets} categories={categoryFacets} prefectures={prefFacets} regions={regionFacets}
+            statuses={statusFacets} works={[]} categories={categoryFacets} prefectures={prefFacets} regions={regionFacets}
             selectedStatuses={selectedStatuses} selectedWorks={includedWorks} selectedCategories={selectedCategories} selectedPrefs={selectedPrefs} selectedRegions={selectedRegions}
             onToggleStatus={(k) => toggleIn(setSelectedStatuses, k)}
             onToggleWork={(k) => toggleIn(setExcludedWorks, k)}
@@ -568,5 +564,47 @@ export default function Explore() {
 
       <WorkFollowSheet open={followSheetOpen} onClose={() => setFollowSheetOpen(false)} onChanged={reloadFollows} />
     </div>
+  );
+}
+
+/** 「グッズ ⇄」。今見ている方だけを書き、押すともう片方に切り替わる。
+ *  文字は下からふわっと入れ替え、⇄ は半回転させて「切り替わった」を見せる */
+function ModeToggle({ mode, onToggle }: { mode: ItemType; onToggle: () => void }) {
+  const [turns, setTurns] = useState(0);
+  return (
+    <button onClick={() => { setTurns((t) => t + 1); onToggle(); }} aria-label={`${mode === 'goods' ? 'グッズ' : 'イベント'}を表示中。押すと切り替え`}
+      className="pressable flex-shrink-0 h-9 w-[92px] rounded-full flex items-center justify-center gap-1 overflow-hidden"
+      style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
+      <span key={mode} className="text-[13px] font-semibold"
+        style={{ animation: turns ? 'labelSwap 0.34s cubic-bezier(0.32,0.72,0,1) both' : undefined }}>
+        {mode === 'goods' ? 'グッズ' : 'イベント'}
+      </span>
+      <ArrowLeftRight size={13} className="text-label-secondary"
+        style={{ transform: `rotate(${turns * 180}deg)`, transition: 'transform 0.45s cubic-bezier(0.34,1.3,0.64,1)' }} />
+    </button>
+  );
+}
+
+/** 「未読」を囲む円。円の埋まり具合＝まだ見ていない予定の割合。読み終わると円は消える。
+ *  押すと未読のみ表示（ON の間は地の色を付ける） */
+function UnreadButton({ unread, total, active, onClick }: { unread: number; total: number; active: boolean; onClick: () => void }) {
+  const R = 15.5;
+  const C = 2 * Math.PI * R;
+  const ratio = total > 0 ? unread / total : 0;
+  return (
+    <button onClick={onClick} aria-pressed={active}
+      aria-label={unread > 0 ? `未読のみ表示（未読${unread}件）` : '未読のみ表示'}
+      className="pressable relative flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center"
+      style={{ backgroundColor: active ? 'color-mix(in srgb, var(--accent-color) 24%, transparent)' : 'var(--fill-tertiary)' }}>
+      <svg className="absolute inset-0" viewBox="0 0 36 36" aria-hidden
+        style={{ opacity: unread > 0 ? 1 : 0, transition: 'opacity 0.4s ease' }}>
+        <circle cx="18" cy="18" r={R} fill="none" stroke="var(--fill-secondary, rgba(120,120,128,0.2))" strokeWidth="2.5" />
+        <circle cx="18" cy="18" r={R} fill="none" stroke="var(--accent-color)" strokeWidth="2.5" strokeLinecap="round"
+          strokeDasharray={C} strokeDashoffset={C * (1 - ratio)} transform="rotate(-90 18 18)"
+          style={{ transition: 'stroke-dashoffset 0.6s cubic-bezier(0.32,0.72,0,1)' }} />
+      </svg>
+      <span className="relative text-[10px] font-bold"
+        style={{ color: active ? 'var(--accent-text)' : unread > 0 ? 'var(--label-primary)' : 'var(--label-tertiary)' }}>未読</span>
+    </button>
   );
 }
