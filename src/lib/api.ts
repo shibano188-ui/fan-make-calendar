@@ -1499,8 +1499,9 @@ export async function countUserLikesGiven(userId: string): Promise<number> {
 }
 
 export async function countUserReactionsGiven(userId: string): Promise<number> {
+  // 1人が複数押せるようになったので event_stamps で数える（古いアプリの分もトリガーで写っている）
   const { count } = await supabase
-    .from('reactions')
+    .from('event_stamps')
     .select('*', { count: 'exact', head: true })
     .eq('user_id', userId);
   return count ?? 0;

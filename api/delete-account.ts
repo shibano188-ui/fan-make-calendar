@@ -40,6 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ユーザーデータを削除（reactions / likes / reports / participations / user_settings）
   await adminClient.from('reactions').delete().eq('user_id', user.id);
+  await adminClient.from('event_stamps').delete().eq('user_id', user.id);
   await adminClient.from('likes').delete().eq('user_id', user.id);
   await adminClient.from('reports').delete().eq('reporter_id', user.id);
   await adminClient.from('participations').delete().eq('user_id', user.id);

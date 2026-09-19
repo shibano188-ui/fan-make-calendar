@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Pin, Smile, Share2, X } from 'lucide-react';
+import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Pin, Share2, X } from 'lucide-react';
 import type { CalendarEvent, EventVisit } from '../types';
-import { getEventById, getWorkById, getDisplayName, toggleLike, setReaction, getReactionData, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, addEventVisit, removeEventVisit, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
+import { getEventById, getWorkById, getDisplayName, toggleLike, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, addEventVisit, removeEventVisit, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
 import EventEditForm from '../components/item/EventEditForm';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
@@ -11,7 +11,7 @@ import { deriveStatus, deriveItemType, itemDateLines, todayStr } from '../design
 import { resolveBuy, getOffers, buildOffer, offerUrl, primaryOffer, isSearchPageUrl } from '../lib/affiliate';
 import { openBuyLink } from '../lib/dataLogs';
 import { openExternal } from '../lib/openExternal';
-import { REACTIONS } from '../lib/reactions';
+import ReactionButton from '../components/item/ReactionButton';
 import { useAuth } from '../contexts/AuthContext';
 import { useHiddenContent } from '../hooks/useHiddenContent';
 import { haptic } from '../lib/haptics';
@@ -52,11 +52,8 @@ export default function ItemDetail() {
   const [viewingUserId, setViewingUserId] = useState<string | null>(null);
   // タイルと共有するいいねストア。fallback は読み込んだ予定の値。
   const { liked, count: likeCount } = useLike(id ?? '', { liked: !!ev?.likedByMe, count: ev?.likes ?? 0 });
-  const [counts, setCounts] = useState<Record<string, number>>({});
-  const [myReaction, setMyReaction] = useState<string | null>(null);
   const [calCount, setCalCount] = useState(0);
   const [calAdded, setCalAdded] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [contribs, setContribs] = useState<OfferContrib[]>([]);
   const [addUrl, setAddUrl] = useState('');
   const [addingLink, setAddingLink] = useState(false);
@@ -111,7 +108,6 @@ export default function ItemDetail() {
       if (e.workId && user) listAllParticipatedWorks(user.id).then((ws) => { if (!alive) return; setFollowing(ws.some((w) => w.id === e.workId)); setFollowCount(ws.length); }).catch(() => {});
       if (e.authorId) getDisplayName(e.authorId).then((n) => alive && setAuthorName(n ?? ANON_NAME));
       addSeenEventId(id); // 閲覧済み＝新着判定から外す
-      getReactionData(id, user?.id).then((r) => { if (alive) { setCounts(r.counts); setMyReaction(r.myReaction); } });
       getCalendarAddData(id, user?.id).then((c) => { if (alive) { setCalCount(c.count); setCalAdded(c.added); } });
       listOfferContribs(id).then((cs) => { if (alive) setContribs(cs); });
       listStockReports(id).then((rs) => { if (alive) setStockReports(rs); });
@@ -154,21 +150,6 @@ export default function ItemDetail() {
     setLike(event.id, { liked: !prev.liked, count: prev.count + (prev.liked ? -1 : 1) });
     try { const r = await toggleLike(event.id, user.id); setLike(event.id, { liked: r.liked, count: r.count }); }
     catch { setLike(event.id, prev); }
-  };
-
-  const onReact = async (t: string) => {
-    haptic.select();
-    if (!user) return;
-    const next = myReaction === t ? null : t;
-    // 楽観更新
-    setCounts((c) => {
-      const n = { ...c };
-      if (myReaction) n[myReaction] = Math.max(0, (n[myReaction] ?? 1) - 1);
-      if (next) n[next] = (n[next] ?? 0) + 1;
-      return n;
-    });
-    setMyReaction(next);
-    try { await setReaction(event.id, user.id, next); } catch { /* noop */ }
   };
 
   const onCalendar = async () => {
@@ -235,7 +216,6 @@ export default function ItemDetail() {
     const url = event.sourceUrl || event.link || '';
     void openExternal(`https://twitter.com/intent/tweet?text=${text}${url ? `&url=${encodeURIComponent(url)}` : ''}`);
   };
-  const myReactionImg = REACTIONS.find((r) => r.type === myReaction)?.image;
 
   const onAddLink = async () => {
     const u = addUrl.trim();
@@ -540,35 +520,12 @@ export default function ItemDetail() {
 
             {/* アクション: いいね・リアクション・カレンダー・共有 */}
             <div className="relative mt-5">
-              {pickerOpen && (
-                <>
-                  <div className="fixed inset-0 z-0" onClick={() => setPickerOpen(false)} />
-                  <div className="absolute bottom-full left-0 right-0 mb-2 z-10 rounded-[14px] border border-subtle p-2 flex flex-wrap gap-1.5 justify-center shadow-card" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                    {REACTIONS.map((r) => {
-                      const active = myReaction === r.type;
-                      const n = counts[r.type] ?? 0;
-                      return (
-                        <button key={r.type} onClick={() => { onReact(r.type); setPickerOpen(false); }}
-                          className="pressable flex items-center gap-1 px-2.5 py-1.5 rounded-full"
-                          style={active ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' } : { backgroundColor: 'var(--fill-tertiary)' }}>
-                          <img src={r.image} alt={r.label} className="w-4 h-4" />
-                          <span className="text-[12px]">{r.label.replace('！', '')}</span>
-                          {n > 0 && <span className="text-[11px] opacity-70">{n}</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
               <div className="flex items-center justify-around py-2 rounded-[12px] border border-subtle" style={{ backgroundColor: 'var(--bg-secondary)' }}>
                 <button onClick={(e) => { if (!liked) likeEffect(e.currentTarget); onLike(); }} className="pressable flex flex-col items-center gap-0.5" aria-label="いいね">
                   <Heart size={22} fill={liked ? 'var(--accent-color)' : 'none'} style={{ color: liked ? 'var(--accent-color)' : 'var(--label-secondary)' }} />
                   <span className="text-[10px] text-label-tertiary leading-none">{likeCount > 0 ? likeCount : 'いいね'}</span>
                 </button>
-                <button onClick={() => { haptic.select(); setPickerOpen((v) => !v); }} className="pressable flex flex-col items-center gap-0.5" aria-label="リアクション">
-                  {myReactionImg ? <img src={myReactionImg} alt="" className="w-[22px] h-[22px]" /> : <Smile size={22} className="text-label-secondary" />}
-                  <span className="text-[10px] text-label-tertiary leading-none">リアクション</span>
-                </button>
+                <ReactionButton eventId={event.id} size={22} variant="labeled" />
                 {EXTERNAL_CALENDAR_ENABLED && (
                   <button onClick={onCalendar} className="pressable flex flex-col items-center gap-0.5" aria-label="カレンダーに追加">
                     <CalendarPlus size={22} style={{ color: calAdded ? 'var(--accent-color)' : 'var(--label-secondary)' }} />
