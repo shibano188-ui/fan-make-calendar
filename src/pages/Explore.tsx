@@ -424,7 +424,7 @@ export default function Explore() {
   // containIntrinsicSize は未描画時の高さの見積もり（スクロールバー・復元位置の安定用）。
   const renderCard = (e: CalendarEvent) => (
     <div key={e.id} ref={observeSeen} data-event-id={e.id}
-      style={{ contentVisibility: 'auto', containIntrinsicSize: mode === 'goods' ? 'auto 158px' : 'auto 114px' }}>
+      style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 190px' }}>
       <ItemCard event={e} layout={mode === 'goods' ? 'wide' : 'list'} isNew={isNewItem(e.id, e.createdAt, seenSnapshot)} likedInit={likedIds.has(e.id)}
         workColor={e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)'}
         onOpen={() => { sessionStorage.setItem('explore_scroll', String(getScrollTop())); navigate(`/item/${e.id}`); }} onLike={() => onLikeTile(e)} onCalendar={() => onCalendarTile(e)} />

@@ -75,6 +75,14 @@ function DateBadge({ event }: { event: CalendarEvent }) {
   );
 }
 
+/** 「締切まであと16日」→ 上段「締切まで」下段「あと16日」。画像の下の細い幅に収めるため2段に分ける。
+ *  「本日開催」「本日まで」のように分けられないものは1段で出す。 */
+function splitCountdown(text: string | null): { label: string; value: string } | null {
+  if (!text) return null;
+  const m = text.match(/^(.+まで)(あと\d+日)$/);
+  return m ? { label: m[1], value: m[2] } : { label: '', value: text };
+}
+
 /** カテゴリのドット色＋ラベル。複数サブカテゴリは全部表示（親「グッズ」は種別がある時だけ省く）。 */
 function CategoryLine({ event }: { event: CalendarEvent }) {
   let cats = parseCategories(event.category);
@@ -138,19 +146,24 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
     </div>
   );
 
-  if (layout === 'wide') {
-    const countdown = countdownLabel(event, type === 'goods', todayStr());
+  // 予定パネル（探すのグッズ・イベント、カレンダーの一覧で共通）。
+  // 左＝画像とその下に「あと◯日」、右＝文字、右下にいいね・リアクション・通知を大きめにまとめる。
+  // 購入リンクは出さない（PR表記が要るので詳細ページに一本化したまま）。
+  if (layout === 'list' || layout === 'wide') {
+    const countdown = splitCountdown(countdownLabel(event, type === 'goods', todayStr()));
     const offer = primaryOffer(getOffers(event));
     const stock = offer && (offer.inStock === false ? '売り切れ' : offer.stockLabel || (offer.inStock ? '在庫あり' : ''));
     return (
-      <div data-skin-part="card" data-status={status} data-layout="wide"
+      <div data-skin-part="card" data-status={status} data-layout="list"
         className="rounded-[12px] border border-subtle overflow-hidden bg-bg-secondary p-2.5 flex gap-3"
         style={workColor ? { borderLeft: `3px solid ${workColor}` } : undefined}>
-        <button onClick={onOpen} data-skin-part="card-media" className="pressable flex-shrink-0 w-[136px] h-[136px] rounded-[8px] overflow-hidden relative">
-          {Thumb}
-          <div className="absolute top-1.5 left-1.5"><StatusBadge status={status} type={type} /></div>
-          {isNew && (
-            <span className="absolute top-1.5 right-1.5 text-[10px] font-bold rounded-full px-1.5 py-0.5" style={{ backgroundColor: 'var(--color-destructive)', color: '#fff' }}>新着</span>
+        <button onClick={onOpen} className="pressable flex-shrink-0 w-[128px] flex flex-col items-stretch">
+          <div data-skin-part="card-media" className="w-[128px] h-[128px] rounded-[8px] overflow-hidden">{Thumb}</div>
+          {countdown && (
+            <div data-skin-part="card-countdown" className="mt-1.5 text-center leading-tight" style={{ color: 'var(--accent-text)' }}>
+              {countdown.label && <div className="text-[11px] font-medium">{countdown.label}</div>}
+              <div className="text-[15px] font-bold">{countdown.value}</div>
+            </div>
           )}
         </button>
         <div className="flex-1 min-w-0 flex flex-col">
@@ -159,7 +172,6 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
             <div data-skin-part="card-title" className="text-[15px] font-semibold leading-snug line-clamp-3">{event.title}</div>
             <CategoryLine event={event} />
             {price && <div data-skin-part="card-price" className="text-[17px] font-bold mt-0.5 flex items-center gap-1" style={{ color: 'var(--accent-text)' }}>{price}{isSet && setTag}</div>}
-            {countdown && <div className="text-[12px] font-semibold mt-0.5" style={{ color: 'var(--accent-text)' }}>{countdown}</div>}
             <div data-skin-part="card-date" className="text-[12px] text-label-secondary mt-0.5">{itemDateLines(event).join(' / ')}</div>
             {offer?.retailer && (
               <div className="text-[12px] text-label-secondary mt-0.5 truncate">
@@ -168,27 +180,7 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
               </div>
             )}
           </button>
-          <div className="mt-auto pt-1.5"><CardActions liked={liked} likeCount={likeCount} onLike={handleLike} event={event} /></div>
-        </div>
-      </div>
-    );
-  }
-
-  if (layout === 'list') {
-    return (
-      <div data-skin-part="card" data-status={status} data-layout="list"
-        className="rounded-[12px] border border-subtle overflow-hidden bg-bg-secondary p-2 flex gap-3"
-        style={workColor ? { borderLeft: `3px solid ${workColor}` } : undefined}>
-        <button onClick={onOpen} data-skin-part="card-media" className="pressable flex-shrink-0 w-24 h-24 rounded-[8px] overflow-hidden">{Thumb}</button>
-        <div className="flex-1 min-w-0 flex flex-col">
-          <button onClick={onOpen} className="pressable text-left">
-            {event.workName && <div data-skin-part="card-work" className="text-[11px] text-label-secondary truncate">{event.workName}</div>}
-            <div data-skin-part="card-title" className="text-[14px] font-semibold leading-snug line-clamp-2">{event.title}</div>
-            <CategoryLine event={event} />
-            <div data-skin-part="card-date" className="text-[12px] text-label-secondary mt-0.5">{itemDateLines(event).join(' / ')}</div>
-            {price && <div data-skin-part="card-price" className="text-[15px] font-bold mt-1 flex items-center gap-1" style={{ color: 'var(--accent-text)' }}>{price}{isSet && setTag}</div>}
-          </button>
-          <div className="mt-auto pt-1.5"><CardActions liked={liked} likeCount={likeCount} onLike={handleLike} event={event} /></div>
+          <div className="mt-auto pt-2 flex justify-end"><CardActions liked={liked} likeCount={likeCount} onLike={handleLike} event={event} large /></div>
         </div>
       </div>
     );
@@ -215,15 +207,17 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
   );
 }
 
-function CardActions({ liked, likeCount, onLike, event }: { liked?: boolean; likeCount?: number; onLike?: () => void; event: CalendarEvent }) {
+/** large＝予定パネル用（よく押すので大きめ・間隔も広め）。ホームの2列は今の大きさのまま */
+function CardActions({ liked, likeCount, onLike, event, large }: { liked?: boolean; likeCount?: number; onLike?: () => void; event: CalendarEvent; large?: boolean }) {
+  const size = large ? 23 : 18;
   return (
-    <div data-skin-part="card-actions" className="flex items-center gap-4">
+    <div data-skin-part="card-actions" className={`flex items-center ${large ? 'gap-5' : 'gap-4'}`}>
       <button onClick={(e) => { e.stopPropagation(); if (!liked) likeEffect(e.currentTarget); onLike?.(); }} aria-label="いいね" className="pressable tap-44 flex items-center gap-1">
-        <Heart size={18} fill={liked ? 'var(--accent-color)' : 'none'} style={{ color: liked ? 'var(--accent-color)' : 'var(--label-secondary)' }} />
-        {!!likeCount && likeCount > 0 && <span data-skin-part="card-likes" className="text-[11px] text-label-secondary">{likeCount}</span>}
+        <Heart size={size} fill={liked ? 'var(--accent-color)' : 'none'} style={{ color: liked ? 'var(--accent-color)' : 'var(--label-secondary)' }} />
+        {!!likeCount && likeCount > 0 && <span data-skin-part="card-likes" className={`${large ? 'text-[13px]' : 'text-[11px]'} text-label-secondary`}>{likeCount}</span>}
       </button>
-      <ReactionButton eventId={event.id} />
-      <NotifyBell event={event} liked={!!liked} />
+      <ReactionButton eventId={event.id} size={size} />
+      <NotifyBell event={event} liked={!!liked} size={size} />
     </div>
   );
 }

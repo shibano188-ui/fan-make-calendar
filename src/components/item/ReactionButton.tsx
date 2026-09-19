@@ -12,7 +12,7 @@ import { haptic } from '../../lib/haptics';
 const PICKER_W = 36 * 6 + 4 * 5 + 12;
 const PICKER_H = 48;
 
-export default function ReactionButton({ eventId }: { eventId: string }) {
+export default function ReactionButton({ eventId, size = 18 }: { eventId: string; size?: number }) {
   const { user } = useAuth();
   const btnRef = useRef<HTMLButtonElement>(null);
   const [my, setMy] = useState<ReactionType | null>(() => getMyReaction(eventId));
@@ -45,8 +45,8 @@ export default function ReactionButton({ eventId }: { eventId: string }) {
     <>
       <button ref={btnRef} onClick={open} aria-label="リアクション" className="pressable tap-44 flex items-center">
         {current
-          ? <img src={current.image} alt={current.label} className="w-5 h-5" />
-          : <SmilePlus size={18} className="text-label-secondary" />}
+          ? <img src={current.image} alt={current.label} style={{ width: size + 2, height: size + 2 }} />
+          : <SmilePlus size={size} className="text-label-secondary" />}
       </button>
 
       {pos && createPortal(
