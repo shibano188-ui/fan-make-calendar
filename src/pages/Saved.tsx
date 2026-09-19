@@ -26,7 +26,7 @@ import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { haptic } from '../lib/haptics';
 import { usePremium } from '../lib/premium';
 
-// 「予約・受注中」は状態の選択肢と重なるので外した（前に選んでいた人は「すべて」に戻る）
+// 「予約受付中」は状態の選択肢と重なるので外した（前に選んでいた人は「すべて」に戻る）
 type Tab = 'all' | 'mine' | 'notify';
 type View = 'list' | 'month' | 'week' | 'day';
 

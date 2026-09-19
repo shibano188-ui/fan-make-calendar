@@ -135,8 +135,8 @@
 
   /* ─ アイテム状態色（5段階／ピボット）─ */
   --status-info:     #3b82f6; /* もうすぐ予約・受注開始 */
-  --status-preorder: #f97316; /* 予約・受注中 */
-  --status-upcoming: #a855f7; /* 発売予定 */
+  --status-preorder: #f97316; /* 予約受付中 */
+  --status-upcoming: #a855f7; /* 発売前 */
   --status-onsale:   #22c55e; /* 発売中・開催中 */
   --status-ended:    #9ca3af; /* 発売済み・終了 */
 

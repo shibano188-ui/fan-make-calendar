@@ -20,19 +20,20 @@ export function deriveItemType(e: Pick<CalendarEvent, 'type' | 'category'>): Ite
 
 export type ItemStatus =
   | 'preorder_soon'  // もうすぐ予約・受注開始 🔵
-  | 'preorder'       // 予約・受注中 🟠
+  | 'preorder'       // 予約受付中 🟠
   | 'preorder_ended' // 受付終了 ⚪
-  | 'sale_soon'      // 発売予定 🟣
+  | 'sale_soon'      // 発売前 🟣
   | 'onsale'         // 発売中・開催中 🟢
   | 'ended';         // 終了（イベント期間後）⚪
 
 type StatusMeta = { color: string; goodsLabel: string; eventLabel: string };
 
 export const STATUS: Record<ItemStatus, StatusMeta> = {
-  preorder_soon:  { color: 'var(--status-info)',     goodsLabel: 'もうすぐ予約開始', eventLabel: 'もうすぐ受付開始' },
-  preorder:       { color: 'var(--status-preorder)', goodsLabel: '予約・受注中',     eventLabel: '受付中' },
-  preorder_ended: { color: 'var(--status-ended)',    goodsLabel: '予約・受注終了',   eventLabel: '受付終了' },
-  sale_soon:      { color: 'var(--status-upcoming)', goodsLabel: '発売予定',         eventLabel: '開催予定' },
+  // 呼び方は詳細の段階（stageFlow）と揃える。「締切」は締め切られる日のことなので、状態には使わない
+  preorder_soon:  { color: 'var(--status-info)',     goodsLabel: '予約開始前',       eventLabel: '受付開始前' },
+  preorder:       { color: 'var(--status-preorder)', goodsLabel: '予約受付中',       eventLabel: '受付中' },
+  preorder_ended: { color: 'var(--status-ended)',    goodsLabel: '予約終了',         eventLabel: '受付終了' },
+  sale_soon:      { color: 'var(--status-upcoming)', goodsLabel: '発売前',           eventLabel: '開催前' },
   onsale:         { color: 'var(--status-onsale)',   goodsLabel: '発売中',           eventLabel: '開催中' },
   ended:          { color: 'var(--status-ended)',    goodsLabel: '発売済み',         eventLabel: '終了' },
 };
@@ -63,7 +64,7 @@ export function deriveStatus(
     if (preorderStart && today < preorderStart) return 'preorder_soon';
     const inWindow = preorderEnd ? today <= preorderEnd : (!date || today < date);
     if (inWindow) return 'preorder';
-    // 受付終了後: 発売・開催が始まっていればその状態へ、まだ先なら「予約・受注終了」
+    // 受付終了後: 発売・開催が始まっていればその状態へ、まだ先なら「予約終了」
     if (!date || today < date) return 'preorder_ended';
   }
 
@@ -166,12 +167,12 @@ export function stageFlow(
   const s = deriveStatus(e, today);
   if (hasPreorder) {
     const steps = goods
-      ? ['予約開始前', '予約受付中', '締切', '発売中', '発売済']
+      ? ['予約開始前', '予約受付中', '予約終了', '発売中', '発売済み']
       : ['受付開始前', '受付中', '受付終了', '開催中', '終了'];
     const at: Record<ItemStatus, number> = { preorder_soon: 0, preorder: 1, preorder_ended: 2, sale_soon: 2, onsale: 3, ended: 4 };
     return { steps, current: at[s] };
   }
-  const steps = goods ? ['発売前', '発売中', '発売済'] : ['開催前', '開催中', '終了'];
+  const steps = goods ? ['発売前', '発売中', '発売済み'] : ['開催前', '開催中', '終了'];
   const at: Record<ItemStatus, number> = { preorder_soon: 0, preorder: 0, preorder_ended: 0, sale_soon: 0, onsale: 1, ended: 2 };
   return { steps, current: at[s] };
 }
