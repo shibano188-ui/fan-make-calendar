@@ -140,7 +140,7 @@ export default function EventEditForm({ event, onSave, onClose, onChange, showAc
       {showActions && (
         <div className="flex gap-2 mt-3">
           <button onClick={onClose} className="pressable flex-1 py-2 rounded-[10px] text-[13px]" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>キャンセル</button>
-          <button onClick={save} className="pressable flex-1 py-2 rounded-[10px] text-[13px] font-semibold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>追加</button>
+          <button onClick={save} className="pressable flex-1 py-2 rounded-[10px] text-[13px] font-semibold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>保存</button>
         </div>
       )}
     </div>

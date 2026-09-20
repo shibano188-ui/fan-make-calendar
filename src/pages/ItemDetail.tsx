@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Pin, Share2, X, Plus } from 'lucide-react';
 import type { CalendarEvent, EventVisit } from '../types';
+import EventEditForm from '../components/item/EventEditForm';
 import { getEventById, getWorkById, getDisplayName, toggleLike, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, addEventVisit, removeEventVisit, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
@@ -76,6 +77,7 @@ export default function ItemDetail() {
   const [visits, setVisits] = useState<EventVisit[]>([]);
   const [visitOpen, setVisitOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false); // 「＋α」で開く情報追加パネル
+  const [editing, setEditing] = useState(false); // 投稿者だけのその場編集（日付）
   const [visitStart, setVisitStart] = useState('');
   const [visitEnd, setVisitEnd] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
@@ -133,6 +135,8 @@ export default function ItemDetail() {
 
   const event = ev;
   const eff = applyEdits(event, edits); // 編集パッチを重ねた実効値
+  // 投稿者だけは今までどおりその場で直せる（ほかの人の追加・修正はすべて「＋α」から）
+  const isAuthor = !!user && user.id === event.authorId;
   const type = deriveItemType(eff);
   const images = parseImageUrls(event.imageUrl);
   let cats = parseCategories(event.category);
@@ -306,6 +310,7 @@ export default function ItemDetail() {
   };
   const onSaveEdit = async (patch: EventPatch) => {
     if (!user) return;
+    setEditing(false);
     const ed = await addEventEdit(event.id, patch, user.id);
     if (ed) setEdits((prev) => [...prev, ed]);
   };
@@ -414,9 +419,13 @@ export default function ItemDetail() {
               </div>
             </div>
 
-            {/* 日時・予約の修正は「＋α」のパネルから（入力の入口はそちらに一本化）。
-                ここには履歴だけを置く */}
-            {edits.length > 0 && (
+            {/* ほかの人の追加・修正は「＋α」のパネルから。投稿者だけはここで直せる */}
+            {isAuthor && (!editing ? (
+              <button onClick={() => { haptic.select(); setEditing(true); }} className="pressable mt-2 text-[12px]" style={{ color: 'var(--accent-text)' }}>日付を修正</button>
+            ) : (
+              <EventEditForm event={eff} onClose={() => setEditing(false)} onSave={onSaveEdit} />
+            ))}
+            {isAuthor && edits.length > 0 && (
               <div className="mt-2">
                 <button onClick={() => setHistoryOpen((v) => !v)} className="pressable text-[12px] text-label-tertiary">
                   編集履歴（{edits.length}）{historyOpen ? ' ▲' : ' ▼'}
@@ -553,7 +562,7 @@ export default function ItemDetail() {
                     {/* 入口は「修正」ひとつだけ。アイコンを2つ並べると tap-44 の44px判定が重なって
                         手前のボタンに食われるうえ、Xでは何が起きるか字で説明できない。
                         この機能の動機は「リンクがおかしいから消したい」なので、パネルの先頭は取り消し。 */}
-                    {user && (
+                    {isAuthor && (
                       <button onClick={() => { haptic.select(); setReplaceUrl(''); setFixingUrl((prev) => (prev === o.url ? null : o.url)); }}
                         className="pressable flex-shrink-0 text-[11px] px-2 py-1.5 text-label-tertiary">{fixingUrl === o.url ? '閉じる' : '修正'}</button>
                     )}
