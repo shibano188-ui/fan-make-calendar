@@ -135,47 +135,59 @@ function normalizePrefecture(p: string | null | undefined): string | undefined {
 }
 
 // ── 取り消された購入リンク（一覧・カード用）─────────────────────────
-// 詳細ページは listEventEdits + applyEdits で1件ずつ厳密に重ねるが、一覧・カードは events だけを
-// 引くので取り消しが効かず、取り消したリンクの「セット」バッジや販路名が残る
-// （代表価格は毎日Cronが直すので追随する）。取り消しを含むパッチだけなら全件でも数十行なので、
-// 1クエリで読んで rowToEvent で差し引く。
-let removedOffers = new Map<string, Set<string>>();
-let removedOffersLoad: Promise<void> | null = null;
-export function ensureRemovedOffers(): Promise<void> {
-  removedOffersLoad ??= (async () => {
+// 共同編集のパッチ（日付の修正・販路の取り消し）。
+// 詳細ページは listEventEdits + applyEdits で1件ずつ重ねるが、一覧・カレンダー・ローカル通知は
+// events だけを引くので、直した日付も取り消したリンクも反映されていなかった
+// （＝直した締切でカレンダーの帯が動かない・通知が来ない）。パッチは1予定あたり数行なので、
+// 1クエリで全部読んで rowToEvent で重ねる。
+// ※ 本式は「承認された修正を events 本体に書く」（第2段）。そこまでの間の重ね方。
+let editsByEvent = new Map<string, EventEdit[]>();
+let editsLoad: Promise<void> | null = null;
+export function ensureEventEdits(): Promise<void> {
+  editsLoad ??= (async () => {
     const { data } = await supabase
-      .from('event_edits').select('event_id, patch').not('patch->removedOfferUrls', 'is', null);
-    const next = new Map<string, Set<string>>();
+      .from('event_edits').select('id, event_id, patch, created_by, created_at')
+      .order('created_at', { ascending: true });
+    const next = new Map<string, EventEdit[]>();
     for (const r of data ?? []) {
-      const urls = (r.patch as EventPatch | null)?.removedOfferUrls;
-      if (!urls?.length) continue;
       const eventId = r.event_id as string;
-      const set = next.get(eventId) ?? new Set<string>();
-      for (const u of urls) set.add(u);
-      next.set(eventId, set);
+      const list = next.get(eventId) ?? [];
+      list.push({
+        id: r.id as string,
+        patch: (r.patch as EventPatch) ?? {},
+        createdBy: (r.created_by as string | null) ?? null,
+        createdAt: r.created_at as string,
+      });
+      next.set(eventId, list);
     }
-    removedOffers = next;
+    editsByEvent = next;
   })();
-  return removedOffersLoad;
+  return editsLoad;
 }
-/** 取り消し・復活の直後に一覧へ戻っても最新になるよう、次の取得で読み直させる。 */
-function invalidateRemovedOffers(): void { removedOffersLoad = null; }
+/** 修正・取り消し・復活の直後に一覧へ戻っても最新になるよう、次の取得で読み直させる。 */
+function invalidateEventEdits(): void { editsLoad = null; }
 
-/** 取り消された販路を差し引いた実効値にする（applyEdits の販路部分と同じ扱い）。 */
-function stripRemovedOffers(ev: CalendarEvent): CalendarEvent {
-  const removed = removedOffers.get(ev.id);
-  if (!removed?.size) return ev;
-  const kept = getOffers(ev).filter((o) => !removed.has(o.url));
-  const linkGone = !!ev.link && (removed.has(ev.link) || kept.length === 0);
-  return { ...ev, offers: kept, ...(linkGone ? { link: undefined, affiliateUrl: undefined } : {}) };
+/** 読み込んだパッチを重ねた実効値にする（詳細ページの applyEdits と同じ結果）。 */
+function withCachedEdits(ev: CalendarEvent): CalendarEvent {
+  const edits = editsByEvent.get(ev.id);
+  if (!edits?.length) return ev;
+  return applyEdits(ev, edits);
 }
 
+/** 共同編集のパッチを重ねた実効値。一覧・カレンダー・通知はこれを使う。 */
 function rowToEvent(e: Record<string, unknown>): CalendarEvent {
+  return withCachedEdits(buildEvent(e));
+}
+
+/** DBの行をそのまま CalendarEvent にする（パッチは重ねない）。
+ *  詳細ページは自分で listEventEdits + applyEdits を重ねるので、こちらを使う
+ *  （重ねたものを渡すと、「戻す」で履歴を消しても画面が元に戻らない）。 */
+function buildEvent(e: Record<string, unknown>): CalendarEvent {
   // 不変条件: 曖昧日付（date_label あり）の date は「代表日」であり、期間・時刻は意味を持たない。
   // AI解析が dateLabel と endDate を同時に返して保存された過去の不整合データがあるため、
   // 読み込み時にも end_date / 時刻を無視して表示を守る（書き込み側のガードは createEvents / updateEvent）。
   const ambiguous = !!(e.date_label as string | null);
-  return stripRemovedOffers({
+  return {
     id: e.id as string,
     title: e.title as string,
     date: (e.event_date as string | null) ?? null,
@@ -210,7 +222,7 @@ function rowToEvent(e: Record<string, unknown>): CalendarEvent {
     hasAffiliate: (e.has_affiliate as boolean | null) ?? undefined,
     offers: Array.isArray(e.offers) ? (e.offers as CalendarEvent['offers']) : undefined,
     relatedEventId: (e.related_event_id as string | null) ?? undefined,
-  });
+  };
 }
 
 // event_date 未設定（お渡し日不明で受付情報のみ）の受注イベントで、受付が終了していないものを取得。
@@ -247,7 +259,7 @@ function mergeDedup(main: CalendarEvent[], extra: CalendarEvent[]): CalendarEven
 
 // 期間（from〜to, どちらも 'YYYY-MM-DD'）で1作品の予定を取得。期間に重なる予定を含む。
 export async function listEventsRange(workId: string, from: string, to: string): Promise<CalendarEvent[]> {
-  await ensureRemovedOffers(); // 取り消された販路を差し引いた実効値で返す
+  await ensureEventEdits(); // 共同編集の修正を重ねた実効値で返す
   const { data, error } = await supabase
     .from('events')
     .select('*')
@@ -272,7 +284,7 @@ export async function listEvents(workId: string, year: number, month: number): P
 }
 
 export async function listEventsByDate(workId: string, date: string, userId?: string): Promise<CalendarEvent[]> {
-  await ensureRemovedOffers(); // 取り消された販路を差し引いた実効値で返す
+  await ensureEventEdits(); // 共同編集の修正を重ねた実効値で返す
   const { data, error } = await supabase
     .from('events')
     .select('*')
@@ -372,7 +384,7 @@ export async function createEvents(
 }
 
 export async function listPreorderEvents(workIds: string[]): Promise<CalendarEvent[]> {
-  await ensureRemovedOffers(); // 取り消された販路を差し引いた実効値で返す
+  await ensureEventEdits(); // 共同編集の修正を重ねた実効値で返す
   if (workIds.length === 0) return [];
   const today = new Date().toISOString().slice(0, 10);
   const { data, error } = await supabase
@@ -1000,13 +1012,13 @@ export async function addEventEdit(eventId: string, patch: EventPatch, userId: s
   const { data, error } = await supabase
     .from('event_edits').insert({ event_id: eventId, patch, created_by: userId }).select('id, patch, created_by, created_at').single();
   if (error) return null;
-  if (patch.removedOfferUrls?.length) invalidateRemovedOffers();
+  invalidateEventEdits();
   return { id: data.id as string, patch: (data.patch as EventPatch) ?? {}, createdBy: (data.created_by as string | null) ?? null, createdAt: data.created_at as string };
 }
 
 export async function removeEventEdit(id: string): Promise<void> {
   await supabase.from('event_edits').delete().eq('id', id);
-  invalidateRemovedOffers(); // 「戻す」で復活したリンクを一覧にも戻す
+  invalidateEventEdits(); // 「戻す」で元に戻した内容を一覧にも反映する
 }
 
 /** base イベントに編集パッチを古い順に重ねた「実効値」を返す。 */
@@ -1049,11 +1061,13 @@ export async function removeStockReport(id: string): Promise<void> {
   await supabase.from('stock_reports').delete().eq('id', id);
 }
 
-export async function getEventById(eventId: string, userId?: string): Promise<CalendarEvent | null> {
-  await ensureRemovedOffers(); // 取り消された販路を差し引いた実効値で返す
+/** raw: true でパッチを重ねない生の値を返す（詳細ページ用。自分で履歴を重ねるため） */
+export async function getEventById(eventId: string, userId?: string, opts?: { raw?: boolean }): Promise<CalendarEvent | null> {
+  if (!opts?.raw) await ensureEventEdits(); // 共同編集の修正を重ねた実効値で返す
   const { data, error } = await supabase.from('events').select('*').eq('id', eventId).single();
   if (error) return null;
-  const ev = rowToEvent(data as Record<string, unknown>);
+  const row = data as Record<string, unknown>;
+  const ev = opts?.raw ? buildEvent(row) : rowToEvent(row);
   if (userId) {
     const { data: like } = await supabase
       .from('likes').select('id').eq('event_id', eventId).eq('user_id', userId).maybeSingle();
@@ -1063,7 +1077,7 @@ export async function getEventById(eventId: string, userId?: string): Promise<Ca
 }
 
 export async function listUpcomingEvents(workId: string, from: string, limit = 5): Promise<CalendarEvent[]> {
-  await ensureRemovedOffers(); // 取り消された販路を差し引いた実効値で返す
+  await ensureEventEdits(); // 共同編集の修正を重ねた実効値で返す
   const { data, error } = await supabase
     .from('events')
     .select('*')
@@ -1080,7 +1094,7 @@ export async function listUpcomingEvents(workId: string, from: string, limit = 5
 export async function listAllParticipatedWorkEventsRange(
   userId: string, from: string, to: string,
 ): Promise<CalendarEvent[]> {
-  await ensureRemovedOffers(); // 取り消された販路を差し引いた実効値で返す
+  await ensureEventEdits(); // 共同編集の修正を重ねた実効値で返す
   // 全参加作品を取得（listRecentWorks の limit(10) を使わない）
   const { data: parts } = await supabase
     .from('participations')
@@ -1136,16 +1150,17 @@ export async function listLikedEventIds(userId: string): Promise<Set<string>> {
 // 1つずつ順番に待っていて、スマホの回線だと往復の待ちだけで1秒前後かかっていた。
 // いいねした予定は likes から events を埋め込んで1回で取る（events を id で引き直さない）。
 // 画面側は savedStore.ts を通して使う（覚えておいた分をすぐ出し、裏で取り直す）。
+// カレンダーに出るのは**保存した予定だけ**。
+// 以前は「自分が投稿した予定」も無条件に足していたので、投稿すると必ずカレンダーに入り、外せなかった。
+// 投稿時に入れるかどうかは投稿フォームのトグル（＝保存＝いいね）で決める。
 export async function listSavedEvents(userId: string): Promise<CalendarEvent[]> {
-  const [, likesRes, ownRes, visitsRes] = await Promise.all([
-    ensureRemovedOffers(), // 取り消された販路を差し引いた実効値で返す（rowToEvent より先に終わっている必要がある）
+  const [, likesRes, visitsRes] = await Promise.all([
+    ensureEventEdits(), // 共同編集の修正を重ねた実効値で返す（rowToEvent より先に終わっている必要がある）
     supabase.from('likes').select('event_id, events!likes_event_id_fkey(*, works(name))').eq('user_id', userId),
-    supabase.from('events').select('*, works(name)').eq('pool', 0).eq('author_id', userId),
     supabase.from('event_visits').select('id, event_id, start_date, end_date').eq('user_id', userId),
   ]);
   const likedIds = new Set((likesRes.data ?? []).map((r) => r.event_id as string));
   const rows: Record<string, unknown>[] = [
-    ...((ownRes.data ?? []) as Record<string, unknown>[]),
     ...(likesRes.data ?? [])
       .map((r) => (r as Record<string, unknown>).events as Record<string, unknown> | null)
       .filter((e): e is Record<string, unknown> => !!e && e.pool === 0),
@@ -1171,7 +1186,7 @@ export async function listSavedEvents(userId: string): Promise<CalendarEvent[]> 
 // 探す（横断フィード）: 全作品の予定を期間ウィンドウで取得。works名を結合。
 // 過去も含めて取得し、UI側で「今日起点」に並べる。type はUI側で category から導出して振り分ける。
 export async function listExploreEvents(from: string, to: string): Promise<CalendarEvent[]> {
-  await ensureRemovedOffers(); // 取り消された販路を差し引いた実効値で返す
+  await ensureEventEdits(); // 共同編集の修正を重ねた実効値で返す
   const { data, error } = await supabase
     .from('events')
     .select('*, works(name)')

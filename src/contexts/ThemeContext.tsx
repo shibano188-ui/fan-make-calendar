@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
 import { useAuth } from './AuthContext';
+import { pushAppState } from '../lib/appState';
 import { getUserSettings, updateUserSettings } from '../lib/api';
 import { accentTokens, getContrastText } from '../lib/color';
 import { syncStatusBar } from '../lib/statusbar';
@@ -281,9 +282,37 @@ function saveSettings(workId: string, s: UserSettings) {
   }
 }
 
+// ── 作品ごとのカレンダーの見た目 ──
+// カスタマイズ画面のタブ（デフォルト／作品…）で設定するもの。デフォルトの上に、
+// 設定した項目だけを重ねる。保存は1つのオブジェクトにまとめ、アカウントにも同期する
+// （fan_work_settings / user_app_state.work_settings）。効くのはカレンダーの画面だけ。
+const WORK_LOOKS_KEY = 'fan_work_settings';
+/** 作品ごとに持てる項目（ここに無いものはデフォルトのまま） */
+export type WorkLook = Partial<Pick<UserSettings,
+  'accentColor' | 'backgroundImageUrl' | 'bgImageOffsetX' | 'bgImageOffsetY' |
+  'calWeekday' | 'calSaturday' | 'calSunday' | 'calOtherMonth' | 'calGridColor' | 'theme'>>;
+
+export function loadWorkLooks(): Record<string, WorkLook> {
+  try {
+    const raw = localStorage.getItem(WORK_LOOKS_KEY);
+    const v = raw ? JSON.parse(raw) as Record<string, WorkLook> : null;
+    return v && typeof v === 'object' ? v : {};
+  } catch { return {}; }
+}
+
+function saveWorkLooks(map: Record<string, WorkLook>): void {
+  try { localStorage.setItem(WORK_LOOKS_KEY, JSON.stringify(map)); }
+  catch (e) { console.error('作品ごとの見た目を保存できませんでした', e); }
+}
+
+/** デフォルトの上に作品の設定を重ねた実効値 */
+export function mergeWorkLook(base: UserSettings, look: WorkLook | undefined): UserSettings {
+  return look ? { ...base, ...look } : base;
+}
+
 // ウィジェットページなど ThemeProvider 外で使用するユーティリティ
 export function loadCalendarSettings(workId: string): UserSettings {
-  return loadSettings(workId);
+  return mergeWorkLook(loadSettings(workId), workId ? loadWorkLooks()[workId] : undefined);
 }
 
 // カレンダーのフォントスタックを返す
@@ -425,6 +454,17 @@ interface ThemeContextValue {
   setDraft: (d: ThemeDraft | null) => void;
   /** 保存・削除のあとに一覧を取り直す */
   reloadUserThemes: () => Promise<UserTheme[]>;
+
+  // ── 作品ごとのカレンダーの見た目 ──
+  /** 今カレンダーに使う見た目。'' はデフォルト */
+  lookWorkId: string;
+  setLookWorkId: (workId: string) => void;
+  /** 作品ごとの上書き（設定した項目だけ入っている） */
+  workLooks: Record<string, WorkLook>;
+  /** この画面で作品の見た目を効かせるか（カレンダーとカスタマイズだけ true にする） */
+  setLookActive: (on: boolean) => void;
+  /** その作品の上書きを全部消してデフォルトに戻す */
+  resetWorkLook: (workId: string) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -444,6 +484,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   // 外皮。保存先は localStorage のみ（本番の user_settings スキーマに触らない）
   const [skin, setSkinState] = useState<SkinId>(() => loadSkin());
+
+  // 作品ごとのカレンダーの見た目。選んでいる作品は端末に覚える（設定の中身はアカウント同期）
+  const [workLooks, setWorkLooks] = useState<Record<string, WorkLook>>(() => loadWorkLooks());
+  const [lookWorkId, setLookWorkIdState] = useState<string>(() => {
+    try { return localStorage.getItem('fan_look_work_id') ?? ''; } catch { return ''; }
+  });
+  const lookWorkIdRef = useRef(lookWorkId);
+  lookWorkIdRef.current = lookWorkId;
+  // 効かせるのはカレンダーの画面と、設定中のカスタマイズ画面だけ
+  const [lookActive, setLookActive] = useState(false);
 
   // 生成テーマ。選択は端末に、中身はサーバー（user_themes）に置く
   const [userThemes, setUserThemes] = useState<UserTheme[]>([]);
@@ -514,17 +564,18 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     // プリセットを選んだら生成テーマの選択は外す（両方は効かせられない）
     saveActiveThemeId(null);
     setUserThemeId(null);
-    // アクセントが署名色のままなら外皮の色に合わせる。
-    // 自分で別の色を選んでいる人の設定は変えない。サーバーへは同期しない
-    // （外皮の切り替えで本番の設定を書き換えないため）。
+    // アクセントが「テーマから来た色」なら外皮の色に戻す（生成テーマの色が残らないように）。
+    // 自分で選んだ色は変えない。accentForSkin は署名色しか見ないので、
+    // 生成テーマの色を使っていた人がデフォルトに戻してもその色のままだった。
+    // サーバーへは同期しない（外皮の切り替えで本番の設定を書き換えないため）。
     setSettings((prev) => {
-      const nextAccent = accentForSkin(id, prev.accentColor);
+      const nextAccent = accentIsAuto(prev.accentColor) ? SKINS[id].accent : prev.accentColor;
       if (nextAccent === prev.accentColor) return prev;
       const next = { ...prev, accentColor: nextAccent };
       saveSettings(currentWorkIdRef.current, next);
       return next;
     });
-  }, []);
+  }, [accentIsAuto]);
 
   // カレンダー切り替え（Calendar ページから呼ばれる）
   const setCurrentCalendar = useCallback((workId: string) => {
@@ -536,7 +587,38 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // 設定更新（現在のカレンダーのストレージキーに保存）
+  const setLookWorkId = useCallback((workId: string) => {
+    setLookWorkIdState(workId);
+    lookWorkIdRef.current = workId;
+    try {
+      if (workId) localStorage.setItem('fan_look_work_id', workId);
+      else localStorage.removeItem('fan_look_work_id');
+    } catch { /* 覚えられなくても表示は続く */ }
+  }, []);
+
+  const resetWorkLook = useCallback((workId: string) => {
+    if (!workId) return;
+    setWorkLooks(prev => {
+      const next = { ...prev };
+      delete next[workId];
+      saveWorkLooks(next);
+      pushAppState('work_settings', next);
+      return next;
+    });
+  }, []);
+
   const updateSettings = useCallback((patch: Partial<UserSettings>) => {
+    // 作品のタブを選んでいる間は、その作品の上書きとして保存する（デフォルトは触らない）
+    if (lookWorkIdRef.current) {
+      const workId = lookWorkIdRef.current;
+      setWorkLooks(prev => {
+        const next = { ...prev, [workId]: { ...prev[workId], ...patch } as WorkLook };
+        saveWorkLooks(next);
+        pushAppState('work_settings', next);
+        return next;
+      });
+      return;
+    }
     setSettings(prev => {
       const next = { ...prev, ...patch };
       saveSettings(currentWorkIdRef.current, next);
@@ -580,16 +662,22 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }).catch(console.error);
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // カレンダー（とカスタマイズ）では、選んでいる作品の上書きを重ねた値を使う。
+  // ほかの画面はデフォルトのまま＝作品の見た目はカレンダーの中だけで効く。
+  const effective = lookActive && lookWorkId
+    ? mergeWorkLook(settings, workLooks[lookWorkId])
+    : settings;
+
   // テーマカラーを CSS 変数に反映（theme='system' のときは OS 設定変更にも追従）
   useEffect(() => {
-    applyThemeVars(settings, skin, draftSpec ?? activeUserTheme?.spec ?? null);
-    if (settings.theme !== 'system') return;
+    applyThemeVars(effective, skin, draftSpec ?? activeUserTheme?.spec ?? null);
+    if (effective.theme !== 'system') return;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const onChange = () => applyThemeVars(settings, skin, draftSpec ?? activeUserTheme?.spec ?? null);
+    const onChange = () => applyThemeVars(effective, skin, draftSpec ?? activeUserTheme?.spec ?? null);
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
     // activeUserTheme は中身が変われば適用し直す（手直しの結果を即反映するため）
-  }, [settings.theme, settings.communityThemeId, skin, activeUserTheme, draftSpec]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [effective.theme, effective.communityThemeId, skin, activeUserTheme, draftSpec]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // アクセントカラー + 派生トークンを CSS 変数に反映
   useEffect(() => {
@@ -598,56 +686,57 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     // 「水色のテーマなのにアクセントだけ前の色」という状態が残る（実際に起きた）。
     // ただし**自分で色を選んでいる人のものは奪わない**。
     const themeAccent = draftSpec?.accent ?? activeUserTheme?.spec.accent;
-    const useTheme = themeAccent && accentIsAuto(settings.accentColor);
-    applyAccentVars(useTheme ? themeAccent : settings.accentColor);
-  }, [settings.accentColor, draftSpec, activeUserTheme, accentIsAuto]);
+    const useTheme = themeAccent && accentIsAuto(effective.accentColor);
+    applyAccentVars(useTheme ? themeAccent : effective.accentColor);
+  }, [effective.accentColor, draftSpec, activeUserTheme, accentIsAuto]);
 
   // カレンダー文字色・グリッド線色を CSS 変数に反映
   useEffect(() => {
     const root = document.documentElement;
     const calVars: [string, string][] = [
-      ['--cal-weekday-color',     settings.calWeekday],
-      ['--cal-saturday-color',    settings.calSaturday],
-      ['--cal-sunday-color',      settings.calSunday],
-      ['--cal-other-month-color', settings.calOtherMonth],
+      ['--cal-weekday-color',     effective.calWeekday],
+      ['--cal-saturday-color',    effective.calSaturday],
+      ['--cal-sunday-color',      effective.calSunday],
+      ['--cal-other-month-color', effective.calOtherMonth],
     ];
     for (const [varName, value] of calVars) {
       if (value) root.style.setProperty(varName, value);
       else root.style.removeProperty(varName);
     }
-    root.style.setProperty('--cal-grid-color', settings.calGridColor || 'rgba(128,128,128,0.15)');
-  }, [settings.calWeekday, settings.calSaturday, settings.calSunday, settings.calOtherMonth, settings.calGridColor]);
+    root.style.setProperty('--cal-grid-color', effective.calGridColor || 'rgba(128,128,128,0.15)');
+  }, [effective.calWeekday, effective.calSaturday, effective.calSunday, effective.calOtherMonth, effective.calGridColor]);
 
   // フォントを CSS 変数に反映（body全体に適用）
   useEffect(() => {
-    document.documentElement.style.setProperty('--font-family', fontStack(settings));
-    if (settings.font === 'custom' && settings.customFontUrl && settings.customFontName) {
+    document.documentElement.style.setProperty('--font-family', fontStack(effective));
+    if (effective.font === 'custom' && effective.customFontUrl && effective.customFontName) {
       const existing = document.getElementById('custom-font-style');
       if (existing) existing.remove();
       const style = document.createElement('style');
       style.id = 'custom-font-style';
-      style.textContent = `@font-face { font-family: "${settings.customFontName}"; src: url("${settings.customFontUrl}"); }`;
+      style.textContent = `@font-face { font-family: "${effective.customFontName}"; src: url("${effective.customFontUrl}"); }`;
       document.head.appendChild(style);
     }
-  }, [settings.font, settings.customFontUrl, settings.customFontName]);
+  }, [effective.font, effective.customFontUrl, effective.customFontName]);
 
   // 背景画像を CSS 変数に反映
   useEffect(() => {
     const root = document.documentElement;
-    if (settings.backgroundImageUrl) {
-      root.style.setProperty('--bg-image', `url(${settings.backgroundImageUrl})`);
+    if (effective.backgroundImageUrl) {
+      root.style.setProperty('--bg-image', `url(${effective.backgroundImageUrl})`);
     } else {
       root.style.removeProperty('--bg-image');
     }
-  }, [settings.backgroundImageUrl]);
+  }, [effective.backgroundImageUrl]);
 
-  const calFontFamily = fontStack(settings);
+  const calFontFamily = fontStack(effective);
 
   return (
     <ThemeContext.Provider value={{
-      settings, updateSettings, currentWorkId, setCurrentCalendar, calFontFamily,
+      settings: effective, updateSettings, currentWorkId, setCurrentCalendar, calFontFamily,
       skin, setSkin, userThemes, userThemeId, activeSpec, selectUserTheme, reloadUserThemes,
       draft, setDraft,
+      lookWorkId, setLookWorkId, workLooks, setLookActive, resetWorkLook,
     }}>
       {children}
     </ThemeContext.Provider>

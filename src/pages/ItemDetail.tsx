@@ -102,7 +102,8 @@ export default function ItemDetail() {
     let alive = true;
     (async () => {
       if (!id) return;
-      const e = await getEventById(id, user?.id);
+      // 生の値をもらい、パッチはこの画面で重ねる（「戻す」がその場で効くように）
+      const e = await getEventById(id, user?.id, { raw: true });
       if (!alive) return;
       setEv(e);
       if (!e) return;

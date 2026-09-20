@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme, resolveTheme } from '../../contexts/ThemeContext';
 import { usePremium } from '../../lib/premium';
@@ -20,9 +20,6 @@ export default function ThemeList() {
   const confirmDialog = useConfirm();
   const navigate = useNavigate();
   const dark = resolveTheme(settings.theme) === 'dark';
-  // 無料の枠が埋まっているなら、**作りに行かせる前に**案内へ送る。
-  // 作らせてから保存で断ると、生成の待ち時間と手直しの回数が無駄になる
-  const capped = !premium && userThemes.length >= FREE_THEME_LIMIT;
 
   const remove = useCallback(async (id: string) => {
     const ok = await confirmDialog({
@@ -68,13 +65,6 @@ export default function ThemeList() {
             </div>
           );
         })}
-        <button
-          onClick={() => navigate(capped ? '/premium' : '/customize/theme')}
-          className="rounded-xl border-2 border-dashed border-subtle flex flex-col items-center justify-center gap-1 py-4"
-        >
-          <Plus size={18} className="text-label-secondary" />
-          <span className="text-[11px] text-label-secondary text-center leading-tight px-1">作る</span>
-        </button>
       </div>
       {!premium ? (
         <p className="text-label-tertiary text-xs mt-2 px-1 leading-relaxed">

@@ -311,7 +311,9 @@ export const SKINS: Record<SkinId, SkinDef> = {
   },
 };
 
-export const SKIN_IDS: SkinId[] = ['classic', 'panel', 'surge'];
+// 画面に出す外皮。panel と surge は選べないようにした（2026-09-21 本人判断）。
+// 定義（SKINS / PRESET_SPECS）は残してあるので、過去に選んだ人の見た目は壊れない。
+export const SKIN_IDS: SkinId[] = ['classic'];
 
 const SKIN_KEY = 'fan_skin';
 

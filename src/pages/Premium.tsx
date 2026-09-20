@@ -7,7 +7,6 @@ import { getUserPublicProfile } from '../lib/api';
 import { usePremium, FREE_FOLLOW_LIMIT } from '../lib/premium';
 import { PLANS, planOf, FREE_TRIAL_POSTS, trialEligible, billingSupported, billingNotConfigured, startPurchase, restorePurchase, lastPurchaseError, yen, type PlanId } from '../lib/billing';
 import { useToast } from '../components/ui/Toast';
-import Toggle from '../components/ui/Toggle';
 import { haptic } from '../lib/haptics';
 
 // プレミアムの案内＝購入画面。設計は [[fanhive-paywall-design]]。
@@ -43,7 +42,6 @@ export default function Premium() {
   const [plan, setPlan] = useState<PlanId>('monthly');  // 既定は月払い（2026-08-10 本人確定）
   // iOSは価格を隠さない。月/年を最初から両方出す（3.1.2(c)）
   const [allPlans, setAllPlans] = useState(ios);
-  const [trialOn, setTrialOn] = useState(true);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -57,11 +55,12 @@ export default function Premium() {
 
   const eligible = ios || (posted !== null && trialEligible(posted));
   const remain = posted === null ? FREE_TRIAL_POSTS : Math.max(0, FREE_TRIAL_POSTS - posted);
-  // iOSでは初月無料を**付ける/外すの選択にしない**。Appleは「無料お試しを足したり
-  // 外したりするトグルは、自動更新の定期購読に入ることを分かりにくくする」として
-  // 3.1.2(c) で却下してきた（2026-08-21 ビルド6）。iOSは常に初月無料付きの1つの提案だけを出す。
-  // （そもそもiOSの導入価格はAppleが自動で当てるので、トグルは表示だけの飾りだった）
-  const trial = eligible && (ios || trialOn);
+  // 初月無料は**付ける/外すの選択にしない**（iOS・Android とも）。
+  //  iOS: Appleが「無料お試しを足したり外したりするトグルは、自動更新の定期購読に入ることを
+  //       分かりにくくする」として 3.1.2(c) で却下（2026-08-21 ビルド6）。
+  //  Android: 2026-09-21 本人判断。自分で気づいて ON にしないと無料にならない作りは詐欺的。
+  //       対象の人には黙って初月無料を当てる。
+  const trial = eligible;
   const selected = planOf(plan);
   const shown = allPlans ? PLANS : PLANS.filter((p) => p.id === plan);
 
@@ -227,14 +226,6 @@ export default function Premium() {
                 )}
               </div>
 
-              {/* 初月無料のトグル。対象の人にだけ出す（対象外に出すと取り上げられた感じになる）。
-                  iOSには出さない（上の3.1.2(c)のとおり） */}
-              {!ios && eligible && (
-                <div className="flex items-center gap-2 mt-4 py-2">
-                  <span className="text-[14px] flex-1">初月無料を使う</span>
-                  <Toggle checked={trialOn} onChange={(v) => { haptic.select(); setTrialOn(v); }} />
-                </div>
-              )}
             </>
           )}
         </div>
