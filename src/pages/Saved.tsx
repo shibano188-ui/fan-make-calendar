@@ -136,7 +136,7 @@ export default function Saved() {
     window.scrollTo(0, 0);
   }, [items === null]);
 
-  // 表示するのは「いいね＋自分の投稿」のみ（カレンダーは保存した予定のカレンダー）
+  // 表示するのは保存した予定だけ（自分の投稿でも、保存していなければ出ない）
   useEffect(() => {
     if (!user) return;
     let alive = true;
@@ -150,14 +150,14 @@ export default function Saved() {
     return () => { alive = false; };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // いいねトグル: 解除したら（自分の投稿でなければ）一覧から外す
+  // いいねトグル: 解除＝カレンダーから外す（自分の投稿も同じ）
   const onLike = async (e: CalendarEvent) => {
     haptic.select();
     if (!user) return;
     const r = await toggleLike(e.id, user.id);
     const apply = (list: CalendarEvent[]) => list.flatMap((it) => {
       if (it.id !== e.id) return [it];
-      if (!r.liked && it.authorId !== user.id) return [];
+      if (!r.liked) return [];
       return [{ ...it, likedByMe: r.liked, likes: r.count }];
     });
     setItems((prev) => (prev ? apply(prev) : prev));

@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { loadEventPatches, applyPatchesToRows } from './_edits';
 
 // カレンダー自動同期（プレミアム）: 保存した予定を .ics で配信する。
 // Google/Appleカレンダーに「URLで購読」してもらう方式なので、こちらから送信はしない。
@@ -84,13 +85,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const active = (status === 'active' || status === 'grace') && (!expires || Date.parse(expires) > Date.now());
   if (!active) return empty('カレンダー自動同期はプレミアムの機能です');
 
-  // 保存した予定＝自分のいいね＋自分の投稿（アプリの「いいね」タブと同じ範囲）
+  // 保存した予定＝自分がカレンダーに入れたもの（アプリのカレンダーと同じ範囲）。
+  // 自分の投稿でも、保存していなければ入れない（投稿時に入れるかはフォームのトグルで決める）
   const { data: likeRows } = await db.from('likes').select('event_id').eq('user_id', userId);
   const likedIds = (likeRows ?? []).map((r) => r.event_id as string);
   const cols = 'id, title, event_date, end_date, date_label, event_time, preorder_end_date, memo, link_url';
-  const queries = [db.from('events').select(cols).eq('pool', 0).eq('author_id', userId)];
-  if (likedIds.length) queries.push(db.from('events').select(cols).eq('pool', 0).in('id', likedIds));
-  const results = await Promise.all(queries);
+  const results = likedIds.length
+    ? [await db.from('events').select(cols).eq('pool', 0).in('id', likedIds)]
+    : [];
+  // 共同編集で直した日付を重ねる（アプリ内と同じ実効値にする）
+  const patches = await loadEventPatches(db, likedIds);
 
   // 「ここ行く!」を登録した予定は、**その日だけ**を出す。
   // 長期のコラボカフェ等を全期間で出すとカレンダーが何週間も埋まる
@@ -108,7 +112,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const stamp = `${ymd(new Date().toISOString().slice(0, 10))}T000000Z`;
   const body: string[] = [];
   for (const { data } of results) {
-    for (const e of (data ?? []) as EventRow[]) {
+    for (const e of applyPatchesToRows((data ?? []) as EventRow[], patches)) {
       if (seen.has(e.id)) continue;
       seen.add(e.id);
       const url = e.link_url || `https://fanhive.jp/item/${e.id}`;

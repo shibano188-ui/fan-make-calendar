@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { X, Plus, Check, Sparkles, Link2, Loader2, Search, Share2 } from 'lucide-react';
 import Chip from '../components/ui/Chip';
 import { resolveWorkName, sameWorkName } from '../lib/workName';
-import { searchWorks, getOrCreateWork, createEvents, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, getUserPublicProfile, listAllParticipatedWorks, type Work } from '../lib/api';
+import { searchWorks, getOrCreateWork, createEvents, toggleLike, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, getUserPublicProfile, listAllParticipatedWorks, type Work } from '../lib/api';
 import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES, GOODS_TAG, ONBOARDING_DEMO_KEY, FEATURE_PREMIUM, oneShotTip } from '../lib/constants';
 import { DEMO_POST_TEXT } from '../lib/demoPost';
 import { isPremiumCached, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
@@ -62,6 +62,11 @@ function readShare(sp: URLSearchParams): { url: string; text: string } {
 
 export default function PostNew() {
   const navigate = useNavigate();
+  // 投稿したものを自分のカレンダーに入れるか。前は自分の投稿が必ず入っていた（外せなかった）。
+  // 選んだものは覚えておく（毎回外すのは手間なので）
+  const [addToCalendar, setAddToCalendar] = useState(() => {
+    try { return localStorage.getItem('fan_post_add_calendar') !== '0'; } catch { return true; }
+  });
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const toast = useToast();
@@ -491,7 +496,11 @@ export default function PostNew() {
         prefecture: type === 'event' ? (prefecture.trim() || undefined) : undefined,
         locationDetail: type === 'event' ? (locationDetail.trim() || undefined) : undefined,
       };
-      await createEvents(wid, [eventPayload], user.id);
+      const createdIds = await createEvents(wid, [eventPayload], user.id);
+      // カレンダーに入れる＝保存（いいね）。外してあれば入れない
+      if (addToCalendar && createdIds[0]) {
+        await toggleLike(createdIds[0], user.id).catch(() => { /* 入れられなくても投稿は成立している */ });
+      }
 
       // AI入力を使った投稿なら教師データを記録（fire-and-forget）
       if (aiLogRef.current) {
@@ -903,6 +912,20 @@ export default function PostNew() {
               <textarea value={memo} onChange={(e) => setMemo(e.target.value)} rows={3} placeholder="補足情報" className={`${inputCls} resize-none`} style={inputStyle} />
             </>
           )}
+
+          {/* 自分のカレンダーに入れるか（既定は入れる） */}
+          <button onClick={() => {
+              haptic.select();
+              const next = !addToCalendar;
+              setAddToCalendar(next);
+              try { localStorage.setItem('fan_post_add_calendar', next ? '1' : '0'); } catch { /* 覚えられなくても動く */ }
+            }}
+            className="pressable w-full flex items-center justify-between mt-6">
+            <span className="text-[14px]">自分のカレンダーに入れる</span>
+            <span className="w-12 h-7 rounded-full relative flex-shrink-0" style={{ backgroundColor: addToCalendar ? 'var(--accent-color)' : 'var(--fill-tertiary)' }}>
+              <span className="absolute top-0.5 w-6 h-6 rounded-full bg-white transition-all" style={{ left: addToCalendar ? 22 : 2 }} />
+            </span>
+          </button>
 
           {error && <div className="text-[13px] mt-4" style={{ color: 'var(--color-destructive)' }}>{error}</div>}
 

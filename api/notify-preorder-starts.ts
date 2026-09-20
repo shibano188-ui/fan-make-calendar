@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { loadEventPatches } from './_edits';
 import { pushAlerts, type Alert } from './_alerts.js';
 
 // 受付開始の即時通知（プレミアムの instantAlerts）。数分おきに叩かれる前提の軽い処理。
@@ -38,17 +39,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const db = createClient(supabaseUrl, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
   // 昨日と今日だけ見る（JSTの日付境界をまたぐ時間帯でも取りこぼさない最小の範囲）
-  const { data: rows, error } = await db
-    .from('events')
-    .select('id, title, work_id, preorder_start_date, preorder_start_time, works(name)')
-    .eq('pool', 0)
-    .in('preorder_start_date', [jstDate(-1), jstDate()]);
+  const days = [jstDate(-1), jstDate()];
+  const cols = 'id, title, work_id, preorder_start_date, preorder_start_time, works(name)';
+  const { data: baseRows, error } = await db
+    .from('events').select(cols).eq('pool', 0).in('preorder_start_date', days);
   if (error) return res.status(500).json({ error: error.message });
 
+  // 共同編集で予約開始日が直された予定も拾う（直した日で通知が飛ぶようにする）。
+  // 逆に、元の日付が今日でもパッチで先に動いたものは下の実効値で外れる。
+  const patches = await loadEventPatches(db);
+  const patchedIds = [...patches.entries()]
+    .filter(([, p]) => days.includes(p.preorder_start_date as string))
+    .map(([id]) => id);
+  const known = new Set((baseRows ?? []).map((r) => r.id as string));
+  const missing = patchedIds.filter((id) => !known.has(id));
+  const extra = missing.length
+    ? (await db.from('events').select(cols).eq('pool', 0).in('id', missing)).data ?? []
+    : [];
+  const rows = [...(baseRows ?? []), ...extra].map((r) => {
+    const p = patches.get(r.id as string);
+    return p ? { ...r, ...p } : r;
+  });
+
   const now = Date.now();
-  const due = (rows ?? []).filter((r) => {
+  const due = rows.filter((r) => {
     const date = r.preorder_start_date as string | null;
-    if (!date) return false;
+    if (!date || !days.includes(date)) return false; // パッチで日付が動いたものはここで外れる
     const time = ((r.preorder_start_time as string | null) ?? DEFAULT_START_HOUR).slice(0, 5);
     const startAt = Date.parse(`${date}T${time}:00+09:00`);
     if (Number.isNaN(startAt)) return false;
