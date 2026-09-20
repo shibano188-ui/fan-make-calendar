@@ -121,6 +121,27 @@ export function shade(hex: string, amount: number): string {
   return `#${rgb.map(v => v.toString(16).padStart(2, '0')).join('')}`;
 }
 
+/**
+ * 2つの色を、必要な差が出るまで引き離す。
+ * まずは自然な向き（明るい方が明るく）へ動かし、振り切ったら逆向きで試す。
+ * 「面と地が同じ色でカードが消える」「罫線が地に溶けて枠が見えない」を防ぐための最低限。
+ */
+function separate(color: string, from: string, need: number): string {
+  if (!HEX.test(color) || !HEX.test(from)) return color;
+  if (contrast(color, from) >= need) return color;
+  const first: 'light' | 'dark' = luminance(color) >= luminance(from) ? 'light' : 'dark';
+  for (const toward of [first, first === 'light' ? 'dark' : 'light'] as const) {
+    let out = color;
+    for (let i = 0; i < 60 && contrast(out, from) < need; i++) {
+      const next = nudge(out, toward);
+      if (next === out) break;   // 白／黒に振り切った
+      out = next;
+    }
+    if (contrast(out, from) >= need) return out;
+  }
+  return color;
+}
+
 export type ContrastReport = { label: string; ratio: number; need: number; fixed: boolean };
 
 /**
@@ -167,6 +188,49 @@ export function fixColors(c: ThemeColors, accent: string): { colors: ThemeColors
   });
 
   return { colors: out, report };
+}
+
+/**
+ * 「読めるか」の前に「見えるか」を守る。
+ *
+ * 面と地、入力欄と面、罫線と地が同じ色だと、カードも枠も入力欄も消える
+ * （生成テーマで実際に起きた：枠が背景に同化して境目が分からない）。
+ * 文字のコントラストは上で見ているが、**面と面の境目は誰も見ていなかった**。
+ * ここは大きく動かさない。境目が分かる最小限だけ引き離す。
+ */
+function fixSurfaces(c: ThemeColors): { colors: ThemeColors; report: ContrastReport[] } {
+  const out: ThemeColors = { ...c, status: c.status ? { ...c.status } : undefined };
+  const report: ContrastReport[] = [];
+
+  const sep = (label: string, value: string, from: string, need: number, apply: (v: string) => void) => {
+    const before = contrast(value, from);
+    if (before >= need) {
+      report.push({ label, ratio: Math.round(before * 100) / 100, need, fixed: false });
+      return;
+    }
+    const next = separate(value, from, need);
+    apply(next);
+    report.push({ label, ratio: Math.round(contrast(next, from) * 100) / 100, need, fixed: next !== value });
+  };
+
+  // カード・バーの面が地から浮いて見えること
+  sep('面と地', out.surface, out.bg, 1.12, v => { out.surface = v; });
+  // 入力欄が面の中で分かること
+  sep('入力欄と面', out.surface2, out.surface, 1.08, v => { out.surface2 = v; });
+  // 罫線のもと。border-subtle(11%) 程度でも境目が出るだけの差を持たせる。
+  // line は省略できる（そのときは文字の色を使うので十分な差がある）
+  if (out.line) {
+    sep('罫線と地', out.line, out.bg, 2.0, v => { out.line = v; });
+    sep('罫線と面', out.line!, out.surface, 1.8, v => { out.line = v; });
+  }
+  return { colors: out, report };
+}
+
+/** アクセントが地・面に沈まないようにする（塗りボタンや選択中の印が消えるのを防ぐ） */
+export function fixAccent(accent: string, c: ThemeColors): string {
+  let out = separate(accent, c.bg, 2.0);
+  out = separate(out, c.surface, 1.8);
+  return out;
 }
 
 // ── 語彙の検査と差分の適用 ────────────────────────────────────────
@@ -279,6 +343,15 @@ export function applyPatch(now: ThemeSpec, patch: unknown): { spec: ThemeSpec; r
   // （Android 15 は setBackgroundColor が効かず、アプリが描いた色がそのまま見える）
   merged.statusBar = merged.bars === 'band' || merged.bars === 'knockout' ? 'accent' : 'bg';
 
+  // 先に「見えるか」（面・罫線の境目）、そのあと「読めるか」（文字の明暗差）の順に直す。
+  // 面を動かしたあとに文字を合わせないと、文字だけ先に合わせても面の移動でずれる。
+  const ds = fixSurfaces(merged.dark);
+  const ls = fixSurfaces(merged.light);
+  merged.dark = ds.colors;
+  merged.light = ls.colors;
+  // アクセントは明暗どちらでも沈まないところに置く（片方だけ直すと逆の明るさで消える）
+  merged.accent = fixAccent(fixAccent(merged.accent, merged.dark), merged.light);
+
   const d = fixColors(merged.dark, merged.accent);
   const l = fixColors(merged.light, merged.accent);
   merged.dark = d.colors;
@@ -287,7 +360,9 @@ export function applyPatch(now: ThemeSpec, patch: unknown): { spec: ThemeSpec; r
   return {
     spec: merged,
     report: [
+      ...ds.report.map(r => ({ ...r, label: `暗: ${r.label}` })),
       ...d.report.map(r => ({ ...r, label: `暗: ${r.label}` })),
+      ...ls.report.map(r => ({ ...r, label: `明: ${r.label}` })),
       ...l.report.map(r => ({ ...r, label: `明: ${r.label}` })),
     ],
   };
