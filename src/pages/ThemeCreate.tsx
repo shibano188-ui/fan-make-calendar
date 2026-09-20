@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ImagePlus, History, X } from 'lucide-react';
+import { ImagePlus, History, X, Check } from 'lucide-react';
 import { haptic } from '../lib/haptics';
 import Layout from '../components/Layout';
 import Header from '../components/Header';
@@ -91,10 +91,12 @@ export default function ThemeCreate() {
   const tweaksLeft = limit - (draft?.tweaks ?? 0);
   const fixedCount = report.filter(r => r.fixed).length;
 
-  /** 履歴から前（または後ろ）の版に移る。保存するのは今見ている版 */
+  /** 一覧から版を選ぶ。選んだら一覧は畳む。保存するのは選んでいる版 */
   const goToVersion = useCallback((i: number) => {
-    if (!draft || i < 0 || i >= draft.versions.length || i === draft.index) return;
+    if (!draft || i < 0 || i >= draft.versions.length) return;
     haptic.select();
+    setHistoryOpen(false);
+    if (i === draft.index) return;
     setDraft({ ...draft, spec: draft.versions[i].spec, note: draft.versions[i].note, index: i });
   }, [draft, setDraft]);
 
@@ -258,7 +260,7 @@ export default function ThemeCreate() {
                   <span className="text-[12px] flex-1 min-w-0 truncate" style={{ color: on ? 'var(--label-primary)' : 'var(--label-secondary)' }}>
                     {v.note || v.spec.name}
                   </span>
-                  {on && <span className="text-[11px] flex-shrink-0" style={{ color: 'var(--accent-text)' }}>いま</span>}
+                  {on && <Check size={15} className="flex-shrink-0" style={{ color: 'var(--accent-text)' }} strokeWidth={3} />}
                 </button>
               );
             })}
