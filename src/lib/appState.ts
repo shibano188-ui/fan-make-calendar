@@ -33,6 +33,10 @@ const KEYS = {
 
 export type AppStateColumn = keyof typeof KEYS;
 
+/** まだ本番にSQLを流していない列。ここに入れておくと、列が無い環境でも同期が止まらない。
+ *  （流したら空にする。sql/2026-09-21-work-settings.sql） */
+const PENDING_COLS: AppStateColumn[] = ['work_settings', 'work_order'];
+
 // 配列で持つもの（それ以外＝work_colors / work_images はオブジェクト）
 const IS_ARRAY: Record<AppStateColumn, boolean> = {
   important_event_ids: true,
@@ -116,10 +120,10 @@ export async function syncAppState(userId: string): Promise<void> {
     // ただし新しい列のSQLが未適用の環境では select ごと失敗するので、旧列だけで一度だけ retry する
     // （ここで諦めると既存の同期まで止まってしまう）。
     const ALL_COLS = (Object.keys(KEYS) as AppStateColumn[]).join(',');
-    const LEGACY_COLS = 'important_event_ids,bell_event_ids,notify_event_ids,hidden_work_ids,work_colors';
+    const OLD_COLS = (Object.keys(KEYS) as AppStateColumn[]).filter(c => !PENDING_COLS.includes(c)).join(',');
     let { data, error } = await supabase.from(TABLE).select(ALL_COLS).eq('user_id', userId).maybeSingle();
     if (error) {
-      ({ data, error } = await supabase.from(TABLE).select(LEGACY_COLS).eq('user_id', userId).maybeSingle());
+      ({ data, error } = await supabase.from(TABLE).select(OLD_COLS).eq('user_id', userId).maybeSingle());
     }
     if (error) return;
 
@@ -144,10 +148,17 @@ export async function syncAppState(userId: string): Promise<void> {
     }
 
     if (Object.keys(upload).length > 0) {
-      const { error: upErr } = await supabase
+      const send = (cols: Record<string, unknown>) => supabase
         .from(TABLE)
-        .upsert({ user_id: userId, ...upload, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
-      if (upErr) return;
+        .upsert({ user_id: userId, ...cols, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+      let { error: upErr } = await send(upload);
+      if (upErr) {
+        // 新しい列のSQLが未適用なら、その列を落として残りだけ上げる
+        const rest = Object.fromEntries(Object.entries(upload).filter(([k]) => !PENDING_COLS.includes(k as AppStateColumn)));
+        if (Object.keys(rest).length === 0) return;
+        ({ error: upErr } = await send(rest));
+        if (upErr) return;
+      }
     }
     if (localWins) { try { localStorage.setItem(LOCAL_WINS_KEY, userId); } catch { /* noop */ } }
     synced = true;

@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { Upload, ChevronDown, ChevronUp, ImagePlus, X, Check, Plus } from 'lucide-react';
+import { Upload, ChevronDown, GripVertical, ImagePlus, X, Check, Plus } from 'lucide-react';
 import { getContrastText } from '../lib/color';
 import Layout from '../components/Layout';
 import Header from '../components/Header';
@@ -240,17 +240,44 @@ export default function Customize() {
     lookWorkId, setLookWorkId, workLooks, setLookActive } = useTheme();
   const navigate = useNavigate();
 
-  /** 作品を1つ上／下へ。並びは端末に覚え、アカウントにも同期する */
-  const moveWork = (index: number, delta: number) => {
+  // ── 作品の並び替え（つまんで動かす） ──
+  // 指が今どの行の上にあるかで入れ替える。指を離したところで並びを保存する。
+  const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const dragRef = useRef<{ id: string; index: number } | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+
+  const onGripDown = (e: React.PointerEvent, id: string, index: number) => {
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    dragRef.current = { id, index };
+    setDragId(id);
+    haptic.select();
+  };
+
+  const onGripMove = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d) return;
     setParticipatedWorks((prev) => {
+      const over = prev.findIndex((w) => {
+        const el = rowRefs.current[w.id];
+        if (!el) return false;
+        const r = el.getBoundingClientRect();
+        return e.clientY >= r.top && e.clientY <= r.bottom;
+      });
+      if (over === -1 || over === d.index) return prev;
       const next = [...prev];
-      const to = index + delta;
-      if (to < 0 || to >= next.length) return prev;
-      [next[index], next[to]] = [next[to], next[index]];
+      const [moved] = next.splice(d.index, 1);
+      next.splice(over, 0, moved);
+      d.index = over;
       haptic.select();
-      saveWorkOrder(next.map((w) => w.id));
       return next;
     });
+  };
+
+  const onGripUp = () => {
+    if (!dragRef.current) return;
+    dragRef.current = null;
+    setDragId(null);
+    setParticipatedWorks((prev) => { saveWorkOrder(prev.map((w) => w.id)); return prev; });
   };
 
   // この画面にいる間は、選んでいるタブの見た目を当てて見せる（直したものがその場で分かるように）
@@ -459,7 +486,9 @@ export default function Customize() {
                   {participatedWorks.map((w, i) => {
                     const currentColor = workColors[w.id] ?? WORK_COLORS[i % WORK_COLORS.length];
                     return (
-                      <div key={w.id} className="flex items-center justify-between gap-2">
+                      <div key={w.id} ref={(el) => { rowRefs.current[w.id] = el; }}
+                        className="flex items-center justify-between gap-2 transition-opacity"
+                        style={dragId === w.id ? { opacity: 0.6 } : undefined}>
                         {/* 作品の画像。押すと写真を選ぶ。無ければ作品カラーの四角 */}
                         <div className="relative flex-shrink-0">
                           <button onClick={() => pickWorkImage(w.id)} aria-label={`${w.name}の画像を選ぶ`}
@@ -478,14 +507,18 @@ export default function Customize() {
                           )}
                         </div>
                         <span className="flex-1 min-w-0 truncate text-label-secondary text-sm">{w.name}</span>
-                        {/* 並び替え。ここの並びが上の作品チップの並びになる */}
+                        {/* 並び替えの取っ手。つまんで上下に動かす。
+                            ここの並びが上の作品チップの並びになる */}
                         {participatedWorks.length > 1 && (
-                          <div className="flex flex-col flex-shrink-0">
-                            <button onClick={() => moveWork(i, -1)} disabled={i === 0} aria-label={`${w.name}を上へ`}
-                              className="pressable px-1 disabled:opacity-25 text-label-tertiary"><ChevronUp size={15} /></button>
-                            <button onClick={() => moveWork(i, 1)} disabled={i === participatedWorks.length - 1} aria-label={`${w.name}を下へ`}
-                              className="pressable px-1 disabled:opacity-25 text-label-tertiary"><ChevronDown size={15} /></button>
-                          </div>
+                          <button aria-label={`${w.name}の並びを変える`}
+                            onPointerDown={(e) => onGripDown(e, w.id, i)}
+                            onPointerMove={onGripMove}
+                            onPointerUp={onGripUp}
+                            onPointerCancel={onGripUp}
+                            className="flex-shrink-0 px-1 py-2 text-label-tertiary"
+                            style={{ touchAction: 'none', cursor: 'grab' }}>
+                            <GripVertical size={16} />
+                          </button>
                         )}
                         <button
                           ref={el => { workBtnRefs.current[i] = el; }}
