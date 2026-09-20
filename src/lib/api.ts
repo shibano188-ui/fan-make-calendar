@@ -983,6 +983,9 @@ export type EventPatch = Partial<Pick<CalendarEvent, 'date' | 'dateLabel' | 'end
   /** ソース（どこで知ったか）として足されたURL。買えるページではないので購入リンクには混ぜない。
    * E1 の event_sources ができるまでの置き場所。表示は詳細ページが edits から直接組み立てる。 */
   addedSourceUrls?: string[];
+  /** 型に収まらない詳しい情報（購入制限・整理券など）の自由記入。
+   * 「自由に書ける公開の場所は作らない」方針なので**画面には出さない**。運営とAIが読んで項目に反映する（E6）。 */
+  addedNote?: string;
 };
 export type EventEdit = { id: string; patch: EventPatch; createdBy: string | null; createdAt: string };
 
@@ -1012,7 +1015,7 @@ export function applyEdits<T extends CalendarEvent>(event: T, edits: EventEdit[]
   const removed = new Set<string>();
   for (const ed of edits) {
     // ソースは予定の項目ではないので実効値には畳み込まない（詳細ページが edits から並べる）
-    const { removedOfferUrls, addedSourceUrls: _sources, ...rest } = ed.patch;
+    const { removedOfferUrls, addedSourceUrls: _sources, addedNote: _note, ...rest } = ed.patch;
     for (const u of removedOfferUrls ?? []) removed.add(u);
     e = { ...e, ...rest };
   }

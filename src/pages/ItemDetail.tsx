@@ -35,6 +35,7 @@ function summarizePatch(p: EventPatch): string {
   const parts: string[] = [];
   if (p.removedOfferUrls?.length) parts.push(`購入リンクを取り消し（${p.removedOfferUrls.length}件）`);
   if (p.addedSourceUrls?.length) parts.push(`ソースを追加（${p.addedSourceUrls.length}件）`);
+  if (p.addedNote) parts.push('詳しい情報を追加');
   if ('date' in p) parts.push(`日付 ${p.date ? p.date.slice(5).replace('-', '/') : '未定'}`);
   if (p.endDate) parts.push(`〜${p.endDate.slice(5).replace('-', '/')}`);
   if (p.time) parts.push(p.time);
@@ -286,6 +287,15 @@ export default function ItemDetail() {
   };
   const onAddStock = async () => {
     if (await addStock(stockInput.trim())) setStockInput('');
+  };
+  // 型に収まらない詳しい情報。画面には出さず、運営とAIが読む（E6）
+  const addNote = async (text: string): Promise<boolean> => {
+    if (!text || !user) return false;
+    const ed = await addEventEdit(event.id, { addedNote: text }, user.id);
+    if (ed) setEdits((prev) => [...prev, ed]);
+    haptic.select();
+    toast(ed ? '詳しい情報を送りました' : '送れませんでした', ed ? undefined : 'error');
+    return !!ed;
   };
   const onRemoveStock = async (rid: string) => {
     haptic.select();
@@ -683,14 +693,15 @@ export default function ItemDetail() {
           </div>
         )}
 
-        {/* ＋α: 情報を足す入口。購入バーがあるときはその上に重ねる */}
+        {/* ＋α: 情報を足す入口。購入バーがあるときはその上に重ねる。
+            色は購入バー（アクセント）と分ける＝主役は購入のままにする */}
         {user && (
           <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-app z-30 pointer-events-none"
-            style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + ${buyMode !== 'none' ? 84 : 20}px)` }}>
+            style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + ${buyMode !== 'none' ? 108 : 36}px)` }}>
             <div className="flex justify-end px-4">
-              <button onClick={() => { haptic.select(); setAddOpen(true); }} aria-label="情報を追加"
-                className="pressable shadow-float pointer-events-auto w-14 h-14 rounded-full relative flex items-center justify-center"
-                style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+              <button onClick={() => { haptic.select(); setAddOpen(true); }} aria-label="情報を追加・修正"
+                className="pressable shadow-float pointer-events-auto material-thick border border-subtle w-14 h-14 rounded-full relative flex items-center justify-center"
+                style={{ color: 'var(--accent-text)' }}>
                 <Plus size={15} strokeWidth={3.5} className="absolute left-3 top-3" />
                 <span className="text-[26px] font-black leading-none" style={{ transform: 'translate(3px, 3px)' }}>α</span>
               </button>
@@ -706,6 +717,7 @@ export default function ItemDetail() {
           onSaveEdit={onSaveEdit}
           onAddLink={addLink}
           onAddStock={addStock}
+          onAddNote={addNote}
         />
       )}
 
