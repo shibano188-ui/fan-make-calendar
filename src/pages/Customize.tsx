@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { Upload, ChevronDown, ImagePlus, X, Check } from 'lucide-react';
+import { Upload, ChevronDown, ImagePlus, X, Check, Plus } from 'lucide-react';
 import { getContrastText } from '../lib/color';
 import Layout from '../components/Layout';
 import Header from '../components/Header';
@@ -13,6 +13,9 @@ import { pushAppState } from '../lib/appState';
 import { hasNativePhotoPicker, pickPhoto } from '../lib/pickPhoto';
 import { SKINS, SKIN_IDS, type SkinDef } from '../design/skins';
 import ThemeList from '../components/theme/ThemeList';
+import { useNavigate } from 'react-router-dom';
+import { usePremium } from '../lib/premium';
+import { FREE_THEME_LIMIT } from '../lib/userThemes';
 
 const CAL_COLOR_FIELDS: { key: keyof UserSettings; label: string; cssVar: string }[] = [
   { key: 'calWeekday',    label: '平日',        cssVar: '--cal-weekday-color' },
@@ -213,7 +216,11 @@ function SkinPreview({ def, dark }: { def: SkinDef; dark: boolean }) {
 const ACCENTS = ['#FBBF00', '#D85A30', '#1D9E75', '#378ADD', '#D4537E'] as const;
 
 export default function Customize() {
-  const { settings, updateSettings, currentWorkId, skin, setSkin, userThemeId } = useTheme();
+  const { settings, updateSettings, currentWorkId, skin, setSkin, userThemeId, userThemes } = useTheme();
+  const navigate = useNavigate();
+  const premiumForThemes = usePremium();
+  // 無料の枠が埋まっているなら、作りに行かせる前に案内へ送る（ThemeList と同じ判断）
+  const themeCapped = !premiumForThemes && userThemes.length >= FREE_THEME_LIMIT;
   const { user } = useAuth();
   const confirmDialog = useConfirm();
   const currentWorkName = localStorage.getItem('last_calendar_work_name') ?? '';
@@ -537,6 +544,12 @@ export default function Customize() {
                 </button>
               );
             })}
+            {/* 作る入口はここ（テーマの並びの中）。無料の枠が埋まっていたら先に案内へ送る */}
+            <button onClick={() => navigate(themeCapped ? '/premium' : '/customize/theme')}
+              className="rounded-xl border-2 border-dashed border-subtle flex flex-col items-center justify-center gap-1 py-4">
+              <Plus size={18} className="text-label-secondary" />
+              <span className="text-[11px] text-label-secondary text-center leading-tight px-1">AIテーマ生成</span>
+            </button>
           </div>
           {/* 以前の「みんなのテーマ」を選んだままの人への逃げ道。選択中は色がそちら優先のままなので、
               下の明るさを押せば解除される（communityThemeId を空にする）ことを明示する */}

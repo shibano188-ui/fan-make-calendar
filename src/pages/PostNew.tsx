@@ -62,7 +62,7 @@ function readShare(sp: URLSearchParams): { url: string; text: string } {
 
 export default function PostNew() {
   const navigate = useNavigate();
-  // 投稿したものを自分のカレンダーに入れるか。前は自分の投稿が必ず入っていた（外せなかった）。
+  // 投稿したものをカレンダーに登録するか。前は自分の投稿が必ず入っていた（外せなかった）。
   // 選んだものは覚えておく（毎回外すのは手間なので）
   const [addToCalendar, setAddToCalendar] = useState(() => {
     try { return localStorage.getItem('fan_post_add_calendar') !== '0'; } catch { return true; }
@@ -497,7 +497,7 @@ export default function PostNew() {
         locationDetail: type === 'event' ? (locationDetail.trim() || undefined) : undefined,
       };
       const createdIds = await createEvents(wid, [eventPayload], user.id);
-      // カレンダーに入れる＝保存（いいね）。外してあれば入れない
+      // カレンダーに登録＝保存（いいね）。外してあれば登録しない
       if (addToCalendar && createdIds[0]) {
         await toggleLike(createdIds[0], user.id).catch(() => { /* 入れられなくても投稿は成立している */ });
       }
@@ -913,7 +913,7 @@ export default function PostNew() {
             </>
           )}
 
-          {/* 自分のカレンダーに入れるか（既定は入れる） */}
+          {/* カレンダーに登録するか（既定は登録する） */}
           <button onClick={() => {
               haptic.select();
               const next = !addToCalendar;
@@ -921,7 +921,7 @@ export default function PostNew() {
               try { localStorage.setItem('fan_post_add_calendar', next ? '1' : '0'); } catch { /* 覚えられなくても動く */ }
             }}
             className="pressable w-full flex items-center justify-between mt-6">
-            <span className="text-[14px]">自分のカレンダーに入れる</span>
+            <span className="text-[14px]">カレンダーに登録</span>
             <span className="w-12 h-7 rounded-full relative flex-shrink-0" style={{ backgroundColor: addToCalendar ? 'var(--accent-color)' : 'var(--fill-tertiary)' }}>
               <span className="absolute top-0.5 w-6 h-6 rounded-full bg-white transition-all" style={{ left: addToCalendar ? 22 : 2 }} />
             </span>
