@@ -568,6 +568,8 @@ export default function Customize() {
                 </button>
               );
             })}
+            {/* 作ったテーマも同じ並びに出す（別の見出しを立てない） */}
+            <ThemeList />
             {/* 作る入口はここ（テーマの並びの中）。無料の枠が埋まっていたら先に案内へ送る */}
             <button onClick={() => navigate(themeCapped ? '/premium' : '/customize/theme')}
               className="rounded-xl border-2 border-dashed border-subtle flex flex-col items-center justify-center gap-1 py-4">
@@ -584,9 +586,6 @@ export default function Customize() {
             </p>
           )}
         </section>
-
-        {/* 自分のテーマ。作るのは専用ページ（/customize/theme）でやる */}
-        <ThemeList />
 
         {/* カラー・背景画像の設定。タブで「どのカレンダーの見た目か」を選ぶ。
             選んでいるタブの見た目が、そのままカレンダーの画面で使われる。 */}

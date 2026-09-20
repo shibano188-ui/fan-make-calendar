@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { X, Plus, Check, Sparkles, Link2, Loader2, Search, Share2 } from 'lucide-react';
+import { X, Plus, Check, Sparkles, Link2, Loader2, Search, Share2, CalendarPlus } from 'lucide-react';
 import Chip from '../components/ui/Chip';
 import { resolveWorkName, sameWorkName } from '../lib/workName';
 import { searchWorks, getOrCreateWork, createEvents, toggleLike, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, getUserPublicProfile, listAllParticipatedWorks, type Work } from '../lib/api';
@@ -563,13 +563,32 @@ export default function PostNew() {
         {/* ヘッダー */}
         <div className="sticky top-0 z-20 flex items-center justify-between px-3 py-2.5 material-bar scroll-edge" style={{ paddingTop: 'calc(var(--sat) + 10px)' }}>
           {/* 入力中(キーボード表示中)は最初のタップがblurに食われて閉じないため pointerDown で確実に閉じる */}
-          <button onPointerDown={(e) => { e.preventDefault(); onClose(); }} aria-label="閉じる" className="pressable tap-44 p-1"><X size={22} /></button>
-          <span className="font-semibold">{demo ? '投稿（例）' : '投稿'}</span>
-          <button onClick={onSubmit} disabled={!canSave}
-            className="pressable px-3 py-1.5 rounded-full text-[13px] font-semibold"
-            style={canSave ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' } : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-tertiary)' }}>
-            {saving ? '投稿中…' : '投稿'}
-          </button>
+          <div className="flex items-center gap-1 min-w-0">
+            {/* 入力中(キーボード表示中)は最初のタップがblurに食われて閉じないため pointerDown で確実に閉じる */}
+            <button onPointerDown={(e) => { e.preventDefault(); onClose(); }} aria-label="閉じる" className="pressable tap-44 p-1"><X size={22} /></button>
+            <span className="font-semibold truncate">{demo ? '投稿（例）' : '投稿'}</span>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* カレンダーに登録するか。前は自分の投稿が必ず入っていた（外せなかった） */}
+            <button onClick={() => {
+                haptic.select();
+                const next = !addToCalendar;
+                setAddToCalendar(next);
+                try { localStorage.setItem('fan_post_add_calendar', next ? '1' : '0'); } catch { /* 覚えられなくても動く */ }
+              }}
+              aria-pressed={addToCalendar} aria-label="カレンダーに登録"
+              className="pressable flex items-center gap-1 px-2.5 h-8 rounded-full text-[12px] font-semibold"
+              style={addToCalendar
+                ? { backgroundColor: 'color-mix(in srgb, var(--accent-color) 22%, transparent)', color: 'var(--accent-text)' }
+                : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-tertiary)' }}>
+              <CalendarPlus size={15} />カレンダー
+            </button>
+            <button onClick={onSubmit} disabled={!canSave}
+              className="pressable px-3 py-1.5 rounded-full text-[13px] font-semibold"
+              style={canSave ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' } : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-tertiary)' }}>
+              {saving ? '投稿中…' : '投稿'}
+            </button>
+          </div>
         </div>
 
         <div className="px-4 pb-24">
@@ -912,20 +931,6 @@ export default function PostNew() {
               <textarea value={memo} onChange={(e) => setMemo(e.target.value)} rows={3} placeholder="補足情報" className={`${inputCls} resize-none`} style={inputStyle} />
             </>
           )}
-
-          {/* カレンダーに登録するか（既定は登録する） */}
-          <button onClick={() => {
-              haptic.select();
-              const next = !addToCalendar;
-              setAddToCalendar(next);
-              try { localStorage.setItem('fan_post_add_calendar', next ? '1' : '0'); } catch { /* 覚えられなくても動く */ }
-            }}
-            className="pressable w-full flex items-center justify-between mt-6">
-            <span className="text-[14px]">カレンダーに登録</span>
-            <span className="w-12 h-7 rounded-full relative flex-shrink-0" style={{ backgroundColor: addToCalendar ? 'var(--accent-color)' : 'var(--fill-tertiary)' }}>
-              <span className="absolute top-0.5 w-6 h-6 rounded-full bg-white transition-all" style={{ left: addToCalendar ? 22 : 2 }} />
-            </span>
-          </button>
 
           {error && <div className="text-[13px] mt-4" style={{ color: 'var(--color-destructive)' }}>{error}</div>}
 
