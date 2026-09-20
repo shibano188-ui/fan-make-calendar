@@ -235,7 +235,7 @@ const ACCENTS = ['#FBBF00', '#D85A30', '#1D9E75', '#378ADD', '#D4537E'] as const
 
 export default function Customize() {
   const { settings, updateSettings, currentWorkId, skin, setSkin, userThemeId, userThemes,
-    lookWorkId, setLookWorkId, workLooks, setLookActive, resetWorkLook } = useTheme();
+    lookWorkId, setLookWorkId, workLooks, setLookActive } = useTheme();
   const navigate = useNavigate();
   // この画面にいる間は、選んでいるタブの見た目を当てて見せる（直したものがその場で分かるように）
   useEffect(() => {
@@ -601,21 +601,7 @@ export default function Customize() {
               </LookTab>
             ))}
           </div>
-          <div className="flex items-start gap-3 mt-2 mb-4">
-            <p className="text-label-tertiary text-[11px] flex-1 leading-relaxed">
-              {lookWorkId
-                ? 'カレンダーの画面をこの作品の見た目にします。ここで直した項目だけが上書きされます'
-                : 'アプリ全体の見た目です。作品を選ぶと、その作品だけの見た目を作れます'}
-            </p>
-            {lookWorkId && Object.keys(workLooks[lookWorkId] ?? {}).length > 0 && (
-              <button onClick={() => resetWorkLook(lookWorkId)}
-                className="pressable flex-shrink-0 text-[11px] text-label-tertiary underline">
-                デフォルトに戻す
-              </button>
-            )}
-          </div>
-
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-6 mt-4">
         {/* アクセントカラー（マイページから移した） */}
         <section>
           <p className="text-label-tertiary text-xs mb-3">アクセントカラー</p>
