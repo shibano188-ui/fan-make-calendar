@@ -34,8 +34,8 @@ const KEYS = {
 export type AppStateColumn = keyof typeof KEYS;
 
 /** まだ本番にSQLを流していない列。ここに入れておくと、列が無い環境でも同期が止まらない。
- *  （流したら空にする。sql/2026-09-21-work-settings.sql） */
-const PENDING_COLS: AppStateColumn[] = ['work_settings', 'work_order'];
+ *  流したら空にする（work_settings / work_order は 2026-09-21 に流し済み）。 */
+const PENDING_COLS: AppStateColumn[] = [];
 
 // 配列で持つもの（それ以外＝work_colors / work_images はオブジェクト）
 const IS_ARRAY: Record<AppStateColumn, boolean> = {
