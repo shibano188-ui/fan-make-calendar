@@ -17,6 +17,24 @@ import { useNavigate } from 'react-router-dom';
 import { usePremium } from '../lib/premium';
 import { FREE_THEME_LIMIT } from '../lib/userThemes';
 
+/** 「カラー・背景画像の設定」のタブ。選んだものがカレンダーで使う見た目になる */
+function LookTab({ active, onClick, children, dot }: {
+  active: boolean; onClick: () => void; children: React.ReactNode; dot?: boolean;
+}) {
+  return (
+    <button onClick={onClick} aria-pressed={active}
+      className="pressable flex-shrink-0 h-8 px-3 rounded-full text-[13px] font-semibold relative"
+      style={active
+        ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }
+        : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-secondary)' }}>
+      {children}
+      {dot && !active && (
+        <span className="absolute top-1 right-1.5 w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--accent-color)' }} />
+      )}
+    </button>
+  );
+}
+
 const CAL_COLOR_FIELDS: { key: keyof UserSettings; label: string; cssVar: string }[] = [
   { key: 'calWeekday',    label: '平日',        cssVar: '--cal-weekday-color' },
   { key: 'calSaturday',   label: '土曜日',      cssVar: '--cal-saturday-color' },
@@ -216,8 +234,14 @@ function SkinPreview({ def, dark }: { def: SkinDef; dark: boolean }) {
 const ACCENTS = ['#FBBF00', '#D85A30', '#1D9E75', '#378ADD', '#D4537E'] as const;
 
 export default function Customize() {
-  const { settings, updateSettings, currentWorkId, skin, setSkin, userThemeId, userThemes } = useTheme();
+  const { settings, updateSettings, currentWorkId, skin, setSkin, userThemeId, userThemes,
+    lookWorkId, setLookWorkId, workLooks, setLookActive, resetWorkLook } = useTheme();
   const navigate = useNavigate();
+  // この画面にいる間は、選んでいるタブの見た目を当てて見せる（直したものがその場で分かるように）
+  useEffect(() => {
+    setLookActive(true);
+    return () => setLookActive(false);
+  }, [setLookActive]);
   const premiumForThemes = usePremium();
   // 無料の枠が埋まっているなら、作りに行かせる前に案内へ送る（ThemeList と同じ判断）
   const themeCapped = !premiumForThemes && userThemes.length >= FREE_THEME_LIMIT;
@@ -564,6 +588,34 @@ export default function Customize() {
         {/* 自分のテーマ。作るのは専用ページ（/customize/theme）でやる */}
         <ThemeList />
 
+        {/* カラー・背景画像の設定。タブで「どのカレンダーの見た目か」を選ぶ。
+            選んでいるタブの見た目が、そのままカレンダーの画面で使われる。 */}
+        <section>
+          <p className="text-label-tertiary text-xs mb-2">カラー・背景画像の設定</p>
+          <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+            <LookTab active={!lookWorkId} onClick={() => setLookWorkId('')}>デフォルト</LookTab>
+            {participatedWorks.map((w) => (
+              <LookTab key={w.id} active={lookWorkId === w.id} onClick={() => setLookWorkId(w.id)}
+                dot={Object.keys(workLooks[w.id] ?? {}).length > 0}>
+                {w.name}
+              </LookTab>
+            ))}
+          </div>
+          <div className="flex items-start gap-3 mt-2 mb-4">
+            <p className="text-label-tertiary text-[11px] flex-1 leading-relaxed">
+              {lookWorkId
+                ? 'カレンダーの画面をこの作品の見た目にします。ここで直した項目だけが上書きされます'
+                : 'アプリ全体の見た目です。作品を選ぶと、その作品だけの見た目を作れます'}
+            </p>
+            {lookWorkId && Object.keys(workLooks[lookWorkId] ?? {}).length > 0 && (
+              <button onClick={() => resetWorkLook(lookWorkId)}
+                className="pressable flex-shrink-0 text-[11px] text-label-tertiary underline">
+                デフォルトに戻す
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-6">
         {/* アクセントカラー（マイページから移した） */}
         <section>
           <p className="text-label-tertiary text-xs mb-3">アクセントカラー</p>
@@ -787,6 +839,8 @@ export default function Customize() {
               <div className="h-12 bg-[#1a1a1a]" />
               <div className="bg-bg-secondary py-1.5"><p className="text-xs text-label-primary text-center">ダーク</p></div>
             </button>
+          </div>
+        </section>
           </div>
         </section>
 

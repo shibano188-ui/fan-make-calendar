@@ -14,6 +14,7 @@ import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveStatus, todayStr, STATUS, type ItemStatus } from '../design/tokens';
 import { getHomePrefecture, toggleLike, toggleCalendarAdd, listAllParticipatedWorks, type Work } from '../lib/api';
 import { loadWorkImages } from '../lib/workImages';
+import { useTheme } from '../contexts/ThemeContext';
 import { peekSaved, loadSaved, updateSaved } from '../lib/savedStore';
 import { parseCategories, isNotifyOn } from '../lib/constants';
 import { buildWorkColorMap } from '../lib/workColors';
@@ -135,6 +136,13 @@ export default function Saved() {
     }
     window.scrollTo(0, 0);
   }, [items === null]);
+
+  // カレンダーの画面にいる間だけ、作品ごとの見た目を効かせる（ほかの画面はデフォルト）
+  const { setLookActive } = useTheme();
+  useEffect(() => {
+    setLookActive(true);
+    return () => setLookActive(false);
+  }, [setLookActive]);
 
   // 表示するのは保存した予定だけ（自分の投稿でも、保存していなければ出ない）
   useEffect(() => {
