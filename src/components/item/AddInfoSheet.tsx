@@ -59,7 +59,7 @@ export default function AddInfoSheet({ event, onClose, onSaveEdit, onAddLink, on
 
   return (
     <Sheet onClose={onClose} title="情報を追加" ariaLabel="情報を追加" maxHeight="62dvh" fixed={tabs}>
-      <div className="px-4 pt-3" style={{ minHeight: '30dvh' }}>
+      <div className="px-4 pt-3" style={{ minHeight: '38dvh' }}>
         {tab === 'date' && (
           <>
             <p className="text-[12px] text-label-tertiary">直した日時はみんなに反映されます（履歴から戻せます）</p>
