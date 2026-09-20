@@ -125,6 +125,18 @@ export function isNoiseLink(url: string): boolean {
   return NOISE_LINK_PATTERNS.some((re) => re.test(h));
 }
 
+// 購入リンクではなく「ソース（どこで知ったか）」として受け取るURL。
+// まとめ・ニュース・SNS に加えて X のポストを含む。ユーザーが同じ入力欄に貼るリンクは
+// 買えるページとソースが混ざるので、明らかに買えないものだけをソースに回す
+// （知らない店＝公式通販のこともあるので、従来どおり購入リンクとして扱う）。
+// 本式のソースの持ち方（1予定に何件もぶら下げる）は E1 で作る。
+export function isSourceOnlyLink(url: string): boolean {
+  const h = hostOf(url);
+  if (!h) return false;
+  if (/(^|\.)(x\.com|twitter\.com|t\.co)$/.test(h)) return true;
+  return isNoiseLink(url);
+}
+
 // ECサイトの「検索結果・作品一覧」ページ。ドメインは正しい販路なのに商品が特定できないURL。
 // Xのまとめアカウントがアニメイトの検索リンクを貼ることがあり、AIが link として拾って保存されている
 // （2026-07-25 実測5件・いずれも価格も在庫も取れない）。商品ページではないので:

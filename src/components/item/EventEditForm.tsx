@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CalendarEvent } from '../../types';
 import type { EventPatch } from '../../lib/api';
 import { todayStr } from '../../design/tokens';
@@ -11,8 +11,13 @@ const timeCls = 'rounded-[10px] px-3 py-2.5 text-[14px] outline-none';
 const inputStyle = { backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' };
 
 /** 日時/予約のコンパクト編集（共同編集用）。実効値を初期値にし、保存でパッチを返す。
- *  日付未定は投稿フォームと同じ曖昧日付モデル（dateLabel＋代表日）で保存する。 */
-export default function EventEditForm({ event, onSave, onClose }: { event: CalendarEvent; onSave: (patch: EventPatch) => void; onClose: () => void }) {
+ *  日付未定は投稿フォームと同じ曖昧日付モデル（dateLabel＋代表日）で保存する。
+ *  パネルに埋め込むときは showActions={false} にして、変更を onChange で受け取り
+ *  外側の「追加」ボタンでまとめて送る。 */
+export default function EventEditForm({ event, onSave, onClose, onChange, showActions = true }: {
+  event: CalendarEvent; onSave: (patch: EventPatch) => void; onClose: () => void;
+  onChange?: (patch: EventPatch | null) => void; showActions?: boolean;
+}) {
   const today = todayStr();
   // 曖昧日付（dateLabel あり）は「日付未定」扱いで初期化する
   const [dateTBD, setDateTBD] = useState(!event.date || !!event.dateLabel);
@@ -28,19 +33,36 @@ export default function EventEditForm({ event, onSave, onClose }: { event: Calen
   const year = date ? date.slice(0, 4) : String(new Date().getFullYear());
   const month = date ? date.slice(5, 7) : String(new Date().getMonth() + 1).padStart(2, '0');
 
+  const buildPatch = (): EventPatch => ({
+    // 日付未定: 代表日＋dateLabel（投稿フォームと同じモデル）。具体日: dateLabel をクリア
+    date: date || null,
+    dateLabel: dateTBD ? (dateLabel || null) : null,
+    endDate: dateTBD ? null : (endDate || date || null),
+    time: allDay || dateTBD ? null : (time || null),
+    isOrderMade: isOrder,
+    preorderStart: isOrder ? (preStart || undefined) : undefined,
+    preorderEnd: isOrder ? (preEnd || undefined) : undefined,
+  } as EventPatch);
+
   const save = () => {
     haptic.select();
-    onSave({
-      // 日付未定: 代表日＋dateLabel（投稿フォームと同じモデル）。具体日: dateLabel をクリア
-      date: date || null,
-      dateLabel: dateTBD ? (dateLabel || null) : null,
-      endDate: dateTBD ? null : (endDate || date || null),
-      time: allDay || dateTBD ? null : (time || null),
-      isOrderMade: isOrder,
-      preorderStart: isOrder ? (preStart || undefined) : undefined,
-      preorderEnd: isOrder ? (preEnd || undefined) : undefined,
-    } as EventPatch);
+    onSave(buildPatch());
   };
+
+  // 埋め込みのときは、**開いたときの値から変わった項目だけ**を外へ渡す。
+  // 日付が未定の予定は欄に今日が入るので、丸ごと渡すと触っていない日付まで足してしまう。
+  // 触っていない＝差がなければ null（＝送るものが無い）。
+  const initial = useRef<Record<string, unknown> | null>(null);
+  useEffect(() => {
+    const patch = buildPatch() as Record<string, unknown>;
+    if (initial.current === null) { initial.current = patch; return; }
+    const diff: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(patch)) {
+      if (JSON.stringify(v) !== JSON.stringify(initial.current[k])) diff[k] = v;
+    }
+    onChange?.(Object.keys(diff).length ? (diff as EventPatch) : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateTBD, dateLabel, allDay, date, endDate, time, isOrder, preStart, preEnd]);
 
   // 単日（終了日＝開始日）のままなら、開始日を動かしたときに終了日も一緒に動かす。
   // 投稿フォーム（PostNew）と同じ挙動。期間を指定済みの人は終了日が違うので触らない。
@@ -115,10 +137,12 @@ export default function EventEditForm({ event, onSave, onClose }: { event: Calen
         </div>
       )}
 
-      <div className="flex gap-2 mt-3">
-        <button onClick={onClose} className="pressable flex-1 py-2 rounded-[10px] text-[13px]" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>キャンセル</button>
-        <button onClick={save} className="pressable flex-1 py-2 rounded-[10px] text-[13px] font-semibold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>保存</button>
-      </div>
+      {showActions && (
+        <div className="flex gap-2 mt-3">
+          <button onClick={onClose} className="pressable flex-1 py-2 rounded-[10px] text-[13px]" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>キャンセル</button>
+          <button onClick={save} className="pressable flex-1 py-2 rounded-[10px] text-[13px] font-semibold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>保存</button>
+        </div>
+      )}
     </div>
   );
 }

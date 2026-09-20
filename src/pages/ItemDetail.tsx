@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Pin, Share2, X } from 'lucide-react';
+import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Pin, Share2, X, Plus } from 'lucide-react';
 import type { CalendarEvent, EventVisit } from '../types';
-import { getEventById, getWorkById, getDisplayName, toggleLike, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, addEventVisit, removeEventVisit, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
 import EventEditForm from '../components/item/EventEditForm';
+import { getEventById, getWorkById, getDisplayName, toggleLike, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, addEventVisit, removeEventVisit, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME } from '../lib/constants';
 import { deriveItemType, itemDateLines, todayStr, isDateUncertain, stageFlow } from '../design/tokens';
-import { resolveBuy, getOffers, buildOffer, offerUrl, primaryOffer, isSearchPageUrl } from '../lib/affiliate';
+import { resolveBuy, getOffers, buildOffer, offerUrl, primaryOffer, isSearchPageUrl, isSourceOnlyLink } from '../lib/affiliate';
 import { openBuyLink } from '../lib/dataLogs';
 import { openExternal } from '../lib/openExternal';
 import ReactionButton from '../components/item/ReactionButton';
@@ -21,6 +21,7 @@ import { likeEffect } from '../lib/likeEffect';
 import { useLike, setLike, getLike } from '../lib/likeStore';
 import ImageCarousel from '../components/item/ImageCarousel';
 import NotifyBell from '../components/item/NotifyBell';
+import AddInfoSheet from '../components/item/AddInfoSheet';
 import LineLoader from '../components/ui/LineLoader';
 import UserProfileModal from '../components/UserProfileModal';
 import { useConfirm } from '../components/ui/ConfirmDialog';
@@ -33,6 +34,8 @@ const EXTERNAL_CALENDAR_ENABLED = false;
 function summarizePatch(p: EventPatch): string {
   const parts: string[] = [];
   if (p.removedOfferUrls?.length) parts.push(`購入リンクを取り消し（${p.removedOfferUrls.length}件）`);
+  if (p.addedSourceUrls?.length) parts.push(`ソースを追加（${p.addedSourceUrls.length}件）`);
+  if (p.addedNote) parts.push('詳しい情報を追加');
   if ('date' in p) parts.push(`日付 ${p.date ? p.date.slice(5).replace('-', '/') : '未定'}`);
   if (p.endDate) parts.push(`〜${p.endDate.slice(5).replace('-', '/')}`);
   if (p.time) parts.push(p.time);
@@ -57,25 +60,24 @@ export default function ItemDetail() {
   const [calCount, setCalCount] = useState(0);
   const [calAdded, setCalAdded] = useState(false);
   const [contribs, setContribs] = useState<OfferContrib[]>([]);
-  const [addUrl, setAddUrl] = useState('');
   const [addingLink, setAddingLink] = useState(false);
   // 「修正」パネルを開いている販路URL（同時に開くのはひとつだけ）と差し替え先の入力値
   const [fixingUrl, setFixingUrl] = useState<string | null>(null);
   const [replaceUrl, setReplaceUrl] = useState('');
   const [replacing, setReplacing] = useState(false);
   const [stockReports, setStockReports] = useState<StockReport[]>([]);
-  const [stockInput, setStockInput] = useState('');
   const [addingStock, setAddingStock] = useState(false);
   const [reported, setReported] = useState(false);
   const confirm = useConfirm();
   const [edits, setEdits] = useState<EventEdit[]>([]);
-  const [editing, setEditing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const premium = usePremium();
   const [following, setFollowing] = useState(false);
   const [followCount, setFollowCount] = useState(0);
   const [visits, setVisits] = useState<EventVisit[]>([]);
   const [visitOpen, setVisitOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false); // 「＋α」で開く情報追加パネル
+  const [editing, setEditing] = useState(false); // 投稿者だけのその場編集（日付）
   const [visitStart, setVisitStart] = useState('');
   const [visitEnd, setVisitEnd] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
@@ -133,6 +135,8 @@ export default function ItemDetail() {
 
   const event = ev;
   const eff = applyEdits(event, edits); // 編集パッチを重ねた実効値
+  // 投稿者だけは今までどおりその場で直せる（ほかの人の追加・修正はすべて「＋α」から）
+  const isAuthor = !!user && user.id === event.authorId;
   const type = deriveItemType(eff);
   const images = parseImageUrls(event.imageUrl);
   let cats = parseCategories(event.category);
@@ -218,13 +222,23 @@ export default function ItemDetail() {
     void openExternal(`https://twitter.com/intent/tweet?text=${text}${url ? `&url=${encodeURIComponent(url)}` : ''}`);
   };
 
-  const onAddLink = async () => {
-    const u = addUrl.trim();
-    if (!u || !user || addingLink) return;
+  // リンクの追加。詳細タブの入力欄と「＋α」のパネルの両方から呼ぶ。
+  // 買えるページは購入リンクに、Xのポストやニュースなど買えないものはソースとして足す。
+  const addLink = async (u: string): Promise<boolean> => {
+    if (!u || !user || addingLink) return false;
     setAddingLink(true);
+    if (isSourceOnlyLink(u)) {
+      const ed = await addEventEdit(event.id, { addedSourceUrls: [u] }, user.id);
+      if (ed) setEdits((prev) => [...prev, ed]);
+      setAddingLink(false); haptic.select();
+      toast(ed ? 'ソースとして追加しました' : '追加できませんでした', ed ? undefined : 'error');
+      return !!ed;
+    }
     const c = await addOfferContrib(event.id, buildOffer(u), user.id);
     if (c) setContribs((prev) => [...prev, c]);
-    setAddUrl(''); setAddingLink(false); haptic.select();
+    setAddingLink(false); haptic.select();
+    toast(c ? '購入リンクとして追加しました' : '追加できませんでした', c ? undefined : 'error');
+    return !!c;
   };
   const onRemoveContrib = async (cid: string) => {
     haptic.select();
@@ -256,15 +270,26 @@ export default function ItemDetail() {
     setFixingUrl(null); setReplaceUrl(''); setReplacing(false); haptic.select();
     toast(ed ? '購入リンクを差し替えました' : '新しいリンクを追加しました（元のリンクは取り消せませんでした）');
   };
-  const onAddStock = async () => {
-    const n = stockInput.trim();
-    if (!n || !user || addingStock) return;
+  // 在庫の報告。入り口が2つ（詳細タブの入力欄・「＋α」のパネル）なので簡易チェックはここに置く
+  const addStock = async (n: string): Promise<boolean> => {
+    if (!n || !user || addingStock) return false;
     const chk = checkStockNote(n);
-    if (!chk.ok) { toast(chk.reason, 'error'); return; }
+    if (!chk.ok) { toast(chk.reason, 'error'); return false; }
     setAddingStock(true);
     const r = await addStockReport(event.id, n, user.id);
     if (r) setStockReports((prev) => [r, ...prev]);
-    setStockInput(''); setAddingStock(false); haptic.select();
+    setAddingStock(false); haptic.select();
+    if (!r) toast('追加できませんでした', 'error');
+    return !!r;
+  };
+  // 型に収まらない詳しい情報。画面には出さず、運営とAIが読む（E6）
+  const addNote = async (text: string): Promise<boolean> => {
+    if (!text || !user) return false;
+    const ed = await addEventEdit(event.id, { addedNote: text }, user.id);
+    if (ed) setEdits((prev) => [...prev, ed]);
+    haptic.select();
+    toast(ed ? '詳しい情報を送りました' : '送れませんでした', ed ? undefined : 'error');
+    return !!ed;
   };
   const onRemoveStock = async (rid: string) => {
     haptic.select();
@@ -294,6 +319,10 @@ export default function ItemDetail() {
     setEdits((prev) => prev.filter((e) => e.id !== eid));
     await removeEventEdit(eid);
   };
+
+  // ソース（どこで知ったか）。編集履歴のパッチから並べる（古い順）
+  const sources = edits.flatMap((ed) =>
+    (ed.patch.addedSourceUrls ?? []).map((url) => ({ url, editId: ed.id, by: ed.createdBy })));
 
   // 情報を足した人（投稿者以外）。日時の編集・リンクの追加・在庫の報告の回数が多い順
   const contributorIds = (() => {
@@ -390,14 +419,13 @@ export default function ItemDetail() {
               </div>
             </div>
 
-            {/* 日時・予約の修正は日付のすぐ下（投稿者だけに絞ることになっても置き場所はここ） */}
-            {/* 日時/予約の共同編集（即反映＋履歴で戻せる） */}
-            {!editing ? (
-              <button onClick={() => { haptic.select(); setEditing(true); }} className="pressable mt-2 text-[12px]" style={{ color: 'var(--accent-text)' }}>日時・予約を編集</button>
+            {/* ほかの人の追加・修正は「＋α」のパネルから。投稿者だけはここで直せる */}
+            {isAuthor && (!editing ? (
+              <button onClick={() => { haptic.select(); setEditing(true); }} className="pressable mt-2 text-[12px]" style={{ color: 'var(--accent-text)' }}>日付を修正</button>
             ) : (
               <EventEditForm event={eff} onClose={() => setEditing(false)} onSave={onSaveEdit} />
-            )}
-            {edits.length > 0 && (
+            ))}
+            {isAuthor && edits.length > 0 && (
               <div className="mt-2">
                 <button onClick={() => setHistoryOpen((v) => !v)} className="pressable text-[12px] text-label-tertiary">
                   編集履歴（{edits.length}）{historyOpen ? ' ▲' : ' ▼'}
@@ -507,6 +535,7 @@ export default function ItemDetail() {
             {/* 購入リンク（共同編集で追記可・発売に向けて増える） */}
             <div className="mt-4">
               <div className="text-[12px] text-label-secondary mb-1.5">購入リンク（広告を含みます）</div>
+              {getOffers(eff).length === 0 && contribs.length === 0 && <p className="text-[13px] text-label-tertiary">購入リンクはまだありません</p>}
               <div className="flex flex-col gap-1.5">
                 {getOffers(eff).map((o, i) => (
                   <div key={`b${i}`} className="flex flex-col gap-1.5">
@@ -533,7 +562,7 @@ export default function ItemDetail() {
                     {/* 入口は「修正」ひとつだけ。アイコンを2つ並べると tap-44 の44px判定が重なって
                         手前のボタンに食われるうえ、Xでは何が起きるか字で説明できない。
                         この機能の動機は「リンクがおかしいから消したい」なので、パネルの先頭は取り消し。 */}
-                    {user && (
+                    {isAuthor && (
                       <button onClick={() => { haptic.select(); setReplaceUrl(''); setFixingUrl((prev) => (prev === o.url ? null : o.url)); }}
                         className="pressable flex-shrink-0 text-[11px] px-2 py-1.5 text-label-tertiary">{fixingUrl === o.url ? '閉じる' : '修正'}</button>
                     )}
@@ -565,13 +594,28 @@ export default function ItemDetail() {
                   </div>
                 ))}
               </div>
-              <div className="flex gap-2 mt-2">
-                <input value={addUrl} onChange={(e) => setAddUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onAddLink()}
-                  placeholder="購入リンクを追加（URL）" inputMode="url"
-                  className="flex-1 rounded-[10px] px-3 py-2 text-[13px] outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
-                <button onClick={onAddLink} disabled={!addUrl.trim() || addingLink} className="pressable px-3 rounded-[10px] text-[13px] font-semibold flex-shrink-0" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>追加</button>
-              </div>
             </div>
+
+            {/* ソース（どこで知ったか）。買えるページではないので購入リンクとは分けて並べる */}
+            {sources.length > 0 && (
+              <div className="mt-4">
+                <div className="text-[12px] text-label-secondary mb-1.5">ソース</div>
+                <div className="flex flex-col gap-1.5">
+                  {sources.map((sc) => (
+                    <div key={sc.editId + sc.url} className="flex items-center gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+                      <a href={sc.url} target="_blank" rel="noopener nofollow" onClick={() => haptic.select()}
+                        className="pressable flex-1 min-w-0 flex items-center justify-between gap-2">
+                        <span className="text-[13px] truncate">{sourceLabel(sc.url)}</span>
+                        <span className="text-[13px] font-bold flex-shrink-0" style={{ color: 'var(--accent-text)' }}>開く ↗</span>
+                      </a>
+                      {user && sc.by === user.id && (
+                        <button onClick={() => onRevertEdit(sc.editId)} aria-label="削除" className="pressable tap-44 text-label-tertiary flex-shrink-0"><X size={15} /></button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
               </div>
             )}
@@ -588,6 +632,7 @@ export default function ItemDetail() {
             {/* 在庫情報（共同編集・追記ログ） */}
             <div className="mt-4">
               <div className="text-[12px] text-label-secondary mb-1.5">在庫情報</div>
+              {stockReports.length === 0 && <p className="text-[13px] text-label-tertiary">在庫の報告はまだありません</p>}
               {stockReports.length > 0 && (
                 <div className="flex flex-col gap-1.5 mb-2">
                   {stockReports.map((r) => (
@@ -601,12 +646,6 @@ export default function ItemDetail() {
                   ))}
                 </div>
               )}
-              <div className="flex gap-2">
-                <input value={stockInput} onChange={(e) => setStockInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onAddStock()}
-                  placeholder="在庫情報を追加"
-                  className="flex-1 rounded-[10px] px-3 py-2 text-[13px] outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
-                <button onClick={onAddStock} disabled={!stockInput.trim() || addingStock} className="pressable px-3 rounded-[10px] text-[13px] font-semibold flex-shrink-0" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>追加</button>
-              </div>
             </div>
 
               </div>
@@ -636,7 +675,34 @@ export default function ItemDetail() {
             </button>
           </div>
         )}
+
+        {/* ＋α: 情報を足す入口。購入バーがあるときはその上に重ねる。
+            色は購入バー（アクセント）と分ける＝主役は購入のままにする */}
+        {user && (
+          <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-app z-30 pointer-events-none"
+            style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + ${buyMode !== 'none' ? 108 : 36}px)` }}>
+            <div className="flex justify-end px-4">
+              <button onClick={() => { haptic.select(); setAddOpen(true); }} aria-label="情報を追加・修正"
+                className="pressable shadow-float pointer-events-auto material-thick border border-subtle w-14 h-14 rounded-full relative flex items-center justify-center"
+                style={{ color: 'var(--accent-text)' }}>
+                <Plus size={15} strokeWidth={3.5} className="absolute left-3 top-3" />
+                <span className="text-[26px] font-black leading-none" style={{ transform: 'translate(3px, 3px)' }}>α</span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {addOpen && (
+        <AddInfoSheet
+          event={eff}
+          onClose={() => setAddOpen(false)}
+          onSaveEdit={onSaveEdit}
+          onAddLink={addLink}
+          onAddStock={addStock}
+          onAddNote={addNote}
+        />
+      )}
 
       {viewingUserId && (
         <UserProfileModal
@@ -649,6 +715,15 @@ export default function ItemDetail() {
       )}
     </div>
   );
+}
+
+/** ソースの見出し。Xのポストは「Xのポスト」、それ以外はドメインで出す */
+function sourceLabel(url: string): string {
+  try {
+    const h = new URL(url).host.replace(/^www\./, '');
+    if (/(^|\.)(x\.com|twitter\.com|t\.co)$/.test(h)) return 'Xのポスト';
+    return h;
+  } catch { return url; }
 }
 
 type DetailTab = 'detail' | 'links' | 'stock' | 'contributors';
