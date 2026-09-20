@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Plus, X } from 'lucide-react';
 import type { CalendarEvent } from '../../types';
 import type { EventPatch } from '../../lib/api';
 import Sheet from '../ui/Sheet';
@@ -36,30 +37,67 @@ interface Props {
 export default function AddInfoSheet({ event, onClose, onSaveEdit, onAddLink, onAddStock, onAddNote }: Props) {
   const [tab, setTab] = useState<AddInfoTab>('date');
   const [datePatch, setDatePatch] = useState<EventPatch | null>(null); // 触られたときだけ入る
-  const [url, setUrl] = useState('');
-  const [stock, setStock] = useState('');
+  // リンクと在庫は1回で何件も足せる（店ごとに在庫を書く・販路を何件も貼る）
+  const [urls, setUrls] = useState<string[]>(['']);
+  const [stocks, setStocks] = useState<string[]>(['']);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const filled = !!datePatch || !!url.trim() || !!stock.trim() || !!note.trim();
+  const written = (rows: string[]) => rows.map((r) => r.trim()).filter(Boolean);
+  const filled = !!datePatch || written(urls).length > 0 || written(stocks).length > 0 || !!note.trim();
 
-  // 入っているものを上から順に送る。ひとつでも失敗したらパネルは閉じない（直して送り直せる）
+  // 入っているものを上から順に送る。通ったものは消し、失敗したものだけ残してパネルは開けておく
   const submit = async () => {
     if (busy || !filled) return;
     haptic.select();
     setBusy(true);
     let ok = true;
-    if (datePatch) ok = (await onSaveEdit(datePatch)) !== false && ok;
-    if (url.trim()) ok = (await onAddLink(url.trim())) !== false && ok;
-    if (stock.trim()) ok = (await onAddStock(stock.trim())) !== false && ok;
-    if (note.trim()) ok = (await onAddNote(note.trim())) !== false && ok;
+    if (datePatch) {
+      if ((await onSaveEdit(datePatch)) === false) ok = false;
+      else setDatePatch(null);
+    }
+    const leftUrls: string[] = [];
+    for (const u of written(urls)) if ((await onAddLink(u)) === false) { leftUrls.push(u); ok = false; }
+    setUrls(leftUrls.length ? leftUrls : ['']);
+    const leftStocks: string[] = [];
+    for (const n of written(stocks)) if ((await onAddStock(n)) === false) { leftStocks.push(n); ok = false; }
+    setStocks(leftStocks.length ? leftStocks : ['']);
+    if (note.trim()) {
+      if ((await onAddNote(note.trim())) === false) ok = false;
+      else setNote('');
+    }
     setBusy(false);
     if (ok) onClose();
   };
 
   /** 入っているタブに点を付ける（別のタブに書いたことを忘れないように） */
   const hasInput = (k: AddInfoTab) =>
-    k === 'date' ? !!datePatch : k === 'link' ? !!url.trim() : k === 'stock' ? !!stock.trim() : !!note.trim();
+    k === 'date' ? !!datePatch
+      : k === 'link' ? written(urls).length > 0
+      : k === 'stock' ? written(stocks).length > 0
+      : !!note.trim();
+
+  /** 行を足せる入力欄。＋で行が増え、2行以上あるときは×で減らせる */
+  const rowsField = (rows: string[], setRows: (v: string[]) => void, placeholder: string, url = false) => (
+    <div className="flex flex-col gap-2 mt-2">
+      {rows.map((v, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <input value={v} placeholder={placeholder} inputMode={url ? 'url' : undefined}
+            onChange={(e) => setRows(rows.map((r, j) => (j === i ? e.target.value : r)))}
+            className={inputCls} style={inputStyle} />
+          {rows.length > 1 && (
+            <button onClick={() => { haptic.select(); setRows(rows.filter((_, j) => j !== i)); }}
+              aria-label="この行を消す" className="pressable tap-44 text-label-tertiary flex-shrink-0"><X size={16} /></button>
+          )}
+        </div>
+      ))}
+      <button onClick={() => { haptic.select(); setRows([...rows, '']); }} disabled={!rows[rows.length - 1].trim()}
+        className="pressable self-start flex items-center gap-1 text-[13px] font-semibold py-1"
+        style={{ color: rows[rows.length - 1].trim() ? 'var(--accent-text)' : 'var(--label-tertiary)' }}>
+        <Plus size={15} strokeWidth={3} /> もう1つ
+      </button>
+    </div>
+  );
 
   const tabs = (
     <div className="flex border-b border-subtle px-1" role="tablist">
@@ -92,18 +130,14 @@ export default function AddInfoSheet({ event, onClose, onSaveEdit, onAddLink, on
             {/* 買えるページとソース（Xのポスト・公式サイト・記事）を同じ欄で受ける。
                 どちらとして扱うかは貼られたURLで振り分ける（ItemDetail の addLink） */}
             <p className="text-[12px] text-label-tertiary mt-2">買えるページでも、Xのポストや記事でも</p>
-            <input value={url} onChange={(e) => setUrl(e.target.value)}
-              placeholder="リンク（URL）" inputMode="url"
-              className={`${inputCls} w-full mt-2`} style={inputStyle} />
+            {rowsField(urls, setUrls, 'リンク（URL）', true)}
           </>
         )}
 
         {tab === 'stock' && (
           <>
-            <p className="text-[12px] text-label-tertiary mt-2">見かけた在庫の様子を足せます</p>
-            <input value={stock} onChange={(e) => setStock(e.target.value)}
-              placeholder="在庫情報を追加"
-              className={`${inputCls} w-full mt-2`} style={inputStyle} />
+            <p className="text-[12px] text-label-tertiary mt-2">お店ごとに1行ずつ（通販もお店として）</p>
+            {rowsField(stocks, setStocks, '在庫情報を追加')}
           </>
         )}
 
