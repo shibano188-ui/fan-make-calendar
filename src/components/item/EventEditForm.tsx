@@ -49,14 +49,18 @@ export default function EventEditForm({ event, onSave, onClose, onChange, showAc
     onSave(buildPatch());
   };
 
-  // 埋め込みのときは、元の値から変わったぶんだけ外へ渡す（戻したら null＝触っていない扱い）。
-  // 「初回かどうか」で判定すると、開発時の二重実行で触っていないのに変更扱いになる。
-  const initial = useRef<string | null>(null);
+  // 埋め込みのときは、**開いたときの値から変わった項目だけ**を外へ渡す。
+  // 日付が未定の予定は欄に今日が入るので、丸ごと渡すと触っていない日付まで足してしまう。
+  // 触っていない＝差がなければ null（＝送るものが無い）。
+  const initial = useRef<Record<string, unknown> | null>(null);
   useEffect(() => {
-    const patch = buildPatch();
-    const json = JSON.stringify(patch);
-    if (initial.current === null) { initial.current = json; return; }
-    onChange?.(json === initial.current ? null : patch);
+    const patch = buildPatch() as Record<string, unknown>;
+    if (initial.current === null) { initial.current = patch; return; }
+    const diff: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(patch)) {
+      if (JSON.stringify(v) !== JSON.stringify(initial.current[k])) diff[k] = v;
+    }
+    onChange?.(Object.keys(diff).length ? (diff as EventPatch) : null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateTBD, dateLabel, allDay, date, endDate, time, isOrder, preStart, preEnd]);
 

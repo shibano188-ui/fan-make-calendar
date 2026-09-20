@@ -16,7 +16,7 @@ const TABS: { key: AddInfoTab; label: string }[] = [
   { key: 'date', label: '日時・予約' },
   { key: 'link', label: 'リンク' },
   { key: 'stock', label: '在庫' },
-  { key: 'note', label: 'そのほか' },
+  { key: 'note', label: '詳細' },
 ];
 
 const inputCls = 'flex-1 rounded-[10px] px-3 py-2.5 text-[14px] outline-none';
@@ -111,10 +111,9 @@ export default function AddInfoSheet({ event, onClose, onSaveEdit, onAddLink, on
           <>
             {/* 型に収まらないこと（購入制限・整理券など）の受け皿。
                 自由に書ける公開の場所は作らない方針なので、ここに書いたものは他の人には出さない */}
-            <p className="text-[12px] text-label-tertiary mt-2">ここに書いたことは、ほかの人には出ません。運営とAIが読んで予定に反映します</p>
             <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={4}
-              placeholder="そのほかの詳しい情報（おひとり様2点まで、整理券の配布時間 など）"
-              className="w-full mt-2 rounded-[10px] px-3 py-2.5 text-[14px] outline-none resize-none" style={inputStyle} />
+              placeholder="詳細を追加"
+              className="w-full mt-3 rounded-[10px] px-3 py-2.5 text-[14px] outline-none resize-none" style={inputStyle} />
           </>
         )}
       </div>
