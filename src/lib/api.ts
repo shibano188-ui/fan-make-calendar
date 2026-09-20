@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { sortByWorkOrder } from './workOrder';
 import type { CalendarEvent, EventVisit, Offer } from '../types';
 import { parseCategories, loadMutedEventIds, loadMutedWorkIds, ANON_NAME } from './constants';
 import { searchWorksByAlias, findWorkByExactAlias } from './workAliases';
@@ -1471,12 +1472,13 @@ export async function listRecentWorks(userId: string): Promise<Work[]> {
 
   if (error) return [];
 
-  return (data ?? [])
+  // 自分で並べ替えていればその順。していなければ最後に見た順のまま
+  return sortByWorkOrder((data ?? [])
     .filter(p => p.works)
     .map(p => {
       const w = p.works as unknown as { id: string; name: string; participant_count: number };
       return { id: w.id, name: w.name, participantCount: w.participant_count };
-    });
+    }));
 }
 
 export async function listAllParticipatedWorks(userId: string): Promise<Work[]> {

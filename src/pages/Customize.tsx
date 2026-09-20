@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { Upload, ChevronDown, ImagePlus, X, Check, Plus } from 'lucide-react';
+import { Upload, ChevronDown, ChevronUp, ImagePlus, X, Check, Plus } from 'lucide-react';
 import { getContrastText } from '../lib/color';
 import Layout from '../components/Layout';
 import Header from '../components/Header';
@@ -10,6 +10,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { WORK_COLORS } from './Calendar';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import { pushAppState } from '../lib/appState';
+import { saveWorkOrder } from '../lib/workOrder';
+import { haptic } from '../lib/haptics';
 import { hasNativePhotoPicker, pickPhoto } from '../lib/pickPhoto';
 import { SKINS, SKIN_IDS, type SkinDef } from '../design/skins';
 import ThemeList from '../components/theme/ThemeList';
@@ -234,9 +236,23 @@ function SkinPreview({ def, dark }: { def: SkinDef; dark: boolean }) {
 const ACCENTS = ['#FBBF00', '#D85A30', '#1D9E75', '#378ADD', '#D4537E'] as const;
 
 export default function Customize() {
-  const { settings, updateSettings, currentWorkId, skin, setSkin, userThemeId, userThemes,
+  const { settings, updateSettings, currentWorkId, skin, setSkin, userThemeId, userThemes, appliedAccent, activeSpec,
     lookWorkId, setLookWorkId, workLooks, setLookActive } = useTheme();
   const navigate = useNavigate();
+
+  /** 作品を1つ上／下へ。並びは端末に覚え、アカウントにも同期する */
+  const moveWork = (index: number, delta: number) => {
+    setParticipatedWorks((prev) => {
+      const next = [...prev];
+      const to = index + delta;
+      if (to < 0 || to >= next.length) return prev;
+      [next[index], next[to]] = [next[to], next[index]];
+      haptic.select();
+      saveWorkOrder(next.map((w) => w.id));
+      return next;
+    });
+  };
+
   // この画面にいる間は、選んでいるタブの見た目を当てて見せる（直したものがその場で分かるように）
   useEffect(() => {
     setLookActive(true);
@@ -462,6 +478,15 @@ export default function Customize() {
                           )}
                         </div>
                         <span className="flex-1 min-w-0 truncate text-label-secondary text-sm">{w.name}</span>
+                        {/* 並び替え。ここの並びが上の作品チップの並びになる */}
+                        {participatedWorks.length > 1 && (
+                          <div className="flex flex-col flex-shrink-0">
+                            <button onClick={() => moveWork(i, -1)} disabled={i === 0} aria-label={`${w.name}を上へ`}
+                              className="pressable px-1 disabled:opacity-25 text-label-tertiary"><ChevronUp size={15} /></button>
+                            <button onClick={() => moveWork(i, 1)} disabled={i === participatedWorks.length - 1} aria-label={`${w.name}を下へ`}
+                              className="pressable px-1 disabled:opacity-25 text-label-tertiary"><ChevronDown size={15} /></button>
+                          </div>
+                        )}
                         <button
                           ref={el => { workBtnRefs.current[i] = el; }}
                           onClick={() => handleWorkColorToggle(w.id, i)}
@@ -605,12 +630,17 @@ export default function Customize() {
         <section>
           <p className="text-label-tertiary text-xs mb-3">アクセントカラー</p>
           <div className="flex items-center gap-3">
-            {ACCENTS.map((c) => (
+            {/* テーマの色が並びに無いときは先頭に足す。足さないと、色を1つ選んだあと
+                テーマの色に戻せなくなる（テーマを選び直すしかなくなる） */}
+            {(ACCENTS.some((c) => c.toLowerCase() === activeSpec.accent.toLowerCase())
+              ? ACCENTS
+              : [activeSpec.accent, ...ACCENTS]
+            ).map((c) => (
               <button key={c} onClick={() => updateSettings({ accentColor: c })}
-                aria-label={`アクセントカラー ${c}`} aria-pressed={settings.accentColor === c}
+                aria-label={`アクセントカラー ${c}`} aria-pressed={appliedAccent.toLowerCase() === c.toLowerCase()}
                 className="w-9 h-9 rounded-full flex items-center justify-center active:opacity-70"
-                style={{ backgroundColor: c, boxShadow: settings.accentColor === c ? '0 0 0 2px var(--bg-primary), 0 0 0 4px var(--label-primary)' : 'none' }}>
-                {settings.accentColor === c && <Check size={16} style={{ color: getContrastText(c) }} strokeWidth={3} />}
+                style={{ backgroundColor: c, boxShadow: appliedAccent.toLowerCase() === c.toLowerCase() ? '0 0 0 2px var(--bg-primary), 0 0 0 4px var(--label-primary)' : 'none' }}>
+                {appliedAccent.toLowerCase() === c.toLowerCase() && <Check size={16} style={{ color: getContrastText(c) }} strokeWidth={3} />}
               </button>
             ))}
           </div>

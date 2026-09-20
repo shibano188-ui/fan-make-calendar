@@ -28,6 +28,7 @@ const KEYS = {
   muted_work_ids:      'fan_muted_work_ids',
   work_images:         'fan_work_images',
   work_settings:       'fan_work_settings',
+  work_order:          'fan_work_order',
 } as const;
 
 export type AppStateColumn = keyof typeof KEYS;
@@ -43,6 +44,7 @@ const IS_ARRAY: Record<AppStateColumn, boolean> = {
   muted_work_ids:      true,
   work_images:         false,
   work_settings:       false,
+  work_order:          true,
 };
 
 function readLocal(col: AppStateColumn): unknown {

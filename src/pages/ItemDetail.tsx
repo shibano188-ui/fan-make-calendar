@@ -684,8 +684,8 @@ export default function ItemDetail() {
             style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + ${buyMode !== 'none' ? 108 : 36}px)` }}>
             <div className="flex justify-end px-4">
               <button onClick={() => { haptic.select(); setAddOpen(true); }} aria-label="情報を追加・修正"
-                className="pressable shadow-float pointer-events-auto material-thick border border-subtle w-14 h-14 rounded-full relative flex items-center justify-center"
-                style={{ color: 'var(--accent-text)' }}>
+                className="pressable shadow-float pointer-events-auto w-14 h-14 rounded-full relative flex items-center justify-center"
+                style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', color: 'var(--accent-text)' }}>
                 <Plus size={15} strokeWidth={3.5} className="absolute left-3 top-3" />
                 <span className="text-[26px] font-black leading-none" style={{ transform: 'translate(3px, 3px)' }}>α</span>
               </button>

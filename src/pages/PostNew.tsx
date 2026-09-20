@@ -579,8 +579,8 @@ export default function PostNew() {
               aria-pressed={addToCalendar} aria-label="カレンダーに登録"
               className="pressable flex items-center gap-1 px-2.5 h-8 rounded-full text-[12px] font-semibold"
               style={addToCalendar
-                ? { backgroundColor: 'color-mix(in srgb, var(--accent-color) 22%, transparent)', color: 'var(--accent-text)' }
-                : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-tertiary)' }}>
+                ? { backgroundColor: 'var(--fill-primary)', border: '1px solid var(--accent-color)', color: 'var(--accent-text)' }
+                : { backgroundColor: 'var(--fill-tertiary)', border: '1px solid transparent', color: 'var(--label-tertiary)' }}>
               <CalendarPlus size={15} />カレンダー
             </button>
             <button onClick={onSubmit} disabled={!canSave}

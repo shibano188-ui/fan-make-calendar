@@ -220,8 +220,9 @@ function fixSurfaces(c: ThemeColors): { colors: ThemeColors; report: ContrastRep
   // 罫線のもと。border-subtle(11%) 程度でも境目が出るだけの差を持たせる。
   // line は省略できる（そのときは文字の色を使うので十分な差がある）
   if (out.line) {
-    sep('罫線と地', out.line, out.bg, 2.0, v => { out.line = v; });
-    sep('罫線と面', out.line!, out.surface, 1.8, v => { out.line = v; });
+    // 強くしすぎると罫線がうるさくなる。境目が見える最低限にとどめる
+    sep('罫線と地', out.line, out.bg, 1.7, v => { out.line = v; });
+    sep('罫線と面', out.line!, out.surface, 1.5, v => { out.line = v; });
   }
   return { colors: out, report };
 }

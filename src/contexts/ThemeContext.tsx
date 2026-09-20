@@ -446,6 +446,8 @@ interface ThemeContextValue {
   userThemeId: string | null;
   /** 今効いている設定表（プリセットでも生成テーマでも同じ型） */
   activeSpec: ThemeSpec;
+  /** 実際に画面に当たっているアクセント色（テーマの色か、自分で選んだ色か） */
+  appliedAccent: string;
   selectUserTheme: (id: string | null) => void;
   /**
    * 下書き。保存する前のテーマを**アプリ全体に当てて見せる**ための一時の層。
@@ -684,16 +686,21 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     // activeUserTheme は中身が変われば適用し直す（手直しの結果を即反映するため）
   }, [effective.theme, effective.communityThemeId, skin, activeUserTheme, draftSpec]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 実際に画面に当たっているアクセント色。テーマを選んでいて、自分で色を選んでいなければ
+  // テーマの色が当たる。設定画面の選択表示もこれを見ないと、見た目と印が食い違う
+  const themeAccent = draftSpec?.accent ?? activeUserTheme?.spec.accent;
+  const appliedAccent = themeAccent && accentIsAuto(effective.accentColor)
+    ? themeAccent
+    : effective.accentColor;
+
   // アクセントカラー + 派生トークンを CSS 変数に反映
   useEffect(() => {
     // テーマのアクセントは**当てるときに毎回テーマから引く**。
     // 保存した値に頼ると、あとから走る「設定をサーバーから復元」に上書きされて
     // 「水色のテーマなのにアクセントだけ前の色」という状態が残る（実際に起きた）。
     // ただし**自分で色を選んでいる人のものは奪わない**。
-    const themeAccent = draftSpec?.accent ?? activeUserTheme?.spec.accent;
-    const useTheme = themeAccent && accentIsAuto(effective.accentColor);
-    applyAccentVars(useTheme ? themeAccent : effective.accentColor);
-  }, [effective.accentColor, draftSpec, activeUserTheme, accentIsAuto]);
+    applyAccentVars(appliedAccent);
+  }, [appliedAccent]);
 
   // カレンダー文字色・グリッド線色を CSS 変数に反映
   useEffect(() => {
@@ -739,7 +746,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   return (
     <ThemeContext.Provider value={{
       settings: effective, updateSettings, currentWorkId, setCurrentCalendar, calFontFamily,
-      skin, setSkin, userThemes, userThemeId, activeSpec, selectUserTheme, reloadUserThemes,
+      skin, setSkin, userThemes, userThemeId, activeSpec, appliedAccent, selectUserTheme, reloadUserThemes,
       draft, setDraft,
       lookWorkId, setLookWorkId, workLooks, setLookActive, resetWorkLook,
     }}>
