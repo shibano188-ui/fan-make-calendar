@@ -391,9 +391,13 @@ export default function ItemDetail() {
               );
             })()}
 
-            {/* 日付と場所は同じ行に */}
+            {/* 日付と場所は同じ行に。
+                日付は「開催 12/31〜12/31 23:59」が最長で 153px にしかならない定型なので、
+                日程側は中身のぶんだけ（flex-shrink-0）にして、余りを全部場所に渡す。
+                以前は場所を max-w-[45%] に閉じ込めていて、文字が入る幅が 137px（全角で約9.8文字）しかなく、
+                店舗一覧のような長い場所が「らら / ぽーと湘南平塚」のように割れていた。 */}
             <div className="flex items-start gap-3">
-              <div className="flex-1 min-w-0">
+              <div className="flex-shrink-0">
             {/* 日程 */}
             <div className="mt-3 flex items-start gap-2">
               <CalendarDays size={16} className="text-label-secondary mt-0.5 flex-shrink-0" />
@@ -408,7 +412,7 @@ export default function ItemDetail() {
             </div>
 
               </div>
-              <div className="flex-shrink-0 max-w-[45%]">
+              <div className="flex-1 min-w-0">
             {/* 会場・地域 */}
             {(event.prefecture || event.locationDetail) && (
               <div className="mt-3 flex items-start gap-2">
