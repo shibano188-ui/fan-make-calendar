@@ -1507,12 +1507,15 @@ export async function countUserPostedEvents(userId: string): Promise<number> {
   return count ?? 0;
 }
 
+/** もらったいいねの数。**自分でつけたものは数えない**
+ *  （投稿時に「カレンダーに登録」で自分のいいねが付くため。ランキングの集計も自演は数えていない）。 */
 export async function getTotalReceivedLikes(userId: string): Promise<number> {
-  const { data } = await supabase
-    .from('events')
-    .select('like_count')
-    .eq('author_id', userId);
-  return (data ?? []).reduce((sum, e) => sum + ((e.like_count as number) ?? 0), 0);
+  const { count } = await supabase
+    .from('likes')
+    .select('event_id, events!inner(author_id)', { count: 'exact', head: true })
+    .eq('events.author_id', userId)
+    .neq('user_id', userId);
+  return count ?? 0;
 }
 
 export async function countUserLikesGiven(userId: string): Promise<number> {
