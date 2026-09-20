@@ -8,7 +8,7 @@ import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME } from '../lib/constants';
 import { deriveItemType, itemDateLines, todayStr, isDateUncertain, stageFlow } from '../design/tokens';
-import { resolveBuy, getOffers, buildOffer, offerUrl, primaryOffer, isSearchPageUrl } from '../lib/affiliate';
+import { resolveBuy, getOffers, buildOffer, offerUrl, primaryOffer, isSearchPageUrl, isSourceOnlyLink } from '../lib/affiliate';
 import { openBuyLink } from '../lib/dataLogs';
 import { openExternal } from '../lib/openExternal';
 import ReactionButton from '../components/item/ReactionButton';
@@ -34,6 +34,7 @@ const EXTERNAL_CALENDAR_ENABLED = false;
 function summarizePatch(p: EventPatch): string {
   const parts: string[] = [];
   if (p.removedOfferUrls?.length) parts.push(`購入リンクを取り消し（${p.removedOfferUrls.length}件）`);
+  if (p.addedSourceUrls?.length) parts.push(`ソースを追加（${p.addedSourceUrls.length}件）`);
   if ('date' in p) parts.push(`日付 ${p.date ? p.date.slice(5).replace('-', '/') : '未定'}`);
   if (p.endDate) parts.push(`〜${p.endDate.slice(5).replace('-', '/')}`);
   if (p.time) parts.push(p.time);
@@ -220,14 +221,22 @@ export default function ItemDetail() {
     void openExternal(`https://twitter.com/intent/tweet?text=${text}${url ? `&url=${encodeURIComponent(url)}` : ''}`);
   };
 
-  // 購入リンクの追加。詳細タブの入力欄と「＋α」のパネルの両方から呼ぶ
+  // リンクの追加。詳細タブの入力欄と「＋α」のパネルの両方から呼ぶ。
+  // 買えるページは購入リンクに、Xのポストやニュースなど買えないものはソースとして足す。
   const addLink = async (u: string): Promise<boolean> => {
     if (!u || !user || addingLink) return false;
     setAddingLink(true);
+    if (isSourceOnlyLink(u)) {
+      const ed = await addEventEdit(event.id, { addedSourceUrls: [u] }, user.id);
+      if (ed) setEdits((prev) => [...prev, ed]);
+      setAddingLink(false); haptic.select();
+      toast(ed ? 'ソースとして追加しました' : '追加できませんでした', ed ? undefined : 'error');
+      return !!ed;
+    }
     const c = await addOfferContrib(event.id, buildOffer(u), user.id);
     if (c) setContribs((prev) => [...prev, c]);
     setAddingLink(false); haptic.select();
-    if (!c) toast('追加できませんでした', 'error');
+    toast(c ? '購入リンクとして追加しました' : '追加できませんでした', c ? undefined : 'error');
     return !!c;
   };
   const onAddLink = async () => {
@@ -306,6 +315,10 @@ export default function ItemDetail() {
     setEdits((prev) => prev.filter((e) => e.id !== eid));
     await removeEventEdit(eid);
   };
+
+  // ソース（どこで知ったか）。編集履歴のパッチから並べる（古い順）
+  const sources = edits.flatMap((ed) =>
+    (ed.patch.addedSourceUrls ?? []).map((url) => ({ url, editId: ed.id, by: ed.createdBy })));
 
   // 情報を足した人（投稿者以外）。日時の編集・リンクの追加・在庫の報告の回数が多い順
   const contributorIds = (() => {
@@ -579,11 +592,32 @@ export default function ItemDetail() {
               </div>
               <div className="flex gap-2 mt-2">
                 <input value={addUrl} onChange={(e) => setAddUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onAddLink()}
-                  placeholder="購入リンクを追加（URL）" inputMode="url"
+                  placeholder="リンクを追加（URL）" inputMode="url"
                   className="flex-1 rounded-[10px] px-3 py-2 text-[13px] outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
                 <button onClick={onAddLink} disabled={!addUrl.trim() || addingLink} className="pressable px-3 rounded-[10px] text-[13px] font-semibold flex-shrink-0" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>追加</button>
               </div>
             </div>
+
+            {/* ソース（どこで知ったか）。買えるページではないので購入リンクとは分けて並べる */}
+            {sources.length > 0 && (
+              <div className="mt-4">
+                <div className="text-[12px] text-label-secondary mb-1.5">ソース</div>
+                <div className="flex flex-col gap-1.5">
+                  {sources.map((sc) => (
+                    <div key={sc.editId + sc.url} className="flex items-center gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+                      <a href={sc.url} target="_blank" rel="noopener nofollow" onClick={() => haptic.select()}
+                        className="pressable flex-1 min-w-0 flex items-center justify-between gap-2">
+                        <span className="text-[13px] truncate">{sourceLabel(sc.url)}</span>
+                        <span className="text-[13px] font-bold flex-shrink-0" style={{ color: 'var(--accent-text)' }}>開く ↗</span>
+                      </a>
+                      {user && sc.by === user.id && (
+                        <button onClick={() => onRevertEdit(sc.editId)} aria-label="削除" className="pressable tap-44 text-label-tertiary flex-shrink-0"><X size={15} /></button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
               </div>
             )}
@@ -686,6 +720,15 @@ export default function ItemDetail() {
       )}
     </div>
   );
+}
+
+/** ソースの見出し。Xのポストは「Xのポスト」、それ以外はドメインで出す */
+function sourceLabel(url: string): string {
+  try {
+    const h = new URL(url).host.replace(/^www\./, '');
+    if (/(^|\.)(x\.com|twitter\.com|t\.co)$/.test(h)) return 'Xのポスト';
+    return h;
+  } catch { return url; }
 }
 
 type DetailTab = 'detail' | 'links' | 'stock' | 'contributors';

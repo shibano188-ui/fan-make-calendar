@@ -13,7 +13,7 @@ export type AddInfoTab = 'date' | 'link' | 'stock';
 
 const TABS: { key: AddInfoTab; label: string }[] = [
   { key: 'date', label: '日時・予約' },
-  { key: 'link', label: '購入リンク' },
+  { key: 'link', label: 'リンク' },
   { key: 'stock', label: '在庫' },
 ];
 
@@ -59,21 +59,20 @@ export default function AddInfoSheet({ event, onClose, onSaveEdit, onAddLink, on
 
   return (
     <Sheet onClose={onClose} title="情報を追加" ariaLabel="情報を追加" maxHeight="62dvh" fixed={tabs}>
-      <div className="px-4 pt-3" style={{ minHeight: '38dvh' }}>
+      <div className="px-4 pt-1" style={{ minHeight: '38dvh' }}>
         {tab === 'date' && (
-          <>
-            <p className="text-[12px] text-label-tertiary">直した日時はみんなに反映されます（履歴から戻せます）</p>
-            <EventEditForm event={event} onClose={onClose} onSave={(p) => submit(() => onSaveEdit(p))} />
-          </>
+          <EventEditForm event={event} onClose={onClose} onSave={(p) => submit(() => onSaveEdit(p))} />
         )}
 
         {tab === 'link' && (
           <>
-            <p className="text-[12px] text-label-tertiary">買えるページのURLを貼ってください</p>
+            {/* 買えるページとソース（Xのポスト・公式サイト・記事）を同じ欄で受ける。
+                どちらとして扱うかは貼られたURLで振り分ける（ItemDetail の addLink） */}
+            <p className="text-[12px] text-label-tertiary">買えるページでも、Xのポストや記事でも</p>
             <div className="flex gap-2 mt-2">
               <input value={url} onChange={(e) => setUrl(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && url.trim() && submit(() => onAddLink(url.trim()))}
-                placeholder="購入リンク（URL）" inputMode="url" autoFocus
+                placeholder="リンク（URL）" inputMode="url"
                 className={inputCls} style={inputStyle} />
               <button onClick={() => submit(() => onAddLink(url.trim()))} disabled={!url.trim() || busy}
                 className="pressable px-4 rounded-[10px] text-[14px] font-semibold flex-shrink-0"
@@ -88,7 +87,7 @@ export default function AddInfoSheet({ event, onClose, onSaveEdit, onAddLink, on
             <div className="flex gap-2 mt-2">
               <input value={note} onChange={(e) => setNote(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && note.trim() && submit(() => onAddStock(note.trim()))}
-                placeholder="在庫情報を追加" autoFocus
+                placeholder="在庫情報を追加"
                 className={inputCls} style={inputStyle} />
               <button onClick={() => submit(() => onAddStock(note.trim()))} disabled={!note.trim() || busy}
                 className="pressable px-4 rounded-[10px] text-[14px] font-semibold flex-shrink-0"

@@ -980,6 +980,9 @@ export type EventPatch = Partial<Pick<CalendarEvent, 'date' | 'dateLabel' | 'end
   /** 取り消された購入リンクのURL。events.offers は書き換えず、実効値の計算時に除外する。
    * 日付編集と同じく履歴に残り「戻す」で復活できる（誰でも取り消せる＝共同編集）。 */
   removedOfferUrls?: string[];
+  /** ソース（どこで知ったか）として足されたURL。買えるページではないので購入リンクには混ぜない。
+   * E1 の event_sources ができるまでの置き場所。表示は詳細ページが edits から直接組み立てる。 */
+  addedSourceUrls?: string[];
 };
 export type EventEdit = { id: string; patch: EventPatch; createdBy: string | null; createdAt: string };
 
@@ -1008,7 +1011,8 @@ export function applyEdits<T extends CalendarEvent>(event: T, edits: EventEdit[]
   let e = { ...event };
   const removed = new Set<string>();
   for (const ed of edits) {
-    const { removedOfferUrls, ...rest } = ed.patch;
+    // ソースは予定の項目ではないので実効値には畳み込まない（詳細ページが edits から並べる）
+    const { removedOfferUrls, addedSourceUrls: _sources, ...rest } = ed.patch;
     for (const u of removedOfferUrls ?? []) removed.add(u);
     e = { ...e, ...rest };
   }
