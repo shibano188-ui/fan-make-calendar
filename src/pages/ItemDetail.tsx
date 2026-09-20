@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Pin, Share2, X } from 'lucide-react';
+import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Pin, Share2, X, Plus } from 'lucide-react';
 import type { CalendarEvent, EventVisit } from '../types';
 import { getEventById, getWorkById, getDisplayName, toggleLike, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, addEventVisit, removeEventVisit, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
 import EventEditForm from '../components/item/EventEditForm';
@@ -21,6 +21,7 @@ import { likeEffect } from '../lib/likeEffect';
 import { useLike, setLike, getLike } from '../lib/likeStore';
 import ImageCarousel from '../components/item/ImageCarousel';
 import NotifyBell from '../components/item/NotifyBell';
+import AddInfoSheet from '../components/item/AddInfoSheet';
 import LineLoader from '../components/ui/LineLoader';
 import UserProfileModal from '../components/UserProfileModal';
 import { useConfirm } from '../components/ui/ConfirmDialog';
@@ -76,6 +77,7 @@ export default function ItemDetail() {
   const [followCount, setFollowCount] = useState(0);
   const [visits, setVisits] = useState<EventVisit[]>([]);
   const [visitOpen, setVisitOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false); // 「＋α」で開く情報追加パネル
   const [visitStart, setVisitStart] = useState('');
   const [visitEnd, setVisitEnd] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
@@ -218,13 +220,18 @@ export default function ItemDetail() {
     void openExternal(`https://twitter.com/intent/tweet?text=${text}${url ? `&url=${encodeURIComponent(url)}` : ''}`);
   };
 
-  const onAddLink = async () => {
-    const u = addUrl.trim();
-    if (!u || !user || addingLink) return;
+  // 購入リンクの追加。詳細タブの入力欄と「＋α」のパネルの両方から呼ぶ
+  const addLink = async (u: string): Promise<boolean> => {
+    if (!u || !user || addingLink) return false;
     setAddingLink(true);
     const c = await addOfferContrib(event.id, buildOffer(u), user.id);
     if (c) setContribs((prev) => [...prev, c]);
-    setAddUrl(''); setAddingLink(false); haptic.select();
+    setAddingLink(false); haptic.select();
+    if (!c) toast('追加できませんでした', 'error');
+    return !!c;
+  };
+  const onAddLink = async () => {
+    if (await addLink(addUrl.trim())) setAddUrl('');
   };
   const onRemoveContrib = async (cid: string) => {
     haptic.select();
@@ -256,15 +263,20 @@ export default function ItemDetail() {
     setFixingUrl(null); setReplaceUrl(''); setReplacing(false); haptic.select();
     toast(ed ? '購入リンクを差し替えました' : '新しいリンクを追加しました（元のリンクは取り消せませんでした）');
   };
-  const onAddStock = async () => {
-    const n = stockInput.trim();
-    if (!n || !user || addingStock) return;
+  // 在庫の報告。入り口が2つ（詳細タブの入力欄・「＋α」のパネル）なので簡易チェックはここに置く
+  const addStock = async (n: string): Promise<boolean> => {
+    if (!n || !user || addingStock) return false;
     const chk = checkStockNote(n);
-    if (!chk.ok) { toast(chk.reason, 'error'); return; }
+    if (!chk.ok) { toast(chk.reason, 'error'); return false; }
     setAddingStock(true);
     const r = await addStockReport(event.id, n, user.id);
     if (r) setStockReports((prev) => [r, ...prev]);
-    setStockInput(''); setAddingStock(false); haptic.select();
+    setAddingStock(false); haptic.select();
+    if (!r) toast('追加できませんでした', 'error');
+    return !!r;
+  };
+  const onAddStock = async () => {
+    if (await addStock(stockInput.trim())) setStockInput('');
   };
   const onRemoveStock = async (rid: string) => {
     haptic.select();
@@ -636,7 +648,32 @@ export default function ItemDetail() {
             </button>
           </div>
         )}
+
+        {/* ＋α: 情報を足す入口。購入バーがあるときはその上に重ねる */}
+        {user && (
+          <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-app z-30 pointer-events-none"
+            style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + ${buyMode !== 'none' ? 84 : 20}px)` }}>
+            <div className="flex justify-end px-4">
+              <button onClick={() => { haptic.select(); setAddOpen(true); }} aria-label="情報を追加"
+                className="pressable shadow-float pointer-events-auto w-14 h-14 rounded-full relative flex items-center justify-center"
+                style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+                <Plus size={15} strokeWidth={3.5} className="absolute left-3 top-3" />
+                <span className="text-[26px] font-black leading-none" style={{ transform: 'translate(3px, 3px)' }}>α</span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {addOpen && (
+        <AddInfoSheet
+          event={eff}
+          onClose={() => setAddOpen(false)}
+          onSaveEdit={onSaveEdit}
+          onAddLink={addLink}
+          onAddStock={addStock}
+        />
+      )}
 
       {viewingUserId && (
         <UserProfileModal
