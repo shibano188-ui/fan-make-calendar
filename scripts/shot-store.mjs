@@ -44,6 +44,12 @@ const waitSec = Number(opts.find((a) => a.startsWith('--timeout='))?.slice('--ti
 const forceLight = opts.includes('--light');
 const waitFile = opts.find((a) => a.startsWith('--wait-file='))?.slice('--wait-file='.length);
 const statePath = opts.find((a) => a.startsWith('--state='))?.slice('--state='.length);
+// 撮る直前に少しだけ動かす。一覧は貼りつく見出しの裏に前のカードが透けるので、
+// カードの切れ目が見出しの裏に来るように寄せるのに使う（+で下へ、-で上へ）
+const scrollBy = Number(opts.find((a) => a.startsWith('--scroll-by='))?.slice('--scroll-by='.length) ?? 0);
+// 撮る前に押すもの（下タブやページ内のタブ）。
+// 起動時は START_PATH（カレンダー）に飛ぶので、ホームを撮るにはタブを押す必要がある
+const clickSel = opts.find((a) => a.startsWith('--click='))?.slice('--click='.length);
 if (!out || !url) {
   console.error('usage: node scripts/shot-store.mjs <out.png> <url> [statusbar-source.png] [--headed] [--wait-for=<CSS>] [--timeout=<秒>]');
   process.exit(1);
@@ -66,6 +72,9 @@ const ctx = await b.newContext({
   deviceScaleFactor: 3,
   isMobile: true,
   hasTouch: true,
+  // 日付の入力欄は端末の言語で書式が変わる。日本語にしておかないと 09/20/2026 で写る
+  locale: 'ja-JP',
+  timezoneId: 'Asia/Tokyo',
   userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
   // ⚠️ --light の横取りに要る。このアプリはPWAなので、Service Worker を通った
   //    通信は route() の対象外になり、細工が**黙って素通りする**
@@ -91,6 +100,9 @@ await p.addInitScript((light) => {
   try {
     localStorage.setItem('fan_onboarding_done_v2', '1');
     localStorage.setItem('fan_tip_notify_banner', '1');
+    // 探すは前に見ていた位置を覚えている。覚えたままだと中途半端な位置で撮れて、
+    // 貼りつく見出しの裏にカードが透ける。消しておくと「今日」から始まる
+    sessionStorage.removeItem('explore_scroll');
     // サーバーから設定が降りてくる前の最初の一瞬も明るくしておく
     if (light) {
       const raw = localStorage.getItem('user_settings');
@@ -125,6 +137,21 @@ if (waitFile || waitFor) {
 } else {
   await p.waitForTimeout(2500);
 }
+if (clickSel) {
+  await p.click(clickSel);
+  await p.waitForTimeout(2500);
+}
+if (scrollBy) {
+  await p.evaluate((dy) => {
+    const scroller = [...document.querySelectorAll('*')].find((el) => {
+      const oy = getComputedStyle(el).overflowY;
+      return (oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight + 40;
+    });
+    if (scroller && scroller.scrollTop > 0) scroller.scrollTop += dy;
+    else window.scrollBy(0, dy);
+  }, scrollBy);
+  await p.waitForTimeout(800);
+}
 await p.screenshot({ path: body });
 // 次の撮り直しでログインし直さずに済むよう、ログインした状態を残す
 if (statePath) {
@@ -149,6 +176,8 @@ const pageBg = mg(body, '-format', '%[pixel:p{10,10}]', 'info:').trim();
 mg(statusSrc, '-crop', '1320x189+0+0', '+repage', strip);
 const barBg = mg(strip, '-format', '%[pixel:p{10,180}]', 'info:').trim();
 mg(strip, '-fuzz', '6%', '-fill', pageBg, '-opaque', barBg, fixed);
-mg(fixed, body, '-append', out);
+// App Store は透過を受け付けない（「アルファチャネルや透過を含めることはできません」）。
+// ステータスバーの塗り替えで半透明の色が入ることがあるので、必ず不透明にしてから書き出す
+mg(fixed, body, '-append', '-background', 'white', '-alpha', 'remove', '-alpha', 'off', out);
 
 console.log(`saved ${out}（背景 ${barBg} → ${pageBg}）`);
