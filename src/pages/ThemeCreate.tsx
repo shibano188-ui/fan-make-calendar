@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ImagePlus, Undo2, X } from 'lucide-react';
+import { ImagePlus, History, X } from 'lucide-react';
+import { haptic } from '../lib/haptics';
 import Layout from '../components/Layout';
 import Header from '../components/Header';
 import LineLoader from '../components/ui/LineLoader';
@@ -34,13 +35,13 @@ import {
 
 const MAX_REFS = 3;
 
-const PLACEHOLDER = `例）夜の海みたいに静かな青。角は丸めで、文字はやわらかい書体。
-派手にしないで、写真が主役に見えるように。`;
+const PLACEHOLDER = `例）落ち着いた青をメインに。角は丸めで、文字は柔らかめの書体で。
+派手にしすぎず、背景の写真が映えるように。`;
 
 function blankDraft(): ThemeDraft {
   // 角丸だけは必ず数字を入れる（null は「アプリ既定の角丸のまま」＝デフォルト専用の意味）
   const spec: ThemeSpec = { ...PRESET_SPECS.classic, name: '新しいテーマ', radius: 12 };
-  return { spec, history: [], editingId: null, tweaks: 0, note: '', nameLocked: false };
+  return { spec, versions: [], index: -1, editingId: null, tweaks: 0, note: '', nameLocked: false };
 }
 
 export default function ThemeCreate() {
@@ -58,6 +59,7 @@ export default function ThemeCreate() {
   const [error, setError] = useState('');
   const [report, setReport] = useState<ContrastReport[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // 入った時点で下書きを用意する。手直しなら既にあるテーマから始める。
   // 他の画面を見に行って戻ってきたときは、続きから（下書きを作り直さない）
@@ -68,7 +70,8 @@ export default function ThemeCreate() {
       if (t) {
         setDraft({
           spec: t.spec,
-          history: [],
+          versions: [{ spec: t.spec, note: '' }],
+          index: 0,
           editingId: t.id,
           tweaks: Number(localStorage.getItem(`fan_theme_tweaks_${t.id}`) ?? 0),
           note: '',
@@ -83,19 +86,16 @@ export default function ThemeCreate() {
   }, [draft, editId, userThemes, setDraft]);
 
   const spec = draft?.spec ?? null;
-  const made = (draft?.history.length ?? 0) > 0 || !!draft?.editingId;
+  const made = (draft?.versions.length ?? 0) > 0;
   const limit = tweakLimit(premium);
   const tweaksLeft = limit - (draft?.tweaks ?? 0);
   const fixedCount = report.filter(r => r.fixed).length;
 
-  const undo = useCallback(() => {
-    if (!draft || draft.history.length === 0) return;
-    setDraft({
-      ...draft,
-      spec: draft.history[draft.history.length - 1],
-      history: draft.history.slice(0, -1),
-      note: '',
-    });
+  /** 履歴から前（または後ろ）の版に移る。保存するのは今見ている版 */
+  const goToVersion = useCallback((i: number) => {
+    if (!draft || i < 0 || i >= draft.versions.length || i === draft.index) return;
+    haptic.select();
+    setDraft({ ...draft, spec: draft.versions[i].spec, note: draft.versions[i].note, index: i });
   }, [draft, setDraft]);
 
   const rename = useCallback((name: string) => {
@@ -148,10 +148,13 @@ export default function ThemeCreate() {
       const res = await generateTheme(wish, draft.spec, refs.map(r => r.base64));
       // 名前を自分で付けている人のものは、AIの付ける名前で上書きしない
       const next = draft.nameLocked ? { ...res.spec, name: draft.spec.name } : res.spec;
+      // 前の版に戻ってから作り直したときは、その先の版は捨てる（やり直しと同じ扱い）
+      const kept = draft.versions.slice(0, draft.index + 1);
       setDraft({
         ...draft,
         spec: next,
-        history: [...draft.history, draft.spec],
+        versions: [...kept, { spec: next, note: res.note }],
+        index: kept.length,
         note: res.note,
         // 最初の1回（作る）は手直しに数えない
         tweaks: made ? draft.tweaks + 1 : draft.tweaks,
@@ -231,12 +234,34 @@ export default function ThemeCreate() {
               className="flex-1 min-w-0 bg-transparent text-label-primary text-[17px] font-medium outline-none border-b border-subtle focus:border-strong py-1"
             />
             <button
-              onClick={undo}
-              disabled={draft.history.length === 0}
+              onClick={() => { haptic.select(); setHistoryOpen(v => !v); }}
+              disabled={draft.versions.length <= 1}
               className="flex items-center gap-1 text-[12px] text-label-secondary disabled:opacity-30 pressable flex-shrink-0"
             >
-              <Undo2 size={13} />元に戻す
+              <History size={13} />履歴（{draft.versions.length}）
             </button>
+          </div>
+        )}
+
+        {/* 作った版の履歴。押すとその版に戻る（戻ってから直すと、その先の版は消える） */}
+        {made && historyOpen && draft.versions.length > 1 && (
+          <div className="flex flex-col rounded-xl border border-subtle overflow-hidden">
+            {draft.versions.map((v, i) => {
+              const on = i === draft.index;
+              return (
+                <button key={i} onClick={() => goToVersion(i)} aria-pressed={on}
+                  className="pressable flex items-center gap-2 px-3 py-2.5 text-left border-b border-subtle last:border-b-0"
+                  style={on ? { backgroundColor: 'var(--fill-tertiary)' } : undefined}>
+                  <span className="text-[11px] text-label-tertiary w-12 flex-shrink-0">
+                    {i === 0 ? '最初' : `${i}回目`}
+                  </span>
+                  <span className="text-[12px] flex-1 min-w-0 truncate" style={{ color: on ? 'var(--label-primary)' : 'var(--label-secondary)' }}>
+                    {v.note || v.spec.name}
+                  </span>
+                  {on && <span className="text-[11px] flex-shrink-0" style={{ color: 'var(--accent-text)' }}>いま</span>}
+                </button>
+              );
+            })}
           </div>
         )}
         {made && draft.note && <p className="text-label-tertiary text-xs leading-relaxed">{draft.note}</p>}

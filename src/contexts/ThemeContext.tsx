@@ -11,10 +11,15 @@ import {
 import type { ThemeSpec, UserTheme } from '../design/themeSpec';
 
 /** 作りかけのテーマ。画面を移っても消えないよう、ここに置く */
+/** 作った版1つぶん。note は「その版にしたときのAIの説明」 */
+export type ThemeVersion = { spec: ThemeSpec; note: string };
+
 export type ThemeDraft = {
   spec: ThemeSpec;
-  /** 手直しのたびに積む前の版。「元に戻す」はここから取る */
-  history: ThemeSpec[];
+  /** 作った順の版。手直しのたびに積む。履歴から選べば前の版に戻れる */
+  versions: ThemeVersion[];
+  /** 今見ている版（versions の位置）。まだ作っていなければ -1 */
+  index: number;
   /** 既にあるテーマを直しているならそのid。null なら新規 */
   editingId: string | null;
   /** 言葉での手直しを使った回数 */

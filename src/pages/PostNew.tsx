@@ -726,7 +726,7 @@ export default function PostNew() {
 
           {/* タイトル */}
           <div className={labelCls}>タイトル <span style={{ color: 'var(--color-destructive)' }}>*</span></div>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} onBlur={onTitleBlur} placeholder={type === 'goods' ? '例: ぬいっぽ ハイキュー!!（商品名で）' : '例: POP UP STORE'} className={inputCls} style={inputStyle} />
+          <input value={title} onChange={(e) => setTitle(e.target.value)} onBlur={onTitleBlur} placeholder={type === 'goods' ? '例: ぬいっぽ ハイキュー!!' : '例: POP UP STORE'} className={inputCls} style={inputStyle} />
 
           {/* カテゴリ */}
           <div className={labelCls}>カテゴリ</div>
