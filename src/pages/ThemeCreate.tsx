@@ -148,13 +148,13 @@ export default function ThemeCreate() {
       const res = await generateTheme(wish, draft.spec, refs.map(r => r.base64));
       // 名前を自分で付けている人のものは、AIの付ける名前で上書きしない
       const next = draft.nameLocked ? { ...res.spec, name: draft.spec.name } : res.spec;
-      // 前の版に戻ってから作り直したときは、その先の版は捨てる（やり直しと同じ扱い）
-      const kept = draft.versions.slice(0, draft.index + 1);
+      // 作った版は**全部残す**。前の版に戻ってから直しても、後ろの版は消さない
+      // （いくつか試して見比べ、好きな版を選んで保存できるように）
       setDraft({
         ...draft,
         spec: next,
-        versions: [...kept, { spec: next, note: res.note }],
-        index: kept.length,
+        versions: [...draft.versions, { spec: next, note: res.note }],
+        index: draft.versions.length,
         note: res.note,
         // 最初の1回（作る）は手直しに数えない
         tweaks: made ? draft.tweaks + 1 : draft.tweaks,
@@ -238,12 +238,12 @@ export default function ThemeCreate() {
               disabled={draft.versions.length <= 1}
               className="flex items-center gap-1 text-[12px] text-label-secondary disabled:opacity-30 pressable flex-shrink-0"
             >
-              <History size={13} />履歴（{draft.versions.length}）
+              <History size={13} />版を選ぶ（{draft.versions.length}）
             </button>
           </div>
         )}
 
-        {/* 作った版の履歴。押すとその版に戻る（戻ってから直すと、その先の版は消える） */}
+        {/* 作った版の一覧。押すとその版になる。保存するのは選んでいる版 */}
         {made && historyOpen && draft.versions.length > 1 && (
           <div className="flex flex-col rounded-xl border border-subtle overflow-hidden">
             {draft.versions.map((v, i) => {
