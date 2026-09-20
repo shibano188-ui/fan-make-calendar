@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Pin, Share2, X, Plus } from 'lucide-react';
 import type { CalendarEvent, EventVisit } from '../types';
 import { getEventById, getWorkById, getDisplayName, toggleLike, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, addEventVisit, removeEventVisit, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
-import EventEditForm from '../components/item/EventEditForm';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME } from '../lib/constants';
@@ -60,19 +59,16 @@ export default function ItemDetail() {
   const [calCount, setCalCount] = useState(0);
   const [calAdded, setCalAdded] = useState(false);
   const [contribs, setContribs] = useState<OfferContrib[]>([]);
-  const [addUrl, setAddUrl] = useState('');
   const [addingLink, setAddingLink] = useState(false);
   // 「修正」パネルを開いている販路URL（同時に開くのはひとつだけ）と差し替え先の入力値
   const [fixingUrl, setFixingUrl] = useState<string | null>(null);
   const [replaceUrl, setReplaceUrl] = useState('');
   const [replacing, setReplacing] = useState(false);
   const [stockReports, setStockReports] = useState<StockReport[]>([]);
-  const [stockInput, setStockInput] = useState('');
   const [addingStock, setAddingStock] = useState(false);
   const [reported, setReported] = useState(false);
   const confirm = useConfirm();
   const [edits, setEdits] = useState<EventEdit[]>([]);
-  const [editing, setEditing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const premium = usePremium();
   const [following, setFollowing] = useState(false);
@@ -240,9 +236,6 @@ export default function ItemDetail() {
     toast(c ? '購入リンクとして追加しました' : '追加できませんでした', c ? undefined : 'error');
     return !!c;
   };
-  const onAddLink = async () => {
-    if (await addLink(addUrl.trim())) setAddUrl('');
-  };
   const onRemoveContrib = async (cid: string) => {
     haptic.select();
     setContribs((prev) => prev.filter((c) => c.id !== cid));
@@ -285,9 +278,6 @@ export default function ItemDetail() {
     if (!r) toast('追加できませんでした', 'error');
     return !!r;
   };
-  const onAddStock = async () => {
-    if (await addStock(stockInput.trim())) setStockInput('');
-  };
   // 型に収まらない詳しい情報。画面には出さず、運営とAIが読む（E6）
   const addNote = async (text: string): Promise<boolean> => {
     if (!text || !user) return false;
@@ -316,7 +306,6 @@ export default function ItemDetail() {
   };
   const onSaveEdit = async (patch: EventPatch) => {
     if (!user) return;
-    setEditing(false);
     const ed = await addEventEdit(event.id, patch, user.id);
     if (ed) setEdits((prev) => [...prev, ed]);
   };
@@ -425,13 +414,8 @@ export default function ItemDetail() {
               </div>
             </div>
 
-            {/* 日時・予約の修正は日付のすぐ下（投稿者だけに絞ることになっても置き場所はここ） */}
-            {/* 日時/予約の共同編集（即反映＋履歴で戻せる） */}
-            {!editing ? (
-              <button onClick={() => { haptic.select(); setEditing(true); }} className="pressable mt-2 text-[12px]" style={{ color: 'var(--accent-text)' }}>日時・予約を編集</button>
-            ) : (
-              <EventEditForm event={eff} onClose={() => setEditing(false)} onSave={onSaveEdit} />
-            )}
+            {/* 日時・予約の修正は「＋α」のパネルから（入力の入口はそちらに一本化）。
+                ここには履歴だけを置く */}
             {edits.length > 0 && (
               <div className="mt-2">
                 <button onClick={() => setHistoryOpen((v) => !v)} className="pressable text-[12px] text-label-tertiary">
@@ -542,6 +526,7 @@ export default function ItemDetail() {
             {/* 購入リンク（共同編集で追記可・発売に向けて増える） */}
             <div className="mt-4">
               <div className="text-[12px] text-label-secondary mb-1.5">購入リンク（広告を含みます）</div>
+              {getOffers(eff).length === 0 && contribs.length === 0 && <p className="text-[13px] text-label-tertiary">購入リンクはまだありません</p>}
               <div className="flex flex-col gap-1.5">
                 {getOffers(eff).map((o, i) => (
                   <div key={`b${i}`} className="flex flex-col gap-1.5">
@@ -600,12 +585,6 @@ export default function ItemDetail() {
                   </div>
                 ))}
               </div>
-              <div className="flex gap-2 mt-2">
-                <input value={addUrl} onChange={(e) => setAddUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onAddLink()}
-                  placeholder="リンクを追加（URL）" inputMode="url"
-                  className="flex-1 rounded-[10px] px-3 py-2 text-[13px] outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
-                <button onClick={onAddLink} disabled={!addUrl.trim() || addingLink} className="pressable px-3 rounded-[10px] text-[13px] font-semibold flex-shrink-0" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>追加</button>
-              </div>
             </div>
 
             {/* ソース（どこで知ったか）。買えるページではないので購入リンクとは分けて並べる */}
@@ -644,6 +623,7 @@ export default function ItemDetail() {
             {/* 在庫情報（共同編集・追記ログ） */}
             <div className="mt-4">
               <div className="text-[12px] text-label-secondary mb-1.5">在庫情報</div>
+              {stockReports.length === 0 && <p className="text-[13px] text-label-tertiary">在庫の報告はまだありません</p>}
               {stockReports.length > 0 && (
                 <div className="flex flex-col gap-1.5 mb-2">
                   {stockReports.map((r) => (
@@ -657,12 +637,6 @@ export default function ItemDetail() {
                   ))}
                 </div>
               )}
-              <div className="flex gap-2">
-                <input value={stockInput} onChange={(e) => setStockInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onAddStock()}
-                  placeholder="在庫情報を追加"
-                  className="flex-1 rounded-[10px] px-3 py-2 text-[13px] outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
-                <button onClick={onAddStock} disabled={!stockInput.trim() || addingStock} className="pressable px-3 rounded-[10px] text-[13px] font-semibold flex-shrink-0" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>追加</button>
-              </div>
             </div>
 
               </div>

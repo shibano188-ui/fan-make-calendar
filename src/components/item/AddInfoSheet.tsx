@@ -92,9 +92,9 @@ export default function AddInfoSheet({ event, onClose, onSaveEdit, onAddLink, on
         </div>
       ))}
       <button onClick={() => { haptic.select(); setRows([...rows, '']); }} disabled={!rows[rows.length - 1].trim()}
-        className="pressable self-start flex items-center gap-1 text-[13px] font-semibold py-1"
+        aria-label="行を増やす" className="pressable self-start tap-44 py-1"
         style={{ color: rows[rows.length - 1].trim() ? 'var(--accent-text)' : 'var(--label-tertiary)' }}>
-        <Plus size={15} strokeWidth={3} /> もう1つ
+        <Plus size={18} strokeWidth={3} />
       </button>
     </div>
   );
@@ -129,14 +129,14 @@ export default function AddInfoSheet({ event, onClose, onSaveEdit, onAddLink, on
           <>
             {/* 買えるページとソース（Xのポスト・公式サイト・記事）を同じ欄で受ける。
                 どちらとして扱うかは貼られたURLで振り分ける（ItemDetail の addLink） */}
-            <p className="text-[12px] text-label-tertiary mt-2">買えるページでも、Xのポストや記事でも</p>
+            <p className="text-[12px] text-label-tertiary mt-2">販売先、Xのポスト、公式サイトなど</p>
             {rowsField(urls, setUrls, 'リンク（URL）', true)}
           </>
         )}
 
         {tab === 'stock' && (
           <>
-            <p className="text-[12px] text-label-tertiary mt-2">お店ごとに1行ずつ（通販もお店として）</p>
+            <p className="text-[12px] text-label-tertiary mt-2">店舗ごとに入力してください</p>
             {rowsField(stocks, setStocks, '在庫情報を追加')}
           </>
         )}
