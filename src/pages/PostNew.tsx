@@ -528,7 +528,7 @@ export default function PostNew() {
       category: picked.every((p) => p.category === picked[0].category) ? picked[0].category : null,
       offers: picked.flatMap((p) => (p.offers ?? []).map((o) => ({
         ...o,
-        label: o.label ? (p.kind ? `${p.kind}（${o.label}）` : o.label) : (p.kind || itemTitle(p, o.url) || undefined),
+        label: o.label || itemTitle(p, o.url) || p.kind || undefined,
       }))),
       items: picked.flatMap((p) => p.items ?? []),
     };
