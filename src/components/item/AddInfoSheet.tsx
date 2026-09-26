@@ -15,7 +15,7 @@ export type AddInfoTab = 'date' | 'link' | 'stock' | 'note';
 
 const TABS: { key: AddInfoTab; label: string }[] = [
   { key: 'date', label: '日時・予約' },
-  { key: 'link', label: 'リンク' },
+  { key: 'link', label: 'リンク・値段' },
   { key: 'stock', label: '在庫' },
   { key: 'note', label: '詳細' },
 ];
@@ -41,10 +41,14 @@ export default function AddInfoSheet({ event, onClose, onSaveEdit, onAddLink, on
   const [urls, setUrls] = useState<string[]>(['']);
   const [stocks, setStocks] = useState<string[]>(['']);
   const [note, setNote] = useState('');
+  // 値段の修正（グッズのみ）。販路から取れた値段が違うとき・取れないときに直す。日時と同じ共同編集
+  const [price, setPrice] = useState('');
+  const priceNum = /^\d+$/.test(price.trim().replace(/[,，円¥￥]/g, '')) ? Number(price.trim().replace(/[,，円¥￥]/g, '')) : null;
+  const isGoods = event.type === 'goods';
   const [busy, setBusy] = useState(false);
 
   const written = (rows: string[]) => rows.map((r) => r.trim()).filter(Boolean);
-  const filled = !!datePatch || written(urls).length > 0 || written(stocks).length > 0 || !!note.trim();
+  const filled = !!datePatch || priceNum != null || written(urls).length > 0 || written(stocks).length > 0 || !!note.trim();
 
   // 入っているものを上から順に送る。通ったものは消し、失敗したものだけ残してパネルは開けておく
   const submit = async () => {
@@ -52,9 +56,11 @@ export default function AddInfoSheet({ event, onClose, onSaveEdit, onAddLink, on
     haptic.select();
     setBusy(true);
     let ok = true;
-    if (datePatch) {
-      if ((await onSaveEdit(datePatch)) === false) ok = false;
-      else setDatePatch(null);
+    // 日時と値段は1つの修正としてまとめて送る（履歴に1行で残る）
+    if (datePatch || priceNum != null) {
+      const patch: EventPatch = { ...(datePatch ?? {}), ...(priceNum != null ? { price: priceNum } : {}) };
+      if ((await onSaveEdit(patch)) === false) ok = false;
+      else { setDatePatch(null); setPrice(''); }
     }
     const leftUrls: string[] = [];
     for (const u of written(urls)) if ((await onAddLink(u)) === false) { leftUrls.push(u); ok = false; }
@@ -73,7 +79,7 @@ export default function AddInfoSheet({ event, onClose, onSaveEdit, onAddLink, on
   /** 入っているタブに点を付ける（別のタブに書いたことを忘れないように） */
   const hasInput = (k: AddInfoTab) =>
     k === 'date' ? !!datePatch
-      : k === 'link' ? written(urls).length > 0
+      : k === 'link' ? written(urls).length > 0 || priceNum != null
       : k === 'stock' ? written(stocks).length > 0
       : !!note.trim();
 
@@ -106,7 +112,7 @@ export default function AddInfoSheet({ event, onClose, onSaveEdit, onAddLink, on
           onClick={() => { haptic.select(); setTab(t.key); }}
           className="pressable flex-1 py-2.5 text-[13px] font-semibold relative"
           style={{ color: tab === t.key ? 'var(--label-primary)' : 'var(--label-tertiary)' }}>
-          {t.label}
+          {t.key === 'link' && !isGoods ? 'リンク' : t.label}
           {hasInput(t.key) && (
             <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--accent-color)' }} />
           )}
@@ -131,6 +137,17 @@ export default function AddInfoSheet({ event, onClose, onSaveEdit, onAddLink, on
                 どちらとして扱うかは貼られたURLで振り分ける（ItemDetail の addLink） */}
             <p className="text-[12px] text-label-tertiary mt-2">販売先、Xのポスト、公式サイトなど</p>
             {rowsField(urls, setUrls, 'リンク（URL）', true)}
+            {isGoods && (
+              <>
+                <p className="text-[12px] text-label-tertiary mt-4">値段が違う・出ていないとき（税込）</p>
+                <div className="flex items-center gap-2 mt-2">
+                  <input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="numeric"
+                    placeholder={event.price != null ? `今は ¥${event.price.toLocaleString()}` : '例: 1650'}
+                    className={inputCls} style={inputStyle} />
+                  <span className="text-[14px] text-label-secondary flex-shrink-0">円</span>
+                </div>
+              </>
+            )}
           </>
         )}
 

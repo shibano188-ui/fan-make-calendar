@@ -30,6 +30,7 @@ export type CalendarEvent = {
   // ─ ピボット拡張（既存行は未設定=event扱いで動く）─
   type?: 'event' | 'goods'; // 既定は event（DBは default 'event'）
   price?: number;           // グッズ価格（円）
+  priceEdited?: boolean;    // ＋αで値段が直された（実効値だけに付く。販路の値段より優先して出す）
   stockNote?: string;       // 在庫コメント（最新の追記ログ要約など）
   retailer?: string;        // 販路名（animate / あみあみ / プレバン 等）※offers[0]の要約
   affiliateUrl?: string;    // アフィリンク化後のURL ※offers[0]の要約

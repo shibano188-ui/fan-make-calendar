@@ -37,6 +37,7 @@ function summarizePatch(p: EventPatch): string {
   if (p.removedOfferUrls?.length) parts.push(`購入リンクを取り消し（${p.removedOfferUrls.length}件）`);
   if (p.addedSourceUrls?.length) parts.push(`ソースを追加（${p.addedSourceUrls.length}件）`);
   if (p.addedNote) parts.push('詳しい情報を追加');
+  if (typeof p.price === 'number') parts.push(`値段 ¥${p.price.toLocaleString()}`);
   if ('date' in p) parts.push(`日付 ${p.date ? p.date.slice(5).replace('-', '/') : '未定'}`);
   if (p.endDate) parts.push(`〜${p.endDate.slice(5).replace('-', '/')}`);
   if (p.time) parts.push(p.time);
@@ -495,7 +496,7 @@ export default function ItemDetail() {
               // 代表販路に値段が無いときの控えは eff.price（元の event.price ではない）。
               // リンクが取り消されていれば applyEdits が残った販路の値段に直している（無ければ値段なし）。
               const prim = primaryOffer(getOffers(eff));
-              const price = prim?.price ?? eff.price;
+              const price = eff.priceEdited ? eff.price : (prim?.price ?? eff.price);
               if (price == null) return null;
               return (
                 <div className="mt-2 flex items-baseline flex-wrap gap-2">
