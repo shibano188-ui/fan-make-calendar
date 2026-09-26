@@ -157,6 +157,21 @@ const SEARCH_PAGE_PATTERNS: RegExp[] = [
 ];
 
 /** 商品ページではなく検索・一覧ページのURLか（販路としては不完全）。 */
+/** 在庫の表示が古いか。予約開始・予約終了・発売の節目を過ぎたのに、節目より前に取った在庫しか無いときは
+ *  出さない（「予約受付中なのに在庫なし」のような食い違いでユーザーが混乱する。本人要望・2026-09-26）。
+ *  節目のあとはサーバーがこまめに取り直すので（api/_boundary.ts）、取り直せばまた出る。時刻はJST。 */
+export function isStockStale(e: Pick<CalendarEvent, 'date' | 'time' | 'dateLabel' | 'preorderStart' | 'preorderStartTime' | 'preorderEnd' | 'preorderEndTime'>, o: Pick<Offer, 'fetchedAt'>, now = Date.now()): boolean {
+  if (!o.fetchedAt) return false;
+  const fetched = Date.parse(o.fetchedAt);
+  const at = (d?: string | null, t?: string | null, fb = '00:00') => (d ? Date.parse(`${d}T${(t || fb).slice(0, 5)}:00+09:00`) : NaN);
+  const passed = [
+    at(e.preorderStart, e.preorderStartTime, '09:00'),
+    at(e.preorderEnd, e.preorderEndTime, '23:59'),
+    e.dateLabel ? NaN : at(e.date, e.time, '00:00'),
+  ].filter((b) => !Number.isNaN(b) && b <= now);
+  return passed.some((b) => fetched < b);
+}
+
 /** 種類違いが並ぶ予定（名前付きのリンクが2つ以上）の値段の幅。同じ商品を店違いで売っているだけの予定は
  *  幅にしない（「商品によって値段が違う」ように見えてしまう）。一番安い値段だけ出すと、シリーズ全部が
  *  その値段に見えて紛らわしい（本人指摘・2026-09-26）。全部同じ値段なら null（普通の1つの値段）。 */

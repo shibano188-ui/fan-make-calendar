@@ -6,7 +6,7 @@ import { deriveStatus, deriveItemType, itemDateLines, todayStr } from '../../des
 import { countdownLabel } from '../../lib/relativeDay';
 import { parseCategories, getPrimaryCategoryColor, parseImageUrls } from '../../lib/constants';
 import { likeEffect } from '../../lib/likeEffect';
-import { primaryOffer, getOffers, priceRange } from '../../lib/affiliate';
+import { primaryOffer, getOffers, priceRange, isStockStale } from '../../lib/affiliate';
 import StatusBadge from '../ui/StatusBadge';
 import OptImg from '../ui/OptImg';
 import ReactionButton from './ReactionButton';
@@ -156,7 +156,8 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
     const img = layout === 'compact' ? 'w-[108px] h-[108px]' : 'w-[144px] h-[144px]';
     const countdown = splitCountdown(countdownLabel(event, type === 'goods', todayStr()));
     const offer = primaryOffer(getOffers(event));
-    const stock = offer && (offer.inStock === false ? '売り切れ' : offer.stockLabel || (offer.inStock ? '在庫あり' : ''));
+    // 節目（予約開始・終了・発売）より前に取ったきりの在庫は出さない（isStockStale）
+    const stock = offer && !isStockStale(event, offer) && (offer.inStock === false ? '売り切れ' : offer.stockLabel || (offer.inStock ? '在庫あり' : ''));
     return (
       <div data-skin-part="card" data-status={status} data-layout="list"
         className="rounded-[12px] border border-subtle overflow-hidden bg-bg-secondary p-2.5 flex gap-3"

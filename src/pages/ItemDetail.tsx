@@ -8,7 +8,7 @@ import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME } from '../lib/constants';
 import { deriveItemType, itemDateLines, todayStr, isDateUncertain, stageFlow } from '../design/tokens';
-import { resolveBuy, getOffers, offerUrl, primaryOffer, isSearchPageUrl, isSourceOnlyLink, priceRange } from '../lib/affiliate';
+import { resolveBuy, getOffers, offerUrl, primaryOffer, isSearchPageUrl, isSourceOnlyLink, priceRange, isStockStale } from '../lib/affiliate';
 import { buildPinnedOffer } from '../lib/searchProduct';
 import { openBuyLink } from '../lib/dataLogs';
 import { openExternal } from '../lib/openExternal';
@@ -556,7 +556,7 @@ export default function ItemDetail() {
                     <a href={offerUrl(o)} target="_blank" rel="noopener nofollow" onClick={() => haptic.select()}
                       className="pressable flex-1 min-w-0 flex items-center justify-between gap-2">
                       {/* 検索ページは商品ページと区別する（商品が特定できず価格も在庫も出ないため） */}
-                      <span className="text-[13px] truncate" style={o.inStock === false ? { opacity: 0.55 } : undefined}>
+                      <span className="text-[13px] truncate" style={o.inStock === false && !isStockStale(eff, o) ? { opacity: 0.55 } : undefined}>
                         {/* 種類違いのリンクが並ぶときは名前（キャラ名など）を先に出す */}
                         {o.label && <span className="font-semibold">{o.label}<span className="text-label-tertiary font-normal"> ・ </span></span>}
                         {o.retailer || 'リンク'}{o.shop ? `（${o.shop}）` : ''}{isSearchPageUrl(o.url) && o.label !== '検索結果' ? '（検索）' : ''}
@@ -564,7 +564,8 @@ export default function ItemDetail() {
                       <span className="flex items-center gap-1.5 flex-shrink-0">
                         {/* 在庫は「あり/なし」の2値だけ出す（販路ごとに粒度が違うので生の表記は使わない）。
                             未取得(undefined)のときは何も出さない＝Cronが更新するまで無表示 */}
-                        {o.inStock !== undefined && (
+                        {/* 節目（予約開始・終了・発売）より前に取ったきりの在庫は出さない（isStockStale） */}
+                        {o.inStock !== undefined && !isStockStale(eff, o) && (
                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
                             style={{ color: o.inStock ? 'var(--color-success)' : 'var(--color-destructive)', background: 'var(--fill-secondary, rgba(120,120,128,0.16))' }}>
                             {o.inStock ? '在庫あり' : '在庫なし'}
