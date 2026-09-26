@@ -6,7 +6,7 @@ import { deriveStatus, deriveItemType, itemDateLines, todayStr } from '../../des
 import { countdownLabel } from '../../lib/relativeDay';
 import { parseCategories, getPrimaryCategoryColor, parseImageUrls } from '../../lib/constants';
 import { likeEffect } from '../../lib/likeEffect';
-import { primaryOffer, getOffers } from '../../lib/affiliate';
+import { primaryOffer, getOffers, priceRange } from '../../lib/affiliate';
 import StatusBadge from '../ui/StatusBadge';
 import OptImg from '../ui/OptImg';
 import ReactionButton from './ReactionButton';
@@ -100,7 +100,9 @@ function CategoryLine({ event }: { event: CalendarEvent }) {
 export default function ItemCard({ event, layout = 'grid', isNew, likedInit, workColor, onOpen, onLike }: Props) {
   const type = deriveItemType(event);
   const status = deriveStatus(event);
-  const price = yen(event.price);
+  // 種類違いが並ぶ予定は「¥330〜」（カードは狭いので下限だけ。幅は詳細ページで出す）
+  const range = priceRange(getOffers(event));
+  const price = range ? `${yen(range.min)}〜` : yen(event.price);
   const isSet = !!primaryOffer(getOffers(event))?.isSet;
   const setTag = <span className="text-[9px] font-bold text-label-secondary px-1 py-px rounded flex-shrink-0" style={{ background: 'var(--fill-secondary, rgba(120,120,128,0.16))' }}>セット</span>;
   // 購入導線はカードに出さず詳細ページに一本化（PR表記＝「広告を含みます」を購入リンク直近に置くため）。

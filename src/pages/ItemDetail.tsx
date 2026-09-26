@@ -8,7 +8,7 @@ import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME } from '../lib/constants';
 import { deriveItemType, itemDateLines, todayStr, isDateUncertain, stageFlow } from '../design/tokens';
-import { resolveBuy, getOffers, offerUrl, primaryOffer, isSearchPageUrl, isSourceOnlyLink } from '../lib/affiliate';
+import { resolveBuy, getOffers, offerUrl, primaryOffer, isSearchPageUrl, isSourceOnlyLink, priceRange } from '../lib/affiliate';
 import { buildPinnedOffer } from '../lib/searchProduct';
 import { openBuyLink } from '../lib/dataLogs';
 import { openExternal } from '../lib/openExternal';
@@ -497,10 +497,14 @@ export default function ItemDetail() {
               // リンクが取り消されていれば applyEdits が残った販路の値段に直している（無ければ値段なし）。
               const prim = primaryOffer(getOffers(eff));
               const price = eff.priceEdited ? eff.price : (prim?.price ?? eff.price);
-              if (price == null) return null;
+              // 種類違いが並ぶ予定は「¥330〜¥1,980」と幅で出す（人が値段を直していればそちら）
+              const range = eff.priceEdited ? null : priceRange(getOffers(eff));
+              if (price == null && !range) return null;
               return (
                 <div className="mt-2 flex items-baseline flex-wrap gap-2">
-                  <span className="text-[22px] font-bold" style={{ color: 'var(--accent-text)' }}>¥{price.toLocaleString()}</span>
+                  <span className="text-[22px] font-bold" style={{ color: 'var(--accent-text)' }}>
+                    {range ? `¥${range.min.toLocaleString()}〜¥${range.max.toLocaleString()}` : `¥${price!.toLocaleString()}`}
+                  </span>
                   {prim?.isSet && <span className="text-[11px] font-bold text-label-secondary px-1.5 py-0.5 rounded" style={{ background: 'var(--fill-tertiary, rgba(120,120,128,0.12))' }}>セット</span>}
                   {prim?.fetchedAt && <span className="text-[11px] text-label-tertiary">{new Date(prim.fetchedAt).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}時点</span>}
                 </div>
