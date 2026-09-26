@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { X, Plus, Check, Sparkles, Link2, Loader2, Search, Share2, CalendarPlus } from 'lucide-react';
 import Chip from '../components/ui/Chip';
 import { resolveWorkName, sameWorkName } from '../lib/workName';
-import { searchWorks, getOrCreateWork, createEvents, toggleLike, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, distinguishSameNameByPlace, isOtherPlaceMatch, getUserPublicProfile, listAllParticipatedWorks, type Work } from '../lib/api';
+import { searchWorks, getOrCreateWork, createEvents, toggleLike, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, distinguishSameNameByPlace, isOtherPlaceMatch, countUserPostedEvents, listAllParticipatedWorks, type Work } from '../lib/api';
 import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES, GOODS_TAG, ONBOARDING_DEMO_KEY, FEATURE_PREMIUM, oneShotTip } from '../lib/constants';
 import { DEMO_POST_TEXT } from '../lib/demoPost';
 import { isPremiumCached, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
@@ -126,6 +126,10 @@ export default function PostNew() {
   // 解析で複数見つかったとき、選んで反映したもの以外の残り。1件投稿したらこの一覧に戻って続けて投稿する
   // （前は1つ選ぶと残りが消え、全部登録するには解析からやり直しだった）
   const [pendingParsed, setPendingParsed] = useState<ParsedEvent[]>(draft0?.pendingParsed ?? []);
+  // 公式通販のシリーズの一覧で「まとめる」ために選んだ行
+  const [mergePick, setMergePick] = useState<Set<number>>(new Set());
+  // いまフォームに入っている解析結果（リンクを外したとき、その商品を1件の予定として一覧に戻すのに使う）
+  const appliedRef = useRef<ParsedEvent | null>(null);
   // ライブ重複検知
   const [dupMatches, setDupMatches] = useState<{ id: string; title: string }[]>([]);
   const [dupDismissed, setDupDismissed] = useState(false);
@@ -278,7 +282,8 @@ export default function PostNew() {
     setPreStartTime(''); setPreEndTime('');
     setPrice(''); setLink(''); setOffers([]); setShowExtra(false); setStockNote(''); setMemo('');
     setImageUrl(''); setPrefecture(''); setLocationDetail('');
-    setError(''); setAiError(''); setParsedList(null); setPendingParsed([]);
+    setError(''); setAiError(''); setParsedList(null); setPendingParsed([]); setMergePick(new Set());
+    appliedRef.current = null;
     setCandidates(null); setSearchingProduct(false); setPicked(new Set());
     setDupMatches([]); setDupDismissed(false);
     aiSourceRef.current = null; aiLogRef.current = null;
@@ -287,8 +292,12 @@ export default function PostNew() {
 
   // アフィリンクが取れていないグッズは、AI入力の画面でその場で販売先を探して添付する。
   // 高信頼（公式店/高一致度）なら自動で追加、確度が足りなければ候補を出して手動で選んでもらう。
+  // 販売先を検索済みのタイトル。投稿時に同じ検索をもう一度しない（楽天は1秒1回の制限で間隔を空けて
+  // 5回叩くので、それだけで投稿が3〜4秒待たされていた）
+  const searchedTitles = useRef(new Set<string>());
   const autoFindOffers = async (t: string, w: string, current: Offer[]) => {
     if (!t.trim() || current.some((o) => isAffiliateUrl(offerUrl(o)))) return;
+    searchedTitles.current.add(t.trim());
     setSearchingProduct(true); setCandidates(null);
     try {
       const kw = searchKeyword(w, t);
@@ -337,6 +346,7 @@ export default function PostNew() {
   };
 
   const applyParsed = (p: ParsedEvent) => {
+    appliedRef.current = p;
     if (aiSourceRef.current) aiLogRef.current = { ...aiSourceRef.current, output: p };
     const parsedType = deriveItemType({ category: p.category ?? undefined });
     setType(parsedType);
@@ -385,7 +395,7 @@ export default function PostNew() {
     if (p.locationDetail) setLocationDetail(p.locationDetail);
     if (p.imageUrl) setImageUrl(p.imageUrl);
     if (p.memo) { setShowExtra(true); setMemo(p.memo); }
-    setParsedList(null);
+    setParsedList(null); setMergePick(new Set());
     // グッズで収益リンクが取れていなければ、この場で販売先を探す（投稿時まで待たない）
     if (parsedType === 'goods' && p.title && !p.offers?.length) {
       void autoFindOffers(p.title, p.work || workName || workQuery, parsedOffers);
@@ -476,7 +486,56 @@ export default function PostNew() {
     if (!price && o.price) setPrice(String(o.price));
     toast('購入リンクを追加しました');
   };
-  const removeOffer = (url: string) => setOffers((prev) => prev.filter((o) => o.url !== url));
+  const removeOffer = (url: string) => {
+    const removed = offers.find((o) => o.url === url);
+    setOffers((prev) => prev.filter((o) => o.url !== url));
+    // 公式通販のシリーズから外した商品は、捨てずに1件の予定として一覧に戻す（＝「分ける」）。
+    // 分ける操作を別に作ると階層が増えるので、今ある × をそのまま使う
+    const src = appliedRef.current;
+    const item = src?.items?.find((it) => it.url === url);
+    if (!src || !item || !removed || offers.length < 2) return;
+    const single: ParsedEvent = {
+      ...src, title: item.title, kind: null, price: removed.price ?? null, imageUrl: item.image || src.imageUrl,
+      offers: [{ ...removed, label: undefined }], items: [item],
+    };
+    setPendingParsed((prev) => [...prev, single]);
+    toast('外した商品は、投稿後の一覧に1件として戻します');
+  };
+
+  // シリーズの一覧で選んだ行を1件にまとめる。リンクの名前は種類を付けて「お守り（ハチワレ）」にする
+  // 一覧が公式通販のシリーズ（全部に商品リンクがそろっている）か。まとめるのはこのときだけ
+  // （Xのポストから複数見つかった予定は日付も内容も別物なので、まとめる対象にしない）
+  const seriesList = !!parsedList?.length && parsedList.every((p) => (p.offers?.length ?? 0) > 0);
+  const mergeSelected = () => {
+    if (!parsedList || mergePick.size < 2) return;
+    haptic.select();
+    const idx = [...mergePick].sort((a, b) => a - b);
+    const picked = idx.map((i) => parsedList[i]);
+    const titles = picked.map((p) => p.title ?? '');
+    // タイトルは共通部分（「ちいかわ シーサーのおみやげやさん」）。短すぎれば先頭のタイトル
+    let n = 0;
+    while (titles.every((t) => t[n] !== undefined && t[n] === titles[0][n])) n++;
+    // 語の途中で切れた短い切れ端（「… ラ」ンチョンマット／「… ラ」ーメン）だけ落とす。長い部分は残す
+    const raw = titles[0].slice(0, n).trim();
+    const cut = raw.replace(/[\s　・（(]+[^\s　・（(]*$/, '').trim();
+    const common = titles.every((t) => /^[\s　]?$/.test(t[n] ?? '')) || raw.length - cut.length > 3 ? raw : cut;
+    const itemTitle = (p: ParsedEvent, url: string) => p.items?.find((it) => it.url === url)?.title;
+    const merged: ParsedEvent = {
+      ...picked[0],
+      title: common.length >= 4 ? common : titles[0],
+      kind: null,
+      price: Math.min(...picked.map((p) => p.price ?? Infinity).filter(Number.isFinite)),
+      category: picked.every((p) => p.category === picked[0].category) ? picked[0].category : null,
+      offers: picked.flatMap((p) => (p.offers ?? []).map((o) => ({
+        ...o,
+        label: o.label ? (p.kind ? `${p.kind}（${o.label}）` : o.label) : (p.kind || itemTitle(p, o.url) || undefined),
+      }))),
+      items: picked.flatMap((p) => p.items ?? []),
+    };
+    const next = parsedList.filter((_, i) => !mergePick.has(i));
+    next.splice(idx[0], 0, merged);
+    setParsedList(next); setMergePick(new Set());
+  };
 
   const linkInfo = link.trim() ? affiliatize(link.trim()) : null;
   const canSave = !!title.trim() && (!!workId || !!workQuery.trim()) && !saving;
@@ -516,7 +575,7 @@ export default function PostNew() {
       // 既にアフィ販路がある（手動で探した/AIが拾った）なら二重検索しない。高信頼(公式店/高一致度)のみ自動添付。
       let autoOffers = offers;
       let autoImage: string | undefined;
-      if (type === 'goods' && title.trim() && !autoOffers.some((o) => isAffiliateUrl(offerUrl(o)))) {
+      if (type === 'goods' && title.trim() && !searchedTitles.current.has(title.trim()) && !autoOffers.some((o) => isAffiliateUrl(offerUrl(o)))) {
         const kw = searchKeyword(workName || workQuery, title);
         try {
           const picks = highConfidenceCandidates(title.trim(), await searchProductCandidates(kw), workName || workQuery);
@@ -561,10 +620,11 @@ export default function PostNew() {
         locationDetail: type === 'event' ? (locationDetail.trim() || undefined) : undefined,
       };
       const createdIds = await createEvents(wid, [eventPayload], user.id);
-      // カレンダーに登録＝保存（いいね）。外してあれば登録しない
-      if (addToCalendar && createdIds[0]) {
-        await toggleLike(createdIds[0], user.id).catch(() => { /* 入れられなくても投稿は成立している */ });
-      }
+      // カレンダーに登録＝保存（いいね）。外してあれば登録しない。
+      // 下のフォローと互いに待たないので、並べて走らせる（前は1つずつ待っていた）
+      const liked = addToCalendar && createdIds[0]
+        ? toggleLike(createdIds[0], user.id).catch(() => { /* 入れられなくても投稿は成立している */ })
+        : Promise.resolve();
 
       // AI入力を使った投稿なら教師データを記録（fire-and-forget）
       if (aiLogRef.current) {
@@ -583,15 +643,20 @@ export default function PostNew() {
       // ここだけ上限を見ていないと、投稿を繰り返すだけで無制限にフォローできてしまう。
       // **投稿そのものは必ず通す**（フォローできないことを理由に投稿を止めない）。
       let followSkipped = false;
-      try {
-        const follows = await listAllParticipatedWorks(user.id);
-        const already = follows.some((w) => w.id === wid);
-        if (already || canFollowMore(follows.length, isPremiumCached())) {
-          await upsertParticipation(wid, user.id);
-        } else {
-          followSkipped = true;
-        }
-      } catch { /* フォローに失敗しても投稿は成立している */ }
+      const followed = (async () => {
+        try {
+          const follows = await listAllParticipatedWorks(user.id);
+          const already = follows.some((w) => w.id === wid);
+          if (already || canFollowMore(follows.length, isPremiumCached())) {
+            await upsertParticipation(wid, user.id);
+          } else {
+            followSkipped = true;
+          }
+        } catch { /* フォローに失敗しても投稿は成立している */ }
+      })();
+      // 初月無料の案内を出すかの判定用の投稿数。プロフィールの集計を丸ごと取っていた（7クエリ）のを件数だけにする
+      const postedCount = FEATURE_PREMIUM && !isPremiumCached() ? countUserPostedEvents(user.id).catch(() => 0) : Promise.resolve(0);
+      await Promise.all([liked, followed]);
       haptic.select();
       // 解析で複数見つかった残りがあれば、戻らずに残りの一覧を出して続けて投稿できるようにする
       if (pendingParsed.length) {
@@ -616,7 +681,7 @@ export default function PostNew() {
       // 投稿のたびに割り込まれるのは、宣伝として逆効果でもある。
       // oneShotTip は初回だけ true を返して印を残す。
       if (FEATURE_PREMIUM && !isPremiumCached()) {
-        const posted = await getUserPublicProfile(user.id).then((p) => p.postedCount).catch(() => 0);
+        const posted = await postedCount;
         if (trialEligible(posted) && oneShotTip('trial_ready')) {
           navigate('/premium', { replace: true });
           return;
@@ -688,7 +753,8 @@ export default function PostNew() {
                 <div className="flex items-start gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
                   <Share2 size={15} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--accent-text)' }} />
                   <p className="text-[12px] leading-relaxed">
-                    XのポストをFanHiveに共有するだけ！<br />AIが自動で予定にします。
+                    XのポストをFanHiveに共有するだけ！<br />AIが自動で予定にします。<br />
+                    <span className="text-label-secondary">公式通販の商品一覧のリンクを貼ると、シリーズごとの予定にまとめます。</span>
                   </p>
                 </div>
                 <div className="flex gap-2 mt-3">
@@ -709,14 +775,34 @@ export default function PostNew() {
               </>
             ) : (
               <div className="flex flex-col gap-1.5">
-                <p className="text-[12px] text-label-secondary">{parsedList.length}件あります。選んで1件ずつ投稿できます（投稿するとこの一覧に戻ります）：</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[12px] text-label-secondary">{parsedList.length}件あります。選んで1件ずつ投稿できます（投稿するとこの一覧に戻ります）：</p>
+                  {/* 公式通販のシリーズだけ、チェックした行を1件にまとめられる */}
+                  {seriesList && (
+                    <button onClick={mergeSelected} disabled={mergePick.size < 2}
+                      className="pressable flex-shrink-0 px-3 py-1.5 rounded-full text-[12px] font-semibold"
+                      style={mergePick.size >= 2 ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' } : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-tertiary)' }}>
+                      まとめる
+                    </button>
+                  )}
+                </div>
                 {parsedList.map((p, i) => (
-                  <button key={i} onClick={() => { setPendingParsed(parsedList.filter((_, j) => j !== i)); applyParsed(p); toast('AIが入力しました'); }} className="pressable text-left px-3 py-2 rounded-[10px] text-[13px]" style={{ backgroundColor: 'var(--bg-primary)' }}>
+                  <div key={i} className="flex items-center gap-2">
+                  {seriesList && (
+                    <button onClick={() => { haptic.select(); setMergePick((prev) => { const n = new Set(prev); n.has(i) ? n.delete(i) : n.add(i); return n; }); }}
+                      aria-pressed={mergePick.has(i)} aria-label="まとめる対象に選ぶ"
+                      className="pressable tap-44 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center"
+                      style={mergePick.has(i) ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' } : { border: '1.5px solid var(--label-tertiary)' }}>
+                      {mergePick.has(i) && <Check size={14} strokeWidth={3} />}
+                    </button>
+                  )}
+                  <button onClick={() => { setPendingParsed(parsedList.filter((_, j) => j !== i)); applyParsed(p); toast('AIが入力しました'); }} className="pressable flex-1 min-w-0 text-left px-3 py-2 rounded-[10px] text-[13px]" style={{ backgroundColor: 'var(--bg-primary)' }}>
                     <div className="font-medium truncate">{p.title ?? '（タイトルなし）'}</div>
                     {(p.date || p.prefecture || p.offers?.length) && <div className="text-[11px] text-label-tertiary">{[p.date?.slice(5).replace('-', '/'), p.prefecture, p.offers && p.offers.length > 1 ? `${p.offers.length}商品` : ''].filter(Boolean).join(' ')}</div>}
                   </button>
+                  </div>
                 ))}
-                <button onClick={() => setParsedList(null)} className="text-[12px] text-label-tertiary mt-1 pressable">キャンセル</button>
+                <button onClick={() => { setParsedList(null); setMergePick(new Set()); }} className="text-[12px] text-label-tertiary mt-1 pressable">キャンセル</button>
               </div>
             )}
           </div>
