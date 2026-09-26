@@ -33,6 +33,9 @@ const inputStyle = { backgroundColor: 'var(--fill-tertiary)', color: 'var(--inpu
 const labelCls = 'text-[12px] text-label-secondary mb-1 mt-4';
 
 const DRAFT_KEY = 'fanhive_post_draft';
+// 解析済みの共有内容。別の予定を確認しに行って戻ると画面が作り直され、同じ共有をまた解析していた
+// （入力し直した内容も上書きされる）。下書きと同じく sessionStorage に持つ。
+const SHARE_HANDLED_KEY = 'fanhive_post_share_handled';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function readDraft(): Record<string, any> | null {
   try { return JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null'); } catch { return null; }
@@ -118,7 +121,10 @@ export default function PostNew() {
   const [aiText, setAiText] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
-  const [parsedList, setParsedList] = useState<ParsedEvent[] | null>(null);
+  const [parsedList, setParsedList] = useState<ParsedEvent[] | null>(draft0?.parsedList ?? null);
+  // 解析で複数見つかったとき、選んで反映したもの以外の残り。1件投稿したらこの一覧に戻って続けて投稿する
+  // （前は1つ選ぶと残りが消え、全部登録するには解析からやり直しだった）
+  const [pendingParsed, setPendingParsed] = useState<ParsedEvent[]>(draft0?.pendingParsed ?? []);
   // ライブ重複検知
   const [dupMatches, setDupMatches] = useState<{ id: string; title: string }[]>([]);
   const [dupDismissed, setDupDismissed] = useState(false);
@@ -146,6 +152,7 @@ export default function PostNew() {
     sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
       type, workId, workName, workQuery, title, cats: [...cats], allDay, dateTBD, dateLabel, date, endDate, time, endTime,
       isOrder, preAllDay, preStart, preEnd, preStartTime, preEndTime, price, link, offers, showExtra, stockNote, memo, imageUrl, prefecture, locationDetail,
+      parsedList, pendingParsed,
     }));
   });
   const clearDraft = () => sessionStorage.removeItem(DRAFT_KEY);
@@ -157,7 +164,9 @@ export default function PostNew() {
     if (idx > 0) navigate(-1);
     else navigate('/', { replace: true });
   };
-  const onClose = () => { clearDraft(); goBack(); };
+  // 閉じた・投稿した後に同じポストをまた共有したら、もう一度解析する
+  const forgetShare = () => { try { sessionStorage.removeItem(SHARE_HANDLED_KEY); } catch { /* ignore */ } };
+  const onClose = () => { clearDraft(); forgetShare(); goBack(); };
 
   // 受付終了日の既定値は発売日（日付未定なら空＝未定のまま）。手動で編集したら追従をやめる
   useEffect(() => {
@@ -168,11 +177,12 @@ export default function PostNew() {
   // アプリを閉じずに再度Xから共有すると、同じ /post に search だけ変えて遷移するので
   // このコンポーネントは再マウントされない。共有内容が変わったらフォームを初期化してから解析する。
   const shareKey = `${share.url} | ${share.text}`;
-  const handledShare = useRef<string | null>(null);
+  const handledShare = useRef<string | null>((() => { try { return sessionStorage.getItem(SHARE_HANDLED_KEY); } catch { return null; } })());
   useEffect(() => {
     if (!share.url || handledShare.current === shareKey) return;
     const isFirst = handledShare.current === null;
     handledShare.current = shareKey;
+    try { sessionStorage.setItem(SHARE_HANDLED_KEY, shareKey); } catch { /* 覚えられなくても動く */ }
     if (!isFirst) resetForm(); // 2回目以降＝前の予定の入力が残っているので消す
     setAiText(share.url);
     runParse({ url: share.url, sharedText: share.text || undefined });
@@ -265,7 +275,7 @@ export default function PostNew() {
     setPreStartTime(''); setPreEndTime('');
     setPrice(''); setLink(''); setOffers([]); setShowExtra(false); setStockNote(''); setMemo('');
     setImageUrl(''); setPrefecture(''); setLocationDetail('');
-    setError(''); setAiError(''); setParsedList(null);
+    setError(''); setAiError(''); setParsedList(null); setPendingParsed([]);
     setCandidates(null); setSearchingProduct(false);
     setDupMatches([]); setDupDismissed(false);
     aiSourceRef.current = null; aiLogRef.current = null;
@@ -376,7 +386,7 @@ export default function PostNew() {
         : /^https?:\/\//.test(body.url ?? '')
           ? { sourceKind: 'url', sourceUrl: body.url }
           : { sourceKind: 'url', sourceText: body.url };
-    setAiLoading(true); setAiError(''); setParsedList(null);
+    setAiLoading(true); setAiError(''); setParsedList(null); setPendingParsed([]);
     try {
       const events = await parseEventsApi(body);
       if (events.length === 0) { setAiError('情報を読み取れませんでした'); }
@@ -544,7 +554,18 @@ export default function PostNew() {
         }
       } catch { /* フォローに失敗しても投稿は成立している */ }
       haptic.select();
+      // 解析で複数見つかった残りがあれば、戻らずに残りの一覧を出して続けて投稿できるようにする
+      if (pendingParsed.length) {
+        const rest = pendingParsed;
+        resetForm();
+        setParsedList(rest);
+        window.scrollTo(0, 0);
+        toast(`投稿しました。残り${rest.length}件`);
+        setSaving(false);
+        return;
+      }
       clearDraft();
+      forgetShare();
       // 黙って増えないと「なぜフォローされていないのか」が分からないので、そのときだけ伝える
       toast(followSkipped
         ? `投稿しました（フォローは${FREE_FOLLOW_LIMIT}作品までのため追加していません）`
@@ -649,9 +670,9 @@ export default function PostNew() {
               </>
             ) : (
               <div className="flex flex-col gap-1.5">
-                <p className="text-[12px] text-label-secondary">{parsedList.length}件見つかりました。1つ選んで反映：</p>
+                <p className="text-[12px] text-label-secondary">{parsedList.length}件あります。選んで1件ずつ投稿できます（投稿するとこの一覧に戻ります）：</p>
                 {parsedList.map((p, i) => (
-                  <button key={i} onClick={() => { applyParsed(p); toast('AIが入力しました'); }} className="pressable text-left px-3 py-2 rounded-[10px] text-[13px]" style={{ backgroundColor: 'var(--bg-primary)' }}>
+                  <button key={i} onClick={() => { setPendingParsed(parsedList.filter((_, j) => j !== i)); applyParsed(p); toast('AIが入力しました'); }} className="pressable text-left px-3 py-2 rounded-[10px] text-[13px]" style={{ backgroundColor: 'var(--bg-primary)' }}>
                     <div className="font-medium truncate">{p.title ?? '（タイトルなし）'}</div>
                     {(p.date || p.prefecture) && <div className="text-[11px] text-label-tertiary">{[p.date?.slice(5).replace('-', '/'), p.prefecture].filter(Boolean).join(' ')}</div>}
                   </button>
@@ -911,8 +932,9 @@ export default function PostNew() {
                   const variantNg = variantMismatch(title, c.title);
                   const soldOut = c.inStock === false;
                   return (
-                    <button key={i} disabled={!ok} onClick={() => pickCandidate(c)}
-                      className={`flex items-center gap-2 text-left p-1 rounded-[8px] ${ok ? 'pressable' : 'opacity-40 cursor-not-allowed'}`}>
+                    // 不一致でも選べる（ショップ側の商品名が崩れているだけのことが多い）。薄くして注意だけ出す
+                    <button key={i} onClick={() => pickCandidate(c)}
+                      className={`pressable flex items-center gap-2 text-left p-1 rounded-[8px] ${ok ? '' : 'opacity-60'}`}>
                       <div className="w-12 h-12 flex-shrink-0 rounded-[6px] overflow-hidden bg-fill-3">
                         {c.image && <img src={c.image} alt="" className="w-full h-full object-cover" />}
                       </div>

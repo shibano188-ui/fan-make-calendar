@@ -679,7 +679,9 @@ export default function ItemDetail() {
             <button onClick={openBuy} className="pressable w-full py-3 rounded-[10px] font-semibold flex items-center justify-center gap-2"
               style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
               {buyMode === 'cart' ? <ShoppingCart size={18} /> : <ExternalLink size={18} />}
-              {buyMode === 'cart' ? `購入する${retailer ? `（${retailer}）` : ''}` : '公式サイトを開く'}
+              {/* 店名が分かる販路（アフィ未提携のアニメイト等も）は「購入する」。前は一律「公式サイトを開く」で、
+                  購入リンクなのに公式サイトに見えていた。店名が取れずホスト名のままのものだけ「販売ページを開く」 */}
+              {buyMode === 'cart' || (retailer && !retailer.includes('.')) ? `購入する${retailer ? `（${retailer}）` : ''}` : '販売ページを開く'}
             </button>
           </div>
         )}
