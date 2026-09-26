@@ -1,6 +1,7 @@
 // /api/parse-event を叩いて解析結果(複数可)を返す。SmartInputPanel のロジックを共通化。
 import { categoriesFromRaw } from './constants';
 import { authHeaders } from './apiAuth';
+import type { Offer } from '../types';
 
 export type ParsedEvent = {
   title: string | null;
@@ -22,6 +23,7 @@ export type ParsedEvent = {
   preorderStart?: string | null;
   preorderEnd?: string | null;
   sellsGoods?: boolean;        // イベントで物販がある（会場/関連でグッズ販売）→「グッズあり」カテゴリ付与
+  offers?: Offer[];            // Shopifyのコレクションから作ったシリーズの、中の商品ぜんぶ（名前付きの購入リンク）
 };
 
 function clean(v: unknown): string | null {
@@ -54,6 +56,7 @@ function rawToParsed(raw: Record<string, unknown>): ParsedEvent {
     preorderStart: clean(raw.preorderStart),
     preorderEnd: clean(raw.preorderEnd),
     sellsGoods: raw.sellsGoods === true || raw.sellsGoods === 'true',
+    ...(Array.isArray(raw.offers) ? { offers: (raw.offers as Offer[]).filter((o) => o && typeof o.url === 'string') } : {}),
   };
 }
 
@@ -87,7 +90,8 @@ export async function parseEventsApi(body: ParseBody): Promise<ParsedEvent[]> {
     const foundUrl = body.url.match(/https?:\/\/\S+/)?.[0] ?? null;
     return events.map((e) => ({
       ...e,
-      link: isTweet ? e.link : (e.link ?? foundUrl),
+      // 商品のリンクが揃っているもの（Shopifyのシリーズ）は、貼った一覧ページを購入リンクにしない
+      link: isTweet || e.offers?.length ? e.link : (e.link ?? foundUrl),
       sourceUrl: isTweet ? (foundUrl ?? body.url!) : e.sourceUrl,
     }));
   }

@@ -376,7 +376,10 @@ export default function PostNew() {
     if (p.time && !p.dateLabel) { setAllDay(false); setTime(p.time); if (p.endTime) setEndTime(p.endTime); }
     if (p.isOrderMade) { setIsOrder(true); if (p.preorderStart) setPreStart(p.preorderStart); if (p.preorderEnd) { setPreEnd(p.preorderEnd); setPreEndTouched(true); } }
     // まとめ記事・ニュース・SNSのURLは購入リンクではないので販路にしない（Xのまとめアカウント対策）
-    const parsedOffers = p.link && !isNoiseLink(p.link) ? [buildOffer(p.link, p.price ?? undefined)] : [];
+    const parsedOffers = p.offers?.length
+      // Shopifyのシリーズ: 中の商品のリンクがそろっている（名前・値段・在庫つき）
+      ? p.offers.map((o) => ({ ...buildOffer(o.url), ...o, fetchedAt: new Date().toISOString() }))
+      : p.link && !isNoiseLink(p.link) ? [buildOffer(p.link, p.price ?? undefined)] : [];
     if (parsedOffers.length) setOffers((prev) => parsedOffers.reduce(addOffer, prev));
     if (p.prefecture) setPrefecture(p.prefecture);
     if (p.locationDetail) setLocationDetail(p.locationDetail);
@@ -384,7 +387,7 @@ export default function PostNew() {
     if (p.memo) { setShowExtra(true); setMemo(p.memo); }
     setParsedList(null);
     // グッズで収益リンクが取れていなければ、この場で販売先を探す（投稿時まで待たない）
-    if (parsedType === 'goods' && p.title) {
+    if (parsedType === 'goods' && p.title && !p.offers?.length) {
       void autoFindOffers(p.title, p.work || workName || workQuery, parsedOffers);
     }
   };
@@ -408,7 +411,7 @@ export default function PostNew() {
       const code = e instanceof Error ? e.message : '';
       setAiError(
         code === 'rate_limited' ? '混雑しています。少し待って再試行'
-        : code === 'unsupported_url' ? '読み取れるのはXのポストだけです。販売先のURLは下の「購入・予約ページのURL」へ、告知は本文を貼り付けてください'
+        : code === 'unsupported_url' ? '読み取れるのはXのポストと、公式通販の商品一覧ページ（ちいかわマーケットなど）です。販売先のURLは下の「購入・予約ページのURL」へ、告知は本文を貼り付けてください'
         : '解析に失敗しました',
       );
     } finally {
@@ -691,7 +694,7 @@ export default function PostNew() {
                 <div className="flex gap-2 mt-3">
                   <div className="flex-1 relative">
                     <Link2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary pointer-events-none" />
-                    <input value={aiText} onChange={(e) => setAiText(e.target.value)} placeholder="Xのポストのリンク"
+                    <input value={aiText} onChange={(e) => setAiText(e.target.value)} placeholder="Xのポスト・公式通販の一覧のリンク"
                       onKeyDown={(e) => e.key === 'Enter' && onAnalyzeText()}
                       className="w-full rounded-[10px] pl-8 pr-3 py-2.5 text-[13px] outline-none" style={inputStyle} />
                   </div>
@@ -710,7 +713,7 @@ export default function PostNew() {
                 {parsedList.map((p, i) => (
                   <button key={i} onClick={() => { setPendingParsed(parsedList.filter((_, j) => j !== i)); applyParsed(p); toast('AIが入力しました'); }} className="pressable text-left px-3 py-2 rounded-[10px] text-[13px]" style={{ backgroundColor: 'var(--bg-primary)' }}>
                     <div className="font-medium truncate">{p.title ?? '（タイトルなし）'}</div>
-                    {(p.date || p.prefecture) && <div className="text-[11px] text-label-tertiary">{[p.date?.slice(5).replace('-', '/'), p.prefecture].filter(Boolean).join(' ')}</div>}
+                    {(p.date || p.prefecture || p.offers?.length) && <div className="text-[11px] text-label-tertiary">{[p.date?.slice(5).replace('-', '/'), p.prefecture, p.offers && p.offers.length > 1 ? `${p.offers.length}商品` : ''].filter(Boolean).join(' ')}</div>}
                   </button>
                 ))}
                 <button onClick={() => setParsedList(null)} className="text-[12px] text-label-tertiary mt-1 pressable">キャンセル</button>

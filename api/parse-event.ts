@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { checkRateLimitFor, getClientIp } from './_ratelimit.js';
 import { getIdentity } from './_identity.js';
 import { withAiUsage, noteAiUsage, saveAiUsage, type AiCall } from './_aiusage.js';
+import { fetchShopifyCollection, type ShopifyProduct } from './_shopify.js';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -517,6 +518,63 @@ function parseRawText(rawText: string): unknown[] {
   });
 }
 
+// ── Shopify のコレクション → シリーズごとの予定 ─────────────────────────
+// ちいかわマーケットの「10月9日発売商品」のような一覧を貼ると、商品を1件ずつではなく
+// シリーズ（同じ企画の商品群）ごとに1つの予定にし、中の商品は全部名前付きの購入リンクにする（本人要望・2026-09-26）。
+// 1件ずつだと「探す」が同じ日の同じ作品で埋まる。分け方は商品名の規則では揺れるのでAIに任せる。
+
+const SERIES_PROMPT = `グッズ通販の商品一覧を、シリーズごとにまとめてください。
+- シリーズ＝同じ企画・デザインで一緒に出る商品群。キャラ違い・色違い・柄違いはもちろん、同じ企画の別アイテム（おちょこ・とっくり・お皿など）も同じシリーズにする
+- 企画の名前が無い単発の商品は、同じ種類のもの（ブランケット類・マスコット類など）でまとめてよい。1商品だけのシリーズも可
+- 全商品をどれか1つのシリーズに必ず入れる
+- title: 予定のタイトル。作品名から始め、シリーズが分かる短い名前（例: 「ちいかわ くりまんじゅうのたべのみグッズ」）
+- label: 各商品のシリーズ内での見分け名。短く（キャラ名・アイテム名など。例: 「ハチワレ」「おちょこ」「うさぎ ブランケット」）
+- category: 次から1つ: くじ|ガチャ|プライズ|食玩|ぬい|アクスタ|缶バッジ|キーホルダー|フィギュア|ステッカー|アパレル|文房具|カード|円盤|コスメ|ガジェット|雑貨
+- work: 作品名（全体で1つ）
+JSONだけを返す: {"work":"作品名","series":[{"title":"…","category":"…","items":[{"i":0,"label":"…"}]}]}`;
+
+/** 「10月9日発売商品」のようなコレクション名から発売日を取る。今日より2か月以上前なら来年とみなす */
+function dateFromCollectionTitle(title: string): string | null {
+  const m = title.match(/(?:(\d{4})年)?(\d{1,2})月(\d{1,2})日/);
+  if (!m) return null;
+  const now = new Date();
+  let y = m[1] ? Number(m[1]) : now.getFullYear();
+  const md = `${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+  if (!m[1] && new Date(`${y}-${md}`).getTime() < now.getTime() - 60 * 86400_000) y++;
+  return `${y}-${md}`;
+}
+
+async function shopifyCollectionToEvents(col: { title: string; shop: string; products: ShopifyProduct[] }): Promise<unknown[]> {
+  const list = col.products.map((p, i) => `${i}: ${p.title}`).join('\n');
+  const raw = await claudeComplete(SERIES_PROMPT, `コレクション名: ${col.title}\n店: ${col.shop}\n\n${list}`, 4000);
+  const obj = JSON.parse(raw.match(/\{[\s\S]*\}/)?.[0] ?? '{}') as {
+    work?: string; series?: { title?: string; category?: string; items?: { i?: number; label?: string }[] }[];
+  };
+  const date = dateFromCollectionTitle(col.title);
+  const used = new Set<number>();
+  const groups = (obj.series ?? []).map((sr) => ({
+    title: sr.title ?? '', category: sr.category ?? '',
+    items: (sr.items ?? []).filter((it) => typeof it.i === 'number' && col.products[it.i] && !used.has(it.i) && (used.add(it.i), true))
+      .map((it) => ({ p: col.products[it.i!], label: (it.label ?? '').trim() })),
+  })).filter((g) => g.title && g.items.length);
+  // AIが入れ忘れた商品は落とさず、1商品ずつの予定にする
+  col.products.forEach((p, i) => { if (!used.has(i)) groups.push({ title: p.title, category: '', items: [{ p, label: '' }] }); });
+  return groups.map((g) => ({
+    title: g.title,
+    work: obj.work ?? null,
+    date,
+    categories: ['グッズ', ...(g.category ? [g.category] : [])],
+    price: Math.min(...g.items.map((x) => x.p.price)),
+    imageUrl: g.items[0].p.image || null,
+    link: null,
+    // 中の商品を全部、名前付きの購入リンクにする（クライアントの Offer と同じ形）
+    offers: g.items.map(({ p, label }) => ({
+      retailer: col.shop, url: p.url, price: p.price, inStock: p.inStock, official: true, pinned: true,
+      ...(g.items.length > 1 ? { label: label || p.title } : {}),
+    })),
+  }));
+}
+
 // 全イベントが日付情報を一切持たない（＝抽出に失敗した可能性が高い）か
 function allDatesEmpty(events: unknown[]): boolean {
   if (events.length === 0) return true;
@@ -617,6 +675,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } catch {}
       }
       // ────────────────────────────────────────────────────────────
+
+      // Shopify の店のコレクション（/collections/…）なら、シリーズごとの予定にする。
+      // Xのポスト以外のURLはここ以外では取りに行かない（接続してよいかは _shopify.ts の safePublicUrl で確かめる）
+      if (processUrl && !isXPostUrl(processUrl)) {
+        const col = await fetchShopifyCollection(processUrl).catch(() => null);
+        if (col) {
+          try {
+            return res.status(200).json(await shopifyCollectionToEvents(col));
+          } catch {
+            return res.status(422).json({ error: 'Could not parse response' });
+          }
+        }
+      }
 
       if (isXPostUrl(processUrl)) {
         const { text: pageText, imageUrl: tweetImageUrl } = await fetchTweetContent(processUrl);

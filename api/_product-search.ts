@@ -2,6 +2,7 @@
 // refresh-offers（毎日Cronの価格更新・リンクバックフィル）の両方から使う。
 // 楽天: 2026新API（RAKUTEN_APP_ID＋accessKey）。Yahoo!: 商品検索v3（YAHOO_APP_ID。未設定ならスキップ）。
 // あみあみ・駿河屋・アニメイトは楽天/Yahoo!の公式出店店舗経由で価格が取れる → 公式店を優先表示。
+import { lookupShopifyProduct } from './_shopify.js';
 
 export interface Candidate {
   title: string; price: number; url: string; image: string; shop: string; retailer: string; hasAffiliate: boolean;
@@ -269,6 +270,11 @@ export async function lookupByUrl(rawUrl: string): Promise<UrlLookup | null> {
     if (host === 'item.rakuten.co.jp') return await lookupRakuten(u);
     if (host === 'store.shopping.yahoo.co.jp') return await lookupYahoo(u);
     if (host === 'www.animate-onlineshop.jp' && /\/pd\/\d+/.test(u.pathname)) return await lookupAnimate(u);
+    // それ以外の店は、Shopify の商品ページ（/products/…）なら読める（ちいかわマーケットなど作品の公式通販に多い）
+    if (/\/products\/[^/]+/.test(u.pathname)) {
+      const p = await lookupShopifyProduct(u.toString());
+      if (p) return { title: p.title, price: p.price, shop: p.shop, retailer: p.shop, official: true, inStock: p.inStock };
+    }
   } catch { /* タイムアウト・形式変更は「取れなかった」扱い */ }
   return null;
 }

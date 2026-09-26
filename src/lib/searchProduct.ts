@@ -310,10 +310,12 @@ export async function buildPinnedOffer(rawUrl: string, price?: number): Promise<
   try {
     const r = await fetch(`${base}/api/search-product?url=${encodeURIComponent(rawUrl)}`);
     if (!r.ok) return o;
-    const { item } = (await r.json()) as { item?: { title?: string; price: number; shop?: string; official?: boolean; inStock?: boolean; stockLabel?: string } | null };
+    const { item } = (await r.json()) as { item?: { title?: string; price: number; shop?: string; retailer?: string; official?: boolean; inStock?: boolean; stockLabel?: string } | null };
     if (!item) return o;
     return {
       ...o,
+      // 知らない店（Shopifyの公式通販など）は販路名がホスト名になるので、店名が取れたら置き換える
+      retailer: o.retailer.includes('.') && item.retailer ? item.retailer : o.retailer,
       shop: item.shop || o.shop,
       price: item.price,
       fetchedAt: new Date().toISOString(),
