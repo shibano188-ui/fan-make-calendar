@@ -207,10 +207,13 @@ async function lookupRakuten(u: URL): Promise<UrlLookup | null> {
   if (!appId || !accessKey) return null;
   const params = new URLSearchParams({ applicationId: appId, shopCode: shop, keyword: item, hits: '5', format: 'json', formatVersion: '2' });
   const referer = process.env.RAKUTEN_REFERER || 'https://fan-make-calendar.vercel.app/'; // rakutenRequest と同じ（登録URLと一致させる）
-  const r = await fetch(`https://openapi.rakuten.co.jp/ichibams/api/IchibaItem/Search/20260401?${params.toString()}`, {
+  const get = () => fetch(`https://openapi.rakuten.co.jp/ichibams/api/IchibaItem/Search/20260401?${params.toString()}`, {
     headers: { accessKey, Referer: referer, Origin: referer.replace(/\/$/, '') },
     signal: AbortSignal.timeout(8000),
   });
+  let r = await get();
+  // 楽天は概ね1req/秒。他の検索と重なると429になるので1回だけ待って取り直す
+  if (r.status === 429) { await delay(1100); r = await get(); }
   if (!r.ok) return null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const it = ((await r.json()) as { Items?: any[] }).Items?.find((x) => String(x.itemUrl ?? '').includes(`/${shop}/${item}/`));
