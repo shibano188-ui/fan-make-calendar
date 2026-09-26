@@ -156,6 +156,19 @@ const SEARCH_PAGE_PATTERNS: RegExp[] = [
 ];
 
 /** 商品ページではなく検索・一覧ページのURLか（販路としては不完全）。 */
+/** 種類違いが並ぶ予定（名前付きのリンクが2つ以上）の値段の幅。同じ商品を店違いで売っているだけの予定は
+ *  幅にしない（「商品によって値段が違う」ように見えてしまう）。一番安い値段だけ出すと、シリーズ全部が
+ *  その値段に見えて紛らわしい（本人指摘・2026-09-26）。全部同じ値段なら null（普通の1つの値段）。 */
+export function priceRange(offers: Offer[]): { min: number; max: number } | null {
+  const ps = offers
+    .filter((o) => o.label && !isSearchPageUrl(o.url) && typeof o.price === 'number' && o.price > 0)
+    .map((o) => o.price as number);
+  if (ps.length < 2) return null;
+  const min = Math.min(...ps);
+  const max = Math.max(...ps);
+  return min === max ? null : { min, max };
+}
+
 export function isSearchPageUrl(url: string): boolean {
   return !!url && SEARCH_PAGE_PATTERNS.some((re) => re.test(url));
 }
