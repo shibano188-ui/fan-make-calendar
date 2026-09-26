@@ -176,6 +176,99 @@ async function searchAnimate(keyword: string): Promise<Candidate[]> {
   return out;
 }
 
+// ── URL指定の価格取得（人が貼った・差し替えたリンク用）──
+// 商品名で検索するとリンク先と別の商品の値段を拾うことがあるので、人が指定したリンクは
+// そのURLの商品だけを見る。取れない店（Amazon・あみあみ本店など）は null ＝「値段なし」。
+
+export interface UrlLookup {
+  title?: string; price: number; shop?: string; retailer: string;
+  official?: boolean; inStock?: boolean; stockLabel?: string;
+}
+
+/** アフィリエイトの包み（楽天 pc= / バリューコマース vc_url=）を外して元の商品URLにする。 */
+export function unwrapProductUrl(u: string): string {
+  try {
+    const url = new URL(u);
+    const inner = url.searchParams.get('pc') || url.searchParams.get('vc_url');
+    if (inner && /^https?:\/\//.test(inner)) return inner;
+    return u;
+  } catch { return u; }
+}
+
+/** 楽天の商品ページ（item.rakuten.co.jp/{shop}/{item}/）。ページ本体はBot遮断されるのでAPIで引く。
+ *  新API(20260401)の itemCode は数字の商品ID（shop:10565429）しか受けず、URLの商品管理番号では
+ *  "itemCode is not valid" になる。店を shopCode で絞って管理番号をキーワードに検索し、
+ *  itemUrl が同じ商品のものだけを採る（2026-09-26 実測で1件ちょうど返る）。 */
+async function lookupRakuten(u: URL): Promise<UrlLookup | null> {
+  const [shop, item] = u.pathname.split('/').filter(Boolean);
+  if (!shop || !item) return null;
+  const appId = process.env.RAKUTEN_APP_ID?.trim();
+  const accessKey = process.env.RAKUTEN_ACCESS_KEY?.trim();
+  if (!appId || !accessKey) return null;
+  const params = new URLSearchParams({ applicationId: appId, shopCode: shop, keyword: item, hits: '5', format: 'json', formatVersion: '2' });
+  const referer = process.env.RAKUTEN_REFERER || 'https://fan-make-calendar.vercel.app/'; // rakutenRequest と同じ（登録URLと一致させる）
+  const get = () => fetch(`https://openapi.rakuten.co.jp/ichibams/api/IchibaItem/Search/20260401?${params.toString()}`, {
+    headers: { accessKey, Referer: referer, Origin: referer.replace(/\/$/, '') },
+    signal: AbortSignal.timeout(8000),
+  });
+  let r = await get();
+  // 楽天は概ね1req/秒。他の検索と重なると429になるので1回だけ待って取り直す
+  if (r.status === 429) { await delay(1100); r = await get(); }
+  if (!r.ok) return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const it = ((await r.json()) as { Items?: any[] }).Items?.find((x) => String(x.itemUrl ?? '').includes(`/${shop}/${item}/`));
+  if (!it || typeof it.itemPrice !== 'number') return null;
+  return {
+    title: it.itemName as string, price: it.itemPrice as number, shop: it.shopName as string, retailer: '楽天',
+    official: !!RAKUTEN_OFFICIAL_SHOPS[(it.shopCode as string) ?? ''], inStock: it.availability !== 0,
+  };
+}
+
+/** Yahoo!ショッピングの商品ページ。構造化データ（JSON-LD / og:price）から読む。 */
+async function lookupYahoo(u: URL): Promise<UrlLookup | null> {
+  const r = await fetch(u.toString(), { headers: { 'User-Agent': UA, 'Accept-Language': 'ja' }, signal: AbortSignal.timeout(8000) });
+  if (!r.ok) return null;
+  const html = await r.text();
+  const price = html.match(/product:price:amount" content="(\d+)"/)?.[1] ?? html.match(/"@type":"Offer"[^}]*?"price":(\d+)/)?.[1];
+  if (!price) return null;
+  const seller = u.pathname.split('/').filter(Boolean)[0] ?? '';
+  const title = html.match(/<meta property="og:title" content="([^"]+)"/)?.[1];
+  const avail = html.match(/"availability":"[^"]*\/(\w+)"/)?.[1];
+  return {
+    title: title ? decodeEntities(title) : undefined, price: Number(price), retailer: 'Yahoo!',
+    official: !!YAHOO_OFFICIAL_SELLERS[seller], inStock: avail ? avail === 'InStock' || avail === 'PreOrder' : undefined,
+  };
+}
+
+/** アニメイト本店の商品ページ（/pd/{番号}/）。ページ内の商品情報スクリプト（price: / stock_status:）から読む。 */
+async function lookupAnimate(u: URL): Promise<UrlLookup | null> {
+  const r = await fetch(u.toString(), { headers: { 'User-Agent': UA, 'Accept-Language': 'ja' }, signal: AbortSignal.timeout(8000) });
+  if (!r.ok) return null;
+  const html = await r.text();
+  const price = html.match(/\bprice:\s*(\d+),\s*\/\/商品金額/)?.[1] ?? html.match(/<p class="price[^"]*">([\d,]+)<span>円/)?.[1];
+  if (!price) return null;
+  const title = html.match(/<h1>([^<]+)<\/h1>/)?.[1];
+  const stock = html.match(/stock_status:\s*'([^']*)'/)?.[1]?.replace(/^[\s×○△◯]+/, '').trim();
+  return {
+    title: title ? decodeEntities(title).trim() : undefined, price: Number(price.replace(/,/g, '')),
+    shop: 'アニメイトオンラインショップ', retailer: 'アニメイト', official: true,
+    inStock: stock ? !/販売終了|品切|売切|在庫なし/.test(stock) : undefined, stockLabel: stock || undefined,
+  };
+}
+
+/** 商品ページのURLから、その商品の価格・在庫を取る。対応外の店・取れなかったときは null。 */
+export async function lookupByUrl(rawUrl: string): Promise<UrlLookup | null> {
+  let u: URL;
+  try { u = new URL(unwrapProductUrl(rawUrl)); } catch { return null; }
+  const host = u.host.toLowerCase();
+  try {
+    if (host === 'item.rakuten.co.jp') return await lookupRakuten(u);
+    if (host === 'store.shopping.yahoo.co.jp') return await lookupYahoo(u);
+    if (host === 'www.animate-onlineshop.jp' && /\/pd\/\d+/.test(u.pathname)) return await lookupAnimate(u);
+  } catch { /* タイムアウト・形式変更は「取れなかった」扱い */ }
+  return null;
+}
+
 // 中古/セット判定（src/lib/searchProduct.ts と同期を保つこと）。
 export function isUsedTitle(t: string): boolean { return /中古|ユーズド/.test(t); }
 export function isSetTitle(t: string): boolean { return /セット|まとめ(買|売)|コンプ|全\d+種|\d+個(入|セット)|\bBOX\b|1BOX/i.test(t); }

@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { X, Plus, Check, Sparkles, Link2, Loader2, Search, Share2, CalendarPlus } from 'lucide-react';
 import Chip from '../components/ui/Chip';
 import { resolveWorkName, sameWorkName } from '../lib/workName';
-import { searchWorks, getOrCreateWork, createEvents, toggleLike, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, getUserPublicProfile, listAllParticipatedWorks, type Work } from '../lib/api';
+import { searchWorks, getOrCreateWork, createEvents, toggleLike, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, distinguishSameNameByPlace, isOtherPlaceMatch, getUserPublicProfile, listAllParticipatedWorks, type Work } from '../lib/api';
 import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES, GOODS_TAG, ONBOARDING_DEMO_KEY, FEATURE_PREMIUM, oneShotTip } from '../lib/constants';
 import { DEMO_POST_TEXT } from '../lib/demoPost';
 import { isPremiumCached, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
@@ -12,7 +12,7 @@ import { affiliatize, buildOffer, primaryOffer, isAffiliateUrl, offerUrl, isNois
 import { parseEventsApi, type ParsedEvent } from '../lib/parseEvents';
 import { logAiExtraction, logSearch } from '../lib/dataLogs';
 import { maybeAddWorkAlias } from '../lib/workAliases';
-import { searchProductCandidates, titleMatchScore, retailerSearchUrls, highConfidenceCandidates, offerFromCandidate, variantMismatch, searchKeyword, type ProductCandidate } from '../lib/searchProduct';
+import { searchProductCandidates, titleMatchScore, retailerSearchUrls, highConfidenceCandidates, offerFromCandidate, buildPinnedOffer, variantMismatch, searchKeyword, type ProductCandidate } from '../lib/searchProduct';
 import type { Offer } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
@@ -122,6 +122,9 @@ export default function PostNew() {
   // ライブ重複検知
   const [dupMatches, setDupMatches] = useState<{ id: string; title: string }[]>([]);
   const [dupDismissed, setDupDismissed] = useState(false);
+  // 同じ名前で都道府県が違う既存予定（巡回POP UPの別会場など）。重複ではないので警告にせず、
+  // 投稿時にタイトルへ都道府県を付けて区別することを知らせるだけ。
+  const [otherPlaces, setOtherPlaces] = useState<string[]>([]);
   // 販売先候補検索
   const [candidates, setCandidates] = useState<ProductCandidate[] | null>(null);
   const [searchingProduct, setSearchingProduct] = useState(false);
@@ -209,7 +212,7 @@ export default function PostNew() {
 
   // ライブ重複検知（タイトル＋作品が分かれば。作品は未選択でも名前から既存を解決）
   useEffect(() => {
-    if (!title.trim()) { setDupMatches([]); return; }
+    if (!title.trim()) { setDupMatches([]); setOtherPlaces([]); return; }
     let alive = true;
     const t = setTimeout(async () => {
       let wid = workId;
@@ -218,13 +221,16 @@ export default function PostNew() {
         wid = rs.find((w) => w.name === workQuery.trim())?.id ?? null;
       }
       const seen = new Map<string, string>();
+      const places = new Set<string>();
       if (wid) {
         const catStr = cats.size ? serializeCategories([...cats]) : null;
         const dup = await findDuplicateEvents(wid, title.trim(), null, catStr ?? null, {
           date: dateTBD ? null : (date || null), endDate: dateTBD ? null : (endDate || null),
           workName: workName || workQuery.trim() || null, prefecture: type === 'event' ? (prefecture || null) : null,
         }).catch(() => ({ byUrl: [], byTitle: [], byDateKeyword: [] }));
-        for (const m of [...dup.byUrl, ...dup.byTitle, ...dup.byDateKeyword]) if (!seen.has(m.id)) seen.set(m.id, m.title);
+        const pref = type === 'event' ? prefecture : null;
+        for (const m of dup.byTitle) if (isOtherPlaceMatch(m, pref)) places.add(m.prefecture!);
+        for (const m of [...dup.byUrl, ...dup.byTitle.filter((m) => !isOtherPlaceMatch(m, pref)), ...dup.byDateKeyword]) if (!seen.has(m.id)) seen.set(m.id, m.title);
       } else {
         // 作品未確定でもタイトルで全体検知（保守的・正規化完全一致）
         const g = await findDuplicatesByTitleGlobal(title.trim()).catch(() => []);
@@ -232,6 +238,7 @@ export default function PostNew() {
       }
       if (!alive) return;
       setDupMatches([...seen].map(([id, t2]) => ({ id, title: t2 })));
+      setOtherPlaces([...places]);
       setDupDismissed(false);
     }, 500);
     return () => { alive = false; clearTimeout(t); };
@@ -401,19 +408,23 @@ export default function PostNew() {
   };
   const pickCandidate = (c: ProductCandidate) => {
     haptic.select();
-    setOffers((prev) => addOffer(prev, offerFromCandidate(c)));
+    // 自分で選んだ候補は pinned（Cronが商品名検索で別の商品に付け替えないように）
+    setOffers((prev) => addOffer(prev, { ...offerFromCandidate(c), pinned: true }));
     // タイトルはユーザー/AIが決めたものを正とする（ショップの商品名で上書きしない）
     if (!price && c.price) setPrice(String(c.price));
     if (!imageUrl && c.image) setImageUrl(c.image);
     setCandidates(null);
     toast('購入リンクを追加しました');
   };
-  const addManualLink = () => {
+  const addManualLink = async () => {
     const u = link.trim();
     if (!u) return;
     haptic.select();
-    setOffers((prev) => addOffer(prev, buildOffer(u, price ? Number(price) : undefined)));
     setLink('');
+    // 貼ったURLの商品の値段をその場で取る（取れない店は入力欄の値段のまま）
+    const o = await buildPinnedOffer(u, price ? Number(price) : undefined);
+    setOffers((prev) => addOffer(prev, o));
+    if (!price && o.price) setPrice(String(o.price));
     toast('購入リンクを追加しました');
   };
   const removeOffer = (url: string) => setOffers((prev) => prev.filter((o) => o.url !== url));
@@ -467,10 +478,14 @@ export default function PostNew() {
       }
 
       // 販路: 追加済み offers ＋ 入力欄に残ったURL。代表販路を旧フィールドにも要約保存（後方互換）
-      const allOffers = link.trim() ? addOffer(autoOffers, buildOffer(link.trim(), price ? Number(price) : undefined)) : autoOffers;
+      const allOffers = link.trim() ? addOffer(autoOffers, await buildPinnedOffer(link.trim(), price ? Number(price) : undefined)) : autoOffers;
       const prim = primaryOffer(allOffers);
+      // 同じ名前で場所が違う予定があれば、タイトルに都道府県を付けて区別する（既存側にも付ける）
+      const finalTitle = type === 'event'
+        ? await distinguishSameNameByPlace(wid, title, prefecture, cats.size ? serializeCategories([...cats]) ?? null : null, user.id).catch(() => title.trim())
+        : title.trim();
       const eventPayload = {
-        title: title.trim(),
+        title: finalTitle,
         type,
         // 曖昧日付は代表日(並び替え用)＋dateLabel(表示用)を保存。具体日のときは dateLabel=null
         date: date || null,
@@ -673,6 +688,12 @@ export default function PostNew() {
                 <button onClick={() => navigate(`/item/${dupMatches[0].id}`)} className="pressable flex-1 py-2 rounded-[8px] text-[12px] font-semibold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>投稿を確認</button>
                 <button onClick={() => setDupDismissed(true)} className="pressable flex-1 py-2 rounded-[8px] text-[12px]" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>違う予定として投稿</button>
               </div>
+            </div>
+          )}
+
+          {otherPlaces.length > 0 && prefecture.trim() && !title.includes(prefecture.trim().replace(/[都府県]$/, '')) && (
+            <div className="mt-3 rounded-[12px] p-3 text-[12px] text-label-secondary" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+              同じ名前の予定が別の場所（{otherPlaces.join('・')}）にあります。区別できるよう、タイトルの後ろに「{prefecture.trim().replace(/[都府県]$/, '')}」を付けて投稿します
             </div>
           )}
 

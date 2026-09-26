@@ -8,7 +8,8 @@ import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME } from '../lib/constants';
 import { deriveItemType, itemDateLines, todayStr, isDateUncertain, stageFlow } from '../design/tokens';
-import { resolveBuy, getOffers, buildOffer, offerUrl, primaryOffer, isSearchPageUrl, isSourceOnlyLink } from '../lib/affiliate';
+import { resolveBuy, getOffers, offerUrl, primaryOffer, isSearchPageUrl, isSourceOnlyLink } from '../lib/affiliate';
+import { buildPinnedOffer } from '../lib/searchProduct';
 import { openBuyLink } from '../lib/dataLogs';
 import { openExternal } from '../lib/openExternal';
 import ReactionButton from '../components/item/ReactionButton';
@@ -235,7 +236,7 @@ export default function ItemDetail() {
       toast(ed ? 'ソースとして追加しました' : '追加できませんでした', ed ? undefined : 'error');
       return !!ed;
     }
-    const c = await addOfferContrib(event.id, buildOffer(u), user.id);
+    const c = await addOfferContrib(event.id, await buildPinnedOffer(u), user.id);
     if (c) setContribs((prev) => [...prev, c]);
     setAddingLink(false); haptic.select();
     toast(c ? '購入リンクとして追加しました' : '追加できませんでした', c ? undefined : 'error');
@@ -263,7 +264,7 @@ export default function ItemDetail() {
     const u = replaceUrl.trim();
     if (!u || !user || replacing) return;
     setReplacing(true);
-    const c = await addOfferContrib(event.id, buildOffer(u), user.id);
+    const c = await addOfferContrib(event.id, await buildPinnedOffer(u), user.id);
     if (!c) { setReplacing(false); toast('差し替えられませんでした'); return; }
     setContribs((prev) => [...prev, c]);
     const ed = await addEventEdit(event.id, { removedOfferUrls: [oldUrl] }, user.id);
@@ -491,8 +492,10 @@ export default function ItemDetail() {
                 代表は実効値(eff)から選ぶ。取り消されたリンクの価格・セット・取得日を出し続けると、
                 「リンクが違うから取り消した」のに誤った価格が残ってしまう。 */}
             {(() => {
+              // 代表販路に値段が無いときの控えは eff.price（元の event.price ではない）。
+              // リンクが取り消されていれば applyEdits が残った販路の値段に直している（無ければ値段なし）。
               const prim = primaryOffer(getOffers(eff));
-              const price = prim?.price ?? event.price;
+              const price = prim?.price ?? eff.price;
               if (price == null) return null;
               return (
                 <div className="mt-2 flex items-baseline flex-wrap gap-2">
