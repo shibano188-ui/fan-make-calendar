@@ -51,6 +51,10 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
   // 位置を計算すると、何もしていないのに丸が滑って見えるため）
   const paint = () => {
     const pill = pillRef.current;
+    // iOS は丸（幅36px）の中の入力欄に focus した瞬間、カーソルを見せようと丸の中身を横にずらす。
+    // そのままだと伸びきっても虫眼鏡が押し出され、文字が見出しの上に重なる（2026-09-27 iOS で報告）
+    if (pill && pill.scrollLeft) pill.scrollLeft = 0;
+    if (fieldRef.current?.scrollLeft) fieldRef.current.scrollLeft = 0;
     if (pill) {
       const mv = clamp01(m.current), gr = Math.max(0, g.current);
       if (mv === 0 && gr === 0) { pill.style.transform = 'none'; pill.style.width = `${D}px`; }
@@ -71,6 +75,12 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
   };
 
   const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
+  // iOS はキーボードが上がる間、描き直し（requestAnimationFrame）を止めることがあり、ばねの動きが途中で止まって
+  // 「欄は伸びたのに見出しが消えない」状態が残る。動きの長さを過ぎたら、必ず最後の形にそろえる
+  const settle = (to: 0 | 1) => {
+    moveRef.current?.stop(); growRef.current?.stop();
+    m.current = to; g.current = to; paint(); showField(to === 1);
+  };
   const later = (fn: () => void, ms: number) => { timers.current.push(window.setTimeout(fn, ms)); };
   const stopAll = () => { moveRef.current?.stop(); growRef.current?.stop(); clearTimers(); };
 
@@ -94,6 +104,7 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
     haptic.select();
     setOpen(true);
     stopAll();
+    later(() => settle(1), 900);
     if (FOCUS_ON_TAP) inputRef.current?.focus({ preventScroll: true });
     if (prefersReducedMotion()) {
       m.current = 1; g.current = 1; paint(); showField(true);
@@ -128,6 +139,7 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
   const collapse = () => {
     setOpen(false);
     stopAll();
+    later(() => settle(0), 900);
     showField(false);
     inputRef.current?.blur();
     if (prefersReducedMotion()) { m.current = 0; g.current = 0; paint(); return; }
@@ -168,14 +180,15 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
         style={{ pointerEvents: open ? 'none' : 'auto' }} aria-hidden={open}>
         {title}
       </div>
-      <div ref={pillRef} onClick={expand}
+      <div ref={pillRef} onClick={expand} onScroll={(e) => { if (e.currentTarget.scrollLeft) e.currentTarget.scrollLeft = 0; }}
         className={`absolute top-0 right-0 h-9 rounded-full flex items-center overflow-hidden ${open ? '' : 'pressable cursor-pointer'}`}
         style={{ width: D, backgroundColor: 'var(--fill-tertiary)', willChange: 'transform, width' }}
         role={open ? undefined : 'button'} aria-label={open ? undefined : '検索'}>
         <span ref={iconRef} className="flex-shrink-0 w-9 h-9 flex items-center justify-center">
           <Search size={17} className="text-label-secondary" />
         </span>
-        <div ref={fieldRef} className="flex-1 min-w-0 flex items-center pr-2" style={{ opacity: 0 }}>
+        <div ref={fieldRef} className="flex-1 min-w-0 flex items-center pr-2" style={{ opacity: 0 }}
+          onScroll={(e) => { if (e.currentTarget.scrollLeft) e.currentTarget.scrollLeft = 0; }}>
           <input ref={inputRef} value={value} onChange={(e) => onChange(e.target.value)}
             onFocus={() => { setFocused(true); setShield(true); }}
             onBlur={() => { setFocused(false); if (!value.trim() && open) collapse(); }}
