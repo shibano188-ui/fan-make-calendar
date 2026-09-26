@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { checkRateLimitFor, getClientIp } from './_ratelimit.js';
 import { getIdentity } from './_identity.js';
 import { withAiUsage, noteAiUsage, saveAiUsage, type AiCall } from './_aiusage.js';
-import { fetchProductList, type ProductList } from './_listsource.js';
+import { fetchProductList, excludeRegistered, type ProductList } from './_listsource.js';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -635,6 +635,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   // Authorization を許可しないと、iOS（オリジンが capacitor://localhost）のプリフライトで落ちる
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  // 一覧ページの解析で「登録済みで外した件数」「次のページ」をヘッダーで返す（本体は今までどおり予定の配列。
+  // 古いアプリが壊れないように形を変えない）。iOS（capacitor://）から読めるように公開する
+  res.setHeader('Access-Control-Expose-Headers', 'X-List-Excluded, X-List-Next-Page, X-List-Read');
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).end();
 
@@ -651,7 +654,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(429).json({ error: 'rate_limited' });
   }
 
-  const { url, imageBase64, mimeType, sharedText } = req.body as {
+  const { url, imageBase64, mimeType, sharedText, page } = req.body as {
+    page?: number;
     url?: string;
     imageBase64?: string;
     mimeType?: string;
@@ -713,8 +717,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // 商品の一覧ページ（公式通販のコレクション・アニメイト/ムービックの検索結果など）なら、シリーズごとの予定にする。
       // Xのポスト以外のURLはここ以外では取りに行かない（接続先は _listsource.ts が決まった店と Shopify に絞る）
       if (processUrl && !isXPostUrl(processUrl)) {
-        const col = await fetchProductList(processUrl).catch(() => null);
-        if (col) {
+        const read = await fetchProductList(processUrl, Math.max(1, Math.min(50, Number(page) || 1))).catch(() => null);
+        if (read) {
+          // 登録済みの商品は外してからまとめる（同じ一覧をもう一度解析しても、登録済みが新しく出てこない）
+          const { list: col, excluded } = await excludeRegistered(read).catch(() => ({ list: read, excluded: 0 }));
+          res.setHeader('X-List-Read', String(read.products.length));
+          res.setHeader('X-List-Excluded', String(excluded));
+          if (read.nextPage) res.setHeader('X-List-Next-Page', String(read.nextPage));
+          if (!col.products.length) return res.status(200).json([]);
           try {
             return res.status(200).json(await listToEvents(col));
           } catch {

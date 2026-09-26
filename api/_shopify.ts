@@ -59,14 +59,14 @@ export async function shopifyShopName(origin: string): Promise<string> {
 export interface ShopifyProduct { title: string; url: string; price: number; inStock: boolean; image: string; images: string[] }
 
 /** コレクションのURL（/collections/{handle}）なら、コレクション名・店名・商品一覧を返す。Shopifyでなければ null */
-export async function fetchShopifyCollection(raw: string): Promise<{ title: string; shop: string; products: ShopifyProduct[] } | null> {
+export async function fetchShopifyCollection(raw: string, page = 1): Promise<{ title: string; shop: string; products: ShopifyProduct[]; hasMore: boolean } | null> {
   const u = await safePublicUrl(raw);
   const handle = u?.pathname.match(/^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?collections\/([^/?#]+)\/?$/i)?.[1];
   if (!u || !handle || handle === 'all') return null;
   const [col, list] = await Promise.all([
     getJson<{ collection?: { title?: string } }>(`${u.origin}/collections/${handle}.json`).catch(() => null),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    getJson<{ products?: any[] }>(`${u.origin}/collections/${handle}/products.json?limit=250`).catch(() => null),
+    getJson<{ products?: any[] }>(`${u.origin}/collections/${handle}/products.json?limit=250&page=${page}`).catch(() => null),
   ]);
   if (!list?.products?.length) return null;
   const shop = await shopifyShopName(u.origin);
@@ -84,7 +84,8 @@ export async function fetchShopifyCollection(raw: string): Promise<{ title: stri
       images: ((p.images ?? []) as any[]).map((im) => String(im?.src ?? '')).filter(Boolean),
     };
   }).filter((p: ShopifyProduct) => p.title && p.price > 0);
-  return { title: col?.collection?.title?.trim() || '', shop, products };
+  // 1ページ250件。ちょうど250件なら続きがあるかもしれない
+  return { title: col?.collection?.title?.trim() || '', shop, products, hasMore: list.products.length >= 250 };
 }
 
 /** 商品のURL（/products/{handle}、/collections/…/products/{handle}）なら価格・在庫を返す。Shopifyでなければ null */

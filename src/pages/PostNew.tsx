@@ -9,7 +9,7 @@ import { DEMO_POST_TEXT } from '../lib/demoPost';
 import { isPremiumCached, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
 import { trialEligible } from '../lib/billing';
 import { affiliatize, buildOffer, primaryOffer, isAffiliateUrl, offerUrl, isNoiseLink } from '../lib/affiliate';
-import { parseEventsApi, type ParsedEvent } from '../lib/parseEvents';
+import { parseEventsApiWithMeta, type ParsedEvent, type ListMeta } from '../lib/parseEvents';
 import { logAiExtraction, logSearch } from '../lib/dataLogs';
 import { maybeAddWorkAlias } from '../lib/workAliases';
 import { searchProductCandidates, searchProductCandidatesWithMeta, titleMatchScore, retailerSearchUrls, highConfidenceCandidates, labelVariants, offerFromCandidate, buildPinnedOffer, variantMismatch, searchKeyword, type ProductCandidate } from '../lib/searchProduct';
@@ -126,6 +126,9 @@ export default function PostNew() {
   // 解析で複数見つかったとき、選んで反映したもの以外の残り。1件投稿したらこの一覧に戻って続けて投稿する
   // （前は1つ選ぶと残りが消え、全部登録するには解析からやり直しだった）
   const [pendingParsed, setPendingParsed] = useState<ParsedEvent[]>(draft0?.pendingParsed ?? []);
+  // 一覧ページ（公式通販・アニメイト・ムービック）を解析したときの補足。登録済みで外した数と、続きのページ
+  const [listMeta, setListMeta] = useState<(ListMeta & { url: string }) | null>(draft0?.listMeta ?? null);
+  const [loadingMore, setLoadingMore] = useState(false);
   // 公式通販のシリーズの一覧で「まとめる」ために選んだ行
   const [mergePick, setMergePick] = useState<Set<number>>(new Set());
   // いまフォームに入っている解析結果（リンクを外したとき、その商品を1件の予定として一覧に戻すのに使う）
@@ -159,7 +162,7 @@ export default function PostNew() {
     sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
       type, workId, workName, workQuery, title, cats: [...cats], allDay, dateTBD, dateLabel, date, endDate, time, endTime,
       isOrder, preAllDay, preStart, preEnd, preStartTime, preEndTime, price, link, offers, showExtra, stockNote, memo, imageUrl, prefecture, locationDetail,
-      parsedList, pendingParsed,
+      parsedList, pendingParsed, listMeta,
     }));
   });
   const clearDraft = () => sessionStorage.removeItem(DRAFT_KEY);
@@ -282,7 +285,7 @@ export default function PostNew() {
     setPreStartTime(''); setPreEndTime('');
     setPrice(''); setLink(''); setOffers([]); setShowExtra(false); setStockNote(''); setMemo('');
     setImageUrl(''); setPrefecture(''); setLocationDetail('');
-    setError(''); setAiError(''); setParsedList(null); setPendingParsed([]); setMergePick(new Set());
+    setError(''); setAiError(''); setParsedList(null); setPendingParsed([]); setMergePick(new Set()); setListMeta(null);
     appliedRef.current = null;
     setCandidates(null); setSearchingProduct(false); setPicked(new Set());
     setDupMatches([]); setDupDismissed(false);
@@ -411,10 +414,15 @@ export default function PostNew() {
         : /^https?:\/\//.test(body.url ?? '')
           ? { sourceKind: 'url', sourceUrl: body.url }
           : { sourceKind: 'url', sourceText: body.url };
-    setAiLoading(true); setAiError(''); setParsedList(null); setPendingParsed([]);
+    setAiLoading(true); setAiError(''); setParsedList(null); setPendingParsed([]); setListMeta(null);
     try {
-      const events = await parseEventsApi(body);
-      if (events.length === 0) { setAiError('情報を読み取れませんでした'); }
+      const { events, list } = await parseEventsApiWithMeta(body);
+      if (list && body.url) {
+        // 一覧ページ: 1件でも一覧で出す（「登録済みを除いた数」や「次のページ」を見せるため）。
+        // 全部登録済みなら空の一覧に「すべて登録済み」を出す
+        setListMeta({ ...list, url: body.url });
+        setParsedList(events);
+      } else if (events.length === 0) { setAiError('情報を読み取れませんでした'); }
       else if (events.length === 1) { applyParsed(events[0]); toast('AIが入力しました'); }
       else { setParsedList(events); }
     } catch (e) {
@@ -430,6 +438,22 @@ export default function PostNew() {
   };
 
   const onAnalyzeText = () => { if (aiText.trim()) runParse({ url: aiText.trim() }); };
+
+  // 一覧ページの続き（2ページ目以降）を読んで、今の一覧の後ろに足す。登録済みはサーバーが外して返す
+  const loadMore = async () => {
+    if (!listMeta?.nextPage || loadingMore) return;
+    haptic.select();
+    setLoadingMore(true);
+    try {
+      const { events, list } = await parseEventsApiWithMeta({ url: listMeta.url, page: listMeta.nextPage });
+      setParsedList((prev) => [...(prev ?? []), ...events]);
+      setListMeta((prev) => prev && { ...prev, excluded: prev.excluded + (list?.excluded ?? 0), read: prev.read + (list?.read ?? 0), nextPage: list?.nextPage ?? null });
+    } catch {
+      toast('続きを読めませんでした', 'error');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   // 販売先候補を検索（リンク無し/価格不明の補完）
   const onSearchProduct = async () => {
@@ -661,12 +685,14 @@ export default function PostNew() {
       await Promise.all([liked, followed]);
       haptic.select();
       // 解析で複数見つかった残りがあれば、戻らずに残りの一覧を出して続けて投稿できるようにする
-      if (pendingParsed.length) {
+      if (pendingParsed.length || listMeta?.nextPage) {
         const rest = pendingParsed;
+        const meta = listMeta;
         resetForm();
         setParsedList(rest);
+        setListMeta(meta); // 「次のページを読む」を残す
         window.scrollTo(0, 0);
-        toast(`投稿しました。残り${rest.length}件`);
+        toast(rest.length ? `投稿しました。残り${rest.length}件` : '投稿しました');
         setSaving(false);
         return;
       }
@@ -778,7 +804,10 @@ export default function PostNew() {
             ) : (
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-[12px] text-label-secondary">{parsedList.length}件あります。選んで1件ずつ投稿できます（投稿するとこの一覧に戻ります）：</p>
+                  <p className="text-[12px] text-label-secondary">
+                    {parsedList.length ? `${parsedList.length}件あります。選んで1件ずつ投稿できます（投稿するとこの一覧に戻ります）：` : 'この一覧の商品はすべて登録済みです'}
+                    {listMeta && listMeta.excluded > 0 && <><br />登録済みの{listMeta.excluded}商品は除いています</>}
+                  </p>
                   {/* 公式通販のシリーズだけ、チェックした行を1件にまとめられる */}
                   {seriesList && (
                     <button onClick={mergeSelected} disabled={mergePick.size < 2}
@@ -804,7 +833,14 @@ export default function PostNew() {
                   </button>
                   </div>
                 ))}
-                <button onClick={() => { setParsedList(null); setMergePick(new Set()); }} className="text-[12px] text-label-tertiary mt-1 pressable">キャンセル</button>
+                {listMeta?.nextPage && (
+                  <button onClick={loadMore} disabled={loadingMore}
+                    className="pressable mt-1 py-2 rounded-[10px] text-[13px] font-semibold flex items-center justify-center gap-1.5"
+                    style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--accent-text)' }}>
+                    {loadingMore ? <><Loader2 size={15} className="animate-spin" /> 読んでいます…</> : '次のページを読む'}
+                  </button>
+                )}
+                <button onClick={() => { setParsedList(null); setMergePick(new Set()); setListMeta(null); }} className="text-[12px] text-label-tertiary mt-1 pressable">キャンセル</button>
               </div>
             )}
           </div>

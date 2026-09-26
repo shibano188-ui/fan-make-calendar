@@ -64,9 +64,17 @@ function rawToParsed(raw: Record<string, unknown>): ParsedEvent {
   };
 }
 
-type ParseBody = { url?: string; imageBase64?: string; mimeType?: string; sharedText?: string };
+type ParseBody = { url?: string; imageBase64?: string; mimeType?: string; sharedText?: string; page?: number };
+
+/** 一覧ページ（公式通販・アニメイト・ムービック）を解析したときの補足。
+ *  excluded … 登録済みで外した商品の数／nextPage … 続きのページ（無ければ null）／read … そのページで読んだ商品の数 */
+export type ListMeta = { excluded: number; nextPage: number | null; read: number };
 
 export async function parseEventsApi(body: ParseBody): Promise<ParsedEvent[]> {
+  return (await parseEventsApiWithMeta(body)).events;
+}
+
+export async function parseEventsApiWithMeta(body: ParseBody): Promise<{ events: ParsedEvent[]; list: ListMeta | null }> {
   const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ?? '';
   const res = await fetch(`${apiBase}/api/parse-event`, {
     method: 'POST',
@@ -82,6 +90,12 @@ export async function parseEventsApi(body: ParseBody): Promise<ParsedEvent[]> {
     }
     throw new Error(`error_${res.status}`);
   }
+  const read = res.headers.get('X-List-Read');
+  const list: ListMeta | null = read == null ? null : {
+    read: Number(read) || 0,
+    excluded: Number(res.headers.get('X-List-Excluded')) || 0,
+    nextPage: Number(res.headers.get('X-List-Next-Page')) || null,
+  };
   const raw = await res.json();
   const arr: Record<string, unknown>[] = Array.isArray(raw) ? raw : [raw];
   const events = arr.filter((e) => clean(e.title)).map(rawToParsed);
@@ -92,14 +106,14 @@ export async function parseEventsApi(body: ParseBody): Promise<ParsedEvent[]> {
   if (body.url) {
     const isTweet = /twitter\.com|x\.com/.test(body.url);
     const foundUrl = body.url.match(/https?:\/\/\S+/)?.[0] ?? null;
-    return events.map((e) => ({
+    return { list, events: events.map((e) => ({
       ...e,
       // 商品のリンクが揃っているもの（Shopifyのシリーズ）は、貼った一覧ページを購入リンクにしない
       link: isTweet || e.offers?.length ? e.link : (e.link ?? foundUrl),
       sourceUrl: isTweet ? (foundUrl ?? body.url!) : e.sourceUrl,
-    }));
+    })) };
   }
-  return events;
+  return { events, list };
 }
 
 export function fileToBase64(file: File): Promise<{ data: string; mime: string }> {
