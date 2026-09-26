@@ -1,4 +1,5 @@
 import type { Offer } from '../types';
+import { buildOffer } from './affiliate';
 
 export interface ProductCandidate {
   title: string;
@@ -222,5 +223,30 @@ export async function searchProductCandidates(keyword: string): Promise<ProductC
     return d.items ?? [];
   } catch {
     return [];
+  }
+}
+
+/** 人が貼ったリンクを販路にする。そのURLの商品の価格・在庫をその場で取り、pinned を付ける
+ *  （Cronが商品名検索で別の商品に付け替えないように）。取れない店は値段なしのまま。 */
+export async function buildPinnedOffer(rawUrl: string, price?: number): Promise<Offer> {
+  const o: Offer = { ...buildOffer(rawUrl, price), pinned: true };
+  const base = (import.meta.env.VITE_API_BASE as string | undefined) ?? '';
+  try {
+    const r = await fetch(`${base}/api/search-product?url=${encodeURIComponent(rawUrl)}`);
+    if (!r.ok) return o;
+    const { item } = (await r.json()) as { item?: { title?: string; price: number; shop?: string; official?: boolean; inStock?: boolean; stockLabel?: string } | null };
+    if (!item) return o;
+    return {
+      ...o,
+      shop: item.shop || o.shop,
+      price: item.price,
+      fetchedAt: new Date().toISOString(),
+      official: item.official,
+      isSet: item.title ? isSetTitle(item.title) : undefined,
+      inStock: item.inStock,
+      stockLabel: item.stockLabel,
+    };
+  } catch {
+    return o;
   }
 }

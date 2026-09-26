@@ -333,13 +333,20 @@ export async function createEvents(
   const rows = await Promise.all(events.map(async e => {
     let pool = 0;
     if (e.date) {
-      const { data: dups } = await supabase
+      const { data: rows } = await supabase
         .from('events')
-        .select('pool')
+        .select('pool, prefecture')
         .eq('work_id', workId)
         .eq('event_date', e.date)
         .eq('title', e.title);
-      if (dups && dups.length > 0) {
+      // 場所（都道府県）が違う同名同日は別会場の予定なので重複扱いしない。
+      // pool を上げると一覧から消える（.eq('pool', 0)）ため、別会場が見えなくなっていた。
+      const pref = normalizePrefecture(e.prefecture);
+      const dups = (rows ?? []).filter(d => {
+        const p = normalizePrefecture(d.prefecture as string | null);
+        return !pref || !p || p === pref;
+      });
+      if (dups.length > 0) {
         pool = Math.max(...dups.map(d => d.pool as number)) + 1;
       }
     }
@@ -591,6 +598,46 @@ export async function findDuplicateEvents(
   }
 
   return { byUrl, byTitle, byDateKeyword };
+}
+
+/** 同じ名前で場所（都道府県）が違う既存予定か。巡回するPOP UP・コラボカフェの各会場は重複ではない。 */
+export function isOtherPlaceMatch(m: DuplicateMatch, prefecture?: string | null): boolean {
+  const pref = normalizePrefecture(prefecture);
+  return !!pref && !!m.prefecture && m.prefecture !== pref;
+}
+
+/** 同じ名前で場所が違う予定（巡回するPOP UP・コラボカフェ等）を、タイトルの後ろに都道府県を付けて区別する。
+ *  既存の同名予定にもまだ付いていなければ付ける（一覧で「どれがどこの会場か」が分からないため）。
+ *  他人の予定は /api/update-event-title（地名を足すだけの書き換えしか通さない）経由で直す。
+ *  返り値は新しい予定に使うタイトル。同名の予定が無い・場所が同じなら入力のまま返す。 */
+export async function distinguishSameNameByPlace(
+  workId: string, title: string, prefecture: string | null | undefined, category: string | null, userId: string,
+): Promise<string> {
+  const base = title.trim();
+  const pref = normalizePrefecture(prefecture);
+  if (!pref) return base;
+  const { byTitle } = await findDuplicateEvents(workId, base, null, category);
+  if (!byTitle.some((m) => isOtherPlaceMatch(m, pref))) return base;
+
+  const baseNorm = normalizeTitleForDup(base);
+  const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ?? '';
+  const { data: { session } } = await supabase.auth.getSession();
+  for (const m of byTitle) {
+    // 地名がまだ付いていない（元のタイトルのまま）ものだけ
+    if (!m.prefecture || normalizeTitleForDup(m.title) !== baseNorm || m.title.includes(m.prefecture)) continue;
+    const next = `${m.title.trim()} ${m.prefecture}`;
+    try {
+      if (m.authorId === userId) await updateEvent(m.id, { title: next });
+      else if (session?.access_token) {
+        await fetch(`${apiBase}/api/update-event-title`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ event_id: m.id, title: next }),
+        });
+      }
+    } catch { /* 既存側を直せなくても投稿は続ける */ }
+  }
+  return base.includes(pref) ? base : `${base} ${pref}`;
 }
 
 // 作品未確定時のフォールバック: 全作品横断でタイトルがほぼ一致する予定を探す（保守的＝正規化完全一致）。
@@ -1036,7 +1083,9 @@ export function applyEdits<T extends CalendarEvent>(event: T, edits: EventEdit[]
     // getOffers は offers が空だと旧 link から1件合成するので、それも含めて除外する
     const kept = getOffers(e).filter((o) => !removed.has(o.url));
     const linkGone = !!e.link && (removed.has(e.link) || kept.length === 0);
-    e = { ...e, offers: kept, ...(linkGone ? { link: undefined, affiliateUrl: undefined } : {}) };
+    // 代表価格も残った販路から取り直す。events.price は取り消したリンクの値段のことがあり、
+    // そのまま出すと「リンクを直したのに間違った値段が出続ける」。取れなければ値段なし。
+    e = { ...e, offers: kept, price: primaryOffer(kept)?.price, ...(linkGone ? { link: undefined, affiliateUrl: undefined } : {}) };
   }
   return e;
 }

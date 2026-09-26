@@ -57,4 +57,5 @@ export type Offer = {
   isSet?: boolean;         // セット/BOX/コンプ品か。「セット」表示で価格の誤解を防ぐ
   inStock?: boolean;       // false=売切れ。Cronで更新し、詳細ページで「在庫なし」と出す
   stockLabel?: string;     // 販路の生の在庫表記（アニメイトの「予約受付中」等）
+  pinned?: boolean;        // 人が貼った・差し替えたリンク。Cronは商品名検索で別商品に付け替えず、このURLの価格だけ取り直す
 };

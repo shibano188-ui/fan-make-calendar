@@ -1,11 +1,11 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { searchCandidates, highConfidence, scoreTitle, isSetTitle, searchKeyword, variantMismatch, type Candidate } from './_product-search.js';
+import { searchCandidates, highConfidence, scoreTitle, isSetTitle, searchKeyword, variantMismatch, lookupByUrl, type Candidate } from './_product-search.js';
 import { pushAlerts, type Alert } from './_alerts.js';
 
 // 毎日Cron: グッズの販路を最新化する。
 // (0) ユーザーが追加した購入リンク(event_offer_contribs)を events.offers に昇格
-// (1) 既存のアフィ販路の価格を再取得して更新（鮮度維持）
+// (1) 既存のアフィ販路の価格を再取得して更新（鮮度維持）。人が貼ったリンク(pinned)はそのURLの価格だけ取り直す
 // (2) アフィ販路が1つも無いグッズに高信頼候補を自動バックフィル（過去投稿の取りこぼし回収）
 // Vercel Cron は CRON_SECRET 設定時に `Authorization: Bearer <secret>` を付けて呼ぶ。
 
@@ -33,7 +33,7 @@ const SEARCH_PAGE_PATTERNS = [
 ];
 const isSearchPage = (u: string) => !!u && SEARCH_PAGE_PATTERNS.some((re) => re.test(u));
 
-interface OfferRow { retailer?: string; shop?: string; url: string; affiliateUrl?: string; hasAffiliate?: boolean; price?: number; fetchedAt?: string; official?: boolean; isSet?: boolean; inStock?: boolean; stockLabel?: string; }
+interface OfferRow { retailer?: string; shop?: string; url: string; affiliateUrl?: string; hasAffiliate?: boolean; price?: number; fetchedAt?: string; official?: boolean; isSet?: boolean; inStock?: boolean; stockLabel?: string; pinned?: boolean; }
 const isAff = (o: OfferRow) => isAffiliateUrl(o.affiliateUrl || o.url) || isAffiliateUrl(o.url);
 // src/lib/affiliate.ts の isOfficialOffer と同じ（公式店/公式通販か）。代表選びを揃える。
 const OFFICIAL_BRANDS = ['あみあみ', '駿河屋', 'アニメイト', '楽天ブックス'];
@@ -41,6 +41,24 @@ const isOfficial = (o: OfferRow) => !!o.official || OFFICIAL_BRANDS.some((b) => 
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any>;
+
+/** 代表価格 = 在庫あり→単品→公式店→最安（クライアントの primaryOffer と揃える）。
+ *  アフィ販路が無ければ全販路から選ぶ（アニメイト本店だけのグッズでも価格を出す）。
+ *  検索・一覧ページは商品が特定できないので代表にしない（クライアントの primaryOffer と揃える）。
+ *  リンクが取り消された予定では、代表に値段が無ければ null（値段なし）にする。今の events.price は
+ *  取り消したリンクの値段のことがあり、残すと「リンクを直したのに間違った値段が出続ける」。 */
+function representativePrice(live: OfferRow[], current: number | null, hadRemoval: boolean): number | null {
+  const products = live.filter((o) => !isSearchPage(o.url));
+  const base = products.length ? products : live;
+  const affOffers = base.filter(isAff);
+  const rep = [...(affOffers.length ? affOffers : base)].sort((a, b) =>
+    (Number(b.inStock !== false) - Number(a.inStock !== false)) ||
+    (Number(!!a.isSet) - Number(!!b.isSet)) ||
+    (Number(isOfficial(b)) - Number(isOfficial(a))) ||
+    ((a.price ?? Infinity) - (b.price ?? Infinity)),
+  )[0];
+  return rep?.price ?? (hadRemoval ? null : current);
+}
 
 /** ユーザーが追記した購入リンク(event_offer_contribs)を events.offers に移す。
  *
@@ -50,12 +68,12 @@ type Db = SupabaseClient<any>;
  *  受けないので、ここで本体へ移して普通の販路にする（以後は価格・在庫が毎日入り、誰でも
  *  取り消せる共同編集の対象になる）。移し終えた行は消す＝詳細ページでの二重表示を防ぐ。
  *  反映は最大1日遅れ。 */
-async function promoteContribs(db: Db, removedByEvent: Map<string, Set<string>>): Promise<number> {
+async function promoteContribs(db: Db, removedByEvent: Map<string, Set<string>>): Promise<{ moved: number; eventIds: Set<string> }> {
   const { data: contribs } = await db
     .from('event_offer_contribs')
     .select('id, event_id, offer')
     .order('created_at', { ascending: true });
-  if (!contribs?.length) return 0;
+  if (!contribs?.length) return { moved: 0, eventIds: new Set() };
 
   const byEvent = new Map<string, { id: string; offer: OfferRow }[]>();
   for (const c of contribs) {
@@ -73,6 +91,7 @@ async function promoteContribs(db: Db, removedByEvent: Map<string, Set<string>>)
   }
 
   let moved = 0;
+  const eventIds = new Set<string>();
   for (const [eventId, list] of byEvent) {
     const offers = events.get(eventId);
     if (!offers) continue; // 親イベントが消えている（cascade待ち）
@@ -95,10 +114,11 @@ async function promoteContribs(db: Db, removedByEvent: Map<string, Set<string>>)
       const { error } = await db.from('events').update({ offers }).eq('id', eventId);
       if (error) continue; // 失敗したら行を残す（次回リトライ）
       moved += added;
+      eventIds.add(eventId);
     }
     if (done.length) await db.from('event_offer_contribs').delete().in('id', done);
   }
-  return moved;
+  return { moved, eventIds };
 }
 
 /** 「今そのグッズを買える一番安い値段」。値下げの基準はこれ ＝ **最安値の更新だけを値下げと呼ぶ**。
@@ -203,6 +223,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .order('created_at', { ascending: true });
   if (error) return res.status(500).json({ error: error.message });
 
+  // リンクの取り消し・追加があった予定は、下の検索の成否や曜日に関係なく代表価格を毎回合わせる。
+  // 下のループは「検索で何か変わったとき」しか events.price を書かないので、検索に出ない店の
+  // グッズだと、取り消したリンクの値段が代表価格に残り続けていた。DBの読み書きだけなので軽い。
+  let repriced = 0;
+  for (const row of rows ?? []) {
+    const id = row.id as string;
+    const removed = removedByEvent.get(id) ?? EMPTY;
+    if (!removed.size && !promoted.eventIds.has(id)) continue;
+    const offers: OfferRow[] = Array.isArray(row.offers) ? (row.offers as OfferRow[]) : [];
+    const live = removed.size ? offers.filter((o) => !removed.has(o.url)) : offers;
+    const current = (row.price as number | null) ?? null;
+    const next = representativePrice(live, current, removed.size > 0);
+    if (next === current) continue;
+    const { error: upErr } = await db.from('events').update({ price: next }).eq('id', id);
+    if (!upErr) { row.price = next; repriced++; }
+  }
+
   const started = Date.now();
   const BUDGET_MS = 240_000; // 300s制限に対する安全余裕
   // アフィ販路が無いグッズ(=アニメイト限定/イベント/プライズ品で楽天・Yahoo!に無いことが多い)を
@@ -235,9 +272,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const workName = ((row.works as { name?: string } | null)?.name) || '';
     const kw = searchKeyword(workName, title);
 
-    let cands: Candidate[];
-    try { cands = await searchCandidates(kw); } catch { await delay(300); continue; }
-    if (!cands.length) { await delay(300); continue; }
+    // 検索が空振りでも、人が貼ったリンク(pinned)はURLで価格を引けるので先へ進む
+    const hasPinned = active.some((o) => o.pinned);
+    let cands: Candidate[] = [];
+    try { cands = await searchCandidates(kw); } catch { if (!hasPinned) { await delay(300); continue; } }
+    if (!cands.length && !hasPinned) { await delay(300); continue; }
 
     const now = new Date().toISOString();
     let changed = false;
@@ -249,6 +288,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     //     URL・店・価格・フラグを合わせる。候補は中古除外済みなので、過去に付いた中古URLの付け替え・
     //     失効URLの解消・価格とURLのズレ防止も兼ねる。
     for (const o of active) {
+      // 人が貼った・差し替えたリンクは、商品名検索で別の商品に付け替えない（間違いを直したのに
+      // 翌日また似た別商品へ戻されるのを防ぐ）。そのURLの商品の価格・在庫だけ取り直す。
+      // 取れなかった日は前の値段を残す（「M/D時点」で古さは分かる）。
+      if (o.pinned) {
+        const hit = await lookupByUrl(o.url);
+        if (hit) {
+          o.price = hit.price;
+          if (hit.shop) o.shop = hit.shop;
+          o.official = hit.official;
+          if (hit.title) o.isSet = isSetTitle(hit.title);
+          o.inStock = hit.inStock;
+          o.stockLabel = hit.stockLabel;
+          o.fetchedAt = now;
+          changed = true;
+        }
+        continue;
+      }
       const rk = o.retailer || '';
       if (!rk) continue;
       // その販路の検索が生きているか（0件＝レート制限や一時エラーの可能性。後述の判定で使う）
@@ -297,21 +353,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (changed) {
-      // 代表価格 = 在庫あり→単品→公式店→最安（クライアントの primaryOffer と揃える）。
-      // アフィ販路が無ければ全販路から選ぶ（アニメイト本店だけのグッズでも価格を出す）。
       // バックフィルで push した分も含めるため、取り消し分を除いた実効値をここで取り直す。
-      // 検索・一覧ページは商品が特定できないので代表にしない（クライアントの primaryOffer と揃える）。
       const live = removed.size ? offers.filter((o) => !removed.has(o.url)) : offers;
-      const products = live.filter((o) => !isSearchPage(o.url));
-      const base = products.length ? products : live;
-      const affOffers = base.filter(isAff);
-      const rep = [...(affOffers.length ? affOffers : base)].sort((a, b) =>
-        (Number(b.inStock !== false) - Number(a.inStock !== false)) ||
-        (Number(!!a.isSet) - Number(!!b.isSet)) ||
-        (Number(isOfficial(b)) - Number(isOfficial(a))) ||
-        ((a.price ?? Infinity) - (b.price ?? Infinity)),
-      )[0];
-      const newPrice = rep?.price ?? ((row.price as number | null) ?? null);
+      const newPrice = representativePrice(live, (row.price as number | null) ?? null, removed.size > 0);
       const { error: upErr } = await db.from('events').update({ offers, price: newPrice }).eq('id', row.id);
       if (!upErr) {
         updated++;
@@ -337,5 +381,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 送り先の取得に失敗したら応答に出す（pg_cron の net._http_response / Vercelのログで気づけるように）
   const push = await pushAlerts(db, changes).catch((e: unknown) => ({ sent: 0, failed: 0, error: String(e) }));
 
-  return res.status(200).json({ doBackfill, promoted, scanned, backfilled, updated, detected, push, total: (rows ?? []).length, tookMs: Date.now() - started });
+  return res.status(200).json({ doBackfill, promoted: promoted.moved, repriced, scanned, backfilled, updated, detected, push, total: (rows ?? []).length, tookMs: Date.now() - started });
 }
