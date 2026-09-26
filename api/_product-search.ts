@@ -282,7 +282,7 @@ async function lookupAnimate(u: URL): Promise<UrlLookup | null> {
   const price = html.match(/\bprice:\s*(\d+),\s*\/\/商品金額/)?.[1] ?? html.match(/<p class="price[^"]*">([\d,]+)<span>円/)?.[1];
   if (!price) return null;
   const title = html.match(/<h1>([^<]+)<\/h1>/)?.[1];
-  const stock = html.match(/stock_status:\s*'([^']*)'/)?.[1]?.replace(/^[\s×○△◯-]+/, '').trim();
+  const stock = html.match(/stock_status:\s*'([^']*)'/)?.[1]?.replace(/^[\s×○〇△◯-]+/, '').trim();
   const releaseText = html.match(/<p class="release">[\s\S]{0,80}?<span class="num">([^<]+)<\/span>/)?.[1];
   const release = releaseText ? parseReleaseText(releaseText) : null;
   const pre = parsePreorderText(html.match(/<meta name="description" content="([^"]*)"/)?.[1] ?? '');
