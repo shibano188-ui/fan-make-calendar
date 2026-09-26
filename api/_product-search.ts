@@ -195,14 +195,17 @@ export function unwrapProductUrl(u: string): string {
   } catch { return u; }
 }
 
-/** 楽天の商品ページ（item.rakuten.co.jp/{shop}/{item}/）。ページ本体はBot遮断されるのでAPIの itemCode で引く。 */
+/** 楽天の商品ページ（item.rakuten.co.jp/{shop}/{item}/）。ページ本体はBot遮断されるのでAPIで引く。
+ *  新API(20260401)の itemCode は数字の商品ID（shop:10565429）しか受けず、URLの商品管理番号では
+ *  "itemCode is not valid" になる。店を shopCode で絞って管理番号をキーワードに検索し、
+ *  itemUrl が同じ商品のものだけを採る（2026-09-26 実測で1件ちょうど返る）。 */
 async function lookupRakuten(u: URL): Promise<UrlLookup | null> {
   const [shop, item] = u.pathname.split('/').filter(Boolean);
   if (!shop || !item) return null;
   const appId = process.env.RAKUTEN_APP_ID?.trim();
   const accessKey = process.env.RAKUTEN_ACCESS_KEY?.trim();
   if (!appId || !accessKey) return null;
-  const params = new URLSearchParams({ applicationId: appId, itemCode: `${shop}:${item}`, hits: '1', format: 'json', formatVersion: '2' });
+  const params = new URLSearchParams({ applicationId: appId, shopCode: shop, keyword: item, hits: '5', format: 'json', formatVersion: '2' });
   const referer = process.env.RAKUTEN_REFERER || 'https://fan-make-calendar.vercel.app/'; // rakutenRequest と同じ（登録URLと一致させる）
   const r = await fetch(`https://openapi.rakuten.co.jp/ichibams/api/IchibaItem/Search/20260401?${params.toString()}`, {
     headers: { accessKey, Referer: referer, Origin: referer.replace(/\/$/, '') },
@@ -210,7 +213,7 @@ async function lookupRakuten(u: URL): Promise<UrlLookup | null> {
   });
   if (!r.ok) return null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const it = ((await r.json()) as { Items?: any[] }).Items?.[0];
+  const it = ((await r.json()) as { Items?: any[] }).Items?.find((x) => String(x.itemUrl ?? '').includes(`/${shop}/${item}/`));
   if (!it || typeof it.itemPrice !== 'number') return null;
   return {
     title: it.itemName as string, price: it.itemPrice as number, shop: it.shopName as string, retailer: '楽天',
