@@ -142,13 +142,16 @@ function decodeEntities(s: string): string {
   return s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ');
 }
 
-async function searchAnimate(keyword: string): Promise<Candidate[]> {
+/** total はアニメイト検索の「〜に関する商品はN件あります」。付けた種類違いが全部か確かめるのに使う（取れなければ null） */
+async function searchAnimate(keyword: string): Promise<{ items: Candidate[]; total: number | null }> {
   const r = await fetch(`${ANIMATE_ORIGIN}/products/list.php?smt=${encodeURIComponent(keyword)}`, {
     headers: { 'User-Agent': UA, 'Accept-Language': 'ja' },
     signal: AbortSignal.timeout(8000),
   });
-  if (!r.ok) return [];
+  if (!r.ok) return { items: [], total: null };
   const html = await r.text();
+  const totalText = html.match(/に関する商品は([\d,]+)件あります/)?.[1];
+  const total = totalText ? Number(totalText.replace(/,/g, '')) : null;
   const out: Candidate[] = [];
   // 検索結果は <div class="item_list_thumb"> 単位。1商品 = サムネ・h3タイトル・p.price。
   for (const chunk of html.split('<div class="item_list_thumb">').slice(1)) {
@@ -171,9 +174,10 @@ async function searchAnimate(keyword: string): Promise<Candidate[]> {
       inStock: !stock || !/販売終了|品切|売切|在庫なし/.test(stock),
       stockLabel: stock,
     });
-    if (out.length >= 3) break;
+    // 種類違い（キャラ・番号違い）を並べて拾えるよう多めに取る（前は3件で、全種類がそろわなかった）
+    if (out.length >= 12) break;
   }
-  return out;
+  return { items: out, total };
 }
 
 // ── URL指定の価格取得（人が貼った・差し替えたリンク用）──
@@ -289,15 +293,20 @@ function roundRobin(list: Candidate[], keyOf: (c: Candidate) => string, maxPerKe
 
 /** キーワードで楽天/Yahoo!/アニメイト本店を横断検索し、中古除外・公式店優先・1店舗3件・最大12件に整形して返す。 */
 export async function searchCandidates(keyword: string): Promise<Candidate[]> {
+  return (await searchCandidatesWithMeta(keyword)).items;
+}
+
+/** searchCandidates に、アニメイトの総件数を添えて返す（投稿画面で「全種類付いたか」を確かめる用） */
+export async function searchCandidatesWithMeta(keyword: string): Promise<{ items: Candidate[]; animateTotal: number | null }> {
   const [rakuten, yahoo, animate] = await Promise.all([
     searchRakuten(keyword).catch(() => [] as Candidate[]),
     searchYahoo(keyword).catch(() => [] as Candidate[]),
-    searchAnimate(keyword).catch(() => [] as Candidate[]),
+    searchAnimate(keyword).catch(() => ({ items: [] as Candidate[], total: null })),
   ]);
   // 中古品は除外（駿河屋等は中古が混じる。本人方針で自動添付対象外）。
   // タイトル正規表現に加え、Yahoo!の condition='used' も見る（stockLabel='中古'）。
   // 在庫ありを先に（sortは安定なので同グループ内の元の順序は維持）。
-  const sorted = [...rakuten, ...yahoo, ...animate]
+  const sorted = [...rakuten, ...yahoo, ...animate.items]
     .filter((c) => !isUsedTitle(c.title) && c.stockLabel !== '中古')
     .sort((a, b) => Number(b.inStock !== false) - Number(a.inStock !== false));
 
@@ -305,9 +314,10 @@ export async function searchCandidates(keyword: string): Promise<Candidate[]> {
   // 必ず先に出す。ここをまとめて後段の詰め込みに任せると、楽天の公式店だけで4店舗×3件＝12枠を埋めてしまい
   // **アニメイト本店が上限からこぼれて表示されない**（本人指摘・2026-07-25）。
   // 店ごとのラウンドロビンにして、各店に必ず1枠は回るようにする。
-  const officials = roundRobin(sorted.filter((c) => c.official), (c) => `${c.retailer}:${c.shopCode || c.shop}`, 3);
-  const others = roundRobin(sorted.filter((c) => !c.official), (c) => `${c.retailer}:${c.shopCode || c.shop}`, 3);
-  return [...officials, ...others].slice(0, 12);
+  // 1店6件・全体24件まで。種類違い（キャラ違い4種など）が1店の中でそろうように、前の3件/12件から広げた
+  const officials = roundRobin(sorted.filter((c) => c.official), (c) => `${c.retailer}:${c.shopCode || c.shop}`, 6);
+  const others = roundRobin(sorted.filter((c) => !c.official), (c) => `${c.retailer}:${c.shopCode || c.shop}`, 6);
+  return { items: [...officials, ...others].slice(0, 24), animateTotal: animate.total };
 }
 
 // ── マッチング（src/lib/searchProduct.ts と同じロジック。両者は同期を保つこと）──

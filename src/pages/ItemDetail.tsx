@@ -553,7 +553,9 @@ export default function ItemDetail() {
                       className="pressable flex-1 min-w-0 flex items-center justify-between gap-2">
                       {/* 検索ページは商品ページと区別する（商品が特定できず価格も在庫も出ないため） */}
                       <span className="text-[13px] truncate" style={o.inStock === false ? { opacity: 0.55 } : undefined}>
-                        {o.retailer || 'リンク'}{o.shop ? `（${o.shop}）` : ''}{isSearchPageUrl(o.url) ? '（検索）' : ''}
+                        {/* 種類違いのリンクが並ぶときは名前（キャラ名など）を先に出す */}
+                        {o.label && <span className="font-semibold">{o.label}<span className="text-label-tertiary font-normal"> ・ </span></span>}
+                        {o.retailer || 'リンク'}{o.shop ? `（${o.shop}）` : ''}{isSearchPageUrl(o.url) && o.label !== '検索結果' ? '（検索）' : ''}
                       </span>
                       <span className="flex items-center gap-1.5 flex-shrink-0">
                         {/* 在庫は「あり/なし」の2値だけ出す（販路ごとに粒度が違うので生の表記は使わない）。
@@ -594,7 +596,7 @@ export default function ItemDetail() {
                 {contribs.map((c) => (
                   <div key={c.id} className="flex items-center gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
                     <a href={offerUrl(c.offer)} target="_blank" rel="noopener nofollow" onClick={() => haptic.select()} className="pressable flex-1 min-w-0 flex items-center justify-between gap-2">
-                      <span className="text-[13px] truncate">{c.offer.retailer || 'リンク'}{c.offer.shop ? `（${c.offer.shop}）` : ''}{isSearchPageUrl(c.offer.url) ? '（検索）' : ''}<span className="text-[10px] text-label-tertiary"> ・ユーザー追加</span></span>
+                      <span className="text-[13px] truncate">{c.offer.label && <span className="font-semibold">{c.offer.label} ・ </span>}{c.offer.retailer || 'リンク'}{c.offer.shop ? `（${c.offer.shop}）` : ''}{isSearchPageUrl(c.offer.url) ? '（検索）' : ''}<span className="text-[10px] text-label-tertiary"> ・ユーザー追加</span></span>
                       <span className="text-[13px] font-bold flex-shrink-0" style={{ color: 'var(--accent-text)' }}>{c.offer.price ? `¥${c.offer.price.toLocaleString()}` : '開く ↗'}</span>
                     </a>
                     {user && c.createdBy === user.id && (
