@@ -75,6 +75,7 @@ const RULES: Rule[] = [
   // アフィ非対応＝B2B送客対象（メーカー直販・くじ・公式通販・チケット等）。
   // チケット系(ぴあ/イープラス/ローチケ)はアフィリエイトプログラムが無いため b2b に統一。
   { name: 'チケットぴあ', kind: 'b2b', test: (h) => /(^|\.)t\.pia\.jp$/.test(h) || /(^|\.)pia\.jp$/.test(h) },
+  { name: 'ムービック', kind: 'b2b', test: (h) => /(^|\.)movic\.jp$/.test(h) },
   { name: 'プレミアムバンダイ', kind: 'b2b', test: (h) => /(^|\.)p-bandai\.jp$/.test(h) || /(^|\.)premiumbandai/.test(h) },
   { name: 'イープラス', kind: 'b2b', test: (h) => /(^|\.)eplus\.jp$/.test(h) },
   { name: 'ローチケ', kind: 'b2b', test: (h) => /(^|\.)l-tike\.com$/.test(h) },

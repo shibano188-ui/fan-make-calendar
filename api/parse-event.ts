@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { checkRateLimitFor, getClientIp } from './_ratelimit.js';
 import { getIdentity } from './_identity.js';
 import { withAiUsage, noteAiUsage, saveAiUsage, type AiCall } from './_aiusage.js';
-import { fetchShopifyCollection, type ShopifyProduct } from './_shopify.js';
+import { fetchProductList, type ProductList } from './_listsource.js';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -518,7 +518,8 @@ function parseRawText(rawText: string): unknown[] {
   });
 }
 
-// ── Shopify のコレクション → シリーズごとの予定 ─────────────────────────
+// ── 商品の一覧ページ → シリーズごとの予定 ─────────────────────────
+// 公式通販（Shopify）のコレクション・アニメイトやムービックの検索結果など（_listsource.ts）。
 // ちいかわマーケットの「10月9日発売商品」のような一覧を貼ると、商品を1件ずつではなく
 // シリーズ（同じ企画の商品群）ごとに1つの予定にし、中の商品は全部名前付きの購入リンクにする（本人要望・2026-09-26）。
 // 1件ずつだと「探す」が同じ日の同じ作品で埋まる。分け方は商品名の規則では揺れるのでAIに任せる。
@@ -559,13 +560,24 @@ function imagesJson(urls: string[]): string | null {
   return list.length === 0 ? null : list.length === 1 ? list[0] : JSON.stringify(list);
 }
 
-async function shopifyCollectionToEvents(col: { title: string; shop: string; products: ShopifyProduct[] }): Promise<unknown[]> {
+/** まとまりの発売日。中の商品の発売日のうち一番多いもの（一覧に発売日がある店）。無ければ一覧の名前から */
+function groupRelease(items: ProductList['products'], listTitle: string): { date: string | null; dateLabel: string | null } {
+  const count = new Map<string, { n: number; r: { date: string; dateLabel: string | null } }>();
+  for (const p of items) {
+    if (!p.release) continue;
+    const k = `${p.release.date}|${p.release.dateLabel ?? ''}`;
+    count.set(k, { n: (count.get(k)?.n ?? 0) + 1, r: p.release });
+  }
+  const top = [...count.values()].sort((a, b) => b.n - a.n)[0]?.r;
+  return top ? { date: top.date, dateLabel: top.dateLabel } : { date: dateFromCollectionTitle(listTitle), dateLabel: null };
+}
+
+async function listToEvents(col: ProductList): Promise<unknown[]> {
   const list = col.products.map((p, i) => `${i}: ${p.title}`).join('\n');
-  const raw = await claudeComplete(SERIES_PROMPT, `コレクション名: ${col.title}\n店: ${col.shop}\n\n${list}`, 4000);
+  const raw = await claudeComplete(SERIES_PROMPT, `一覧の名前: ${col.title}\n店: ${col.shop}\n\n${list}`, 6000);
   const obj = JSON.parse(raw.match(/\{[\s\S]*\}/)?.[0] ?? '{}') as {
     work?: string; series?: { title?: string; kind?: string; category?: string; items?: { i?: number; label?: string }[] }[];
   };
-  const date = dateFromCollectionTitle(col.title);
   const used = new Set<number>();
   const groups = (obj.series ?? []).map((sr) => ({
     title: sr.title ?? '', kind: sr.kind ?? '', category: sr.category ?? '',
@@ -579,7 +591,7 @@ async function shopifyCollectionToEvents(col: { title: string; shop: string; pro
     // 画面で複数のまとまりを1つにまとめるとき、リンクの名前を「お守り（ハチワレ）」にするのに使う
     kind: g.kind || null,
     work: obj.work ?? null,
-    date,
+    ...(() => { const r = groupRelease(g.items.map((x) => x.p), col.title); return { date: r.date, dateLabel: r.dateLabel }; })(),
     categories: ['グッズ', ...(g.category ? [g.category] : [])],
     price: Math.min(...g.items.map((x) => x.p.price)),
     // 画像は全部。複数の商品なら各商品の1枚目、1商品ならその商品の画像を全部（アプリの複数画像の形＝JSON配列）。
@@ -588,7 +600,8 @@ async function shopifyCollectionToEvents(col: { title: string; shop: string; pro
     link: null,
     // 中の商品を全部、名前付きの購入リンクにする（クライアントの Offer と同じ形）
     offers: g.items.map(({ p, label }) => ({
-      retailer: col.shop, url: p.url, price: p.price, inStock: p.inStock, official: true, pinned: true,
+      retailer: col.retailer, ...(col.shop !== col.retailer ? { shop: col.shop } : {}),
+      url: p.url, price: p.price, inStock: p.inStock, official: true, pinned: true,
       ...(g.items.length > 1 ? { label: label || p.title } : {}),
     })),
     // 投稿画面でリンクを外して1件の予定に戻すとき用の、商品ごとの名前と画像（保存はしない）
@@ -697,13 +710,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       // ────────────────────────────────────────────────────────────
 
-      // Shopify の店のコレクション（/collections/…）なら、シリーズごとの予定にする。
-      // Xのポスト以外のURLはここ以外では取りに行かない（接続してよいかは _shopify.ts の safePublicUrl で確かめる）
+      // 商品の一覧ページ（公式通販のコレクション・アニメイト/ムービックの検索結果など）なら、シリーズごとの予定にする。
+      // Xのポスト以外のURLはここ以外では取りに行かない（接続先は _listsource.ts が決まった店と Shopify に絞る）
       if (processUrl && !isXPostUrl(processUrl)) {
-        const col = await fetchShopifyCollection(processUrl).catch(() => null);
+        const col = await fetchProductList(processUrl).catch(() => null);
         if (col) {
           try {
-            return res.status(200).json(await shopifyCollectionToEvents(col));
+            return res.status(200).json(await listToEvents(col));
           } catch {
             return res.status(422).json({ error: 'Could not parse response' });
           }

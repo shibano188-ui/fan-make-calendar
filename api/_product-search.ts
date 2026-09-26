@@ -154,8 +154,14 @@ async function searchAnimate(keyword: string): Promise<{ items: Candidate[]; tot
   const html = await r.text();
   const totalText = html.match(/に関する商品は([\d,]+)件あります/)?.[1];
   const total = totalText ? Number(totalText.replace(/,/g, '')) : null;
-  const out: Candidate[] = [];
-  // 検索結果は <div class="item_list_thumb"> 単位。1商品 = サムネ・h3タイトル・p.price。
+  // 種類違い（キャラ・番号違い）を並べて拾えるよう多めに取る（前は3件で、全種類がそろわなかった）
+  return { items: parseAnimateList(html).slice(0, 12), total };
+}
+
+/** アニメイトの一覧ページ（検索結果・作品ページなど）のHTMLから商品を読む。発売日も付ける。
+ *  1商品 = <div class="item_list_thumb"> 単位（サムネ・h3タイトル・p.price・販売状況・発売日） */
+export function parseAnimateList(html: string): (Candidate & { release?: { date: string; dateLabel: string | null } })[] {
+  const out: (Candidate & { release?: { date: string; dateLabel: string | null } })[] = [];
   for (const chunk of html.split('<div class="item_list_thumb">').slice(1)) {
     const href = chunk.match(/<a href="(\/pn\/[^"]+\/pd\/\d+\/)"/)?.[1];
     const title = chunk.match(/<h3><a [^>]*>([^<]+)<\/a><\/h3>/)?.[1];
@@ -164,6 +170,9 @@ async function searchAnimate(keyword: string): Promise<{ items: Candidate[]; tot
     const image = chunk.match(/<img src="([^"]+)"/)?.[1] ?? '';
     // 販売状況: 在庫あり / 残りわずか / 予約受付中 / 取り寄せ / 通常N日以内に入荷 / 販売終了
     const stock = chunk.match(/販売状況：<span[^>]*>([^<]+)<\/span>/)?.[1]?.trim();
+    // 「発売日：2026年09月中 発売」
+    const releaseText = chunk.match(/<p class="release">発売日：([^<]+)<\/p>/)?.[1];
+    const release = releaseText ? parseReleaseText(releaseText) : null;
     out.push({
       title: decodeEntities(title).trim(),
       price: Number(price.replace(/,/g, '')),
@@ -175,11 +184,10 @@ async function searchAnimate(keyword: string): Promise<{ items: Candidate[]; tot
       official: true,
       inStock: !stock || !/販売終了|品切|売切|在庫なし/.test(stock),
       stockLabel: stock,
+      ...(release ? { release } : {}),
     });
-    // 種類違い（キャラ・番号違い）を並べて拾えるよう多めに取る（前は3件で、全種類がそろわなかった）
-    if (out.length >= 12) break;
   }
-  return { items: out, total };
+  return out;
 }
 
 // ── URL指定の価格取得（人が貼った・差し替えたリンク用）──
@@ -200,7 +208,7 @@ const ymd = (y: string, m: string, d: string) => `${y}-${m.padStart(2, '0')}-${d
 /** 「2026年10月26日 発売」「2026年09月下旬 発売予定」「2026年10月 中 発売予定」→ アプリの日付の持ち方
  *  （src/lib/ambiguousDate.ts と同じ代表日: 上中下旬=5/15/25日、月のみ=末日） */
 export function parseReleaseText(t: string): { date: string; dateLabel: string | null } | null {
-  const d = t.match(/(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日/);
+  const d = t.match(/(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日/) ?? t.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})/); // 一覧は「2026/10/23 発売」
   if (d) return { date: ymd(d[1], d[2], d[3]), dateLabel: null };
   const j = t.match(/(\d{4})年\s*(\d{1,2})月\s*(上旬|中旬|下旬)/);
   if (j) return { date: ymd(j[1], j[2], { 上旬: '5', 中旬: '15', 下旬: '25' }[j[3]]!), dateLabel: j[3] };
@@ -296,6 +304,52 @@ async function lookupAnimate(u: URL): Promise<UrlLookup | null> {
   };
 }
 
+// ── ムービック（movic.jp）──
+// 商品ページ /shop/g/g{品番}/ は JSON-LD（価格・在庫・発売日 releaseDate "2026/11/27"）を持っている。
+// 一覧（検索結果 /shop/goods/search.aspx・カテゴリ /shop/c/…・特集 /shop/e/…）は1ページ50件、値段・在庫つき。
+const MOVIC_ORIGIN = 'https://www.movic.jp';
+
+async function lookupMovic(u: URL): Promise<UrlLookup | null> {
+  const r = await fetch(u.toString(), { headers: { 'User-Agent': UA, 'Accept-Language': 'ja' }, signal: AbortSignal.timeout(8000) });
+  if (!r.ok) return null;
+  const html = await r.text();
+  const ld = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)?.[1];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let p: any = null;
+  try { p = ld ? JSON.parse(ld) : null; } catch { p = null; }
+  const price = Number(p?.offers?.price);
+  if (!p || !(price > 0)) return null;
+  const avail = String(p.offers?.availability ?? '').split('/').pop();
+  const rel = typeof p.releaseDate === 'string' ? p.releaseDate.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/) : null;
+  return {
+    title: decodeEntities(String(p.name ?? '')).trim() || undefined, price, shop: 'ムービック', retailer: 'ムービック', official: true,
+    inStock: avail ? avail === 'InStock' || avail === 'PreOrder' || avail === 'LimitedAvailability' : undefined,
+    ...(rel ? { release: { date: ymd(rel[1], rel[2], rel[3]), dateLabel: null } } : {}),
+  };
+}
+
+/** ムービックの一覧ページのHTMLから商品を読む（発売日は一覧に無いので商品ページで取る） */
+export function parseMovicList(html: string): Candidate[] {
+  const out: Candidate[] = [];
+  for (const chunk of html.split('<li class="block-thumbnail-t--item').slice(1)) {
+    const href = chunk.match(/<a href="(\/shop\/g\/g[^"]+\/)"/)?.[1];
+    const title = chunk.match(/<div class="block-thumbnail-t--goods-name">([^<]+)<\/div>/)?.[1];
+    const price = chunk.match(/goods-price">\s*([\d,]+)円/)?.[1];
+    if (!href || !title || !price) continue;
+    const img = chunk.match(/<img src="([^"]+)"/)?.[1] ?? '';
+    // 在庫の記号: ◎○△ は在庫あり、× は在庫なし
+    const stock = chunk.match(/<dt>在庫<\/dt>\s*<dd>([^<]*)<\/dd>/)?.[1]?.trim();
+    out.push({
+      title: decodeEntities(title).trim(), price: Number(price.replace(/,/g, '')), url: `${MOVIC_ORIGIN}${href}`,
+      // 画像未登録の商品は sorryS.jpg（「画像準備中」）なので使わない
+      image: img && !/sorry/i.test(img) ? new URL(decodeEntities(img), MOVIC_ORIGIN).toString() : '',
+      shop: 'ムービック', retailer: 'ムービック', hasAffiliate: false, official: true,
+      inStock: stock ? !/×/.test(stock) : undefined,
+    });
+  }
+  return out;
+}
+
 /** 商品ページのURLから、その商品の価格・在庫を取る。対応外の店・取れなかったときは null。 */
 export async function lookupByUrl(rawUrl: string): Promise<UrlLookup | null> {
   let u: URL;
@@ -307,6 +361,7 @@ export async function lookupByUrl(rawUrl: string): Promise<UrlLookup | null> {
     // アニメイトの商品ページは2つの形がある: PC の /pn/…/pd/123/ と、スマホアプリで共有される
     // /sphone/products/detail.php?product_id=123（PC向けのUAで開くと PC の商品ページに転送される）
     if (host === 'www.animate-onlineshop.jp' && (/\/pd\/\d+/.test(u.pathname) || (/products\/detail\.php$/.test(u.pathname) && u.searchParams.has('product_id')))) return await lookupAnimate(u);
+    if (/(^|\.)movic\.jp$/.test(host) && /^\/shop\/g\/g[^/]+\/?$/.test(u.pathname)) return await lookupMovic(u);
     // それ以外の店は、Shopify の商品ページ（/products/…）なら読める（ちいかわマーケットなど作品の公式通販に多い）
     if (/\/products\/[^/]+/.test(u.pathname)) {
       const p = await lookupShopifyProduct(u.toString());
