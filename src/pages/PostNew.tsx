@@ -527,6 +527,7 @@ export default function PostNew() {
       price: Math.min(...picked.map((p) => p.price ?? Infinity).filter(Number.isFinite)),
       // 種別が違う行をまとめたら親の「グッズ」だけにする（空にするとイベント扱いになってしまう）
       category: picked.every((p) => p.category === picked[0].category) ? picked[0].category : 'グッズ',
+      imageUrl: serializeImageUrls(picked.flatMap((p) => parseImageUrls(p.imageUrl ?? undefined))) ?? null,
       offers: picked.flatMap((p) => (p.offers ?? []).map((o) => ({
         ...o,
         label: o.label || itemTitle(p, o.url) || p.kind || undefined,

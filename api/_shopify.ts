@@ -56,7 +56,7 @@ export async function shopifyShopName(origin: string): Promise<string> {
   return meta?.name?.trim() || new URL(origin).host;
 }
 
-export interface ShopifyProduct { title: string; url: string; price: number; inStock: boolean; image: string }
+export interface ShopifyProduct { title: string; url: string; price: number; inStock: boolean; image: string; images: string[] }
 
 /** コレクションのURL（/collections/{handle}）なら、コレクション名・店名・商品一覧を返す。Shopifyでなければ null */
 export async function fetchShopifyCollection(raw: string): Promise<{ title: string; shop: string; products: ShopifyProduct[] } | null> {
@@ -80,6 +80,8 @@ export async function fetchShopifyCollection(raw: string): Promise<{ title: stri
       price: prices.length ? Math.min(...prices) : 0,
       inStock: vs.some((v) => v.available),
       image: String(p.images?.[0]?.src ?? ''),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      images: ((p.images ?? []) as any[]).map((im) => String(im?.src ?? '')).filter(Boolean),
     };
   }).filter((p: ShopifyProduct) => p.title && p.price > 0);
   return { title: col?.collection?.title?.trim() || '', shop, products };

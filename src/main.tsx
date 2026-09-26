@@ -6,6 +6,7 @@ import './index.css';
 import './design/skins.css';
 import App from './App';
 import { cleanupLikeSessions, ONBOARDING_KEY, SHOW_ONBOARDING, START_PATH } from './lib/constants';
+import { installAppUpdate } from './lib/appUpdate';
 
 if (new URLSearchParams(window.location.search).get('reset') === 'true') {
   localStorage.clear();
@@ -13,6 +14,7 @@ if (new URLSearchParams(window.location.search).get('reset') === 'true') {
 }
 
 cleanupLikeSessions();
+installAppUpdate();
 
 // 旧IAの「カレンダーごとテーマ」残骸の掃除。このキーが残っていると起動時に
 // 旧 cal_settings_<workId>（黒系アクセント等）が全画面に適用されてしまう。
