@@ -24,6 +24,8 @@ export type ParsedEvent = {
   preorderEnd?: string | null;
   sellsGoods?: boolean;        // イベントで物販がある（会場/関連でグッズ販売）→「グッズあり」カテゴリ付与
   offers?: Offer[];            // Shopifyのコレクションから作ったシリーズの、中の商品ぜんぶ（名前付きの購入リンク）
+  kind?: string | null;        // シリーズのアイテムの種類（「お守り」）。まとめたときにリンクの名前を「お守り（ハチワレ）」にする
+  items?: { url: string; title: string; image: string }[]; // 商品ごとの名前と画像。リンクを外して1件に戻すとき用（保存しない）
 };
 
 function clean(v: unknown): string | null {
@@ -57,6 +59,8 @@ function rawToParsed(raw: Record<string, unknown>): ParsedEvent {
     preorderEnd: clean(raw.preorderEnd),
     sellsGoods: raw.sellsGoods === true || raw.sellsGoods === 'true',
     ...(Array.isArray(raw.offers) ? { offers: (raw.offers as Offer[]).filter((o) => o && typeof o.url === 'string') } : {}),
+    ...(typeof raw.kind === 'string' ? { kind: raw.kind } : {}),
+    ...(Array.isArray(raw.items) ? { items: raw.items as ParsedEvent['items'] } : {}),
   };
 }
 

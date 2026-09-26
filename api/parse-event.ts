@@ -523,16 +523,24 @@ function parseRawText(rawText: string): unknown[] {
 // シリーズ（同じ企画の商品群）ごとに1つの予定にし、中の商品は全部名前付きの購入リンクにする（本人要望・2026-09-26）。
 // 1件ずつだと「探す」が同じ日の同じ作品で埋まる。分け方は商品名の規則では揺れるのでAIに任せる。
 
-const SERIES_PROMPT = `グッズ通販の商品一覧を、シリーズごとにまとめてください。シリーズは**なるべく大きく**取る。
-- シリーズ＝同じ企画で一緒に出る商品群。商品名に同じ企画名・テーマ名（例: 「シーサーのおみやげやさん」「ちいかわ寿司」「くりまんじゅうの〜」「（ダンス）」「あったか〜」）が入っていれば、アイテムの種類が違っても全部1つのシリーズにする
-- キャラ違い・色違い・柄違い・別アイテム（おちょこ・とっくり・お皿、お守り・マグネット・ステッカーなど）は分けない
-- 企画名の無い単発の商品は、同じ種類のもの（マスコット類など）でまとめる。どうしても仲間が無ければ1商品だけのシリーズでよい
-- 全商品をどれか1つのシリーズに必ず入れる
-- title: 予定のタイトル。作品名から始め、シリーズが分かる短い名前（例: 「ちいかわ シーサーのおみやげやさん」「ちいかわ くりまんじゅうのたべのみグッズ」）。「セット」という語は使わない（セット販売と誤解される）
-- label: 各商品のシリーズ内での見分け名。アイテムの種類とキャラ・柄が分かる短い名前（例: 「お守り（ハチワレ）」「おちょこ」「マグネット（めんそ～れ～）」）。キャラ違いしか無いシリーズならキャラ名だけ（「ハチワレ」）
+const SERIES_PROMPT = `グッズ通販の商品一覧を、予定のまとまりに分けてください。まとまり＝「同じ企画」かつ「同じ種類のアイテム」。
+- 企画＝商品名に入っている企画名・テーマ名（例: 「シーサーのおみやげやさん」「ちいかわ寿司」「くりまんじゅうの〜」「（ダンス）」）
+- 種類は**大きめの分類**で見る。同じ企画で同じ分類なら1つにまとめる。分類の目安:
+  食器（おちょこ・とっくり・皿・湯呑み・茶碗・箸・箸置き）／布もの（ランチョンマット・タオル・ハンカチ）／
+  寝具・防寒（ブランケット・毛布・ルームシューズ）／紙もの・文具（ステッカー・シール・クリアファイル・メモ・カレンダー）／
+  キーホルダー・チャーム（アクリルキーホルダー・アクリルチャーム・鈴付き）／ぬいぐるみ・マスコット／
+  その他の雑貨（マグネット・お守り・のぼりなど、上に入らないもの）
+- キャラ違い・色違い・柄違いは分けない
+- 企画名の無い商品は、同じ種類のもの同士でまとめる（キャラ違いのマスコット4種は1つ）。仲間が無ければ1商品で1つ
+- 全商品をどれか1つに必ず入れる
+- 目安として、1つのまとまりに2〜6商品くらい。1商品だけのまとまりは、仲間がどうしても無いときだけ
+- title: 予定のタイトル。作品名＋企画名＋中のアイテム名（分類名ではなく実際のアイテム名を「・」でつなぐ。3つまで、それ以上は「など」）
+  例: 「ちいかわ シーサーのおみやげやさん マグネット・お守り」「ちいかわ ちいかわ寿司 箸置き・湯呑み・お茶碗など」「ちいかわ 肉まん食べるよマスコット」。「セット」という語は使わない（セット販売と誤解される）
+- kind: 分類の短い名前（例: 「食器」「紙もの」「マスコット」）
+- label: まとまりの中での見分け名。アイテム名とキャラ・柄を短く（例: 「おちょこ」「お守り（ハチワレ）」「ステッカー（OKINAWA）」）。キャラ違いしか無いまとまりならキャラ名だけ（「ハチワレ」）。1商品だけのまとまりは空文字
 - category: 次から1つ: くじ|ガチャ|プライズ|食玩|ぬい|アクスタ|缶バッジ|キーホルダー|フィギュア|ステッカー|アパレル|文房具|カード|円盤|コスメ|ガジェット|雑貨
 - work: 作品名（全体で1つ）
-JSONだけを返す: {"work":"作品名","series":[{"title":"…","category":"…","items":[{"i":0,"label":"…"}]}]}`;
+JSONだけを返す: {"work":"作品名","series":[{"title":"…","kind":"…","category":"…","items":[{"i":0,"label":"…"}]}]}`;
 
 /** 「10月9日発売商品」のようなコレクション名から発売日を取る。今日より2か月以上前なら来年とみなす */
 function dateFromCollectionTitle(title: string): string | null {
@@ -549,19 +557,21 @@ async function shopifyCollectionToEvents(col: { title: string; shop: string; pro
   const list = col.products.map((p, i) => `${i}: ${p.title}`).join('\n');
   const raw = await claudeComplete(SERIES_PROMPT, `コレクション名: ${col.title}\n店: ${col.shop}\n\n${list}`, 4000);
   const obj = JSON.parse(raw.match(/\{[\s\S]*\}/)?.[0] ?? '{}') as {
-    work?: string; series?: { title?: string; category?: string; items?: { i?: number; label?: string }[] }[];
+    work?: string; series?: { title?: string; kind?: string; category?: string; items?: { i?: number; label?: string }[] }[];
   };
   const date = dateFromCollectionTitle(col.title);
   const used = new Set<number>();
   const groups = (obj.series ?? []).map((sr) => ({
-    title: sr.title ?? '', category: sr.category ?? '',
+    title: sr.title ?? '', kind: sr.kind ?? '', category: sr.category ?? '',
     items: (sr.items ?? []).filter((it) => typeof it.i === 'number' && col.products[it.i] && !used.has(it.i) && (used.add(it.i), true))
       .map((it) => ({ p: col.products[it.i!], label: (it.label ?? '').trim() })),
   })).filter((g) => g.title && g.items.length);
   // AIが入れ忘れた商品は落とさず、1商品ずつの予定にする
-  col.products.forEach((p, i) => { if (!used.has(i)) groups.push({ title: p.title, category: '', items: [{ p, label: '' }] }); });
+  col.products.forEach((p, i) => { if (!used.has(i)) groups.push({ title: p.title, kind: '', category: '', items: [{ p, label: '' }] }); });
   return groups.map((g) => ({
     title: g.title,
+    // 画面で複数のまとまりを1つにまとめるとき、リンクの名前を「お守り（ハチワレ）」にするのに使う
+    kind: g.kind || null,
     work: obj.work ?? null,
     date,
     categories: ['グッズ', ...(g.category ? [g.category] : [])],
@@ -573,6 +583,8 @@ async function shopifyCollectionToEvents(col: { title: string; shop: string; pro
       retailer: col.shop, url: p.url, price: p.price, inStock: p.inStock, official: true, pinned: true,
       ...(g.items.length > 1 ? { label: label || p.title } : {}),
     })),
+    // 投稿画面でリンクを外して1件の予定に戻すとき用の、商品ごとの名前と画像（保存はしない）
+    items: g.items.map(({ p }) => ({ url: p.url, title: p.title, image: p.image })),
   }));
 }
 
