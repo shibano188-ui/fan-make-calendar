@@ -553,6 +553,12 @@ function dateFromCollectionTitle(title: string): string | null {
   return `${y}-${md}`;
 }
 
+/** 画像のURLを、アプリの image_url の形（1枚なら文字列、複数ならJSON配列の文字列）にする。10枚まで */
+function imagesJson(urls: string[]): string | null {
+  const list = [...new Set(urls.filter(Boolean))].slice(0, 10);
+  return list.length === 0 ? null : list.length === 1 ? list[0] : JSON.stringify(list);
+}
+
 async function shopifyCollectionToEvents(col: { title: string; shop: string; products: ShopifyProduct[] }): Promise<unknown[]> {
   const list = col.products.map((p, i) => `${i}: ${p.title}`).join('\n');
   const raw = await claudeComplete(SERIES_PROMPT, `コレクション名: ${col.title}\n店: ${col.shop}\n\n${list}`, 4000);
@@ -576,7 +582,9 @@ async function shopifyCollectionToEvents(col: { title: string; shop: string; pro
     date,
     categories: ['グッズ', ...(g.category ? [g.category] : [])],
     price: Math.min(...g.items.map((x) => x.p.price)),
-    imageUrl: g.items[0].p.image || null,
+    // 画像は全部。複数の商品なら各商品の1枚目、1商品ならその商品の画像を全部（アプリの複数画像の形＝JSON配列）。
+    // 前は先頭の商品の1枚目だけだった（本人指摘・2026-09-26）
+    imageUrl: imagesJson(g.items.length > 1 ? g.items.map((x) => x.p.image) : g.items[0].p.images),
     link: null,
     // 中の商品を全部、名前付きの購入リンクにする（クライアントの Offer と同じ形）
     offers: g.items.map(({ p, label }) => ({

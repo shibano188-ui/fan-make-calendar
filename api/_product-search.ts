@@ -282,7 +282,7 @@ async function lookupAnimate(u: URL): Promise<UrlLookup | null> {
   const price = html.match(/\bprice:\s*(\d+),\s*\/\/商品金額/)?.[1] ?? html.match(/<p class="price[^"]*">([\d,]+)<span>円/)?.[1];
   if (!price) return null;
   const title = html.match(/<h1>([^<]+)<\/h1>/)?.[1];
-  const stock = html.match(/stock_status:\s*'([^']*)'/)?.[1]?.replace(/^[\s×○△◯-]+/, '').trim();
+  const stock = html.match(/stock_status:\s*'([^']*)'/)?.[1]?.replace(/^[\s×○〇△◯-]+/, '').trim();
   const releaseText = html.match(/<p class="release">[\s\S]{0,80}?<span class="num">([^<]+)<\/span>/)?.[1];
   const release = releaseText ? parseReleaseText(releaseText) : null;
   const pre = parsePreorderText(html.match(/<meta name="description" content="([^"]*)"/)?.[1] ?? '');
@@ -304,7 +304,9 @@ export async function lookupByUrl(rawUrl: string): Promise<UrlLookup | null> {
   try {
     if (host === 'item.rakuten.co.jp') return await lookupRakuten(u);
     if (host === 'store.shopping.yahoo.co.jp') return await lookupYahoo(u);
-    if (host === 'www.animate-onlineshop.jp' && /\/pd\/\d+/.test(u.pathname)) return await lookupAnimate(u);
+    // アニメイトの商品ページは2つの形がある: PC の /pn/…/pd/123/ と、スマホアプリで共有される
+    // /sphone/products/detail.php?product_id=123（PC向けのUAで開くと PC の商品ページに転送される）
+    if (host === 'www.animate-onlineshop.jp' && (/\/pd\/\d+/.test(u.pathname) || (/products\/detail\.php$/.test(u.pathname) && u.searchParams.has('product_id')))) return await lookupAnimate(u);
     // それ以外の店は、Shopify の商品ページ（/products/…）なら読める（ちいかわマーケットなど作品の公式通販に多い）
     if (/\/products\/[^/]+/.test(u.pathname)) {
       const p = await lookupShopifyProduct(u.toString());
