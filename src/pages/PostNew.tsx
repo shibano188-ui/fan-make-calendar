@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { X, Plus, Check, Sparkles, Link2, Loader2, Search, Share2, CalendarPlus } from 'lucide-react';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { X, Plus, Check, Sparkles, Link2, Loader2, Search, Share2, CalendarPlus, Trash2, ChevronLeft } from 'lucide-react';
 import Chip from '../components/ui/Chip';
 import { resolveWorkName, sameWorkName } from '../lib/workName';
 import { searchWorks, getOrCreateWork, createEvents, toggleLike, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, distinguishSameNameByPlace, isOtherPlaceMatch, countUserPostedEvents, listAllParticipatedWorks, type Work } from '../lib/api';
@@ -37,6 +37,17 @@ const DRAFT_KEY = 'fanhive_post_draft';
 // 解析済みの共有内容。別の予定を確認しに行って戻ると画面が作り直され、同じ共有をまた解析していた
 // （入力し直した内容も上書きされる）。下書きと同じく sessionStorage に持つ。
 const SHARE_HANDLED_KEY = 'fanhive_post_share_handled';
+// 一覧から「使わない」で消した候補の購入リンク。同じ一覧をまた解析しても出さない（端末ごと）
+const DISMISSED_KEY = 'fanhive_post_dismissed_offers';
+function loadDismissed(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(DISMISSED_KEY) || '[]') as string[]); } catch { return new Set(); }
+}
+/** 購入リンクが全部「使わない」にしたものなら、その候補は出さない（一覧ページの候補だけ。Xのポストの候補は対象外） */
+function withoutDismissed(list: ParsedEvent[]): ParsedEvent[] {
+  const d = loadDismissed();
+  if (!d.size) return list;
+  return list.filter((p) => !(p.offers?.length && p.offers.every((o) => d.has(o.url))));
+}
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function readDraft(): Record<string, any> | null {
   try { return JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null'); } catch { return null; }
@@ -66,6 +77,7 @@ function readShare(sp: URLSearchParams): { url: string; text: string } {
 
 export default function PostNew() {
   const navigate = useNavigate();
+  const location = useLocation();
   // 投稿したものをカレンダーに登録するか。前は自分の投稿が必ず入っていた（外せなかった）。
   // 選んだものは覚えておく（毎回外すのは手間なので）
   const [addToCalendar, setAddToCalendar] = useState(() => {
@@ -126,6 +138,9 @@ export default function PostNew() {
   // 解析で複数見つかったとき、選んで反映したもの以外の残り。1件投稿したらこの一覧に戻って続けて投稿する
   // （前は1つ選ぶと残りが消え、全部登録するには解析からやり直しだった）
   const [pendingParsed, setPendingParsed] = useState<ParsedEvent[]>(draft0?.pendingParsed ?? []);
+  // 一覧から選んでフォームに入れた候補と、一覧での位置。閉じる・戻るで一覧のその位置に戻す
+  // （前は閉じると解析結果ごと消え、解析し直すしかなかった）
+  const [fromList, setFromList] = useState<{ p: ParsedEvent; index: number } | null>(draft0?.fromList ?? null);
   // 一覧ページ（公式通販・アニメイト・ムービック）を解析したときの補足。登録済みで外した数と、続きのページ
   const [listMeta, setListMeta] = useState<(ListMeta & { url: string }) | null>(draft0?.listMeta ?? null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -162,7 +177,7 @@ export default function PostNew() {
     sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
       type, workId, workName, workQuery, title, cats: [...cats], allDay, dateTBD, dateLabel, date, endDate, time, endTime,
       isOrder, preAllDay, preStart, preEnd, preStartTime, preEndTime, price, link, offers, showExtra, stockNote, memo, imageUrl, prefecture, locationDetail,
-      parsedList, pendingParsed, listMeta,
+      parsedList, pendingParsed, listMeta, fromList,
     }));
   });
   const clearDraft = () => sessionStorage.removeItem(DRAFT_KEY);
@@ -176,7 +191,11 @@ export default function PostNew() {
   };
   // 閉じた・投稿した後に同じポストをまた共有したら、もう一度解析する
   const forgetShare = () => { try { sessionStorage.removeItem(SHARE_HANDLED_KEY); } catch { /* ignore */ } };
-  const onClose = () => { clearDraft(); forgetShare(); goBack(); };
+  // 一覧から候補を選んだ状態で閉じたら、画面を閉じずに一覧へ戻る（下の「戻る」と同じ）
+  const onClose = () => {
+    if (fromList) { navigate(-1); return; }
+    clearDraft(); forgetShare(); goBack();
+  };
 
   // 受付終了日の既定値は発売日（日付未定なら空＝未定のまま）。手動で編集したら追従をやめる
   useEffect(() => {
@@ -285,7 +304,7 @@ export default function PostNew() {
     setPreStartTime(''); setPreEndTime('');
     setPrice(''); setLink(''); setOffers([]); setShowExtra(false); setStockNote(''); setMemo('');
     setImageUrl(''); setPrefecture(''); setLocationDetail('');
-    setError(''); setAiError(''); setParsedList(null); setPendingParsed([]); setMergePick(new Set()); setListMeta(null);
+    setError(''); setAiError(''); setParsedList(null); setPendingParsed([]); setMergePick(new Set()); setListMeta(null); setFromList(null);
     appliedRef.current = null;
     setCandidates(null); setSearchingProduct(false); setPicked(new Set());
     setDupMatches([]); setDupDismissed(false);
@@ -421,7 +440,7 @@ export default function PostNew() {
         // 一覧ページ: 1件でも一覧で出す（「登録済みを除いた数」や「次のページ」を見せるため）。
         // 全部登録済みなら空の一覧に「すべて登録済み」を出す
         setListMeta({ ...list, url: body.url });
-        setParsedList(events);
+        setParsedList(withoutDismissed(events));
       } else if (events.length === 0) { setAiError('情報を読み取れませんでした'); }
       else if (events.length === 1) { applyParsed(events[0]); toast('AIが入力しました'); }
       else { setParsedList(events); }
@@ -439,6 +458,47 @@ export default function PostNew() {
 
   const onAnalyzeText = () => { if (aiText.trim()) runParse({ url: aiText.trim() }); };
 
+  // 一覧から候補を選んでフォームに入れる。履歴を1つ積むので、スマホの「戻る」でも一覧に戻れる
+  // （同じURLに印（listPick）を付けて積むだけなので、画面は作り直されない）
+  const pickFromList = (i: number) => {
+    if (!parsedList) return;
+    const p = parsedList[i];
+    setPendingParsed(parsedList.filter((_, j) => j !== i));
+    setFromList({ p, index: i });
+    applyParsed(p);
+    navigate(`${location.pathname}${location.search}`, { state: { ...(location.state as object | null), listPick: true } });
+    toast('AIが入力しました');
+  };
+  // 一覧に戻す（選んだ候補は元の位置へ。フォームに入れた内容は捨てる）
+  const backToList = () => {
+    if (!fromList) return;
+    const list = [...pendingParsed];
+    list.splice(Math.min(fromList.index, list.length), 0, fromList.p);
+    const meta = listMeta;
+    resetForm();
+    setParsedList(list);
+    setListMeta(meta);
+    setFromList(null);
+    window.scrollTo(0, 0);
+  };
+  // 「戻る」（閉じる・スマホの戻る）で印の無い履歴に戻ったら一覧を出す
+  useEffect(() => {
+    if (fromList && !(location.state as { listPick?: boolean } | null)?.listPick) backToList();
+  }, [location.key]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 要らない候補を一覧から消す。同じ一覧をまた解析しても出さないよう、購入リンクを覚えておく
+  const dismissFromList = (i: number) => {
+    if (!parsedList) return;
+    haptic.select();
+    const p = parsedList[i];
+    if (p.offers?.length) {
+      const d = loadDismissed();
+      for (const o of p.offers) d.add(o.url);
+      try { localStorage.setItem(DISMISSED_KEY, JSON.stringify([...d].slice(-2000))); } catch { /* 覚えられなくても今は消える */ }
+    }
+    setParsedList(parsedList.filter((_, j) => j !== i));
+    setMergePick(new Set());
+  };
+
   // 一覧ページの続き（2ページ目以降）を読んで、今の一覧の後ろに足す。登録済みはサーバーが外して返す
   const loadMore = async () => {
     if (!listMeta?.nextPage || loadingMore) return;
@@ -446,7 +506,7 @@ export default function PostNew() {
     setLoadingMore(true);
     try {
       const { events, list } = await parseEventsApiWithMeta({ url: listMeta.url, page: listMeta.nextPage });
-      setParsedList((prev) => [...(prev ?? []), ...events]);
+      setParsedList((prev) => [...(prev ?? []), ...withoutDismissed(events)]);
       setListMeta((prev) => prev && { ...prev, excluded: prev.excluded + (list?.excluded ?? 0), read: prev.read + (list?.read ?? 0), nextPage: list?.nextPage ?? null });
     } catch {
       toast('続きを読めませんでした', 'error');
@@ -688,9 +748,12 @@ export default function PostNew() {
       if (pendingParsed.length || listMeta?.nextPage) {
         const rest = pendingParsed;
         const meta = listMeta;
+        const stacked = !!fromList;
         resetForm();
         setParsedList(rest);
         setListMeta(meta); // 「次のページを読む」を残す
+        // 候補を選んだときに積んだ履歴を戻す（fromList は消したので一覧はそのまま）
+        if (stacked) navigate(-1);
         window.scrollTo(0, 0);
         toast(rest.length ? `投稿しました。残り${rest.length}件` : '投稿しました');
         setSaving(false);
@@ -715,7 +778,9 @@ export default function PostNew() {
           return;
         }
       }
-      goBack();
+      // 一覧から選んだ候補を投稿したときは、積んだ履歴の分も戻る
+      if (fromList && ((window.history.state as { idx?: number } | null)?.idx ?? 0) >= 2) navigate(-2);
+      else goBack();
     } catch (e) {
       const timedOut = e instanceof DOMException && e.name === 'AbortError';
       setError(timedOut
@@ -774,6 +839,14 @@ export default function PostNew() {
               <Sparkles size={15} style={{ color: 'var(--accent-color)' }} />
               <span className="text-[13px] font-semibold">AIで入力</span>
             </div>
+            {!parsedList && fromList && (
+              // 一覧から選んだ候補が気に入らなかったとき用（閉じる・スマホの戻るでも同じ）
+              <button onClick={() => { haptic.select(); navigate(-1); }}
+                className="pressable w-full mb-2 py-2 rounded-[10px] text-[13px] font-semibold flex items-center justify-center gap-1"
+                style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--accent-text)' }}>
+                <ChevronLeft size={16} /> 解析結果の一覧に戻る
+              </button>
+            )}
             {!parsedList ? (
               <>
                 {/* 一番速い経路を先に出す。貼り付け欄を上に置くと「毎回コピーしてくるもの」と
@@ -827,10 +900,12 @@ export default function PostNew() {
                       {mergePick.has(i) && <Check size={14} strokeWidth={3} />}
                     </button>
                   )}
-                  <button onClick={() => { setPendingParsed(parsedList.filter((_, j) => j !== i)); applyParsed(p); toast('AIが入力しました'); }} className="pressable flex-1 min-w-0 text-left px-3 py-2 rounded-[10px] text-[13px]" style={{ backgroundColor: 'var(--bg-primary)' }}>
+                  <button onClick={() => pickFromList(i)} className="pressable flex-1 min-w-0 text-left px-3 py-2 rounded-[10px] text-[13px]" style={{ backgroundColor: 'var(--bg-primary)' }}>
                     <div className="font-medium truncate">{p.title ?? '（タイトルなし）'}</div>
                     {(p.date || p.prefecture || p.offers?.length) && <div className="text-[11px] text-label-tertiary">{[p.date?.slice(5).replace('-', '/'), p.prefecture, p.offers && p.offers.length > 1 ? `${p.offers.length}商品` : ''].filter(Boolean).join(' ')}</div>}
                   </button>
+                  <button onClick={() => dismissFromList(i)} aria-label="この候補を使わない"
+                    className="pressable tap-44 flex-shrink-0 text-label-tertiary"><Trash2 size={16} /></button>
                   </div>
                 ))}
                 {listMeta?.nextPage && (
