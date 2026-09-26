@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { loadEventPatches } from './_edits';
 import { pushAlerts, type Alert } from './_alerts.js';
+import { refreshAroundBoundaries } from './_boundary.js';
 
 // 受付開始の即時通知（プレミアムの instantAlerts）。数分おきに叩かれる前提の軽い処理。
 //
@@ -28,6 +29,9 @@ function jstDate(offsetDays = 0): string {
   return d.toISOString().slice(0, 10);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Db = ReturnType<typeof createClient<any>>;
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const secret = process.env.CRON_SECRET;
   const auth = req.headers.authorization ?? '';
@@ -38,12 +42,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!supabaseUrl || !serviceKey) return res.status(500).json({ error: 'Server config error' });
   const db = createClient(supabaseUrl, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
+  // ① 受付開始の通知（時刻が命なので先に）
+  const alerts = await sendStartAlerts(db).catch((e: unknown) => ({ error: String(e) }));
+  // ② 節目（予約開始・終了・発売）の前後だけ、購入リンクの値段・在庫を取り直す（_boundary.ts）。
+  //    5分おきに呼ばれるので、1回あたり45秒までにして次の回と重ならないようにする
+  const refresh = await refreshAroundBoundaries(db, 45_000).catch((e: unknown) => ({ error: String(e) }));
+  const status = 'error' in alerts ? 500 : 200;
+  return res.status(status).json({ ...alerts, refresh });
+}
+
+/** 受付開始の通知。応答に載せる結果を返す */
+async function sendStartAlerts(db: Db): Promise<Record<string, unknown>> {
+
   // 昨日と今日だけ見る（JSTの日付境界をまたぐ時間帯でも取りこぼさない最小の範囲）
   const days = [jstDate(-1), jstDate()];
   const cols = 'id, title, work_id, preorder_start_date, preorder_start_time, works(name)';
   const { data: baseRows, error } = await db
     .from('events').select(cols).eq('pool', 0).in('preorder_start_date', days);
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return { error: error.message };
 
   // 共同編集で予約開始日が直された予定も拾う（直した日で通知が飛ぶようにする）。
   // 逆に、元の日付が今日でもパッチで先に動いたものは下の実効値で外れる。
@@ -70,7 +86,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (Number.isNaN(startAt)) return false;
     return startAt <= now && now - startAt <= CATCH_UP_MS;
   });
-  if (!due.length) return res.status(200).json({ due: 0, fresh: 0, push: { sent: 0, failed: 0 } });
+  if (!due.length) return { due: 0, fresh: 0, push: { sent: 0, failed: 0 } };
 
   // 送信済みの目印を先に取る。**入れられた行だけ**が今回送る対象（同時に2回叩かれても片方しか通らない）。
   const { data: inserted } = await db
@@ -81,7 +97,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
     .select('event_id');
   const fresh = new Set((inserted ?? []).map((r) => r.event_id as string));
-  if (!fresh.size) return res.status(200).json({ due: due.length, fresh: 0, push: { sent: 0, failed: 0 } });
+  if (!fresh.size) return { due: due.length, fresh: 0, push: { sent: 0, failed: 0 } };
 
   const alerts: Alert[] = due
     .filter((r) => fresh.has(r.id as string))
@@ -95,5 +111,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // 送り先の取得に失敗したら応答に出す（pg_cron の net._http_response / Vercelのログで気づけるように）
   const push = await pushAlerts(db, alerts).catch((e: unknown) => ({ sent: 0, failed: 0, error: String(e) }));
-  return res.status(200).json({ due: due.length, fresh: fresh.size, push });
+  return { due: due.length, fresh: fresh.size, push };
 }
