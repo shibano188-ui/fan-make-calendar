@@ -12,7 +12,8 @@ import { affiliatize, buildOffer, primaryOffer, isAffiliateUrl, offerUrl, isNois
 import { parseEventsApi, type ParsedEvent } from '../lib/parseEvents';
 import { logAiExtraction, logSearch } from '../lib/dataLogs';
 import { maybeAddWorkAlias } from '../lib/workAliases';
-import { searchProductCandidates, titleMatchScore, retailerSearchUrls, highConfidenceCandidates, offerFromCandidate, buildPinnedOffer, variantMismatch, searchKeyword, type ProductCandidate } from '../lib/searchProduct';
+import { searchProductCandidates, searchProductCandidatesWithMeta, titleMatchScore, retailerSearchUrls, highConfidenceCandidates, labelVariants, offerFromCandidate, buildPinnedOffer, variantMismatch, searchKeyword, type ProductCandidate } from '../lib/searchProduct';
+import { openExternal } from '../lib/openExternal';
 import type { Offer } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
@@ -33,6 +34,9 @@ const inputStyle = { backgroundColor: 'var(--fill-tertiary)', color: 'var(--inpu
 const labelCls = 'text-[12px] text-label-secondary mb-1 mt-4';
 
 const DRAFT_KEY = 'fanhive_post_draft';
+// 解析済みの共有内容。別の予定を確認しに行って戻ると画面が作り直され、同じ共有をまた解析していた
+// （入力し直した内容も上書きされる）。下書きと同じく sessionStorage に持つ。
+const SHARE_HANDLED_KEY = 'fanhive_post_share_handled';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function readDraft(): Record<string, any> | null {
   try { return JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null'); } catch { return null; }
@@ -118,7 +122,10 @@ export default function PostNew() {
   const [aiText, setAiText] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
-  const [parsedList, setParsedList] = useState<ParsedEvent[] | null>(null);
+  const [parsedList, setParsedList] = useState<ParsedEvent[] | null>(draft0?.parsedList ?? null);
+  // 解析で複数見つかったとき、選んで反映したもの以外の残り。1件投稿したらこの一覧に戻って続けて投稿する
+  // （前は1つ選ぶと残りが消え、全部登録するには解析からやり直しだった）
+  const [pendingParsed, setPendingParsed] = useState<ParsedEvent[]>(draft0?.pendingParsed ?? []);
   // ライブ重複検知
   const [dupMatches, setDupMatches] = useState<{ id: string; title: string }[]>([]);
   const [dupDismissed, setDupDismissed] = useState(false);
@@ -128,6 +135,8 @@ export default function PostNew() {
   // 販売先候補検索
   const [candidates, setCandidates] = useState<ProductCandidate[] | null>(null);
   const [searchingProduct, setSearchingProduct] = useState(false);
+  // 候補は複数選んでまとめて追加できる（種類違いを全部付けたいとき）
+  const [picked, setPicked] = useState<Set<number>>(new Set());
   const rootRef = useRef<HTMLDivElement>(null);
 
   // 開いたら最上部から（前ページのスクロール位置を引き継がない）
@@ -146,6 +155,7 @@ export default function PostNew() {
     sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
       type, workId, workName, workQuery, title, cats: [...cats], allDay, dateTBD, dateLabel, date, endDate, time, endTime,
       isOrder, preAllDay, preStart, preEnd, preStartTime, preEndTime, price, link, offers, showExtra, stockNote, memo, imageUrl, prefecture, locationDetail,
+      parsedList, pendingParsed,
     }));
   });
   const clearDraft = () => sessionStorage.removeItem(DRAFT_KEY);
@@ -157,7 +167,9 @@ export default function PostNew() {
     if (idx > 0) navigate(-1);
     else navigate('/', { replace: true });
   };
-  const onClose = () => { clearDraft(); goBack(); };
+  // 閉じた・投稿した後に同じポストをまた共有したら、もう一度解析する
+  const forgetShare = () => { try { sessionStorage.removeItem(SHARE_HANDLED_KEY); } catch { /* ignore */ } };
+  const onClose = () => { clearDraft(); forgetShare(); goBack(); };
 
   // 受付終了日の既定値は発売日（日付未定なら空＝未定のまま）。手動で編集したら追従をやめる
   useEffect(() => {
@@ -168,11 +180,12 @@ export default function PostNew() {
   // アプリを閉じずに再度Xから共有すると、同じ /post に search だけ変えて遷移するので
   // このコンポーネントは再マウントされない。共有内容が変わったらフォームを初期化してから解析する。
   const shareKey = `${share.url} | ${share.text}`;
-  const handledShare = useRef<string | null>(null);
+  const handledShare = useRef<string | null>((() => { try { return sessionStorage.getItem(SHARE_HANDLED_KEY); } catch { return null; } })());
   useEffect(() => {
     if (!share.url || handledShare.current === shareKey) return;
     const isFirst = handledShare.current === null;
     handledShare.current = shareKey;
+    try { sessionStorage.setItem(SHARE_HANDLED_KEY, shareKey); } catch { /* 覚えられなくても動く */ }
     if (!isFirst) resetForm(); // 2回目以降＝前の予定の入力が残っているので消す
     setAiText(share.url);
     runParse({ url: share.url, sharedText: share.text || undefined });
@@ -265,8 +278,8 @@ export default function PostNew() {
     setPreStartTime(''); setPreEndTime('');
     setPrice(''); setLink(''); setOffers([]); setShowExtra(false); setStockNote(''); setMemo('');
     setImageUrl(''); setPrefecture(''); setLocationDetail('');
-    setError(''); setAiError(''); setParsedList(null);
-    setCandidates(null); setSearchingProduct(false);
+    setError(''); setAiError(''); setParsedList(null); setPendingParsed([]);
+    setCandidates(null); setSearchingProduct(false); setPicked(new Set());
     setDupMatches([]); setDupDismissed(false);
     aiSourceRef.current = null; aiLogRef.current = null;
     clearDraft();
@@ -278,14 +291,23 @@ export default function PostNew() {
     if (!t.trim() || current.some((o) => isAffiliateUrl(offerUrl(o)))) return;
     setSearchingProduct(true); setCandidates(null);
     try {
-      const items = await searchProductCandidates(searchKeyword(w, t));
+      const kw = searchKeyword(w, t);
+      const { items, animateTotal } = await searchProductCandidatesWithMeta(kw);
       const picks = highConfidenceCandidates(t, items, w);
       if (picks.length) {
         const now = new Date().toISOString();
-        setOffers((prev) => picks.reduce((acc, c) => addOffer(acc, offerFromCandidate(c, now)), prev));
+        let next = picks.map((c) => offerFromCandidate(c, now));
+        // 種類違いが多い（アニメイトの総件数が付けた数より多い）ときは、取りこぼしても辿れるように
+        // アニメイトの検索結果も購入リンクとして付ける（本人要望・2026-09-26）
+        const fromAnimate = picks.filter((c) => c.retailer === 'アニメイト').length;
+        const missing = animateTotal != null && animateTotal > fromAnimate && picks.some((c) => c.label);
+        if (missing) next = [...next, searchOffer('アニメイト', kw)];
+        setOffers((prev) => next.reduce(addOffer, prev));
         if (picks[0].price) setPrice((prev) => prev || String(picks[0].price));
         if (picks[0].image) setImageUrl((prev) => prev || picks[0].image);
-        toast(`販売先を${picks.length}件見つけました`);
+        const kinds = new Set(picks.map((c) => c.label).filter(Boolean)).size;
+        toast(kinds >= 2 ? `${kinds}種類のリンクを付けました` : `販売先を${picks.length}件見つけました`);
+        if (missing) toast(`アニメイトでは${animateTotal}件見つかっています（付けたのは${fromAnimate}件）。検索結果のリンクも付けました`);
       } else if (items.length) {
         setCandidates(items);
       }
@@ -354,7 +376,10 @@ export default function PostNew() {
     if (p.time && !p.dateLabel) { setAllDay(false); setTime(p.time); if (p.endTime) setEndTime(p.endTime); }
     if (p.isOrderMade) { setIsOrder(true); if (p.preorderStart) setPreStart(p.preorderStart); if (p.preorderEnd) { setPreEnd(p.preorderEnd); setPreEndTouched(true); } }
     // まとめ記事・ニュース・SNSのURLは購入リンクではないので販路にしない（Xのまとめアカウント対策）
-    const parsedOffers = p.link && !isNoiseLink(p.link) ? [buildOffer(p.link, p.price ?? undefined)] : [];
+    const parsedOffers = p.offers?.length
+      // Shopifyのシリーズ: 中の商品のリンクがそろっている（名前・値段・在庫つき）
+      ? p.offers.map((o) => ({ ...buildOffer(o.url), ...o, fetchedAt: new Date().toISOString() }))
+      : p.link && !isNoiseLink(p.link) ? [buildOffer(p.link, p.price ?? undefined)] : [];
     if (parsedOffers.length) setOffers((prev) => parsedOffers.reduce(addOffer, prev));
     if (p.prefecture) setPrefecture(p.prefecture);
     if (p.locationDetail) setLocationDetail(p.locationDetail);
@@ -362,7 +387,7 @@ export default function PostNew() {
     if (p.memo) { setShowExtra(true); setMemo(p.memo); }
     setParsedList(null);
     // グッズで収益リンクが取れていなければ、この場で販売先を探す（投稿時まで待たない）
-    if (parsedType === 'goods' && p.title) {
+    if (parsedType === 'goods' && p.title && !p.offers?.length) {
       void autoFindOffers(p.title, p.work || workName || workQuery, parsedOffers);
     }
   };
@@ -376,7 +401,7 @@ export default function PostNew() {
         : /^https?:\/\//.test(body.url ?? '')
           ? { sourceKind: 'url', sourceUrl: body.url }
           : { sourceKind: 'url', sourceText: body.url };
-    setAiLoading(true); setAiError(''); setParsedList(null);
+    setAiLoading(true); setAiError(''); setParsedList(null); setPendingParsed([]);
     try {
       const events = await parseEventsApi(body);
       if (events.length === 0) { setAiError('情報を読み取れませんでした'); }
@@ -386,7 +411,7 @@ export default function PostNew() {
       const code = e instanceof Error ? e.message : '';
       setAiError(
         code === 'rate_limited' ? '混雑しています。少し待って再試行'
-        : code === 'unsupported_url' ? '読み取れるのはXのポストだけです。販売先のURLは下の「購入・予約ページのURL」へ、告知は本文を貼り付けてください'
+        : code === 'unsupported_url' ? '読み取れるのはXのポストと、公式通販の商品一覧ページ（ちいかわマーケットなど）です。販売先のURLは下の「購入・予約ページのURL」へ、告知は本文を貼り付けてください'
         : '解析に失敗しました',
       );
     } finally {
@@ -401,21 +426,45 @@ export default function PostNew() {
     const kw = searchKeyword(workName || workQuery, title);
     if (!kw) return;
     haptic.select();
-    setSearchingProduct(true); setCandidates(null);
+    setSearchingProduct(true); setCandidates(null); setPicked(new Set());
     const items = await searchProductCandidates(kw);
     setSearchingProduct(false);
     setCandidates(items);
   };
-  const pickCandidate = (c: ProductCandidate) => {
+  const togglePick = (i: number) => {
     haptic.select();
+    setPicked((prev) => { const n = new Set(prev); n.has(i) ? n.delete(i) : n.add(i); return n; });
+  };
+  const addPicked = () => {
+    if (!candidates || !picked.size) return;
+    haptic.select();
+    const list = [...picked].sort((a, b) => a - b).map((i) => candidates[i]);
+    // 選んだものどうしで種類の名前を付ける（同じ店で2件以上選んだとき）
+    const labels = labelVariants(list);
     // 自分で選んだ候補は pinned（Cronが商品名検索で別の商品に付け替えないように）
-    setOffers((prev) => addOffer(prev, { ...offerFromCandidate(c), pinned: true }));
+    setOffers((prev) => list.reduce((acc, c) => addOffer(acc, { ...offerFromCandidate({ ...c, label: labels.get(c) }), pinned: true }), prev));
+    const c = list[0];
     // タイトルはユーザー/AIが決めたものを正とする（ショップの商品名で上書きしない）
     if (!price && c.price) setPrice(String(c.price));
     if (!imageUrl && c.image) setImageUrl(c.image);
-    setCandidates(null);
-    toast('購入リンクを追加しました');
+    setCandidates(null); setPicked(new Set());
+    toast(list.length > 1 ? `購入リンクを${list.length}件追加しました` : '購入リンクを追加しました');
   };
+  // 「各店で探す」の検索結果ページを購入リンクとして付ける。前は押すと店のページに飛ぶだけだった。
+  // 付けたリンクは下の一覧から押せば開いて確かめられる
+  const searchOffer = (retailer: string, kw: string): Offer => {
+    const r = retailerSearchUrls(kw).find((x) => x.retailer === retailer);
+    return { ...buildOffer(r?.url ?? ''), label: '検索結果' };
+  };
+  const addSearchLink = (retailer: string) => {
+    haptic.select();
+    const o = searchOffer(retailer, searchKeyword(workName || workQuery, title));
+    if (!o.url) return;
+    setOffers((prev) => addOffer(prev, o));
+    toast(`${retailer}の検索結果を追加しました`);
+  };
+  const setOfferLabel = (url: string, label: string) =>
+    setOffers((prev) => prev.map((o) => (o.url === url ? { ...o, label: label || undefined } : o)));
   const addManualLink = async () => {
     const u = link.trim();
     if (!u) return;
@@ -544,7 +593,18 @@ export default function PostNew() {
         }
       } catch { /* フォローに失敗しても投稿は成立している */ }
       haptic.select();
+      // 解析で複数見つかった残りがあれば、戻らずに残りの一覧を出して続けて投稿できるようにする
+      if (pendingParsed.length) {
+        const rest = pendingParsed;
+        resetForm();
+        setParsedList(rest);
+        window.scrollTo(0, 0);
+        toast(`投稿しました。残り${rest.length}件`);
+        setSaving(false);
+        return;
+      }
       clearDraft();
+      forgetShare();
       // 黙って増えないと「なぜフォローされていないのか」が分からないので、そのときだけ伝える
       toast(followSkipped
         ? `投稿しました（フォローは${FREE_FOLLOW_LIMIT}作品までのため追加していません）`
@@ -634,7 +694,7 @@ export default function PostNew() {
                 <div className="flex gap-2 mt-3">
                   <div className="flex-1 relative">
                     <Link2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary pointer-events-none" />
-                    <input value={aiText} onChange={(e) => setAiText(e.target.value)} placeholder="Xのポストのリンク"
+                    <input value={aiText} onChange={(e) => setAiText(e.target.value)} placeholder="Xのポスト・公式通販の一覧のリンク"
                       onKeyDown={(e) => e.key === 'Enter' && onAnalyzeText()}
                       className="w-full rounded-[10px] pl-8 pr-3 py-2.5 text-[13px] outline-none" style={inputStyle} />
                   </div>
@@ -649,11 +709,11 @@ export default function PostNew() {
               </>
             ) : (
               <div className="flex flex-col gap-1.5">
-                <p className="text-[12px] text-label-secondary">{parsedList.length}件見つかりました。1つ選んで反映：</p>
+                <p className="text-[12px] text-label-secondary">{parsedList.length}件あります。選んで1件ずつ投稿できます（投稿するとこの一覧に戻ります）：</p>
                 {parsedList.map((p, i) => (
-                  <button key={i} onClick={() => { applyParsed(p); toast('AIが入力しました'); }} className="pressable text-left px-3 py-2 rounded-[10px] text-[13px]" style={{ backgroundColor: 'var(--bg-primary)' }}>
+                  <button key={i} onClick={() => { setPendingParsed(parsedList.filter((_, j) => j !== i)); applyParsed(p); toast('AIが入力しました'); }} className="pressable text-left px-3 py-2 rounded-[10px] text-[13px]" style={{ backgroundColor: 'var(--bg-primary)' }}>
                     <div className="font-medium truncate">{p.title ?? '（タイトルなし）'}</div>
-                    {(p.date || p.prefecture) && <div className="text-[11px] text-label-tertiary">{[p.date?.slice(5).replace('-', '/'), p.prefecture].filter(Boolean).join(' ')}</div>}
+                    {(p.date || p.prefecture || p.offers?.length) && <div className="text-[11px] text-label-tertiary">{[p.date?.slice(5).replace('-', '/'), p.prefecture, p.offers && p.offers.length > 1 ? `${p.offers.length}商品` : ''].filter(Boolean).join(' ')}</div>}
                   </button>
                 ))}
                 <button onClick={() => setParsedList(null)} className="text-[12px] text-label-tertiary mt-1 pressable">キャンセル</button>
@@ -874,10 +934,16 @@ export default function PostNew() {
               {offers.map((o) => (
                 <div key={o.url} className="flex items-center gap-2 rounded-[10px] px-3 py-2" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[13px] truncate">{o.retailer || o.url}{o.shop ? `（${o.shop}）` : ''}</div>
-                    <div className="text-[11px] text-label-tertiary">
-                      {o.price ? `¥${o.price.toLocaleString()}` : ''}{import.meta.env.DEV && o.hasAffiliate ? ' ・アフィ対応' : ''}
-                    </div>
+                    {/* 押すと開いて確かめられる（投稿画面を離れても下書きは残る） */}
+                    <button onClick={() => { haptic.select(); void openExternal(o.url); }} className="pressable block w-full text-left">
+                      <div className="text-[13px] truncate">{o.retailer || o.url}{o.shop ? `（${o.shop}）` : ''} <span style={{ color: 'var(--accent-text)' }}>↗</span></div>
+                      <div className="text-[11px] text-label-tertiary">
+                        {o.price ? `¥${o.price.toLocaleString()}` : ''}{import.meta.env.DEV && o.hasAffiliate ? ' ・アフィ対応' : ''}
+                      </div>
+                    </button>
+                    {/* 種類の名前（キャラ名など）。自動で付いたものも直せる */}
+                    <input value={o.label ?? ''} onChange={(e) => setOfferLabel(o.url, e.target.value)} placeholder="名前（キャラ名など・任意）"
+                      className="w-full mt-1 rounded-[6px] px-2 py-1 text-[12px] outline-none" style={{ backgroundColor: 'var(--bg-primary)', color: 'var(--input-text)' }} />
                   </div>
                   <button onClick={() => removeOffer(o.url)} aria-label="削除" className="pressable tap-44 text-label-secondary"><X size={16} /></button>
                 </div>
@@ -892,10 +958,14 @@ export default function PostNew() {
           </button>
           {title.trim() && (
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]">
-              <span className="text-label-tertiary">各店で探す:</span>
-              {retailerSearchUrls(searchKeyword(workName || workQuery, title)).map((r) => (
-                <a key={r.retailer} href={r.url} target="_blank" rel="noopener" onClick={() => haptic.select()} className="pressable" style={{ color: 'var(--accent-text)' }}>{r.retailer} ↗</a>
-              ))}
+              <span className="text-label-tertiary">検索結果を追加:</span>
+              {retailerSearchUrls(searchKeyword(workName || workQuery, title)).map((r) => {
+                const added = offers.some((o) => o.url === r.url);
+                return (
+                  <button key={r.retailer} onClick={() => addSearchLink(r.retailer)} disabled={added} className="pressable"
+                    style={{ color: added ? 'var(--label-tertiary)' : 'var(--accent-text)' }}>{added ? `${r.retailer} ✓` : `＋${r.retailer}`}</button>
+                );
+              })}
             </div>
           )}
           {candidates && (
@@ -903,7 +973,7 @@ export default function PostNew() {
               <p className="text-[12px] text-label-tertiary mt-1">候補が見つかりませんでした</p>
             ) : (
               <div className="mt-2 flex flex-col gap-1.5 rounded-[10px] border border-subtle p-2" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                <p className="text-[11px] text-label-tertiary">商品を特定できなかったので、リンクはまだ付けていません。同じ商品があれば選んでください</p>
+                <p className="text-[11px] text-label-tertiary">商品を特定できなかったので、リンクはまだ付けていません。同じ商品を選んでください（種類違いはまとめて選べます）</p>
                 {candidates.map((c, i) => {
                   // 一致度は自動添付(highConfidenceCandidates)と揃えてタイトル基準で見る
                   const ok = titleMatchScore(title, c.title) >= 0.5;
@@ -911,8 +981,14 @@ export default function PostNew() {
                   const variantNg = variantMismatch(title, c.title);
                   const soldOut = c.inStock === false;
                   return (
-                    <button key={i} disabled={!ok} onClick={() => pickCandidate(c)}
-                      className={`flex items-center gap-2 text-left p-1 rounded-[8px] ${ok ? 'pressable' : 'opacity-40 cursor-not-allowed'}`}>
+                    // 不一致でも選べる（ショップ側の商品名が崩れているだけのことが多い）。薄くして注意だけ出す
+                    <button key={i} onClick={() => togglePick(i)} aria-pressed={picked.has(i)}
+                      className={`pressable flex items-center gap-2 text-left p-1 rounded-[8px] ${ok || picked.has(i) ? '' : 'opacity-60'}`}
+                      style={picked.has(i) ? { outline: '2px solid var(--accent-color)' } : undefined}>
+                      <span className="w-5 h-5 flex-shrink-0 rounded-full flex items-center justify-center"
+                        style={picked.has(i) ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' } : { border: '1.5px solid var(--label-tertiary)' }}>
+                        {picked.has(i) && <Check size={13} strokeWidth={3} />}
+                      </span>
                       <div className="w-12 h-12 flex-shrink-0 rounded-[6px] overflow-hidden bg-fill-3">
                         {c.image && <img src={c.image} alt="" className="w-full h-full object-cover" />}
                       </div>
@@ -930,6 +1006,11 @@ export default function PostNew() {
                     </button>
                   );
                 })}
+                <button onClick={addPicked} disabled={!picked.size}
+                  className="pressable mt-1 py-2 rounded-[8px] text-[13px] font-semibold"
+                  style={picked.size ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' } : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-tertiary)' }}>
+                  {picked.size ? `選んだ${picked.size}件を追加` : '追加する商品を選んでください'}
+                </button>
               </div>
             )
           )}

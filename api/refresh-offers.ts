@@ -265,7 +265,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 検索・一覧ページしか無いグッズ（Xのまとめが貼ったアニメイト検索リンク等）も「毎日」からは外す。
     // 商品が特定できないので毎日叩いても空振りする。バックフィル日には下の (1) で商品ページへの
     // 張り替えを試すので、アニメイトに商品が載れば週1で自己修復する。
-    const refreshable = active.some((o) => !isSearchPage(o.url) && (isAff(o) || /アニメイト|楽天|Yahoo/.test(o.retailer ?? '')));
+    // 人が貼った・種類違いのリンク(pinned)は、Shopifyの公式通販などもURLで価格が取れるので毎日見る
+    const refreshable = active.some((o) => !isSearchPage(o.url) && (o.pinned || isAff(o) || /アニメイト|楽天|Yahoo/.test(o.retailer ?? '')));
     if (!refreshable && !doBackfill) continue;
     scanned++;
     // works は多対一なので単一オブジェクト
@@ -274,8 +275,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // 検索が空振りでも、人が貼ったリンク(pinned)はURLで価格を引けるので先へ進む
     const hasPinned = active.some((o) => o.pinned);
+    // 商品名検索が要るのは、pinned でない販路の更新か、アフィ販路のバックフィル（週1）のときだけ。
+    // 全部 pinned（Shopifyのシリーズなど）なら検索しない（楽天は1件5リクエスト＋待ち時間がかかる）
+    const needSearch = active.some((o) => !o.pinned && !isSearchPage(o.url)) || (!hasAff && doBackfill);
     let cands: Candidate[] = [];
-    try { cands = await searchCandidates(kw); } catch { if (!hasPinned) { await delay(300); continue; } }
+    if (needSearch) {
+      try { cands = await searchCandidates(kw); } catch { if (!hasPinned) { await delay(300); continue; } }
+    }
     if (!cands.length && !hasPinned) { await delay(300); continue; }
 
     const now = new Date().toISOString();
@@ -373,7 +379,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     // 楽天は1件あたり5リクエスト（全体＋公式店4）投げるので、間隔を詰めると429で0件が返る。
     // 0件は「掲載終了」と見分けが付かないため、レート制限は精度に直結する。
-    await delay(900);
+    await delay(needSearch ? 900 : 200);
   }
 
   // 検知したものを、いいねしているプレミアム会員（ミュートしていない人）へプッシュ。

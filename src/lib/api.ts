@@ -1036,7 +1036,7 @@ export async function updateEventOffers(eventId: string, offers: Offer[]): Promi
 }
 
 // ── 共同編集: 日時/状態の編集パッチ ──
-export type EventPatch = Partial<Pick<CalendarEvent, 'date' | 'dateLabel' | 'endDate' | 'time' | 'isOrderMade' | 'preorderStart' | 'preorderEnd'>> & {
+export type EventPatch = Partial<Pick<CalendarEvent, 'date' | 'dateLabel' | 'endDate' | 'time' | 'isOrderMade' | 'preorderStart' | 'preorderEnd' | 'price'>> & {
   /** 取り消された購入リンクのURL。events.offers は書き換えず、実効値の計算時に除外する。
    * 日付編集と同じく履歴に残り「戻す」で復活できる（誰でも取り消せる＝共同編集）。 */
   removedOfferUrls?: string[];
@@ -1073,7 +1073,9 @@ export async function removeEventEdit(id: string): Promise<void> {
 export function applyEdits<T extends CalendarEvent>(event: T, edits: EventEdit[]): T {
   let e = { ...event };
   const removed = new Set<string>();
+  let priceEdited = false;
   for (const ed of edits) {
+    if (typeof ed.patch.price === 'number') priceEdited = true;
     // ソースは予定の項目ではないので実効値には畳み込まない（詳細ページが edits から並べる）
     const { removedOfferUrls, addedSourceUrls: _sources, addedNote: _note, ...rest } = ed.patch;
     for (const u of removedOfferUrls ?? []) removed.add(u);
@@ -1085,8 +1087,11 @@ export function applyEdits<T extends CalendarEvent>(event: T, edits: EventEdit[]
     const linkGone = !!e.link && (removed.has(e.link) || kept.length === 0);
     // 代表価格も残った販路から取り直す。events.price は取り消したリンクの値段のことがあり、
     // そのまま出すと「リンクを直したのに間違った値段が出続ける」。取れなければ値段なし。
-    e = { ...e, offers: kept, price: primaryOffer(kept)?.price, ...(linkGone ? { link: undefined, affiliateUrl: undefined } : {}) };
+    // ただし人が値段を直していればそれを優先する（下）。
+    e = { ...e, offers: kept, ...(priceEdited ? {} : { price: primaryOffer(kept)?.price }), ...(linkGone ? { link: undefined, affiliateUrl: undefined } : {}) };
   }
+  // ＋αで値段が直されていれば、販路の値段より優先して出す（詳細ページが見る）
+  if (priceEdited) e = { ...e, priceEdited: true };
   return e;
 }
 

@@ -30,6 +30,7 @@ export type CalendarEvent = {
   // ─ ピボット拡張（既存行は未設定=event扱いで動く）─
   type?: 'event' | 'goods'; // 既定は event（DBは default 'event'）
   price?: number;           // グッズ価格（円）
+  priceEdited?: boolean;    // ＋αで値段が直された（実効値だけに付く。販路の値段より優先して出す）
   stockNote?: string;       // 在庫コメント（最新の追記ログ要約など）
   retailer?: string;        // 販路名（animate / あみあみ / プレバン 等）※offers[0]の要約
   affiliateUrl?: string;    // アフィリンク化後のURL ※offers[0]の要約
@@ -57,5 +58,6 @@ export type Offer = {
   isSet?: boolean;         // セット/BOX/コンプ品か。「セット」表示で価格の誤解を防ぐ
   inStock?: boolean;       // false=売切れ。Cronで更新し、詳細ページで「在庫なし」と出す
   stockLabel?: string;     // 販路の生の在庫表記（アニメイトの「予約受付中」等）
+  label?: string;          // 種類の名前（キャラ名・「おちょこ」など）。1つの予定に種類違いのリンクが並ぶときの見分け用
   pinned?: boolean;        // 人が貼った・差し替えたリンク。Cronは商品名検索で別商品に付け替えず、このURLの価格だけ取り直す
 };

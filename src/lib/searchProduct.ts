@@ -13,6 +13,7 @@ export interface ProductCandidate {
   official?: boolean;  // あみあみ・駿河屋等の公式出店店舗（優先表示対象）
   inStock?: boolean;   // false=売切れ。自動添付しない・候補では末尾に回す
   stockLabel?: string; // アニメイトの生の表記（予約受付中・取り寄せ等）
+  label?: string;      // 種類違いの名前（キャラ名・番号など）。labelVariants が付ける
 }
 
 // 楽天等のショップタイトルからノイズ（送料無料・◯%OFF・【】囲み等）を軽く除去。
@@ -142,6 +143,63 @@ function sameProduct(a: string, b: string, entered: string): boolean {
   return inter / Math.min(A.length, B.size) >= 0.3;
 }
 
+// ── 種類違い（キャラ・色・番号違い）──
+// 同じ店の候補どうしで、共通の前後を除いた残りを「種類の名前」にする。括弧に入っているとは限らない
+// （アニメイト: 「…＜アクリルスタンド付＞ 02 五条悟 ～水色～」、楽天: 「【天童覚 (N ノーマル) 】 …」）ので、
+// 括弧ではなく差分で取る。
+
+/** ショップが付ける宣伝の囲み（【送料無料】《予約》[ムービック]）を外し、空白を揃える。種類名の【】は残す */
+function stripShopNoise(t: string): string {
+  return t.normalize('NFKC')
+    .replace(/\[[^\]]*\]|《[^》]*》/g, ' ')
+    .replace(/【([^】]*)】/g, (m, inner: string) => (SHOP_NOISE_RE.test(inner) ? ' ' : m))
+    .replace(/\s+/g, ' ').trim();
+}
+function commonPrefix(a: string, b: string): number { let i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i++; return i; }
+function commonSuffix(a: string, b: string): number { let i = 0; while (i < a.length && i < b.length && a[a.length - 1 - i] === b[b.length - 1 - i]) i++; return i; }
+// 共通部分の境目が語の途中（「01 虎杖」「02 五条」の「0」、「～水色～」「～橙色～」の「色」）にならないよう、
+// 区切り文字の位置まで戻す
+const SEP = /[\s・/~〜～＜＞<>()（）【】「」『』[\]、,]/;
+const TRIM_LABEL = /^[\s・/\-ー~〜～、,.:：＜＞<>()（）【】「」『』\[\]]+|[\s・/\-ー~〜～、,.:：＜＞<>()（）【】「」『』\[\]]+$/g;
+
+/** 同じ店の候補を種類違いのまとまりに分け、まとまりに入ったものに種類の名前を付けて返す。
+ *  前後の共通部分が短い（半分未満）ものは別の商品として外す。 */
+export function labelVariants(items: ProductCandidate[]): Map<ProductCandidate, string> {
+  const out = new Map<ProductCandidate, string>();
+  const byShop = new Map<string, ProductCandidate[]>();
+  for (const c of items) {
+    if (isSetTitle(c.title)) continue; // セット品は種類違いではない
+    const k = `${c.retailer}:${c.shopCode || c.shop}`;
+    byShop.set(k, [...(byShop.get(k) ?? []), c]);
+  }
+  for (const list of byShop.values()) {
+    if (list.length < 2) continue;
+    const titles = list.map((c) => stripShopNoise(c.title));
+    // 先頭の候補を基準に、前後の共通部分が長いものだけを同じまとまりにする
+    const shared = (a: string, b: string) => (commonPrefix(a, b) + commonSuffix(a, b)) / Math.min(a.length, b.length);
+    let best: number[] = [];
+    for (let i = 0; i < titles.length; i++) {
+      const group = titles.map((_, j) => j).filter((j) => j === i || shared(titles[i], titles[j]) >= 0.5);
+      if (group.length > best.length) best = group;
+    }
+    if (best.length < 2) continue;
+    const g = best.map((j) => titles[j]);
+    let pre = Math.min(...g.slice(1).map((t) => commonPrefix(g[0], t)));
+    let suf = Math.min(...g.slice(1).map((t) => commonSuffix(g[0], t)));
+    while (pre > 0 && !SEP.test(g[0][pre - 1])) pre--;
+    while (suf > 0 && !SEP.test(g[0][g[0].length - suf])) suf--;
+    for (const j of best) {
+      const t = titles[j];
+      let label = t.slice(pre, t.length - suf).replace(TRIM_LABEL, '').trim();
+      // 「天童覚 (N ノーマル」のように閉じ括弧だけ共通部分に入ったら補う
+      if ((label.match(/\(/g) ?? []).length > (label.match(/\)/g) ?? []).length) label += ')';
+      if ((label.match(/（/g) ?? []).length > (label.match(/）/g) ?? []).length) label += '）';
+      if (label && label.length <= 30) out.set(list[j], label);
+    }
+  }
+  return out;
+}
+
 // 投稿時に「自動添付してよい高信頼候補」だけを絞る。
 // 公式店(あみあみ/駿河屋/アニメイト/楽天ブックス)はタイトル一致度0.55以上、
 // 非公式店(転売混在の恐れ)はより厳しく0.8以上。誤マッチを避けつつ手間ゼロで収益リンクを付ける。
@@ -159,7 +217,18 @@ export function highConfidenceCandidates(enteredTitle: string, items: ProductCan
     .filter(({ c, score }) => (c.official ? score >= 0.55 : score >= 0.8))
     .filter(({ c }) => c.inStock !== false)
     .filter(({ c }) => !variantMismatch(enteredTitle, c.title));
-  // 入力に種類指定が無いのに候補が複数の種類に分かれている（①と②、vol.1とvol.2）場合、
+  // 種類違い（キャラ・番号違い）がそろって見つかったら、全部に名前を付けて付ける（本人要望・2026-09-26）。
+  // 前は「1種類だけ付くのはおかしい」として1件も付けていなかった。
+  // 入力に種類の名前が入っている（「…（ハチワレ）」）ときは、その種類だけを付ける。
+  const labels = labelVariants(scored.map(({ c }) => c));
+  if (labels.size >= 2) {
+    const norm = (x: string) => x.normalize('NFKC').replace(/[\s　]/g, '').toLowerCase();
+    const entered = norm(enteredTitle);
+    const named = [...labels].filter(([, l]) => entered.includes(norm(l)));
+    const picked = named.length ? named : [...labels];
+    return picked.slice(0, 16).map(([c, label]) => ({ ...c, label }));
+  }
+  // 入力に種類指定が無いのに候補が複数の種類に分かれているが、名前が取れなかった場合は、
   // どれか1つを自動で貼ると「バリエーションがあるのに1種類だけリンクされる」ので添付しない。
   if (!variantKey(enteredTitle).length) {
     const kinds = new Set(scored.flatMap(({ c }) => variantKey(c.title)));
@@ -210,19 +279,26 @@ export function offerFromCandidate(c: ProductCandidate, fetchedAt = new Date().t
     isSet: isSetTitle(c.title),
     inStock: c.inStock,
     stockLabel: c.stockLabel,
+    // 種類違いのリンクは、毎日の更新で商品名検索により別の種類へ付け替えられないよう pinned にする
+    ...(c.label ? { label: c.label, pinned: true } : {}),
   };
 }
 
 // 商品候補を検索（リンク無し/価格不明の補完用）。サーバー側の楽天検索を叩く。
 export async function searchProductCandidates(keyword: string): Promise<ProductCandidate[]> {
+  return (await searchProductCandidatesWithMeta(keyword)).items;
+}
+
+/** 候補に、アニメイトの総件数（「〜に関する商品はN件あります」）を添えて返す。種類違いの取りこぼし確認用 */
+export async function searchProductCandidatesWithMeta(keyword: string): Promise<{ items: ProductCandidate[]; animateTotal: number | null }> {
   const base = (import.meta.env.VITE_API_BASE as string | undefined) ?? '';
   try {
     const r = await fetch(`${base}/api/search-product?keyword=${encodeURIComponent(keyword)}`);
-    if (!r.ok) return [];
-    const d = (await r.json()) as { items?: ProductCandidate[]; disabled?: boolean };
-    return d.items ?? [];
+    if (!r.ok) return { items: [], animateTotal: null };
+    const d = (await r.json()) as { items?: ProductCandidate[]; animateTotal?: number | null };
+    return { items: d.items ?? [], animateTotal: d.animateTotal ?? null };
   } catch {
-    return [];
+    return { items: [], animateTotal: null };
   }
 }
 
@@ -234,10 +310,12 @@ export async function buildPinnedOffer(rawUrl: string, price?: number): Promise<
   try {
     const r = await fetch(`${base}/api/search-product?url=${encodeURIComponent(rawUrl)}`);
     if (!r.ok) return o;
-    const { item } = (await r.json()) as { item?: { title?: string; price: number; shop?: string; official?: boolean; inStock?: boolean; stockLabel?: string } | null };
+    const { item } = (await r.json()) as { item?: { title?: string; price: number; shop?: string; retailer?: string; official?: boolean; inStock?: boolean; stockLabel?: string } | null };
     if (!item) return o;
     return {
       ...o,
+      // 知らない店（Shopifyの公式通販など）は販路名がホスト名になるので、店名が取れたら置き換える
+      retailer: o.retailer.includes('.') && item.retailer ? item.retailer : o.retailer,
       shop: item.shop || o.shop,
       price: item.price,
       fetchedAt: new Date().toISOString(),

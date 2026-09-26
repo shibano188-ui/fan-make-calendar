@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { checkRateLimitFor, getClientIp } from './_ratelimit.js';
 import { getIdentity } from './_identity.js';
 import { withAiUsage, noteAiUsage, saveAiUsage, type AiCall } from './_aiusage.js';
+import { fetchShopifyCollection, type ShopifyProduct } from './_shopify.js';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -180,7 +181,7 @@ const SCHEMA = (memoDesc: string) => `[
     "time": "開始時刻をHH:mm形式で or null",
     "endDate": "通常イベントの終了日をYYYY-MM-DD形式で（期間表記があれば設定）or null",
     "endTime": "終了時刻をHH:mm形式で（時間範囲があれば設定）or null",
-    "categories": ["該当するカテゴリを配列で（複数可）。候補: 書籍|グッズ|イベント|誕生日|アニメ・映画|グルメ|キャンペーン（書籍＝単行本・小説・画集等、キャンペーン＝購入特典・フェア・コラボ等）。グッズの場合は種別も追加可: くじ|ガチャ|プライズ|食玩|ぬい|アクスタ|缶バッジ|キーホルダー|フィギュア|ステッカー|アパレル|コスメ|ガジェット|雑貨（コスメ＝化粧品・香水・ネイル等、ガジェット＝イヤホン・充電器・スマホ関連等、雑貨＝クリアファイル・タオル・文具など他に当てはまらないグッズ）。種別を入れる時は必ず\"グッズ\"も一緒に入れる。該当なしは空配列[]"],
+    "categories": ["該当するカテゴリを配列で（複数可）。候補: 書籍|グッズ|イベント|誕生日|アニメ・映画|グルメ|キャンペーン（書籍＝単行本・小説・画集等、キャンペーン＝購入特典・フェア・コラボ等）。グッズの場合は種別も追加可: くじ|ガチャ|プライズ|食玩|ぬい|アクスタ|缶バッジ|キーホルダー|フィギュア|ステッカー|アパレル|円盤|コスメ|ガジェット|雑貨（円盤＝Blu-ray・DVD・CD、コスメ＝化粧品・香水・ネイル等、ガジェット＝イヤホン・充電器・スマホ関連等、雑貨＝クリアファイル・タオル・文具など他に当てはまらないグッズ）。種別を入れる時は必ず\"グッズ\"も一緒に入れる。該当なしは空配列[]"],
     "prefecture": "都道府県名（「都」「府」「県」を除いた形。例: 東京・大阪・神奈川・北海道）or null",
     "locationDetail": "詳細な会場名・住所 or null",
     "link": ["公式URLや関連リンクをすべて配列で。1件でも配列にする。リンクがなければnull"],
@@ -517,6 +518,64 @@ function parseRawText(rawText: string): unknown[] {
   });
 }
 
+// ── Shopify のコレクション → シリーズごとの予定 ─────────────────────────
+// ちいかわマーケットの「10月9日発売商品」のような一覧を貼ると、商品を1件ずつではなく
+// シリーズ（同じ企画の商品群）ごとに1つの予定にし、中の商品は全部名前付きの購入リンクにする（本人要望・2026-09-26）。
+// 1件ずつだと「探す」が同じ日の同じ作品で埋まる。分け方は商品名の規則では揺れるのでAIに任せる。
+
+const SERIES_PROMPT = `グッズ通販の商品一覧を、シリーズごとにまとめてください。シリーズは**なるべく大きく**取る。
+- シリーズ＝同じ企画で一緒に出る商品群。商品名に同じ企画名・テーマ名（例: 「シーサーのおみやげやさん」「ちいかわ寿司」「くりまんじゅうの〜」「（ダンス）」「あったか〜」）が入っていれば、アイテムの種類が違っても全部1つのシリーズにする
+- キャラ違い・色違い・柄違い・別アイテム（おちょこ・とっくり・お皿、お守り・マグネット・ステッカーなど）は分けない
+- 企画名の無い単発の商品は、同じ種類のもの（マスコット類など）でまとめる。どうしても仲間が無ければ1商品だけのシリーズでよい
+- 全商品をどれか1つのシリーズに必ず入れる
+- title: 予定のタイトル。作品名から始め、シリーズが分かる短い名前（例: 「ちいかわ シーサーのおみやげやさん」「ちいかわ くりまんじゅうのたべのみグッズ」）。「セット」という語は使わない（セット販売と誤解される）
+- label: 各商品のシリーズ内での見分け名。アイテムの種類とキャラ・柄が分かる短い名前（例: 「お守り（ハチワレ）」「おちょこ」「マグネット（めんそ～れ～）」）。キャラ違いしか無いシリーズならキャラ名だけ（「ハチワレ」）
+- category: 次から1つ: くじ|ガチャ|プライズ|食玩|ぬい|アクスタ|缶バッジ|キーホルダー|フィギュア|ステッカー|アパレル|文房具|カード|円盤|コスメ|ガジェット|雑貨
+- work: 作品名（全体で1つ）
+JSONだけを返す: {"work":"作品名","series":[{"title":"…","category":"…","items":[{"i":0,"label":"…"}]}]}`;
+
+/** 「10月9日発売商品」のようなコレクション名から発売日を取る。今日より2か月以上前なら来年とみなす */
+function dateFromCollectionTitle(title: string): string | null {
+  const m = title.match(/(?:(\d{4})年)?(\d{1,2})月(\d{1,2})日/);
+  if (!m) return null;
+  const now = new Date();
+  let y = m[1] ? Number(m[1]) : now.getFullYear();
+  const md = `${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+  if (!m[1] && new Date(`${y}-${md}`).getTime() < now.getTime() - 60 * 86400_000) y++;
+  return `${y}-${md}`;
+}
+
+async function shopifyCollectionToEvents(col: { title: string; shop: string; products: ShopifyProduct[] }): Promise<unknown[]> {
+  const list = col.products.map((p, i) => `${i}: ${p.title}`).join('\n');
+  const raw = await claudeComplete(SERIES_PROMPT, `コレクション名: ${col.title}\n店: ${col.shop}\n\n${list}`, 4000);
+  const obj = JSON.parse(raw.match(/\{[\s\S]*\}/)?.[0] ?? '{}') as {
+    work?: string; series?: { title?: string; category?: string; items?: { i?: number; label?: string }[] }[];
+  };
+  const date = dateFromCollectionTitle(col.title);
+  const used = new Set<number>();
+  const groups = (obj.series ?? []).map((sr) => ({
+    title: sr.title ?? '', category: sr.category ?? '',
+    items: (sr.items ?? []).filter((it) => typeof it.i === 'number' && col.products[it.i] && !used.has(it.i) && (used.add(it.i), true))
+      .map((it) => ({ p: col.products[it.i!], label: (it.label ?? '').trim() })),
+  })).filter((g) => g.title && g.items.length);
+  // AIが入れ忘れた商品は落とさず、1商品ずつの予定にする
+  col.products.forEach((p, i) => { if (!used.has(i)) groups.push({ title: p.title, category: '', items: [{ p, label: '' }] }); });
+  return groups.map((g) => ({
+    title: g.title,
+    work: obj.work ?? null,
+    date,
+    categories: ['グッズ', ...(g.category ? [g.category] : [])],
+    price: Math.min(...g.items.map((x) => x.p.price)),
+    imageUrl: g.items[0].p.image || null,
+    link: null,
+    // 中の商品を全部、名前付きの購入リンクにする（クライアントの Offer と同じ形）
+    offers: g.items.map(({ p, label }) => ({
+      retailer: col.shop, url: p.url, price: p.price, inStock: p.inStock, official: true, pinned: true,
+      ...(g.items.length > 1 ? { label: label || p.title } : {}),
+    })),
+  }));
+}
+
 // 全イベントが日付情報を一切持たない（＝抽出に失敗した可能性が高い）か
 function allDatesEmpty(events: unknown[]): boolean {
   if (events.length === 0) return true;
@@ -617,6 +676,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } catch {}
       }
       // ────────────────────────────────────────────────────────────
+
+      // Shopify の店のコレクション（/collections/…）なら、シリーズごとの予定にする。
+      // Xのポスト以外のURLはここ以外では取りに行かない（接続してよいかは _shopify.ts の safePublicUrl で確かめる）
+      if (processUrl && !isXPostUrl(processUrl)) {
+        const col = await fetchShopifyCollection(processUrl).catch(() => null);
+        if (col) {
+          try {
+            return res.status(200).json(await shopifyCollectionToEvents(col));
+          } catch {
+            return res.status(422).json({ error: 'Could not parse response' });
+          }
+        }
+      }
 
       if (isXPostUrl(processUrl)) {
         const { text: pageText, imageUrl: tweetImageUrl } = await fetchTweetContent(processUrl);
