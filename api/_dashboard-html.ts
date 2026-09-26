@@ -428,3 +428,104 @@ render();
 </body>
 </html>`;
 }
+
+/** 投稿済みのグッズの手直し（/api/metrics?enrich=1）。下見 → 選ぶ → 書き込む。
+ *  このページだけは画面から通信する（下見は1回で全件回すと時間切れになるので、12件ずつ呼ぶ）。
+ *  予定のタイトルは利用者が書いたものなので、必ず textContent で入れる（HTMLとして解釈させない）。 */
+export function enrichPage(): string {
+  return HEAD + `<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>投稿済みグッズの手直し</h1>
+      <div class="meta">値段・在庫の取り直し／販売先・検索結果リンクの追加／リンクの名前／発売日・予約期間。下見では書き込みません</div>
+    </div>
+    <div class="range">
+      <button id="plan">下見を作る</button>
+      <button id="nodate">日付の変更を外す</button>
+      <button id="apply" disabled>書き込む</button>
+    </div>
+  </header>
+  <div class="read" id="status"></div>
+  <div id="list"></div>
+  <div id="err"></div>
+</div>
+<style>
+  .row{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:0 0 10px;display:flex;gap:12px}
+  .row input{margin-top:5px;width:18px;height:18px;flex-shrink:0}
+  .row .t{font-weight:700} .row .w{color:var(--dim);font-size:12px}
+  .row ul{margin:6px 0 0;padding-left:18px;color:var(--sub);font-size:13px}
+  .row .date{color:var(--warn)}
+  .tag{display:inline-block;font-size:11px;padding:0 6px;border-radius:4px;background:var(--warn);color:#0e0e10;margin-left:6px}
+  a{color:var(--accent)}
+</style>
+<script>
+(function(){
+  var proposals = [];
+  var $ = function(id){ return document.getElementById(id); };
+  function el(tag, cls, text){ var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function download(name, data){
+    var a = el('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type:'application/json'}));
+    a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  }
+  function render(){
+    var list = $('list'); list.textContent = '';
+    proposals.forEach(function(p, i){
+      var row = el('label', 'row');
+      var cb = el('input'); cb.type = 'checkbox'; cb.checked = p.on; cb.onchange = function(){ p.on = cb.checked; count(); };
+      var body = el('div');
+      var t = el('div', 't', p.title); if (p.dateChange) t.appendChild(el('span', 'tag', '日付'));
+      var w = el('div', 'w', p.work + ' ・ '); var link = el('a', null, '予定を開く'); link.href = 'https://fanhive.jp/item/' + encodeURIComponent(p.id); link.target = '_blank'; w.appendChild(link);
+      var ul = el('ul'); p.notes.forEach(function(n){ ul.appendChild(el('li', /^(発売日|予約)/.test(n) ? 'date' : null, n)); });
+      body.appendChild(t); body.appendChild(w); body.appendChild(ul);
+      row.appendChild(cb); row.appendChild(body); list.appendChild(row);
+    });
+    count();
+  }
+  function count(){
+    var n = proposals.filter(function(p){ return p.on; }).length;
+    $('apply').disabled = !n; $('apply').textContent = n ? '選んだ' + n + '件を書き込む' : '書き込む';
+  }
+  $('plan').onclick = async function(){
+    $('plan').disabled = true; proposals = []; render();
+    var offset = 0, total = '?';
+    try {
+      while (offset != null) {
+        $('status').textContent = '下見中… ' + offset + ' / ' + total + ' 件（1件あたり数秒かかります）';
+        var r = await fetch('/api/metrics?enrich=plan&limit=12&offset=' + offset, {credentials:'same-origin'});
+        if (!r.ok) throw new Error('下見に失敗しました (' + r.status + ')');
+        var d = await r.json(); total = d.total;
+        d.proposals.forEach(function(p){ p.on = true; proposals.push(p); });
+        render(); offset = d.next;
+      }
+      $('status').textContent = '下見が終わりました。変更案 ' + proposals.length + ' 件（グッズ ' + total + ' 件中）。外したいものはチェックを外してください';
+      download('enrich-plan-' + new Date().toISOString().slice(0,10) + '.json', proposals);
+    } catch (e) { $('err').textContent = String(e && e.message || e); }
+    $('plan').disabled = false;
+  };
+  $('nodate').onclick = function(){ proposals.forEach(function(p){ if (p.dateChange) p.on = false; }); render(); };
+  $('apply').onclick = async function(){
+    var chosen = proposals.filter(function(p){ return p.on; });
+    if (!chosen.length || !confirm(chosen.length + '件の予定を書き換えます。よいですか？')) return;
+    $('apply').disabled = true;
+    var applied = 0, skipped = [], backup = [];
+    try {
+      for (var i = 0; i < chosen.length; i += 20) {
+        $('status').textContent = '書き込み中… ' + i + ' / ' + chosen.length;
+        var body = { changes: chosen.slice(i, i + 20).map(function(p){ return { id: p.id, hash: p.hash, set: p.set }; }) };
+        var r = await fetch('/api/metrics?enrich=apply', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+        if (!r.ok) throw new Error('書き込みに失敗しました (' + r.status + ')');
+        var d = await r.json(); applied += d.applied; skipped = skipped.concat(d.skipped); backup = backup.concat(d.backup);
+      }
+    } catch (e) { $('err').textContent = String(e && e.message || e); }
+    // 書く前の値は必ず手元に残す（戻すとき用）
+    download('enrich-backup-' + new Date().toISOString().slice(0,19).replace(/:/g,'') + '.json', backup);
+    $('status').textContent = applied + '件を書き込みました。飛ばした ' + skipped.length + ' 件' + (skipped.length ? '：' + skipped.map(function(s){ return s.reason; }).filter(function(v, i, a){ return a.indexOf(v) === i; }).join('／') : '') + '。書く前の値は enrich-backup の JSON に保存しました';
+    var done = {}; backup.forEach(function(b){ done[b.id] = true; });
+    proposals = proposals.filter(function(p){ return !done[p.id]; }); render();
+  };
+})();
+</script>
+</body>
+</html>`;
+}

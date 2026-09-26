@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { searchCandidates, highConfidence, scoreTitle, isSetTitle, searchKeyword, variantMismatch, lookupByUrl, type Candidate } from './_product-search.js';
 import { pushAlerts, type Alert } from './_alerts.js';
+import { isSearchPage, isAff, representativePrice, type OfferRow } from './_offers.js';
 
 // 毎日Cron: グッズの販路を最新化する。
 // (0) ユーザーが追加した購入リンク(event_offer_contribs)を events.offers に昇格
@@ -11,54 +12,8 @@ import { pushAlerts, type Alert } from './_alerts.js';
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-const AFFILIATE_HOSTS = ['px.a8.net', 'ck.jp.ap.valuecommerce.com', 'hb.afl.rakuten.co.jp'];
-function hostOf(u: string): string { try { return new URL(u).host.toLowerCase(); } catch { return ''; } }
-// src/lib/affiliate.ts の isAffiliateUrl と同じ判定（実際に成果識別子が乗ったURLか）。
-function isAffiliateUrl(u: string): boolean {
-  const h = hostOf(u);
-  if (!h) return false;
-  if (AFFILIATE_HOSTS.includes(h)) return true;
-  if (/(^|\.)amazon\.co\.jp$/.test(h)) { try { return new URL(u).searchParams.has('tag'); } catch { return false; } }
-  return false;
-}
-
-// ECの検索・一覧ページ（商品が特定できないURL）。src/lib/affiliate.ts の isSearchPageUrl と同期を保つこと。
-const SEARCH_PAGE_PATTERNS = [
-  /animate-onlineshop\.jp\/(?:[^?]*\/)?(animetitle|products\/list)/i,
-  /(^|\/\/)search\.rakuten\.co\.jp\//i,
-  /shopping\.yahoo\.co\.jp\/search/i,
-  /amazon\.co\.jp\/s\?/i,
-  /amiami\.jp\/[^?]*\/search/i,
-  /suruga-ya\.jp\/search/i,
-];
-const isSearchPage = (u: string) => !!u && SEARCH_PAGE_PATTERNS.some((re) => re.test(u));
-
-interface OfferRow { retailer?: string; shop?: string; url: string; affiliateUrl?: string; hasAffiliate?: boolean; price?: number; fetchedAt?: string; official?: boolean; isSet?: boolean; inStock?: boolean; stockLabel?: string; pinned?: boolean; }
-const isAff = (o: OfferRow) => isAffiliateUrl(o.affiliateUrl || o.url) || isAffiliateUrl(o.url);
-// src/lib/affiliate.ts の isOfficialOffer と同じ（公式店/公式通販か）。代表選びを揃える。
-const OFFICIAL_BRANDS = ['あみあみ', '駿河屋', 'アニメイト', '楽天ブックス'];
-const isOfficial = (o: OfferRow) => !!o.official || OFFICIAL_BRANDS.some((b) => `${o.retailer ?? ''} ${o.shop ?? ''}`.includes(b));
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any>;
-
-/** 代表価格 = 在庫あり→単品→公式店→最安（クライアントの primaryOffer と揃える）。
- *  アフィ販路が無ければ全販路から選ぶ（アニメイト本店だけのグッズでも価格を出す）。
- *  検索・一覧ページは商品が特定できないので代表にしない（クライアントの primaryOffer と揃える）。
- *  リンクが取り消された予定では、代表に値段が無ければ null（値段なし）にする。今の events.price は
- *  取り消したリンクの値段のことがあり、残すと「リンクを直したのに間違った値段が出続ける」。 */
-function representativePrice(live: OfferRow[], current: number | null, hadRemoval: boolean): number | null {
-  const products = live.filter((o) => !isSearchPage(o.url));
-  const base = products.length ? products : live;
-  const affOffers = base.filter(isAff);
-  const rep = [...(affOffers.length ? affOffers : base)].sort((a, b) =>
-    (Number(b.inStock !== false) - Number(a.inStock !== false)) ||
-    (Number(!!a.isSet) - Number(!!b.isSet)) ||
-    (Number(isOfficial(b)) - Number(isOfficial(a))) ||
-    ((a.price ?? Infinity) - (b.price ?? Infinity)),
-  )[0];
-  return rep?.price ?? (hadRemoval ? null : current);
-}
 
 /** ユーザーが追記した購入リンク(event_offer_contribs)を events.offers に移す。
  *
@@ -353,7 +308,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const existing = new Set(offers.map((o) => o.url));
       for (const c of highConfidence(title, cands, workName)) {
         if (existing.has(c.url)) continue;
-        offers.push({ retailer: c.retailer || '楽天', shop: c.shop || undefined, url: c.url, affiliateUrl: c.url, hasAffiliate: c.hasAffiliate, price: c.price, fetchedAt: now, official: c.official, isSet: isSetTitle(c.title), inStock: c.inStock, stockLabel: c.stockLabel });
+        offers.push({ retailer: c.retailer || '楽天', shop: c.shop || undefined, url: c.url, affiliateUrl: c.url, hasAffiliate: c.hasAffiliate, price: c.price, fetchedAt: now, official: c.official, isSet: isSetTitle(c.title), inStock: c.inStock, stockLabel: c.stockLabel, ...(c.label ? { label: c.label, pinned: true } : {}) });
         changed = true; backfilled++;
       }
     }

@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { loginPage, dashboardPage } from './_dashboard-html.js';
+import { loginPage, dashboardPage, enrichPage } from './_dashboard-html.js';
+import { planEnrich, applyEnrich } from './_enrich.js';
 import { sendPushes, fcmConfigured, type PushMessage } from './_fcm.js';
 import { collectAppStore, collectAppStoreAnalytics, collectPlay, type StoreResult } from './_stores.js';
 
@@ -12,6 +13,7 @@ import { collectAppStore, collectAppStoreAnalytics, collectPlay, type StoreResul
 //   GET（Cookieあり）                      … データを埋め込んだダッシュボード
 //   GET（Cookieなし）                      … パスワードの入力画面
 //   GET ?key=<パスワード>                  … チームに配るリンク。Cookieを置いて本体へ飛ばす
+//   ?enrich=1 / plan / apply（Cookieあり）  … 投稿済みグッズの手直し（下見→選ぶ→書き込み。_enrich.ts）
 //
 // 画面側からは一切通信しない。Service Worker や sessionStorage の状態で
 // 「押しても何も起きない」が起きないようにするため。
@@ -293,6 +295,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const pass = process.env.METRICS_TOKEN;
   if (!pass) return html(res, loginPage('サーバー側のパスワードが未設定です'), 500);
+
+  // 投稿済みグッズの手直し。本番のデータを書き換えるので、ダッシュボードと同じパスワードの内側に置く
+  if (typeof req.query.enrich === 'string' && cookieToken(req) === pass) {
+    const client = db();
+    if (!client) return res.status(500).json({ error: 'Server config error' });
+    res.setHeader('Cache-Control', 'no-store');
+    if (req.query.enrich === 'plan') {
+      const offset = Math.max(0, Number(req.query.offset) || 0);
+      const limit = Math.min(20, Math.max(1, Number(req.query.limit) || 12));
+      return res.status(200).json(await planEnrich(client, offset, limit));
+    }
+    if (req.query.enrich === 'apply' && req.method === 'POST') {
+      const changes = ((req.body ?? {}) as { changes?: unknown }).changes;
+      if (!Array.isArray(changes) || changes.length > 50) return res.status(400).json({ error: 'changes required (<=50)' });
+      return res.status(200).json(await applyEnrich(client, changes));
+    }
+    return html(res, enrichPage());
+  }
 
   // ② パスワードの送信
   if (req.method === 'POST') {

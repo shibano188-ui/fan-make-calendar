@@ -9,6 +9,7 @@ export interface Candidate {
   shopCode?: string; official?: boolean;
   inStock?: boolean;    // 楽天 availability / Yahoo! inStock / アニメイト「販売状況」。false=売切れ
   stockLabel?: string;  // アニメイトの生の表記（予約受付中・取り寄せ等）。表示用
+  label?: string;       // 種類違いの名前（キャラ名・番号など）。labelVariants が付ける
 }
 
 // 楽天/Yahoo!に公式出店しているホビー系ショップ（優先表示・「公式店」表示の対象）。
@@ -188,6 +189,34 @@ async function searchAnimate(keyword: string): Promise<{ items: Candidate[]; tot
 export interface UrlLookup {
   title?: string; price: number; shop?: string; retailer: string;
   official?: boolean; inStock?: boolean; stockLabel?: string;
+  /** 発売日（アニメイトの商品ページ）。dateLabel はアプリと同じ区分（上旬/中旬/下旬/中=月のみ）。日まで分かれば null */
+  release?: { date: string; dateLabel: string | null };
+  /** 予約期間（アニメイトの「※ご予約期間～2026/06/10」など）。YYYY-MM-DD */
+  preorderStart?: string; preorderEnd?: string;
+}
+
+const ymd = (y: string, m: string, d: string) => `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+
+/** 「2026年10月26日 発売」「2026年09月下旬 発売予定」「2026年10月 中 発売予定」→ アプリの日付の持ち方
+ *  （src/lib/ambiguousDate.ts と同じ代表日: 上中下旬=5/15/25日、月のみ=末日） */
+export function parseReleaseText(t: string): { date: string; dateLabel: string | null } | null {
+  const d = t.match(/(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日/);
+  if (d) return { date: ymd(d[1], d[2], d[3]), dateLabel: null };
+  const j = t.match(/(\d{4})年\s*(\d{1,2})月\s*(上旬|中旬|下旬)/);
+  if (j) return { date: ymd(j[1], j[2], { 上旬: '5', 中旬: '15', 下旬: '25' }[j[3]]!), dateLabel: j[3] };
+  const m = t.match(/(\d{4})年\s*(\d{1,2})月/);
+  if (m) return { date: ymd(m[1], m[2], String(new Date(Number(m[1]), Number(m[2]), 0).getDate())), dateLabel: '中' };
+  return null;
+}
+
+/** 「※ご予約期間～2026/06/10」「予約締切 2026年6月10日」「予約受付期間 2026/05/01～2026/06/10」から予約期間を取る */
+export function parsePreorderText(t: string): { start?: string; end?: string } | null {
+  const D = '(\\d{4})[/年](\\d{1,2})[/月](\\d{1,2})日?';
+  const range = t.match(new RegExp(`予約(?:受付)?(?:期間|締切|締め切り)[^\\d～~〜]{0,8}(?:${D})?\\s*[～~〜]\\s*${D}`));
+  if (range) return { ...(range[1] ? { start: ymd(range[1], range[2], range[3]) } : {}), end: ymd(range[4], range[5], range[6]) };
+  const end = t.match(new RegExp(`予約(?:受付)?(?:締切|締め切り)(?:日)?[^\\d]{0,8}${D}`));
+  if (end) return { end: ymd(end[1], end[2], end[3]) };
+  return null;
 }
 
 /** アフィリエイトの包み（楽天 pc= / バリューコマース vc_url=）を外して元の商品URLにする。 */
@@ -253,8 +282,14 @@ async function lookupAnimate(u: URL): Promise<UrlLookup | null> {
   const price = html.match(/\bprice:\s*(\d+),\s*\/\/商品金額/)?.[1] ?? html.match(/<p class="price[^"]*">([\d,]+)<span>円/)?.[1];
   if (!price) return null;
   const title = html.match(/<h1>([^<]+)<\/h1>/)?.[1];
-  const stock = html.match(/stock_status:\s*'([^']*)'/)?.[1]?.replace(/^[\s×○△◯]+/, '').trim();
+  const stock = html.match(/stock_status:\s*'([^']*)'/)?.[1]?.replace(/^[\s×○△◯-]+/, '').trim();
+  const releaseText = html.match(/<p class="release">[\s\S]{0,80}?<span class="num">([^<]+)<\/span>/)?.[1];
+  const release = releaseText ? parseReleaseText(releaseText) : null;
+  const pre = parsePreorderText(html.match(/<meta name="description" content="([^"]*)"/)?.[1] ?? '');
   return {
+    ...(release ? { release } : {}),
+    ...(pre?.start ? { preorderStart: pre.start } : {}),
+    ...(pre?.end ? { preorderEnd: pre.end } : {}),
     title: title ? decodeEntities(title).trim() : undefined, price: Number(price.replace(/,/g, '')),
     shop: 'アニメイトオンラインショップ', retailer: 'アニメイト', official: true,
     inStock: stock ? !/販売終了|品切|売切|在庫なし/.test(stock) : undefined, stockLabel: stock || undefined,
@@ -444,6 +479,55 @@ function sameProduct(a: string, b: string, entered: string): boolean {
 /** 自動添付してよい高信頼候補だけを返す（公式店0.55以上/非公式0.8以上・販売サイトごと1件・最大4件）。
  * アフィ対応の販路を先に確保してから、アニメイト本店など非対応の公式店を足す。
  * 売切れ・種類違いは自動添付しない（候補としては残るので手動では選べる）。 */
+// ── 種類違い（src/lib/searchProduct.ts の labelVariants と同じ。両者は同期を保つこと）──
+// 同じ店の候補どうしで、共通の前後を除いた残りを「種類の名前」にする。括弧に入っているとは限らない
+// （アニメイト: 「…＜アクリルスタンド付＞ 02 五条悟 ～水色～」、楽天: 「【天童覚 (N ノーマル) 】 …」）。
+function stripShopNoise(t: string): string {
+  return t.normalize('NFKC')
+    .replace(/\[[^\]]*\]|《[^》]*》/g, ' ')
+    .replace(/【([^】]*)】/g, (m, inner: string) => (SHOP_NOISE_RE.test(inner) ? ' ' : m))
+    .replace(/\s+/g, ' ').trim();
+}
+function commonPrefix(a: string, b: string): number { let i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i++; return i; }
+function commonSuffix(a: string, b: string): number { let i = 0; while (i < a.length && i < b.length && a[a.length - 1 - i] === b[b.length - 1 - i]) i++; return i; }
+const SEP = /[\s・/~〜～＜＞<>()（）【】「」『』[\]、,]/;
+const TRIM_LABEL = /^[\s・/\-ー~〜～、,.:：＜＞<>()（）【】「」『』\[\]]+|[\s・/\-ー~〜～、,.:：＜＞<>()（）【】「」『』\[\]]+$/g;
+
+/** 同じ店の候補を種類違いのまとまりに分け、まとまりに入ったものに種類の名前を付けて返す。 */
+export function labelVariants(items: Candidate[]): Map<Candidate, string> {
+  const out = new Map<Candidate, string>();
+  const byShop = new Map<string, Candidate[]>();
+  for (const c of items) {
+    if (isSetTitle(c.title)) continue;
+    const k = `${c.retailer}:${c.shopCode || c.shop}`;
+    byShop.set(k, [...(byShop.get(k) ?? []), c]);
+  }
+  for (const list of byShop.values()) {
+    if (list.length < 2) continue;
+    const titles = list.map((c) => stripShopNoise(c.title));
+    const shared = (a: string, b: string) => (commonPrefix(a, b) + commonSuffix(a, b)) / Math.min(a.length, b.length);
+    let best: number[] = [];
+    for (let i = 0; i < titles.length; i++) {
+      const group = titles.map((_, j) => j).filter((j) => j === i || shared(titles[i], titles[j]) >= 0.5);
+      if (group.length > best.length) best = group;
+    }
+    if (best.length < 2) continue;
+    const g = best.map((j) => titles[j]);
+    let pre = Math.min(...g.slice(1).map((t) => commonPrefix(g[0], t)));
+    let suf = Math.min(...g.slice(1).map((t) => commonSuffix(g[0], t)));
+    while (pre > 0 && !SEP.test(g[0][pre - 1])) pre--;
+    while (suf > 0 && !SEP.test(g[0][g[0].length - suf])) suf--;
+    for (const j of best) {
+      const t = titles[j];
+      let label = t.slice(pre, t.length - suf).replace(TRIM_LABEL, '').trim();
+      if ((label.match(/\(/g) ?? []).length > (label.match(/\)/g) ?? []).length) label += ')';
+      if ((label.match(/（/g) ?? []).length > (label.match(/）/g) ?? []).length) label += '）';
+      if (label && label.length <= 30) out.set(list[j], label);
+    }
+  }
+  return out;
+}
+
 export function highConfidence(enteredTitle: string, items: Candidate[], workName = ''): Candidate[] {
   // 商品を特定できないタイトル（作品名＋「ぬいぐるみ」だけ等）は自動で付けない。候補として出すだけ。
   if (productCore(enteredTitle, workName).length < 3) return [];
@@ -452,7 +536,16 @@ export function highConfidence(enteredTitle: string, items: Candidate[], workNam
     .filter(({ c, score }) => (c.official ? score >= 0.55 : score >= 0.8))
     .filter(({ c }) => c.inStock !== false)
     .filter(({ c }) => !variantMismatch(enteredTitle, c.title));
-  // 入力に種類指定が無いのに候補が複数の種類に分かれている（①と②、vol.1とvol.2）場合、
+  // 種類違いがそろって見つかったら、全部に名前を付けて返す（src/lib/searchProduct.ts と同じ）。
+  // 入力に種類の名前が入っているときは、その種類だけ。
+  const labels = labelVariants(scored.map(({ c }) => c));
+  if (labels.size >= 2) {
+    const norm = (x: string) => x.normalize('NFKC').replace(/[\s　]/g, '').toLowerCase();
+    const entered = norm(enteredTitle);
+    const named = [...labels].filter(([, l]) => entered.includes(norm(l)));
+    return (named.length ? named : [...labels]).slice(0, 16).map(([c, label]) => ({ ...c, label }));
+  }
+  // 入力に種類指定が無いのに候補が複数の種類に分かれているが、名前が取れなかった場合は、
   // どれか1つを自動で貼ると「バリエーションがあるのに1種類だけリンクされる」ので添付しない。
   if (!variantKey(enteredTitle).length) {
     const kinds = new Set(scored.flatMap(({ c }) => variantKey(c.title)));
