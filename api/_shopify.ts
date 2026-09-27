@@ -77,9 +77,13 @@ function releaseFromTags(tags: string[]): { date: string; dateLabel: null } | nu
 }
 
 /** 在庫。買えないとき、受付前の印があるか、発売日のタグが今日より先なら受付前 */
+// 予約販売の印（ホロライブの「予約販売」「予約商品」など）。予約で売る商品は、予定も「予約あり」にする
+const PREORDER_TAG_RE = /予約|pre-?order/i;
+
 function stockOf(available: boolean, tags: string[], text: string, release: { date: string } | null): Pick<ShopifyProduct, 'inStock' | 'stockLabel'> {
-  if (available) return { inStock: true };
-  if (tags.some((t) => PRE_SALE_RE.test(t)) || PRE_SALE_RE.test(text) || (release && release.date > todayJst())) return { stockLabel: '受付前' };
+  const preorder = tags.some((t) => PREORDER_TAG_RE.test(t)) || /予約/.test(text);
+  if (available) return { inStock: true, ...(preorder ? { stockLabel: '予約受付中' } : {}) };
+  if (tags.some((t) => PRE_SALE_RE.test(t)) || PRE_SALE_RE.test(text) || (release && release.date > todayJst())) return { stockLabel: preorder ? '予約受付前' : '受付前' };
   return { inStock: false };
 }
 
