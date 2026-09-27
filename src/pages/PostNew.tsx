@@ -18,6 +18,7 @@ import type { Offer } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
 import LineLoader from '../components/ui/LineLoader';
+import { useConfirm } from '../components/ui/ConfirmDialog';
 import WorkFollowSheet from '../components/WorkFollowSheet';
 import { haptic } from '../lib/haptics';
 import { todayStr, deriveItemType, type ItemType } from '../design/tokens';
@@ -221,6 +222,7 @@ export default function PostNew() {
   // モックにしないのは、画像・購入リンク・価格が自動で埋まるところまで見せたいため。
   // 保存だけはしない（架空の投稿を「探す」に流さない）。判定は onSubmit 側。
   const demo = searchParams.get('demo') === '1';
+  const confirm = useConfirm();
   const demoStarted = useRef(false);
   useEffect(() => {
     if (!demo || demoStarted.current) return;
@@ -631,6 +633,60 @@ export default function PostNew() {
     setParsedList(next); setMergePick(new Set());
   };
 
+  // 一覧の候補をまとめて投稿する（本人要望・2026-09-27）。1件ずつ開いて投稿する手間を省く。
+  // 店の一覧（全部に商品リンクがそろっている）のときだけ出す。Xのポストから見つかった複数の予定は中身を確かめてほしいので出さない
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const bulkPost = async () => {
+    if (!user || !parsedList?.length || bulkSaving) return;
+    if (demo) { toast('体験ではまとめて投稿はできません'); return; }
+    if (!(await confirm({ title: `${parsedList.length}件をまとめて投稿しますか？`, message: '1件ずつの確認はしません。あとから詳細ページで直せます', confirmLabel: '投稿する' }))) return;
+    haptic.select();
+    setBulkSaving(true);
+    const works = new Map<string, string>();
+    let posted = 0;
+    const failed: ParsedEvent[] = [];
+    for (const p of parsedList) {
+      try {
+        const name = (p.work || workName || workQuery).trim();
+        if (!name || !p.title) { failed.push(p); continue; }
+        let wid = works.get(name) ?? (workId && sameWorkName(name, workName) ? workId : '');
+        if (!wid) { wid = (await getOrCreateWork(name)).id; }
+        works.set(name, wid);
+        const offersP = p.offers ?? [];
+        const prim = primaryOffer(offersP);
+        const ids = await createEvents(wid, [{
+          title: p.title, type: 'goods',
+          date: p.date || null, dateLabel: p.dateLabel || null,
+          endDate: p.dateLabel ? undefined : (p.endDate || p.date || undefined),
+          category: p.category ?? undefined,
+          price: p.price ?? prim?.price ?? undefined,
+          offers: offersP, link: prim?.url, affiliateUrl: prim?.affiliateUrl, hasAffiliate: prim?.hasAffiliate, retailer: prim?.retailer,
+          isOrderMade: !!p.isOrderMade,
+          preorderStart: p.isOrderMade ? (p.preorderStart || undefined) : undefined,
+          preorderEnd: p.isOrderMade ? (p.preorderEnd || undefined) : undefined,
+          preorderStartTime: p.isOrderMade ? (p.preorderStartTime || undefined) : undefined,
+          preorderEndTime: p.isOrderMade ? (p.preorderEndTime || undefined) : undefined,
+          memo: p.memo || undefined, imageUrl: p.imageUrl || undefined,
+        }], user.id);
+        if (addToCalendar && ids[0]) await toggleLike(ids[0], user.id).catch(() => {});
+        posted++;
+      } catch { failed.push(p); }
+    }
+    // 投稿した作品をフォロー（1件ずつの投稿と同じく、無料プランの上限は超えない）
+    try {
+      const follows = await listAllParticipatedWorks(user.id);
+      let n = follows.length;
+      for (const wid of new Set(works.values())) {
+        if (follows.some((w) => w.id === wid)) continue;
+        if (!canFollowMore(n, isPremiumCached())) break;
+        await upsertParticipation(wid, user.id); n++;
+      }
+    } catch { /* フォローできなくても投稿は成立している */ }
+    setBulkSaving(false);
+    setParsedList(failed); setMergePick(new Set());
+    toast(failed.length ? `${posted}件投稿しました（${failed.length}件は投稿できませんでした）` : `${posted}件投稿しました`);
+  };
+
   const linkInfo = link.trim() ? affiliatize(link.trim()) : null;
   const canSave = !!title.trim() && (!!workId || !!workQuery.trim()) && !saving;
 
@@ -921,6 +977,13 @@ export default function PostNew() {
                     className="pressable mt-1 py-2 rounded-[10px] text-[13px] font-semibold flex items-center justify-center gap-1.5"
                     style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--accent-text)' }}>
                     {loadingMore ? <><Loader2 size={15} className="animate-spin" /> 読んでいます…</> : '次のページを読む'}
+                  </button>
+                )}
+                {seriesList && parsedList.length > 1 && (
+                  <button onClick={bulkPost} disabled={bulkSaving}
+                    className="pressable mt-1 py-2.5 rounded-[10px] text-[13px] font-semibold flex items-center justify-center gap-1.5"
+                    style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+                    {bulkSaving ? <><Loader2 size={15} className="animate-spin" /> 投稿しています…</> : `${parsedList.length}件をまとめて投稿`}
                   </button>
                 )}
                 <button onClick={() => { setParsedList(null); setMergePick(new Set()); setListMeta(null); }} className="text-[12px] text-label-tertiary mt-1 pressable">キャンセル</button>

@@ -157,6 +157,18 @@ const SEARCH_PAGE_PATTERNS: RegExp[] = [
 ];
 
 /** 商品ページではなく検索・一覧ページのURLか（販路としては不完全）。 */
+/** 値段の比べ（本人要望・2026-09-27）。同じ商品を2つ以上の店で売っているとき、一番安い購入リンクのURL。
+ *  種類違いが並ぶ予定（名前付きのリンク）は商品ごとに値段が違うだけなので比べない。
+ *  売り切れ・セット・検索ページ・値段の無いリンクは除く。比べる相手が無ければ null */
+export function cheapestOfferUrl(offers: Offer[]): string | null {
+  if (offers.some((o) => o.label && o.label !== '検索結果')) return null;
+  const priced = offers.filter((o) => !isSearchPageUrl(o.url) && !o.isSet && o.inStock !== false && typeof o.price === 'number' && o.price > 0);
+  if (new Set(priced.map((o) => o.retailer ?? o.url)).size < 2) return null;
+  const min = Math.min(...priced.map((o) => o.price!));
+  const top = priced.filter((o) => o.price === min);
+  return top.length === priced.length ? null : top[0].url; // 全部同じ値段なら出さない
+}
+
 /** 詳細ページの在庫の札。在庫あり・予約受付中・受付前・在庫なしの4つだけ（販路ごとに粒度が違うので生の表記は出さない）。
  *  「受付前」はまだ売り出していない商品（Shopify の「販売開始前」、アニメイトの「予約受付前」など）。
  *  売り切れと区別しないと「11時予約開始」の商品が在庫なしに見える（本人指摘・2026-09-27）。未取得は null */
