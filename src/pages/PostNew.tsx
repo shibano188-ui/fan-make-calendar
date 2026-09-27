@@ -406,7 +406,15 @@ export default function PostNew() {
       setDateTBD(false); setDateLabel(''); setDate(p.date); setEndDate(p.endDate || p.date);
     }
     if (p.time && !p.dateLabel) { setAllDay(false); setTime(p.time); if (p.endTime) setEndTime(p.endTime); }
-    if (p.isOrderMade) { setIsOrder(true); if (p.preorderStart) setPreStart(p.preorderStart); if (p.preorderEnd) { setPreEnd(p.preorderEnd); setPreEndTouched(true); } }
+    if (p.isOrderMade) {
+      setIsOrder(true); if (p.preorderStart) setPreStart(p.preorderStart); if (p.preorderEnd) { setPreEnd(p.preorderEnd); setPreEndTouched(true); }
+      // 「11時予約開始」のように時刻が分かれば、終日を外して時刻を入れる
+      if (p.preorderStartTime || p.preorderEndTime) {
+        setPreAllDay(false);
+        if (p.preorderStartTime) setPreStartTime(p.preorderStartTime);
+        if (p.preorderEndTime) setPreEndTime(p.preorderEndTime);
+      }
+    }
     // まとめ記事・ニュース・SNSのURLは購入リンクではないので販路にしない（Xのまとめアカウント対策）
     const parsedOffers = p.offers?.length
       // Shopifyのシリーズ: 中の商品のリンクがそろっている（名前・値段・在庫つき）
