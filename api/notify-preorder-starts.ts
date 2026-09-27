@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { loadEventPatches } from './_edits';
+import { loadEventPatches } from './_edits.js';
 import { pushAlerts, type Alert } from './_alerts.js';
 import { refreshAroundBoundaries } from './_boundary.js';
 

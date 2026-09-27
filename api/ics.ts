@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { loadEventPatches, applyPatchesToRows } from './_edits';
+import { loadEventPatches, applyPatchesToRows } from './_edits.js';
 
 // カレンダー自動同期（プレミアム）: 保存した予定を .ics で配信する。
 // Google/Appleカレンダーに「URLで購読」してもらう方式なので、こちらから送信はしない。
