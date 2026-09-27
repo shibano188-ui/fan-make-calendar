@@ -204,6 +204,8 @@ export interface UrlLookup {
   release?: { date: string; dateLabel: string | null };
   /** 予約期間（アニメイトの「※ご予約期間～2026/06/10」など）。YYYY-MM-DD */
   preorderStart?: string; preorderEnd?: string;
+  /** 商品の画像（予定に画像が無いとき、手直しで足す） */
+  image?: string;
 }
 
 const ymd = (y: string, m: string, d: string) => `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
@@ -297,7 +299,9 @@ async function lookupAnimate(u: URL): Promise<UrlLookup | null> {
   const releaseText = html.match(/<p class="release">[\s\S]{0,80}?<span class="num">([^<]+)<\/span>/)?.[1];
   const release = releaseText ? parseReleaseText(releaseText) : null;
   const pre = parsePreorderText(html.match(/<meta name="description" content="([^"]*)"/)?.[1] ?? '');
+  const ogImage = html.match(/<meta property="og:image" content="([^"]+)"/)?.[1];
   return {
+    ...(ogImage ? { image: decodeEntities(ogImage) } : {}),
     ...(release ? { release } : {}),
     ...(pre?.start ? { preorderStart: pre.start } : {}),
     ...(pre?.end ? { preorderEnd: pre.end } : {}),
@@ -329,6 +333,8 @@ async function lookupMovic(u: URL): Promise<UrlLookup | null> {
     inStock: avail ? avail === 'InStock' || avail === 'PreOrder' || avail === 'LimitedAvailability' : undefined,
     // 予約で売っている商品は、予定も「予約あり」にする（_listgroup.ts の listEvents）
     ...(avail === 'PreOrder' ? { stockLabel: '予約受付中' } : {}),
+    ...(typeof (Array.isArray(p.image) ? p.image[0] : p.image) === 'string' && !/sorry/i.test(String(Array.isArray(p.image) ? p.image[0] : p.image))
+      ? { image: new URL(String(Array.isArray(p.image) ? p.image[0] : p.image), MOVIC_ORIGIN).toString() } : {}),
     ...(rel ? { release: { date: ymd(rel[1], rel[2], rel[3]), dateLabel: null } } : {}),
   };
 }
@@ -370,7 +376,7 @@ export async function lookupByUrl(rawUrl: string): Promise<UrlLookup | null> {
     // それ以外の店は、Shopify の商品ページ（/products/…）なら読める（ちいかわマーケットなど作品の公式通販に多い）
     if (/\/products\/[^/]+/.test(u.pathname)) {
       const p = await lookupShopifyProduct(u.toString());
-      if (p) return { title: p.title, price: p.price, shop: p.shop, retailer: p.shop, official: true, inStock: p.inStock, stockLabel: p.stockLabel };
+      if (p) return { title: p.title, price: p.price, shop: p.shop, retailer: p.shop, official: true, inStock: p.inStock, stockLabel: p.stockLabel, ...(p.release ? { release: p.release } : {}), ...(p.image ? { image: p.image } : {}) };
     }
   } catch { /* タイムアウト・形式変更は「取れなかった」扱い */ }
   return null;

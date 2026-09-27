@@ -10,14 +10,14 @@
 // 下見から書き込みまでの間に予定が変わっていたら（hash が違えば）書かずに飛ばす。
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { lookupByUrl, unwrapProductUrl, searchCandidatesWithMeta, highConfidence, searchKeyword, isSetTitle, labelVariants, type Candidate, type UrlLookup } from './_product-search.js';
-import { isSearchPage, representativePrice, type OfferRow } from './_offers.js';
+import { isSearchPage, isAff, representativePrice, type OfferRow } from './_offers.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any>;
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** 書き込んでよい列（管理画面から送られてくる変更は、これ以外を受け付けない） */
-const WRITABLE = ['offers', 'price', 'event_date', 'date_label', 'end_date', 'is_order_made', 'preorder_start_date', 'preorder_end_date'] as const;
+const WRITABLE = ['offers', 'price', 'event_date', 'date_label', 'end_date', 'is_order_made', 'preorder_start_date', 'preorder_end_date', 'image_url'] as const;
 type Writable = typeof WRITABLE[number];
 export type EnrichSet = Partial<Record<Writable, unknown>>;
 
@@ -29,7 +29,7 @@ export interface EnrichProposal {
   dateChange: boolean;   // 日付に触るか（間違えると通知の日がずれるので、画面で分けて見せる）
 }
 
-const FIELDS = 'id, title, price, offers, event_date, date_label, end_date, is_order_made, preorder_start_date, preorder_end_date, works(name)';
+const FIELDS = 'id, title, price, offers, event_date, date_label, end_date, is_order_made, preorder_start_date, preorder_end_date, image_url, works(name)';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function rowHash(row: any): string {
@@ -102,15 +102,20 @@ async function planOne(row: any, removed: Set<string>, dateEdited: boolean): Pro
     notes.push(`リンクに名前: ${[...labels.values()].join(' / ')}`);
   }
 
-  // 3. 値段の取れる店のリンクが無ければ、販売先を探す
-  if (!hits.size && title) {
+  // 3. 販売先を探す。値段の取れる店のリンクが無いときに加えて、公式店のリンクしか無いとき（楽天・Yahoo!などの
+  //    広告の付くリンクが無いとき）も、ほかのECのリンクを足して値段を比べられるようにする（本人要望・2026-09-27）。
+  //    すでにリンクのある店は足さない（同じ店の別の出品で埋まらないように）
+  const noPriced = !hits.size;
+  if (title && (noPriced || !live().some(isAff))) {
     const kw = searchKeyword(workName, title);
     const { items, animateTotal } = await searchCandidatesWithMeta(kw).catch(() => ({ items: [] as Candidate[], animateTotal: null }));
     const picks = highConfidence(title, items, workName);
     const existing = new Set(offers.map((o) => o.url)); // 取り消し済みも含める（取り消したリンクを復活させない）
+    const shops = new Set(live().map((o) => o.retailer ?? ''));
     const added: string[] = [];
     for (const c of picks) {
       if (existing.has(c.url)) continue;
+      if (!noPriced && shops.has(c.retailer)) continue;
       offers.push({
         retailer: c.retailer || '楽天', shop: c.shop || undefined, url: c.url, affiliateUrl: c.url, hasAffiliate: c.hasAffiliate,
         price: c.price, fetchedAt: now, official: c.official, isSet: isSetTitle(c.title), inStock: c.inStock, stockLabel: c.stockLabel,
@@ -125,7 +130,7 @@ async function planOne(row: any, removed: Set<string>, dateEdited: boolean): Pro
     const fromAnimate = picks.filter((c) => c.retailer === 'アニメイト').length;
     const hasAnimate = offers.some((o) => /animate-onlineshop\.jp/.test(o.url));
     const url = animateSearchUrl(kw);
-    if (animateTotal && animateTotal <= 30 && animateTotal > fromAnimate && !existing.has(url) && (!hasAnimate || picks.some((c) => c.label))) {
+    if (noPriced && animateTotal && animateTotal <= 30 && animateTotal > fromAnimate && !existing.has(url) && (!hasAnimate || picks.some((c) => c.label))) {
       offers.push({ retailer: 'アニメイト', url, affiliateUrl: url, hasAffiliate: false, label: '検索結果' });
       notes.push(`アニメイトの検索結果を追加（${animateTotal}件）`);
     }
@@ -165,6 +170,12 @@ async function planOne(row: any, removed: Set<string>, dateEdited: boolean): Pro
         dateChange = true;
       }
     }
+  }
+
+  // 4.5 画像。予定に画像が無ければ、リンク先の商品ページの画像を入れる
+  if (!row.image_url) {
+    const img = [...hits.values()].find((h) => h.image)?.image;
+    if (img) { set.image_url = img; notes.push('画像を追加'); }
   }
 
   // 5. 代表価格

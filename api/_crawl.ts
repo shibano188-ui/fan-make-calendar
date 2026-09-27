@@ -3,7 +3,9 @@
 // （staff.role = 'bot'）の投稿として入れる。普通の投稿と同じ扱い（新着の通知にも入る）。
 // 直すのは運営の各自（staff.role = 'admin'）が詳細ページから行う。
 //
-// 1回に1つの巡回先だけ読む（前回の続きを bot_state に持つ）。10分おきに呼ばれるので、17か所を3時間弱で一周する。
+// 巡回先 = ちいかわマーケット ＋（決まった作品 ∪ フォローされている作品）× アニメイト・ムービックの検索。
+// 新しくフォローされた作品は、まだ一度も見ていないので次の回に先に見る。あとは前回見たのが古い順。
+// 1回に2か所。前回見た時刻は bot_state（key='crawl'）に持つ。
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchProductList, excludeRegistered, type ProductList } from './_listsource.js';
 import { listEvents, type ListEvent } from './_listgroup.js';
@@ -13,28 +15,47 @@ import { representativePrice, type OfferRow } from './_offers.js';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any>;
 
-// 巡回する作品（works.name と同じ表記）。アニメイトは登録の新しい順（sort=5）、ムービックは新着順（seq=nd）
-const WORKS = ['葬送のフリーレン', '呪術廻戦', 'ハイキュー!!', '進撃の巨人', '鬼滅の刃', '僕のヒーローアカデミア', 'ちいかわ', 'ブルーロック'];
+// 必ず巡回する作品（works.name と同じ表記）。これに加えて、フォローされている作品も全部見る
+const FIXED_WORKS = ['葬送のフリーレン', '呪術廻戦', 'ハイキュー!!', '進撃の巨人', '鬼滅の刃', '僕のヒーローアカデミア', 'ちいかわ', 'ブルーロック', '名探偵コナン'];
 
 interface Source { key: string; work: string; urls: () => Promise<string[]> }
 
 const todayJst = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
 
-const SOURCES: Source[] = [
-  // ちいかわマーケットは発売日ごとのコレクション（「20261009」「pre20261003」＝10月3日予約商品）。今日以降のものを全部
-  {
-    key: 'chiikawamarket', work: 'ちいかわ',
-    urls: async () => {
-      const r = await fetch('https://chiikawamarket.jp/collections.json?limit=250', { headers: { Cookie: 'localization=JP; cart_currency=JPY' }, signal: AbortSignal.timeout(10000) }).catch(() => null);
-      const cols = ((await r?.json().catch(() => null)) as { collections?: { handle: string }[] } | null)?.collections ?? [];
-      const today = todayJst().replace(/-/g, '');
-      return cols.map((c) => c.handle).filter((h) => { const d = h.match(/^(?:pre)?(\d{8})$/)?.[1]; return !!d && d >= today; })
-        .map((h) => `https://chiikawamarket.jp/collections/${h}`);
-    },
+// ちいかわマーケットは発売日ごとのコレクション（「20261009」「pre20261003」＝10月3日予約商品）。今日以降のものを全部
+const CHIIKAWA_MARKET: Source = {
+  key: 'chiikawamarket', work: 'ちいかわ',
+  urls: async () => {
+    const r = await fetch('https://chiikawamarket.jp/collections.json?limit=250', { headers: { Cookie: 'localization=JP; cart_currency=JPY' }, signal: AbortSignal.timeout(10000) }).catch(() => null);
+    const cols = ((await r?.json().catch(() => null)) as { collections?: { handle: string }[] } | null)?.collections ?? [];
+    const today = todayJst().replace(/-/g, '');
+    return cols.map((c) => c.handle).filter((h) => { const d = h.match(/^(?:pre)?(\d{8})$/)?.[1]; return !!d && d >= today; })
+      .map((h) => `https://chiikawamarket.jp/collections/${h}`);
   },
-  ...WORKS.map((w): Source => ({ key: `animate:${w}`, work: w, urls: async () => [`https://www.animate-onlineshop.jp/products/list.php?smt=${encodeURIComponent(w)}&sort=5`] })),
-  ...WORKS.map((w): Source => ({ key: `movic:${w}`, work: w, urls: async () => [`https://www.movic.jp/shop/goods/search.aspx?search=x&keyword=${encodeURIComponent(w)}&seq=nd`] })),
+};
+
+const searchSources = (w: string): Source[] => [
+  // アニメイトは登録の新しい順（sort=5）、ムービックは新着順（seq=nd）
+  { key: `animate:${w}`, work: w, urls: async () => [`https://www.animate-onlineshop.jp/products/list.php?smt=${encodeURIComponent(w)}&sort=5`] },
+  { key: `movic:${w}`, work: w, urls: async () => [`https://www.movic.jp/shop/goods/search.aspx?search=x&keyword=${encodeURIComponent(w)}&seq=nd`] },
 ];
+
+/** 巡回先の一覧。決まった作品と、フォローされている作品（participant_count が1以上） */
+async function listSources(db: Db): Promise<Source[]> {
+  const { data } = await db.from('works').select('name').gte('participant_count', 1).limit(300);
+  const works = [...new Set([...FIXED_WORKS, ...(data ?? []).map((w) => String(w.name ?? '').trim()).filter((n) => n.length >= 2)])];
+  return [CHIIKAWA_MARKET, ...works.flatMap(searchSources)];
+}
+
+const norm = (s: string) => s.normalize('NFKC').toLowerCase().replace(/[\s!?・/\\\-ー~〜、。,.:;'"「」『』【】[\]()（）《》<>＜＞#＆&+*★☆♪]/g, '');
+
+/** 検索結果のうち、商品名に作品名（か別名）が入っているものだけ残す。
+ *  作品名で検索しても、名前が一般的な作品（「神の雫」など）だと関係ない商品が混ざるため */
+async function onlyThisWork(db: Db, list: ProductList, workId: string, work: string): Promise<ProductList> {
+  const { data } = await db.from('work_aliases').select('alias_norm').eq('work_id', workId);
+  const keys = [norm(work), ...(data ?? []).map((a) => String(a.alias_norm ?? ''))].filter((k) => k.length >= 2);
+  return { ...list, products: list.products.filter((p) => keys.some((k) => norm(p.title).includes(k))) };
+}
 
 /** これから買えるものだけ残す。売り切れは入れない。発売日が分かるものは発売から3日以内まで。
  *  発売日が分からないものは予約受付中・受付前のときだけ（検索結果には何年も前の商品が混ざる） */
@@ -76,18 +97,31 @@ function findSame(existing: any[], e: ListEvent): any | null {
 }
 
 /** 巡回を1か所ぶん進める。登録した件数・別の店のリンクとして足した件数を返す */
-export async function crawlNext(db: Db): Promise<{ source: string | null; added: number; merged: number; read: number; skipped?: string }> {
+export async function crawlNext(db: Db): Promise<{ sources: string[]; added: number; merged: number; read: number; skipped?: string }> {
   const { data: bot } = await db.from('staff').select('user_id').eq('role', 'bot').limit(1).maybeSingle();
-  if (!bot?.user_id) return { source: null, added: 0, merged: 0, read: 0, skipped: '運営アカウント（staff.role=bot）が無い' };
+  if (!bot?.user_id) return { sources: [], added: 0, merged: 0, read: 0, skipped: '運営アカウント（staff.role=bot）が無い' };
   const authorId = bot.user_id as string;
 
   const { data: st } = await db.from('bot_state').select('value').eq('key', 'crawl').maybeSingle();
-  const next = (((st?.value ?? {}) as { next?: number }).next ?? 0) % SOURCES.length;
-  const src = SOURCES[next];
-  await db.from('bot_state').upsert({ key: 'crawl', value: { next: next + 1, last: src.key }, updated_at: new Date().toISOString() });
+  const seen = { ...(((st?.value ?? {}) as { seen?: Record<string, string> }).seen ?? {}) };
+  const sources = await listSources(db);
+  // まだ見ていないもの（新しくフォローされた作品）→ 前回見たのが古いもの の順に2か所
+  const picks = [...sources].sort((a, b) => (seen[a.key] ?? '').localeCompare(seen[b.key] ?? '')).slice(0, 2);
+  const now = new Date().toISOString();
+  for (const p of picks) seen[p.key] = now;
+  // 巡回先から外れた作品の記録は残さない
+  const keys = new Set(sources.map((x) => x.key));
+  for (const k of Object.keys(seen)) if (!keys.has(k)) delete seen[k];
+  await db.from('bot_state').upsert({ key: 'crawl', value: { seen }, updated_at: now });
 
+  const results = [];
+  for (const src of picks) results.push(await crawlSource(db, src, authorId));
+  return { sources: picks.map((p) => p.key), added: results.reduce((n, r) => n + r.added, 0), merged: results.reduce((n, r) => n + r.merged, 0), read: results.reduce((n, r) => n + r.read, 0) };
+}
+
+async function crawlSource(db: Db, src: Source, authorId: string): Promise<{ added: number; merged: number; read: number }> {
   const wid = await workId(db, src.work);
-  if (!wid) return { source: src.key, added: 0, merged: 0, read: 0, skipped: `作品「${src.work}」が無い` };
+  if (!wid) return { added: 0, merged: 0, read: 0 };
   const { data: existing } = await db.from('events').select('id, title, event_date, offers, price')
     .eq('work_id', wid).eq('type', 'goods').eq('pool', 0).gte('event_date', new Date(Date.now() - 90 * 86400_000).toISOString().slice(0, 10));
   const rows = existing ?? [];
@@ -97,7 +131,8 @@ export async function crawlNext(db: Db): Promise<{ source: string | null; added:
     const got = await fetchProductList(url).catch(() => null);
     if (!got) continue;
     read += got.products.length;
-    const { list } = await excludeRegistered(upcoming(got)).catch(() => ({ list: upcoming(got) }));
+    const mine = src.key === CHIIKAWA_MARKET.key ? got : await onlyThisWork(db, got, wid, src.work);
+    const { list } = await excludeRegistered(upcoming(mine)).catch(() => ({ list: upcoming(mine) }));
     if (!list.products.length) continue;
     const preStart = preorderFromTitle(got.title);
     for (const e of await listEvents(list, src.work)) {
@@ -130,5 +165,5 @@ export async function crawlNext(db: Db): Promise<{ source: string | null; added:
       if (!error && data) { rows.push(data); added++; }
     }
   }
-  return { source: src.key, added, merged, read };
+  return { added, merged, read };
 }
