@@ -36,7 +36,7 @@ const CATEGORY_RULES: [string, RegExp][] = [
 ];
 export const categoryOf = (title: string) => CATEGORY_RULES.find(([, re]) => re.test(title))?.[0] ?? '雑貨';
 /** 本（コミック・小説・画集など）か。本はグッズではなく「書籍」の予定にする。手帳・カレンダーはグッズ */
-const isBook = (title: string) => /【(?:コミック|小説|書籍|その他\(書籍\)|ムック|画集|雑誌)】|コミックス|ファンブック|画集|ノベライズ|小説/.test(title.normalize('NFKC')) && !/手帳|カレンダー/.test(title);
+export const isBook = (title: string) => /【(?:コミック|小説|書籍|その他\(書籍\)|ムック|画集|雑誌)】|コミックス|ファンブック|画集|ノベライズ|小説/.test(title.normalize('NFKC')) && !/手帳|カレンダー/.test(title);
 
 const SEP = /[\s・/~〜～＜＞<>()（）【】「」『』[\]、,]/;
 // 長音「ー」は落とさない（「ステッカー（うさぎ）」の頭が「ステッカ」になる）
@@ -99,6 +99,8 @@ export function groupProducts(products: ListProduct[]): ProductGroup[] {
   for (let i = 0; i < products.length; i++) {
     for (let j = i + 1; j < products.length; j++) {
       if (find(i) === find(j) || !sameRelease(products[i], products[j])) continue;
+      // コミック・書籍は絶対にまとめない（巻・版の違いを1件にするとおかしくなる。本人指摘・2026-09-27）
+      if (isBook(products[i].title) || isBook(products[j].title)) continue;
       if (variantLabels([names[i], names[j]])) parent[find(j)] = find(i);
     }
   }

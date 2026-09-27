@@ -93,7 +93,8 @@ const sameKey = (t: string) => t.normalize('NFKC').toLowerCase().replace(/【[^�
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function findSame(existing: any[], e: ListEvent): any | null {
   const k = sameKey(e.title);
-  if (k.length < 10) return null;
+  // コミック・書籍は別の店の予定にもまとめない（巻・版の違いを取り違えないように）
+  if (k.length < 10 || e.categories.includes('書籍')) return null;
   for (const row of existing) {
     if (e.date && row.event_date && Math.abs(Date.parse(e.date) - Date.parse(row.event_date)) > 31 * 86400_000) continue;
     if (sameKey(String(row.title ?? '')) === k) return row;
