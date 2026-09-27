@@ -15,9 +15,9 @@ export interface ProductList { title: string; shop: string; retailer: string; pr
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36';
 
-async function getHtml(url: string): Promise<string | null> {
+async function getHtml(url: string, timeoutMs = 15000): Promise<string | null> {
   try {
-    const r = await fetch(url, { headers: { 'User-Agent': UA, 'Accept-Language': 'ja' }, signal: AbortSignal.timeout(15000) });
+    const r = await fetch(url, { headers: { 'User-Agent': UA, 'Accept-Language': 'ja' }, signal: AbortSignal.timeout(timeoutMs) });
     return r.ok ? await r.text() : null;
   } catch { return null; } // 時間切れ・接続できない ＝ 読めなかった
 }
@@ -52,7 +52,8 @@ async function movicList(u: URL, page: number): Promise<ProductList | null> {
   if (/^\/shop\/g\//.test(u.pathname)) return null; // 1商品のページ
   const pu = new URL(u.toString());
   if (page > 1) pu.searchParams.set('p', String(page)); else pu.searchParams.delete('p');
-  const html = await getHtml(pu.toString());
+  // ムービックの検索は返るまで7〜19秒かかる（2026-09-27 実測）
+  const html = await getHtml(pu.toString(), 30000);
   if (!html) return null;
   const items = parseMovicList(html);
   if (!items.length) return null;

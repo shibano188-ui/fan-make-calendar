@@ -10,14 +10,14 @@
 // 下見から書き込みまでの間に予定が変わっていたら（hash が違えば）書かずに飛ばす。
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { lookupByUrl, unwrapProductUrl, searchCandidatesWithMeta, highConfidence, searchKeyword, isSetTitle, labelVariants, type Candidate, type UrlLookup } from './_product-search.js';
-import { isSearchPage, representativePrice, type OfferRow } from './_offers.js';
+import { isSearchPage, isAff, representativePrice, type OfferRow } from './_offers.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any>;
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** 書き込んでよい列（管理画面から送られてくる変更は、これ以外を受け付けない） */
-const WRITABLE = ['offers', 'price', 'event_date', 'date_label', 'end_date', 'is_order_made', 'preorder_start_date', 'preorder_end_date'] as const;
+const WRITABLE = ['offers', 'price', 'event_date', 'date_label', 'end_date', 'is_order_made', 'preorder_start_date', 'preorder_end_date', 'image_url'] as const;
 type Writable = typeof WRITABLE[number];
 export type EnrichSet = Partial<Record<Writable, unknown>>;
 
@@ -29,7 +29,7 @@ export interface EnrichProposal {
   dateChange: boolean;   // 日付に触るか（間違えると通知の日がずれるので、画面で分けて見せる）
 }
 
-const FIELDS = 'id, title, price, offers, event_date, date_label, end_date, is_order_made, preorder_start_date, preorder_end_date, works(name)';
+const FIELDS = 'id, title, price, offers, event_date, date_label, end_date, is_order_made, preorder_start_date, preorder_end_date, image_url, works(name)';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function rowHash(row: any): string {
@@ -102,15 +102,20 @@ async function planOne(row: any, removed: Set<string>, dateEdited: boolean): Pro
     notes.push(`リンクに名前: ${[...labels.values()].join(' / ')}`);
   }
 
-  // 3. 値段の取れる店のリンクが無ければ、販売先を探す
-  if (!hits.size && title) {
+  // 3. 販売先を探す。値段の取れる店のリンクが無いときに加えて、公式店のリンクしか無いとき（楽天・Yahoo!などの
+  //    広告の付くリンクが無いとき）も、ほかのECのリンクを足して値段を比べられるようにする（本人要望・2026-09-27）。
+  //    すでにリンクのある店は足さない（同じ店の別の出品で埋まらないように）
+  const noPriced = !hits.size;
+  if (title && (noPriced || !live().some(isAff))) {
     const kw = searchKeyword(workName, title);
     const { items, animateTotal } = await searchCandidatesWithMeta(kw).catch(() => ({ items: [] as Candidate[], animateTotal: null }));
     const picks = highConfidence(title, items, workName);
     const existing = new Set(offers.map((o) => o.url)); // 取り消し済みも含める（取り消したリンクを復活させない）
+    const shops = new Set(live().map((o) => o.retailer ?? ''));
     const added: string[] = [];
     for (const c of picks) {
       if (existing.has(c.url)) continue;
+      if (!noPriced && shops.has(c.retailer)) continue;
       offers.push({
         retailer: c.retailer || '楽天', shop: c.shop || undefined, url: c.url, affiliateUrl: c.url, hasAffiliate: c.hasAffiliate,
         price: c.price, fetchedAt: now, official: c.official, isSet: isSetTitle(c.title), inStock: c.inStock, stockLabel: c.stockLabel,
@@ -125,7 +130,7 @@ async function planOne(row: any, removed: Set<string>, dateEdited: boolean): Pro
     const fromAnimate = picks.filter((c) => c.retailer === 'アニメイト').length;
     const hasAnimate = offers.some((o) => /animate-onlineshop\.jp/.test(o.url));
     const url = animateSearchUrl(kw);
-    if (animateTotal && animateTotal <= 30 && animateTotal > fromAnimate && !existing.has(url) && (!hasAnimate || picks.some((c) => c.label))) {
+    if (noPriced && animateTotal && animateTotal <= 30 && animateTotal > fromAnimate && !existing.has(url) && (!hasAnimate || picks.some((c) => c.label))) {
       offers.push({ retailer: 'アニメイト', url, affiliateUrl: url, hasAffiliate: false, label: '検索結果' });
       notes.push(`アニメイトの検索結果を追加（${animateTotal}件）`);
     }
@@ -165,6 +170,12 @@ async function planOne(row: any, removed: Set<string>, dateEdited: boolean): Pro
         dateChange = true;
       }
     }
+  }
+
+  // 4.5 画像。予定に画像が無ければ、リンク先の商品ページの画像を入れる
+  if (!row.image_url) {
+    const img = [...hits.values()].find((h) => h.image)?.image;
+    if (img) { set.image_url = img; notes.push('画像を追加'); }
   }
 
   // 5. 代表価格
@@ -219,4 +230,45 @@ export async function applyEnrich(db: Db, changes: { id: string; hash: string; s
     applied++;
   }
   return { applied, skipped, backup };
+}
+
+/** 自動の手直し（本人要望・2026-09-27）。手で下見して選んだ結果が「手直し不要」だったので、定期実行で書き込む。
+ *  pg_cron が10分おきに /api/metrics?task=bot を呼ぶ（巡回のあとの残りの時間で）（sql/2026-09-27-auto-enrich.sql）。
+ *  1回あたり budgetMs まで、前回の続き（bot_state の cursor＝作成日時）から順に見て、変更案があればそのまま書く。
+ *  最後まで行ったら頭に戻る（グッズ400件で半日ほどで一周）。発売から30日以上たったグッズは見ない。
+ *  書いた変更は enrich_log に前後の値を残す（戻すとき用。管理画面の手動のときの JSON の代わり）。 */
+export async function autoEnrich(db: Db, budgetMs: number): Promise<{ checked: number; applied: number; wrapped: boolean }> {
+  const started = Date.now();
+  const { data: st } = await db.from('bot_state').select('value').eq('key', 'auto_enrich').maybeSingle();
+  const cursor = ((st?.value ?? {}) as { after?: string | null }).after ?? null;
+  const cutoff = new Date(Date.now() + 9 * 3600_000 - 30 * DAY).toISOString().slice(0, 10);
+  let q = db.from('events').select(`${FIELDS}, created_at`)
+    .eq('type', 'goods').eq('pool', 0).or(`event_date.is.null,event_date.gte.${cutoff}`)
+    .order('created_at', { ascending: true }).limit(40);
+  if (cursor) q = q.gt('created_at', cursor);
+  const { data: rows } = await q;
+  if (!rows?.length) {
+    await db.from('bot_state').upsert({ key: 'auto_enrich', value: { after: null }, updated_at: new Date().toISOString() });
+    return { checked: 0, applied: 0, wrapped: true };
+  }
+  const { removed, dateEdited } = await loadEdits(db);
+  let checked = 0, applied = 0;
+  let after = cursor;
+  for (const row of rows) {
+    if (Date.now() - started > budgetMs) break;
+    try {
+      const p = await planOne(row, removed.get(row.id as string) ?? new Set(), dateEdited.has(row.id as string));
+      if (p) {
+        const r = await applyEnrich(db, [{ id: p.id, hash: p.hash, set: p.set }]);
+        if (r.applied) {
+          applied++;
+          await db.from('enrich_log').insert({ event_id: p.id, before: r.backup[0]?.before ?? null, after: p.set, notes: p.notes });
+        }
+      }
+    } catch { /* 1件の失敗で止めない */ }
+    checked++;
+    after = row.created_at as string;
+  }
+  await db.from('bot_state').upsert({ key: 'auto_enrich', value: { after }, updated_at: new Date().toISOString() });
+  return { checked, applied, wrapped: false };
 }

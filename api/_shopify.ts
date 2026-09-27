@@ -124,16 +124,20 @@ export async function fetchShopifyCollection(raw: string, page = 1): Promise<{ t
 }
 
 /** 商品のURL（/products/{handle}、/collections/…/products/{handle}）なら価格・在庫を返す。Shopifyでなければ null */
-export async function lookupShopifyProduct(raw: string): Promise<{ title: string; price: number; inStock?: boolean; stockLabel?: string; shop: string } | null> {
+export async function lookupShopifyProduct(raw: string): Promise<{ title: string; price: number; inStock?: boolean; stockLabel?: string; shop: string; release?: { date: string; dateLabel: null }; image?: string } | null> {
   const u = await safePublicUrl(raw);
   const handle = u?.pathname.match(/\/products\/([^/?#]+)/)?.[1];
   if (!u || !handle) return null;
-  const p = await getJson<{ title?: string; price?: number; available?: boolean; tags?: unknown }>(`${u.origin}/products/${handle}.js`).catch(() => null);
+  const p = await getJson<{ title?: string; price?: number; available?: boolean; tags?: unknown; featured_image?: string }>(`${u.origin}/products/${handle}.js`).catch(() => null);
   if (!p || typeof p.price !== 'number') return null;
   const tags = tagList(p.tags);
+  const release = releaseFromTags(tags);
   return {
     title: String(p.title ?? ''), price: Math.round(p.price / 100),
-    ...stockOf(!!p.available, tags, String(p.title ?? ''), releaseFromTags(tags)),
+    ...stockOf(!!p.available, tags, String(p.title ?? ''), release),
+    ...(release ? { release } : {}),
+    // featured_image は「//cdn.shopify.com/…」のようにスキームが無いことがある
+    ...(p.featured_image ? { image: p.featured_image.startsWith('//') ? `https:${p.featured_image}` : p.featured_image } : {}),
     shop: await shopifyShopName(u.origin),
   };
 }

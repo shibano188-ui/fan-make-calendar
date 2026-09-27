@@ -1261,7 +1261,7 @@ export async function listExploreEvents(from: string, to: string): Promise<Calen
 
 export async function updateEvent(
   eventId: string,
-  data: Partial<Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'isOrderMade' | 'preorderStart' | 'preorderEnd' | 'preorderStartTime' | 'preorderEndTime'>>,
+  data: Partial<Pick<CalendarEvent, 'title' | 'date' | 'dateLabel' | 'time' | 'endDate' | 'endTime' | 'category' | 'link' | 'memo' | 'prefecture' | 'locationDetail' | 'locationMapLink' | 'isOrderMade' | 'preorderStart' | 'preorderEnd' | 'preorderStartTime' | 'preorderEndTime' | 'imageUrl'>>,
 ): Promise<void> {
   const row: Record<string, unknown> = {};
   if (data.title !== undefined) row.title = data.title;
@@ -1275,6 +1275,7 @@ export async function updateEvent(
   if ('category' in data) row.category = data.category || null;
   if ('link' in data) row.link_url = data.link || null;
   if ('memo' in data) row.memo = data.memo || null;
+  if ('imageUrl' in data) row.image_url = data.imageUrl || null;
   if ('prefecture' in data) row.prefecture = normalizePrefecture(data.prefecture) ?? null;
   if ('locationDetail' in data) row.location_detail = data.locationDetail || null;
   if ('locationMapLink' in data) row.location_map_link = data.locationMapLink || null;
@@ -1310,6 +1311,12 @@ export async function updatePreorderInfo(
 }
 
 // ─── イベント削除 ─────────────────────────────────────────────────
+
+/** 運営の印（staff）。'admin'＝誰の予定でも直せる／消せる、'bot'＝巡回ボットの投稿アカウント。無ければ null */
+export async function getMyStaffRole(userId: string): Promise<'admin' | 'bot' | null> {
+  const { data } = await supabase.from('staff').select('role').eq('user_id', userId).maybeSingle();
+  return (data?.role as 'admin' | 'bot' | undefined) ?? null;
+}
 
 export async function deleteEvent(eventId: string): Promise<void> {
   // 本人のみ削除可（投稿者チェックは関数側）。likes も関数内で削除
