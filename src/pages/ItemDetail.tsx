@@ -8,7 +8,7 @@ import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME } from '../lib/constants';
 import { deriveItemType, itemDateLines, todayStr, isDateUncertain, stageFlow } from '../design/tokens';
-import { resolveBuy, getOffers, offerUrl, primaryOffer, isSearchPageUrl, isSourceOnlyLink, priceRange, isStockStale } from '../lib/affiliate';
+import { resolveBuy, getOffers, offerUrl, primaryOffer, isSearchPageUrl, isSourceOnlyLink, priceRange, isStockStale, stockBadge } from '../lib/affiliate';
 import { buildPinnedOffer } from '../lib/searchProduct';
 import { openBuyLink } from '../lib/dataLogs';
 import { openExternal } from '../lib/openExternal';
@@ -402,9 +402,19 @@ export default function ItemDetail() {
               <div className="flex-shrink-0">
             {/* 日程 */}
             <div className="mt-3 flex items-start gap-2">
-              <CalendarDays size={16} className="text-label-secondary mt-0.5 flex-shrink-0" />
-              <div className="text-[14px]">
-                {dateLines.map((l, i) => <div key={i}>{l}</div>)}
+              <CalendarDays size={16} className="text-label-secondary mt-1 flex-shrink-0" />
+              <div>
+                {/* 日付はこのページで一番大事な情報なので大きく太く。「発売」「予約・受注」の見出しは小さく添える（本人要望・2026-09-27） */}
+                {dateLines.map((l, i) => {
+                  const sp = l.indexOf(' ');
+                  const head = sp > 0 ? l.slice(0, sp) : '';
+                  return (
+                    <div key={i} className="flex items-baseline gap-1.5 leading-snug">
+                      {head && <span className="text-[12px] text-label-secondary flex-shrink-0">{head}</span>}
+                      <span className="text-[17px] font-bold tabular-nums">{sp > 0 ? l.slice(sp + 1) : l}</span>
+                    </div>
+                  );
+                })}
                 {/* 日付が未定・曖昧（9月下旬・春頃など）なら、まだ確かでないことを添える（終わった予定には出さない） */}
                 {isDateUncertain(eff) && (() => { const f = stageFlow(eff); return f.current < f.steps.length - 1; })() && (
                   <span className="inline-block mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded"
@@ -562,15 +572,14 @@ export default function ItemDetail() {
                         {o.retailer || 'リンク'}{o.shop ? `（${o.shop}）` : ''}{isSearchPageUrl(o.url) && o.label !== '検索結果' ? '（検索）' : ''}
                       </span>
                       <span className="flex items-center gap-1.5 flex-shrink-0">
-                        {/* 在庫は「あり/なし」の2値だけ出す（販路ごとに粒度が違うので生の表記は使わない）。
-                            未取得(undefined)のときは何も出さない＝Cronが更新するまで無表示 */}
+                        {/* 在庫は決まった4つの札だけ出す（stockBadge）。未取得のときは何も出さない＝Cronが更新するまで無表示 */}
                         {/* 節目（予約開始・終了・発売）より前に取ったきりの在庫は出さない（isStockStale） */}
-                        {o.inStock !== undefined && !isStockStale(eff, o) && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                            style={{ color: o.inStock ? 'var(--color-success)' : 'var(--color-destructive)', background: 'var(--fill-secondary, rgba(120,120,128,0.16))' }}>
-                            {o.inStock ? '在庫あり' : '在庫なし'}
-                          </span>
-                        )}
+                        {(() => {
+                          const b = !isStockStale(eff, o) && stockBadge(o);
+                          if (!b) return null;
+                          const color = b.tone === 'ok' ? 'var(--color-success)' : b.tone === 'out' ? 'var(--color-destructive)' : 'var(--status-info)';
+                          return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ color, background: 'var(--fill-secondary, rgba(120,120,128,0.16))' }}>{b.text}</span>;
+                        })()}
                         {o.isSet && <span className="text-[10px] font-bold text-label-secondary px-1.5 py-0.5 rounded" style={{ background: 'var(--fill-secondary, rgba(120,120,128,0.16))' }}>セット</span>}
                         <span className="text-[13px] font-bold" style={{ color: 'var(--accent-text)' }}>{o.price ? `¥${o.price.toLocaleString()}` : '開く ↗'}</span>
                       </span>

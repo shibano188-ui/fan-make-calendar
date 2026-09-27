@@ -157,6 +157,17 @@ const SEARCH_PAGE_PATTERNS: RegExp[] = [
 ];
 
 /** 商品ページではなく検索・一覧ページのURLか（販路としては不完全）。 */
+/** 詳細ページの在庫の札。在庫あり・予約受付中・受付前・在庫なしの4つだけ（販路ごとに粒度が違うので生の表記は出さない）。
+ *  「受付前」はまだ売り出していない商品（Shopify の「販売開始前」、アニメイトの「予約受付前」など）。
+ *  売り切れと区別しないと「11時予約開始」の商品が在庫なしに見える（本人指摘・2026-09-27）。未取得は null */
+export function stockBadge(o: Pick<Offer, 'inStock' | 'stockLabel'>): { text: string; tone: 'ok' | 'wait' | 'out' } | null {
+  const label = o.stockLabel ?? '';
+  if (/受付前|開始前|発売前/.test(label)) return { text: '受付前', tone: 'wait' };
+  if (o.inStock === false) return { text: '在庫なし', tone: 'out' };
+  if (o.inStock === true) return { text: /予約/.test(label) ? '予約受付中' : '在庫あり', tone: 'ok' };
+  return null;
+}
+
 /** 在庫の表示が古いか。予約開始・予約終了・発売の節目を過ぎたのに、節目より前に取った在庫しか無いときは
  *  出さない（「予約受付中なのに在庫なし」のような食い違いでユーザーが混乱する。本人要望・2026-09-26）。
  *  節目のあとはサーバーがこまめに取り直すので（api/_boundary.ts）、取り直せばまた出る。時刻はJST。 */

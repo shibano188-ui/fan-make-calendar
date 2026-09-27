@@ -56,7 +56,35 @@ export async function shopifyShopName(origin: string): Promise<string> {
   return meta?.name?.trim() || new URL(origin).host;
 }
 
-export interface ShopifyProduct { title: string; url: string; price: number; inStock: boolean; image: string; images: string[] }
+export interface ShopifyProduct {
+  title: string; url: string; price: number; image: string; images: string[];
+  /** false=売り切れ。まだ売り出していない（受付前）ときは undefined にして stockLabel で伝える */
+  inStock?: boolean; stockLabel?: string;
+  release?: { date: string; dateLabel: string | null };
+}
+
+// Shopify は「売り切れ」と「まだ売り出していない」を区別しない（どちらも available=false）。
+// そのままだと「11時予約開始」の商品が売り切れに見えるので、店が付ける印で見分ける（本人指摘・2026-09-27）。
+//   ちいかわマーケット: タグ「販売開始前」と、発売日のタグ「20261009」
+const PRE_SALE_RE = /販売開始前|予約開始前|受付開始前|発売前|coming\s*soon/i;
+const todayJst = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+
+/** 発売日のタグ（「20261009」）。1つだけのときに使う */
+function releaseFromTags(tags: string[]): { date: string; dateLabel: null } | null {
+  const ds = [...new Set(tags.map((t) => t.trim()).filter((t) => /^20\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])$/.test(t)))];
+  if (ds.length !== 1) return null;
+  return { date: `${ds[0].slice(0, 4)}-${ds[0].slice(4, 6)}-${ds[0].slice(6)}`, dateLabel: null };
+}
+
+/** 在庫。買えないとき、受付前の印があるか、発売日のタグが今日より先なら受付前 */
+function stockOf(available: boolean, tags: string[], text: string, release: { date: string } | null): Pick<ShopifyProduct, 'inStock' | 'stockLabel'> {
+  if (available) return { inStock: true };
+  if (tags.some((t) => PRE_SALE_RE.test(t)) || PRE_SALE_RE.test(text) || (release && release.date > todayJst())) return { stockLabel: '受付前' };
+  return { inStock: false };
+}
+
+/** tags は products.json では配列、/products/{handle}.js でも配列（古い店は「a, b」の文字列のことがある） */
+const tagList = (t: unknown): string[] => (Array.isArray(t) ? t.map(String) : typeof t === 'string' ? t.split(',') : []);
 
 /** コレクションのURL（/collections/{handle}）なら、コレクション名・店名・商品一覧を返す。Shopifyでなければ null */
 export async function fetchShopifyCollection(raw: string, page = 1): Promise<{ title: string; shop: string; products: ShopifyProduct[]; hasMore: boolean } | null> {
@@ -74,11 +102,14 @@ export async function fetchShopifyCollection(raw: string, page = 1): Promise<{ t
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const vs = (p.variants ?? []) as any[];
     const prices = vs.map((v) => Number(v.price)).filter((n) => n > 0);
+    const tags = tagList(p.tags);
+    const release = releaseFromTags(tags);
     return {
       title: String(p.title ?? '').trim(),
       url: `${u.origin}/products/${p.handle}`,
       price: prices.length ? Math.min(...prices) : 0,
-      inStock: vs.some((v) => v.available),
+      ...stockOf(vs.some((v) => v.available), tags, String(p.title ?? ''), release),
+      ...(release ? { release } : {}),
       image: String(p.images?.[0]?.src ?? ''),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       images: ((p.images ?? []) as any[]).map((im) => String(im?.src ?? '')).filter(Boolean),
@@ -89,11 +120,16 @@ export async function fetchShopifyCollection(raw: string, page = 1): Promise<{ t
 }
 
 /** 商品のURL（/products/{handle}、/collections/…/products/{handle}）なら価格・在庫を返す。Shopifyでなければ null */
-export async function lookupShopifyProduct(raw: string): Promise<{ title: string; price: number; inStock: boolean; shop: string } | null> {
+export async function lookupShopifyProduct(raw: string): Promise<{ title: string; price: number; inStock?: boolean; stockLabel?: string; shop: string } | null> {
   const u = await safePublicUrl(raw);
   const handle = u?.pathname.match(/\/products\/([^/?#]+)/)?.[1];
   if (!u || !handle) return null;
-  const p = await getJson<{ title?: string; price?: number; available?: boolean }>(`${u.origin}/products/${handle}.js`).catch(() => null);
+  const p = await getJson<{ title?: string; price?: number; available?: boolean; tags?: unknown }>(`${u.origin}/products/${handle}.js`).catch(() => null);
   if (!p || typeof p.price !== 'number') return null;
-  return { title: String(p.title ?? ''), price: Math.round(p.price / 100), inStock: !!p.available, shop: await shopifyShopName(u.origin) };
+  const tags = tagList(p.tags);
+  return {
+    title: String(p.title ?? ''), price: Math.round(p.price / 100),
+    ...stockOf(!!p.available, tags, String(p.title ?? ''), releaseFromTags(tags)),
+    shop: await shopifyShopName(u.origin),
+  };
 }

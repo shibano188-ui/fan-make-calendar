@@ -158,6 +158,9 @@ async function searchAnimate(keyword: string): Promise<{ items: Candidate[]; tot
   return { items: parseAnimateList(html).slice(0, 12), total };
 }
 
+/** アニメイトの販売状況 → 在庫。「予約受付前」のような売り出し前は売り切れではないので undefined（表記は stockLabel で伝える） */
+const animateInStock = (stock: string) => (/受付前|開始前|発売前/.test(stock) ? undefined : !/販売終了|品切|売切|在庫なし/.test(stock));
+
 /** アニメイトの一覧ページ（検索結果・作品ページなど）のHTMLから商品を読む。発売日も付ける。
  *  1商品 = <div class="item_list_thumb"> 単位（サムネ・h3タイトル・p.price・販売状況・発売日） */
 export function parseAnimateList(html: string): (Candidate & { release?: { date: string; dateLabel: string | null } })[] {
@@ -182,7 +185,7 @@ export function parseAnimateList(html: string): (Candidate & { release?: { date:
       retailer: 'アニメイト',
       hasAffiliate: false,
       official: true,
-      inStock: !stock || !/販売終了|品切|売切|在庫なし/.test(stock),
+      inStock: stock ? animateInStock(stock) : true,
       stockLabel: stock,
       ...(release ? { release } : {}),
     });
@@ -300,7 +303,7 @@ async function lookupAnimate(u: URL): Promise<UrlLookup | null> {
     ...(pre?.end ? { preorderEnd: pre.end } : {}),
     title: title ? decodeEntities(title).trim() : undefined, price: Number(price.replace(/,/g, '')),
     shop: 'アニメイトオンラインショップ', retailer: 'アニメイト', official: true,
-    inStock: stock ? !/販売終了|品切|売切|在庫なし/.test(stock) : undefined, stockLabel: stock || undefined,
+    inStock: stock ? animateInStock(stock) : undefined, stockLabel: stock || undefined,
   };
 }
 
@@ -365,7 +368,7 @@ export async function lookupByUrl(rawUrl: string): Promise<UrlLookup | null> {
     // それ以外の店は、Shopify の商品ページ（/products/…）なら読める（ちいかわマーケットなど作品の公式通販に多い）
     if (/\/products\/[^/]+/.test(u.pathname)) {
       const p = await lookupShopifyProduct(u.toString());
-      if (p) return { title: p.title, price: p.price, shop: p.shop, retailer: p.shop, official: true, inStock: p.inStock };
+      if (p) return { title: p.title, price: p.price, shop: p.shop, retailer: p.shop, official: true, inStock: p.inStock, stockLabel: p.stockLabel };
     }
   } catch { /* タイムアウト・形式変更は「取れなかった」扱い */ }
   return null;
@@ -539,7 +542,7 @@ function sameProduct(a: string, b: string, entered: string): boolean {
 // ── 種類違い（src/lib/searchProduct.ts の labelVariants と同じ。両者は同期を保つこと）──
 // 同じ店の候補どうしで、共通の前後を除いた残りを「種類の名前」にする。括弧に入っているとは限らない
 // （アニメイト: 「…＜アクリルスタンド付＞ 02 五条悟 ～水色～」、楽天: 「【天童覚 (N ノーマル) 】 …」）。
-function stripShopNoise(t: string): string {
+export function stripShopNoise(t: string): string {
   return t.normalize('NFKC')
     .replace(/\[[^\]]*\]|《[^》]*》/g, ' ')
     .replace(/【([^】]*)】/g, (m, inner: string) => (SHOP_NOISE_RE.test(inner) ? ' ' : m))
