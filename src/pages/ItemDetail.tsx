@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Pin, Share2, X, Plus } from 'lucide-react';
 import type { CalendarEvent, EventVisit } from '../types';
 import EventEditForm from '../components/item/EventEditForm';
-import { getEventById, getWorkById, getDisplayName, toggleLike, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, addEventVisit, removeEventVisit, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
+import StaffEditPanel from '../components/item/StaffEditPanel';
+import { getEventById, getWorkById, getDisplayName, toggleLike, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, addEventVisit, removeEventVisit, getMyStaffRole, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME } from '../lib/constants';
@@ -73,6 +74,15 @@ export default function ItemDetail() {
   const confirm = useConfirm();
   const [edits, setEdits] = useState<EventEdit[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // 運営（staff.role='admin'）は誰の予定でも直せる。巡回ボットの予定を各自の担当の作品で直してもらう
+  const [isStaff, setIsStaff] = useState(false);
+  const [staffEditing, setStaffEditing] = useState(false);
+  useEffect(() => {
+    if (!user) { setIsStaff(false); return; }
+    let alive = true;
+    getMyStaffRole(user.id).then((r) => { if (alive) setIsStaff(r === 'admin'); }).catch(() => {});
+    return () => { alive = false; };
+  }, [user]);
   const premium = usePremium();
   const [following, setFollowing] = useState(false);
   const [followCount, setFollowCount] = useState(0);
@@ -140,6 +150,8 @@ export default function ItemDetail() {
   const eff = applyEdits(event, edits); // 編集パッチを重ねた実効値
   // 投稿者だけは今までどおりその場で直せる（ほかの人の追加・修正はすべて「＋α」から）
   const isAuthor = !!user && user.id === event.authorId;
+  // 投稿者と運営は、日付・購入リンク・タイトル・説明・画像などをその場で直せる
+  const canFix = isAuthor || isStaff;
   const type = deriveItemType(eff);
   const images = parseImageUrls(event.imageUrl);
   let cats = parseCategories(event.category);
@@ -365,6 +377,14 @@ export default function ItemDetail() {
 
             {/* タイトル */}
             <h1 className="text-[19px] font-bold leading-snug mt-1">{event.title}</h1>
+            {canFix && !staffEditing && (
+              <button onClick={() => { haptic.select(); setStaffEditing(true); }} className="pressable mt-1 text-[12px]" style={{ color: 'var(--accent-text)' }}>タイトル・説明・画像を直す</button>
+            )}
+            {canFix && staffEditing && (
+              <StaffEditPanel event={event} onClose={() => setStaffEditing(false)}
+                onSaved={(patch) => { setEv((prev) => (prev ? { ...prev, ...patch } : prev)); setStaffEditing(false); }}
+                onDeleted={() => navigate(-1)} />
+            )}
 
           </div>
 
@@ -437,12 +457,12 @@ export default function ItemDetail() {
             </div>
 
             {/* ほかの人の追加・修正は「＋α」のパネルから。投稿者だけはここで直せる */}
-            {isAuthor && (!editing ? (
+            {canFix && (!editing ? (
               <button onClick={() => { haptic.select(); setEditing(true); }} className="pressable mt-2 text-[12px]" style={{ color: 'var(--accent-text)' }}>日付を修正</button>
             ) : (
               <EventEditForm event={eff} onClose={() => setEditing(false)} onSave={onSaveEdit} />
             ))}
-            {isAuthor && edits.length > 0 && (
+            {canFix && edits.length > 0 && (
               <div className="mt-2">
                 <button onClick={() => setHistoryOpen((v) => !v)} className="pressable text-[12px] text-label-tertiary">
                   編集履歴（{edits.length}）{historyOpen ? ' ▲' : ' ▼'}
@@ -587,7 +607,7 @@ export default function ItemDetail() {
                     {/* 入口は「修正」ひとつだけ。アイコンを2つ並べると tap-44 の44px判定が重なって
                         手前のボタンに食われるうえ、Xでは何が起きるか字で説明できない。
                         この機能の動機は「リンクがおかしいから消したい」なので、パネルの先頭は取り消し。 */}
-                    {isAuthor && (
+                    {canFix && (
                       <button onClick={() => { haptic.select(); setReplaceUrl(''); setFixingUrl((prev) => (prev === o.url ? null : o.url)); }}
                         className="pressable flex-shrink-0 text-[11px] px-2 py-1.5 text-label-tertiary">{fixingUrl === o.url ? '閉じる' : '修正'}</button>
                     )}

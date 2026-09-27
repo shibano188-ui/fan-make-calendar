@@ -327,6 +327,8 @@ async function lookupMovic(u: URL): Promise<UrlLookup | null> {
   return {
     title: decodeEntities(String(p.name ?? '')).trim() || undefined, price, shop: 'ムービック', retailer: 'ムービック', official: true,
     inStock: avail ? avail === 'InStock' || avail === 'PreOrder' || avail === 'LimitedAvailability' : undefined,
+    // 予約で売っている商品は、予定も「予約あり」にする（_listgroup.ts の listEvents）
+    ...(avail === 'PreOrder' ? { stockLabel: '予約受付中' } : {}),
     ...(rel ? { release: { date: ymd(rel[1], rel[2], rel[3]), dateLabel: null } } : {}),
   };
 }

@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { loginPage, dashboardPage, enrichPage } from './_dashboard-html.js';
 import { planEnrich, applyEnrich, autoEnrich } from './_enrich.js';
+import { crawlNext } from './_crawl.js';
 import { sendPushes, fcmConfigured, type PushMessage } from './_fcm.js';
 import { collectAppStore, collectAppStoreAnalytics, collectPlay, type StoreResult } from './_stores.js';
 
@@ -14,7 +15,8 @@ import { collectAppStore, collectAppStoreAnalytics, collectPlay, type StoreResul
 //   GET（Cookieなし）                      … パスワードの入力画面
 //   GET ?key=<パスワード>                  … チームに配るリンク。Cookieを置いて本体へ飛ばす
 //   ?enrich=1 / plan / apply（Cookieあり）  … 投稿済みグッズの手直し（下見→選ぶ→書き込み。_enrich.ts）
-//   ?task=enrich（Bearer <CRON_SECRET>）   … 自動の手直し。pg_cron が10分おきに呼ぶ（autoEnrich）
+//   ?task=bot（Bearer <CRON_SECRET>）      … 運営のボット。pg_cron が10分おきに呼ぶ。
+//                                           巡回を1か所（_crawl.ts）→ 残りの時間で投稿済みグッズの手直し（autoEnrich）
 //
 // 画面側からは一切通信しない。Service Worker や sessionStorage の状態で
 // 「押しても何も起きない」が起きないようにするため。
@@ -291,10 +293,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ① Cron（Vercel が Authorization: Bearer <CRON_SECRET> を付けて呼ぶ）
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && (req.headers.authorization ?? '') === `Bearer ${cronSecret}`) {
-    if (req.query.task === 'enrich') {
+    if (req.query.task === 'bot') {
       const client = db();
       if (!client) return res.status(500).json({ error: 'Server config error' });
-      return res.status(200).json(await autoEnrich(client, 50_000));
+      const started = Date.now();
+      const crawl = await crawlNext(client).catch((e) => ({ error: String(e) }));
+      const enrich = await autoEnrich(client, Math.max(0, 80_000 - (Date.now() - started)));
+      return res.status(200).json({ crawl, enrich });
     }
     return collect(req, res);
   }

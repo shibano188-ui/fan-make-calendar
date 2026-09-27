@@ -222,7 +222,7 @@ export async function applyEnrich(db: Db, changes: { id: string; hash: string; s
 }
 
 /** 自動の手直し（本人要望・2026-09-27）。手で下見して選んだ結果が「手直し不要」だったので、定期実行で書き込む。
- *  pg_cron が10分おきに /api/metrics?task=enrich を呼ぶ（sql/2026-09-27-auto-enrich.sql）。
+ *  pg_cron が10分おきに /api/metrics?task=bot を呼ぶ（巡回のあとの残りの時間で）（sql/2026-09-27-auto-enrich.sql）。
  *  1回あたり budgetMs まで、前回の続き（bot_state の cursor＝作成日時）から順に見て、変更案があればそのまま書く。
  *  最後まで行ったら頭に戻る（グッズ400件で半日ほどで一周）。発売から30日以上たったグッズは見ない。
  *  書いた変更は enrich_log に前後の値を残す（戻すとき用。管理画面の手動のときの JSON の代わり）。 */

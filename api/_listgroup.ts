@@ -3,8 +3,8 @@
 // サムネイルには1商品しか出ないので、別のアイテム（クリアファイルとアクスタ）を混ぜると見逃される。
 // 名前がほぼ同じでもアイテムが違えば分ける。迷ったら分ける側に倒す。
 import { createClient } from '@supabase/supabase-js';
-import { stripShopNoise } from './_product-search.js';
-import type { ListProduct } from './_listsource.js';
+import { stripShopNoise, lookupByUrl } from './_product-search.js';
+import type { ListProduct, ProductList } from './_listsource.js';
 
 // アイテムを表す語。まとまりの共通部分にこれが入っていれば「同じアイテム」、違いの部分に入っていれば別のアイテム。
 // 足りない語があっても、まとまらない（分かれる）だけで混ざりはしない
@@ -163,3 +163,82 @@ export async function detectWork(titles: string[], listTitle: string): Promise<s
   }
   return best && best.hits >= Math.max(1, Math.ceil(titles.length * 0.3)) ? best.name : null;
 }
+
+// ── 一覧 → 予定の形 ─────────────────────────
+
+export interface ListEvent {
+  title: string; kind: string | null; work: string | null;
+  date: string | null; dateLabel: string | null;
+  isOrderMade?: boolean; preorderStart?: string | null; preorderEnd?: string | null;
+  categories: string[]; price: number; imageUrl: string | null; link: null;
+  offers: { retailer: string; shop?: string; url: string; price: number; inStock?: boolean; stockLabel?: string; official: boolean; pinned: boolean; label?: string }[];
+  items: { url: string; title: string; image: string }[];
+}
+
+/** 「10月9日発売商品」のようなコレクション名から発売日を取る。今日より2か月以上前なら来年とみなす */
+function dateFromCollectionTitle(title: string): string | null {
+  const m = title.match(/(?:(\d{4})年)?(\d{1,2})月(\d{1,2})日/);
+  if (!m) return null;
+  const now = new Date();
+  let y = m[1] ? Number(m[1]) : now.getFullYear();
+  const md = `${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+  if (!m[1] && new Date(`${y}-${md}`).getTime() < now.getTime() - 60 * 86400_000) y++;
+  return `${y}-${md}`;
+}
+
+/** 画像のURLを、アプリの image_url の形（1枚なら文字列、複数ならJSON配列の文字列）にする。10枚まで */
+function imagesJson(urls: string[]): string | null {
+  const list = [...new Set(urls.filter(Boolean))].slice(0, 10);
+  return list.length === 0 ? null : list.length === 1 ? list[0] : JSON.stringify(list);
+}
+
+/** まとまりの発売日。中の商品の発売日のうち一番多いもの（一覧に発売日がある店）。無ければ一覧の名前から */
+function groupRelease(items: ProductList['products'], listTitle: string): { date: string | null; dateLabel: string | null } {
+  const count = new Map<string, { n: number; r: { date: string; dateLabel: string | null } }>();
+  for (const p of items) {
+    if (!p.release) continue;
+    const k = `${p.release.date}|${p.release.dateLabel ?? ''}`;
+    count.set(k, { n: (count.get(k)?.n ?? 0) + 1, r: p.release });
+  }
+  const top = [...count.values()].sort((a, b) => b.n - a.n)[0]?.r;
+  return top ? { date: top.date, dateLabel: top.dateLabel } : { date: dateFromCollectionTitle(listTitle), dateLabel: null };
+}
+
+/** 一覧を予定の形（parse-event の返す形・クライアントの ParsedEvent）にする。投稿画面と巡回ボット（_crawl.ts）で使う */
+export async function listEvents(col: ProductList, work: string | null): Promise<ListEvent[]> {
+  const groups = groupProducts(col.products);
+  // 予約で売っている商品（アニメイトの「予約受付中」「予約受付前」など）が入るまとまりは、予定も「予約あり」にする。
+  // 一覧に予約期間は無いので、アニメイトは先頭の商品ページから読む（5件ずつ）。前は予約が付かなかった（本人指摘・2026-09-27）
+  const isPreorder = (g: typeof groups[number]) => g.items.some(({ p }) => /予約/.test(p.stockLabel ?? ''));
+  const periods = new Map<typeof groups[number], { start?: string; end?: string }>();
+  const needPeriod = groups.filter((g) => isPreorder(g) && /animate-onlineshop\.jp/.test(g.items[0].p.url));
+  for (let i = 0; i < needPeriod.length; i += 5) {
+    await Promise.all(needPeriod.slice(i, i + 5).map(async (g) => {
+      const hit = await lookupByUrl(g.items[0].p.url).catch(() => null);
+      if (hit?.preorderEnd || hit?.preorderStart) periods.set(g, { start: hit.preorderStart, end: hit.preorderEnd });
+    }));
+  }
+  return groups.map((g) => ({
+    title: g.title,
+    ...(isPreorder(g) ? { isOrderMade: true, preorderStart: periods.get(g)?.start ?? null, preorderEnd: periods.get(g)?.end ?? null } : {}),
+    // 画面で複数のまとまりを1つにまとめるとき、リンクの名前を「お守り（ハチワレ）」にするのに使う
+    kind: g.kind || null,
+    work,
+    ...(() => { const r = groupRelease(g.items.map((x) => x.p), col.title); return { date: r.date, dateLabel: r.dateLabel }; })(),
+    categories: ['グッズ', ...(g.category ? [g.category] : [])],
+    price: Math.min(...g.items.map((x) => x.p.price)),
+    // 画像は全部。複数の商品なら各商品の1枚目、1商品ならその商品の画像を全部（アプリの複数画像の形＝JSON配列）。
+    // 前は先頭の商品の1枚目だけだった（本人指摘・2026-09-26）
+    imageUrl: imagesJson(g.items.length > 1 ? g.items.map((x) => x.p.image) : g.items[0].p.images),
+    link: null,
+    // 中の商品を全部、名前付きの購入リンクにする（クライアントの Offer と同じ形）
+    offers: g.items.map(({ p, label }) => ({
+      retailer: col.retailer, ...(col.shop !== col.retailer ? { shop: col.shop } : {}),
+      url: p.url, price: p.price, inStock: p.inStock, ...(p.stockLabel ? { stockLabel: p.stockLabel } : {}), official: true, pinned: true,
+      ...(g.items.length > 1 ? { label: label || p.title } : {}),
+    })),
+    // 投稿画面でリンクを外して1件の予定に戻すとき用の、商品ごとの名前と画像（保存はしない）
+    items: g.items.map(({ p }) => ({ url: p.url, title: p.title, image: p.image })),
+  }));
+}
+
