@@ -645,10 +645,19 @@ export default function PostNew() {
     const works = new Map<string, string>();
     let posted = 0;
     const failed: ParsedEvent[] = [];
+    // フォローしている作品か、今フォローできる作品だけ投稿する（canPostTo）。フォローできる数は投稿のたびに減る
+    const follows = await listAllParticipatedWorks(user.id).catch(() => [] as Work[]);
+    const willFollow = new Set<string>();
+    let blocked = 0;
     for (const p of parsedList) {
       try {
         const name = (p.work || workName || workQuery).trim();
         if (!name || !p.title) { failed.push(p); continue; }
+        const followed = follows.some((w) => sameWorkName(w.name, name)) || willFollow.has(name);
+        if (!followed) {
+          if (!canFollowMore(follows.length + willFollow.size, isPremiumCached())) { failed.push(p); blocked++; continue; }
+          willFollow.add(name);
+        }
         let wid = works.get(name) ?? (workId && sameWorkName(name, workName) ? workId : '');
         if (!wid) { wid = (await getOrCreateWork(name)).id; }
         works.set(name, wid);
@@ -672,19 +681,17 @@ export default function PostNew() {
         posted++;
       } catch { failed.push(p); }
     }
-    // 投稿した作品をフォロー（1件ずつの投稿と同じく、無料プランの上限は超えない）
+    // 投稿した作品をフォロー（上の判定で、上限に空きのある分だけ）
     try {
-      const follows = await listAllParticipatedWorks(user.id);
-      let n = follows.length;
       for (const wid of new Set(works.values())) {
         if (follows.some((w) => w.id === wid)) continue;
-        if (!canFollowMore(n, isPremiumCached())) break;
-        await upsertParticipation(wid, user.id); n++;
+        await upsertParticipation(wid, user.id);
       }
     } catch { /* フォローできなくても投稿は成立している */ }
     setBulkSaving(false);
     setParsedList(failed); setMergePick(new Set());
-    toast(failed.length ? `${posted}件投稿しました（${failed.length}件は投稿できませんでした）` : `${posted}件投稿しました`);
+    toast(blocked ? `${posted}件投稿しました。${blocked}件はフォローしていない作品のため投稿していません`
+      : failed.length ? `${posted}件投稿しました（${failed.length}件は投稿できませんでした）` : `${posted}件投稿しました`);
   };
 
   const linkInfo = link.trim() ? affiliatize(link.trim()) : null;
@@ -705,6 +712,13 @@ export default function PostNew() {
     setPreStart(next);
   };
 
+  // 投稿できるのはフォローしている作品か、今フォローできる作品だけ（柴野の判断・2026-09-27）。
+  // フォローしていない作品に投稿できると、投稿した予定が「探す」に出ず、フォローの意味も薄れるため。
+  // フォローできる（上限に空きがある）なら、投稿と一緒にフォローする（下の onSubmit・bulkPost）
+  const FOLLOW_TO_POST = `フォローしている作品にだけ投稿できます。フォローは${FREE_FOLLOW_LIMIT}作品までなので、フォロー中の作品を外すか、プレミアムで増やしてください`;
+  const canPostTo = (follows: Work[], id: string | null, name: string) =>
+    follows.some((w) => (id ? w.id === id : sameWorkName(w.name, name))) || canFollowMore(follows.length, isPremiumCached());
+
   const onSubmit = async () => {
     if (!user || !canSave) return;
     // オンボーディングの体験。ここまでの手順を見せるのが目的なので**保存しない**。
@@ -718,6 +732,12 @@ export default function PostNew() {
     }
     setSaving(true); setError('');
     try {
+      const myFollows = await listAllParticipatedWorks(user.id).catch(() => null);
+      if (myFollows && !canPostTo(myFollows, workId, workName || workQuery.trim())) {
+        setError(FOLLOW_TO_POST);
+        setSaving(false);
+        return;
+      }
       let wid = workId;
       if (!wid) { const w = await getOrCreateWork(workQuery.trim()); wid = w.id; }
 
