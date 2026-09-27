@@ -220,3 +220,44 @@ export async function applyEnrich(db: Db, changes: { id: string; hash: string; s
   }
   return { applied, skipped, backup };
 }
+
+/** 自動の手直し（本人要望・2026-09-27）。手で下見して選んだ結果が「手直し不要」だったので、定期実行で書き込む。
+ *  pg_cron が10分おきに /api/metrics?task=enrich を呼ぶ（sql/2026-09-27-auto-enrich.sql）。
+ *  1回あたり budgetMs まで、前回の続き（bot_state の cursor＝作成日時）から順に見て、変更案があればそのまま書く。
+ *  最後まで行ったら頭に戻る（グッズ400件で半日ほどで一周）。発売から30日以上たったグッズは見ない。
+ *  書いた変更は enrich_log に前後の値を残す（戻すとき用。管理画面の手動のときの JSON の代わり）。 */
+export async function autoEnrich(db: Db, budgetMs: number): Promise<{ checked: number; applied: number; wrapped: boolean }> {
+  const started = Date.now();
+  const { data: st } = await db.from('bot_state').select('value').eq('key', 'auto_enrich').maybeSingle();
+  const cursor = ((st?.value ?? {}) as { after?: string | null }).after ?? null;
+  const cutoff = new Date(Date.now() + 9 * 3600_000 - 30 * DAY).toISOString().slice(0, 10);
+  let q = db.from('events').select(`${FIELDS}, created_at`)
+    .eq('type', 'goods').eq('pool', 0).or(`event_date.is.null,event_date.gte.${cutoff}`)
+    .order('created_at', { ascending: true }).limit(40);
+  if (cursor) q = q.gt('created_at', cursor);
+  const { data: rows } = await q;
+  if (!rows?.length) {
+    await db.from('bot_state').upsert({ key: 'auto_enrich', value: { after: null }, updated_at: new Date().toISOString() });
+    return { checked: 0, applied: 0, wrapped: true };
+  }
+  const { removed, dateEdited } = await loadEdits(db);
+  let checked = 0, applied = 0;
+  let after = cursor;
+  for (const row of rows) {
+    if (Date.now() - started > budgetMs) break;
+    try {
+      const p = await planOne(row, removed.get(row.id as string) ?? new Set(), dateEdited.has(row.id as string));
+      if (p) {
+        const r = await applyEnrich(db, [{ id: p.id, hash: p.hash, set: p.set }]);
+        if (r.applied) {
+          applied++;
+          await db.from('enrich_log').insert({ event_id: p.id, before: r.backup[0]?.before ?? null, after: p.set, notes: p.notes });
+        }
+      }
+    } catch { /* 1件の失敗で止めない */ }
+    checked++;
+    after = row.created_at as string;
+  }
+  await db.from('bot_state').upsert({ key: 'auto_enrich', value: { after }, updated_at: new Date().toISOString() });
+  return { checked, applied, wrapped: false };
+}
