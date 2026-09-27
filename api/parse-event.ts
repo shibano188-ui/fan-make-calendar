@@ -5,6 +5,7 @@ import { getIdentity } from './_identity.js';
 import { withAiUsage, noteAiUsage, saveAiUsage, type AiCall } from './_aiusage.js';
 import { fetchProductList, excludeRegistered, type ProductList } from './_listsource.js';
 import { groupProducts, detectWork } from './_listgroup.js';
+import { lookupByUrl } from './_product-search.js';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -157,7 +158,7 @@ const BASE_RULES = `
 テキストに「ツイート投稿日: 〇年〇月〇日」が含まれる場合、「本日」「今日」はその日付として解釈する。
 【受注・予約・受付期間のルール（検出を強化すること）】
 - 次のいずれかの表現があれば必ず isOrderMade: true にする（「受注」に限らない）:
-  受注 / 受注生産 / 受注販売 / 原作受注 / 受付期間 / 受付開始 / 予約受付 / 予約期間 / 予約販売 / 事前予約 / 事前受注 / 抽選販売 / 抽選受付 / 抽選予約 / 事後通販 / お申し込み期間 / 申込期間
+  受注 / 受注生産 / 受注販売 / 原作受注 / 受付期間 / 受付開始 / 予約受付 / 予約受付中 / 予約開始（「11時予約開始」など） / ご予約 / 予約期間 / 予約販売 / 事前予約 / 事前受注 / 抽選販売 / 抽選受付 / 抽選予約 / 事後通販 / お申し込み期間 / 申込期間
 - isOrderMade=true の場合: preorderStart = 受付（予約・抽選・申込）開始日, preorderEnd = 受付（予約・抽選・申込）終了日
 - date には「お渡し予定」「発送予定」「発売予定」など実際の商品受け取り日（受付期間とは別）を入れる。お渡し日が不明なら date は null でよい（受付期間だけでも可）
 - 受付開始日・終了日が不明な場合は preorderStart/preorderEnd を null にする
@@ -186,9 +187,11 @@ const SCHEMA = (memoDesc: string) => `[
     "prefecture": "都道府県名（「都」「府」「県」を除いた形。例: 東京・大阪・神奈川・北海道）or null",
     "locationDetail": "詳細な会場名・住所 or null",
     "link": ["公式URLや関連リンクをすべて配列で。1件でも配列にする。リンクがなければnull"],
-    "isOrderMade": "「受注」という言葉が含まれる場合はtrue（受注生産・受注販売・受注商品・原作受注など）、それ以外はfalse",
+    "isOrderMade": "予約・受注・抽選・申込で買うものならtrue（受注生産・予約受付中・予約開始・ご予約・抽選販売など。上の【受注・予約・受付期間のルール】に従う）、それ以外はfalse",
     "preorderStart": "isOrderMade=trueの場合のみ: 予約・受付開始日をYYYY-MM-DD形式で or null",
+    "preorderStartTime": "isOrderMade=trueの場合のみ: 予約・受付の開始時刻をHH:mm形式で（「11時予約開始」→\"11:00\"）。書かれていなければnull",
     "preorderEnd": "isOrderMade=trueの場合のみ: 予約・受付終了日をYYYY-MM-DD形式で or null",
+    "preorderEndTime": "isOrderMade=trueの場合のみ: 予約・受付の終了時刻をHH:mm形式で。書かれていなければnull",
     "sellsGoods": "イベント・展示・コラボ・カフェ・POP UP等で、会場や関連でグッズ・物販が販売されることが読み取れる場合はtrue（『物販』『グッズ販売』『限定グッズ』『会場限定』『グッズ受注』等）。商品そのものの投稿（categoriesがグッズ）や物販の言及が無い場合はfalse",
     "memo": "${memoDesc}"
   }
@@ -513,6 +516,8 @@ function parseRawText(rawText: string): unknown[] {
         isOrderMade,
         preorderStart,
         preorderEnd: fixEndAfterStart(preorderStart, fixYear(obj.preorderEnd)),
+        preorderStartTime: isOrderMade ? hhmm(obj.preorderStartTime) : null,
+        preorderEndTime: isOrderMade ? hhmm(obj.preorderEndTime) : null,
       };
     }
     return item;
@@ -565,8 +570,20 @@ async function listToEvents(col: ProductList): Promise<unknown[]> {
     const raw = await claudeComplete(WORK_PROMPT, `一覧の名前: ${col.title}\n店: ${col.shop}\n\n${titles.slice(0, 8).join('\n')}`, 40).catch(() => '');
     work = raw.trim().split('\n')[0]?.trim() || null;
   }
+  // 予約で売っている商品（アニメイトの「予約受付中」「予約受付前」など）が入るまとまりは、予定も「予約あり」にする。
+  // 一覧に予約期間は無いので、アニメイトは先頭の商品ページから読む（5件ずつ）。前は予約が付かなかった（本人指摘・2026-09-27）
+  const isPreorder = (g: typeof groups[number]) => g.items.some(({ p }) => /予約/.test(p.stockLabel ?? ''));
+  const periods = new Map<typeof groups[number], { start?: string; end?: string }>();
+  const needPeriod = groups.filter((g) => isPreorder(g) && /animate-onlineshop\.jp/.test(g.items[0].p.url));
+  for (let i = 0; i < needPeriod.length; i += 5) {
+    await Promise.all(needPeriod.slice(i, i + 5).map(async (g) => {
+      const hit = await lookupByUrl(g.items[0].p.url).catch(() => null);
+      if (hit?.preorderEnd || hit?.preorderStart) periods.set(g, { start: hit.preorderStart, end: hit.preorderEnd });
+    }));
+  }
   return groups.map((g) => ({
     title: g.title,
+    ...(isPreorder(g) ? { isOrderMade: true, preorderStart: periods.get(g)?.start ?? null, preorderEnd: periods.get(g)?.end ?? null } : {}),
     // 画面で複数のまとまりを1つにまとめるとき、リンクの名前を「お守り（ハチワレ）」にするのに使う
     kind: g.kind || null,
     work,
@@ -586,6 +603,21 @@ async function listToEvents(col: ProductList): Promise<unknown[]> {
     // 投稿画面でリンクを外して1件の予定に戻すとき用の、商品ごとの名前と画像（保存はしない）
     items: g.items.map(({ p }) => ({ url: p.url, title: p.title, image: p.image })),
   }));
+}
+
+/** 「11:00」「9:30」→ HH:mm。形が違えば null */
+function hhmm(v: unknown): string | null {
+  const m = typeof v === 'string' ? v.trim().match(/^(\d{1,2}):(\d{2})$/) : null;
+  return m && Number(m[1]) < 24 && Number(m[2]) < 60 ? `${m[1].padStart(2, '0')}:${m[2]}` : null;
+}
+
+// 予約・受注で買うことを示す語。AIが取りこぼしても、本文にあれば予約ありにする。
+// 「予約受付中」「11時予約開始」「ご予約はこちら」が抜けていた（本人指摘・2026-09-27）。
+// 「予約特典」「予約不要」は予約販売の意味ではないので外す
+const ORDER_MADE_RE = /受注|受付期間|受付開始|予約(?!特典|不要|なし|無し)|事前受注|抽選販売|抽選受付|抽選予約|事後通販|申込期間|お申し込み期間/;
+function forceOrderMade(parsed: unknown[], text: string) {
+  if (!ORDER_MADE_RE.test(text)) return;
+  parsed.forEach(e => { (e as Record<string, unknown>).isOrderMade = true; });
 }
 
 // 全イベントが日付情報を一切持たない（＝抽出に失敗した可能性が高い）か
@@ -725,9 +757,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(422).json({ error: 'Could not parse response' });
         }
         // 受注・予約・受付期間を示す表現があれば全イベントをisOrderMade=trueに強制設定
-        if (/受注|受付期間|受付開始|予約受付|予約期間|予約販売|事前予約|事前受注|抽選販売|抽選受付|抽選予約|事後通販|申込期間|お申し込み期間/.test(tweetContext)) {
-          parsed.forEach(e => { (e as Record<string, unknown>).isOrderMade = true; });
-        }
+        forceOrderMade(parsed, tweetContext);
         // 会場物販を示す強い表現があれば sellsGoods=true に補完（イベント側のみ。クライアントで種別判定）
         if (/物販|グッズ販売|販売グッズ|限定グッズ|会場限定グッズ|グッズ受注/.test(tweetContext)) {
           parsed.forEach(e => { if ((e as Record<string, unknown>).sellsGoods == null) (e as Record<string, unknown>).sellsGoods = true; });
@@ -771,6 +801,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         : textOnly;
       try {
         const parsed = await extractWithRetry(EXTRACT_PROMPT, textContext, 768);
+        forceOrderMade(parsed, textContext);
         await expandEventLinks(parsed);
         return res.status(200).json(parsed);
       } catch {
