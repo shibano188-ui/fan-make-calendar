@@ -10,7 +10,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchProductList, excludeRegistered, type ProductList } from './_listsource.js';
 import { listEvents, type ListEvent } from './_listgroup.js';
-import { scoreTitle } from './_product-search.js';
 import { representativePrice, type OfferRow } from './_offers.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -84,13 +83,20 @@ async function workId(db: Db, name: string): Promise<string | null> {
   return (data?.id as string | undefined) ?? null;
 }
 
+/** 同じ商品かを見るための名前。店の囲み（【アニメイト先行販売】など）・記号・空白を落とす */
+const sameKey = (t: string) => t.normalize('NFKC').toLowerCase().replace(/【[^】]*】|\[[^\]]*\]/g, '').replace(/[\s!?・/\\\-ー~〜、。,.:;'"「」『』()（）《》<>＜＞#＆&+*★☆♪]/g, '');
+
 /** 別の店で同じ商品がもう登録されていれば（アニメイトとムービックの両方にある等）、その予定を返す。
- *  同じ作品・発売日が31日以内・名前がほぼ同じ（0.8以上）のもの */
+ *  同じ作品・発売日が31日以内・名前が（囲みと記号を除いて）同じもの。
+ *  前は名前の近さ（0.8以上）で見ていて、「名探偵コナン アクリルスタンド」に別のシリーズのアクスタが
+ *  14種まとまってしまった（2026-09-27 初回の巡回）。混ぜるより別の予定にする */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function findSame(existing: any[], e: ListEvent): any | null {
+  const k = sameKey(e.title);
+  if (k.length < 10) return null;
   for (const row of existing) {
     if (e.date && row.event_date && Math.abs(Date.parse(e.date) - Date.parse(row.event_date)) > 31 * 86400_000) continue;
-    if (scoreTitle(e.title, row.title) >= 0.8 && scoreTitle(row.title, e.title) >= 0.8) return row;
+    if (sameKey(String(row.title ?? '')) === k) return row;
   }
   return null;
 }

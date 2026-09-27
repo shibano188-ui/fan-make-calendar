@@ -35,6 +35,8 @@ const CATEGORY_RULES: [string, RegExp][] = [
   ['ガジェット', /イヤホン|充電|スマホケース|モバイルバッテリー/],
 ];
 export const categoryOf = (title: string) => CATEGORY_RULES.find(([, re]) => re.test(title))?.[0] ?? '雑貨';
+/** 本（コミック・小説・画集など）か。本はグッズではなく「書籍」の予定にする。手帳・カレンダーはグッズ */
+const isBook = (title: string) => /【(?:コミック|小説|書籍|その他\(書籍\)|ムック|画集|雑誌)】|コミックス|ファンブック|画集|ノベライズ|小説/.test(title.normalize('NFKC')) && !/手帳|カレンダー/.test(title);
 
 const SEP = /[\s・/~〜～＜＞<>()（）【】「」『』[\]、,]/;
 // 長音「ー」は落とさない（「ステッカー（うさぎ）」の頭が「ステッカ」になる）
@@ -89,7 +91,8 @@ export interface ProductGroup { title: string; kind: string; category: string; i
 
 /** 一覧を予定のまとまりに分ける。並びは一覧の順（まとまりは最初の商品の位置） */
 export function groupProducts(products: ListProduct[]): ProductGroup[] {
-  const names = products.map((p) => stripShopNoise(p.title));
+  // アニメイトは頭に【コミック】【Blu-ray】【グッズ-アクリルスタンド】のような分類が付く。見出しからは落とす
+  const names = products.map((p) => stripShopNoise(p.title).replace(/^【[^】]*】\s*/, ''));
   const parent = products.map((_, i) => i);
   const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])));
   const sameRelease = (a: ListProduct, b: ListProduct) => !a.release || !b.release || a.release.date === b.release.date;
@@ -106,7 +109,7 @@ export function groupProducts(products: ListProduct[]): ProductGroup[] {
     const labels = idx.length > 1 ? variantLabels(idx.map((i) => names[i])) : null;
     if (!labels) {
       const t = names[idx[0]];
-      groups.push({ title: t, kind: itemWordIn(t) ?? '', category: categoryOf(t), items: [{ p: products[idx[0]], label: '' }] });
+      groups.push({ title: t, kind: itemWordIn(t) ?? '', category: isBook(products[idx[0]].title) ? '書籍' : categoryOf(t), items: [{ p: products[idx[0]], label: '' }] });
       return;
     }
     const first = names[idx[0]];
@@ -225,7 +228,7 @@ export async function listEvents(col: ProductList, work: string | null): Promise
     kind: g.kind || null,
     work,
     ...(() => { const r = groupRelease(g.items.map((x) => x.p), col.title); return { date: r.date, dateLabel: r.dateLabel }; })(),
-    categories: ['グッズ', ...(g.category ? [g.category] : [])],
+    categories: g.category === '書籍' ? ['書籍'] : ['グッズ', ...(g.category ? [g.category] : [])],
     price: Math.min(...g.items.map((x) => x.p.price)),
     // 画像は全部。複数の商品なら各商品の1枚目、1商品ならその商品の画像を全部（アプリの複数画像の形＝JSON配列）。
     // 前は先頭の商品の1枚目だけだった（本人指摘・2026-09-26）
