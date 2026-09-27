@@ -3,8 +3,9 @@
 // （staff.role = 'bot'）の投稿として入れる。普通の投稿と同じ扱い（新着の通知にも入る）。
 // 直すのは運営の各自（staff.role = 'admin'）が詳細ページから行う。
 //
-// 巡回先 = ちいかわマーケット ＋（決まった作品 ∪ フォローされている作品）× アニメイト・ムービックの検索。
-// 新しくフォローされた作品は、まだ一度も見ていないので次の回に先に見る。あとは前回見たのが古い順。
+// 巡回先 = ちいかわマーケット ＋ 決まった9作品 × アニメイト・ムービックの検索。
+// ゆくゆくはフォローされている作品を全部にしたいが、巡回が重くなるので今は9作品だけ（柴野の判断・2026-09-27）。
+// まだ一度も見ていない場所を先に見て、あとは前回見たのが古い順。
 // 1回に2か所。前回見た時刻は bot_state（key='crawl'）に持つ。
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchProductList, excludeRegistered, type ProductList } from './_listsource.js';
@@ -15,7 +16,7 @@ import { representativePrice, type OfferRow } from './_offers.js';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any>;
 
-// 必ず巡回する作品（works.name と同じ表記）。これに加えて、フォローされている作品も全部見る
+// 巡回する作品（works.name と同じ表記）
 const FIXED_WORKS = ['葬送のフリーレン', '呪術廻戦', 'ハイキュー!!', '進撃の巨人', '鬼滅の刃', '僕のヒーローアカデミア', 'ちいかわ', 'ブルーロック', '名探偵コナン'];
 
 interface Source { key: string; work: string; urls: () => Promise<string[]> }
@@ -40,11 +41,9 @@ const searchSources = (w: string): Source[] => [
   { key: `movic:${w}`, work: w, urls: async () => [`https://www.movic.jp/shop/goods/search.aspx?search=x&keyword=${encodeURIComponent(w)}&seq=nd`] },
 ];
 
-/** 巡回先の一覧。決まった作品と、フォローされている作品（participant_count が1以上） */
-async function listSources(db: Db): Promise<Source[]> {
-  const { data } = await db.from('works').select('name').gte('participant_count', 1).limit(300);
-  const works = [...new Set([...FIXED_WORKS, ...(data ?? []).map((w) => String(w.name ?? '').trim()).filter((n) => n.length >= 2)])];
-  return [CHIIKAWA_MARKET, ...works.flatMap(searchSources)];
+/** 巡回先の一覧 */
+function listSources(): Source[] {
+  return [CHIIKAWA_MARKET, ...FIXED_WORKS.flatMap(searchSources)];
 }
 
 const norm = (s: string) => s.normalize('NFKC').toLowerCase().replace(/[\s!?・/\\\-ー~〜、。,.:;'"「」『』【】[\]()（）《》<>＜＞#＆&+*★☆♪]/g, '');
@@ -104,7 +103,7 @@ export async function crawlNext(db: Db): Promise<{ sources: string[]; added: num
 
   const { data: st } = await db.from('bot_state').select('value').eq('key', 'crawl').maybeSingle();
   const seen = { ...(((st?.value ?? {}) as { seen?: Record<string, string> }).seen ?? {}) };
-  const sources = await listSources(db);
+  const sources = listSources();
   // まだ見ていないもの（新しくフォローされた作品）→ 前回見たのが古いもの の順に2か所
   const picks = [...sources].sort((a, b) => (seen[a.key] ?? '').localeCompare(seen[b.key] ?? '')).slice(0, 2);
   const now = new Date().toISOString();
