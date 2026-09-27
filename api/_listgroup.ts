@@ -96,9 +96,12 @@ export function groupProducts(products: ListProduct[]): ProductGroup[] {
   const parent = products.map((_, i) => i);
   const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])));
   const sameRelease = (a: ListProduct, b: ListProduct) => !a.release || !b.release || a.release.date === b.release.date;
+  // キャラ違いはほぼ必ず同じ値段。値段が違えば別のシリーズとみなす（アニメイトでは「スタイル クラパレット」¥1,980 と
+  // 「きゃらくてぃぶ秋」¥990 のアクスタが同じ「アクリルスタンド」の名前で並んでいた。2026-09-27）
+  const samePrice = (a: ListProduct, b: ListProduct) => a.price === b.price;
   for (let i = 0; i < products.length; i++) {
     for (let j = i + 1; j < products.length; j++) {
-      if (find(i) === find(j) || !sameRelease(products[i], products[j])) continue;
+      if (find(i) === find(j) || !sameRelease(products[i], products[j]) || !samePrice(products[i], products[j])) continue;
       // コミック・書籍は絶対にまとめない（巻・版の違いを1件にするとおかしくなる。本人指摘・2026-09-27）
       if (isBook(products[i].title) || isBook(products[j].title)) continue;
       if (variantLabels([names[i], names[j]])) parent[find(j)] = find(i);

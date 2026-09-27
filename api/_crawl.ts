@@ -87,7 +87,7 @@ async function workId(db: Db, name: string): Promise<string | null> {
 const sameKey = (t: string) => t.normalize('NFKC').toLowerCase().replace(/【[^】]*】|\[[^\]]*\]/g, '').replace(/[\s!?・/\\\-ー~〜、。,.:;'"「」『』()（）《》<>＜＞#＆&+*★☆♪]/g, '');
 
 /** 別の店で同じ商品がもう登録されていれば（アニメイトとムービックの両方にある等）、その予定を返す。
- *  同じ作品・発売日が31日以内・名前が（囲みと記号を除いて）同じもの。
+ *  同じ作品・同じ発売日・同じ値段・別の店で、名前が（囲みと記号を除いて）同じもの。
  *  前は名前の近さ（0.8以上）で見ていて、「名探偵コナン アクリルスタンド」に別のシリーズのアクスタが
  *  14種まとまってしまった（2026-09-27 初回の巡回）。混ぜるより別の予定にする */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -95,8 +95,12 @@ function findSame(existing: any[], e: ListEvent): any | null {
   const k = sameKey(e.title);
   // コミック・書籍は別の店の予定にもまとめない（巻・版の違いを取り違えないように）
   if (k.length < 10 || e.categories.includes('書籍')) return null;
+  const shops = new Set(e.offers.map((o) => o.retailer));
   for (const row of existing) {
-    if (e.date && row.event_date && Math.abs(Date.parse(e.date) - Date.parse(row.event_date)) > 31 * 86400_000) continue;
+    // 発売日と値段も同じで、別の店のものだけ（同じ店の同じ名前は、別の時期・別のシリーズの商品）
+    if ((e.date ?? null) !== (row.event_date ?? null) || e.price !== row.price) continue;
+    const offers = (Array.isArray(row.offers) ? row.offers : []) as OfferRow[];
+    if (offers.some((o) => shops.has(o.retailer ?? ''))) continue;
     if (sameKey(String(row.title ?? '')) === k) return row;
   }
   return null;
