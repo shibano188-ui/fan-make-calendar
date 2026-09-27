@@ -18,6 +18,7 @@ import type { Offer } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
 import LineLoader from '../components/ui/LineLoader';
+import { useConfirm } from '../components/ui/ConfirmDialog';
 import WorkFollowSheet from '../components/WorkFollowSheet';
 import { haptic } from '../lib/haptics';
 import { todayStr, deriveItemType, type ItemType } from '../design/tokens';
@@ -221,6 +222,7 @@ export default function PostNew() {
   // モックにしないのは、画像・購入リンク・価格が自動で埋まるところまで見せたいため。
   // 保存だけはしない（架空の投稿を「探す」に流さない）。判定は onSubmit 側。
   const demo = searchParams.get('demo') === '1';
+  const confirm = useConfirm();
   const demoStarted = useRef(false);
   useEffect(() => {
     if (!demo || demoStarted.current) return;
@@ -631,6 +633,67 @@ export default function PostNew() {
     setParsedList(next); setMergePick(new Set());
   };
 
+  // 一覧の候補をまとめて投稿する（本人要望・2026-09-27）。1件ずつ開いて投稿する手間を省く。
+  // 店の一覧（全部に商品リンクがそろっている）のときだけ出す。Xのポストから見つかった複数の予定は中身を確かめてほしいので出さない
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const bulkPost = async () => {
+    if (!user || !parsedList?.length || bulkSaving) return;
+    if (demo) { toast('体験ではまとめて投稿はできません'); return; }
+    if (!(await confirm({ title: `${parsedList.length}件をまとめて投稿しますか？`, message: '1件ずつの確認はしません。あとから詳細ページで直せます', confirmLabel: '投稿する' }))) return;
+    haptic.select();
+    setBulkSaving(true);
+    const works = new Map<string, string>();
+    let posted = 0;
+    const failed: ParsedEvent[] = [];
+    // フォローしている作品か、今フォローできる作品だけ投稿する（canPostTo）。フォローできる数は投稿のたびに減る
+    const follows = await listAllParticipatedWorks(user.id).catch(() => [] as Work[]);
+    const willFollow = new Set<string>();
+    let blocked = 0;
+    for (const p of parsedList) {
+      try {
+        const name = (p.work || workName || workQuery).trim();
+        if (!name || !p.title) { failed.push(p); continue; }
+        const followed = follows.some((w) => sameWorkName(w.name, name)) || willFollow.has(name);
+        if (!followed) {
+          if (!canFollowMore(follows.length + willFollow.size, isPremiumCached())) { failed.push(p); blocked++; continue; }
+          willFollow.add(name);
+        }
+        let wid = works.get(name) ?? (workId && sameWorkName(name, workName) ? workId : '');
+        if (!wid) { wid = (await getOrCreateWork(name)).id; }
+        works.set(name, wid);
+        const offersP = p.offers ?? [];
+        const prim = primaryOffer(offersP);
+        const ids = await createEvents(wid, [{
+          title: p.title, type: 'goods',
+          date: p.date || null, dateLabel: p.dateLabel || null,
+          endDate: p.dateLabel ? undefined : (p.endDate || p.date || undefined),
+          category: p.category ?? undefined,
+          price: p.price ?? prim?.price ?? undefined,
+          offers: offersP, link: prim?.url, affiliateUrl: prim?.affiliateUrl, hasAffiliate: prim?.hasAffiliate, retailer: prim?.retailer,
+          isOrderMade: !!p.isOrderMade,
+          preorderStart: p.isOrderMade ? (p.preorderStart || undefined) : undefined,
+          preorderEnd: p.isOrderMade ? (p.preorderEnd || undefined) : undefined,
+          preorderStartTime: p.isOrderMade ? (p.preorderStartTime || undefined) : undefined,
+          preorderEndTime: p.isOrderMade ? (p.preorderEndTime || undefined) : undefined,
+          memo: p.memo || undefined, imageUrl: p.imageUrl || undefined,
+        }], user.id);
+        if (addToCalendar && ids[0]) await toggleLike(ids[0], user.id).catch(() => {});
+        posted++;
+      } catch { failed.push(p); }
+    }
+    // 投稿した作品をフォロー（上の判定で、上限に空きのある分だけ）
+    try {
+      for (const wid of new Set(works.values())) {
+        if (follows.some((w) => w.id === wid)) continue;
+        await upsertParticipation(wid, user.id);
+      }
+    } catch { /* フォローできなくても投稿は成立している */ }
+    setBulkSaving(false);
+    setParsedList(failed); setMergePick(new Set());
+    toast(blocked ? `${posted}件投稿しました。${blocked}件はフォローしていない作品のため投稿していません`
+      : failed.length ? `${posted}件投稿しました（${failed.length}件は投稿できませんでした）` : `${posted}件投稿しました`);
+  };
+
   const linkInfo = link.trim() ? affiliatize(link.trim()) : null;
   const canSave = !!title.trim() && (!!workId || !!workQuery.trim()) && !saving;
 
@@ -649,6 +712,13 @@ export default function PostNew() {
     setPreStart(next);
   };
 
+  // 投稿できるのはフォローしている作品か、今フォローできる作品だけ（柴野の判断・2026-09-27）。
+  // フォローしていない作品に投稿できると、投稿した予定が「探す」に出ず、フォローの意味も薄れるため。
+  // フォローできる（上限に空きがある）なら、投稿と一緒にフォローする（下の onSubmit・bulkPost）
+  const FOLLOW_TO_POST = `フォローしている作品にだけ投稿できます。フォローは${FREE_FOLLOW_LIMIT}作品までなので、フォロー中の作品を外すか、プレミアムで増やしてください`;
+  const canPostTo = (follows: Work[], id: string | null, name: string) =>
+    follows.some((w) => (id ? w.id === id : sameWorkName(w.name, name))) || canFollowMore(follows.length, isPremiumCached());
+
   const onSubmit = async () => {
     if (!user || !canSave) return;
     // オンボーディングの体験。ここまでの手順を見せるのが目的なので**保存しない**。
@@ -662,6 +732,12 @@ export default function PostNew() {
     }
     setSaving(true); setError('');
     try {
+      const myFollows = await listAllParticipatedWorks(user.id).catch(() => null);
+      if (myFollows && !canPostTo(myFollows, workId, workName || workQuery.trim())) {
+        setError(FOLLOW_TO_POST);
+        setSaving(false);
+        return;
+      }
       let wid = workId;
       if (!wid) { const w = await getOrCreateWork(workQuery.trim()); wid = w.id; }
 
@@ -921,6 +997,13 @@ export default function PostNew() {
                     className="pressable mt-1 py-2 rounded-[10px] text-[13px] font-semibold flex items-center justify-center gap-1.5"
                     style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--accent-text)' }}>
                     {loadingMore ? <><Loader2 size={15} className="animate-spin" /> 読んでいます…</> : '次のページを読む'}
+                  </button>
+                )}
+                {seriesList && parsedList.length > 1 && (
+                  <button onClick={bulkPost} disabled={bulkSaving}
+                    className="pressable mt-1 py-2.5 rounded-[10px] text-[13px] font-semibold flex items-center justify-center gap-1.5"
+                    style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+                    {bulkSaving ? <><Loader2 size={15} className="animate-spin" /> 投稿しています…</> : `${parsedList.length}件をまとめて投稿`}
                   </button>
                 )}
                 <button onClick={() => { setParsedList(null); setMergePick(new Set()); setListMeta(null); }} className="text-[12px] text-label-tertiary mt-1 pressable">キャンセル</button>

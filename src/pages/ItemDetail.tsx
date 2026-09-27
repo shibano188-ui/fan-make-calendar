@@ -9,7 +9,7 @@ import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME } from '../lib/constants';
 import { deriveItemType, itemDateLines, todayStr, isDateUncertain, stageFlow } from '../design/tokens';
-import { resolveBuy, getOffers, offerUrl, primaryOffer, isSearchPageUrl, isSourceOnlyLink, priceRange, isStockStale, stockBadge } from '../lib/affiliate';
+import { resolveBuy, getOffers, offerUrl, primaryOffer, isSearchPageUrl, isSourceOnlyLink, priceRange, isStockStale, stockBadge, cheapestOfferUrl } from '../lib/affiliate';
 import { buildPinnedOffer } from '../lib/searchProduct';
 import { openBuyLink } from '../lib/dataLogs';
 import { openExternal } from '../lib/openExternal';
@@ -158,6 +158,8 @@ export default function ItemDetail() {
   if (cats.length > 1) cats = cats.filter((c) => c !== 'グッズ');
   const catColor = getPrimaryCategoryColor(event.category);
   const dateLines = itemDateLines(eff);
+  // 同じ商品を複数の店で売っているとき、一番安いリンクに「最安」を付ける
+  const cheapest = cheapestOfferUrl(getOffers(eff));
   const buy = resolveBuy(event);
   const buyMode = buy.mode;
   const buyUrl = buy.url;
@@ -601,6 +603,7 @@ export default function ItemDetail() {
                           return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ color, background: 'var(--fill-secondary, rgba(120,120,128,0.16))' }}>{b.text}</span>;
                         })()}
                         {o.isSet && <span className="text-[10px] font-bold text-label-secondary px-1.5 py-0.5 rounded" style={{ background: 'var(--fill-secondary, rgba(120,120,128,0.16))' }}>セット</span>}
+                        {o.url === cheapest && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ color: 'var(--accent-on)', background: 'var(--accent-color)' }}>最安</span>}
                         <span className="text-[13px] font-bold" style={{ color: 'var(--accent-text)' }}>{o.price ? `¥${o.price.toLocaleString()}` : '開く ↗'}</span>
                       </span>
                     </a>
