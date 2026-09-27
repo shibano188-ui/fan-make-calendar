@@ -7,7 +7,7 @@ import { fetchShopifyCollection } from './_shopify.js';
 import { parseAnimateList, parseMovicList, lookupByUrl, unwrapProductUrl } from './_product-search.js';
 
 export interface ListProduct {
-  title: string; url: string; price: number; inStock?: boolean;
+  title: string; url: string; price: number; inStock?: boolean; stockLabel?: string;
   image: string; images: string[];
   release?: { date: string; dateLabel: string | null };
 }
@@ -42,7 +42,7 @@ async function animateList(u: URL, page: number): Promise<ProductList | null> {
   return {
     title: pageTitle(html), shop: 'アニメイトオンラインショップ', retailer: 'アニメイト',
     nextPage: html.includes(`pageno=${page + 1}`) ? page + 1 : null,
-    products: items.map((c) => ({ title: c.title, url: c.url, price: c.price, inStock: c.inStock, image: c.image, images: c.image ? [c.image] : [], release: c.release })),
+    products: items.map((c) => ({ title: c.title, url: c.url, price: c.price, inStock: c.inStock, stockLabel: c.stockLabel, image: c.image, images: c.image ? [c.image] : [], release: c.release })),
   };
 }
 
@@ -62,6 +62,7 @@ async function movicList(u: URL, page: number): Promise<ProductList | null> {
       const hit = await lookupByUrl(p.url).catch(() => null);
       if (hit?.release) p.release = hit.release;
       if (hit?.inStock !== undefined) p.inStock = hit.inStock;
+      if (hit?.stockLabel) p.stockLabel = hit.stockLabel;
     }));
   }
   return { title: pageTitle(html), shop: 'ムービック', retailer: 'ムービック', products, nextPage: new RegExp(`[?&;]p=${page + 1}&`).test(html) ? page + 1 : null };
