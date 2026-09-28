@@ -78,10 +78,11 @@ function releaseFromTags(tags: string[]): { date: string; dateLabel: null } | nu
 
 /** 在庫。買えないとき、受付前の印があるか、発売日のタグが今日より先なら受付前 */
 // 予約販売の印（ホロライブの「予約販売」「予約商品」など）。予約で売る商品は、予定も「予約あり」にする
-const PREORDER_TAG_RE = /予約|pre-?order/i;
+// 発売日のタグが先なのに買える商品も予約（ジャンプショップは予約品に印を付けず、発売日のタグだけが未来になっている）
+const PREORDER_TAG_RE = /予約|受注|pre-?order/i;
 
 function stockOf(available: boolean, tags: string[], text: string, release: { date: string } | null): Pick<ShopifyProduct, 'inStock' | 'stockLabel'> {
-  const preorder = tags.some((t) => PREORDER_TAG_RE.test(t)) || /予約/.test(text);
+  const preorder = tags.some((t) => PREORDER_TAG_RE.test(t)) || /予約|受注/.test(text) || (available && !!release && release.date > todayJst());
   if (available) return { inStock: true, ...(preorder ? { stockLabel: '予約受付中' } : {}) };
   if (tags.some((t) => PRE_SALE_RE.test(t)) || PRE_SALE_RE.test(text) || (release && release.date > todayJst())) return { stockLabel: preorder ? '予約受付前' : '受付前' };
   return { inStock: false };
@@ -89,6 +90,38 @@ function stockOf(available: boolean, tags: string[], text: string, release: { da
 
 /** tags は products.json では配列、/products/{handle}.js でも配列（古い店は「a, b」の文字列のことがある） */
 const tagList = (t: unknown): string[] => (Array.isArray(t) ? t.map(String) : typeof t === 'string' ? t.split(',') : []);
+
+/** products.json の商品を ShopifyProduct にする。値段の無いものは落とす */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toProducts(origin: string, raw: any[]): ShopifyProduct[] {
+  return raw.map((p) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const vs = (p.variants ?? []) as any[];
+    const prices = vs.map((v) => Number(v.price)).filter((n) => n > 0);
+    const tags = tagList(p.tags);
+    const release = releaseFromTags(tags);
+    return {
+      title: String(p.title ?? '').trim(),
+      url: `${origin}/products/${p.handle}`,
+      price: prices.length ? Math.min(...prices) : 0,
+      ...stockOf(vs.some((v) => v.available), tags, String(p.title ?? ''), release),
+      ...(release ? { release } : {}),
+      image: String(p.images?.[0]?.src ?? ''),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      images: ((p.images ?? []) as any[]).map((im) => String(im?.src ?? '')).filter(Boolean),
+    };
+  }).filter((p: ShopifyProduct) => p.title && p.price > 0);
+}
+
+/** 店の新着（/products.json は公開の新しい順）。巡回ボットがジャンプショップなど作品ごとのコレクションが大きい店で使う */
+export async function fetchShopifyNewest(origin: string): Promise<{ shop: string; products: ShopifyProduct[] } | null> {
+  const u = await safePublicUrl(origin);
+  if (!u) return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const list = await getJson<{ products?: any[] }>(`${u.origin}/products.json?limit=250`).catch(() => null);
+  if (!list?.products?.length) return null;
+  return { shop: await shopifyShopName(u.origin), products: toProducts(u.origin, list.products) };
+}
 
 /** コレクションのURL（/collections/{handle}）なら、コレクション名・店名・商品一覧を返す。Shopifyでなければ null */
 export async function fetchShopifyCollection(raw: string, page = 1): Promise<{ title: string; shop: string; products: ShopifyProduct[]; hasMore: boolean } | null> {
@@ -102,23 +135,7 @@ export async function fetchShopifyCollection(raw: string, page = 1): Promise<{ t
   ]);
   if (!list?.products?.length) return null;
   const shop = await shopifyShopName(u.origin);
-  const products: ShopifyProduct[] = list.products.map((p) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const vs = (p.variants ?? []) as any[];
-    const prices = vs.map((v) => Number(v.price)).filter((n) => n > 0);
-    const tags = tagList(p.tags);
-    const release = releaseFromTags(tags);
-    return {
-      title: String(p.title ?? '').trim(),
-      url: `${u.origin}/products/${p.handle}`,
-      price: prices.length ? Math.min(...prices) : 0,
-      ...stockOf(vs.some((v) => v.available), tags, String(p.title ?? ''), release),
-      ...(release ? { release } : {}),
-      image: String(p.images?.[0]?.src ?? ''),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      images: ((p.images ?? []) as any[]).map((im) => String(im?.src ?? '')).filter(Boolean),
-    };
-  }).filter((p: ShopifyProduct) => p.title && p.price > 0);
+  const products = toProducts(u.origin, list.products);
   // 1ページ250件。ちょうど250件なら続きがあるかもしれない
   return { title: col?.collection?.title?.trim() || '', shop, products, hasMore: list.products.length >= 250 };
 }
