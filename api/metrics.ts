@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { loginPage, dashboardPage, enrichPage } from './_dashboard-html.js';
 import { planEnrich, applyEnrich, autoEnrich } from './_enrich.js';
 import { crawlNext } from './_crawl.js';
+import { runBotPaced } from './_pace.js';
 import { sendPushes, fcmConfigured, type PushMessage } from './_fcm.js';
 import { collectAppStore, collectAppStoreAnalytics, collectPlay, type StoreResult } from './_stores.js';
 
@@ -297,8 +298,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const client = db();
       if (!client) return res.status(500).json({ error: 'Server config error' });
       const started = Date.now();
-      const crawl = await crawlNext(client).catch((e) => ({ error: String(e) }));
-      const enrich = await autoEnrich(client, Math.max(0, 80_000 - (Date.now() - started)));
+      // 店への機械的なアクセスの間隔を守る（アニメイトは約20分に1回。_pace.ts）
+      const { crawl, enrich } = await runBotPaced(client, async () => {
+        const crawl = await crawlNext(client).catch((e) => ({ error: String(e) }));
+        const enrich = await autoEnrich(client, Math.max(0, 80_000 - (Date.now() - started)));
+        return { crawl, enrich };
+      });
       return res.status(200).json({ crawl, enrich });
     }
     return collect(req, res);

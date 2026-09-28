@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { loadEventPatches } from './_edits.js';
 import { pushAlerts, type Alert } from './_alerts.js';
 import { refreshAroundBoundaries } from './_boundary.js';
+import { runBotPaced } from './_pace.js';
 
 // 受付開始の即時通知（プレミアムの instantAlerts）。数分おきに叩かれる前提の軽い処理。
 //
@@ -46,7 +47,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const alerts = await sendStartAlerts(db).catch((e: unknown) => ({ error: String(e) }));
   // ② 節目（予約開始・終了・発売）の前後だけ、購入リンクの値段・在庫を取り直す（_boundary.ts）。
   //    5分おきに呼ばれるので、1回あたり45秒までにして次の回と重ならないようにする
-  const refresh = await refreshAroundBoundaries(db, 45_000).catch((e: unknown) => ({ error: String(e) }));
+  //    店への機械的なアクセスの間隔を守る（アニメイトは約20分に1回。_pace.ts）
+  const refresh = await runBotPaced(db, () => refreshAroundBoundaries(db, 45_000)).catch((e: unknown) => ({ error: String(e) }));
   const status = 'error' in alerts ? 500 : 200;
   return res.status(status).json({ ...alerts, refresh });
 }
