@@ -32,10 +32,11 @@ export async function runBotPaced<T>(db: Db, fn: () => Promise<T>): Promise<T> {
   }
 }
 
-/** 今アクセスしてよいか（見るだけ。時刻は進めない） */
-export function botCanFetch(host: string): boolean {
+/** 今アクセスしてよいか（見るだけ。時刻は進めない）。gapMs を渡すと、それだけ空いているかで見る
+ *  （巡回はアニメイトを40分に1回にして、20分の枠の半分をプレミアムの人のグッズの取り直しに残す） */
+export function botCanFetch(host: string, gapMs?: number): boolean {
   const s = store.getStore();
-  const gap = MIN_GAP[host];
+  const gap = gapMs ?? MIN_GAP[host];
   if (!s || !gap) return true;
   const last = s.last[host];
   return !last || Date.now() - Date.parse(last) >= gap;
