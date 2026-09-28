@@ -8,7 +8,8 @@
 //
 // 最初の全件登録で入れる何年も前の在庫品は、登録日を発売日にそろえて新着・新着の通知に出さない（ジャンプショップと同じ）。
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { excludeRegistered, type ListProduct, type ProductList } from './_listsource.js';
+import { excludeRegistered, fetchProductList, type ListProduct, type ProductList } from './_listsource.js';
+import { botCanFetch } from './_pace.js';
 import { listEvents, detectWork, type ListEvent } from './_listgroup.js';
 import { parseMovicList, lookupByUrl, parseReleaseText } from './_product-search.js';
 import { registerEvents, resolveWork, workKey } from './_crawl.js';
@@ -373,7 +374,58 @@ async function crawlKotobukiya(db: Db, authorId: string, budgetMs: number): Prom
   return { added, merged, read, note: `分類 ${s.ci}/${KOTOBUKIYA_CATS.length} の ${s.page}ページ目` };
 }
 
-/** 店の全作品の巡回を、1回ぶん進める。今はムービック・KADOKAWAストア・コトブキヤ。アニメイトはここに足す */
+// ── アニメイト ─────────────────────────
+// robots.txt が「Crawl-delay: 1180」（約20分に1回）なので、全作品（約8,000）を回るのは無理（1周3〜4か月）。
+// 1回の実行でアニメイトは1ページだけ読む（_pace.ts が20分に1回に絞る）。
+//   1. その日の新着（作品を指定しない登録の新しい順・1ページ約70〜100件）を5ページまで
+//   2. 読み終えたら、フォローされている作品を1つずつ検索して、今売っている商品を登録していく
+// アニメイトの商品ページは読まない（JANコードは取れないので、二重登録は名前・発売日・値段で見分ける）
+const ANIMATE = 'https://www.animate-onlineshop.jp';
+const ANIMATE_NEW_PAGES = 5;
+interface AnimateState { day?: string; newPages?: number; followIdx?: number }
+
+async function crawlAnimate(db: Db, authorId: string): Promise<{ added: number; merged: number; read: number; note: string }> {
+  if (!botCanFetch('www.animate-onlineshop.jp')) return { added: 0, merged: 0, read: 0, note: '20分に1回の間隔待ち' };
+  const { data: st } = await db.from('bot_state').select('value').eq('key', 'catalog:animate').maybeSingle();
+  const s: AnimateState = { ...((st?.value ?? {}) as AnimateState) };
+  const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+  if (s.day !== today) { s.day = today; s.newPages = 0; }
+  const shop = 'アニメイト';
+  let read = 0, r = { added: 0, merged: 0 }, note = '';
+
+  if ((s.newPages ?? 0) < ANIMATE_NEW_PAGES) {
+    const page = (s.newPages ?? 0) + 1;
+    const list = await fetchProductList(`${ANIMATE}/products/list.php?sort=5`, page).catch(() => null);
+    const items = (list?.products ?? []).filter((p) => p.inStock !== false);
+    read = items.length;
+    r = await registerByTitle(db, authorId, shop, items);
+    s.newPages = page;
+    note = `新着 ${page}/${ANIMATE_NEW_PAGES}ページ`;
+  } else {
+    // フォローされている作品を、フォローの多い順に1つずつ
+    const { data: works } = await db.from('works').select('id, name').gte('participant_count', 1).order('participant_count', { ascending: false }).limit(500);
+    const ws = works ?? [];
+    if (ws.length) {
+      const i = (s.followIdx ?? 0) % ws.length;
+      const w = ws[i];
+      const list = await fetchProductList(`${ANIMATE}/products/list.php?smt=${encodeURIComponent(String(w.name))}&sort=5`).catch(() => null);
+      const k = workKey(String(w.name));
+      const items = (list?.products ?? []).filter((p) => p.inStock !== false && workKey(p.title).includes(k));
+      read = items.length;
+      const { list: fresh } = await excludeRegistered({ title: String(w.name), shop, retailer: shop, products: items, nextPage: null });
+      if (fresh.products.length) {
+        const { data: existing } = await db.from('events').select('id, title, event_date, offers, price').eq('work_id', w.id).eq('type', 'goods').eq('pool', 0);
+        r = await registerEvents(db, String(w.id), await listEvents(fresh, String(w.name)), existing ?? [], authorId, null, null, backdate);
+      }
+      s.followIdx = i + 1;
+      note = `フォロー中の作品 ${i + 1}/${ws.length}（${w.name}）`;
+    }
+  }
+  await db.from('bot_state').upsert({ key: 'catalog:animate', value: s, updated_at: new Date().toISOString() });
+  return { ...r, read, note };
+}
+
+/** 店の全作品の巡回を、1回ぶん進める。ムービック・KADOKAWAストア・コトブキヤ・アニメイト */
 export async function crawlCatalogs(db: Db, budgetMs: number): Promise<Record<string, unknown>> {
   const { data: bot } = await db.from('staff').select('user_id').eq('role', 'bot').limit(1).maybeSingle();
   if (!bot?.user_id || budgetMs < 5000) return { skipped: true };
@@ -382,5 +434,7 @@ export async function crawlCatalogs(db: Db, budgetMs: number): Promise<Record<st
   const movic = await crawlMovic(db, bot.user_id as string, share).catch((e) => ({ error: String(e) }));
   const kadokawa = await crawlKadokawa(db, bot.user_id as string, share).catch((e) => ({ error: String(e) }));
   const kotobukiya = await crawlKotobukiya(db, bot.user_id as string, share).catch((e) => ({ error: String(e) }));
-  return { movic, kadokawa, kotobukiya };
+  // アニメイトは時間ではなく「20分に1回・1ページ」で進むので、持ち時間の外
+  const animate = await crawlAnimate(db, bot.user_id as string).catch((e) => ({ error: String(e) }));
+  return { movic, kadokawa, kotobukiya, animate };
 }
