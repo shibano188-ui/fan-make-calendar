@@ -3,12 +3,13 @@
 // （staff.role = 'bot'）の投稿として入れる。普通の投稿と同じ扱い（新着の通知にも入る）。
 // 直すのは運営の各自（staff.role = 'admin'）が詳細ページから行う。
 //
-// 巡回先 = ちいかわマーケット ＋ 決まった9作品 × アニメイト・ムービックの検索。
+// 巡回先 = ちいかわマーケット ＋ 決まった9作品 × アニメイト・ムービックの検索・ジャンプショップの新着。
 // ゆくゆくはフォローされている作品を全部にしたいが、巡回が重くなるので今は9作品だけ（柴野の判断・2026-09-27）。
 // まだ一度も見ていない場所を先に見て、あとは前回見たのが古い順。
 // 1回に2か所、同じ場所は1日1回まで。前回見た時刻は bot_state（key='crawl'）に持つ。
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchProductList, excludeRegistered, type ProductList } from './_listsource.js';
+import { fetchShopifyNewest } from './_shopify.js';
 import { listEvents, type ListEvent } from './_listgroup.js';
 import { representativePrice, type OfferRow } from './_offers.js';
 
@@ -18,7 +19,13 @@ type Db = SupabaseClient<any>;
 // 巡回する作品（works.name と同じ表記）
 const FIXED_WORKS = ['葬送のフリーレン', '呪術廻戦', 'ハイキュー!!', '進撃の巨人', '鬼滅の刃', '僕のヒーローアカデミア', 'ちいかわ', 'ブルーロック', '名探偵コナン'];
 
-interface Source { key: string; work: string; urls: () => Promise<string[]> }
+interface Source {
+  key: string; work: string;
+  /** 読む一覧のURL（投稿画面と同じ fetchProductList で読む） */
+  urls?: () => Promise<string[]>;
+  /** URLでは読めない一覧（ジャンプショップの新着など）を直接返す */
+  lists?: () => Promise<ProductList[]>;
+}
 
 const todayJst = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
 
@@ -34,6 +41,25 @@ const CHIIKAWA_MARKET: Source = {
   },
 };
 
+// ジャンプショップ（Shopify）。作品ごとのコレクションは古い商品まで入っていて大きいので、
+// 店の新着（/products.json は公開の新しい順・250件）から、商品名に作品名が入っているものを拾う。
+// jumpshop-online.com は jumpshop-benelic.com に転送されるので、転送先で読む（商品ページの値段の取り直しも転送先で通る）
+const JUMP_SHOP = 'https://jumpshop-benelic.com';
+// 作品ごとの一覧（新しい順）。どの作品も店の新着からも拾う。
+// haikyu・heroaca の一覧は入口のページで1件しか入っていないので使わない（2026-09-28 実測）
+const JUMP_SHOP_COLLECTIONS: Record<string, string> = { '呪術廻戦': 'jujutsukaisen', '鬼滅の刃': 'kimetsu' };
+const jumpShopSource = (w: string): Source => ({
+  key: `jumpshop:${w}`, work: w,
+  urls: async () => (JUMP_SHOP_COLLECTIONS[w] ? [`${JUMP_SHOP}/collections/${JUMP_SHOP_COLLECTIONS[w]}`] : []),
+  lists: async () => {
+    const got = await fetchShopifyNewest(JUMP_SHOP).catch(() => null);
+    if (!got) return [];
+    const k = norm(w);
+    const products = got.products.filter((p) => norm(p.title).includes(k));
+    return products.length ? [{ title: `${got.shop} 新着`, shop: got.shop, retailer: got.shop, products, nextPage: null }] : [];
+  },
+});
+
 const searchSources = (w: string): Source[] => [
   // アニメイトは登録の新しい順（sort=5）、ムービックは新着順（seq=nd）
   { key: `animate:${w}`, work: w, urls: async () => [`https://www.animate-onlineshop.jp/products/list.php?smt=${encodeURIComponent(w)}&sort=5`] },
@@ -42,7 +68,7 @@ const searchSources = (w: string): Source[] => [
 
 /** 巡回先の一覧 */
 function listSources(): Source[] {
-  return [CHIIKAWA_MARKET, ...FIXED_WORKS.flatMap(searchSources)];
+  return [CHIIKAWA_MARKET, ...FIXED_WORKS.flatMap(searchSources), ...FIXED_WORKS.map(jumpShopSource)];
 }
 
 const norm = (s: string) => s.normalize('NFKC').toLowerCase().replace(/[\s!?・/\\\-ー~〜、。,.:;'"「」『』【】[\]()（）《》<>＜＞#＆&+*★☆♪]/g, '');
@@ -141,9 +167,13 @@ async function crawlSource(db: Db, src: Source, authorId: string): Promise<{ add
   const rows = existing ?? [];
 
   let added = 0, merged = 0, read = 0;
-  for (const url of await src.urls()) {
+  const lists: ProductList[] = [];
+  for (const url of (await src.urls?.()) ?? []) {
     const got = await fetchProductList(url).catch(() => null);
-    if (!got) continue;
+    if (got) lists.push(got);
+  }
+  lists.push(...((await src.lists?.().catch(() => [])) ?? []));
+  for (const got of lists) {
     read += got.products.length;
     const mine = src.key === CHIIKAWA_MARKET.key ? got : await onlyThisWork(db, got, wid, src.work);
     const { list } = await excludeRegistered(upcoming(mine)).catch(() => ({ list: upcoming(mine) }));
