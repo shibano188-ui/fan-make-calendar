@@ -13,6 +13,7 @@ import { fetchShopifyAll, fetchShopifyCollection, type ShopifyProduct } from './
 import { listEvents, type ListEvent } from './_listgroup.js';
 import { representativePrice, type OfferRow } from './_offers.js';
 import { lookupByUrl } from './_product-search.js';
+import { botCanFetch } from './_pace.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any>;
@@ -137,6 +138,7 @@ export async function crawlNext(db: Db): Promise<{ sources: string[]; added: num
   // 同じ場所は1日1回まで（相手のサイトに負担をかけない。柴野の判断・2026-09-28）。全部見終わったら次の日まで何もしない
   const dayAgo = new Date(Date.now() - 24 * 3600_000).toISOString();
   const picks = [...sources].filter((x) => (seen[x.key] ?? '') < dayAgo)
+    .filter((x) => !x.key.startsWith('animate:') || botCanFetch('www.animate-onlineshop.jp'))
     .sort((a, b) => (seen[a.key] ?? '').localeCompare(seen[b.key] ?? '')).slice(0, 2);
   if (!picks.length) return { sources: [], added: 0, merged: 0, read: 0, skipped: '今日の巡回は済んでいる' };
   const now = new Date().toISOString();

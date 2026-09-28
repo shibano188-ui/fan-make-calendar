@@ -3,6 +3,7 @@
 // 楽天: 2026新API（RAKUTEN_APP_ID＋accessKey）。Yahoo!: 商品検索v3（YAHOO_APP_ID。未設定ならスキップ）。
 // あみあみ・駿河屋・アニメイトは楽天/Yahoo!の公式出店店舗経由で価格が取れる → 公式店を優先表示。
 import { lookupShopifyProduct } from './_shopify.js';
+import { botMayFetch } from './_pace.js';
 
 export interface Candidate {
   title: string; price: number; url: string; image: string; shop: string; retailer: string; hasAffiliate: boolean;
@@ -146,6 +147,8 @@ function decodeEntities(s: string): string {
 
 /** total はアニメイト検索の「〜に関する商品はN件あります」。付けた種類違いが全部か確かめるのに使う（取れなければ null） */
 async function searchAnimate(keyword: string): Promise<{ items: Candidate[]; total: number | null }> {
+  // ボット・定期実行の中では、アニメイトは約20分に1回まで（robots.txt の Crawl-delay。_pace.ts）
+  if (!botMayFetch('www.animate-onlineshop.jp')) return { items: [], total: null };
   const r = await fetch(`${ANIMATE_ORIGIN}/products/list.php?smt=${encodeURIComponent(keyword)}`, {
     headers: { 'User-Agent': UA, 'Accept-Language': 'ja' },
     signal: AbortSignal.timeout(8000),
@@ -294,6 +297,7 @@ async function lookupYahoo(u: URL): Promise<UrlLookup | null> {
 
 /** アニメイト本店の商品ページ（/pd/{番号}/）。ページ内の商品情報スクリプト（price: / stock_status:）から読む。 */
 async function lookupAnimate(u: URL): Promise<UrlLookup | null> {
+  if (!botMayFetch('www.animate-onlineshop.jp')) return null; // _pace.ts
   const r = await fetch(u.toString(), { headers: { 'User-Agent': UA, 'Accept-Language': 'ja' }, signal: AbortSignal.timeout(8000) });
   if (!r.ok) return null;
   const html = await r.text();

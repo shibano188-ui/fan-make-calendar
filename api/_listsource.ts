@@ -4,6 +4,7 @@
 // 接続するのは決まった店（アニメイト・ムービック）と、Shopify の店（_shopify.ts の safePublicUrl を通す）だけ。
 import { createClient } from '@supabase/supabase-js';
 import { fetchShopifyCollection } from './_shopify.js';
+import { botMayFetch } from './_pace.js';
 import { parseAnimateList, parseMovicList, lookupByUrl, unwrapProductUrl } from './_product-search.js';
 
 export interface ListProduct {
@@ -34,6 +35,7 @@ function pageTitle(html: string): string {
  *  2ページ目以降は pageno=N */
 async function animateList(u: URL, page: number): Promise<ProductList | null> {
   if (/\/pd\/\d+/.test(u.pathname) || /products\/detail\.php$/.test(u.pathname)) return null; // 1商品のページ
+  if (!botMayFetch('www.animate-onlineshop.jp')) return null; // ボットの中では約20分に1回まで（_pace.ts）
   const pc = new URL(u.toString().replace('/sphone/', '/'));
   if (/products\/list\.php$/.test(pc.pathname)) pc.searchParams.set('sl', '100');
   if (page > 1) pc.searchParams.set('pageno', String(page)); else pc.searchParams.delete('pageno');
