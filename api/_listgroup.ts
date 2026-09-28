@@ -228,7 +228,7 @@ export async function listEvents(col: ProductList, work: string | null): Promise
   }
   return groups.map((g) => ({
     title: g.title,
-    ...(isPreorder(g) ? { isOrderMade: true, preorderStart: periods.get(g)?.start ?? null, preorderEnd: periods.get(g)?.end ?? null } : {}),
+    ...(isPreorder(g) ? { isOrderMade: true, preorderStart: periods.get(g)?.start ?? null, preorderEnd: periods.get(g)?.end ?? (g.items.map(({ p }) => p.preorderEnd).filter(Boolean).sort()[0] ?? null) } : {}),
     // 画面で複数のまとまりを1つにまとめるとき、リンクの名前を「お守り（ハチワレ）」にするのに使う
     kind: g.kind || null,
     work,
