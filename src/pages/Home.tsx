@@ -19,6 +19,7 @@ import { haptic } from '../lib/haptics';
 import { useAdBanner } from '../lib/useAdBanner';
 import WorkFollowSheet from '../components/WorkFollowSheet';
 import WorkChipsRow from '../components/WorkChipsRow';
+import { loadSharedFilters, saveSharedFilters } from '../lib/sharedFilters';
 import ExpandingSearch from '../components/ui/ExpandingSearch';
 import { loadWorkImages } from '../lib/workImages';
 
@@ -90,10 +91,11 @@ export default function Home() {
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
   // 作品の並びで隠した作品（カレンダー・探すと同じ動き）。このタブを開いている間だけ覚える
+  // 作品の絞り込みは、探す・カレンダーと共通（lib/sharedFilters.ts）
   const [excluded, setExcluded] = useState<Set<string>>(() => {
-    try { return new Set(JSON.parse(sessionStorage.getItem('home_excluded') ?? '[]') as string[]); } catch { return new Set(); }
+    return new Set(loadSharedFilters().excludedWorks);
   });
-  useEffect(() => { try { sessionStorage.setItem('home_excluded', JSON.stringify([...excluded])); } catch { /* noop */ } }, [excluded]);
+  useEffect(() => { saveSharedFilters({ excludedWorks: [...excluded] }); }, [excluded]);
   const toggleWork = (id: string) => { haptic.select(); setExcluded((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; }); };
   const [workImages, setWorkImages] = useState<Record<string, string>>(loadWorkImages);
   useEffect(() => {
