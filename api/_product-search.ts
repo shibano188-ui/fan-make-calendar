@@ -332,7 +332,8 @@ async function lookupMovic(u: URL): Promise<UrlLookup | null> {
     title: decodeEntities(String(p.name ?? '')).trim() || undefined, price, shop: 'ムービック', retailer: 'ムービック', official: true,
     inStock: avail ? avail === 'InStock' || avail === 'PreOrder' || avail === 'LimitedAvailability' : undefined,
     // 予約で売っている商品は、予定も「予約あり」にする（_listgroup.ts の listEvents）
-    ...(avail === 'PreOrder' ? { stockLabel: '予約受付中' } : {}),
+    // 画面の状態（発売中・予約受付中）を決めるのに使う（src/lib/affiliate.ts の stockHint）
+    ...(avail === 'PreOrder' ? { stockLabel: '予約受付中' } : avail === 'InStock' ? { stockLabel: '在庫あり' } : {}),
     ...(typeof (Array.isArray(p.image) ? p.image[0] : p.image) === 'string' && !/sorry/i.test(String(Array.isArray(p.image) ? p.image[0] : p.image))
       ? { image: new URL(String(Array.isArray(p.image) ? p.image[0] : p.image), MOVIC_ORIGIN).toString() } : {}),
     ...(rel ? { release: { date: ymd(rel[1], rel[2], rel[3]), dateLabel: null } } : {}),
