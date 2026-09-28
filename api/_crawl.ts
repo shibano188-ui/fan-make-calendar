@@ -6,7 +6,7 @@
 // 巡回先 = ちいかわマーケット ＋ 決まった9作品 × アニメイト・ムービックの検索。
 // ゆくゆくはフォローされている作品を全部にしたいが、巡回が重くなるので今は9作品だけ（柴野の判断・2026-09-27）。
 // まだ一度も見ていない場所を先に見て、あとは前回見たのが古い順。
-// 1回に2か所。前回見た時刻は bot_state（key='crawl'）に持つ。
+// 1回に2か所、同じ場所は1日1回まで。前回見た時刻は bot_state（key='crawl'）に持つ。
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchProductList, excludeRegistered, type ProductList } from './_listsource.js';
 import { listEvents, type ListEvent } from './_listgroup.js';
@@ -116,7 +116,11 @@ export async function crawlNext(db: Db): Promise<{ sources: string[]; added: num
   const seen = { ...(((st?.value ?? {}) as { seen?: Record<string, string> }).seen ?? {}) };
   const sources = listSources();
   // まだ見ていないもの（新しくフォローされた作品）→ 前回見たのが古いもの の順に2か所
-  const picks = [...sources].sort((a, b) => (seen[a.key] ?? '').localeCompare(seen[b.key] ?? '')).slice(0, 2);
+  // 同じ場所は1日1回まで（相手のサイトに負担をかけない。柴野の判断・2026-09-28）。全部見終わったら次の日まで何もしない
+  const dayAgo = new Date(Date.now() - 24 * 3600_000).toISOString();
+  const picks = [...sources].filter((x) => (seen[x.key] ?? '') < dayAgo)
+    .sort((a, b) => (seen[a.key] ?? '').localeCompare(seen[b.key] ?? '')).slice(0, 2);
+  if (!picks.length) return { sources: [], added: 0, merged: 0, read: 0, skipped: '今日の巡回は済んでいる' };
   const now = new Date().toISOString();
   for (const p of picks) seen[p.key] = now;
   // 巡回先から外れた作品の記録は残さない
@@ -145,6 +149,8 @@ async function crawlSource(db: Db, src: Source, authorId: string): Promise<{ add
     const { list } = await excludeRegistered(upcoming(mine)).catch(() => ({ list: upcoming(mine) }));
     if (!list.products.length) continue;
     const preStart = preorderFromTitle(got.title);
+    // ちいかわマーケットの新商品は発売日の11時に販売開始。データのどこにも時刻が無い（告知にだけ出る）ので決め打ちする
+    const saleTime = src.key === CHIIKAWA_MARKET.key && !preStart ? '11:00' : null;
     for (const e of await listEvents(list, src.work)) {
       const same = findSame(rows, e);
       if (same) {
@@ -163,6 +169,7 @@ async function crawlSource(db: Db, src: Source, authorId: string): Promise<{ add
       const row = {
         work_id: wid, title: e.title, type: 'goods',
         event_date: e.date, date_label: e.dateLabel, end_date: e.dateLabel ? null : e.date,
+        event_time: e.dateLabel ? null : saleTime,
         category: e.categories.length > 1 ? JSON.stringify(e.categories) : e.categories[0] ?? null,
         image_url: e.imageUrl, offers: e.offers, price: e.price,
         link_url: first?.url ?? null, retailer: first?.retailer ?? null, has_affiliate: false,
