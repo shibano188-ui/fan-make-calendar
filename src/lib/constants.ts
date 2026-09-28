@@ -516,3 +516,14 @@ export function loadImageVisibility(): ImageVisibility {
 export function saveImageVisibility(v: ImageVisibility): void {
   localStorage.setItem(IMAGE_VISIBILITY_KEY, JSON.stringify(v));
 }
+
+// ─── FanHive公式（巡回ボットが投稿するアカウント。staff.role='bot'） ─────────────
+// 名前の横に公式マークを出し、ブロックできないようにする。ほかの人は「FanHive」「公式」「運営」を表示名に使えない
+// （同じ名前の人と見分けがつかなくならないように。柴野の判断・2026-09-28）。DB側でも止めている（sql/2026-09-28-official-account.sql）
+export const OFFICIAL_USER_ID = 'db9b68bd-feef-451a-a882-188cfc075ee1';
+export const isOfficialUser = (id?: string | null) => id === OFFICIAL_USER_ID;
+/** ほかの人が使えない表示名か */
+export function isReservedDisplayName(name: string): boolean {
+  const n = name.normalize('NFKC').toLowerCase().replace(/\s/g, '');
+  return /fanhive|ファンハイブ|公式|運営/.test(n);
+}
