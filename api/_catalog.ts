@@ -267,13 +267,120 @@ async function crawlKadokawa(db: Db, authorId: string, budgetMs: number): Promis
   return { added, merged, read, note: `分類 ${s.ci}/${KADOKAWA_CATS.length} の ${s.page}ページ目` };
 }
 
-/** 店の全作品の巡回を、1回ぶん進める。今はムービック・KADOKAWAストア。コトブキヤ・ホロライブ・アニメイトはここに足す */
+// ── コトブキヤ ─────────────────────────
+// ページは Shift_JIS。分類の一覧（新しい順・30件ずつ）に商品名・値段・売り切れ（goods_nostock_）があり、商品URLにJANコード。
+// 発売月と予約の締切（「2026/10/15までのご予約で確実にご用意！」）は商品ページにしか無いので、
+// 売り切れ・登録済み・DBに無い作品の商品を先に外し、残りだけ商品ページを読む。
+// 分類: c10 フィギュア / c20 プラモデル / c30 グッズ・雑貨
+const KOTOBUKIYA = 'https://shop.kotobukiya.co.jp';
+const KOTOBUKIYA_CATS = ['c10', 'c20', 'c30'];
+
+async function getSjis(url: string): Promise<string | null> {
+  await delay(GAP_MS);
+  try {
+    const r = await fetch(url, { headers: { 'User-Agent': UA, 'Accept-Language': 'ja' }, signal: AbortSignal.timeout(30000) });
+    return r.ok ? new TextDecoder('shift_jis').decode(await r.arrayBuffer()) : null;
+  } catch { return null; }
+}
+
+export function parseKotobukiyaList(html: string): ListProduct[] {
+  const out: ListProduct[] = [];
+  const seen = new Set<string>(); // ページの中に同じ一覧が3つある（表示の切り替え用）ので、同じ商品は1回だけ
+  for (const b of html.split('<li class="tile_item').slice(1)) {
+    const href = b.match(/href="(\/shop\/g\/g[^"/]+\/)"/)?.[1];
+    const title = b.match(/title="([^"]+)"/)?.[1]?.replace(/&amp;/g, '&');
+    const price = b.match(/amount_of_money">([\d,]+)</)?.[1];
+    if (!href || !title || !price || seen.has(href)) continue;
+    seen.add(href);
+    const img = b.match(/data-original="([^"]+)"/)?.[1];
+    const jan = href.match(/^\/shop\/g\/g(\d{13})\/$/)?.[1];
+    out.push({
+      title, url: `${KOTOBUKIYA}${href}`, price: Number(price.replace(/,/g, '')),
+      inStock: !/goods_nostock/.test(b.slice(0, 80)),
+      ...(jan ? { jan } : {}),
+      image: img ? new URL(img, KOTOBUKIYA).toString() : '', images: img ? [new URL(img, KOTOBUKIYA).toString()] : [],
+    });
+  }
+  return out;
+}
+
+/** 商品ページから発売月と予約の締切 */
+async function kotobukiyaDetail(p: ListProduct): Promise<void> {
+  const html = await getSjis(p.url);
+  if (!html) return;
+  const text = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  const rel = text.match(/発売月[：:]?\s*(\d{4}年\s*\d{1,2}月(?:\s*\d{1,2}日|上旬|中旬|下旬)?)/)?.[1];
+  const r = rel ? parseReleaseText(rel) : null;
+  if (r) p.release = r;
+  const dl = text.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})までのご予約/);
+  if (dl) {
+    const end = `${dl[1]}-${dl[2].padStart(2, '0')}-${dl[3].padStart(2, '0')}`;
+    if (end >= new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)) { p.preorderEnd = end; p.stockLabel = '予約受付中'; }
+  }
+}
+
+interface KotobukiyaState { phase: 'initial' | 'daily'; ci?: number; page?: number; dailyAt?: string }
+
+async function crawlKotobukiya(db: Db, authorId: string, budgetMs: number): Promise<{ added: number; merged: number; read: number; note: string }> {
+  const until = Date.now() + budgetMs;
+  const { data: st } = await db.from('bot_state').select('value').eq('key', 'catalog:kotobukiya').maybeSingle();
+  const s: KotobukiyaState = { phase: 'initial', ci: 0, page: 1, ...((st?.value ?? {}) as Partial<KotobukiyaState>) };
+  const save = () => db.from('bot_state').upsert({ key: 'catalog:kotobukiya', value: s, updated_at: new Date().toISOString() });
+  const shop = 'コトブキヤ';
+  const dict = await workDict(db);
+  let added = 0, merged = 0, read = 0;
+
+  // 1ページぶん: 売り切れ・DBに無い作品・登録済みを外してから、残りの商品ページを読んで登録。時間切れなら false
+  const doPage = async (html: string, created?: (e: ListEvent) => string | null): Promise<boolean> => {
+    const items = parseKotobukiyaList(html).filter((x) => x.inStock !== false && matchWork(x.title, dict));
+    read += items.length;
+    const { list } = await excludeRegistered({ title: shop, shop, retailer: shop, products: items, nextPage: null });
+    const done: ListProduct[] = [];
+    for (const p of list.products) {
+      if (Date.now() > until) break;
+      await kotobukiyaDetail(p);
+      done.push(p);
+    }
+    const r = await registerByTitle(db, authorId, shop, done, created);
+    added += r.added; merged += r.merged;
+    return done.length === list.products.length;
+  };
+
+  if (s.phase === 'daily') {
+    if (s.dailyAt && Date.now() - Date.parse(s.dailyAt) < 24 * 3600_000) return { added, merged, read, note: '今日の新着は済んでいる' };
+    for (const cat of KOTOBUKIYA_CATS) {
+      if (Date.now() > until) break;
+      const html = await getSjis(`${KOTOBUKIYA}/shop/c/${cat}/`);
+      if (html) await doPage(html);
+    }
+    s.dailyAt = new Date().toISOString();
+    await save();
+    return { added, merged, read, note: '新着' };
+  }
+
+  while (Date.now() < until && (s.ci ?? 0) < KOTOBUKIYA_CATS.length) {
+    const cat = KOTOBUKIYA_CATS[s.ci ?? 0];
+    const p = s.page ?? 1;
+    const html = await getSjis(p > 1 ? `${KOTOBUKIYA}/shop/c/${cat}_p${p}/` : `${KOTOBUKIYA}/shop/c/${cat}/`);
+    if (!html) break;
+    const complete = await doPage(html, backdate);
+    if (!complete) break; // このページの残りは次の回（登録済みは外れる）
+    if (html.includes(`/shop/c/${cat}_p${p + 1}/`)) s.page = p + 1;
+    else { s.ci = (s.ci ?? 0) + 1; s.page = 1; }
+  }
+  if ((s.ci ?? 0) >= KOTOBUKIYA_CATS.length) { s.phase = 'daily'; s.ci = 0; s.page = 1; }
+  await save();
+  return { added, merged, read, note: `分類 ${s.ci}/${KOTOBUKIYA_CATS.length} の ${s.page}ページ目` };
+}
+
+/** 店の全作品の巡回を、1回ぶん進める。今はムービック・KADOKAWAストア・コトブキヤ。アニメイトはここに足す */
 export async function crawlCatalogs(db: Db, budgetMs: number): Promise<Record<string, unknown>> {
   const { data: bot } = await db.from('staff').select('user_id').eq('role', 'bot').limit(1).maybeSingle();
   if (!bot?.user_id || budgetMs < 5000) return { skipped: true };
-  // 持ち時間は店どうしで半分ずつ
-  const half = Math.floor(budgetMs / 2);
-  const movic = await crawlMovic(db, bot.user_id as string, half).catch((e) => ({ error: String(e) }));
-  const kadokawa = await crawlKadokawa(db, bot.user_id as string, half).catch((e) => ({ error: String(e) }));
-  return { movic, kadokawa };
+  // 持ち時間は店どうしで等分
+  const share = Math.floor(budgetMs / 3);
+  const movic = await crawlMovic(db, bot.user_id as string, share).catch((e) => ({ error: String(e) }));
+  const kadokawa = await crawlKadokawa(db, bot.user_id as string, share).catch((e) => ({ error: String(e) }));
+  const kotobukiya = await crawlKotobukiya(db, bot.user_id as string, share).catch((e) => ({ error: String(e) }));
+  return { movic, kadokawa, kotobukiya };
 }

@@ -11,6 +11,8 @@ export interface ListProduct {
   title: string; url: string; price: number; inStock?: boolean; stockLabel?: string;
   /** JANコード（商品ページで取れたとき） */
   jan?: string;
+  /** 予約の締切（コトブキヤの「2026/10/15までのご予約で確実にご用意！」など）。YYYY-MM-DD */
+  preorderEnd?: string;
   image: string; images: string[];
   release?: { date: string; dateLabel: string | null };
 }
