@@ -166,7 +166,7 @@ export function ensureEventEdits(): Promise<void> {
   return editsLoad;
 }
 /** 修正・取り消し・復活の直後に一覧へ戻っても最新になるよう、次の取得で読み直させる。 */
-function invalidateEventEdits(): void { editsLoad = null; }
+function invalidateEventEdits(): void { editsLoad = null; invalidateExploreEvents(); }
 
 /** 読み込んだパッチを重ねた実効値にする（詳細ページの applyEdits と同じ結果）。 */
 function withCachedEdits(ev: CalendarEvent): CalendarEvent {
@@ -387,6 +387,7 @@ export async function createEvents(
 
   const { data, error } = await supabase.from('events').insert(rows).select('id');
   if (error) throw error;
+  invalidateExploreEvents();
   requestDeviceCalendarSync(authorId);
   return (data ?? []).map(r => r.id as string);
 }
@@ -1242,7 +1243,25 @@ export async function listSavedEvents(userId: string): Promise<CalendarEvent[]> 
 
 // 探す（横断フィード）: 全作品の予定を期間ウィンドウで取得。works名を結合。
 // 過去も含めて取得し、UI側で「今日起点」に並べる。type はUI側で category から導出して振り分ける。
-export async function listExploreEvents(from: string, to: string): Promise<CalendarEvent[]> {
+// ホーム・探すはタブを開くたびにこれを呼ぶが、1回で約4MB・数秒かかる。
+// 2分以内に取ったばかりなら、同じ結果（同じ配列）をそのまま返して取り直さない。
+// 投稿・編集・削除のあとは invalidateExploreEvents() で捨て、自分の変更がすぐ出るようにする。
+const EXPLORE_FRESH_MS = 2 * 60 * 1000;
+const exploreLoads = new Map<string, { at: number; load: Promise<CalendarEvent[]> }>();
+function invalidateExploreEvents(): void { exploreLoads.clear(); }
+
+export function listExploreEvents(from: string, to: string): Promise<CalendarEvent[]> {
+  const key = `${from}_${to}`;
+  const hit = exploreLoads.get(key);
+  if (hit && Date.now() - hit.at < EXPLORE_FRESH_MS) return hit.load;
+  const load = fetchExploreEvents(from, to);
+  exploreLoads.set(key, { at: Date.now(), load });
+  // 失敗した回は覚えない（次に開いたときに取り直す）
+  load.catch(() => { if (exploreLoads.get(key)?.load === load) exploreLoads.delete(key); });
+  return load;
+}
+
+async function fetchExploreEvents(from: string, to: string): Promise<CalendarEvent[]> {
   await ensureEventEdits(); // 共同編集の修正を重ねた実効値で返す
   // ⚠️ Supabase は1回に1000件までしか返さず、超えた分は黙って切る。
   // 古い順に取っているので、切れると「これからの予定」がまるごと消える（2026-09 に実際に起きた）。
@@ -1302,6 +1321,7 @@ export async function updateEvent(
   if ('preorderEndTime' in data) row.preorder_end_time = data.preorderEndTime || null;
   const { error } = await supabase.from('events').update(row).eq('id', eventId);
   if (error) throw error;
+  invalidateExploreEvents();
 }
 
 export async function updatePreorderInfo(
@@ -1324,6 +1344,7 @@ export async function updatePreorderInfo(
     p_date_label: data.dateLabel,
   });
   if (error) throw error;
+  invalidateExploreEvents();
 }
 
 // ─── イベント削除 ─────────────────────────────────────────────────
@@ -1338,6 +1359,7 @@ export async function deleteEvent(eventId: string): Promise<void> {
   // 本人のみ削除可（投稿者チェックは関数側）。likes も関数内で削除
   const { error } = await supabase.rpc('delete_event', { p_event_id: eventId });
   if (error) throw error;
+  invalidateExploreEvents();
 }
 
 // ─── 通報 ──────────────────────────────────────────────────────────
