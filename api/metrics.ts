@@ -307,6 +307,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const enrich = await autoEnrich(client, Math.max(0, 95_000 - (Date.now() - started)));
         return { crawl, catalog, enrich };
       });
+      // 毎回の結果をログに残す（Vercel のログで、どの店がどれだけ進んだかを見る）
+      console.log('[bot]', JSON.stringify({ tookMs: Date.now() - started, crawl, catalog, enrich }));
       return res.status(200).json({ crawl, catalog, enrich });
     }
     return collect(req, res);
