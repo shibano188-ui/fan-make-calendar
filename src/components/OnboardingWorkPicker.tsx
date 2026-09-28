@@ -215,7 +215,9 @@ export default function OnboardingWorkPicker({ onCreated }: Props) {
                     : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }),
                   visibility: fit !== null && i < fit ? 'visible' : 'hidden',
                 }}>
-                {on && <Check size={14} strokeWidth={3} className="flex-shrink-0" />}
+                {/* チェックは未選択でも場所を取っておく（visibility で隠す）。
+                    選んだときだけ出すとチップの幅が変わって折り返しがずれ、押すたびに他のチップが動いて続けて選べない */}
+                <Check size={14} strokeWidth={3} aria-hidden className="flex-shrink-0" style={{ visibility: on ? 'visible' : 'hidden' }} />
                 <span className="truncate">{w.name}</span>
               </button>
             );
