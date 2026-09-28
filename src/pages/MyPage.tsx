@@ -134,7 +134,9 @@ export default function MyPage() {
       if (field === 'name') { await saveDisplayName(user.id, name.trim()); toast('表示名を保存しました'); }
       else if (field === 'pref') { await saveHomePrefecture(user.id, homePref || null); toast('ホーム県を保存しました'); }
       else { await saveProfileExtras(user.id, { bio, oshi, favWorks }); toast('プロフィールを保存しました'); }
-    } catch { toast('保存に失敗しました'); }
+    } catch (e) {
+      toast(e instanceof Error && e.message === 'reserved_name' ? '「FanHive」「公式」「運営」は表示名に使えません' : '保存に失敗しました');
+    }
   };
 
   const radar = stats ? calcRadarData(stats) : [];

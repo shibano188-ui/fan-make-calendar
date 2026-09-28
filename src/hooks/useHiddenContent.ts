@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { CalendarEvent } from '../types';
 import { getReportedEventIds, getBlockedUserIds, blockUser, unblockUser } from '../lib/api';
+import { isOfficialUser } from '../lib/constants';
 
 // 自分の画面から隠すもの（通報した投稿 / ブロックした人の投稿）をまとめて持つ。
 //
@@ -58,7 +59,7 @@ export function useHiddenContent(userId: string | undefined) {
   const isBlocked = useCallback((otherUserId: string) => blockedIds.has(otherUserId), [version]);
 
   const block = useCallback(async (otherUserId: string) => {
-    if (!userId) return;
+    if (!userId || isOfficialUser(otherUserId)) return; // FanHive公式はブロックできない
     await blockUser(userId, otherUserId);
     blockedIds = new Set(blockedIds).add(otherUserId);
     notify();

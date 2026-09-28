@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import { sortByWorkOrder } from './workOrder';
 import type { CalendarEvent, EventVisit, Offer } from '../types';
-import { parseCategories, loadMutedEventIds, loadMutedWorkIds, ANON_NAME } from './constants';
+import { parseCategories, loadMutedEventIds, loadMutedWorkIds, ANON_NAME, isOfficialUser, isReservedDisplayName } from './constants';
 import { searchWorksByAlias, findWorkByExactAlias } from './workAliases';
 import { primaryOffer, getOffers } from './affiliate';
 import { requestDeviceCalendarSync } from './deviceCalendar';
@@ -750,6 +750,8 @@ export async function getDisplayName(userId: string): Promise<string | null> {
 }
 
 export async function saveDisplayName(userId: string, name: string): Promise<void> {
+  // 「FanHive」「公式」「運営」は公式アカウントと見分けがつかなくなるので使えない（constants.ts）
+  if (!isOfficialUser(userId) && isReservedDisplayName(name)) throw new Error('reserved_name');
   await supabase
     .from('user_settings')
     .upsert(
