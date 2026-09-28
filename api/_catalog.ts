@@ -191,10 +191,13 @@ async function crawlMovic(db: Db, authorId: string, budgetMs: number): Promise<{
 
 // ── KADOKAWAストア ─────────────────────────
 // 作品一覧は無い（代表的なシリーズだけ）ので、グッズの分類ごとの一覧（新しい順・12件ずつ）を全部読み、作品は商品名で見分ける。
-// 一覧に値段・在庫・発売日があり、商品URLにJANコードが入っている（/shop/g/g4984995910659/）ので、商品ページは読まない。
+// 一覧に値段・在庫・発売日があり、商品URLにJANコードが入っている（/shop/g/g4984995910659/）。
+// 画像は一覧だと小さい1枚だけなので、登録前の商品だけ商品ページを読んで全部取る（コトブキヤと同じ）。
 // 分類: c22 フィギュア・プラモデル / c23 グッズ・文具 / c24 ファッション / c25 その他グッズ（本・映像・ゲームは読まない）
 const KADOKAWA = 'https://store.kadokawa.co.jp';
 const KADOKAWA_CATS = ['c22', 'c23', 'c24', 'c25'];
+// 店の表記は「在庫無し」「販売が終了している商品です」など。「販売終了」だけだと後者を在庫ありと読んでいた
+const KADOKAWA_SOLD_OUT = /在庫無|在庫な|販売.{0,3}終了|品切|売切/;
 
 export function parseKadokawaList(html: string): ListProduct[] {
   const out: ListProduct[] = [];
@@ -206,9 +209,10 @@ export function parseKadokawaList(html: string): ListProduct[] {
     const stock = b.match(/class="stock">([^<]+)</)?.[1]?.trim() ?? '';
     const dateText = b.match(/goods-date">\s*([^<]+?)\s*</)?.[1] ?? '';
     const release = parseReleaseText(dateText);
-    const img = b.match(/<img[^>]+src="([^"]+)"/)?.[1];
+    // ⚠️ ブロックの最初の <img> は「NEW」や分類のアイコン。商品の写真は <figure> の中。小さい版(S)を大きい版(L)にする
+    const img = b.match(/<figure[\s\S]*?<img[^>]+src="(\/img\/goods\/[^"]+)"/)?.[1]?.replace('/img/goods/S/', '/img/goods/L/');
     const jan = href.match(/^\/shop\/g\/g(\d{13})\/$/)?.[1];
-    const soldOut = /在庫無し|在庫なし|販売終了|品切|売切/.test(stock);
+    const soldOut = KADOKAWA_SOLD_OUT.test(stock);
     out.push({
       title, url: `${KADOKAWA}${href}`, price: Number(price.replace(/,/g, '')),
       inStock: !soldOut,
@@ -223,6 +227,18 @@ export function parseKadokawaList(html: string): ListProduct[] {
   return out;
 }
 
+/** 商品ページから、画像を全部（大きい写真の並び）と、販売終了かどうか */
+async function kadokawaDetail(p: ListProduct): Promise<void> {
+  const html = await getHtml(p.url);
+  if (!html) return;
+  const imgs = [...html.matchAll(/block-goods-main-img-item[^>]*>\s*<img[^>]+src="([^"]+)"/g)]
+    .map((m) => new URL(m[1], KADOKAWA).toString());
+  const uniq = [...new Set(imgs)];
+  if (uniq.length) { p.images = uniq; p.image = uniq[0]; }
+  const ended = html.match(/販売.{0,3}終了している商品です/)?.[0];
+  if (ended) { p.inStock = false; p.stockLabel = ended; }
+}
+
 interface KadokawaState { phase: 'initial' | 'daily'; ci?: number; page?: number; dailyAt?: string }
 
 async function crawlKadokawa(db: Db, authorId: string, budgetMs: number): Promise<{ added: number; merged: number; read: number; note: string }> {
@@ -233,6 +249,23 @@ async function crawlKadokawa(db: Db, authorId: string, budgetMs: number): Promis
   let added = 0, merged = 0, read = 0;
   const shop = 'KADOKAWAストア';
   const page = async (cat: string, p: number) => getHtml(p > 1 ? `${KADOKAWA}/shop/c/${cat}_p${p}/` : `${KADOKAWA}/shop/c/${cat}/`);
+  const dict = await workDict(db);
+
+  // 1ページぶん: 売り切れ・DBに無い作品・登録済みを外してから、残りの商品ページを読んで登録。時間切れなら false
+  const doPage = async (html: string, created?: (e: ListEvent) => string | null): Promise<boolean> => {
+    const items = parseKadokawaList(html).filter((x) => x.inStock !== false && matchWork(x.title, dict));
+    read += items.length;
+    const { list } = await excludeRegistered({ title: shop, shop, retailer: shop, products: items, nextPage: null });
+    const done: ListProduct[] = [];
+    for (const p of list.products) {
+      if (Date.now() > until) break;
+      await kadokawaDetail(p);
+      done.push(p);
+    }
+    const r = await registerByTitle(db, authorId, shop, done.filter((x) => x.inStock !== false), created);
+    added += r.added; merged += r.merged;
+    return done.length === list.products.length;
+  };
 
   if (s.phase === 'daily') {
     if (s.dailyAt && Date.now() - Date.parse(s.dailyAt) < 24 * 3600_000) return { added, merged, read, note: '今日の新着は済んでいる' };
@@ -240,10 +273,7 @@ async function crawlKadokawa(db: Db, authorId: string, budgetMs: number): Promis
       for (const p of [1, 2]) {
         if (Date.now() > until) break;
         const html = await page(cat, p);
-        const items = html ? parseKadokawaList(html).filter((x) => x.inStock !== false) : [];
-        read += items.length;
-        const r = await registerByTitle(db, authorId, shop, items);
-        added += r.added; merged += r.merged;
+        if (html) await doPage(html);
       }
     }
     s.dailyAt = new Date().toISOString();
@@ -256,10 +286,8 @@ async function crawlKadokawa(db: Db, authorId: string, budgetMs: number): Promis
     const p = s.page ?? 1;
     const html = await page(cat, p);
     if (!html) break; // 読めなければ次の回にやり直す
-    const items = parseKadokawaList(html).filter((x) => x.inStock !== false);
-    read += items.length;
-    const r = await registerByTitle(db, authorId, shop, items, backdate);
-    added += r.added; merged += r.merged;
+    const complete = await doPage(html, backdate);
+    if (!complete) break; // このページの残りは次の回（登録済みは外れる）
     if (html.includes(`/shop/c/${cat}_p${p + 1}/`)) s.page = p + 1;
     else { s.ci = (s.ci ?? 0) + 1; s.page = 1; }
   }
