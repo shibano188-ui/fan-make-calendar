@@ -23,12 +23,13 @@ export type Work = {
 
 // ─── 作品 ──────────────────────────────────────────────────────────
 
-export async function listWorks(): Promise<Work[]> {
+// フォロー数の多い順。オンボーディングの作品選びは画面に収まる数だけ出すので、多めに取れるよう件数を渡せる
+export async function listWorks(limit = 20): Promise<Work[]> {
   const { data, error } = await supabase
     .from('works')
     .select('id, name, participant_count')
     .order('participant_count', { ascending: false })
-    .limit(20);
+    .limit(limit);
   if (error) throw error;
   return (data ?? []).map(w => ({ id: w.id, name: w.name, participantCount: w.participant_count }));
 }

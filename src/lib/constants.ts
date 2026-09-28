@@ -20,6 +20,13 @@ export const ONBOARDING_KEY = 'fan_onboarding_done_v2';
  *  投稿画面から戻ってきたときに、最後のカードを「自分の推しでやってみる」に切り替えるために使う。
  *  オンボーディングを閉じるときに一緒に消す。 */
 export const ONBOARDING_DEMO_KEY = 'fan_onboarding_demo_done';
+/** オンボーディングの1枚目で作品を1つ以上フォローした印。
+ *  案内を閉じるとき（Onboarding の finish）に、これが無くてフォローも0件なら既定の作品（DEFAULT_WORK_NAMES）を入れる。
+ *  選んだ人に、選んでいない作品まで勝手に足さないため。 */
+export const ONBOARDING_WORKS_KEY = 'fan_onboarding_works_v1';
+/** フォローが画面の外で変わったことを知らせる window のイベント名（workImages.ts の fan-work-images と同じ流儀）。
+ *  オンボーディングは開いているホームの上に重なるので、ホームは user が変わらない限り読み直さない。これで読み直させる */
+export const FOLLOWS_EVENT = 'fan-follows';
 
 /** 起動したときに最初に出す画面。カレンダーが主役のアプリなので既定はカレンダー。
  *  ホームに戻すなら '/' にする。 */

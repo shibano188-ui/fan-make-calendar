@@ -52,6 +52,13 @@ export default function ItemDetail() {
   const { user } = useAuth();
   const { hideReportedEvent } = useHiddenContent(user?.id);
   const toast = useToast();
+  // リンク・共有から直接開いた人は履歴が無く、navigate(-1) では何も起きない（下のタブも無い画面なので閉じ込められる）。
+  // 履歴が無ければホームへ出す。ホームを通らないとオンボーディングで作品を選ぶ機会も無くなる（PostNew の goBack と同じ）
+  const goBack = () => {
+    const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+    if (idx > 0) navigate(-1);
+    else navigate('/', { replace: true });
+  };
 
   const [ev, setEv] = useState<CalendarEvent | null | undefined>(undefined); // undefined=loading
   const [workName, setWorkName] = useState('');
@@ -142,7 +149,7 @@ export default function ItemDetail() {
   if (ev === null) {
     return <div className="min-h-screen flex flex-col items-center justify-center gap-3" style={{ backgroundColor: 'var(--bg-primary)' }}>
       <p className="text-label-secondary text-[14px]">見つかりませんでした</p>
-      <button onClick={() => navigate(-1)} className="pressable text-[14px]" style={{ color: 'var(--accent-text)' }}>戻る</button>
+      <button onClick={goBack} className="pressable text-[14px]" style={{ color: 'var(--accent-text)' }}>戻る</button>
     </div>;
   }
 
@@ -323,7 +330,7 @@ export default function ItemDetail() {
     // 通報したものは自分の画面から消す（一覧に残っていると通報が効いていないように見える）
     hideReportedEvent(event.id);
     toast('通報しました。この投稿は表示されなくなります');
-    navigate(-1);
+    goBack();
   };
   const onSaveEdit = async (patch: EventPatch) => {
     if (!user) return;
@@ -356,7 +363,7 @@ export default function ItemDetail() {
       <div className="mx-auto w-full max-w-app flex-1 flex flex-col">
         {/* ヘッダー */}
         <div className="sticky top-0 z-20 flex items-center px-2 py-2 material-bar scroll-edge" style={{ paddingTop: 'calc(var(--sat) + 8px)' }}>
-          <button onClick={() => navigate(-1)} aria-label="戻る" className="pressable tap-44 p-2"><ArrowLeft size={22} /></button>
+          <button onClick={goBack} aria-label="戻る" className="pressable tap-44 p-2"><ArrowLeft size={22} /></button>
         </div>
 
         <div className={`flex-1 ${buyMode !== 'none' ? 'pb-28' : 'pb-10'}`}>
@@ -385,7 +392,7 @@ export default function ItemDetail() {
             {canFix && staffEditing && (
               <StaffEditPanel event={event} onClose={() => setStaffEditing(false)}
                 onSaved={(patch) => { setEv((prev) => (prev ? { ...prev, ...patch } : prev)); setStaffEditing(false); }}
-                onDeleted={() => navigate(-1)} />
+                onDeleted={goBack} />
             )}
 
           </div>
@@ -760,7 +767,7 @@ export default function ItemDetail() {
           workId={event.workId}
           workName={workName}
           onClose={() => setViewingUserId(null)}
-          onBlocked={() => { setViewingUserId(null); navigate(-1); }}
+          onBlocked={() => { setViewingUserId(null); goBack(); }}
         />
       )}
     </div>

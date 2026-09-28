@@ -1,22 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { CalendarDays, Heart, Bell, Sparkles } from 'lucide-react';
+import { Heart, Bell, Sparkles } from 'lucide-react';
 import { setAdsSuppressed } from '../lib/adSuppress';
 import { openExternal } from '../lib/openExternal';
-import { ONBOARDING_KEY, ONBOARDING_DEMO_KEY, FEATURE_PREMIUM } from '../lib/constants';
+import { ONBOARDING_KEY, ONBOARDING_DEMO_KEY, ONBOARDING_WORKS_KEY, FOLLOWS_EVENT, FEATURE_PREMIUM } from '../lib/constants';
+import { listAllParticipatedWorks } from '../lib/api';
+import { setCached } from '../lib/swrCache';
+import { useAuth, joinDefaultWorks, markDefaultJoinSettled } from '../contexts/AuthContext';
 import AiDemo from './AiDemo';
+import OnboardingWorkPicker from './OnboardingWorkPicker';
 
 // 初回オンボーディング（現IA: ホーム/探す/＋投稿/カレンダー/マイページ 版）
 // 表示条件: フラグ未設定のみ。キーを v2 に更新し、旧カードを見た人にも一度だけ出す
 // （「いいね＝カレンダー追加」「通知がある」が伝わっていないため）。
+//
+// 1枚目は作品を選ぶ画面（OnboardingWorkPicker）。以前は「推しの予定、ぜんぶここに」の説明カードで、
+// 作品は起動した全員に既定の2つ（ちいかわ・ハイキュー!!）を自動で入れていた。
+// 今は1つも選ばずに閉じた人にだけ入れる（finish を見ること）。
 
 // 本文はワンセンテンス厳守（長いと読まれない）。改行は入れず折り返しに任せる。
 const CARDS = [
-  {
-    icon: CalendarDays,
-    title: '推しの予定、ぜんぶここに',
-    body: 'ファンが見つけたイベントやグッズの予定が「探す」に集まります。',
-  },
   {
     icon: Heart,
     title: 'いいねでカレンダーに追加',
@@ -34,7 +37,11 @@ const CARDS = [
   },
 ] as const;
 
+// 作品を選ぶ画面 ＋ 説明カード。ページドット・最後のページの判定はすべてこれを見る
+const PAGE_COUNT = CARDS.length + 1;
+
 export default function Onboarding() {
+  const { user } = useAuth();
   const [show, setShow] = useState(() => !localStorage.getItem(ONBOARDING_KEY));
   // 体験（/post?demo=1）から戻ってきた直後か。最後のカードのボタンが変わる
   const [demoDone, setDemoDone] = useState(() => !!localStorage.getItem(ONBOARDING_DEMO_KEY));
@@ -71,14 +78,34 @@ export default function Onboarding() {
   useEffect(() => {
     if (!visible || !demoDone) return;
     const el = scrollRef.current;
-    if (el) el.scrollLeft = el.clientWidth * (CARDS.length - 1);
-    setPage(CARDS.length - 1);
+    if (el) el.scrollLeft = el.clientWidth * (PAGE_COUNT - 1);
+    setPage(PAGE_COUNT - 1);
   }, [visible, demoDone]);
+
+  const goNext = () => scrollRef.current?.scrollBy({ left: scrollRef.current.clientWidth, behavior: 'smooth' });
+
+  // 1つも選ばずに閉じた人にだけ既定の作品を入れる。スキップ・はじめる・Xを開く・体験を飛ばす、の
+  // どれで閉じてもここを通る。投稿や予定詳細で先にフォローしてから来た人もいるので、印に加えて実際の件数も見る
+  // （選んだ作品に加えて、選んでいない作品まで勝手に足さないため）。
+  // user が無い（ログインが間に合っていない）ときは何もしない。判断済みの印が立たないので、
+  // 次の起動で AuthContext の ensureDefaultJoined が入れる
+  const settleDefaultWorks = async () => {
+    if (!user) return;
+    try {
+      if (localStorage.getItem(ONBOARDING_WORKS_KEY)) { markDefaultJoinSettled(); return; }
+      if ((await listAllParticipatedWorks(user.id)).length > 0) { markDefaultJoinSettled(); return; }
+      await joinDefaultWorks(user.id);
+      // 案内の下のホームは「フォロー0件」を控えに持ったままなので、書き換えてから読み直させる
+      setCached(`follows:${user.id}`, await listAllParticipatedWorks(user.id));
+      window.dispatchEvent(new Event(FOLLOWS_EVENT));
+    } catch { /* 印が立たないので、次の起動で AuthContext がやり直す */ }
+  };
 
   const finish = () => {
     localStorage.setItem(ONBOARDING_KEY, '1');
     try { localStorage.removeItem(ONBOARDING_DEMO_KEY); } catch { /* ignore */ }
     setShow(false);
+    void settleDefaultWorks();
     // スキップした人にもプランの案内は見せる（一番読まれる位置なので）。
     // 決済が繋がるまでは買えない案内を出さない方針なので FEATURE_PREMIUM で止めてある
     if (FEATURE_PREMIUM) navigate('/premium');
@@ -114,6 +141,10 @@ export default function Onboarding() {
         className="flex-1 flex overflow-x-auto"
         style={{ scrollSnapType: 'x mandatory', scrollbarWidth: 'none' }}
       >
+        {/* 1枚目: 作品を選ぶ。作ってフォローしたら次のカードへ進める */}
+        <div className="flex-shrink-0 w-full flex flex-col px-6 pt-2 min-h-0" style={{ scrollSnapAlign: 'center' }}>
+          <OnboardingWorkPicker onCreated={goNext} />
+        </div>
         {CARDS.map(({ icon: Icon, title, body }) => (
           <div
             key={title}
@@ -135,7 +166,7 @@ export default function Onboarding() {
       {/* ページドット + CTA */}
       <div className="flex flex-col items-center gap-6 pb-10 px-8" style={{ paddingBottom: 'max(40px, env(safe-area-inset-bottom))' }}>
         <div className="flex gap-2">
-          {CARDS.map((_, i) => (
+          {Array.from({ length: PAGE_COUNT }, (_, i) => (
             <div
               key={i}
               className="w-2 h-2 rounded-full transition-colors"
@@ -143,7 +174,7 @@ export default function Onboarding() {
             />
           ))}
         </div>
-        {page === CARDS.length - 1 ? (
+        {page === PAGE_COUNT - 1 ? (
           /* 最後は「読んで終わり」にしない。共有ひとつで予定になるところを実際に触らせる。
              強制はしない（押さない人はそのまま「はじめる」で抜けられる）。 */
           <div className="w-full flex flex-col gap-2">
@@ -160,7 +191,7 @@ export default function Onboarding() {
           </div>
         ) : (
           <button
-            onClick={() => scrollRef.current?.scrollBy({ left: scrollRef.current.clientWidth, behavior: 'smooth' })}
+            onClick={goNext}
             className="w-full py-3.5 rounded-full text-[15px] font-semibold pressable"
             style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 15%, transparent)', color: 'var(--accent-text)' }}
           >
