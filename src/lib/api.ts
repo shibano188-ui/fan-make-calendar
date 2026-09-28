@@ -1244,15 +1244,29 @@ export async function listSavedEvents(userId: string): Promise<CalendarEvent[]> 
 // 過去も含めて取得し、UI側で「今日起点」に並べる。type はUI側で category から導出して振り分ける。
 export async function listExploreEvents(from: string, to: string): Promise<CalendarEvent[]> {
   await ensureEventEdits(); // 共同編集の修正を重ねた実効値で返す
-  const { data, error } = await supabase
+  // ⚠️ Supabase は1回に1000件までしか返さず、超えた分は黙って切る。
+  // 古い順に取っているので、切れると「これからの予定」がまるごと消える（2026-09 に実際に起きた）。
+  // 1回目で総数を数え、残りは1000件ずつ並列で取る。id でも並べて、区切りの前後で重複・欠落させない。
+  const PAGE = 1000;
+  const page = (i: number, count = false) => supabase
     .from('events')
-    .select('*, works(name)')
+    .select('*, works(name)', count ? { count: 'exact' } : undefined)
     .eq('pool', 0)
     .lte('event_date', to)
     .or(`end_date.gte.${from},and(end_date.is.null,event_date.gte.${from})`)
-    .order('event_date', { ascending: true });
-  if (error) throw error;
-  const events = (data ?? []).map((e) => {
+    .order('event_date', { ascending: true })
+    .order('id', { ascending: true })
+    .range(i * PAGE, i * PAGE + PAGE - 1);
+  const first = await page(0, true);
+  if (first.error) throw first.error;
+  const pages = Math.ceil((first.count ?? 0) / PAGE);
+  const rest = await Promise.all(Array.from({ length: Math.max(0, pages - 1) }, (_, k) => page(k + 1)));
+  for (const r of rest) if (r.error) throw r.error;
+  // 取っている間にボットが予定を足すと区切りがずれて同じ行が2回来るので、id で1つにする
+  const seen = new Set<string>();
+  const data = [first.data ?? [], ...rest.map((r) => r.data ?? [])].flat()
+    .filter((e) => !seen.has(e.id as string) && !!seen.add(e.id as string));
+  const events = data.map((e) => {
     const works = (e as Record<string, unknown>).works as { name: string } | null;
     return { ...rowToEvent(e as Record<string, unknown>), workName: works?.name ?? '' };
   });
