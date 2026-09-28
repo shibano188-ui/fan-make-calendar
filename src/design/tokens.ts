@@ -114,19 +114,23 @@ export function deriveStatus(e: StatusFields, today = todayStr()): ItemStatus {
   return base;
 }
 
+/** 今年以外の日付には年を付ける（去年の10/5発売の在庫品が、これから発売に見えていた。2026-09-28） */
+const yearPrefix = (d: string) => (d.slice(0, 4) !== todayStr().slice(0, 4) ? `${d.slice(0, 4)}/` : '');
+
 function md(d?: string): string {
   if (!d) return '';
   const parts = d.split('-');
-  return parts.length === 3 ? `${Number(parts[1])}/${Number(parts[2])}` : d;
+  return parts.length === 3 ? `${yearPrefix(d)}${Number(parts[1])}/${Number(parts[2])}` : d;
 }
 
 const SEASON_LABELS = ['春頃', '夏頃', '秋頃', '冬頃'];
 /** 曖昧日付(dateLabel)を表示用に整形。上旬→"4月上旬" / 中(月のみ)→"4月" / 春頃→"春頃" */
 function formatDateLabel(date: string | undefined | null, dateLabel: string): string {
-  if (SEASON_LABELS.includes(dateLabel)) return dateLabel;
   const m = date ? Number(date.slice(5, 7)) : 0;
-  if (dateLabel === '中') return m ? `${m}月` : '月内';
-  return m ? `${m}月${dateLabel}` : dateLabel;
+  const y = date && date.slice(0, 4) !== todayStr().slice(0, 4) ? `${date.slice(0, 4)}年` : '';
+  if (SEASON_LABELS.includes(dateLabel)) return `${y}${dateLabel}`;
+  if (dateLabel === '中') return m ? `${y}${m}月` : '月内';
+  return m ? `${y}${m}月${dateLabel}` : dateLabel;
 }
 
 /** タイル/詳細に出す日付ラベルを状態に応じて出し分ける。 */
