@@ -208,16 +208,16 @@ export default function OnboardingWorkPicker({ onCreated }: Props) {
             const on = followedIds.has(w.id);
             return (
               <button key={w.id} onClick={() => toggle(w)} disabled={busyId !== null || (!on && !canAdd)} aria-pressed={on}
-                className="pressable flex items-center gap-1 h-9 px-3.5 rounded-full text-[14px] font-medium max-w-full disabled:opacity-50"
+                className="pressable flex items-center h-9 px-3.5 rounded-full text-[14px] font-medium max-w-full disabled:opacity-50"
+                // 選択中は塗りをアクセント色にし、枠も太く濃くする（色だけに頼らない）。
+                // 枠は border ではなく内側の影で描く。border は太さが幅に足されるので、太くすると
+                // 折り返しがずれて押すたびに他のチップが動く。影なら幅は変わらない（文字の太さも両方同じにしてある）
                 style={{
                   ...(on
-                    ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }
-                    : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }),
+                    ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)', boxShadow: 'inset 0 0 0 2px var(--label-primary)' }
+                    : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)', boxShadow: 'inset 0 0 0 1px var(--border-default)' }),
                   visibility: fit !== null && i < fit ? 'visible' : 'hidden',
                 }}>
-                {/* チェックは未選択でも場所を取っておく（visibility で隠す）。
-                    選んだときだけ出すとチップの幅が変わって折り返しがずれ、押すたびに他のチップが動いて続けて選べない */}
-                <Check size={14} strokeWidth={3} aria-hidden className="flex-shrink-0" style={{ visibility: on ? 'visible' : 'hidden' }} />
                 <span className="truncate">{w.name}</span>
               </button>
             );
