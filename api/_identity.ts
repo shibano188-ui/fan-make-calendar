@@ -91,6 +91,22 @@ async function ownerIds(admin: SupabaseClient): Promise<Set<string>> {
   }
 }
 
+/** 運営（staff の role='admin'）か。聞けなかったら運営ではない扱い（栓を緩めない方向に倒す） */
+const staffCache = new Map<string, { value: boolean; at: number }>();
+export async function isStaffAdmin(userId: string): Promise<boolean> {
+  const hit = staffCache.get(userId);
+  if (hit && Date.now() - hit.at < OWNER_TTL_MS) return hit.value;
+  const c = clients();
+  if (!c) return false;
+  let value = false;
+  try {
+    const { data } = await c.admin.from('staff').select('role').eq('user_id', userId).maybeSingle();
+    value = (data as { role?: string } | null)?.role === 'admin';
+  } catch { value = false; }
+  staffCache.set(userId, { value, at: Date.now() });
+  return value;
+}
+
 /**
  * Authorization: Bearer <supabase access token> を検証して主を返す。
  * トークンが無い・壊れている場合は null（＝呼び出し側でIPにフォールバック）。

@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import Anthropic from '@anthropic-ai/sdk';
 import { checkRateLimitFor, getClientIp } from './_ratelimit.js';
-import { getIdentity } from './_identity.js';
+import { getIdentity, isStaffAdmin } from './_identity.js';
 import { withAiUsage, noteAiUsage, saveAiUsage, type AiCall } from './_aiusage.js';
 import { fetchProductList, excludeRegistered, type ProductList } from './_listsource.js';
 import { detectWork, listEvents } from './_listgroup.js';
@@ -664,7 +664,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // 商品の一覧ページ（公式通販のコレクション・アニメイト/ムービックの検索結果など）なら、シリーズごとの予定にする。
       // Xのポスト以外のURLはここ以外では取りに行かない（接続先は _listsource.ts が決まった店と Shopify に絞る）
-      if (processUrl && !isXPostUrl(processUrl)) {
+      // ⚠️ 運営だけ（2026-09-29 柴野）。一般の人はXのポストだけ。運営以外は下の「URLは取りに行かない」に落ちる
+      if (processUrl && !isXPostUrl(processUrl) && identity && await isStaffAdmin(identity.userId)) {
         const read = await fetchProductList(processUrl, Math.max(1, Math.min(50, Number(page) || 1))).catch(() => null);
         if (read) {
           // 登録済みの商品は外してからまとめる（同じ一覧をもう一度解析しても、登録済みが新しく出てこない）
