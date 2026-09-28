@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { X, Plus, Check, Sparkles, Link2, Loader2, Search, Share2, CalendarPlus, Trash2, ChevronLeft } from 'lucide-react';
 import Chip from '../components/ui/Chip';
 import { resolveWorkName, sameWorkName } from '../lib/workName';
-import { searchWorks, getOrCreateWork, createEvents, toggleLike, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, distinguishSameNameByPlace, isOtherPlaceMatch, countUserPostedEvents, listAllParticipatedWorks, type Work } from '../lib/api';
+import { getMyStaffRole, searchWorks, getOrCreateWork, createEvents, toggleLike, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, distinguishSameNameByPlace, isOtherPlaceMatch, countUserPostedEvents, listAllParticipatedWorks, type Work } from '../lib/api';
 import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES, GOODS_TAG, ONBOARDING_DEMO_KEY, FEATURE_PREMIUM, oneShotTip } from '../lib/constants';
 import { DEMO_POST_TEXT } from '../lib/demoPost';
 import { isPremiumCached, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
@@ -87,6 +87,14 @@ export default function PostNew() {
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const toast = useToast();
+  // 店の一覧ページの解析は運営だけ（api/parse-event.ts）。説明文もそれに合わせる
+  const [isStaff, setIsStaff] = useState(false);
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    getMyStaffRole(user.id).then((r) => { if (alive) setIsStaff(r === 'admin'); }).catch(() => {});
+    return () => { alive = false; };
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 共有から来たときは「新しい予定」なので下書きを引き継がない（前の予定の入力が残るのを防ぐ）
   const share = readShare(searchParams);
@@ -458,7 +466,9 @@ export default function PostNew() {
       const code = e instanceof Error ? e.message : '';
       setAiError(
         code === 'rate_limited' ? '混雑しています。少し待って再試行'
-        : code === 'unsupported_url' ? '読み取れるのはXのポストと、公式通販の商品一覧ページ（ちいかわマーケットなど）です。販売先のURLは下の「購入・予約ページのURL」へ、告知は本文を貼り付けてください'
+        : code === 'unsupported_url' ? (isStaff
+          ? '読み取れるのはXのポストと、公式通販の商品一覧ページ（ちいかわマーケットなど）です。販売先のURLは下の「購入・予約ページのURL」へ、告知は本文を貼り付けてください'
+          : '読み取れるのはXのポストです。販売先のURLは下の「購入・予約ページのURL」へ、告知は本文を貼り付けてください')
         : '解析に失敗しました',
       );
     } finally {
@@ -939,13 +949,13 @@ export default function PostNew() {
                   <Share2 size={15} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--accent-text)' }} />
                   <p className="text-[12px] leading-relaxed">
                     XのポストをFanHiveに共有するだけ！<br />AIが自動で予定にします。<br />
-                    <span className="text-label-secondary">公式通販の商品一覧のリンクを貼ると、シリーズごとの予定にまとめます。</span>
+                    {isStaff && <span className="text-label-secondary">公式通販の商品一覧のリンクを貼ると、シリーズごとの予定にまとめます。</span>}
                   </p>
                 </div>
                 <div className="flex gap-2 mt-3">
                   <div className="flex-1 relative">
                     <Link2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary pointer-events-none" />
-                    <input value={aiText} onChange={(e) => setAiText(e.target.value)} placeholder="Xのポスト・公式通販の一覧のリンク"
+                    <input value={aiText} onChange={(e) => setAiText(e.target.value)} placeholder={isStaff ? 'Xのポスト・公式通販の一覧のリンク' : 'Xのポストのリンク'}
                       onKeyDown={(e) => e.key === 'Enter' && onAnalyzeText()}
                       className="w-full rounded-[10px] pl-8 pr-3 py-2.5 text-[13px] outline-none" style={inputStyle} />
                   </div>
