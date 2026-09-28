@@ -75,6 +75,9 @@ async function planOne(row: any, removed: Set<string>, dateEdited: boolean): Pro
   // 1. URLから値段・在庫
   for (const o of live()) {
     if (isSearchPage(o.url)) continue;
+    // アニメイトは約20分に1回しか読めない（_pace.ts）ので、一度にたくさん見る手直しでは読まない。
+    // 値段・在庫は節目の取り直し（プレミアムの人のグッズを優先）と毎日の更新で見る
+    if (/animate-onlineshop\.jp/.test(unwrapProductUrl(o.url))) continue;
     const hit = await lookupByUrl(o.url);
     // 楽天は1秒1回。ほかは相手に負担をかけない程度に空ける
     await delay(/rakuten/.test(unwrapProductUrl(o.url)) ? 1100 : 300);

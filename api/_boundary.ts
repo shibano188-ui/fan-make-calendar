@@ -64,6 +64,10 @@ export async function refreshAroundBoundaries(db: Db, budgetMs: number): Promise
     return { r, offers, urgent: fetched.length ? due(windows(r), last, now) : null };
   }).filter((x) => x.urgent !== null).sort((a, b) => a.urgent! - b.urgent!);
   if (!targets.length) return { checked: (data ?? []).length, refreshed: 0, changed: 0 };
+  // プレミアムの人（値下がり・再入荷の通知を買っている人）がいいねしているグッズを先に。
+  // アニメイトは約20分に1回しか読めないので、その枠をこの人たちのグッズに使う（sort は安定なので、同じ組の中は節目の順のまま）
+  const premiumLiked = await premiumLikedIds(db, targets.map((t) => t.r.id as string)).catch(() => new Set<string>());
+  targets.sort((a, b) => Number(premiumLiked.has(b.r.id as string)) - Number(premiumLiked.has(a.r.id as string)));
 
   // 共同編集で取り消されたリンクは取り直さない・代表にしない
   const { data: edits } = await db.from('event_edits').select('event_id, patch')
@@ -102,4 +106,17 @@ export async function refreshAroundBoundaries(db: Db, budgetMs: number): Promise
     }
   }
   return { checked: (data ?? []).length, refreshed, changed };
+}
+
+/** この予定のうち、有料会員（active・grace）がいいねしているもの */
+async function premiumLikedIds(db: Db, ids: string[]): Promise<Set<string>> {
+  if (!ids.length) return new Set();
+  const { data: likes } = await db.from('likes').select('event_id, user_id').in('event_id', ids);
+  const users = [...new Set((likes ?? []).map((l) => l.user_id as string))];
+  if (!users.length) return new Set();
+  const { data: subs } = await db.from('user_private').select('user_id, subscription_status, subscription_expires_at').in('user_id', users);
+  const now = Date.now();
+  const paid = new Set((subs ?? []).filter((s) => (s.subscription_status === 'active' || s.subscription_status === 'grace')
+    && (!s.subscription_expires_at || Date.parse(s.subscription_expires_at as string) > now)).map((s) => s.user_id as string));
+  return new Set((likes ?? []).filter((l) => paid.has(l.user_id as string)).map((l) => l.event_id as string));
 }

@@ -385,7 +385,8 @@ const ANIMATE_NEW_PAGES = 5;
 interface AnimateState { day?: string; newPages?: number; followIdx?: number }
 
 async function crawlAnimate(db: Db, authorId: string): Promise<{ added: number; merged: number; read: number; note: string }> {
-  if (!botCanFetch('www.animate-onlineshop.jp')) return { added: 0, merged: 0, read: 0, note: '20分に1回の間隔待ち' };
+  // 巡回は40分に1回まで（20分の枠の半分は、プレミアムの人がいいねしたグッズの取り直しに残す。_boundary.ts）
+  if (!botCanFetch('www.animate-onlineshop.jp', 40 * 60_000)) return { added: 0, merged: 0, read: 0, note: '間隔待ち' };
   const { data: st } = await db.from('bot_state').select('value').eq('key', 'catalog:animate').maybeSingle();
   const s: AnimateState = { ...((st?.value ?? {}) as AnimateState) };
   const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
