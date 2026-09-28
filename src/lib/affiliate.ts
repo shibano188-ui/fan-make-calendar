@@ -195,6 +195,22 @@ export function isStockStale(e: Pick<CalendarEvent, 'date' | 'time' | 'dateLabel
   return passed.some((b) => fetched < b);
 }
 
+/** 店がはっきり書いている在庫の表記から、今の段階を読む（本人指摘・2026-09-28）。
+ *  「在庫あり」＝発売済みの在庫がある／「予約受付中」＝予約の受付中／「受付前」＝まだ売り出していない。
+ *  楽天・Yahoo!・公式通販は予約品も「在庫あり」になり区別できないので、表記の無いリンクは使わない（null）。
+ *  売り切れのリンクと、節目より前に取ったきりの古い在庫（isStockStale）も使わない。 */
+export type StockHint = 'instock' | 'preorder' | 'before';
+const IN_STOCK_LABEL = /在庫あり|残りわずか|取り寄せ|日以内/;
+const PREORDER_LABEL = /予約受付中|予約商品|予約販売/;
+const BEFORE_LABEL = /受付前|開始前|発売前/;
+export function stockHint(e: Pick<CalendarEvent, 'date' | 'time' | 'dateLabel' | 'preorderStart' | 'preorderStartTime' | 'preorderEnd' | 'preorderEndTime'> & { offers?: Offer[] }): StockHint | null {
+  const fresh = (e.offers ?? []).filter((o) => o.inStock !== false && o.stockLabel && !isStockStale(e, o));
+  if (fresh.some((o) => IN_STOCK_LABEL.test(o.stockLabel!))) return 'instock';
+  if (fresh.some((o) => PREORDER_LABEL.test(o.stockLabel!))) return 'preorder';
+  if (fresh.some((o) => BEFORE_LABEL.test(o.stockLabel!))) return 'before';
+  return null;
+}
+
 /** 種類違いが並ぶ予定（名前付きのリンクが2つ以上）の値段の幅。同じ商品を店違いで売っているだけの予定は
  *  幅にしない（「商品によって値段が違う」ように見えてしまう）。一番安い値段だけ出すと、シリーズ全部が
  *  その値段に見えて紛らわしい（本人指摘・2026-09-26）。全部同じ値段なら null（普通の1つの値段）。 */
