@@ -79,7 +79,8 @@ function DateBadge({ event }: { event: CalendarEvent }) {
  *  「本日開催」「本日まで」のように分けられないものは1段で出す。 */
 function splitCountdown(text: string | null): { label: string; value: string } | null {
   if (!text) return null;
-  const m = text.match(/^(.+まで)(あと\d+日)$/);
+  // 「発売まで」／「あと12日」「あと約3か月」の2行に分ける
+  const m = text.match(/^(.+?まで)(あと.+)$/);
   return m ? { label: m[1], value: m[2] } : { label: '', value: text };
 }
 
