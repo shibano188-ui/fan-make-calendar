@@ -71,6 +71,7 @@ async function planOne(row: any, removed: Set<string>, dateEdited: boolean): Pro
   const now = new Date().toISOString();
   const hits = new Map<OfferRow, UrlLookup>();
 
+  let janAdded = 0;
   // 1. URLから値段・在庫
   for (const o of live()) {
     if (isSearchPage(o.url)) continue;
@@ -89,7 +90,11 @@ async function planOne(row: any, removed: Set<string>, dateEdited: boolean): Pro
     o.stockLabel = hit.stockLabel;
     o.fetchedAt = now;
     o.pinned = true; // 以後は毎日の更新でもこのURLの値段を取る（商品名検索で別の商品に付け替えない）
+    // JANコード。巡回ボットが店をまたいで同じ商品を見分けるのに使う（二重登録を防ぐ）
+    if (hit.jan && o.jan !== hit.jan) { o.jan = hit.jan; janAdded++; }
   }
+
+  if (janAdded) notes.push(`JANコードを追加（${janAdded}件）`);
 
   // 2. 同じ店のリンクに種類の名前を付ける（商品名が取れたものだけ）
   const named = [...hits].filter(([o, h]) => !o.label && h.title);
