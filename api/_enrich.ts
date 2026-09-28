@@ -170,6 +170,19 @@ async function planOne(row: any, removed: Set<string>, dateEdited: boolean): Pro
         dateChange = true;
       }
     }
+    // 店が「在庫あり」（もう発売して売っている）・「予約受付終了」「販売終了」と書いているのに、
+    // 締切がまだ先のままなら、締切を昨日に書き直す（締切の通知が今さら届かないように。本人指摘・2026-09-28）。
+    // 楽天・Yahoo!など表記の無い店は予約品も「在庫あり」になるので、表記のあるものだけ見る
+    const endLabel = [...hits.values()].map((h) => h.stockLabel ?? '')
+      .find((l) => /在庫あり|残りわずか|取り寄せ|日以内|予約受付終了|受付終了|販売終了/.test(l));
+    const curEnd = (set.preorder_end_date as string | undefined) ?? (row.preorder_end_date as string | null);
+    if (endLabel && row.is_order_made && curEnd && curEnd >= today) {
+      const yesterday = new Date(Date.now() + 9 * 3600_000 - DAY).toISOString().slice(0, 10);
+      set.preorder_end_date = yesterday;
+      if (row.preorder_start_date && row.preorder_start_date > yesterday) set.preorder_start_date = yesterday;
+      notes.push(`予約はもう終わっている（店の表記「${endLabel}」）: 締切 ${curEnd} → ${yesterday}`);
+      dateChange = true;
+    }
   }
 
   // 4.5 画像。予定に画像が無ければ、リンク先の商品ページの画像を入れる

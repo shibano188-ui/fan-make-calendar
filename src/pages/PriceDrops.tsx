@@ -5,6 +5,7 @@ import { listMyPriceChanges, type PriceChange } from '../lib/api';
 import { markPriceAlertsSeen } from '../lib/priceAlerts';
 import { parseImageUrls, toggleMutedEventId } from '../lib/constants';
 import { useToast } from '../components/ui/Toast';
+import { useConfirm } from '../components/ui/ConfirmDialog';
 import { useAuth } from '../contexts/AuthContext';
 import { haptic } from '../lib/haptics';
 import OptImg from '../components/ui/OptImg';
@@ -75,8 +76,15 @@ export default function PriceDrops() {
   const toast = useToast();
   const [changes, setChanges] = useState<PriceChange[] | null>(null);
 
-  const mute = (c: PriceChange) => {
+  const confirm = useConfirm();
+  // 押すと一覧から消えて、ここからは戻せない。いきなり止めず、一度確かめる（本人指摘・2026-09-28）
+  const mute = async (c: PriceChange) => {
     haptic.select();
+    if (!(await confirm({
+      title: 'このグッズの値下がり・再入荷を通知しないようにしますか？',
+      message: 'この一覧からも消えます。戻すときは、グッズの詳細ページのベルから通知をオンにしてください',
+      confirmLabel: '通知しない',
+    }))) return;
     toggleMutedEventId(c.event.id);
     setChanges((prev) => (prev ?? []).filter((x) => x.event.id !== c.event.id));
     toast('このグッズの通知を止めました');
@@ -126,7 +134,7 @@ export default function PriceDrops() {
           ) : (
             <div className="flex flex-col gap-2">
               {changes.map((c) => (
-                <Row key={c.id} c={c} onOpen={() => { haptic.select(); navigate(`/item/${c.event.id}`); }} onMute={() => mute(c)} />
+                <Row key={c.id} c={c} onOpen={() => { haptic.select(); navigate(`/item/${c.event.id}`); }} onMute={() => { void mute(c); }} />
               ))}
             </div>
           )}
