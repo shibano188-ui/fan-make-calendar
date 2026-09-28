@@ -203,7 +203,7 @@ async function findByJan(db: Db, jan: string): Promise<{ id: string; offers: Off
  *  1. 購入リンクごとに JANコードを取り、同じ JANコードの予定がもうあれば、そこに購入リンクを足す（店・作品を問わない）
  *  2. JANコードが取れないときは、名前・発売日・値段が同じ別の店の予定（findSame）に足す
  *  createdAt を返す関数を渡すと、その日時を登録日にする（古い在庫品を新着に出さないため） */
-async function registerEvents(
+export async function registerEvents(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db: Db, wid: string, events: ListEvent[], rows: any[], authorId: string, preStart: string | null, saleTime: string | null,
   createdAt?: (e: ListEvent) => string | null,
@@ -275,7 +275,7 @@ const JUMP_SHOP = 'https://jumpshop-benelic.com';
 const JUMP_SHOP_BUDGET_MS = 50_000;
 
 /** 比べるための作品名・商品名（記号・空白・長音符号を落とす。「ēlDLIVE」と「elDLIVE」を同じにする） */
-const workKey = (s: string) => norm(s.normalize('NFKD').replace(/[\u0300-\u036f]/g, ''));
+export const workKey = (s: string) => norm(s.normalize('NFKD').replace(/[\u0300-\u036f]/g, ''));
 
 async function jumpShopWorks(): Promise<string[]> {
   const r = await fetch(`${JUMP_SHOP}/pages/works`, { headers: { 'User-Agent': 'Mozilla/5.0', Cookie: 'localization=JP' }, signal: AbortSignal.timeout(15000) }).catch(() => null);
@@ -289,7 +289,7 @@ async function jumpShopWorks(): Promise<string[]> {
 }
 
 /** 作品のIDを返す。名前か別名が同じ作品があればそれ、無ければ作る */
-async function resolveWork(db: Db, name: string): Promise<string | null> {
+export async function resolveWork(db: Db, name: string): Promise<string | null> {
   const k = workKey(name);
   const { data: works } = await db.from('works').select('id, name').ilike('name', `%${name.slice(0, 2)}%`).limit(200);
   const hit = (works ?? []).find((w) => workKey(String(w.name)) === k);
