@@ -7,6 +7,7 @@ import FilterPanel, { type Facet } from '../components/item/FilterPanel';
 import WorkFollowSheet from '../components/WorkFollowSheet';
 import ExpandingSearch from '../components/ui/ExpandingSearch';
 import WorkChipsRow from '../components/WorkChipsRow';
+import { loadSharedFilters, saveSharedFilters } from '../lib/sharedFilters';
 import { loadWorkImages } from '../lib/workImages';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveItemType, deriveStatus, todayStr, STATUS, type ItemStatus, type ItemType } from '../design/tokens';
@@ -48,16 +49,18 @@ export default function Explore() {
   const { isHidden } = useHiddenContent(user?.id);
   const toast = useToast();
   const premium = usePremium();
+  // 作品・状態・カテゴリ・地域・近くの は、ホーム・探す・カレンダーで共通（lib/sharedFilters.ts）
+  const _sf = loadSharedFilters();
   const _ss = loadExploreSession();
   const [mode, setMode] = useState<ItemType>(_ss.mode ?? 'goods');
   const [items, setItems] = useState<CalendarEvent[] | null>(null);
   const [query, setQuery] = useState(searchParams.get('q') ?? _ss.query ?? '');
-  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set(_ss.statuses ?? []));
-  const [excludedWorks, setExcludedWorks] = useState<Set<string>>(new Set(_ss.excludedWorks ?? []));
-  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set(_ss.categories ?? []));
-  const [selectedPrefs, setSelectedPrefs] = useState<Set<string>>(new Set(_ss.prefs ?? []));
-  const [selectedRegions, setSelectedRegions] = useState<Set<string>>(new Set(_ss.regions ?? []));
-  const [neighborActive, setNeighborActive] = useState<boolean>(_ss.neighborActive ?? false);
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set(_sf.statuses));
+  const [excludedWorks, setExcludedWorks] = useState<Set<string>>(new Set(_sf.excludedWorks));
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set(_sf.categories));
+  const [selectedPrefs, setSelectedPrefs] = useState<Set<string>>(new Set(_sf.prefs));
+  const [selectedRegions, setSelectedRegions] = useState<Set<string>>(new Set(_sf.regions));
+  const [neighborActive, setNeighborActive] = useState<boolean>(_sf.neighborActive);
   const [homePref, setHomePref] = useState<string | null>(null);
   const [followed, setFollowed] = useState<Set<string>>(new Set());
   // 上部の作品の並びに出す、フォロー中の作品（名前つき）
@@ -84,6 +87,10 @@ export default function Explore() {
       regions: [...selectedRegions],
       neighborActive, filterOpen,
     }));
+    saveSharedFilters({
+      statuses: [...selectedStatuses], excludedWorks: [...excludedWorks], categories: [...selectedCategories],
+      prefs: [...selectedPrefs], regions: [...selectedRegions], neighborActive,
+    });
   }, [mode, query, selectedStatuses, excludedWorks, selectedCategories, selectedPrefs, selectedRegions, neighborActive, filterOpen]);
   const todayRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
