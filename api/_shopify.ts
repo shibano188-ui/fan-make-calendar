@@ -51,9 +51,14 @@ async function getJson<T>(url: string): Promise<T | null> {
 }
 
 /** 店名（/meta.json の name）。取れなければホスト名 */
+const shopNames = new Map<string, string>(); // 同じ呼び出しの中で何度も取りに行かない（全件登録で商品ごとに呼ばれる）
 export async function shopifyShopName(origin: string): Promise<string> {
+  const cached = shopNames.get(origin);
+  if (cached) return cached;
   const meta = await getJson<{ name?: string }>(`${origin}/meta.json`).catch(() => null);
-  return meta?.name?.trim() || new URL(origin).host;
+  const name = meta?.name?.trim() || new URL(origin).host;
+  shopNames.set(origin, name);
+  return name;
 }
 
 export interface ShopifyProduct {
@@ -83,7 +88,8 @@ const PREORDER_TAG_RE = /予約|受注|pre-?order/i;
 
 function stockOf(available: boolean, tags: string[], text: string, release: { date: string } | null): Pick<ShopifyProduct, 'inStock' | 'stockLabel'> {
   const preorder = tags.some((t) => PREORDER_TAG_RE.test(t)) || /予約|受注/.test(text) || (available && !!release && release.date > todayJst());
-  if (available) return { inStock: true, ...(preorder ? { stockLabel: '予約受付中' } : {}) };
+  // 買えて予約でなければ「在庫あり」（発売済みの在庫）。画面の状態を決めるのに使う（src/lib/affiliate.ts の stockHint）
+  if (available) return { inStock: true, stockLabel: preorder ? '予約受付中' : '在庫あり' };
   if (tags.some((t) => PRE_SALE_RE.test(t)) || PRE_SALE_RE.test(text) || (release && release.date > todayJst())) return { stockLabel: preorder ? '予約受付前' : '受付前' };
   return { inStock: false };
 }
@@ -111,6 +117,21 @@ function toProducts(origin: string, raw: any[]): ShopifyProduct[] {
       images: ((p.images ?? []) as any[]).map((im) => String(im?.src ?? '')).filter(Boolean),
     };
   }).filter((p: ShopifyProduct) => p.title && p.price > 0);
+}
+
+/** 店の全商品（/products.json を250件ずつ最後まで。多くても30ページ）。巡回ボットがジャンプショップの最初の全件登録で使う */
+export async function fetchShopifyAll(origin: string): Promise<{ shop: string; products: ShopifyProduct[] } | null> {
+  const u = await safePublicUrl(origin);
+  if (!u) return null;
+  const products: ShopifyProduct[] = [];
+  for (let page = 1; page <= 30; page++) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const list = await getJson<{ products?: any[] }>(`${u.origin}/products.json?limit=250&page=${page}`).catch(() => null);
+    if (!list?.products?.length) break;
+    products.push(...toProducts(u.origin, list.products));
+    if (list.products.length < 250) break;
+  }
+  return products.length ? { shop: await shopifyShopName(u.origin), products } : null;
 }
 
 /** 店の新着（/products.json は公開の新しい順）。巡回ボットがジャンプショップなど作品ごとのコレクションが大きい店で使う */
@@ -141,11 +162,11 @@ export async function fetchShopifyCollection(raw: string, page = 1): Promise<{ t
 }
 
 /** 商品のURL（/products/{handle}、/collections/…/products/{handle}）なら価格・在庫を返す。Shopifyでなければ null */
-export async function lookupShopifyProduct(raw: string): Promise<{ title: string; price: number; inStock?: boolean; stockLabel?: string; shop: string; release?: { date: string; dateLabel: null }; image?: string } | null> {
+export async function lookupShopifyProduct(raw: string): Promise<{ title: string; price: number; inStock?: boolean; stockLabel?: string; shop: string; release?: { date: string; dateLabel: null }; image?: string; jan?: string } | null> {
   const u = await safePublicUrl(raw);
   const handle = u?.pathname.match(/\/products\/([^/?#]+)/)?.[1];
   if (!u || !handle) return null;
-  const p = await getJson<{ title?: string; price?: number; available?: boolean; tags?: unknown; featured_image?: string }>(`${u.origin}/products/${handle}.js`).catch(() => null);
+  const p = await getJson<{ title?: string; price?: number; available?: boolean; tags?: unknown; featured_image?: string; variants?: { barcode?: string }[] }>(`${u.origin}/products/${handle}.js`).catch(() => null);
   if (!p || typeof p.price !== 'number') return null;
   const tags = tagList(p.tags);
   const release = releaseFromTags(tags);
@@ -153,6 +174,8 @@ export async function lookupShopifyProduct(raw: string): Promise<{ title: string
     title: String(p.title ?? ''), price: Math.round(p.price / 100),
     ...stockOf(!!p.available, tags, String(p.title ?? ''), release),
     ...(release ? { release } : {}),
+    // JANコード（店が違っても同じ商品かを見分ける）
+    ...(/^\d{13}$/.test(String(p.variants?.[0]?.barcode ?? '')) ? { jan: String(p.variants![0].barcode) } : {}),
     // featured_image は「//cdn.shopify.com/…」のようにスキームが無いことがある
     ...(p.featured_image ? { image: p.featured_image.startsWith('//') ? `https:${p.featured_image}` : p.featured_image } : {}),
     shop: await shopifyShopName(u.origin),

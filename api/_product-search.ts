@@ -206,7 +206,12 @@ export interface UrlLookup {
   preorderStart?: string; preorderEnd?: string;
   /** 商品の画像（予定に画像が無いとき、手直しで足す） */
   image?: string;
+  /** JANコード（13桁）。店が違っても同じ商品かを見分ける（巡回ボットの二重登録を防ぐ） */
+  jan?: string;
 }
+
+/** 商品ページのHTMLから JANコードを取る（アニメイト・ムービックは「JANコード：4571617085125」） */
+const janFromHtml = (html: string) => html.match(/JANコード[：:]\s*(\d{13})/)?.[1];
 
 const ymd = (y: string, m: string, d: string) => `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
 
@@ -300,7 +305,9 @@ async function lookupAnimate(u: URL): Promise<UrlLookup | null> {
   const release = releaseText ? parseReleaseText(releaseText) : null;
   const pre = parsePreorderText(html.match(/<meta name="description" content="([^"]*)"/)?.[1] ?? '');
   const ogImage = html.match(/<meta property="og:image" content="([^"]+)"/)?.[1];
+  const jan = janFromHtml(html);
   return {
+    ...(jan ? { jan } : {}),
     ...(ogImage ? { image: decodeEntities(ogImage) } : {}),
     ...(release ? { release } : {}),
     ...(pre?.start ? { preorderStart: pre.start } : {}),
@@ -327,11 +334,13 @@ async function lookupMovic(u: URL): Promise<UrlLookup | null> {
   const price = Number(p?.offers?.price);
   if (!p || !(price > 0)) return null;
   const avail = String(p.offers?.availability ?? '').split('/').pop();
+  const jan = janFromHtml(html);
   const rel = typeof p.releaseDate === 'string' ? p.releaseDate.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/) : null;
   return {
     title: decodeEntities(String(p.name ?? '')).trim() || undefined, price, shop: 'ムービック', retailer: 'ムービック', official: true,
     inStock: avail ? avail === 'InStock' || avail === 'PreOrder' || avail === 'LimitedAvailability' : undefined,
     // 予約で売っている商品は、予定も「予約あり」にする（_listgroup.ts の listEvents）
+    ...(jan ? { jan } : {}),
     // 画面の状態（発売中・予約受付中）を決めるのに使う（src/lib/affiliate.ts の stockHint）
     ...(avail === 'PreOrder' ? { stockLabel: '予約受付中' } : avail === 'InStock' ? { stockLabel: '在庫あり' } : {}),
     ...(typeof (Array.isArray(p.image) ? p.image[0] : p.image) === 'string' && !/sorry/i.test(String(Array.isArray(p.image) ? p.image[0] : p.image))
@@ -377,7 +386,7 @@ export async function lookupByUrl(rawUrl: string): Promise<UrlLookup | null> {
     // それ以外の店は、Shopify の商品ページ（/products/…）なら読める（ちいかわマーケットなど作品の公式通販に多い）
     if (/\/products\/[^/]+/.test(u.pathname)) {
       const p = await lookupShopifyProduct(u.toString());
-      if (p) return { title: p.title, price: p.price, shop: p.shop, retailer: p.shop, official: true, inStock: p.inStock, stockLabel: p.stockLabel, ...(p.release ? { release: p.release } : {}), ...(p.image ? { image: p.image } : {}) };
+      if (p) return { title: p.title, price: p.price, shop: p.shop, retailer: p.shop, official: true, inStock: p.inStock, stockLabel: p.stockLabel, ...(p.release ? { release: p.release } : {}), ...(p.image ? { image: p.image } : {}), ...(p.jan ? { jan: p.jan } : {}) };
     }
   } catch { /* タイムアウト・形式変更は「取れなかった」扱い */ }
   return null;

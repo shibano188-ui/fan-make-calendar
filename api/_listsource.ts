@@ -8,6 +8,8 @@ import { parseAnimateList, parseMovicList, lookupByUrl, unwrapProductUrl } from 
 
 export interface ListProduct {
   title: string; url: string; price: number; inStock?: boolean; stockLabel?: string;
+  /** JANコード（商品ページで取れたとき） */
+  jan?: string;
   image: string; images: string[];
   release?: { date: string; dateLabel: string | null };
 }
@@ -64,6 +66,7 @@ async function movicList(u: URL, page: number): Promise<ProductList | null> {
       if (hit?.release) p.release = hit.release;
       if (hit?.inStock !== undefined) p.inStock = hit.inStock;
       if (hit?.stockLabel) p.stockLabel = hit.stockLabel;
+      if (hit?.jan) p.jan = hit.jan;
     }));
   }
   return { title: pageTitle(html), shop: 'ムービック', retailer: 'ムービック', products, nextPage: new RegExp(`[?&;]p=${page + 1}&`).test(html) ? page + 1 : null };
