@@ -4,7 +4,7 @@
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import type { CalendarEvent } from '../types';
-import { deriveItemType } from '../design/tokens';
+import { deriveItemType, datePeriod } from '../design/tokens';
 import { loadNotifyEventIds, loadNotifyLeadDays } from './constants';
 import { waitForTrackingDecision } from './att';
 
@@ -58,6 +58,12 @@ function triggersFor(e: CalendarEvent): Trigger[] {
   const today = new Date().toISOString().slice(0, 10);
   const nextVisit = (e.visits ?? [])
     .map((v) => v.start).filter((d) => d >= today).sort()[0];
+  // 確定していない発売日（上旬・月のみ・季節など）の date は並び替え用の仮の日。「本日発売」「あと◯日」は出さず、
+  // その時期に入った日の朝に1回だけ知らせる（「10月中」の予定に10/31の朝「本日発売」が届いていた。2026-09-28）
+  if (!nextVisit && e.date && e.dateLabel) {
+    out.push({ kind: 'd0', at: morningOf(datePeriod(e.date, e.dateLabel).start), title: `${tag}${onsaleWord}の時期になりました`, body: `「${e.title}」の${onsaleWord}予定の時期です（日付は未定）` });
+    return out;
+  }
   const baseDate = nextVisit ?? e.date;
   if (baseDate) {
     const word = nextVisit ? 'ピンした日' : onsaleWord;

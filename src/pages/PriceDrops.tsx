@@ -82,7 +82,6 @@ export default function PriceDrops() {
     haptic.select();
     if (!(await confirm({
       title: 'このグッズの値下がり・再入荷を通知しないようにしますか？',
-      message: 'この一覧からも消えます。戻すときは、グッズの詳細ページのベルから通知をオンにしてください',
       confirmLabel: '通知しない',
     }))) return;
     toggleMutedEventId(c.event.id);
