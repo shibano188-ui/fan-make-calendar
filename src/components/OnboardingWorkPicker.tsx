@@ -180,7 +180,7 @@ export default function OnboardingWorkPicker({ onCreated }: Props) {
             return (
               <div key={w.id} className="flex items-center justify-between gap-2 px-1 py-2.5 border-b border-subtle">
                 <span className="flex-1 min-w-0 text-[14px] font-medium truncate">{w.name}</span>
-                <button onClick={() => toggle(w)} disabled={busyId !== null || (!on && !canAdd)}
+                <button onClick={() => toggle(w)} disabled={!on && !canAdd}
                   className="pressable flex-shrink-0 flex items-center gap-1 text-[12px] px-3 py-1.5 rounded-full font-medium disabled:opacity-50"
                   style={on
                     ? { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-secondary)' }
@@ -207,7 +207,9 @@ export default function OnboardingWorkPicker({ onCreated }: Props) {
           {chips.map((w, i) => {
             const on = followedIds.has(w.id);
             return (
-              <button key={w.id} onClick={() => toggle(w)} disabled={busyId !== null || (!on && !canAdd)} aria-pressed={on}
+              // 保存中（busyId）でも disabled にしない。disabled:opacity-50 で全部のチップが一瞬薄くなり、押すたびに点滅して見える。
+              // 二重に押されるのは toggle の先頭で止めている
+              <button key={w.id} onClick={() => toggle(w)} disabled={!on && !canAdd} aria-pressed={on}
                 className="pressable flex items-center h-9 px-3.5 rounded-full text-[14px] font-medium max-w-full disabled:opacity-50"
                 // 選択中は塗りをアクセント色にし、枠も太く濃くする（色だけに頼らない）。
                 // 枠は border ではなく内側の影で描く。border は太さが幅に足されるので、太くすると
