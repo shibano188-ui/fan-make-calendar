@@ -27,6 +27,7 @@ import { useToast } from '../components/ui/Toast';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { haptic } from '../lib/haptics';
 import { usePremium } from '../lib/premium';
+import { useTourStep, tourEventId } from '../components/OnboardingTour';
 
 // 「予約受付中」は状態の選択肢と重なるので外した（前に選んでいた人は「すべて」に戻る）
 type Tab = 'all' | 'mine' | 'notify';
@@ -283,13 +284,29 @@ export default function Saved() {
     });
   }, [scopeItems, selectedStatuses, excludedWorks, selectedCategories, allowedPrefs]);
 
+  // オンボーディングの案内（OnboardingTour）で、いいねした予定を見せているところ。
+  // 絞り込み・タブに関係なく必ず出し、その日のパネルを開いたままにする
+  const tourStep = useTourStep();
+  const tourId = tourStep === 'calendar' || tourStep === 'bell' ? tourEventId() : null;
+  const tourEvent = tourId ? items?.find((e) => e.id === tourId) : undefined;
+  const shown = useMemo(
+    () => (tourEvent && !filtered.some((e) => e.id === tourEvent.id) ? [...filtered, tourEvent] : filtered),
+    [filtered, tourEvent],
+  );
+  const tourDay = tourEvent ? focusDayOf(tourEvent, today) : null;
+  useEffect(() => {
+    if (!tourEvent) return;
+    // 日付の無い予定はカレンダーに乗らないので、リスト表示で見せる
+    if (tourDay) { setView('month'); setAnchor(tourDay); } else setView('list');
+  }, [tourEvent?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // リスト表示: 近い順（これから昇順 → 過去降順）
   const listItems = useMemo(() => {
     const ref = (e: CalendarEvent) => e.endDate || e.date || '';
-    const up = filtered.filter((e) => !ref(e) || ref(e) >= today).sort((a, b) => (a.date ?? '9999').localeCompare(b.date ?? '9999'));
-    const past = filtered.filter((e) => ref(e) && ref(e) < today).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
+    const up = shown.filter((e) => !ref(e) || ref(e) >= today).sort((a, b) => (a.date ?? '9999').localeCompare(b.date ?? '9999'));
+    const past = shown.filter((e) => ref(e) && ref(e) < today).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
     return [...up, ...past];
-  }, [filtered, today]);
+  }, [shown, today]);
 
   const toggleIn = <T,>(setter: React.Dispatch<React.SetStateAction<Set<T>>>, v: T) => {
     haptic.select();
@@ -448,7 +465,7 @@ export default function Saved() {
         <SkeletonList count={4} />
       ) : view !== 'list' ? (
         // カレンダー（月/週/日）は予定が0件でも枠を表示する
-        <SavedCalendar events={filtered} scope={view} anchor={anchor} setAnchor={setAnchor}
+        <SavedCalendar events={shown} scope={view} anchor={anchor} setAnchor={setAnchor} focusDay={tourDay}
           onOpen={(e) => navigate(`/item/${e.id}`)} onLike={onLike} onCalendar={onCalendar}
           onAdd={(day) => navigate(`/post?date=${day}`)} />
       ) : listItems.length === 0 ? (
@@ -467,6 +484,14 @@ export default function Saved() {
       )}
     </div>
   );
+}
+
+/** 案内でカレンダーのどの日を開くか。ピンした日があればその日、期間の途中なら今日、ほかは始まりの日。日付未定なら null */
+function focusDayOf(e: CalendarEvent, today: string): string | null {
+  if (e.visits && e.visits.length > 0) return e.visits[0].start;
+  if (!e.date) return null;
+  const end = e.endDate || e.date;
+  return e.date < today && today <= end ? today : e.date;
 }
 
 /** 上の行のアイコンだけのボタン。色は白黒（塗りは薄いグレー）で、絞り込み中だけアクセント色 */

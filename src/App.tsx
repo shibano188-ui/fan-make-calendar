@@ -7,6 +7,7 @@ import { ActionSheetProvider } from './components/ui/ActionSheet';
 import { ToastProvider } from './components/ui/Toast';
 import PhoneFrame from './components/PhoneFrame';
 import Onboarding from './components/Onboarding';
+import OnboardingTour from './components/OnboardingTour';
 import { Capacitor } from '@capacitor/core';
 import { initAdMob, showBanner, hideBanner } from './lib/admob';
 import { installExternalLinkHandler } from './lib/openExternal';
@@ -255,6 +256,7 @@ export default function App() {
               <Route path="/*" element={
                 <PhoneFrame>
                   {SHOW_ONBOARDING && <Onboarding />}
+                  {SHOW_ONBOARDING && <OnboardingTour />}
                   <Routes>
                     <Route element={<AppShell />}>
                       <Route path="/"        element={<Home />} />

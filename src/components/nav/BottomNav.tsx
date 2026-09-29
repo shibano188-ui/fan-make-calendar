@@ -62,6 +62,7 @@ export default function BottomNav() {
 
   return (
     <nav
+      data-bottom-nav
       className="fixed inset-x-0 z-[100] flex justify-center pointer-events-none"
       style={{
         bottom: 'calc(env(safe-area-inset-bottom) + 10px)',

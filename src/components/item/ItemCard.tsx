@@ -218,7 +218,7 @@ function CardActions({ liked, likeCount, onLike, event, large }: { liked?: boole
   const size = large ? 23 : 18;
   return (
     <div data-skin-part="card-actions" className={`flex items-center ${large ? 'gap-5' : 'gap-4'}`}>
-      <button onClick={(e) => { e.stopPropagation(); if (!liked) likeEffect(e.currentTarget); onLike?.(); }} aria-label="いいね" className="pressable tap-44 flex items-center gap-1">
+      <button onClick={(e) => { e.stopPropagation(); if (!liked) likeEffect(e.currentTarget); onLike?.(); }} aria-label="いいね" data-tour="like" className="pressable tap-44 flex items-center gap-1">
         <Heart size={size} fill={liked ? 'var(--accent-color)' : 'none'} style={{ color: liked ? 'var(--accent-color)' : 'var(--label-secondary)' }} />
         {!!likeCount && likeCount > 0 && <span data-skin-part="card-likes" className={`${large ? 'text-[13px]' : 'text-[11px]'} text-label-secondary`}>{likeCount}</span>}
       </button>

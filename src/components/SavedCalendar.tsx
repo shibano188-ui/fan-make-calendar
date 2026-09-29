@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, Plus } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from './item/ItemCard';
@@ -108,9 +108,11 @@ type Props = {
   onCalendar: (e: CalendarEvent) => void;
   /** 日付のパネルの「＋」。その日付で投稿を始める */
   onAdd: (day: string) => void;
+  /** この日のパネルを開いたままにする（オンボーディングの案内で、いいねした予定を見せるとき）。閉じるのも止める */
+  focusDay?: string | null;
 };
 
-export default function SavedCalendar({ events, scope, anchor, setAnchor, onOpen, onLike, onCalendar, onAdd }: Props) {
+export default function SavedCalendar({ events, scope, anchor, setAnchor, onOpen, onLike, onCalendar, onAdd, focusDay }: Props) {
   const today = todayStr();
   // 月表示で選んでいる日（色が付く）と、パネルで開いている日（null なら閉じている）。
   // パネルが閉じているときは「1回目で選ぶ → 同じ日をもう1回で開く」。
@@ -118,9 +120,15 @@ export default function SavedCalendar({ events, scope, anchor, setAnchor, onOpen
   const [selected, setSelected] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const onTapDay = (day: string) => {
+    if (focusDay) return;
     if (picked !== null || selected === day) setPicked(day);
     setSelected(day);
   };
+  useEffect(() => {
+    if (!focusDay) return;
+    setSelected(focusDay);
+    setPicked(focusDay);
+  }, [focusDay]);
 
   // 日付未定の保存分（カレンダーに乗らないので別枠で件数表示）。
   // 受付終了したものは消さずに残す（本人のいいね記録）が、後ろに回して薄く表示する
@@ -174,7 +182,7 @@ export default function SavedCalendar({ events, scope, anchor, setAnchor, onOpen
       )}
 
       {/* 日付を押すと下から出る、その日の予定。予定の詳細へは月表示ではここからだけ行ける */}
-      <DaySheet open={scope === 'month' && picked !== null} onClose={() => setPicked(null)}
+      <DaySheet open={scope === 'month' && picked !== null} onClose={() => { if (!focusDay) setPicked(null); }}
         header={picked && (
           <div className="flex items-center gap-2 px-4 pt-1 pb-2">
             <DayHeading day={picked} count={pickedEvents.length} today={today} />

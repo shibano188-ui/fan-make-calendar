@@ -1,36 +1,50 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Search, X, Plus, Check } from 'lucide-react';
-import { listWorks, searchWorks, getOrCreateWork, upsertParticipation, leaveCalendar, listAllParticipatedWorks, type Work } from '../lib/api';
+import { Search, X } from 'lucide-react';
+import type { CalendarEvent } from '../types';
+import { searchWorks, getWorksByNames, listExploreEvents, upsertParticipation, leaveCalendar, listAllParticipatedWorks, type Work } from '../lib/api';
 import { logSearch } from '../lib/dataLogs';
 import { maybeAddWorkAlias } from '../lib/workAliases';
-import { sameWorkName } from '../lib/workName';
-import { setCached } from '../lib/swrCache';
+import { getCached, setCached } from '../lib/swrCache';
+import { todayStr } from '../design/tokens';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from './ui/Toast';
 import { haptic } from '../lib/haptics';
 import { usePremium, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
-import { ONBOARDING_WORKS_KEY, FOLLOWS_EVENT } from '../lib/constants';
+import { FOLLOWS_EVENT, ONBOARDING_FEATURED_WORKS } from '../lib/constants';
 
 // オンボーディングの1枚目: 推しの作品を選ぶ。
 // 押した時点でフォローする（「選ぶ」と「フォロー」を分けない。WorkFollowSheet と同じ）。
-// 1つも選ばずに閉じた人にだけ既定の作品を入れる判断は、Onboarding の finish が持つ。
 //
-// 候補はフォロー数の多い順に、**画面に収まる数だけ**出す（全部は並べない）。
-// 端末の高さで収まる数が変わるので、描いてから測って、はみ出す行のチップは隠す。
+// 候補（2026-09-29 柴野）:
+//  - SNS で予定表を出している8作品（ONBOARDING_FEATURED_WORKS）は必ず出す
+//  - その後ろに、これからの予定が多い作品を多い順に。予定が少ない作品は出さない
+//    （次の案内で「探すで予定にいいね」をやってもらうので、予定の無い作品を並べても続かない）
+//  - 予定の数はホーム・探すと同じ一覧（listExploreEvents）から数える。案内はホームの上に出るので、同じ取得を使い回せる
+// 画面に収まる数だけ出す（端末の高さで収まる数が変わるので、描いてから測って、はみ出す行のチップは隠す）。
+//
+// 検索で見つからない作品を**ここで作ることはしない**（オンボーディングなので。作品を作るのは投稿から）。
+// 検索からフォローしたら検索を閉じて候補の並びに戻し、選んだ作品を先頭に選択中で出す。
 
-// 候補として取ってくる数。小さい画面でも大きい画面でも余るように多めに取り、収まる分だけ出す
-const CANDIDATE_LIMIT = 30;
+/** 候補に出すのに要る、これからの予定の数 */
+const MIN_UPCOMING = 5;
 
-interface Props {
-  /** 作品を新しく作ってフォローしたとき。案内を次のカードへ進める */
-  onCreated: () => void;
+// ホーム・探すと同じ範囲（キャッシュのキーも同じにして、取得を1回で済ませる）
+function shiftMonths(base: string, n: number): string {
+  const d = new Date(base + 'T00:00:00');
+  d.setMonth(d.getMonth() + n);
+  return todayStr(d);
 }
 
-export default function OnboardingWorkPicker({ onCreated }: Props) {
+interface Props {
+  /** フォロー中の作品の数が変わったとき。「次へ」を押せるかと演出に使う */
+  onCountChange: (n: number) => void;
+}
+
+export default function OnboardingWorkPicker({ onCountChange }: Props) {
   const { user } = useAuth();
   const toast = useToast();
   const premium = usePremium();
-  const [popular, setPopular] = useState<Work[] | null>(null);
+  const [candidates, setCandidates] = useState<Work[] | null>(null);
   const [follows, setFollows] = useState<Work[]>([]);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Work[] | null>(null);
@@ -41,7 +55,32 @@ export default function OnboardingWorkPicker({ onCreated }: Props) {
 
   useEffect(() => {
     let alive = true;
-    listWorks(CANDIDATE_LIMIT).then((ws) => alive && setPopular(ws)).catch(() => alive && setPopular([]));
+    const today = todayStr();
+    const from = shiftMonths(today, -12), to = shiftMonths(today, 18);
+    const key = `explore-events:${from}_${to}`;
+    const events = listExploreEvents(from, to)
+      .then((data) => { setCached(key, data); return data; })
+      .catch(() => getCached<CalendarEvent[]>(key) ?? []);
+    Promise.all([getWorksByNames(ONBOARDING_FEATURED_WORKS).catch(() => [] as Work[]), events]).then(([featured, evs]) => {
+      if (!alive) return;
+      const counts = new Map<string, { name: string; n: number }>();
+      for (const e of evs) {
+        if (!e.workId) continue;
+        if ((e.endDate || e.date || '') < today && (e.date || e.endDate)) continue; // 終わった予定は数えない（日付未定は数える）
+        const c = counts.get(e.workId);
+        if (c) c.n++; else counts.set(e.workId, { name: e.workName ?? '', n: 1 });
+      }
+      // 8作品は決めた順に。名前で引いているので、DB に無い作品は黙って抜ける
+      const first = ONBOARDING_FEATURED_WORKS
+        .map((name) => featured.find((w) => w.name === name))
+        .filter((w): w is Work => !!w);
+      const firstIds = new Set(first.map((w) => w.id));
+      const rest = [...counts.entries()]
+        .filter(([id, c]) => !firstIds.has(id) && c.n >= MIN_UPCOMING && c.name)
+        .sort((a, b) => b[1].n - a[1].n)
+        .map(([id, c]) => ({ id, name: c.name, participantCount: 0 }) as Work);
+      setCandidates([...first, ...rest]);
+    });
     return () => { alive = false; };
   }, []);
 
@@ -52,6 +91,8 @@ export default function OnboardingWorkPicker({ onCreated }: Props) {
     listAllParticipatedWorks(user.id).then((ws) => alive && setFollows(ws)).catch(() => {});
     return () => { alive = false; };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { onCountChange(follows.length); }, [follows.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 検索（デバウンス）。WorkFollowSheet と同じ
   useEffect(() => {
@@ -76,10 +117,10 @@ export default function OnboardingWorkPicker({ onCreated }: Props) {
   const followedIds = new Set(follows.map((w) => w.id));
   const canAdd = canFollowMore(follows.length, premium);
   const searching = !!query.trim();
-  // フォロー済みで候補に無い作品（投稿で作った作品など）は先頭に足す。外せる場所が無くなるため
-  const chips = popular === null ? [] : [
-    ...follows.filter((f) => !popular.some((p) => p.id === f.id)),
-    ...popular,
+  // フォロー済みで候補に無い作品（検索で選んだ作品・投稿で作った作品など）は先頭に足す。外せる場所が無くなるため
+  const chips = candidates === null ? [] : [
+    ...follows.filter((f) => !candidates.some((p) => p.id === f.id)),
+    ...candidates,
   ];
   const chipKey = chips.map((w) => w.id).join(',');
 
@@ -109,24 +150,24 @@ export default function OnboardingWorkPicker({ onCreated }: Props) {
     if (user) setCached(`follows:${user.id}`, next);
     window.dispatchEvent(new Event(FOLLOWS_EVENT));
   };
-  const markPicked = () => {
-    try { localStorage.setItem(ONBOARDING_WORKS_KEY, '1'); } catch { /* 立たなくても、フォローが1件以上あれば既定の作品は入らない */ }
-  };
 
   const toggle = async (w: Work) => {
     if (!user || busyId) return;
     const on = followedIds.has(w.id);
     if (!on && !canAdd) return; // 押せないようにしてあるが、連打で上限を越えないように
     haptic.select();
+    const fromSearch = searching;
     // 「query と入力して w.name を選んだ」＝表記ゆれ辞書の別名ペア
-    if (!on && query.trim() && w.name !== query.trim()) { logSearch('work_follow', query, results?.length ?? null, user.id, w.name); maybeAddWorkAlias(w, query); }
+    if (!on && fromSearch && w.name !== query.trim()) { logSearch('work_follow', query, results?.length ?? null, user.id, w.name); maybeAddWorkAlias(w, query); }
     setBusyId(w.id);
     const prev = follows;
     const next = on ? prev.filter((x) => x.id !== w.id) : [w, ...prev];
     setFollows(next);
+    // 検索からフォローしたら候補の並びに戻す（選んだ作品が先頭に選択中で見える）
+    if (!on && fromSearch) setQuery('');
     try {
       if (on) await leaveCalendar(w.id, user.id);
-      else { await upsertParticipation(w.id, user.id); markPicked(); }
+      else await upsertParticipation(w.id, user.id);
       commit(next);
     } catch {
       setFollows(prev);
@@ -134,28 +175,6 @@ export default function OnboardingWorkPicker({ onCreated }: Props) {
     }
     setBusyId(null);
   };
-
-  const createAndFollow = async () => {
-    const name = query.trim();
-    if (!user || !name || busyId || !canAdd) return;
-    haptic.select();
-    setBusyId('create');
-    try {
-      const w = await getOrCreateWork(name);
-      await upsertParticipation(w.id, user.id);
-      markPicked();
-      const next = [w, ...follows.filter((x) => x.id !== w.id)];
-      setFollows(next);
-      commit(next);
-      setQuery('');
-      // 別名辞書で既存の作品に寄せられたときは「作った」わけではないので、予定が無いとは言わない
-      toast(w.participantCount === 0 ? 'まだ予定が集まっていません。見つけたら共有してください' : `「${w.name}」をフォローしました`);
-      onCreated();
-    } catch { toast('作成に失敗しました'); }
-    setBusyId(null);
-  };
-
-  const exactMatch = (results ?? []).some((w) => sameWorkName(w.name, query));
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -185,20 +204,16 @@ export default function OnboardingWorkPicker({ onCreated }: Props) {
                   style={on
                     ? { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-secondary)' }
                     : { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
-                  {on ? <><Check size={13} /> フォロー中</> : '＋フォロー'}
+                  {on ? 'フォロー中' : '＋フォロー'}
                 </button>
               </div>
             );
           })}
-          {results !== null && !exactMatch && (
-            <button onClick={createAndFollow} disabled={busyId !== null || !canAdd}
-              className="pressable w-full flex items-center gap-2 px-1 py-3 text-[14px] font-medium text-left disabled:opacity-50"
-              style={{ color: 'var(--accent-text)' }}>
-              <Plus size={16} className="flex-shrink-0" /> <span className="truncate">「{query.trim()}」を作成してフォロー</span>
-            </button>
-          )}
           {results !== null && results.length === 0 && (
-            <p className="px-1 pt-1 text-[12px] text-label-tertiary">見つかりません。表記ゆれ（略称・正式名）でも検索してみてください。</p>
+            <p className="px-1 pt-3 text-[12px] text-label-tertiary leading-relaxed">
+              見つかりません。略称・正式名でも検索してみてください。<br />
+              まだ無い作品は、あとで予定を投稿すると追加できます。
+            </p>
           )}
         </div>
       ) : (

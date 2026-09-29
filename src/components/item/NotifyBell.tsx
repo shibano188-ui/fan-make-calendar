@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Bell, BellRing } from 'lucide-react';
 import type { CalendarEvent } from '../../types';
-import { isNotifyOn, setNotifyOn, loadNotifyLeadDays, loadMutedEventIds, toggleMutedEventId, loadBellPrefs, takePriceHint } from '../../lib/constants';
+import { BELL_EVENT, isNotifyOn, setNotifyOn, loadNotifyLeadDays, loadMutedEventIds, toggleMutedEventId, loadBellPrefs, takePriceHint } from '../../lib/constants';
 import { ensurePermission, scheduleForEvent, cancelForEvent, notificationsSupported } from '../../lib/notifications';
 import { useToast } from '../ui/Toast';
 import { haptic } from '../../lib/haptics';
@@ -65,7 +65,8 @@ export default function NotifyBell({ event, liked, onSave, size = 18, variant = 
   const onTap = (e: React.MouseEvent) => {
     e.stopPropagation();
     haptic.light();
-    void (on ? turnOff() : turnOn());
+    // オンボーディングの案内は「ベルを押して、許可を聞き終えたら」終わる。許可されなくても先へ進める
+    void (on ? turnOff() : turnOn().finally(() => window.dispatchEvent(new Event(BELL_EVENT))));
   };
 
   const iconSize = variant === 'labeled' ? 22 : size;
@@ -74,12 +75,12 @@ export default function NotifyBell({ event, liked, onSave, size = 18, variant = 
     : <Bell size={iconSize} className="text-label-secondary" />;
 
   return variant === 'labeled' ? (
-    <button onClick={onTap} aria-label="通知" aria-pressed={on} className="pressable flex flex-col items-center gap-0.5">
+    <button onClick={onTap} aria-label="通知" aria-pressed={on} data-tour="bell" className="pressable flex flex-col items-center gap-0.5">
       {Icon}
       <span className="text-[10px] text-label-tertiary leading-none">{on ? '通知ON' : '通知'}</span>
     </button>
   ) : (
-    <button onClick={onTap} aria-label="通知" aria-pressed={on} className="pressable tap-44 flex items-center">
+    <button onClick={onTap} aria-label="通知" aria-pressed={on} data-tour="bell" className="pressable tap-44 flex items-center">
       {Icon}
     </button>
   );

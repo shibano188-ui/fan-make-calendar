@@ -1,8 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { getWorksByNames, upsertParticipation } from '../lib/api';
-import { DEFAULT_WORK_NAMES, SHOW_ONBOARDING, ONBOARDING_KEY } from '../lib/constants';
 import { setAppStateUser, setAppStateSync, syncAppState } from '../lib/appState';
 import { setStampUser } from '../lib/stampStore';
 import { refreshPremium, clearPremium } from '../lib/premium';
@@ -15,50 +13,10 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue>({ user: null, loading: true });
 
-// デフォルト作品（ちいかわ・ハイキュー!!）へ自動参加させる。端末ごとに1回だけ。
-// user を公開する前にこれを await して完了させることで、Home 等が「参加0件」を先読みして
-// フォロー0のままキャッシュしてしまうレースを防ぐ。以後ユーザーが脱退しても再追加はしない。
-// v2: 旧レース条件でフォロー0のまま詰まった既存端末を回復させるためキーをバージョンアップ。
-// 未設定の端末（新規／旧フラグのみ持つ端末）で一度だけ再参加する。
-//
-// 新しい端末（オンボーディングをまだ見ていない）ではここで入れない。案内の1枚目で作品を選ばせ、
-// 1つも選ばずに閉じた人にだけ Onboarding の finish が joinDefaultWorks を呼ぶ。
-// 案内を見終えた端末でログアウト→新しい匿名アカウントになったときは今までどおりここで入れる
-// （新規ユーザーではないのに、フォローが空になると事故に見えるため）。
-const DEFAULT_JOINED_KEY = 'fan_default_joined_v2';
+// 前はここで新しい人全員に既定の作品（ちいかわ・ハイキュー!!）を自動でフォローさせていた。
+// 2026-09-29 にやめた（柴野）。作品はオンボーディングで必ず1つ以上選んでもらう。
 // 端末設定をこの端末で一度でも同期できた人（値は user_id）。2回目からは起動時に同期を待たない
 const SYNCED_ONCE_KEY = 'fan_app_state_synced_v1';
-
-/** 既定の作品を入れるかの判断を済ませた印を立てる。オンボーディングで作品を選んで入れなかったときも立てる。
- *  立てないと、次の起動で ensureDefaultJoined が「まだ入れていない」と見て、選んでいない作品まで足してしまう */
-export function markDefaultJoinSettled(): void {
-  try { localStorage.setItem(DEFAULT_JOINED_KEY, '1'); } catch { /* 保存できなくても次の起動で入るだけ */ }
-}
-
-/** 既定の作品をフォローして、判断済みの印を立てる。失敗したら印は立てない（次の起動でやり直す） */
-export async function joinDefaultWorks(userId: string): Promise<void> {
-  const defaults = await getWorksByNames(DEFAULT_WORK_NAMES);
-  await Promise.all(defaults.map((w) => upsertParticipation(w.id, userId)));
-  markDefaultJoinSettled();
-}
-
-let defaultJoinPromise: Promise<void> | null = null;
-function ensureDefaultJoined(userId: string): Promise<void> {
-  if (localStorage.getItem(DEFAULT_JOINED_KEY)) return Promise.resolve();
-  // 案内がこれから出る端末は、案内の中で選ばせるのでここでは入れない
-  if (SHOW_ONBOARDING && !localStorage.getItem(ONBOARDING_KEY)) return Promise.resolve();
-  if (!defaultJoinPromise) {
-    defaultJoinPromise = (async () => {
-      try {
-        await joinDefaultWorks(userId);
-      } catch (e) {
-        console.error('[ensureDefaultJoined]', e);
-        defaultJoinPromise = null; // 失敗時は次回リトライできるようクリア
-      }
-    })();
-  }
-  return defaultJoinPromise;
-}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -68,7 +26,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     let activatedId: string | null = null;
 
-    // user を公開する前にデフォルト参加とアプリ状態の同期を確定させる。
+    // user を公開する前にアプリ状態の同期を確定させる。
     // 同期はサーバーが遅い/落ちている場合に起動を止めないよう上限を切り、超えたらローカルのまま進む。
     const activate = async (u: User) => {
       // getSession と onAuthStateChange の両方から同じ人で呼ばれるので、2回目は何もしない
@@ -81,7 +39,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // 無料でも別端末で見られる＝「複数端末で使える」は有料の売りとして成立しなかった
       // （2026-08-14 本人判断で有料リストから外した）。
       setAppStateSync(true);
-      await ensureDefaultJoined(u.id);
       // 端末設定の同期を待つのは**その端末で初めて同期するときだけ**。
       // 2回目からは手元に前回の写しがあるので、画面を先に出して裏で同期する
       // （毎回待っていたため、起動のたびにデータの表示が1往復以上遅れていた）。

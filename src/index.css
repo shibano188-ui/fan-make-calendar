@@ -170,6 +170,38 @@
   filter: drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff) drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff)
           drop-shadow(0 0.5px 1px rgba(0,0,0,0.18));
 }
+/* オンボーディング: 作品を1つ選んだら「次へ」を1回揺らす（Onboarding.tsx） */
+@keyframes onboardingNudge {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.06); }
+  55%  { transform: scale(0.98) rotate(-1deg); }
+  75%  { transform: scale(1.02) rotate(1deg); }
+  100% { transform: none; }
+}
+/* オンボーディングの続き（OnboardingTour.tsx）。body[data-tour-step] が付いている間だけ効く。
+   押してほしいボタンを光らせ、下のタブは押せなくする（スキップさせない） */
+@keyframes tourBubbleIn {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes tourPulse {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-color) 70%, transparent); }
+  70%  { box-shadow: 0 0 0 10px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+body[data-tour-step="like"] [data-tour="like"],
+body[data-tour-step="bell"] [data-tour="bell"] {
+  border-radius: 9999px;
+  animation: tourPulse 1.4s ease-out infinite;
+}
+body[data-tour-step] [data-bottom-nav] {
+  pointer-events: none !important;
+  opacity: 0.35;
+}
+body[data-tour-step] [data-bottom-nav] * {
+  pointer-events: none !important;
+}
+
 /* 探すの「グッズ⇄イベント」の文字の入れ替え */
 @keyframes labelSwap {
   from { opacity: 0; transform: translateY(45%); filter: blur(2px); }

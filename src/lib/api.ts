@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import { sortByWorkOrder } from './workOrder';
 import type { CalendarEvent, EventVisit, Offer } from '../types';
-import { parseCategories, loadMutedEventIds, loadMutedWorkIds, ANON_NAME, isOfficialUser, isReservedDisplayName } from './constants';
+import { parseCategories, loadMutedEventIds, loadMutedWorkIds, ANON_NAME, isOfficialUser, isReservedDisplayName, LIKED_EVENT } from './constants';
 import { searchWorksByAlias, findWorkByExactAlias } from './workAliases';
 import { primaryOffer, getOffers } from './affiliate';
 import { requestDeviceCalendarSync } from './deviceCalendar';
@@ -710,6 +710,9 @@ export async function toggleLike(eventId: string, userId: string): Promise<{ lik
 
   // 端末カレンダーに書く設定なら、起動・復帰を待たずに反映する（外したら消える）
   requestDeviceCalendarSync(userId);
+
+  // オンボーディングの案内は「いいねしたらカレンダーへ」なので、どの画面で押しても拾えるように知らせる
+  if (!existing) window.dispatchEvent(new CustomEvent(LIKED_EVENT, { detail: eventId }));
 
   return { liked: !existing, count: count ?? 0 };
 }
