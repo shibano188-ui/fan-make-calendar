@@ -52,6 +52,12 @@ export function tourEventId(): string | null {
   try { return localStorage.getItem(TOUR_EVENT_KEY); } catch { return null; }
 }
 
+const FINISH_EVENT = 'fan-tour-finish';
+/** 案内をここで終える。いいねできる予定が1件も無いとき（探すが空）の逃げ道。ふだんは使わない */
+export function finishTourNow(): void {
+  window.dispatchEvent(new Event(FINISH_EVENT));
+}
+
 /** 作品を選び終えたら呼ぶ。探すへ移るのは OnboardingTour が段階を見てやる */
 export function startTour(): void {
   writeStep('like');
@@ -108,6 +114,13 @@ export default function OnboardingTour() {
     const onBell = () => { void finish(); };
     window.addEventListener(BELL_EVENT, onBell);
     return () => window.removeEventListener(BELL_EVENT, onBell);
+  }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!step) return;
+    const onFinish = () => { void finish(); };
+    window.addEventListener(FINISH_EVENT, onFinish);
+    return () => window.removeEventListener(FINISH_EVENT, onFinish);
   }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const finish = async () => {

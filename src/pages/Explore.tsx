@@ -24,7 +24,7 @@ import { useHiddenContent } from '../hooks/useHiddenContent';
 import { haptic } from '../lib/haptics';
 import { usePremium, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
 import { useAdBanner } from '../lib/useAdBanner';
-import { useTourStep } from '../components/OnboardingTour';
+import { useTourStep, finishTourNow } from '../components/OnboardingTour';
 
 const STATUS_ORDER: ItemStatus[] = ['preorder_soon', 'preorder', 'sale_soon', 'onsale', 'preorder_ended', 'ended'];
 
@@ -568,7 +568,17 @@ export default function Explore() {
               </button>
             </div>
           ) : (
-            <p className="text-center text-label-secondary text-[13px] py-16">該当する{mode === 'goods' ? 'グッズ' : 'イベント'}がありません</p>
+            <div className="text-center py-16">
+              <p className="text-label-secondary text-[13px]">該当する{mode === 'goods' ? 'グッズ' : 'イベント'}がありません</p>
+              {/* 案内の途中で、いいねできる予定がどこにも無いときの逃げ道（スキップの無い案内で閉じ込めないため） */}
+              {touring && !tourFallbackWorkId && (
+                <button onClick={() => { haptic.select(); finishTourNow(); }}
+                  className="pressable mt-4 px-5 py-2 rounded-full text-[14px] font-semibold"
+                  style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+                  はじめる
+                </button>
+              )}
+            </div>
           )
         ) : (
           <>
