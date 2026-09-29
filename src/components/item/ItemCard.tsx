@@ -174,7 +174,7 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
         </button>
         <div className="flex-1 min-w-0 flex flex-col">
           <button onClick={onOpen} className="pressable text-left">
-            {event.workName && <div data-skin-part="card-work" className="text-[11px] text-label-secondary truncate">{event.workName}</div>}
+            {event.workName && <div data-skin-part="card-work" className="text-[11px] text-label-secondary truncate">{event.workName}{event.personal && <span style={{ color: 'var(--accent-text)' }}>・自分用</span>}</div>}
             <div data-skin-part="card-title" className={`text-[15px] font-semibold leading-snug ${layout === 'compact' ? 'line-clamp-2' : 'line-clamp-3'}`}>{event.title}</div>
             <CategoryLine event={event} />
             {price && <div data-skin-part="card-price" className="text-[17px] font-bold mt-0.5 flex items-center gap-1" style={{ color: 'var(--accent-text)' }}>{price}{isSet && setTag}</div>}
@@ -216,6 +216,14 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
 /** large＝予定パネル用（よく押すので大きめ・間隔も広め）。ホームの2列は今の大きさのまま */
 function CardActions({ liked, likeCount, onLike, event, large }: { liked?: boolean; likeCount?: number; onLike?: () => void; event: CalendarEvent; large?: boolean }) {
   const size = large ? 23 : 18;
+  // 自分用の予定（personal_events）は ♡・リアクションが無い（本人のカレンダーにしか無い）。通知のベルだけ
+  if (event.personal) {
+    return (
+      <div data-skin-part="card-actions" className="flex items-center">
+        <NotifyBell event={event} liked size={size} />
+      </div>
+    );
+  }
   return (
     <div data-skin-part="card-actions" className={`flex items-center ${large ? 'gap-5' : 'gap-4'}`}>
       <button onClick={(e) => {

@@ -1043,7 +1043,7 @@ export async function updateEventOffers(eventId: string, offers: Offer[]): Promi
 }
 
 // ── 共同編集: 日時/状態の編集パッチ ──
-export type EventPatch = Partial<Pick<CalendarEvent, 'date' | 'dateLabel' | 'endDate' | 'time' | 'isOrderMade' | 'preorderStart' | 'preorderEnd' | 'price'>> & {
+export type EventPatch = Partial<Pick<CalendarEvent, 'date' | 'dateLabel' | 'endDate' | 'time' | 'isOrderMade' | 'preorderStart' | 'preorderEnd' | 'price' | 'saleStatus'>> & {
   /** 取り消された購入リンクのURL。events.offers は書き換えず、実効値の計算時に除外する。
    * 日付編集と同じく履歴に残り「戻す」で復活できる（誰でも取り消せる＝共同編集）。 */
   removedOfferUrls?: string[];
@@ -1242,7 +1242,155 @@ export async function listSavedEvents(userId: string): Promise<CalendarEvent[]> 
     if (!ev) continue;
     (ev.visits ??= []).push({ id: r.id as string, start: r.start_date as string, end: r.end_date as string });
   }
-  return resolveAuthorNames([...map.values()]);
+  // 自分用の予定も同じ一覧に混ぜる（カレンダーと通知の組み直しの両方がここを使う）。
+  // テーブルがまだ無い環境（SQL未適用）では黙って空にする
+  const personal = await listPersonalEvents(userId).catch(() => []);
+  return [...(await resolveAuthorNames([...map.values()])), ...personal];
+}
+
+// ─── 自分用の予定（personal_events）──────────────────────────────
+// 本人のカレンダーにだけ出る予定。必須はフォロー中の作品とタイトルだけで、重複検知もしない（2026-09-29 柴野）。
+// 見た目はみんなの予定と同じカードにするため CalendarEvent に寄せる（personal: true・♡済み扱い）。
+
+export type PersonalEventInput = {
+  workId: string;
+  title: string;
+  date?: string | null;
+  endDate?: string | null;
+  time?: string | null;
+  category?: string | null;
+  memo?: string | null;
+  imageUrl?: string | null;
+  link?: string | null;
+};
+
+function personalToEvent(r: Record<string, unknown>): CalendarEvent {
+  const works = r.works as { name: string } | null;
+  return {
+    id: r.id as string,
+    title: r.title as string,
+    date: (r.event_date as string | null) ?? null,
+    endDate: (r.end_date as string | null) ?? undefined,
+    time: ((r.event_time as string | null) ?? undefined)?.slice(0, 5),
+    category: (r.category as string | null) ?? undefined,
+    memo: (r.memo as string | null) ?? undefined,
+    imageUrl: (r.image_url as string | null) ?? undefined,
+    link: (r.link_url as string | null) ?? undefined,
+    workId: r.work_id as string,
+    workName: works?.name ?? '',
+    authorId: r.user_id as string,
+    likes: 0,
+    likedByMe: true,
+    createdAt: r.created_at as string,
+    personal: true,
+  };
+}
+
+function personalRow(e: PersonalEventInput): Record<string, unknown> {
+  return {
+    work_id: e.workId,
+    title: e.title.trim(),
+    event_date: e.date || null,
+    end_date: e.date && e.endDate && e.endDate !== e.date ? e.endDate : null,
+    event_time: e.time || null,
+    category: e.category || null,
+    memo: e.memo?.trim() || null,
+    image_url: e.imageUrl || null,
+    link_url: e.link?.trim() || null,
+  };
+}
+
+export async function listPersonalEvents(userId: string): Promise<CalendarEvent[]> {
+  const { data, error } = await supabase
+    .from('personal_events').select('*, works(name)').eq('user_id', userId).order('event_date', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((r) => personalToEvent(r as Record<string, unknown>));
+}
+
+export async function getPersonalEvent(id: string): Promise<CalendarEvent | null> {
+  const { data } = await supabase.from('personal_events').select('*, works(name)').eq('id', id).maybeSingle();
+  return data ? personalToEvent(data as Record<string, unknown>) : null;
+}
+
+export async function createPersonalEvent(e: PersonalEventInput): Promise<CalendarEvent> {
+  const { data, error } = await supabase.from('personal_events').insert(personalRow(e)).select('*, works(name)').single();
+  if (error) throw error;
+  return personalToEvent(data as Record<string, unknown>);
+}
+
+export async function updatePersonalEvent(id: string, e: PersonalEventInput): Promise<void> {
+  const { error } = await supabase.from('personal_events')
+    .update({ ...personalRow(e), updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deletePersonalEvent(id: string): Promise<void> {
+  const { error } = await supabase.from('personal_events').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ─── 情報を送る（info_submissions）───────────────────────────────
+// 作品名・URL・一言を送るだけ。中身の読み取り・公開はボット（api/_submissions.ts）が10分おきに最優先でやる。
+
+export type InfoSubmission = {
+  id: string; workName: string; urls: string[]; comment: string | null;
+  status: 'pending' | 'published' | 'merged' | 'needs_review' | 'rejected';
+  reason: string | null; resultEventIds: string[]; createdAt: string;
+};
+
+export async function submitInfo(input: { workName: string; urls: string[]; comment?: string }): Promise<void> {
+  const { error } = await supabase.from('info_submissions').insert({
+    work_name: input.workName.trim(),
+    urls: input.urls.map((u) => u.trim()).filter(Boolean).slice(0, 10),
+    comment: input.comment?.trim() || null,
+  });
+  if (error) throw error;
+}
+
+export async function listMyInfoSubmissions(userId: string): Promise<InfoSubmission[]> {
+  const { data, error } = await supabase.from('info_submissions')
+    .select('id, work_name, urls, comment, status, reason, result_event_ids, created_at')
+    .eq('user_id', userId).order('created_at', { ascending: false }).limit(30);
+  if (error) return [];
+  return (data ?? []).map((r) => ({
+    id: r.id as string, workName: r.work_name as string, urls: (r.urls as string[]) ?? [],
+    comment: (r.comment as string | null) ?? null, status: r.status as InfoSubmission['status'],
+    reason: (r.reason as string | null) ?? null, resultEventIds: (r.result_event_ids as string[] | null) ?? [],
+    createdAt: r.created_at as string,
+  }));
+}
+
+// ─── ＋α の提案（edit_proposals）─────────────────────────────────
+// 日付・発売状況・値段・購入リンクの追加は、すぐには反映しない。ボットがリンクを読んで確かめてから反映する。
+// 確かめられなかったものは、ほかの人が同じ提案をしたら反映する（Waze 式）。投稿者と運営の修正は今までどおりすぐ反映。
+
+export type EditProposal = {
+  id: string; patch: EventPatch & { addedOfferUrl?: string }; evidenceUrls: string[];
+  createdBy: string; status: 'pending' | 'applied' | 'rejected'; reason: string | null; createdAt: string;
+};
+
+export async function proposeEdit(eventId: string, patch: EditProposal['patch'], evidenceUrls: string[] = []): Promise<EditProposal | null> {
+  const { data, error } = await supabase.from('edit_proposals')
+    .insert({ event_id: eventId, patch, evidence_urls: evidenceUrls })
+    .select('id, patch, evidence_urls, created_by, status, reason, created_at').single();
+  if (error) return null;
+  return toProposal(data as Record<string, unknown>);
+}
+
+export async function listEditProposals(eventId: string): Promise<EditProposal[]> {
+  const { data, error } = await supabase.from('edit_proposals')
+    .select('id, patch, evidence_urls, created_by, status, reason, created_at')
+    .eq('event_id', eventId).order('created_at', { ascending: false }).limit(30);
+  if (error) return [];
+  return (data ?? []).map((r) => toProposal(r as Record<string, unknown>));
+}
+
+function toProposal(r: Record<string, unknown>): EditProposal {
+  return {
+    id: r.id as string, patch: (r.patch as EditProposal['patch']) ?? {}, evidenceUrls: (r.evidence_urls as string[]) ?? [],
+    createdBy: r.created_by as string, status: r.status as EditProposal['status'],
+    reason: (r.reason as string | null) ?? null, createdAt: r.created_at as string,
+  };
 }
 
 // 探す（横断フィード）: 全作品の予定を期間ウィンドウで取得。works名を結合。

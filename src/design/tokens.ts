@@ -74,7 +74,7 @@ export function datePeriod(date: string, dateLabel?: string | null): { start: st
 }
 
 type StatusFields = Pick<CalendarEvent, 'date' | 'endDate' | 'preorderStart' | 'preorderEnd' | 'type' | 'category'>
-  & Partial<Pick<CalendarEvent, 'dateLabel' | 'time' | 'preorderStartTime' | 'preorderEndTime' | 'isOrderMade' | 'offers'>>;
+  & Partial<Pick<CalendarEvent, 'dateLabel' | 'time' | 'preorderStartTime' | 'preorderEndTime' | 'isOrderMade' | 'offers' | 'saleStatus'>>;
 
 /** 日付だけで決める状態 */
 function dateStatus(e: StatusFields, today: string): ItemStatus {
@@ -107,6 +107,8 @@ function dateStatus(e: StatusFields, today: string): ItemStatus {
 export function deriveStatus(e: StatusFields, today = todayStr()): ItemStatus {
   const base = dateStatus(e, today);
   if (base === 'ended') return base;
+  // ＋αで選ばれた発売状況（ボットが確かめてから反映したもの）は、日付や店の在庫表記より優先する
+  if (e.saleStatus) return e.saleStatus;
   const hint = stockHint(e);
   if (hint === 'instock') return 'onsale';
   if (hint === 'preorder' && base !== 'onsale') return 'preorder';

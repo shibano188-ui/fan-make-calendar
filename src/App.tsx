@@ -23,6 +23,8 @@ const Explore         = lazy(() => import('./pages/Explore'));
 const Saved           = lazy(() => import('./pages/Saved'));
 const MyPage          = lazy(() => import('./pages/MyPage'));
 const PostNew         = lazy(() => import('./pages/PostNew'));
+const SubmitInfo      = lazy(() => import('./pages/SubmitInfo'));
+const PersonalEventForm = lazy(() => import('./pages/PersonalEventForm'));
 const ItemDetail      = lazy(() => import('./pages/ItemDetail'));
 const Customize       = lazy(() => import('./pages/Customize'));
 const ThemeCreate     = lazy(() => import('./pages/ThemeCreate'));
@@ -265,6 +267,8 @@ export default function App() {
                       <Route path="/mypage"  element={<MyPage />} />
                     </Route>
                     <Route path="/post"     element={<PostNew />} />
+                    <Route path="/submit"   element={<SubmitInfo />} />
+                    <Route path="/personal/:id" element={<PersonalEventForm />} />
                     <Route path="/item/:id" element={<ItemDetail />} />
                     <Route path="/customize" element={<Customize />} />
                     <Route path="/customize/theme" element={<ThemeCreate />} />

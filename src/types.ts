@@ -37,6 +37,10 @@ export type CalendarEvent = {
   hasAffiliate?: boolean;   // アフィ対応販路か（false=B2B送客対象）※offers[0]の要約
   offers?: Offer[];         // 販路リスト（買えるところ。発売に向けて随時増える）
   relatedEventId?: string;  // 紐付く親イベントのid（イベントで販売されるグッズが持つ）
+  /** ＋αで人が選んだ発売状況（確かめてから反映したもの）。日付から出す状態より優先する（deriveStatus） */
+  saleStatus?: 'preorder_soon' | 'preorder' | 'preorder_ended' | 'sale_soon' | 'onsale' | 'ended';
+  /** 自分用の予定（personal_events）。本人のカレンダーにだけ出る。♡・詳細ページは無く、押すと編集する */
+  personal?: boolean;
 
   // ─ 個人の「行く日」（本人のみ・保存カレンダーの表示絞り込み用。共有データではない）─
   visits?: EventVisit[];
