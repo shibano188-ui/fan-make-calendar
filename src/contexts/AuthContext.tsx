@@ -18,6 +18,15 @@ const AuthContext = createContext<AuthContextValue>({ user: null, loading: true 
 // 端末設定をこの端末で一度でも同期できた人（値は user_id）。2回目からは起動時に同期を待たない
 const SYNCED_ONCE_KEY = 'fan_app_state_synced_v1';
 
+// 匿名サインインは1回の起動で1回だけ。開発時の StrictMode は起動の処理を2回走らせるので、
+// そのままだと匿名アカウントが2つでき、画面は1つ目・通信は2つ目のアカウントになる。
+// その間に作品を押すと、DB が「本人ではない」と弾いて「フォローに失敗しました」になっていた（2026-09-29）
+let anonSignIn: ReturnType<typeof supabase.auth.signInAnonymously> | null = null;
+function signInAnonymouslyOnce() {
+  if (!anonSignIn) anonSignIn = supabase.auth.signInAnonymously().finally(() => { anonSignIn = null; });
+  return anonSignIn;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user) {
         activate(session.user);
       } else {
-        supabase.auth.signInAnonymously().then(({ error }) => {
+        signInAnonymouslyOnce().then(({ error }) => {
           if (error && !cancelled) setLoading(false);
         });
       }
