@@ -4,7 +4,7 @@ import type { CalendarEvent } from '../../types';
 import { useLike, setLike } from '../../lib/likeStore';
 import { deriveStatus, deriveItemType, itemDateLines, todayStr } from '../../design/tokens';
 import { countdownLabel } from '../../lib/relativeDay';
-import { parseCategories, getPrimaryCategoryColor, parseImageUrls } from '../../lib/constants';
+import { parseCategories, getPrimaryCategoryColor, parseImageUrls, LIKED_EVENT } from '../../lib/constants';
 import { likeEffect } from '../../lib/likeEffect';
 import { primaryOffer, getOffers, priceRange, isStockStale } from '../../lib/affiliate';
 import StatusBadge from '../ui/StatusBadge';
@@ -218,7 +218,15 @@ function CardActions({ liked, likeCount, onLike, event, large }: { liked?: boole
   const size = large ? 23 : 18;
   return (
     <div data-skin-part="card-actions" className={`flex items-center ${large ? 'gap-5' : 'gap-4'}`}>
-      <button onClick={(e) => { e.stopPropagation(); if (!liked) likeEffect(e.currentTarget); onLike?.(); }} aria-label="いいね" data-tour="like" className="pressable tap-44 flex items-center gap-1">
+      <button onClick={(e) => {
+        e.stopPropagation();
+        if (!liked) {
+          likeEffect(e.currentTarget);
+          // オンボーディングの案内は保存の通信（4往復）を待たずに進める。保存が済んだら api からも同じ知らせが来るが、案内は1回目だけ見る
+          window.dispatchEvent(new CustomEvent(LIKED_EVENT, { detail: { id: event.id, event } }));
+        }
+        onLike?.();
+      }} aria-label="いいね" data-tour="like" className="pressable tap-44 flex items-center gap-1">
         <Heart size={size} fill={liked ? 'var(--accent-color)' : 'none'} style={{ color: liked ? 'var(--accent-color)' : 'var(--label-secondary)' }} />
         {!!likeCount && likeCount > 0 && <span data-skin-part="card-likes" className={`${large ? 'text-[13px]' : 'text-[11px]'} text-label-secondary`}>{likeCount}</span>}
       </button>

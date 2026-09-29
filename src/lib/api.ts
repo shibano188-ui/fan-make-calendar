@@ -712,7 +712,7 @@ export async function toggleLike(eventId: string, userId: string): Promise<{ lik
   requestDeviceCalendarSync(userId);
 
   // オンボーディングの案内は「いいねしたらカレンダーへ」なので、どの画面で押しても拾えるように知らせる
-  if (!existing) window.dispatchEvent(new CustomEvent(LIKED_EVENT, { detail: eventId }));
+  if (!existing) window.dispatchEvent(new CustomEvent(LIKED_EVENT, { detail: { id: eventId } }));
 
   return { liked: !existing, count: count ?? 0 };
 }

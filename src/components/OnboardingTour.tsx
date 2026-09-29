@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Heart, Bell, CalendarCheck } from 'lucide-react';
+import { Heart, Bell, BellRing, CalendarCheck } from 'lucide-react';
+import type { CalendarEvent } from '../types';
 import { setAdsSuppressed } from '../lib/adSuppress';
 import { requestTracking } from '../lib/att';
 import { haptic } from '../lib/haptics';
-import { useToast } from './ui/Toast';
-import { ONBOARDING_KEY, TOUR_STEP_KEY, TOUR_EVENT_KEY, TOUR_EVENT, LIKED_EVENT, BELL_EVENT, FEATURE_PREMIUM } from '../lib/constants';
+import { ONBOARDING_KEY, TOUR_STEP_KEY, TOUR_EVENT_KEY, TOUR_EVENT, LIKED_EVENT, BELL_EVENT, FEATURE_PREMIUM, loadNotifyLeadDays } from '../lib/constants';
 
 // オンボーディングの続き: **本物の画面**で、これから使う操作を1回ずつやってもらう（2026-09-29 柴野）。
 //   like     … 探すで気になる予定の ♡ を押す
@@ -17,12 +17,12 @@ import { ONBOARDING_KEY, TOUR_STEP_KEY, TOUR_EVENT_KEY, TOUR_EVENT, LIKED_EVENT,
 //
 // 段階は端末に残す（途中でアプリを閉じても、次の起動で続きから）。
 
-export type TourStep = 'like' | 'calendar' | 'bell';
+export type TourStep = 'like' | 'calendar' | 'bell' | 'done';
 
 function readStep(): TourStep | null {
   try {
     const v = localStorage.getItem(TOUR_STEP_KEY);
-    return v === 'like' || v === 'calendar' || v === 'bell' ? v : null;
+    return v === 'like' || v === 'calendar' || v === 'bell' || v === 'done' ? v : null;
   } catch { return null; }
 }
 
@@ -58,23 +58,42 @@ export function finishTourNow(): void {
   window.dispatchEvent(new Event(FINISH_EVENT));
 }
 
+/** いいねの知らせ（LIKED_EVENT）の中身。カードからは予定そのものも付けて、保存の通信を待たずに知らせる */
+export type LikedDetail = { id: string; event?: CalendarEvent };
+
+// 案内の中でいいねした予定。カレンダーは保存済みの予定を取り直して描くが、いいねの保存がまだ届いていなくても
+// その予定を出せるように持っておく（この起動の間だけ）
+let likedEvent: CalendarEvent | null = null;
+/** 案内の中でいいねした予定（持っていれば）。カレンダーが取り直しを待たずに出すため */
+export function tourLikedEvent(): CalendarEvent | null {
+  return likedEvent;
+}
+
 /** 作品を選び終えたら呼ぶ。探すへ移るのは OnboardingTour が段階を見てやる */
 export function startTour(): void {
   writeStep('like');
 }
 
 // 段階ごとの吹き出し。本文は短く（長いと読まれない）
-const COPY: Record<TourStep, { icon: typeof Heart; title: string; body: string }> = {
+const COPY: Record<TourStep, { icon: typeof Heart; title: string; body?: string }> = {
   like: { icon: Heart, title: '気になる予定に ♡ を押してみよう', body: '♡ を押した予定は、カレンダーに入ります。' },
-  calendar: { icon: CalendarCheck, title: 'カレンダーに入りました', body: '下の日付のところに入っています。' },
+  calendar: { icon: CalendarCheck, title: 'カレンダーに登録されました！' },
   bell: { icon: Bell, title: 'ベルを押して通知をONにしよう', body: '発売日や締切の前にお知らせします。' },
+  // 本文は通知の設定（何日前か）に合わせて Bubble で組み立てる
+  done: { icon: BellRing, title: 'これで通知が届きます！' },
 };
+
+/** 「これで通知が届きます」の本文。いつ届くかは通知の設定（何日前）に合わせる */
+function doneBody(): string {
+  const lead = loadNotifyLeadDays();
+  const when = lead > 0 ? `${lead}日前と当日の朝` : '当日の朝';
+  return `発売日や締切の${when}にお知らせします。いつ届くかは、マイページの「通知の設定」で変えられます。`;
+}
 
 export default function OnboardingTour() {
   const step = useTourStep();
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const toast = useToast();
   const [leaving, setLeaving] = useState(false);
 
   // 光らせる・タブを止めるのは CSS に任せる（どの画面の部品にも手を入れずに済む）
@@ -99,19 +118,21 @@ export default function OnboardingTour() {
   useEffect(() => {
     if (step !== 'like') return;
     const onLiked = (e: Event) => {
-      const id = (e as CustomEvent<string>).detail;
+      const { id, event } = (e as CustomEvent<LikedDetail>).detail;
       try { localStorage.setItem(TOUR_EVENT_KEY, id); } catch { /* 無くてもカレンダーは開ける */ }
+      if (event) likedEvent = { ...event, likedByMe: true };
+      // ♡ の動きが見える分だけ待つ。カード（ItemCard）は保存の通信を待たずに知らせてくるので、ここが待ち時間のすべて
       setLeaving(true);
-      setTimeout(() => { setLeaving(false); writeStep('calendar'); navigate('/saved'); }, 700);
+      setTimeout(() => { setLeaving(false); writeStep('calendar'); navigate('/saved'); }, 400);
     };
     window.addEventListener(LIKED_EVENT, onLiked);
     return () => window.removeEventListener(LIKED_EVENT, onLiked);
   }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ベルを押して、通知の許可を聞き終えたら終わり（「カレンダーに入りました」の途中で押しても終わる）
+  // ベルを押して、通知の許可を聞き終えたら「これで通知が届きます」へ（「カレンダーに登録されました」の途中で押しても進む）
   useEffect(() => {
     if (step !== 'calendar' && step !== 'bell') return;
-    const onBell = () => { void finish(); };
+    const onBell = () => { writeStep('done'); };
     window.addEventListener(BELL_EVENT, onBell);
     return () => window.removeEventListener(BELL_EVENT, onBell);
   }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -127,7 +148,6 @@ export default function OnboardingTour() {
     try { localStorage.setItem(ONBOARDING_KEY, '1'); } catch { /* ignore */ }
     writeStep(null);
     setAdsSuppressed(false);
-    toast('準備ができました');
     // トラッキングの許可は案内が終わってから（通知の許可のダイアログは閉じ終わっている）
     await requestTracking();
     // 決済が繋がるまでは買えない案内を出さない方針なので FEATURE_PREMIUM で止めてある
@@ -136,7 +156,8 @@ export default function OnboardingTour() {
 
   // 予定詳細では出さない（上の「戻る」に重なる）。詳細の ♡・ベルでも先へ進む
   if (!step || pathname.startsWith('/item/')) return null;
-  return <TourLayer step={step} leaving={leaving} onNext={() => { haptic.select(); writeStep('bell'); }} />;
+  return <TourLayer step={step} leaving={leaving}
+    onNext={() => { haptic.select(); if (step === 'done') void finish(); else writeStep('bell'); }} />;
 }
 
 // ── 見せ方 ──────────────────────────────────────────────────────
@@ -181,7 +202,7 @@ const findNav = () => document.querySelector('[data-bottom-nav] > *');
 function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean; onNext: () => void }) {
   const id = tourEventId();
   const findBell = useCallback(() => (id ? document.querySelector(`[data-card-id="${CSS.escape(id)}"] [data-tour="bell"]`) : null), [id]);
-  const framed = step === 'like' || step === 'calendar';
+  const framed = step === 'like' || step === 'calendar' || step === 'done';
   const header = useRect(framed ? findHeader : nothing);
   const nav = useRect(framed ? findNav : nothing);
   const target = useRect(step === 'bell' ? findBell : nothing);
@@ -197,8 +218,9 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
       <div className="fixed inset-0 z-[250] pointer-events-none" style={fade}>
         {/* 上の幕。見出し・検索欄・作品の並びを覆い、その上に案内を載せる */}
         <div className="absolute inset-x-0 top-0 pointer-events-auto flex flex-col justify-end px-4 pb-3"
-          style={{ height: Math.max(top, 0), minHeight: 'calc(var(--sat) + 96px)', backgroundColor: DIM }}>
-          <Bubble step={step} arrow="down" onNext={step === 'calendar' ? onNext : undefined} />
+          // 高さは見出しの下端まで。吹き出しの方が高ければ伸ばす（上にはみ出して見出しが切れないように）
+          style={{ minHeight: `max(${Math.max(top, 0)}px, calc(var(--sat) + 96px))`, paddingTop: 'calc(var(--sat) + 8px)', backgroundColor: DIM }}>
+          <Bubble step={step} arrow={step === 'done' ? undefined : 'down'} onNext={step === 'like' ? undefined : onNext} />
         </div>
         {/* 下の幕。タブを覆う（押せない） */}
         <div className="absolute inset-x-0 bottom-0 pointer-events-auto" style={{ top: bottom, backgroundColor: DIM }} />
@@ -245,7 +267,8 @@ const nothing = () => null;
 
 /** 案内の吹き出し。アプリの部品と見間違えないよう、暗い地に白い文字で出す */
 function Bubble({ step, arrow, arrowX, onNext }: { step: TourStep; arrow?: 'up' | 'down'; arrowX?: number; onNext?: () => void }) {
-  const { icon: Icon, title, body } = COPY[step];
+  const { icon: Icon, title } = COPY[step];
+  const body = step === 'done' ? doneBody() : COPY[step].body;
   const ref = useRef<HTMLDivElement>(null);
   // 矢印は目印の真上（真下）に。吹き出しの端からはみ出さないように寄せる
   const [left, setLeft] = useState<number | null>(null);
@@ -265,22 +288,27 @@ function Bubble({ step, arrow, arrowX, onNext }: { step: TourStep; arrow?: 'up' 
       }} />
   );
   return (
-    <div ref={ref} key={step} className="pointer-events-auto relative rounded-[16px] px-4 py-3.5 flex items-center gap-3 shadow-float"
+    <div ref={ref} key={step} className="pointer-events-auto relative rounded-[16px] px-4 py-3.5 shadow-float"
       style={{ backgroundColor: 'var(--label-primary)', color: 'var(--bg-primary)', animation: 'tourBubbleIn 0.35s cubic-bezier(0.32,0.72,0,1) both' }}>
       {arrow === 'up' && tip('up')}
+      <div className="flex items-center gap-3">
       <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'var(--accent-color)' }}>
         <Icon size={20} style={{ color: 'var(--accent-on)' }} />
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-[15px] font-bold leading-snug">{title}</p>
-        <p className="text-[12px] leading-snug mt-0.5" style={{ opacity: 0.75 }}>{body}</p>
+        {body && <p className="text-[12px] leading-snug mt-0.5" style={{ opacity: 0.75 }}>{body}</p>}
       </div>
+      </div>
+      {/* 「次へ」は文の下に置く（横に並べると文が細切れに折り返す） */}
       {onNext && (
-        <button onClick={onNext}
-          className="pressable flex-shrink-0 px-4 py-2 rounded-full text-[13px] font-bold"
-          style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
-          次へ
-        </button>
+        <div className="flex justify-end mt-2.5">
+          <button onClick={onNext}
+            className="pressable px-5 py-2 rounded-full text-[13px] font-bold"
+            style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+            次へ
+          </button>
+        </div>
       )}
       {arrow === 'down' && tip('down')}
     </div>

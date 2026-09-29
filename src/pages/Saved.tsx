@@ -27,7 +27,7 @@ import { useToast } from '../components/ui/Toast';
 import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { haptic } from '../lib/haptics';
 import { usePremium } from '../lib/premium';
-import { useTourStep, tourEventId } from '../components/OnboardingTour';
+import { useTourStep, tourEventId, tourLikedEvent } from '../components/OnboardingTour';
 
 // 「予約受付中」は状態の選択肢と重なるので外した（前に選んでいた人は「すべて」に戻る）
 type Tab = 'all' | 'mine' | 'notify';
@@ -287,8 +287,9 @@ export default function Saved() {
   // オンボーディングの案内（OnboardingTour）で、いいねした予定を見せているところ。
   // 絞り込み・タブに関係なく必ず出し、その日のパネルを開いたままにする
   const tourStep = useTourStep();
-  const tourId = tourStep === 'calendar' || tourStep === 'bell' ? tourEventId() : null;
-  const tourEvent = tourId ? items?.find((e) => e.id === tourId) : undefined;
+  const tourId = tourStep === 'calendar' || tourStep === 'bell' || tourStep === 'done' ? tourEventId() : null;
+  // いいねの保存が届く前に取り直すことがあるので、無ければ案内が持っている予定を使う
+  const tourEvent = tourId ? (items?.find((e) => e.id === tourId) ?? (tourLikedEvent()?.id === tourId ? tourLikedEvent()! : undefined)) : undefined;
   const shown = useMemo(
     () => (tourEvent && !filtered.some((e) => e.id === tourEvent.id) ? [...filtered, tourEvent] : filtered),
     [filtered, tourEvent],
@@ -461,7 +462,7 @@ export default function Saved() {
         document.body,
       )}
 
-      {items === null ? (
+      {items === null && !tourEvent ? (
         <SkeletonList count={4} />
       ) : view !== 'list' ? (
         // カレンダー（月/週/日）は予定が0件でも枠を表示する
