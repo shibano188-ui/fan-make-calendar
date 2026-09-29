@@ -1255,24 +1255,51 @@ export async function listSavedEvents(userId: string): Promise<CalendarEvent[]> 
 export type PersonalEventInput = {
   workId: string;
   title: string;
+  type?: 'event' | 'goods';
   date?: string | null;
+  dateLabel?: string | null;
   endDate?: string | null;
   time?: string | null;
+  endTime?: string | null;
   category?: string | null;
+  price?: number | null;
+  prefecture?: string | null;
+  locationDetail?: string | null;
+  isOrderMade?: boolean;
+  preorderStart?: string | null;
+  preorderEnd?: string | null;
+  preorderStartTime?: string | null;
+  preorderEndTime?: string | null;
   memo?: string | null;
   imageUrl?: string | null;
   link?: string | null;
 };
 
+// 2026-09-30 の列（種別・予約・会場など）は sql/2026-09-30-personal-events-fields.sql で足した。
+// 列がまだ無い環境でも作れるよう、書くときに列が無いと言われたら基本の列だけで書き直す（writePersonal）
+const hm = (v: unknown) => ((v as string | null) ?? undefined)?.slice(0, 5);
+
 function personalToEvent(r: Record<string, unknown>): CalendarEvent {
   const works = r.works as { name: string } | null;
+  const ambiguous = !!(r.date_label as string | null);
   return {
     id: r.id as string,
     title: r.title as string,
+    type: (r.type as 'event' | 'goods' | null) ?? 'event',
     date: (r.event_date as string | null) ?? null,
-    endDate: (r.end_date as string | null) ?? undefined,
-    time: ((r.event_time as string | null) ?? undefined)?.slice(0, 5),
+    dateLabel: (r.date_label as string | null) ?? undefined,
+    endDate: ambiguous ? undefined : ((r.end_date as string | null) ?? undefined),
+    time: ambiguous ? undefined : hm(r.event_time),
+    endTime: ambiguous ? undefined : hm(r.end_time),
     category: (r.category as string | null) ?? undefined,
+    price: (r.price as number | null) ?? undefined,
+    prefecture: (r.prefecture as string | null) ?? undefined,
+    locationDetail: (r.location_detail as string | null) ?? undefined,
+    isOrderMade: !!r.is_order_made,
+    preorderStart: (r.preorder_start_date as string | null) ?? undefined,
+    preorderEnd: (r.preorder_end_date as string | null) ?? undefined,
+    preorderStartTime: hm(r.preorder_start_time),
+    preorderEndTime: hm(r.preorder_end_time),
     memo: (r.memo as string | null) ?? undefined,
     imageUrl: (r.image_url as string | null) ?? undefined,
     link: (r.link_url as string | null) ?? undefined,
@@ -1286,18 +1313,43 @@ function personalToEvent(r: Record<string, unknown>): CalendarEvent {
   };
 }
 
+const BASE_PERSONAL_COLS = ['work_id', 'title', 'event_date', 'end_date', 'event_time', 'category', 'memo', 'image_url', 'link_url'];
+
 function personalRow(e: PersonalEventInput): Record<string, unknown> {
+  const vague = !!e.dateLabel;
   return {
     work_id: e.workId,
     title: e.title.trim(),
+    type: e.type ?? 'event',
     event_date: e.date || null,
-    end_date: e.date && e.endDate && e.endDate !== e.date ? e.endDate : null,
-    event_time: e.time || null,
+    date_label: e.dateLabel || null,
+    end_date: !vague && e.date && e.endDate && e.endDate !== e.date ? e.endDate : null,
+    event_time: vague ? null : (e.time || null),
+    end_time: vague ? null : (e.endTime || null),
     category: e.category || null,
+    price: e.price ?? null,
+    prefecture: e.prefecture?.trim() || null,
+    location_detail: e.locationDetail?.trim() || null,
+    is_order_made: !!e.isOrderMade,
+    preorder_start_date: e.isOrderMade ? (e.preorderStart || null) : null,
+    preorder_end_date: e.isOrderMade ? (e.preorderEnd || null) : null,
+    preorder_start_time: e.isOrderMade ? (e.preorderStartTime || null) : null,
+    preorder_end_time: e.isOrderMade ? (e.preorderEndTime || null) : null,
     memo: e.memo?.trim() || null,
     image_url: e.imageUrl || null,
     link_url: e.link?.trim() || null,
   };
+}
+
+/** 書く。足した列がまだ無い（SQL未適用）と言われたら、基本の列だけで書き直す */
+async function writePersonal<T>(row: Record<string, unknown>, run: (r: Record<string, unknown>) => PromiseLike<{ data: T | null; error: { code?: string; message?: string } | null }>): Promise<T | null> {
+  let { data, error } = await run(row);
+  if (error && (error.code === 'PGRST204' || /column/i.test(error.message ?? ''))) {
+    const base = Object.fromEntries(Object.entries(row).filter(([k]) => BASE_PERSONAL_COLS.includes(k) || k === 'updated_at'));
+    ({ data, error } = await run(base));
+  }
+  if (error) throw error;
+  return data;
 }
 
 export async function listPersonalEvents(userId: string): Promise<CalendarEvent[]> {
@@ -1313,15 +1365,14 @@ export async function getPersonalEvent(id: string): Promise<CalendarEvent | null
 }
 
 export async function createPersonalEvent(e: PersonalEventInput): Promise<CalendarEvent> {
-  const { data, error } = await supabase.from('personal_events').insert(personalRow(e)).select('*, works(name)').single();
-  if (error) throw error;
-  return personalToEvent(data as Record<string, unknown>);
+  const data = await writePersonal(personalRow(e), (r) => supabase.from('personal_events').insert(r).select('*, works(name)').single());
+  if (!data) throw new Error('personal_events insert returned nothing');
+  return personalToEvent(data as unknown as Record<string, unknown>);
 }
 
 export async function updatePersonalEvent(id: string, e: PersonalEventInput): Promise<void> {
-  const { error } = await supabase.from('personal_events')
-    .update({ ...personalRow(e), updated_at: new Date().toISOString() }).eq('id', id);
-  if (error) throw error;
+  await writePersonal({ ...personalRow(e), updated_at: new Date().toISOString() },
+    (r) => supabase.from('personal_events').update(r).eq('id', id).select('id').maybeSingle());
 }
 
 export async function deletePersonalEvent(id: string): Promise<void> {
