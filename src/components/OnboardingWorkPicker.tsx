@@ -1,16 +1,15 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
-import type { CalendarEvent } from '../types';
-import { searchWorks, getWorksByNames, listExploreEvents, upsertParticipation, leaveCalendar, listAllParticipatedWorks, type Work } from '../lib/api';
+import { searchWorks, upsertParticipation, leaveCalendar, listAllParticipatedWorks, type Work } from '../lib/api';
 import { logSearch } from '../lib/dataLogs';
 import { maybeAddWorkAlias } from '../lib/workAliases';
-import { getCached, setCached } from '../lib/swrCache';
-import { todayStr } from '../design/tokens';
+import { setCached } from '../lib/swrCache';
+import { loadPickerCandidates, loadFeaturedWorks } from '../lib/onboardingPreload';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from './ui/Toast';
 import { haptic } from '../lib/haptics';
 import { usePremium, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
-import { FOLLOWS_EVENT, ONBOARDING_FEATURED_WORKS } from '../lib/constants';
+import { FOLLOWS_EVENT } from '../lib/constants';
 
 // オンボーディングの1枚目: 推しの作品を選ぶ。
 // 押した時点でフォローする（「選ぶ」と「フォロー」を分けない。WorkFollowSheet と同じ）。
@@ -24,16 +23,6 @@ import { FOLLOWS_EVENT, ONBOARDING_FEATURED_WORKS } from '../lib/constants';
 //
 // 検索で見つからない作品を**ここで作ることはしない**（オンボーディングなので。作品を作るのは投稿から）。
 // 検索からフォローしたら検索を閉じて候補の並びに戻し、選んだ作品を先頭に選択中で出す。
-
-/** 候補に出すのに要る、これからの予定の数 */
-const MIN_UPCOMING = 5;
-
-// ホーム・探すと同じ範囲（キャッシュのキーも同じにして、取得を1回で済ませる）
-function shiftMonths(base: string, n: number): string {
-  const d = new Date(base + 'T00:00:00');
-  d.setMonth(d.getMonth() + n);
-  return todayStr(d);
-}
 
 interface Props {
   /** フォロー中の作品の数が変わったとき。「次へ」を押せるかと演出に使う */
@@ -53,34 +42,12 @@ export default function OnboardingWorkPicker({ onCountChange }: Props) {
   const [fit, setFit] = useState<number | null>(null);
   const chipBoxRef = useRef<HTMLDivElement>(null);
 
+  // 候補はようこその画面が先読みしている（同じ Promise を受け取るだけ。lib/onboardingPreload.ts）
   useEffect(() => {
     let alive = true;
-    const today = todayStr();
-    const from = shiftMonths(today, -12), to = shiftMonths(today, 18);
-    const key = `explore-events:${from}_${to}`;
-    const events = listExploreEvents(from, to)
-      .then((data) => { setCached(key, data); return data; })
-      .catch(() => getCached<CalendarEvent[]>(key) ?? []);
-    Promise.all([getWorksByNames(ONBOARDING_FEATURED_WORKS).catch(() => [] as Work[]), events]).then(([featured, evs]) => {
-      if (!alive) return;
-      const counts = new Map<string, { name: string; n: number }>();
-      for (const e of evs) {
-        if (!e.workId) continue;
-        if ((e.endDate || e.date || '') < today && (e.date || e.endDate)) continue; // 終わった予定は数えない（日付未定は数える）
-        const c = counts.get(e.workId);
-        if (c) c.n++; else counts.set(e.workId, { name: e.workName ?? '', n: 1 });
-      }
-      // 8作品は決めた順に。名前で引いているので、DB に無い作品は黙って抜ける
-      const first = ONBOARDING_FEATURED_WORKS
-        .map((name) => featured.find((w) => w.name === name))
-        .filter((w): w is Work => !!w);
-      const firstIds = new Set(first.map((w) => w.id));
-      const rest = [...counts.entries()]
-        .filter(([id, c]) => !firstIds.has(id) && c.n >= MIN_UPCOMING && c.name)
-        .sort((a, b) => b[1].n - a[1].n)
-        .map(([id, c]) => ({ id, name: c.name, participantCount: 0 }) as Work);
-      setCandidates([...first, ...rest]);
-    });
+    // まず8作品をすぐ出し、予定の多い作品は一覧を読み終わったら後ろに足す
+    loadFeaturedWorks().then((ws) => alive && setCandidates((prev) => prev ?? ws)).catch(() => {});
+    loadPickerCandidates().then((ws) => alive && setCandidates(ws)).catch(() => alive && setCandidates((prev) => prev ?? []));
     return () => { alive = false; };
   }, []);
 
