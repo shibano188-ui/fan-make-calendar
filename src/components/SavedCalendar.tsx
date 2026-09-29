@@ -190,7 +190,8 @@ export default function SavedCalendar({ events, scope, anchor, setAnchor, onOpen
       {/* 日付を押すと下から出る、その日の予定。予定の詳細へは月表示ではここからだけ行ける */}
       <DaySheet open={scope === 'month' && picked !== null} onClose={() => { if (!focusDay) setPicked(null); }}
         header={picked && (
-          <div className="flex items-center gap-2 px-4 pt-1 pb-2">
+          // data-tour: オンボーディングの吹き出しをこの見出し（日付）の上に置く目印
+          <div data-tour="day-heading" className="flex items-center gap-2 px-4 pt-1 pb-2">
             <DayHeading day={picked} count={pickedEvents.length} today={today} />
             <button onClick={() => { haptic.select(); onAdd(picked); }}
               onPointerDown={(e) => e.stopPropagation()}

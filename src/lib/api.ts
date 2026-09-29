@@ -1973,9 +1973,9 @@ export async function listNotices(userId: string, days = 60): Promise<Notice[]> 
 
 export type FeedbackKind = 'bug' | 'improve' | 'feature' | 'other';
 
-export async function sendFeedback(kind: FeedbackKind, body: string, meta: { platform: string; build: string; page?: string }): Promise<void> {
+export async function sendFeedback(kinds: FeedbackKind[], body: string, meta: { platform: string; build: string; page?: string }): Promise<void> {
   const { error } = await supabase.from('feedbacks').insert({
-    kind, body: body.trim().slice(0, 2000),
+    kinds, body: body.trim().slice(0, 2000),
     platform: meta.platform, build: meta.build, page: meta.page ?? null,
     user_agent: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 300) : null,
   });

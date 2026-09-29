@@ -4,7 +4,8 @@
 create table if not exists public.feedbacks (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null default auth.uid() references auth.users(id) on delete cascade,
-  kind        text not null check (kind in ('bug', 'improve', 'feature', 'other')),
+  -- 種類は複数選べる（バグ・改善・ほしい機能・その他）
+  kinds       text[] not null check (cardinality(kinds) >= 1 and kinds <@ array['bug', 'improve', 'feature', 'other']),
   body        text not null check (length(body) between 1 and 2000),
   platform    text,
   build       text,

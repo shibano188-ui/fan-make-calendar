@@ -223,6 +223,7 @@ const findHeader = () => document.querySelector('[data-skin-bar="main"]');
 const findNav = () => document.querySelector('[data-bottom-nav] > *');
 const findAccount = () => document.querySelector('[data-tour="account"]');
 const findPostButton = () => document.querySelector('[data-tour="post"]');
+const findDayHeading = () => document.querySelector('[data-tour="day-heading"]');
 const findPersonalButton = () => document.querySelector('[data-tour="personal"]');
 
 function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean; onNext: () => void }) {
@@ -231,6 +232,11 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
   const framed = step === 'like' || step === 'calendar' || step === 'done';
   const header = useRect(framed ? findHeader : nothing);
   const nav = useRect(framed ? findNav : nothing);
+  // カレンダーに登録されました・これで通知が届きます: 吹き出しを日のパネルの予定のすぐ上に置く（上の見出しの位置だと、見てほしい予定から遠い）
+  const findTourCard = useCallback(() => (id ? document.querySelector(`[data-card-id="${CSS.escape(id)}"]`) : null), [id]);
+  const card = useRect(step === 'calendar' || step === 'done' ? findTourCard : nothing);
+  // 日のパネルの見出し（日付）。吹き出しはこれより上に置く（どの日に入ったかを隠さない）
+  const dayHeading = useRect(step === 'calendar' || step === 'done' ? findDayHeading : nothing);
   const target = useRect(step === 'bell' ? findBell : step === 'account' ? findAccount
     : step === 'post' ? findPostButton : step === 'personal' ? findPersonalButton : nothing);
 
@@ -261,14 +267,24 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
   if (framed) {
     const top = Math.max(header ? header.top + header.height : 0, 0);
     const bottom = nav ? nav.top - 10 : vh;
+    // 予定のカードが見えていれば、吹き出しはその上に（矢印でカード、通知の段はベルを指す）
+    const nearCard = step !== 'like' && card && card.top > top + 120;
     return (
       <div className="fixed inset-0 z-[250] pointer-events-none" style={fade}>
-        {/* 上の幕。見出し・検索欄・作品の並びを覆い、その上に案内を載せる */}
+        {/* 上の幕。見出し・検索欄・作品の並びを覆う。探すの段は、その上に案内を載せる */}
         <div className="absolute inset-x-0 top-0 pointer-events-auto flex flex-col justify-end px-4 pb-3"
           // 高さは見出しの下端まで。吹き出しの方が高ければ伸ばす（上にはみ出して見出しが切れないように）
-          style={{ minHeight: `max(${Math.max(top, 0)}px, calc(var(--sat) + 96px))`, paddingTop: 'calc(var(--sat) + 8px)', backgroundColor: DIM }}>
-          <Bubble step={step} arrow={step === 'done' ? undefined : 'down'} onNext={step === 'like' ? undefined : onNext} />
+          style={{ minHeight: `max(${Math.max(top, 0)}px, calc(var(--sat) + ${nearCard ? 0 : 96}px))`, paddingTop: nearCard ? undefined : 'calc(var(--sat) + 8px)', backgroundColor: DIM }}>
+          {!nearCard && <Bubble step={step} arrow={step === 'done' ? undefined : 'down'} onNext={step === 'like' ? undefined : onNext} />}
         </div>
+        {nearCard && (
+          <div className="absolute inset-x-0 px-4" style={{ bottom: vh - Math.min(card.top, dayHeading?.top ?? card.top) + 10 }}>
+            <Bubble step={step} arrow="down"
+              // 矢印は予定のカードの真ん中へ（ベルの真上を狙うと、パネルの「＋」を指しているように見えた）
+              arrowX={card.left + card.width / 2}
+              onNext={onNext} />
+          </div>
+        )}
         {/* 下の幕。タブを覆う（押せない） */}
         <div className="absolute inset-x-0 bottom-0 pointer-events-auto" style={{ top: bottom, backgroundColor: DIM }} />
       </div>

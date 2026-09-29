@@ -9,7 +9,7 @@ import { sendFeedback, type FeedbackKind } from '../lib/api';
 
 // バグ・改善の報告（2026-09-30 柴野）。マイページから開く。
 // 何でも自由に書いてもらう（バグ・改善案・ほしい機能）。送ったものは運営だけが読む（feedbacks・RLS）。
-// 端末の種類とビルドの日時は、調べるときに要るので自動で添える（画面には出さない）。
+// 種類は複数選べる。端末の種類とビルドの日時は、調べるときに要るので自動で添える（画面には書かない）。
 
 const KINDS: { key: FeedbackKind; label: string }[] = [
   { key: 'bug', label: 'バグ' },
@@ -21,7 +21,11 @@ const KINDS: { key: FeedbackKind; label: string }[] = [
 export default function Feedback() {
   const navigate = useNavigate();
   const toast = useToast();
-  const [kind, setKind] = useState<FeedbackKind>('bug');
+  const [kinds, setKinds] = useState<Set<FeedbackKind>>(new Set());
+  const toggleKind = (k: FeedbackKind) => {
+    haptic.select();
+    setKinds((prev) => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
+  };
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
@@ -32,15 +36,15 @@ export default function Feedback() {
     else navigate('/mypage', { replace: true });
   };
 
-  const ready = !!body.trim() && !busy;
+  const ready = !!body.trim() && kinds.size > 0 && !busy;
   const send = async () => {
     if (!ready) return;
     haptic.select();
     setBusy(true);
     try {
-      await sendFeedback(kind, body, { platform: Capacitor.getPlatform(), build: __BUILD_TIME__ });
+      await sendFeedback([...kinds], body, { platform: Capacitor.getPlatform(), build: __BUILD_TIME__ });
       setSent(true);
-      setBody('');
+      setBody(''); setKinds(new Set());
     } catch {
       toast('送れませんでした。時間をおいてお試しください', 'error');
     }
@@ -75,15 +79,14 @@ export default function Feedback() {
         ) : (
           <div className="px-4 pb-10">
             <p className="text-[13px] text-label-secondary leading-relaxed mt-2">
-              うまく動かないところ、こうしてほしいところ、ほしい機能など、何でも教えてください。
+              FanHive をさらに使いやすくするために、皆様のご意見をどんどん募集しています！
             </p>
-            <div className="text-[12px] text-label-secondary mb-1 mt-4">種類</div>
+            <div className="text-[12px] text-label-secondary mb-1 mt-4">種類（いくつでも）</div>
             <div className="flex flex-wrap gap-1.5">
-              {KINDS.map((k) => <Chip key={k.key} active={kind === k.key} onClick={() => { haptic.select(); setKind(k.key); }}>{k.label}</Chip>)}
+              {KINDS.map((k) => <Chip key={k.key} active={kinds.has(k.key)} onClick={() => toggleKind(k.key)}>{k.label}</Chip>)}
             </div>
             <div className="text-[12px] text-label-secondary mb-1 mt-4">内容</div>
             <textarea value={body} onChange={(e) => setBody(e.target.value.slice(0, 2000))} rows={7}
-              placeholder={kind === 'bug' ? 'どの画面で、何をしたら、どうなったかを書いてもらえると助かります' : ''}
               className="w-full rounded-[10px] px-3 py-2.5 text-[14px] outline-none resize-none"
               style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
             <button onClick={send} disabled={!ready}
@@ -91,9 +94,6 @@ export default function Feedback() {
               style={ready ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' } : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-tertiary)' }}>
               送る
             </button>
-            <p className="text-[11px] text-label-tertiary mt-3 text-center leading-relaxed">
-              調べるために、端末の種類とアプリの版を一緒に送ります。
-            </p>
           </div>
         )}
       </div>
