@@ -160,7 +160,7 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
     // 節目（予約開始・終了・発売）より前に取ったきりの在庫は出さない（isStockStale）
     const stock = offer && !isStockStale(event, offer) && (offer.inStock === false ? '売り切れ' : offer.stockLabel || (offer.inStock ? '在庫あり' : ''));
     return (
-      <div data-skin-part="card" data-status={status} data-layout="list"
+      <div data-skin-part="card" data-card-id={event.id} data-status={status} data-layout="list"
         className="rounded-[12px] border border-subtle overflow-hidden bg-bg-secondary p-2.5 flex gap-3"
         style={workColor ? { borderLeft: `3px solid ${workColor}` } : undefined}>
         <button onClick={onOpen} className={`pressable flex-shrink-0 ${layout === 'compact' ? 'w-[108px]' : 'w-[144px]'} flex flex-col items-stretch`}>
@@ -194,7 +194,7 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
 
   // grid（枠線つきカード・画像は正方形で固定・アクションは必ず最下段）
   return (
-    <div data-skin-part="card" data-status={status} data-layout="grid"
+    <div data-skin-part="card" data-card-id={event.id} data-status={status} data-layout="grid"
       className="flex flex-col h-full rounded-[12px] border border-subtle overflow-hidden bg-bg-secondary"
       style={workColor ? { borderLeft: `3px solid ${workColor}` } : undefined}>
       <button onClick={onOpen} className="pressable text-left flex flex-col">

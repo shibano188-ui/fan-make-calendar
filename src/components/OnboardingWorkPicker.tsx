@@ -233,7 +233,8 @@ export default function OnboardingWorkPicker({ onCountChange }: Props) {
                   ...(on
                     ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)', boxShadow: 'inset 0 0 0 2px var(--label-primary)' }
                     : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)', boxShadow: 'inset 0 0 0 1px var(--border-default)' }),
-                  visibility: fit !== null && i < fit ? 'visible' : 'hidden',
+                  // ログインが済むまでは出さない（押してもフォローできず、黙って何も起きないように見える）
+                  visibility: user && fit !== null && i < fit ? 'visible' : 'hidden',
                 }}>
                 <span className="truncate">{w.name}</span>
               </button>

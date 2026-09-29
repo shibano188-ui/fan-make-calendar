@@ -145,7 +145,7 @@ export default function Premium() {
               <div className="mt-6">
                 <div className="flex text-[11px] text-label-tertiary pb-1.5 border-b border-subtle">
                   <span className="flex-1" />
-                  <span className="w-[68px] text-center">無料</span>
+                  <span className="w-[80px] text-center">無料</span>
                   <span className="w-[82px] text-center font-semibold" style={{ color: 'var(--accent-text)' }}>プレミアム</span>
                 </div>
                 {[
@@ -162,7 +162,7 @@ export default function Premium() {
                 ].map(([label, free, paid]) => (
                   <div key={label} className="flex items-center py-2.5 border-b border-subtle">
                     <span className="flex-1 text-[13px]">{label}</span>
-                    <span className="w-[68px] text-center text-[12px] text-label-tertiary">{free}</span>
+                    <span className="w-[80px] text-center text-[12px] text-label-tertiary">{free}</span>
                     <span className="w-[82px] text-center text-[12px] font-semibold">{paid}</span>
                   </div>
                 ))}

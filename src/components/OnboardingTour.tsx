@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Heart, Bell, CalendarCheck } from 'lucide-react';
 import { setAdsSuppressed } from '../lib/adSuppress';
@@ -66,7 +66,7 @@ export function startTour(): void {
 // 段階ごとの吹き出し。本文は短く（長いと読まれない）
 const COPY: Record<TourStep, { icon: typeof Heart; title: string; body: string }> = {
   like: { icon: Heart, title: '気になる予定に ♡ を押してみよう', body: '♡ を押した予定は、カレンダーに入ります。' },
-  calendar: { icon: CalendarCheck, title: 'カレンダーに入りました', body: 'いいねした予定は、この日に入っています。' },
+  calendar: { icon: CalendarCheck, title: 'カレンダーに入りました', body: '下の日付のところに入っています。' },
   bell: { icon: Bell, title: 'ベルを押して通知をONにしよう', body: '発売日や締切の前にお知らせします。' },
 };
 
@@ -136,36 +136,153 @@ export default function OnboardingTour() {
 
   // 予定詳細では出さない（上の「戻る」に重なる）。詳細の ♡・ベルでも先へ進む
   if (!step || pathname.startsWith('/item/')) return null;
-  const { icon: Icon, title, body } = COPY[step];
+  return <TourLayer step={step} leaving={leaving} onNext={() => { haptic.select(); writeStep('bell'); }} />;
+}
+
+// ── 見せ方 ──────────────────────────────────────────────────────
+// 評価の高いアプリの案内（コーチマーク）にならう（NN/g "Instructional Overlays and Coach Marks" ほか）:
+//  - 押してほしいところだけを明るく残し、ほかは暗い幕で覆う（後ろの見出し・検索欄が透けて見えない）
+//  - 1画面に1つだけ・文は短く・絵（アイコン）を添える
+//  - 吹き出しはアプリの部品と見た目を変える（暗い地に白い文字）。部品と見間違えて押されないように
+//  - 幕は指を止める。明るく残したところだけ押せる
+//
+//   like     … 上の見出しと下のタブを幕で覆い、予定の一覧だけ明るく残す（スクロールして選んでもらう）
+//   calendar … 同じく見出しとタブを覆い、カレンダー（その日に色が付いている）と日のパネルを見せる。「次へ」で進む
+//   bell     … そのカードのベルだけ丸く抜く（ここだけ押せる）
+
+// 後ろの見出し・検索欄が透けて読めない濃さにする（薄いと「後ろが見えていてダサい」）
+const DIM = 'rgba(0,0,0,0.8)';
+
+type Rect = { top: number; left: number; width: number; height: number };
+
+/** 目印の要素の位置を毎フレーム追う（シートが下から出てくる・スクロールする・画像で高さが変わる） */
+function useRect(find: () => Element | null): Rect | null {
+  const [rect, setRect] = useState<Rect | null>(null);
+  useEffect(() => {
+    let raf = 0;
+    let last = '';
+    const tick = () => {
+      const el = find();
+      const r = el?.getBoundingClientRect();
+      const next = r && r.width > 0 ? { top: r.top, left: r.left, width: r.width, height: r.height } : null;
+      const key = next ? `${Math.round(next.top)},${Math.round(next.left)},${Math.round(next.width)},${Math.round(next.height)}` : '';
+      if (key !== last) { last = key; setRect(next); }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [find]);
+  return rect;
+}
+
+const findHeader = () => document.querySelector('[data-skin-bar="main"]');
+const findNav = () => document.querySelector('[data-bottom-nav] > *');
+
+function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean; onNext: () => void }) {
+  const id = tourEventId();
+  const findBell = useCallback(() => (id ? document.querySelector(`[data-card-id="${CSS.escape(id)}"] [data-tour="bell"]`) : null), [id]);
+  const framed = step === 'like' || step === 'calendar';
+  const header = useRect(framed ? findHeader : nothing);
+  const nav = useRect(framed ? findNav : nothing);
+  const target = useRect(step === 'bell' ? findBell : nothing);
+
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const fade = { opacity: leaving ? 0 : 1, transition: 'opacity 0.3s ease' };
+
+  if (framed) {
+    const top = Math.max(header ? header.top + header.height : 0, 0);
+    const bottom = nav ? nav.top - 10 : vh;
+    return (
+      <div className="fixed inset-0 z-[250] pointer-events-none" style={fade}>
+        {/* 上の幕。見出し・検索欄・作品の並びを覆い、その上に案内を載せる */}
+        <div className="absolute inset-x-0 top-0 pointer-events-auto flex flex-col justify-end px-4 pb-3"
+          style={{ height: Math.max(top, 0), minHeight: 'calc(var(--sat) + 96px)', backgroundColor: DIM }}>
+          <Bubble step={step} arrow="down" onNext={step === 'calendar' ? onNext : undefined} />
+        </div>
+        {/* 下の幕。タブを覆う（押せない） */}
+        <div className="absolute inset-x-0 bottom-0 pointer-events-auto" style={{ top: bottom, backgroundColor: DIM }} />
+      </div>
+    );
+  }
+
+  // bell: ベルだけを丸く抜く。見つかるまで（シートが出てくる途中など）は全体を暗くして吹き出しだけ出す
+  const pad = 6;
+  const hole = target && {
+    top: target.top - pad, left: target.left - pad,
+    width: target.width + pad * 2, height: target.height + pad * 2,
+  };
+  const radius = 9999;
+  // 吹き出しは、抜いたところの上に余裕があれば上、無ければ下
+  const above = hole ? hole.top > 190 : true;
+  const arrowX = hole ? hole.left + hole.width / 2 : vw / 2;
 
   return (
-    <div className="fixed inset-x-0 top-0 z-[250] max-w-app mx-auto px-3 pointer-events-none"
-      style={{ paddingTop: 'calc(var(--sat) + 8px)' }}>
-      <div className="pointer-events-auto rounded-[16px] shadow-float px-4 py-3 flex items-center gap-3"
-        style={{
-          backgroundColor: 'var(--bg-primary)',
-          border: '1.5px solid var(--accent-color)',
-          opacity: leaving ? 0 : 1,
-          transition: 'opacity 0.3s ease',
-          animation: 'tourBubbleIn 0.35s cubic-bezier(0.32,0.72,0,1) both',
-        }}
-        key={step}>
-        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 16%, transparent)' }}>
-          <Icon size={20} style={{ color: 'var(--accent-text)' }} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[14px] font-bold leading-snug">{title}</p>
-          <p className="text-[12px] text-label-secondary leading-snug mt-0.5">{body}</p>
-        </div>
-        {step === 'calendar' && (
-          <button onClick={() => { haptic.select(); writeStep('bell'); }}
-            className="pressable flex-shrink-0 px-3.5 py-2 rounded-full text-[13px] font-semibold"
-            style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
-            次へ
-          </button>
-        )}
+    <div className="fixed inset-0 z-[250] pointer-events-none" style={fade}>
+      {hole ? (
+        <>
+          {/* 暗い幕（抜いた穴のまわりを大きな影で塗る。影は指を通すので、下の4枚で止める） */}
+          <div className="absolute" style={{ ...hole, borderRadius: radius, boxShadow: `0 0 0 200vmax ${DIM}`, transition: 'all 0.25s ease' }} />
+          <div className="absolute inset-x-0 top-0 pointer-events-auto" style={{ height: Math.max(hole.top, 0) }} />
+          <div className="absolute inset-x-0 bottom-0 pointer-events-auto" style={{ top: hole.top + hole.height }} />
+          <div className="absolute left-0 pointer-events-auto" style={{ top: hole.top, height: hole.height, width: Math.max(hole.left, 0) }} />
+          <div className="absolute right-0 pointer-events-auto" style={{ top: hole.top, height: hole.height, left: hole.left + hole.width }} />
+        </>
+      ) : (
+        <div className="absolute inset-0 pointer-events-auto" style={{ backgroundColor: DIM }} />
+      )}
+      <div className="absolute inset-x-0 px-4"
+        style={hole
+          ? (above ? { bottom: vh - hole.top + 12 } : { top: hole.top + hole.height + 12 })
+          : { top: 'calc(var(--sat) + 16px)' }}>
+        <Bubble step={step} arrow={hole ? (above ? 'down' : 'up') : undefined} arrowX={arrowX} />
       </div>
+    </div>
+  );
+}
+
+const nothing = () => null;
+
+/** 案内の吹き出し。アプリの部品と見間違えないよう、暗い地に白い文字で出す */
+function Bubble({ step, arrow, arrowX, onNext }: { step: TourStep; arrow?: 'up' | 'down'; arrowX?: number; onNext?: () => void }) {
+  const { icon: Icon, title, body } = COPY[step];
+  const ref = useRef<HTMLDivElement>(null);
+  // 矢印は目印の真上（真下）に。吹き出しの端からはみ出さないように寄せる
+  const [left, setLeft] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const r = ref.current?.getBoundingClientRect();
+    if (!r || arrowX === undefined) { setLeft(null); return; }
+    setLeft(Math.min(Math.max(arrowX - r.left, 24), r.width - 24));
+  }, [arrowX]);
+  const tip = (dir: 'up' | 'down') => (
+    <div className="absolute w-3.5 h-3.5 rotate-45"
+      style={{
+        backgroundColor: 'var(--label-primary)',
+        left: (left ?? 0) - 7,
+        visibility: left === null && arrowX !== undefined ? 'hidden' : 'visible',
+        ...(dir === 'down' ? { bottom: -6 } : { top: -6 }),
+        ...(left === null && arrowX === undefined ? { left: 'calc(50% - 7px)' } : {}),
+      }} />
+  );
+  return (
+    <div ref={ref} key={step} className="pointer-events-auto relative rounded-[16px] px-4 py-3.5 flex items-center gap-3 shadow-float"
+      style={{ backgroundColor: 'var(--label-primary)', color: 'var(--bg-primary)', animation: 'tourBubbleIn 0.35s cubic-bezier(0.32,0.72,0,1) both' }}>
+      {arrow === 'up' && tip('up')}
+      <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'var(--accent-color)' }}>
+        <Icon size={20} style={{ color: 'var(--accent-on)' }} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[15px] font-bold leading-snug">{title}</p>
+        <p className="text-[12px] leading-snug mt-0.5" style={{ opacity: 0.75 }}>{body}</p>
+      </div>
+      {onNext && (
+        <button onClick={onNext}
+          className="pressable flex-shrink-0 px-4 py-2 rounded-full text-[13px] font-bold"
+          style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+          次へ
+        </button>
+      )}
+      {arrow === 'down' && tip('down')}
     </div>
   );
 }

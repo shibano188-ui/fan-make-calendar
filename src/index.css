@@ -196,7 +196,6 @@ body[data-tour-step="bell"] [data-tour="bell"] {
 }
 body[data-tour-step] [data-bottom-nav] {
   pointer-events: none !important;
-  opacity: 0.35;
 }
 body[data-tour-step] [data-bottom-nav] * {
   pointer-events: none !important;
