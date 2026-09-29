@@ -179,7 +179,7 @@ export interface ListEvent {
   date: string | null; dateLabel: string | null;
   isOrderMade?: boolean; preorderStart?: string | null; preorderEnd?: string | null;
   categories: string[]; price: number; imageUrl: string | null; link: null;
-  offers: { retailer: string; shop?: string; url: string; price: number; inStock?: boolean; stockLabel?: string; official: boolean; pinned: boolean; label?: string }[];
+  offers: { retailer: string; shop?: string; url: string; price: number; inStock?: boolean; stockLabel?: string; official: boolean; pinned: boolean; label?: string; jan?: string }[];
   items: { url: string; title: string; image: string }[];
 }
 
@@ -228,7 +228,7 @@ export async function listEvents(col: ProductList, work: string | null): Promise
   }
   return groups.map((g) => ({
     title: g.title,
-    ...(isPreorder(g) ? { isOrderMade: true, preorderStart: periods.get(g)?.start ?? null, preorderEnd: periods.get(g)?.end ?? null } : {}),
+    ...(isPreorder(g) ? { isOrderMade: true, preorderStart: periods.get(g)?.start ?? null, preorderEnd: periods.get(g)?.end ?? (g.items.map(({ p }) => p.preorderEnd).filter(Boolean).sort()[0] ?? null) } : {}),
     // 画面で複数のまとまりを1つにまとめるとき、リンクの名前を「お守り（ハチワレ）」にするのに使う
     kind: g.kind || null,
     work,
@@ -242,7 +242,7 @@ export async function listEvents(col: ProductList, work: string | null): Promise
     // 中の商品を全部、名前付きの購入リンクにする（クライアントの Offer と同じ形）
     offers: g.items.map(({ p, label }) => ({
       retailer: col.retailer, ...(col.shop !== col.retailer ? { shop: col.shop } : {}),
-      url: p.url, price: p.price, inStock: p.inStock, ...(p.stockLabel ? { stockLabel: p.stockLabel } : {}), official: true, pinned: true,
+      url: p.url, price: p.price, inStock: p.inStock, ...(p.stockLabel ? { stockLabel: p.stockLabel } : {}), ...(p.jan ? { jan: p.jan } : {}), official: true, pinned: true,
       ...(g.items.length > 1 ? { label: label || p.title } : {}),
     })),
     // 投稿画面でリンクを外して1件の予定に戻すとき用の、商品ごとの名前と画像（保存はしない）

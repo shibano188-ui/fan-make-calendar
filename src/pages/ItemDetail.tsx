@@ -7,7 +7,8 @@ import StaffEditPanel from '../components/item/StaffEditPanel';
 import { getEventById, getWorkById, getDisplayName, toggleLike, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, addEventVisit, removeEventVisit, getMyStaffRole, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
-import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME } from '../lib/constants';
+import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME, isOfficialUser } from '../lib/constants';
+import OfficialBadge from '../components/ui/OfficialBadge';
 import { deriveItemType, itemDateLines, todayStr, isDateUncertain, stageFlow } from '../design/tokens';
 import { resolveBuy, getOffers, offerUrl, primaryOffer, isSearchPageUrl, isSourceOnlyLink, priceRange, isStockStale, stockBadge, cheapestOfferUrl } from '../lib/affiliate';
 import { buildPinnedOffer } from '../lib/searchProduct';
@@ -823,7 +824,7 @@ function Contributors({ authorId, authorName, others, onOpen }: {
   const row = (id: string | null, name: string, role: string) => (
     <button key={id ?? 'author'} disabled={!id} onClick={() => id && onOpen(id)}
       className="pressable w-full flex items-center gap-2 py-2.5 border-b border-subtle text-left">
-      <span className="text-[14px] font-medium flex-1 truncate">{name}</span>
+      <span className="text-[14px] font-medium flex-1 min-w-0 flex items-center gap-1"><span className="truncate">{name}</span>{isOfficialUser(id) && <OfficialBadge />}</span>
       <span className="text-[11px] text-label-tertiary flex-shrink-0">{role}</span>
     </button>
   );

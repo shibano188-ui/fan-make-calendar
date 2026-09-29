@@ -3,6 +3,7 @@
 // 楽天: 2026新API（RAKUTEN_APP_ID＋accessKey）。Yahoo!: 商品検索v3（YAHOO_APP_ID。未設定ならスキップ）。
 // あみあみ・駿河屋・アニメイトは楽天/Yahoo!の公式出店店舗経由で価格が取れる → 公式店を優先表示。
 import { lookupShopifyProduct } from './_shopify.js';
+import { botMayFetch, botCanFetch } from './_pace.js';
 
 export interface Candidate {
   title: string; price: number; url: string; image: string; shop: string; retailer: string; hasAffiliate: boolean;
@@ -146,6 +147,9 @@ function decodeEntities(s: string): string {
 
 /** total はアニメイト検索の「〜に関する商品はN件あります」。付けた種類違いが全部か確かめるのに使う（取れなければ null） */
 async function searchAnimate(keyword: string): Promise<{ items: Candidate[]; total: number | null }> {
+  // ボット・定期実行の中では、アニメイトは約20分に1回まで（robots.txt の Crawl-delay。_pace.ts）
+  // 検索は40分に1回まで（20分の枠の半分を、プレミアムの人のグッズの取り直しに残す）
+  if (!botCanFetch('www.animate-onlineshop.jp', 40 * 60_000) || !botMayFetch('www.animate-onlineshop.jp')) return { items: [], total: null };
   const r = await fetch(`${ANIMATE_ORIGIN}/products/list.php?smt=${encodeURIComponent(keyword)}`, {
     headers: { 'User-Agent': UA, 'Accept-Language': 'ja' },
     signal: AbortSignal.timeout(8000),
@@ -206,7 +210,12 @@ export interface UrlLookup {
   preorderStart?: string; preorderEnd?: string;
   /** 商品の画像（予定に画像が無いとき、手直しで足す） */
   image?: string;
+  /** JANコード（13桁）。店が違っても同じ商品かを見分ける（巡回ボットの二重登録を防ぐ） */
+  jan?: string;
 }
+
+/** 商品ページのHTMLから JANコードを取る（アニメイト・ムービックは「JANコード：4571617085125」） */
+const janFromHtml = (html: string) => html.match(/JANコード[：:]\s*(\d{13})/)?.[1];
 
 const ymd = (y: string, m: string, d: string) => `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
 
@@ -289,6 +298,7 @@ async function lookupYahoo(u: URL): Promise<UrlLookup | null> {
 
 /** アニメイト本店の商品ページ（/pd/{番号}/）。ページ内の商品情報スクリプト（price: / stock_status:）から読む。 */
 async function lookupAnimate(u: URL): Promise<UrlLookup | null> {
+  if (!botMayFetch('www.animate-onlineshop.jp')) return null; // _pace.ts
   const r = await fetch(u.toString(), { headers: { 'User-Agent': UA, 'Accept-Language': 'ja' }, signal: AbortSignal.timeout(8000) });
   if (!r.ok) return null;
   const html = await r.text();
@@ -300,7 +310,9 @@ async function lookupAnimate(u: URL): Promise<UrlLookup | null> {
   const release = releaseText ? parseReleaseText(releaseText) : null;
   const pre = parsePreorderText(html.match(/<meta name="description" content="([^"]*)"/)?.[1] ?? '');
   const ogImage = html.match(/<meta property="og:image" content="([^"]+)"/)?.[1];
+  const jan = janFromHtml(html);
   return {
+    ...(jan ? { jan } : {}),
     ...(ogImage ? { image: decodeEntities(ogImage) } : {}),
     ...(release ? { release } : {}),
     ...(pre?.start ? { preorderStart: pre.start } : {}),
@@ -327,12 +339,15 @@ async function lookupMovic(u: URL): Promise<UrlLookup | null> {
   const price = Number(p?.offers?.price);
   if (!p || !(price > 0)) return null;
   const avail = String(p.offers?.availability ?? '').split('/').pop();
+  const jan = janFromHtml(html);
   const rel = typeof p.releaseDate === 'string' ? p.releaseDate.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/) : null;
   return {
     title: decodeEntities(String(p.name ?? '')).trim() || undefined, price, shop: 'ムービック', retailer: 'ムービック', official: true,
     inStock: avail ? avail === 'InStock' || avail === 'PreOrder' || avail === 'LimitedAvailability' : undefined,
     // 予約で売っている商品は、予定も「予約あり」にする（_listgroup.ts の listEvents）
-    ...(avail === 'PreOrder' ? { stockLabel: '予約受付中' } : {}),
+    ...(jan ? { jan } : {}),
+    // 画面の状態（発売中・予約受付中）を決めるのに使う（src/lib/affiliate.ts の stockHint）
+    ...(avail === 'PreOrder' ? { stockLabel: '予約受付中' } : avail === 'InStock' ? { stockLabel: '在庫あり' } : {}),
     ...(typeof (Array.isArray(p.image) ? p.image[0] : p.image) === 'string' && !/sorry/i.test(String(Array.isArray(p.image) ? p.image[0] : p.image))
       ? { image: new URL(String(Array.isArray(p.image) ? p.image[0] : p.image), MOVIC_ORIGIN).toString() } : {}),
     ...(rel ? { release: { date: ymd(rel[1], rel[2], rel[3]), dateLabel: null } } : {}),
@@ -376,7 +391,7 @@ export async function lookupByUrl(rawUrl: string): Promise<UrlLookup | null> {
     // それ以外の店は、Shopify の商品ページ（/products/…）なら読める（ちいかわマーケットなど作品の公式通販に多い）
     if (/\/products\/[^/]+/.test(u.pathname)) {
       const p = await lookupShopifyProduct(u.toString());
-      if (p) return { title: p.title, price: p.price, shop: p.shop, retailer: p.shop, official: true, inStock: p.inStock, stockLabel: p.stockLabel, ...(p.release ? { release: p.release } : {}), ...(p.image ? { image: p.image } : {}) };
+      if (p) return { title: p.title, price: p.price, shop: p.shop, retailer: p.shop, official: true, inStock: p.inStock, stockLabel: p.stockLabel, ...(p.release ? { release: p.release } : {}), ...(p.image ? { image: p.image } : {}), ...(p.jan ? { jan: p.jan } : {}) };
     }
   } catch { /* タイムアウト・形式変更は「取れなかった」扱い */ }
   return null;

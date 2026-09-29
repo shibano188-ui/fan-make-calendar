@@ -6,6 +6,7 @@ import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import Chip from '../components/ui/Chip';
 import WorkChipsRow from '../components/WorkChipsRow';
+import { loadSharedFilters, saveSharedFilters } from '../lib/sharedFilters';
 import ExpandingSearch from '../components/ui/ExpandingSearch';
 import { useTyping } from '../hooks/useTyping';
 import SavedCalendar, { periodLabel, includesToday } from '../components/SavedCalendar';
@@ -54,6 +55,8 @@ export default function Saved() {
   const { user } = useAuth();
   const { isHidden } = useHiddenContent(user?.id);
   const toast = useToast();
+  // 作品・状態・カテゴリ・地域・近くの は、ホーム・探す・カレンダーで共通（lib/sharedFilters.ts）
+  const _sf = loadSharedFilters();
   const _ss = loadSavedSession();
   // 覚えている予定があれば最初の描画から出す（詳細から戻ったときに読み込み表示を挟まない）
   const [items, setItems] = useState<CalendarEvent[] | null>(() => (user ? peekSaved(user.id) : null));
@@ -106,12 +109,12 @@ export default function Saved() {
   useLayoutEffect(() => {
     if (filterOpen && headerRef.current) setFilterTop(headerRef.current.getBoundingClientRect().bottom);
   }, [filterOpen]);
-  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set(_ss.statuses ?? []));
-  const [excludedWorks, setExcludedWorks] = useState<Set<string>>(new Set(_ss.excludedWorks ?? []));
-  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set(_ss.categories ?? []));
-  const [selectedPrefs, setSelectedPrefs] = useState<Set<string>>(new Set(_ss.prefs ?? []));
-  const [selectedRegions, setSelectedRegions] = useState<Set<string>>(new Set(_ss.regions ?? []));
-  const [neighborActive, setNeighborActive] = useState<boolean>(_ss.neighborActive ?? false);
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set(_sf.statuses));
+  const [excludedWorks, setExcludedWorks] = useState<Set<string>>(new Set(_sf.excludedWorks));
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set(_sf.categories));
+  const [selectedPrefs, setSelectedPrefs] = useState<Set<string>>(new Set(_sf.prefs));
+  const [selectedRegions, setSelectedRegions] = useState<Set<string>>(new Set(_sf.regions));
+  const [neighborActive, setNeighborActive] = useState<boolean>(_sf.neighborActive);
   const [homePref, setHomePref] = useState<string | null>(null);
 
   const today = todayStr();
@@ -124,6 +127,10 @@ export default function Saved() {
       statuses: [...selectedStatuses], excludedWorks: [...excludedWorks], categories: [...selectedCategories],
       prefs: [...selectedPrefs], regions: [...selectedRegions], neighborActive,
     }));
+    saveSharedFilters({
+      statuses: [...selectedStatuses], excludedWorks: [...excludedWorks], categories: [...selectedCategories],
+      prefs: [...selectedPrefs], regions: [...selectedRegions], neighborActive,
+    });
   }, [tab, view, query, filterOpen, selectedStatuses, excludedWorks, selectedCategories, selectedPrefs, selectedRegions, neighborActive]);
 
   // 開いたら最上部から表示

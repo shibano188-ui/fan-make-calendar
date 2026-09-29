@@ -71,9 +71,13 @@ async function planOne(row: any, removed: Set<string>, dateEdited: boolean): Pro
   const now = new Date().toISOString();
   const hits = new Map<OfferRow, UrlLookup>();
 
+  let janAdded = 0;
   // 1. URLから値段・在庫
   for (const o of live()) {
     if (isSearchPage(o.url)) continue;
+    // アニメイトは約20分に1回しか読めない（_pace.ts）ので、一度にたくさん見る手直しでは読まない。
+    // 値段・在庫は節目の取り直し（プレミアムの人のグッズを優先）と毎日の更新で見る
+    if (/animate-onlineshop\.jp/.test(unwrapProductUrl(o.url))) continue;
     const hit = await lookupByUrl(o.url);
     // 楽天は1秒1回。ほかは相手に負担をかけない程度に空ける
     await delay(/rakuten/.test(unwrapProductUrl(o.url)) ? 1100 : 300);
@@ -89,7 +93,11 @@ async function planOne(row: any, removed: Set<string>, dateEdited: boolean): Pro
     o.stockLabel = hit.stockLabel;
     o.fetchedAt = now;
     o.pinned = true; // 以後は毎日の更新でもこのURLの値段を取る（商品名検索で別の商品に付け替えない）
+    // JANコード。巡回ボットが店をまたいで同じ商品を見分けるのに使う（二重登録を防ぐ）
+    if (hit.jan && o.jan !== hit.jan) { o.jan = hit.jan; janAdded++; }
   }
+
+  if (janAdded) notes.push(`JANコードを追加（${janAdded}件）`);
 
   // 2. 同じ店のリンクに種類の名前を付ける（商品名が取れたものだけ）
   const named = [...hits].filter(([o, h]) => !o.label && h.title);
@@ -169,6 +177,19 @@ async function planOne(row: any, removed: Set<string>, dateEdited: boolean): Pro
         notes.push(`予約ありにする（${pre.preorderStart ?? ''}〜${pre.preorderEnd}）`);
         dateChange = true;
       }
+    }
+    // 店が「在庫あり」（もう発売して売っている）・「予約受付終了」「販売終了」と書いているのに、
+    // 締切がまだ先のままなら、締切を昨日に書き直す（締切の通知が今さら届かないように。本人指摘・2026-09-28）。
+    // 楽天・Yahoo!など表記の無い店は予約品も「在庫あり」になるので、表記のあるものだけ見る
+    const endLabel = [...hits.values()].map((h) => h.stockLabel ?? '')
+      .find((l) => /在庫あり|残りわずか|取り寄せ|日以内|予約受付終了|受付終了|販売終了/.test(l));
+    const curEnd = (set.preorder_end_date as string | undefined) ?? (row.preorder_end_date as string | null);
+    if (endLabel && row.is_order_made && curEnd && curEnd >= today) {
+      const yesterday = new Date(Date.now() + 9 * 3600_000 - DAY).toISOString().slice(0, 10);
+      set.preorder_end_date = yesterday;
+      if (row.preorder_start_date && row.preorder_start_date > yesterday) set.preorder_start_date = yesterday;
+      notes.push(`予約はもう終わっている（店の表記「${endLabel}」）: 締切 ${curEnd} → ${yesterday}`);
+      dateChange = true;
     }
   }
 

@@ -1,10 +1,11 @@
 // ローカル通知（ネイティブのみ）。
 // 対象は「いいね済み × ベルON × 未来の日付」の予定。サーバー不要で端末にスケジュールする。
 // トリガー: 予約受付開始 / 予約締切(前日・当日) / 発売・開催(前日・当日) の朝9時。
+// 時刻が分かっていれば、その少し前にも出す（受付開始・発売は10分前、締切は1時間前）。
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import type { CalendarEvent } from '../types';
-import { deriveItemType } from '../design/tokens';
+import { deriveItemType, datePeriod } from '../design/tokens';
 import { loadNotifyEventIds, loadNotifyLeadDays } from './constants';
 import { waitForTrackingDecision } from './att';
 
@@ -14,7 +15,8 @@ export const notificationsSupported = (): boolean =>
   Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('LocalNotifications');
 const native = notificationsSupported;
 
-const KINDS = ['pstart', 'pend1', 'pend0', 'd1', 'd0'] as const;
+// 後ろに足すこと（並びが通知IDに入っている。1予定あたり10種類まで）
+const KINDS = ['pstart', 'pend1', 'pend0', 'd1', 'd0', 'pstartT', 'pendT', 'd0T'] as const;
 type Kind = (typeof KINDS)[number];
 
 // 文字列→正整数ハッシュ（通知IDのベース。Javaのint上限内に収める）
@@ -37,6 +39,15 @@ function morningOf(dateStr: string, dayOffset = 0, hour = 9): Date {
 
 type Trigger = { kind: Kind; at: Date; title: string; body: string };
 
+/** その日の時刻（'HH:MM'、端末ローカル）の beforeMin 分前 */
+function beforeTime(dateStr: string, time: string, beforeMin: number): Date {
+  const [h, m] = time.slice(0, 5).split(':').map(Number);
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setHours(h, m, 0, 0);
+  return new Date(d.getTime() - beforeMin * 60_000);
+}
+const hm = (t?: string | null) => (t ? t.slice(0, 5) : '');
+
 function triggersFor(e: CalendarEvent): Trigger[] {
   const out: Trigger[] = [];
   const tag = e.workName ? `【${e.workName}】` : '';
@@ -48,21 +59,33 @@ function triggersFor(e: CalendarEvent): Trigger[] {
   if (e.preorderStart) {
     out.push(lead > 0
       ? { kind: 'pstart', at: morningOf(e.preorderStart, -lead), title: `${tag}受付開始まであと${lead}日`, body: `「${e.title}」の予約受付がもうすぐ始まります` }
-      : { kind: 'pstart', at: morningOf(e.preorderStart), title: `${tag}本日受付開始`, body: `「${e.title}」の予約受付が本日始まります` });
+      : { kind: 'pstart', at: morningOf(e.preorderStart), title: `${tag}本日受付開始${e.preorderStartTime ? `（${hm(e.preorderStartTime)}〜）` : ''}`, body: `「${e.title}」の予約受付が本日始まります` });
+    // 時刻が分かっていれば10分前にも（人気のグッズは開始から数分で売り切れる）
+    if (e.preorderStartTime) out.push({ kind: 'pstartT', at: beforeTime(e.preorderStart, e.preorderStartTime, 10), title: `${tag}まもなく受付開始（${hm(e.preorderStartTime)}〜）`, body: `「${e.title}」の予約受付がまもなく始まります` });
   }
   if (e.preorderEnd) {
     if (lead > 0) out.push({ kind: 'pend1', at: morningOf(e.preorderEnd, -lead), title: `${tag}予約締切まであと${lead}日`, body: `「${e.title}」の予約締切が近づいています` });
-    out.push({ kind: 'pend0', at: morningOf(e.preorderEnd), title: `${tag}本日が予約締切`, body: `「${e.title}」の予約は本日までです` });
+    out.push({ kind: 'pend0', at: morningOf(e.preorderEnd), title: `${tag}本日が予約締切${e.preorderEndTime ? `（${hm(e.preorderEndTime)}まで）` : ''}`, body: `「${e.title}」の予約は本日までです` });
+    // 締切は買う時間が要るので1時間前
+    if (e.preorderEndTime) out.push({ kind: 'pendT', at: beforeTime(e.preorderEnd, e.preorderEndTime, 60), title: `${tag}まもなく予約締切（${hm(e.preorderEndTime)}まで）`, body: `「${e.title}」の予約は${hm(e.preorderEndTime)}までです` });
   }
   // ピンした日があれば直近のピンを基準にする（無ければ予定本来の日）
   const today = new Date().toISOString().slice(0, 10);
   const nextVisit = (e.visits ?? [])
     .map((v) => v.start).filter((d) => d >= today).sort()[0];
+  // 確定していない発売日（上旬・月のみ・季節など）の date は並び替え用の仮の日。「本日発売」「あと◯日」は出さず、
+  // その時期に入った日の朝に1回だけ知らせる（「10月中」の予定に10/31の朝「本日発売」が届いていた。2026-09-28）
+  if (!nextVisit && e.date && e.dateLabel) {
+    out.push({ kind: 'd0', at: morningOf(datePeriod(e.date, e.dateLabel).start), title: `${tag}${onsaleWord}の時期になりました`, body: `「${e.title}」の${onsaleWord}予定の時期です（日付は未定）` });
+    return out;
+  }
   const baseDate = nextVisit ?? e.date;
   if (baseDate) {
     const word = nextVisit ? 'ピンした日' : onsaleWord;
     if (lead > 0) out.push({ kind: 'd1', at: morningOf(baseDate, -lead), title: `${tag}${word}まであと${lead}日`, body: `「${e.title}」の${word}が近づいています` });
-    out.push({ kind: 'd0', at: morningOf(baseDate), title: nextVisit ? `${tag}本日はピンした日です` : `${tag}本日${word}`, body: `「${e.title}」は本日です` });
+    out.push({ kind: 'd0', at: morningOf(baseDate), title: nextVisit ? `${tag}本日はピンした日です` : `${tag}本日${word}${e.time ? `（${hm(e.time)}〜）` : ''}`, body: `「${e.title}」は本日です` });
+    // 発売・開催の時刻が分かっていれば10分前にも（「11時発売」を11時に逃さないように）
+    if (!nextVisit && e.time) out.push({ kind: 'd0T', at: beforeTime(e.date!, e.time, 10), title: `${tag}まもなく${word}（${hm(e.time)}〜）`, body: `「${e.title}」がまもなく${word}です` });
   }
   return out;
 }

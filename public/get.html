@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>FanHive をダウンロード</title>
+  <meta name="description" content="推しのグッズとイベントをまとめるアプリ FanHive（iPhone・Android）" />
+  <meta property="og:title" content="FanHive をダウンロード" />
+  <meta property="og:description" content="推しのグッズとイベントをまとめるアプリ FanHive（iPhone・Android）" />
+  <meta property="og:image" content="https://fanhive.jp/icon-512.png" />
+  <link rel="icon" href="/icon-512.png" />
+  <script>
+    // SNS の予定表の画像のQRコードから来る入口。iPhone は App Store、Android は Google Play へそのまま送る。
+    // パソコンなど見分けられないときは、下の2つのボタンを出したままにする。
+    (function () {
+      var IOS = 'https://apps.apple.com/jp/app/id6801161205';
+      var ANDROID = 'https://play.google.com/store/apps/details?id=jp.llp.fanhive';
+      var ua = navigator.userAgent || '';
+      // iPadOS 13 以降の Safari は Mac と名乗るので、タッチの有無で見分ける
+      var isIOS = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+      if (isIOS) location.replace(IOS);
+      else if (/Android/.test(ua)) location.replace(ANDROID);
+    })();
+  </script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto;
+      padding: calc(48px + env(safe-area-inset-top)) 24px 32px; color: #1a1a1a; text-align: center; background: #fffdf7; }
+    img { width: 96px; height: 96px; border-radius: 22px; }
+    h1 { font-size: 1.6rem; margin: 16px 0 4px; }
+    p { color: #555; font-size: 0.95rem; line-height: 1.7; margin: 0 0 28px; }
+    a.btn { display: block; padding: 14px; margin: 12px 0; border-radius: 12px; border: 2px solid #1a1a1a; color: #1a1a1a;
+      font-weight: 700; text-decoration: none; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #000; color: #f2f2f7; }
+      p { color: #aeaeb2; }
+      a.btn { border-color: #f2f2f7; color: #f2f2f7; }
+    }
+  </style>
+</head>
+<body>
+  <img src="/icon-512.png" alt="FanHive" />
+  <h1>FanHive</h1>
+  <p>推しのグッズとイベントをまとめるアプリ</p>
+  <a class="btn" href="https://apps.apple.com/jp/app/id6801161205">App Store（iPhone）</a>
+  <a class="btn" href="https://play.google.com/store/apps/details?id=jp.llp.fanhive">Google Play（Android）</a>
+</body>
+</html>

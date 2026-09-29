@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { searchCandidates, highConfidence, scoreTitle, isSetTitle, searchKeyword, variantMismatch, lookupByUrl, type Candidate } from './_product-search.js';
 import { pushAlerts, type Alert } from './_alerts.js';
 import { isSearchPage, isAff, representativePrice, type OfferRow } from './_offers.js';
+import { runBotPaced } from './_pace.js';
 
 // 毎日Cron: グッズの販路を最新化する。
 // (0) ユーザーが追加した購入リンク(event_offer_contribs)を events.offers に昇格
@@ -133,7 +134,7 @@ async function recordChanges(
   return rows.map((r) => ({ kind: r.kind, oldPrice: r.old_price, newPrice: r.new_price }));
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function run(req: VercelRequest, res: VercelResponse) {
   const secret = process.env.CRON_SECRET;
   const auth = req.headers.authorization ?? '';
   if (!secret || auth !== `Bearer ${secret}`) return res.status(401).json({ error: 'Unauthorized' });
@@ -343,4 +344,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const push = await pushAlerts(db, changes).catch((e: unknown) => ({ sent: 0, failed: 0, error: String(e) }));
 
   return res.status(200).json({ doBackfill, promoted: promoted.moved, repriced, scanned, backfilled, updated, detected, push, total: (rows ?? []).length, tookMs: Date.now() - started });
+}
+
+// 店への機械的なアクセスの間隔を守る（アニメイトは約20分に1回。_pace.ts）。
+// 鍵の確認と設定の不足は run の中で返す（ここでは DB に繋げるときだけ包む）
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const supabaseUrl = process.env.VITE_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceKey) return run(req, res);
+  const db = createClient(supabaseUrl, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+  return runBotPaced(db, () => run(req, res));
 }

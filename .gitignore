@@ -33,3 +33,4 @@ supabase/.temp/
 
 # 作品マスタづくりの取得データ（数MB・再取得できるのでコミットしない）
 scripts/.works-master/
+sns-out/

@@ -8,7 +8,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useHiddenContent } from '../hooks/useHiddenContent';
 import { useConfirm } from './ui/ConfirmDialog';
 import { useToast } from './ui/Toast';
-import { ANON_NAME } from '../lib/constants';
+import { ANON_NAME, isOfficialUser } from '../lib/constants';
+import OfficialBadge from './ui/OfficialBadge';
 import { listWorkNushi, shortWorkName } from '../lib/ranking';
 
 interface Profile {
@@ -160,7 +161,7 @@ export default function UserProfileModal({
                   </div>
                 )}
               </div>
-              <p className="text-label-primary font-semibold text-lg leading-tight">{name}</p>
+              <p className="text-label-primary font-semibold text-lg leading-tight flex items-center gap-1">{name}{isOfficialUser(userId) && <OfficialBadge size={17} />}</p>
 
               {/* 称号バッジ＋グレード */}
               {title && (
@@ -233,8 +234,8 @@ export default function UserProfileModal({
               </div>
             </div>
 
-            {/* ブロック（自分のプロフィールには出さない） */}
-            {!isSelf && user && (
+            {/* ブロック（自分のプロフィールと、FanHive公式には出さない） */}
+            {!isSelf && user && !isOfficialUser(userId) && (
               <div className="mt-4 flex justify-center">
                 <button
                   onClick={onToggleBlock}

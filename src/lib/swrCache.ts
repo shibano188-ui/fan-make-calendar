@@ -20,6 +20,8 @@ export function getCached<T>(key: string): T | undefined {
 }
 
 export function setCached<T>(key: string, value: T): void {
+  // 同じものを入れ直すだけなら、大きな JSON を書き直さない（ホーム・探すの一覧は数MBある）
+  if (cache.get(key) === value) return;
   cache.set(key, value);
   try { localStorage.setItem(LS_PREFIX + key, JSON.stringify(value)); } catch { /* noop */ }
 }

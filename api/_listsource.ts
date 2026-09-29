@@ -4,10 +4,15 @@
 // 接続するのは決まった店（アニメイト・ムービック）と、Shopify の店（_shopify.ts の safePublicUrl を通す）だけ。
 import { createClient } from '@supabase/supabase-js';
 import { fetchShopifyCollection } from './_shopify.js';
+import { botMayFetch } from './_pace.js';
 import { parseAnimateList, parseMovicList, lookupByUrl, unwrapProductUrl } from './_product-search.js';
 
 export interface ListProduct {
   title: string; url: string; price: number; inStock?: boolean; stockLabel?: string;
+  /** JANコード（商品ページで取れたとき） */
+  jan?: string;
+  /** 予約の締切（コトブキヤの「2026/10/15までのご予約で確実にご用意！」など）。YYYY-MM-DD */
+  preorderEnd?: string;
   image: string; images: string[];
   release?: { date: string; dateLabel: string | null };
 }
@@ -32,6 +37,7 @@ function pageTitle(html: string): string {
  *  2ページ目以降は pageno=N */
 async function animateList(u: URL, page: number): Promise<ProductList | null> {
   if (/\/pd\/\d+/.test(u.pathname) || /products\/detail\.php$/.test(u.pathname)) return null; // 1商品のページ
+  if (!botMayFetch('www.animate-onlineshop.jp')) return null; // ボットの中では約20分に1回まで（_pace.ts）
   const pc = new URL(u.toString().replace('/sphone/', '/'));
   if (/products\/list\.php$/.test(pc.pathname)) pc.searchParams.set('sl', '100');
   if (page > 1) pc.searchParams.set('pageno', String(page)); else pc.searchParams.delete('pageno');
@@ -64,6 +70,7 @@ async function movicList(u: URL, page: number): Promise<ProductList | null> {
       if (hit?.release) p.release = hit.release;
       if (hit?.inStock !== undefined) p.inStock = hit.inStock;
       if (hit?.stockLabel) p.stockLabel = hit.stockLabel;
+      if (hit?.jan) p.jan = hit.jan;
     }));
   }
   return { title: pageTitle(html), shop: 'ムービック', retailer: 'ムービック', products, nextPage: new RegExp(`[?&;]p=${page + 1}&`).test(html) ? page + 1 : null };

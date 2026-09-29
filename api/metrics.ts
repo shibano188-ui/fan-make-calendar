@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { loginPage, dashboardPage, enrichPage } from './_dashboard-html.js';
 import { planEnrich, applyEnrich, autoEnrich } from './_enrich.js';
 import { crawlNext } from './_crawl.js';
+import { crawlCatalogs } from './_catalog.js';
+import { runBotPaced } from './_pace.js';
 import { sendPushes, fcmConfigured, type PushMessage } from './_fcm.js';
 import { collectAppStore, collectAppStoreAnalytics, collectPlay, type StoreResult } from './_stores.js';
 
@@ -297,9 +299,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const client = db();
       if (!client) return res.status(500).json({ error: 'Server config error' });
       const started = Date.now();
-      const crawl = await crawlNext(client).catch((e) => ({ error: String(e) }));
-      const enrich = await autoEnrich(client, Math.max(0, 80_000 - (Date.now() - started)));
-      return res.status(200).json({ crawl, enrich });
+      // 店への機械的なアクセスの間隔を守る（アニメイトは約20分に1回。_pace.ts）
+      // 巡回（決まった作品・ジャンプショップ）→ 店の全作品の巡回（_catalog.ts）→ 残りの時間で手直し。全部で100秒ほどまで
+      const { crawl, catalog, enrich } = await runBotPaced(client, async () => {
+        const crawl = await crawlNext(client).catch((e) => ({ error: String(e) }));
+        const catalog = await crawlCatalogs(client, Math.min(40_000, Math.max(0, 85_000 - (Date.now() - started)))).catch((e) => ({ error: String(e) }));
+        const enrich = await autoEnrich(client, Math.max(0, 95_000 - (Date.now() - started)));
+        return { crawl, catalog, enrich };
+      });
+      // 毎回の結果をログに残す（Vercel のログで、どの店がどれだけ進んだかを見る）
+      console.log('[bot]', JSON.stringify({ tookMs: Date.now() - started, crawl, catalog, enrich }));
+      return res.status(200).json({ crawl, catalog, enrich });
     }
     return collect(req, res);
   }

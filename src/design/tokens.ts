@@ -2,6 +2,7 @@
 // 調査（メルカリ=清潔/高密度・四角画像、Airbnb=しぼり込み、Duolingo=達成演出、Fantastical=日時）を反映。
 import type { CalendarEvent } from '../types';
 import { parseCategories, isGoodsSubcategory } from '../lib/constants';
+import { stockHint } from '../lib/affiliate';
 
 export type ItemType = 'event' | 'goods';
 
@@ -52,25 +53,48 @@ export function todayStr(d = new Date()): string {
 
 /** 現在の状態を導出。イベントは期間後「終了」、グッズは期間後「発売済み」（ラベルで出し分け）、
  *  受注は受付後「受付終了」。受付終了日が無い場合は発売日を暗黙の締切とみなす。YYYY-MM-DD の文字列比較。 */
-export function deriveStatus(
-  e: Pick<CalendarEvent, 'date' | 'endDate' | 'preorderStart' | 'preorderEnd' | 'type' | 'category'>,
-  today = todayStr(),
-): ItemStatus {
+/** 確定していない発売日（上旬・中旬・下旬・月のみ・季節）の時期の始まりと終わり。確定した日付ならその日。
+ *  代表日（上旬=5日・月のみ=末日など）は並び替え用の仮の日なので、状態や締切の判定には使わない
+ *  （「10月中」の予定が10/31まで予約受付中に見えていた。本人指摘・2026-09-28） */
+export function datePeriod(date: string, dateLabel?: string | null): { start: string; end: string } {
+  if (!dateLabel) return { start: date, end: date };
+  const y = Number(date.slice(0, 4));
+  const m = date.slice(5, 7);
+  const last = (yy: number, mm: string) => `${yy}-${mm}-${String(new Date(yy, Number(mm), 0).getDate()).padStart(2, '0')}`;
+  switch (dateLabel) {
+    case '上旬': return { start: `${y}-${m}-01`, end: `${y}-${m}-10` };
+    case '中旬': return { start: `${y}-${m}-11`, end: `${y}-${m}-20` };
+    case '下旬': return { start: `${y}-${m}-21`, end: last(y, m) };
+    case '春頃': return { start: `${y}-03-01`, end: `${y}-05-31` };
+    case '夏頃': return { start: `${y}-06-01`, end: `${y}-08-31` };
+    case '秋頃': return { start: `${y}-09-01`, end: `${y}-11-30` };
+    case '冬頃': return { start: `${y - 1}-12-01`, end: last(y, '02') };
+    default: return { start: `${y}-${m}-01`, end: last(y, m) }; // 中（月のみ）
+  }
+}
+
+type StatusFields = Pick<CalendarEvent, 'date' | 'endDate' | 'preorderStart' | 'preorderEnd' | 'type' | 'category'>
+  & Partial<Pick<CalendarEvent, 'dateLabel' | 'time' | 'preorderStartTime' | 'preorderEndTime' | 'isOrderMade' | 'offers'>>;
+
+/** 日付だけで決める状態 */
+function dateStatus(e: StatusFields, today: string): ItemStatus {
   const { date, endDate, preorderStart, preorderEnd } = e;
+  const period = date ? datePeriod(date, e.dateLabel) : null;
 
   // 受注・予約の受付ウィンドウ。終了日未入力の受注が永遠に「受付中」にならないよう、
-  // 終了日が無ければ発売日を暗黙の受付締切とみなす（発売日当日からは発売状態を優先）
-  if (preorderStart || preorderEnd) {
+  // 終了日が無ければ発売（時期の始まり）を暗黙の受付締切とみなす（発売からは発売状態を優先）
+  // 予約ありで予約期間の日付が空（アニメイトの商品ページに書かれていないことが多い）なら、発売の時期までは受付中とみなす
+  if (preorderStart || preorderEnd || e.isOrderMade) {
     if (preorderStart && today < preorderStart) return 'preorder_soon';
-    const inWindow = preorderEnd ? today <= preorderEnd : (!date || today < date);
+    const inWindow = preorderEnd ? today <= preorderEnd : (!period || today < period.start);
     if (inWindow) return 'preorder';
     // 受付終了後: 発売・開催が始まっていればその状態へ、まだ先なら「予約終了」
-    if (!date || today < date) return 'preorder_ended';
+    if (!period || today < period.start) return 'preorder_ended';
   }
 
-  if (date) {
-    const end = endDate || date;
-    if (today < date) return 'sale_soon';
+  if (period) {
+    const end = endDate && !e.dateLabel ? endDate : period.end;
+    if (today < period.start) return 'sale_soon';
     if (today <= end) return 'onsale';
     return 'ended'; // 期間終了後（グッズはラベル「発売済み」）
   }
@@ -78,19 +102,35 @@ export function deriveStatus(
   return 'sale_soon'; // 日付未定は予定扱い
 }
 
+/** 状態。日付で決めたうえで、店がはっきり書いている在庫の表記（stockHint）があればそちらを優先する。
+ *  「在庫あり」なのに発売前・予約受付中、「予約受付中」なのに発売前、と出ていた（本人指摘・2026-09-28） */
+export function deriveStatus(e: StatusFields, today = todayStr()): ItemStatus {
+  const base = dateStatus(e, today);
+  if (base === 'ended') return base;
+  const hint = stockHint(e);
+  if (hint === 'instock') return 'onsale';
+  if (hint === 'preorder' && base !== 'onsale') return 'preorder';
+  if (hint === 'before') return e.isOrderMade || e.preorderStart || e.preorderEnd ? 'preorder_soon' : 'sale_soon';
+  return base;
+}
+
+/** 今年以外の日付には年を付ける（去年の10/5発売の在庫品が、これから発売に見えていた。2026-09-28） */
+const yearPrefix = (d: string) => (d.slice(0, 4) !== todayStr().slice(0, 4) ? `${d.slice(0, 4)}/` : '');
+
 function md(d?: string): string {
   if (!d) return '';
   const parts = d.split('-');
-  return parts.length === 3 ? `${Number(parts[1])}/${Number(parts[2])}` : d;
+  return parts.length === 3 ? `${yearPrefix(d)}${Number(parts[1])}/${Number(parts[2])}` : d;
 }
 
 const SEASON_LABELS = ['春頃', '夏頃', '秋頃', '冬頃'];
 /** 曖昧日付(dateLabel)を表示用に整形。上旬→"4月上旬" / 中(月のみ)→"4月" / 春頃→"春頃" */
 function formatDateLabel(date: string | undefined | null, dateLabel: string): string {
-  if (SEASON_LABELS.includes(dateLabel)) return dateLabel;
   const m = date ? Number(date.slice(5, 7)) : 0;
-  if (dateLabel === '中') return m ? `${m}月` : '月内';
-  return m ? `${m}月${dateLabel}` : dateLabel;
+  const y = date && date.slice(0, 4) !== todayStr().slice(0, 4) ? `${date.slice(0, 4)}年` : '';
+  if (SEASON_LABELS.includes(dateLabel)) return `${y}${dateLabel}`;
+  if (dateLabel === '中') return m ? `${y}${m}月` : '月内';
+  return m ? `${y}${m}月${dateLabel}` : dateLabel;
 }
 
 /** タイル/詳細に出す日付ラベルを状態に応じて出し分ける。 */
@@ -159,11 +199,12 @@ export const SPACE = {
 /** 予定の段階の流れ（詳細ページで横に並べ、今いる段階に色を付ける）。
  *  予約・受付のある予定は5段、無い予定は3段。グッズとイベントで呼び方を変える */
 export function stageFlow(
-  e: Pick<CalendarEvent, 'date' | 'endDate' | 'preorderStart' | 'preorderEnd' | 'type' | 'category'>,
+  e: StatusFields,
   today = todayStr(),
 ): { steps: string[]; current: number } {
   const goods = deriveItemType(e) === 'goods';
-  const hasPreorder = !!(e.preorderStart || e.preorderEnd);
+  // 予約ありなら、予約期間の日付が空でも（アニメイトは商品ページに書かれていないことが多い）予約の段階を出す
+  const hasPreorder = !!(e.preorderStart || e.preorderEnd || e.isOrderMade);
   const s = deriveStatus(e, today);
   if (hasPreorder) {
     const steps = goods
