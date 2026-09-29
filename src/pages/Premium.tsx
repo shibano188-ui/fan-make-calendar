@@ -43,6 +43,9 @@ export default function Premium() {
   // 初月無料が付くか。確かめ終えるまでは付く前提で出す（ほとんどの人は初めて買う）
   const [trial, setTrial] = useState(true);
 
+  // 開いたら一番上から。前の画面（マイページの下の方など）のスクロール位置を引き継ぐと、左上の × が隠れる
+  useEffect(() => { window.scrollTo(0, 0); }, []);
+
   useEffect(() => {
     let alive = true;
     trialAvailable().then((v) => { if (alive) setTrial(v); });

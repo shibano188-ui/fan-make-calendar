@@ -225,18 +225,24 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
   const nav = useRect(framed ? findNav : nothing);
   const target = useRect(step === 'bell' ? findBell : step === 'account' ? findAccount : nothing);
 
-  // 光らせる行が画面の外にあるとき（マイページのアカウントは下の方）は、真ん中まで送る。出てくるまで少し待つ
+  // 光らせる行が画面の外にあるとき（マイページのアカウントは下の方）は、真ん中まで一気に送ってから光らせる。
+  // なめらかに送ると、動いている途中の位置に穴と吹き出しが出て、追いかけるような変な動きになる
+  const [settled, setSettled] = useState(step !== 'account');
   useEffect(() => {
-    if (step !== 'account') return;
+    if (step !== 'account') { setSettled(true); return; }
+    setSettled(false);
     let tries = 0;
+    let raf = 0;
     const t = setInterval(() => {
       const el = findAccount();
       if (el || ++tries > 30) {
         clearInterval(t);
-        el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        el?.scrollIntoView({ block: 'center', behavior: 'auto' });
+        // 位置が決まってから（2フレーム待って）出す
+        raf = requestAnimationFrame(() => { raf = requestAnimationFrame(() => setSettled(true)); });
       }
     }, 100);
-    return () => clearInterval(t);
+    return () => { clearInterval(t); cancelAnimationFrame(raf); };
   }, [step]);
 
   const vw = window.innerWidth;
@@ -263,7 +269,7 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
   // bell: ベルだけを丸く抜く（ここだけ押せる）。account: アカウントの行を抜く（押させない。「次へ」で進む）。
   // 見つかるまで（シートが出てくる途中など）は全体を暗くして吹き出しだけ出す
   const pad = step === 'bell' ? 6 : 2;
-  const hole = target && {
+  const hole = settled && target && {
     top: target.top - pad, left: target.left - pad,
     width: target.width + pad * 2, height: target.height + pad * 2,
   };
@@ -287,12 +293,12 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
       ) : (
         <div className="absolute inset-0 pointer-events-auto" style={{ backgroundColor: DIM }} />
       )}
-      <div className="absolute inset-x-0 px-4"
+      {settled && <div className="absolute inset-x-0 px-4"
         style={hole
           ? (above ? { bottom: vh - hole.top + 12 } : { top: hole.top + hole.height + 12 })
           : { top: 'calc(var(--sat) + 16px)' }}>
         <Bubble step={step} arrow={hole ? (above ? 'down' : 'up') : undefined} arrowX={arrowX} onNext={step === 'account' ? onNext : undefined} />
-      </div>
+      </div>}
     </div>
   );
 }
