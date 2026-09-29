@@ -422,7 +422,8 @@ export default function MyPage() {
             )}
           </div>
         ) : (
-          <div className="px-3 py-2.5">
+          // data-tour: オンボーディングの最後に「メールを登録すると引き継げる」とここを光らせて見せる（OnboardingTour）
+          <div className="px-3 py-2.5" data-tour="account">
             <div className="flex items-center gap-2">
               <UserRound size={16} className="text-label-secondary" />
               <span className="text-[14px] flex-1">アカウント（データ引き継ぎ）</span>

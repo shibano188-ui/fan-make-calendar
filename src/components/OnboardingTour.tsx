@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Heart, Bell, BellRing, CalendarCheck } from 'lucide-react';
+import { Heart, Bell, BellRing, BellOff, CalendarCheck, UserRound } from 'lucide-react';
+import { notificationPermission } from '../lib/notifications';
 import type { CalendarEvent } from '../types';
 import { setAdsSuppressed } from '../lib/adSuppress';
 import { requestTracking } from '../lib/att';
@@ -11,18 +12,21 @@ import { ONBOARDING_KEY, TOUR_STEP_KEY, TOUR_EVENT_KEY, TOUR_EVENT, LIKED_EVENT,
 //   like     … 探すで気になる予定の ♡ を押す
 //   calendar … 自動でカレンダーへ移り、いいねした予定がその日に入ったのを見せる
 //   bell     … そのままベルを押して通知をONにする（ここで初めて通知の許可を聞く）
+//   done     … 「これで通知が届きます！」（何日前に届くか・どこで変えられるか）
+//   account  … マイページへ移り、アカウント（データ引き継ぎ）の行を光らせて、メールを登録すると引き継げると伝える。
+//              登録はさせない（iOS 5.1.1(v)。登録しなくても全部使える）。「次へ」で課金の案内へ
 // **スキップは無い**。下のタブは押せなくしてある（index.css の body[data-tour-step]）。
 // 押してほしいボタン（data-tour="like" / "bell"）は同じ CSS で光らせる。
 // 終わったら ONBOARDING_KEY を立て、トラッキングの許可(ATT)を聞く（通知の許可と重ならないよう、そのあと）。
 //
 // 段階は端末に残す（途中でアプリを閉じても、次の起動で続きから）。
 
-export type TourStep = 'like' | 'calendar' | 'bell' | 'done';
+export type TourStep = 'like' | 'calendar' | 'bell' | 'done' | 'account';
 
 function readStep(): TourStep | null {
   try {
     const v = localStorage.getItem(TOUR_STEP_KEY);
-    return v === 'like' || v === 'calendar' || v === 'bell' || v === 'done' ? v : null;
+    return v === 'like' || v === 'calendar' || v === 'bell' || v === 'done' || v === 'account' ? v : null;
   } catch { return null; }
 }
 
@@ -81,13 +85,17 @@ const COPY: Record<TourStep, { icon: typeof Heart; title: string; body?: string 
   bell: { icon: Bell, title: 'ベルを押して通知をONにしよう', body: '発売日や締切の前にお知らせします。' },
   // 本文は通知の設定（何日前か）に合わせて Bubble で組み立てる
   done: { icon: BellRing, title: 'これで通知が届きます！' },
+  account: { icon: UserRound, title: 'メールを登録しておくと安心です', body: '機種変更やアプリの入れ直しのときも、フォローやカレンダーをそのまま引き継げます。登録はあとからいつでもできます。' },
 };
+
+// ベルを押したあと、通知が許可されなかったか（「これで通知が届きます」と言わないため）
+let notifyDenied = false;
 
 /** 「これで通知が届きます」の本文。いつ届くかは通知の設定（何日前）に合わせる */
 function doneBody(): string {
   const lead = loadNotifyLeadDays();
   const when = lead > 0 ? `${lead}日前と当日の朝` : '当日の朝';
-  return `発売日や締切の${when}にお知らせします。いつ届くかは、マイページの「通知の設定」で変えられます。`;
+  return `発売日や締切の${when}にお知らせします。マイページの「通知の設定」で細かく設定できます。`;
 }
 
 export default function OnboardingTour() {
@@ -110,7 +118,7 @@ export default function OnboardingTour() {
   // 段階に合った画面へ連れていく。予定詳細（/item/…）は開いてよい（詳細の ♡・ベルでも進める）
   useEffect(() => {
     if (!step || pathname.startsWith('/item/')) return;
-    const want = step === 'like' ? '/explore' : '/saved';
+    const want = step === 'like' ? '/explore' : step === 'account' ? '/mypage' : '/saved';
     if (pathname !== want) navigate(want, { replace: true });
   }, [step, pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -132,7 +140,11 @@ export default function OnboardingTour() {
   // ベルを押して、通知の許可を聞き終えたら「これで通知が届きます」へ（「カレンダーに登録されました」の途中で押しても進む）
   useEffect(() => {
     if (step !== 'calendar' && step !== 'bell') return;
-    const onBell = () => { writeStep('done'); };
+    const onBell = () => {
+      // 許可されなかった（または端末で切られている）ときは「届きます」と言わない
+      notificationPermission().then((p) => { notifyDenied = p === 'denied' || p === 'prompt'; }).catch(() => {})
+        .finally(() => writeStep('done'));
+    };
     window.addEventListener(BELL_EVENT, onBell);
     return () => window.removeEventListener(BELL_EVENT, onBell);
   }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -157,7 +169,12 @@ export default function OnboardingTour() {
   // 予定詳細では出さない（上の「戻る」に重なる）。詳細の ♡・ベルでも先へ進む
   if (!step || pathname.startsWith('/item/')) return null;
   return <TourLayer step={step} leaving={leaving}
-    onNext={() => { haptic.select(); if (step === 'done') void finish(); else writeStep('bell'); }} />;
+    onNext={() => {
+      haptic.select();
+      if (step === 'calendar') writeStep('bell');
+      else if (step === 'done') { writeStep('account'); navigate('/mypage'); }
+      else if (step === 'account') void finish();
+    }} />;
 }
 
 // ── 見せ方 ──────────────────────────────────────────────────────
@@ -198,6 +215,7 @@ function useRect(find: () => Element | null): Rect | null {
 
 const findHeader = () => document.querySelector('[data-skin-bar="main"]');
 const findNav = () => document.querySelector('[data-bottom-nav] > *');
+const findAccount = () => document.querySelector('[data-tour="account"]');
 
 function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean; onNext: () => void }) {
   const id = tourEventId();
@@ -205,7 +223,21 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
   const framed = step === 'like' || step === 'calendar' || step === 'done';
   const header = useRect(framed ? findHeader : nothing);
   const nav = useRect(framed ? findNav : nothing);
-  const target = useRect(step === 'bell' ? findBell : nothing);
+  const target = useRect(step === 'bell' ? findBell : step === 'account' ? findAccount : nothing);
+
+  // 光らせる行が画面の外にあるとき（マイページのアカウントは下の方）は、真ん中まで送る。出てくるまで少し待つ
+  useEffect(() => {
+    if (step !== 'account') return;
+    let tries = 0;
+    const t = setInterval(() => {
+      const el = findAccount();
+      if (el || ++tries > 30) {
+        clearInterval(t);
+        el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    }, 100);
+    return () => clearInterval(t);
+  }, [step]);
 
   const vw = window.innerWidth;
   const vh = window.innerHeight;
@@ -228,13 +260,14 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
     );
   }
 
-  // bell: ベルだけを丸く抜く。見つかるまで（シートが出てくる途中など）は全体を暗くして吹き出しだけ出す
-  const pad = 6;
+  // bell: ベルだけを丸く抜く（ここだけ押せる）。account: アカウントの行を抜く（押させない。「次へ」で進む）。
+  // 見つかるまで（シートが出てくる途中など）は全体を暗くして吹き出しだけ出す
+  const pad = step === 'bell' ? 6 : 2;
   const hole = target && {
     top: target.top - pad, left: target.left - pad,
     width: target.width + pad * 2, height: target.height + pad * 2,
   };
-  const radius = 9999;
+  const radius = step === 'bell' ? 9999 : 12;
   // 吹き出しは、抜いたところの上に余裕があれば上、無ければ下
   const above = hole ? hole.top > 190 : true;
   const arrowX = hole ? hole.left + hole.width / 2 : vw / 2;
@@ -249,6 +282,7 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
           <div className="absolute inset-x-0 bottom-0 pointer-events-auto" style={{ top: hole.top + hole.height }} />
           <div className="absolute left-0 pointer-events-auto" style={{ top: hole.top, height: hole.height, width: Math.max(hole.left, 0) }} />
           <div className="absolute right-0 pointer-events-auto" style={{ top: hole.top, height: hole.height, left: hole.left + hole.width }} />
+          {step === 'account' && <div className="absolute pointer-events-auto" style={hole} />}
         </>
       ) : (
         <div className="absolute inset-0 pointer-events-auto" style={{ backgroundColor: DIM }} />
@@ -257,7 +291,7 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
         style={hole
           ? (above ? { bottom: vh - hole.top + 12 } : { top: hole.top + hole.height + 12 })
           : { top: 'calc(var(--sat) + 16px)' }}>
-        <Bubble step={step} arrow={hole ? (above ? 'down' : 'up') : undefined} arrowX={arrowX} />
+        <Bubble step={step} arrow={hole ? (above ? 'down' : 'up') : undefined} arrowX={arrowX} onNext={step === 'account' ? onNext : undefined} />
       </div>
     </div>
   );
@@ -267,8 +301,9 @@ const nothing = () => null;
 
 /** 案内の吹き出し。アプリの部品と見間違えないよう、暗い地に白い文字で出す */
 function Bubble({ step, arrow, arrowX, onNext }: { step: TourStep; arrow?: 'up' | 'down'; arrowX?: number; onNext?: () => void }) {
-  const { icon: Icon, title } = COPY[step];
-  const body = step === 'done' ? doneBody() : COPY[step].body;
+  const denied = step === 'done' && notifyDenied;
+  const { icon: Icon, title } = denied ? { icon: BellOff, title: '通知はあとからONにできます' } : COPY[step];
+  const body = denied ? '端末の設定でFanHiveの通知を許可すると届くようになります。' : step === 'done' ? doneBody() : COPY[step].body;
   const ref = useRef<HTMLDivElement>(null);
   // 矢印は目印の真上（真下）に。吹き出しの端からはみ出さないように寄せる
   const [left, setLeft] = useState<number | null>(null);

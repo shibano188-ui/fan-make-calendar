@@ -39,7 +39,8 @@ export default function NotifyBell({ event, liked, onSave, size = 18, variant = 
     if (prefs.reminder) {
       const supported = notificationsSupported();
       if (supported && !(await ensurePermission())) {
-        toast('通知が許可されていません。端末の設定から許可してください', 'error');
+        // 案内中は「通知はあとからONにできます」で説明するので出さない
+        if (!document.body.dataset.tourStep) toast('通知が許可されていません。端末の設定から許可してください', 'error');
         return;
       }
       setNotifyOn(event.id, true);
@@ -52,6 +53,8 @@ export default function NotifyBell({ event, liked, onSave, size = 18, variant = 
       msg = msg ? `${msg}。値下げ・再入荷も` : '値下げ・再入荷をお知らせします';
     }
     if (!msg) { toast('通知の設定で、ベルでONにするものを選んでください'); return; }
+    // オンボーディングの案内中は出さない（すぐ後に「これで通知が届きます！」で同じことを説明する）
+    if (document.body.dataset.tourStep) return;
     if (isGoods && !priceAlerts && takePriceHint()) msg += '（値下げ・再入荷の通知はプレミアムで受け取れます）';
     toast(msg);
   };
