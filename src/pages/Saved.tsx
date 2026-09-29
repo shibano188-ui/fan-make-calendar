@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { SlidersHorizontal, Crown, Palette, CalendarDays, CalendarRange, Calendar, List, Check, Plus } from 'lucide-react';
+import { SlidersHorizontal, Crown, Palette, CalendarDays, CalendarRange, Calendar, List, Check, CalendarPlus } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import Chip from '../components/ui/Chip';
@@ -492,9 +492,10 @@ export default function Saved() {
       {!tourStep && (
         <button onClick={() => { haptic.select(); navigate(`/personal/new?date=${view === 'list' || includesToday(view, anchor, today) ? today : anchor}`); }}
           aria-label="自分の予定を追加"
-          className="pressable fixed right-4 z-30 w-12 h-12 rounded-full flex items-center justify-center shadow-float"
-          style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)', bottom: 'calc(env(safe-area-inset-bottom) + 92px)' }}>
-          <Plus size={22} strokeWidth={2.6} />
+          // 下の真ん中の「＋」（みんなに公開する情報）と見分けるため、塗りではなく白地にカレンダーの印
+          className="pressable material-thick fixed right-4 z-30 w-12 h-12 rounded-full flex items-center justify-center shadow-float"
+          style={{ color: 'var(--accent-text)', bottom: 'calc(env(safe-area-inset-bottom) + 92px)' }}>
+          <CalendarPlus size={22} />
         </button>
       )}
     </div>
