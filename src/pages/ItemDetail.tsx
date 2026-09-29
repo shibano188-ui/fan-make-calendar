@@ -4,7 +4,7 @@ import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDay
 import type { CalendarEvent, EventVisit } from '../types';
 import EventEditForm from '../components/item/EventEditForm';
 import StaffEditPanel from '../components/item/StaffEditPanel';
-import { getEventById, getWorkById, getDisplayName, toggleLike, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, addEventVisit, removeEventVisit, getMyStaffRole, proposeEdit, listEditProposals, type EditProposal, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
+import { getEventById, getWorkById, getDisplayName, toggleLike, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, addEventVisit, removeEventVisit, getMyStaffRole, getPersonalEvent, proposeEdit, listEditProposals, type EditProposal, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME, isOfficialUser } from '../lib/constants';
@@ -128,6 +128,13 @@ export default function ItemDetail() {
       // 生の値をもらい、パッチはこの画面で重ねる（「戻す」がその場で効くように）
       const e = await getEventById(id, user?.id, { raw: true });
       if (!alive) return;
+      // 自分用の予定（personal_events）には詳細ページが無い。通知・端末カレンダーのリンクは /item/<id> で来るので、
+      // 見つからなければ自分用の予定かを見て、編集画面へ回す
+      if (!e && user) {
+        const mine = await getPersonalEvent(id).catch(() => null);
+        if (!alive) return;
+        if (mine) { navigate(`/personal/${id}`, { replace: true }); return; }
+      }
       setEv(e);
       if (!e) return;
       // まだ操作されていなければDBの値でストアを初期化（既存状態は保持）

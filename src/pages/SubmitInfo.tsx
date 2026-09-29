@@ -1,51 +1,39 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Plus, Send } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { X, Plus, Send, Heart } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 import { haptic } from '../lib/haptics';
-import { submitInfo, listMyInfoSubmissions, searchWorks, type InfoSubmission, type Work } from '../lib/api';
+import { submitInfo, searchWorks, type Work } from '../lib/api';
 
 // 情報を送る（2026-09-29 投稿の方法の作り直し）。
 // 入れてもらうのは作品名・URL（いくつでも）・一言（任意）だけ。フォームを埋める手間を無くす。
 // 中身の読み取りと公開はボット（api/_submissions.ts）が10分おきに最優先でやる:
 //   Xのポスト・巡回先の店の一覧で、日付とタイトルが読めて、同じ予定が無い → 送った人を投稿者にして公開
 //   同じ予定がある → その予定にURLを足す ／ それ以外 → 運営の確認待ち
-// 送ったものの結果は、この画面の下に出す（自分の送ったものだけ）。
+// 送った人には結果を見せない。「ありがとうございます、しばらくすると反映されます」だけ出し、あとは裏で全部やる（柴野）。
 
 const inputCls = 'w-full rounded-[10px] px-3 py-2.5 text-[14px] outline-none';
 const inputStyle = { backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' };
 const labelCls = 'text-[12px] text-label-secondary mb-1 mt-4';
 
-const STATUS_LABEL: Record<InfoSubmission['status'], { text: string; color: string }> = {
-  pending: { text: '確認中', color: 'var(--label-secondary)' },
-  published: { text: '登録しました', color: 'var(--color-success)' },
-  merged: { text: '既存の予定に追加しました', color: 'var(--color-success)' },
-  needs_review: { text: '運営が確認しています', color: 'var(--color-warning)' },
-  rejected: { text: '登録できませんでした', color: 'var(--color-destructive)' },
-};
-
 const isUrl = (s: string) => /^https?:\/\/\S+\.\S+/.test(s.trim());
 
 export default function SubmitInfo() {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const toast = useToast();
   const [workName, setWorkName] = useState('');
   const [matches, setMatches] = useState<Work[]>([]);
   const [urls, setUrls] = useState<string[]>(['']);
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
-  const [mine, setMine] = useState<InfoSubmission[]>([]);
+  // 送ったあとの「ありがとうございます」。続けて送る人のために、閉じずに入力欄へ戻れるようにする
+  const [sent, setSent] = useState(false);
 
   const goBack = () => {
     const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
     if (idx > 0) navigate(-1);
     else navigate('/', { replace: true });
   };
-
-  const reload = () => { if (user) listMyInfoSubmissions(user.id).then(setMine).catch(() => {}); };
-  useEffect(reload, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 作品名の候補（表記ゆれを揃えるため。候補に無い名前でもそのまま送れる）
   useEffect(() => {
@@ -66,9 +54,8 @@ export default function SubmitInfo() {
     setBusy(true);
     try {
       await submitInfo({ workName, urls: filledUrls, comment });
-      toast('送りました。内容を確認して登録します（数分〜）');
       setUrls(['']); setComment('');
-      reload();
+      setSent(true);
     } catch {
       toast('送れませんでした。時間をおいてお試しください', 'error');
     }
@@ -83,6 +70,24 @@ export default function SubmitInfo() {
           <span className="font-semibold">情報を送る</span>
         </div>
 
+        {sent ? (
+          <div className="px-6 pt-16 pb-10 flex flex-col items-center text-center">
+            <div className="w-16 h-16 rounded-full flex items-center justify-center"
+              style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 16%, transparent)', color: 'var(--accent-text)' }}>
+              <Heart size={28} />
+            </div>
+            <p className="text-[18px] font-bold mt-4">ありがとうございます！</p>
+            <p className="text-[14px] text-label-secondary leading-relaxed mt-2">送っていただいた情報は、しばらくすると反映されます。</p>
+            <button onClick={() => { haptic.select(); goBack(); }}
+              className="pressable w-full mt-8 py-3 rounded-full text-[15px] font-semibold"
+              style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+              閉じる
+            </button>
+            <button onClick={() => { haptic.select(); setSent(false); }} className="pressable mt-3 text-[13px] text-label-secondary">
+              続けて送る
+            </button>
+          </div>
+        ) : (
         <div className="px-4 pb-10">
           <p className="text-[13px] text-label-secondary leading-relaxed mt-2">
             見つけた情報のURLを送ってください。内容の読み取りと登録はFanHiveが行います。
@@ -135,34 +140,8 @@ export default function SubmitInfo() {
             style={ready ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' } : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-tertiary)' }}>
             <Send size={16} /> 送る
           </button>
-
-          {mine.length > 0 && (
-            <div className="mt-8">
-              <div className="text-[12px] text-label-secondary mb-2">送った情報</div>
-              <div className="flex flex-col divide-y divide-[var(--separator)]">
-                {mine.map((m) => {
-                  const st = STATUS_LABEL[m.status];
-                  return (
-                    <div key={m.id} className="py-2.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[14px] font-medium flex-1 min-w-0 truncate">{m.workName}</span>
-                        <span className="text-[12px] font-semibold flex-shrink-0" style={{ color: st.color }}>{st.text}</span>
-                      </div>
-                      <div className="text-[12px] text-label-tertiary truncate mt-0.5">{m.urls.join('  ')}</div>
-                      {m.reason && m.status !== 'pending' && <div className="text-[12px] text-label-secondary mt-0.5">{m.reason}</div>}
-                      {m.resultEventIds.length > 0 && (
-                        <button onClick={() => navigate(`/item/${m.resultEventIds[0]}`)}
-                          className="pressable text-[12px] mt-1 underline" style={{ color: 'var(--accent-text)' }}>
-                          登録された予定を見る
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </div>
+        )}
       </div>
     </div>
   );

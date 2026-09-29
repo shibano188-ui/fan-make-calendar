@@ -501,7 +501,7 @@ export default function MyPage() {
               <span className="text-[14px] flex-1" style={{ color: 'var(--color-destructive)' }}>アカウントを削除する</span>
             </div>
             <p className="text-[11px] text-label-secondary mt-1.5 ml-6">
-              投稿・いいね・保存した予定を含むすべてのデータが削除されます。この操作は取り消せません。
+              投稿・いいね・保存した予定・自分の予定を含むすべてのデータが削除されます。この操作は取り消せません。
             </p>
             <div className="mt-2 ml-6 flex gap-2">
               <button onClick={onDeleteAccount} disabled={deleting}

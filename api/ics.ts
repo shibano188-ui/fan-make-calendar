@@ -142,6 +142,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
+  // 自分用の予定（personal_events・2026-09-29）も同じカレンダーに出す。アプリのカレンダーと同じ範囲にそろえる。
+  // テーブルがまだ無い環境では error が返るだけなので、黙って飛ばす
+  const { data: personal } = await db.from('personal_events')
+    .select('id, title, event_date, end_date, event_time, memo, link_url').eq('user_id', userId);
+  for (const p of personal ?? []) {
+    if (!p.event_date) continue;
+    body.push(...vevent(`personal-${p.id}`, String(p.title), p.event_date as string, (p.end_date as string | null) ?? null,
+      ((p.event_time as string | null) ?? null)?.slice(0, 5) ?? null, (p.memo as string | null) ?? '', (p.link_url as string | null) || 'https://fanhive.jp/saved', stamp));
+  }
+
   return res.status(200).send([
     'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//FanHive//JP', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
     'X-WR-CALNAME:FanHive', 'X-WR-TIMEZONE:Asia/Tokyo',

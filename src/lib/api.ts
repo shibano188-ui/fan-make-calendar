@@ -1332,12 +1332,6 @@ export async function deletePersonalEvent(id: string): Promise<void> {
 // ─── 情報を送る（info_submissions）───────────────────────────────
 // 作品名・URL・一言を送るだけ。中身の読み取り・公開はボット（api/_submissions.ts）が10分おきに最優先でやる。
 
-export type InfoSubmission = {
-  id: string; workName: string; urls: string[]; comment: string | null;
-  status: 'pending' | 'published' | 'merged' | 'needs_review' | 'rejected';
-  reason: string | null; resultEventIds: string[]; createdAt: string;
-};
-
 export async function submitInfo(input: { workName: string; urls: string[]; comment?: string }): Promise<void> {
   const { error } = await supabase.from('info_submissions').insert({
     work_name: input.workName.trim(),
@@ -1345,19 +1339,6 @@ export async function submitInfo(input: { workName: string; urls: string[]; comm
     comment: input.comment?.trim() || null,
   });
   if (error) throw error;
-}
-
-export async function listMyInfoSubmissions(userId: string): Promise<InfoSubmission[]> {
-  const { data, error } = await supabase.from('info_submissions')
-    .select('id, work_name, urls, comment, status, reason, result_event_ids, created_at')
-    .eq('user_id', userId).order('created_at', { ascending: false }).limit(30);
-  if (error) return [];
-  return (data ?? []).map((r) => ({
-    id: r.id as string, workName: r.work_name as string, urls: (r.urls as string[]) ?? [],
-    comment: (r.comment as string | null) ?? null, status: r.status as InfoSubmission['status'],
-    reason: (r.reason as string | null) ?? null, resultEventIds: (r.result_event_ids as string[] | null) ?? [],
-    createdAt: r.created_at as string,
-  }));
 }
 
 // ─── ＋α の提案（edit_proposals）─────────────────────────────────
