@@ -1077,13 +1077,20 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
                     <span className="text-[10px] font-bold px-1.5 py-[1px] rounded-full" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>おすすめ</span>
                     <span className="text-[14px] font-bold">Xのアプリから共有するだけ</span>
                   </div>
-                  <div className="flex items-center gap-1.5 mt-2 text-[12px] leading-snug">
-                    <span className="flex items-center gap-1"><Share2 size={14} style={{ color: 'var(--accent-text)' }} />ポストの共有</span>
-                    <span className="text-label-tertiary">→</span>
-                    <span className="flex items-center gap-1"><img src="/icon-512.png" alt="" className="w-4 h-4 rounded-[4px]" />FanHive を選ぶ</span>
-                    <span className="text-label-tertiary">→</span>
-                    <span>AIが予定に</span>
-                  </div>
+                  {/* 手順は縦に番号で（横に並べると小さい画面で細切れに折り返す） */}
+                  <ol className="mt-2 flex flex-col gap-1.5 text-[13px]">
+                    {[
+                      <><Share2 size={14} style={{ color: 'var(--accent-text)' }} />ポストの共有ボタンを押す</>,
+                      <><img src="/icon-512.png" alt="" className="w-4 h-4 rounded-[4px]" />共有先から FanHive を選ぶ</>,
+                      <><Sparkles size={14} style={{ color: 'var(--accent-text)' }} />AIが予定にします</>,
+                    ].map((step, i) => (
+                      <li key={i} className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0"
+                          style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>{i + 1}</span>
+                        <span className="flex items-center gap-1.5">{step}</span>
+                      </li>
+                    ))}
+                  </ol>
                   {isStaff && <p className="text-[12px] text-label-secondary mt-2">公式通販の商品一覧のリンクを貼ると、シリーズごとの予定にまとめます。</p>}
                 </div>
                 <p className="text-[12px] text-label-secondary mt-3">リンクを貼って読み取ることもできます</p>
