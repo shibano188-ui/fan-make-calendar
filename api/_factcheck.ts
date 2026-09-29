@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { noteAiUsage } from './_aiusage.js';
 import { isXPostUrl, fetchTweetContent } from './parse-event.js';
+import { botMayFetch } from './_pace.js';
 
 // 人が直した・足した情報を、リンクの中身と照らし合わせる（2026-09-29 投稿の方法の作り直し）。
 // 使うところ:
@@ -34,6 +35,8 @@ export async function readEvidence(url: string): Promise<string | null> {
     return text && !text.startsWith('URL: ') ? `【Xのポスト ${url}】\n${text}` : null;
   }
   if (!isReadableStore(url)) return null;
+  // 店への機械的なアクセスの間隔を守る（アニメイトは約20分に1回。ボットの中だけ効く。_pace.ts）
+  if (!botMayFetch(new URL(url).host.toLowerCase())) return null;
   try {
     // 転送先は追わない（決まった店の外へ連れ出されないように）
     const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FanHive/1.0)' }, redirect: 'manual', signal: AbortSignal.timeout(8000) });

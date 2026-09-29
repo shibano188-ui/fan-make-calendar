@@ -8,7 +8,7 @@ import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrl
 import { DEMO_POST_TEXT } from '../lib/demoPost';
 import { isPremiumCached, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
 import { affiliatize, buildOffer, primaryOffer, isAffiliateUrl, offerUrl, isNoiseLink } from '../lib/affiliate';
-import { parseEventsApiWithMeta, type ParsedEvent, type ListMeta } from '../lib/parseEvents';
+import { parseEventsApiWithMeta, verifyAgainstPost, type ParsedEvent, type ListMeta } from '../lib/parseEvents';
 import { logAiExtraction, logSearch } from '../lib/dataLogs';
 import { maybeAddWorkAlias } from '../lib/workAliases';
 import { searchProductCandidates, searchProductCandidatesWithMeta, titleMatchScore, retailerSearchUrls, highConfidenceCandidates, labelVariants, offerFromCandidate, buildPinnedOffer, variantMismatch, searchKeyword, type ProductCandidate } from '../lib/searchProduct';
@@ -741,6 +741,32 @@ export default function PostNew() {
     }
     setSaving(true); setError('');
     try {
+      // Xのポストから読んだ日付・タイトルを書き換えていたら、書き換えた値がポストと合うかをAIに照らし合わせる（2026-09-29）。
+      // 運営の確認には回さない。ポストに別の値がはっきり書いてあるときだけ止める（書いていないだけなら通す）
+      const read = appliedRef.current;
+      const srcUrl = aiLogRef.current?.sourceUrl;
+      if (read && srcUrl && /(^|\/\/)(www\.)?(x|twitter)\.com\//.test(srcUrl)) {
+        const changed = {
+          title: !!read.title && title.trim() !== read.title.trim(),
+          date: (read.date ?? '') !== (date || '') || (!dateTBD && (read.endDate || read.date || '') !== (endDate || date || '')),
+          preorderStart: isOrder && (read.preorderStart ?? '') !== (preStart || ''),
+          preorderEnd: isOrder && (read.preorderEnd ?? '') !== (preEnd || ''),
+        };
+        if (changed.title || changed.date || changed.preorderStart || changed.preorderEnd) {
+          const v = await verifyAgainstPost(srcUrl, {
+            title: changed.title ? title.trim() : undefined,
+            date: changed.date ? (date || null) : undefined,
+            endDate: changed.date && !dateTBD ? (endDate || null) : undefined,
+            preorderStart: changed.preorderStart ? (preStart || null) : undefined,
+            preorderEnd: changed.preorderEnd ? (preEnd || null) : undefined,
+          });
+          if (v.verdict === 'contradicted') {
+            setError(`Xのポストの内容と合わないため投稿できません${v.reason ? `（${v.reason}）` : ''}。ポストを確かめて直してください。`);
+            setSaving(false);
+            return;
+          }
+        }
+      }
       const myFollows = await listAllParticipatedWorks(user.id).catch(() => null);
       if (myFollows && !canPostTo(myFollows, workId, workName || workQuery.trim())) {
         setError(FOLLOW_TO_POST);
