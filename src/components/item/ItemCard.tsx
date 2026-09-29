@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Heart, ImageOff } from 'lucide-react';
+import { Heart, ImageOff, Lock } from 'lucide-react';
 import type { CalendarEvent } from '../../types';
 import { useLike, setLike } from '../../lib/likeStore';
 import { deriveStatus, deriveItemType, itemDateLines, todayStr } from '../../design/tokens';
@@ -174,7 +174,14 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
         </button>
         <div className="flex-1 min-w-0 flex flex-col">
           <button onClick={onOpen} className="pressable text-left">
-            {event.workName && <div data-skin-part="card-work" className="text-[11px] text-label-secondary truncate">{event.workName}{event.personal && <span style={{ color: 'var(--accent-text)' }}>・自分用</span>}</div>}
+            {event.workName && <div data-skin-part="card-work" className="text-[11px] text-label-secondary truncate">{event.workName}</div>}
+            {/* 自分用の予定の印。「自分にしか見えない」が一目で分かるよう鍵を添える */}
+            {event.personal && (
+              <span className="inline-flex items-center gap-0.5 self-start mt-0.5 px-1.5 py-[1px] rounded-full text-[10px] font-bold tracking-wide"
+                style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-secondary)' }}>
+                <Lock size={9} strokeWidth={2.6} /> PRIVATE
+              </span>
+            )}
             <div data-skin-part="card-title" className={`text-[15px] font-semibold leading-snug ${layout === 'compact' ? 'line-clamp-2' : 'line-clamp-3'}`}>{event.title}</div>
             <CategoryLine event={event} />
             {price && <div data-skin-part="card-price" className="text-[17px] font-bold mt-0.5 flex items-center gap-1" style={{ color: 'var(--accent-text)' }}>{price}{isSet && setTag}</div>}

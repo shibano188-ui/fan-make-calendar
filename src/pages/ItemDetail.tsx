@@ -4,7 +4,7 @@ import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDay
 import type { CalendarEvent, EventVisit } from '../types';
 import EventEditForm from '../components/item/EventEditForm';
 import StaffEditPanel from '../components/item/StaffEditPanel';
-import { getEventById, getWorkById, getDisplayName, toggleLike, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, addEventVisit, removeEventVisit, getMyStaffRole, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
+import { getEventById, getWorkById, getDisplayName, toggleLike, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, addEventVisit, removeEventVisit, getMyStaffRole, proposeEdit, listEditProposals, type EditProposal, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME, isOfficialUser } from '../lib/constants';
@@ -25,6 +25,7 @@ import { useLike, setLike, getLike } from '../lib/likeStore';
 import ImageCarousel from '../components/item/ImageCarousel';
 import NotifyBell from '../components/item/NotifyBell';
 import AddInfoSheet from '../components/item/AddInfoSheet';
+import PendingProposals, { samePatch } from '../components/item/PendingProposals';
 import LineLoader from '../components/ui/LineLoader';
 import UserProfileModal from '../components/UserProfileModal';
 import { useConfirm } from '../components/ui/ConfirmDialog';
@@ -81,6 +82,8 @@ export default function ItemDetail() {
   const [reported, setReported] = useState(false);
   const confirm = useConfirm();
   const [edits, setEdits] = useState<EventEdit[]>([]);
+  // ＋αの提案（確認中・却下）。投稿者と運営以外の日付・状況・値段・購入リンクはここを通る（2026-09-29）
+  const [proposals, setProposals] = useState<EditProposal[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   // 運営（staff.role='admin'）は誰の予定でも直せる。巡回ボットの予定を各自の担当の作品で直してもらう
   const [isStaff, setIsStaff] = useState(false);
@@ -137,6 +140,7 @@ export default function ItemDetail() {
       listOfferContribs(id).then((cs) => { if (alive) setContribs(cs); });
       listStockReports(id).then((rs) => { if (alive) setStockReports(rs); });
       listEventEdits(id).then((es) => { if (alive) setEdits(es); });
+      listEditProposals(id).then((ps) => { if (alive) setProposals(ps); });
       if (user) listEventVisits(id, user.id).then((vs) => { if (alive) setVisits(vs); }).catch(() => {});
     })();
     return () => { alive = false; };
@@ -259,11 +263,31 @@ export default function ItemDetail() {
       toast(ed ? 'ソースとして追加しました' : '追加できませんでした', ed ? undefined : 'error');
       return !!ed;
     }
+    // 投稿者・運営以外の購入リンクは、ボットがその商品のページか確かめてから足す
+    if (!canFix) {
+      const ok = await submitProposal({ addedOfferUrl: u }, [u]);
+      setAddingLink(false);
+      return ok;
+    }
     const c = await addOfferContrib(event.id, await buildPinnedOffer(u), user.id);
     if (c) setContribs((prev) => [...prev, c]);
     setAddingLink(false); haptic.select();
     toast(c ? '購入リンクとして追加しました' : '追加できませんでした', c ? undefined : 'error');
     return !!c;
+  };
+  // ＋αの提案を送る。同じ中身の確認中の提案があれば、それへの「合っている」になる（数えるのはボット）
+  const submitProposal = async (patch: EditProposal['patch'], evidence: string[] = []): Promise<boolean> => {
+    if (!user) return false;
+    if (proposals.some((p) => p.status === 'pending' && p.createdBy === user.id && samePatch(p.patch, patch))) {
+      toast('同じ内容を確認しています');
+      return true;
+    }
+    const p = await proposeEdit(event.id, patch, evidence);
+    haptic.select();
+    if (!p) { toast('送れませんでした', 'error'); return false; }
+    setProposals((prev) => [p, ...prev]);
+    toast('ありがとうございます。リンクで確かめてから反映します');
+    return true;
   };
   const onRemoveContrib = async (cid: string) => {
     haptic.select();
@@ -333,9 +357,11 @@ export default function ItemDetail() {
     toast('通報しました。この投稿は表示されなくなります');
     goBack();
   };
-  const onSaveEdit = async (patch: EventPatch) => {
+  const onSaveEdit = async (patch: EventPatch, evidence: string[] = []) => {
     if (!user) return;
     setEditing(false);
+    // 投稿者・運営は今までどおりすぐ反映。ほかの人は提案として送り、ボットが確かめてから反映する
+    if (!canFix) return submitProposal(patch, evidence);
     const ed = await addEventEdit(event.id, patch, user.id);
     if (ed) setEdits((prev) => [...prev, ed]);
   };
@@ -572,6 +598,9 @@ export default function ItemDetail() {
                 </button>
               </div>
             </div>
+
+            <PendingProposals event={eff} proposals={proposals} userId={user?.id ?? null}
+              onAgree={(p) => { void submitProposal(p.patch, p.evidenceUrls); }} />
 
             {/* ここから下はタブで切り替える */}
             <DetailTabs tab={tab} onChange={(t) => { haptic.select(); setTab(t); }} />
