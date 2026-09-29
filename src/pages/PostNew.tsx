@@ -3,11 +3,10 @@ import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { X, Plus, Check, Sparkles, Link2, Loader2, Search, Share2, CalendarPlus, Trash2, ChevronLeft } from 'lucide-react';
 import Chip from '../components/ui/Chip';
 import { resolveWorkName, sameWorkName } from '../lib/workName';
-import { getMyStaffRole, searchWorks, getOrCreateWork, createEvents, toggleLike, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, distinguishSameNameByPlace, isOtherPlaceMatch, countUserPostedEvents, listAllParticipatedWorks, type Work } from '../lib/api';
-import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES, GOODS_TAG, ONBOARDING_DEMO_KEY, FEATURE_PREMIUM, oneShotTip } from '../lib/constants';
+import { getMyStaffRole, searchWorks, getOrCreateWork, createEvents, toggleLike, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, distinguishSameNameByPlace, isOtherPlaceMatch, listAllParticipatedWorks, type Work } from '../lib/api';
+import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES, GOODS_TAG, ONBOARDING_DEMO_KEY } from '../lib/constants';
 import { DEMO_POST_TEXT } from '../lib/demoPost';
 import { isPremiumCached, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
-import { trialEligible } from '../lib/billing';
 import { affiliatize, buildOffer, primaryOffer, isAffiliateUrl, offerUrl, isNoiseLink } from '../lib/affiliate';
 import { parseEventsApiWithMeta, type ParsedEvent, type ListMeta } from '../lib/parseEvents';
 import { logAiExtraction, logSearch } from '../lib/dataLogs';
@@ -834,8 +833,6 @@ export default function PostNew() {
           }
         } catch { /* フォローに失敗しても投稿は成立している */ }
       })();
-      // 初月無料の案内を出すかの判定用の投稿数。プロフィールの集計を丸ごと取っていた（7クエリ）のを件数だけにする
-      const postedCount = FEATURE_PREMIUM && !isPremiumCached() ? countUserPostedEvents(user.id).catch(() => 0) : Promise.resolve(0);
       await Promise.all([liked, followed]);
       haptic.select();
       // 解析で複数見つかった残りがあれば、戻らずに残りの一覧を出して続けて投稿できるようにする
@@ -860,18 +857,6 @@ export default function PostNew() {
         ? `投稿しました（フォローは${FREE_FOLLOW_LIMIT}作品までのため追加していません）`
         : '投稿しました');
       setSaving(false);
-      // 初月無料の条件を満たした瞬間だけ、帰り道をプランの案内に変える。
-      // ⚠️ **一度きり**であること。条件は「5件以上」なので、素通しにすると
-      // 5件を超えた無料会員は**投稿するたび毎回**この画面に飛ばされる（実際そうなっていた）。
-      // 投稿のたびに割り込まれるのは、宣伝として逆効果でもある。
-      // oneShotTip は初回だけ true を返して印を残す。
-      if (FEATURE_PREMIUM && !isPremiumCached()) {
-        const posted = await postedCount;
-        if (trialEligible(posted) && oneShotTip('trial_ready')) {
-          navigate('/premium', { replace: true });
-          return;
-        }
-      }
       // 一覧から選んだ候補を投稿したときは、積んだ履歴の分も戻る
       if (fromList && ((window.history.state as { idx?: number } | null)?.idx ?? 0) >= 2) navigate(-2);
       else goBack();

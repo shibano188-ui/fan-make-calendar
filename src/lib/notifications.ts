@@ -7,7 +7,7 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import type { CalendarEvent } from '../types';
 import { deriveItemType, datePeriod } from '../design/tokens';
 import { loadNotifyEventIds, loadNotifyLeadDays } from './constants';
-import { waitForTrackingDecision } from './att';
+import { waitForTrackingDialog } from './att';
 
 // ローカル通知が使えるか（ネイティブ かつ プラグイン同梱の新APK）。
 // 旧APK/PWAでは false になり、機能ごと無効化される。
@@ -104,19 +104,24 @@ export async function notificationPermission(): Promise<'granted' | 'denied' | '
   }
 }
 
-/** 通知許可を確認・要求。許可されていれば true。 */
+/** 通知が許可された直後に出す合図。useNotificationScheduler がプッシュの宛先を登録し直す */
+export const NOTIFY_PERMISSION_EVENT = 'fan-notify-permission';
+
+/** 通知許可を確認・要求。許可されていれば true。
+ *  **人が押したとき（ベル・通知の設定・加入直後の設定）だけ呼ぶこと**。起動時の処理から呼ぶと、
+ *  オンボーディングの途中に許可のダイアログが割り込む（2026-09-29 柴野。起動時は notificationPermission で見るだけ）。 */
 export async function ensurePermission(): Promise<boolean> {
   if (!native()) return false;
   const cur = await LocalNotifications.checkPermissions();
   if (cur.display === 'granted') return true;
   if (cur.display === 'denied') return false;
-  // iOS: ATTの回答が出るまで通知を聞かない。**起動直後の rescheduleAll がここを通る**ので、
-  // 塞がないと出したばかりのATTのダイアログが通知のダイアログに覆われて押せなくなる
-  // （2026-08-17 実機で確認。Guideline 2.1 の「ATTが見つからない」の実態がこれ）。
-  // ベルや設定から呼ばれるときは、ATTは既に答え済みなので即座に返る。
-  await waitForTrackingDecision();
+  // iOS: ATTのダイアログが出ている最中なら閉じるまで待つ。重ねると片方が表示されないまま消える
+  // （2026-08-17 実機で確認。Guideline 2.1 の「ATTが見つからない」の実態がこれ）
+  await waitForTrackingDialog();
   const req = await LocalNotifications.requestPermissions();
-  return req.display === 'granted';
+  const ok = req.display === 'granted';
+  if (ok) window.dispatchEvent(new Event(NOTIFY_PERMISSION_EVENT));
+  return ok;
 }
 
 /** 1予定分を組み直す（既存を消してから未来分のみ登録）。 */
@@ -174,8 +179,8 @@ const IOS_PENDING_LIMIT = 60;
 /** 起動/復帰時に全体を組み直す。events から「いいね済み×ベルON×未来」を抽出。 */
 export async function rescheduleAll(events: CalendarEvent[]): Promise<void> {
   if (!native()) return;
-  const ok = await ensurePermission();
-  if (!ok) return;
+  // 起動・復帰のたびに通るので、許可は聞かずに見るだけ（聞くのはベルを押したとき）
+  if ((await notificationPermission()) !== 'granted') return;
   const pending = await LocalNotifications.getPending();
   if (pending.notifications.length) await LocalNotifications.cancel(pending);
 

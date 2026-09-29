@@ -7,10 +7,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
 
-    /// トラッキング許可(ATT)をこの起動で既に要求したか。
-    /// applicationDidBecomeActive は復帰のたびに呼ばれるので、二重に出さないための印。
-    private var didRequestTracking = false
-
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
         return true
@@ -32,31 +28,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func applicationDidBecomeActive(_ application: UIApplication) {
         // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
-        requestTrackingAuthorizationIfNeeded()
-    }
-
-    /// 広告のトラッキング許可(ATT)を要求する。
-    ///
-    /// **JS側（AdMobプラグイン）から要求してはいけない**。Capacitor はプラグインの呼び出しを
-    /// `DispatchQueue(label: "bridge")`＝バックグラウンドスレッドで実行するため、
-    /// `ATTrackingManager.requestTrackingAuthorization` がダイアログを出さないまま完了することがある。
-    /// iOSはアプリが **active** かつ主スレッドから呼んだときにしかダイアログを出さない。
-    /// （2026-08-17 Guideline 2.1「ATTの許可要求が見つからない」で却下された経路がこれ）
-    ///
-    /// ここで出すと、WebView の読み込みや通知の許可より**先**に出る。
-    /// 通知の許可は JS 側が `waitForTrackingDecision()` でこの回答を待ってから聞くので、
-    /// 2つのダイアログが重なって片方が消える事故も起きない。
-    private func requestTrackingAuthorizationIfNeeded() {
-        guard #available(iOS 14, *), !didRequestTracking else { return }
-        didRequestTracking = true
-        // 起動直後の1フレーム目はまだウインドウが出ておらず、そこに出すと無視されることがある。
-        // active になってから少しだけ待って主スレッドで要求する。
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            guard ATTrackingManager.trackingAuthorizationStatus == .notDetermined else { return }
-            ATTrackingManager.requestTrackingAuthorization { _ in
-                // 結果は見ない。断られてもパーソナライズされないだけで、広告自体は出る。
-            }
-        }
     }
 
     func applicationWillTerminate(_ application: UIApplication) {
@@ -76,4 +47,56 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
     }
 
+}
+
+/// Capacitor の画面。アプリ内だけのプラグイン（TrackingPlugin）をここで登録する。
+/// Main.storyboard の customClass がこれを指している。
+class MainViewController: CAPBridgeViewController {
+    override open func capacitorDidLoad() {
+        bridge?.registerPluginInstance(TrackingPlugin())
+    }
+}
+
+/// 広告のトラッキング許可(ATT)を、JS から決めたタイミングで要求する口。
+///
+/// 前は AppDelegate が起動直後に出していたが、それだとオンボーディングの途中に割り込む。
+/// 今は JS（src/lib/att.ts）が「オンボーディングを終えたあと」に呼ぶ（2026-09-29 柴野）。
+///
+/// **AdMob プラグインの requestTrackingAuthorization は使わない**。Capacitor はプラグインの呼び出しを
+/// `DispatchQueue(label: "bridge")`＝バックグラウンドスレッドで実行するため、ダイアログが出ないまま
+/// 完了することがある（2026-08-17 Guideline 2.1「ATTの許可要求が見つからない」で却下された経路）。
+/// iOSはアプリが **active** かつ主スレッドから呼んだときにしかダイアログを出さないので、ここで主スレッドに移す。
+@objc(TrackingPlugin)
+public class TrackingPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "TrackingPlugin"
+    public let jsName = "Tracking"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "request", returnType: CAPPluginReturnPromise)
+    ]
+
+    /// 回答が出るまで待って、状態（authorized / denied / restricted / notDetermined）を返す。
+    /// 既に答えてある人には何も出さずに今の状態を返す。
+    @objc func request(_ call: CAPPluginCall) {
+        guard #available(iOS 14, *) else { call.resolve(["status": "authorized"]); return }
+        DispatchQueue.main.async {
+            guard ATTrackingManager.trackingAuthorizationStatus == .notDetermined,
+                  UIApplication.shared.applicationState == .active else {
+                call.resolve(["status": Self.name(ATTrackingManager.trackingAuthorizationStatus)])
+                return
+            }
+            ATTrackingManager.requestTrackingAuthorization { status in
+                call.resolve(["status": Self.name(status)])
+            }
+        }
+    }
+
+    @available(iOS 14, *)
+    private static func name(_ s: ATTrackingManager.AuthorizationStatus) -> String {
+        switch s {
+        case .authorized: return "authorized"
+        case .denied: return "denied"
+        case .restricted: return "restricted"
+        default: return "notDetermined"
+        }
+    }
 }

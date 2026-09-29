@@ -3,9 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { getUserPublicProfile } from '../lib/api';
 import { usePremium, FREE_FOLLOW_LIMIT } from '../lib/premium';
-import { PLANS, planOf, FREE_TRIAL_POSTS, trialEligible, billingSupported, billingNotConfigured, startPurchase, restorePurchase, lastPurchaseError, yen, type PlanId } from '../lib/billing';
+import { PLANS, planOf, trialAvailable, billingSupported, billingNotConfigured, startPurchase, restorePurchase, lastPurchaseError, yen, type PlanId } from '../lib/billing';
 import { useToast } from '../components/ui/Toast';
 import { haptic } from '../lib/haptics';
 
@@ -32,35 +31,29 @@ export default function Premium() {
   const toast = useToast();
   const premium = usePremium();
 
-  // 初月無料の出し方がストアで違う（2026-08-14 本人判断でA案）。
-  //  Play: 「デベロッパー指定」の特典を、5件投稿した人にだけアプリから明示的に適用する。
-  //  App Store: 導入価格に条件を付けられず、**初めて買う人全員**にAppleが自動で適用する。
-  //   → iOSは投稿数に関係なく初月無料。「あと◯件」の案内も出さない。
+  // 初月無料は**初めて買う人全員**（2026-09-29 柴野。前は Android だけ「5件投稿で初月無料」だった）。
+  //  App Store: 導入価格は Apple が「初めての人」を判定して自動で当てる。
+  //  Play: 「デベロッパー指定」の特典をアプリから明示的に当てる。買ったことがある人には当てない（trialAvailable）。
   const ios = Capacitor.getPlatform() === 'ios';
 
-  const [posted, setPosted] = useState<number | null>(null);
   const [plan, setPlan] = useState<PlanId>('monthly');  // 既定は月払い（2026-08-10 本人確定）
   // iOSは価格を隠さない。月/年を最初から両方出す（3.1.2(c)）
   const [allPlans, setAllPlans] = useState(ios);
   const [busy, setBusy] = useState(false);
+  // 初月無料が付くか。確かめ終えるまでは付く前提で出す（ほとんどの人は初めて買う）
+  const [trial, setTrial] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
     let alive = true;
-    getUserPublicProfile(user.id)
-      .then((p) => { if (alive) setPosted(p.postedCount); })
-      .catch(() => {});
+    trialAvailable().then((v) => { if (alive) setTrial(v); });
     return () => { alive = false; };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const eligible = ios || (posted !== null && trialEligible(posted));
-  const remain = posted === null ? FREE_TRIAL_POSTS : Math.max(0, FREE_TRIAL_POSTS - posted);
   // 初月無料は**付ける/外すの選択にしない**（iOS・Android とも）。
   //  iOS: Appleが「無料お試しを足したり外したりするトグルは、自動更新の定期購読に入ることを
   //       分かりにくくする」として 3.1.2(c) で却下（2026-08-21 ビルド6）。
   //  Android: 2026-09-21 本人判断。自分で気づいて ON にしないと無料にならない作りは詐欺的。
   //       対象の人には黙って初月無料を当てる。
-  const trial = eligible;
   const selected = planOf(plan);
   const shown = allPlans ? PLANS : PLANS.filter((p) => p.id === plan);
 
@@ -127,7 +120,8 @@ export default function Premium() {
           </button>
         </div>
 
-        <div className="flex-1 px-5 pb-4">
+        {/* 購入ボタンはプランのすぐ下に置く。本文を flex-1 で伸ばすと、画面の一番下まで押し下げられて見つけにくい（2026-09-29 柴野） */}
+        <div className="px-5 pb-4">
           <h1 className="text-[24px] font-bold leading-tight">{headline}</h1>
           <p className="text-[13px] text-label-secondary mt-2 leading-relaxed">{subline}</p>
 
@@ -155,7 +149,7 @@ export default function Premium() {
                   <span className="w-[82px] text-center font-semibold" style={{ color: 'var(--accent-text)' }}>プレミアム</span>
                 </div>
                 {[
-                  ['受付開始のお知らせ', '翌朝まとめて', '始まった時点で'],
+                  ['受付開始のお知らせ', '翌朝まとめて', 'すぐに'],
                   ['値下げ・再入荷', 'なし', 'お知らせ'],
                   // 言葉から作るテーマ（2026-08-23）。無料でも作れるが、保存は1つまで
                   ['作れるテーマ', '1つまで', '何個でも'],
@@ -173,21 +167,6 @@ export default function Premium() {
                   </div>
                 ))}
               </div>
-
-              {/* 初月無料までの距離。投稿を促す仕掛けを兼ねる */}
-              {posted !== null && !eligible && (
-                <button onClick={() => { haptic.select(); navigate('/post'); }}
-                  className="pressable w-full text-left mt-4 flex items-center gap-3">
-                  <div className="flex-1">
-                    <p className="text-[13px] font-semibold">あと{remain}件の投稿で初月無料</p>
-                    <div className="h-1 rounded-full mt-1.5 overflow-hidden" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-                      <div className="h-full rounded-full"
-                        style={{ width: `${(posted / FREE_TRIAL_POSTS) * 100}%`, backgroundColor: 'var(--accent-color)' }} />
-                    </div>
-                  </div>
-                  <span className="text-[12px] font-semibold flex-shrink-0" style={{ color: 'var(--accent-text)' }}>投稿する</span>
-                </button>
-              )}
 
               {/* プラン。既定は年払いだけ見せ、月払いは「すべてのプランを見る」の裏に置く */}
               <div className="mt-5 flex flex-col gap-2">
