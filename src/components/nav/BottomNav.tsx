@@ -98,6 +98,7 @@ export default function BottomNav() {
         <button
           onClick={() => { haptic.select(); setChooser(true); }}
           aria-label="情報を追加"
+          data-tour="post"
           data-skin-part="nav-add"
           className="pressable relative w-11 h-11 mx-1 rounded-full flex items-center justify-center flex-shrink-0"
           style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)', boxShadow: '0 2px 10px rgba(0,0,0,0.25)' }}

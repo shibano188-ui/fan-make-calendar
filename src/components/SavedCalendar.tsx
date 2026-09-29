@@ -124,8 +124,14 @@ export default function SavedCalendar({ events, scope, anchor, setAnchor, onOpen
     if (picked !== null || selected === day) setPicked(day);
     setSelected(day);
   };
+  // 案内が次の段階（真ん中の「＋」など）へ進んだら、開けていたパネルを閉じる（下のボタンに重なるので）
+  const hadFocus = useRef(false);
   useEffect(() => {
-    if (!focusDay) return;
+    if (!focusDay) {
+      if (hadFocus.current) { hadFocus.current = false; setPicked(null); }
+      return;
+    }
+    hadFocus.current = true;
     setSelected(focusDay);
     setPicked(focusDay);
   }, [focusDay]);

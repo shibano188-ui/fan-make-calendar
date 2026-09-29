@@ -489,8 +489,8 @@ export default function Saved() {
 
       {/* 自分用の予定を作る入口（2026-09-29）。みんなに公開する情報は下の真ん中の「＋」から。
           日付は表示中の日（月表示なら今日か、見ている月の1日）を入れておく */}
-      {!tourStep && (
-        <button onClick={() => { haptic.select(); navigate(`/personal/new?date=${view === 'list' || includesToday(view, anchor, today) ? today : anchor}`); }}
+      {(!tourStep || tourStep === 'personal') && (
+        <button data-tour="personal" onClick={() => { haptic.select(); navigate(`/personal/new?date=${view === 'list' || includesToday(view, anchor, today) ? today : anchor}`); }}
           aria-label="自分の予定を追加"
           // 下の真ん中の「＋」（みんなに公開する情報）と見分けるため、塗りではなく白地にカレンダーの印
           className="pressable material-thick fixed right-4 z-30 w-12 h-12 rounded-full flex items-center justify-center shadow-float"

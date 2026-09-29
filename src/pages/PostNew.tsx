@@ -1070,16 +1070,24 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
             )}
             {!parsedList ? (
               <>
-                {/* 一番速い経路を先に出す。貼り付け欄を上に置くと「毎回コピーしてくるもの」と
-                    読まれて、共有ひとつで済むことが伝わらない */}
-                <div className="flex items-start gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-                  <Share2 size={15} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--accent-text)' }} />
-                  <p className="text-[12px] leading-relaxed">
-                    XのポストをFanHiveに共有するだけ！<br />AIが自動で予定にします。<br />
-                    {isStaff && <span className="text-label-secondary">公式通販の商品一覧のリンクを貼ると、シリーズごとの予定にまとめます。</span>}
-                  </p>
+                {/* 一番速い経路（Xアプリから共有）を先に、大きく出す。リンクを貼る欄を上に置くと
+                    「毎回コピーしてくるもの」と読まれて、共有ひとつで済むことが伝わらない（2026-09-30 柴野: こちらをおすすめに） */}
+                <div className="rounded-[10px] px-3 py-3" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 12%, transparent)' }}>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold px-1.5 py-[1px] rounded-full" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>おすすめ</span>
+                    <span className="text-[14px] font-bold">Xのアプリから共有するだけ</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-2 text-[12px] leading-snug">
+                    <span className="flex items-center gap-1"><Share2 size={14} style={{ color: 'var(--accent-text)' }} />ポストの共有</span>
+                    <span className="text-label-tertiary">→</span>
+                    <span className="flex items-center gap-1"><img src="/icon-512.png" alt="" className="w-4 h-4 rounded-[4px]" />FanHive を選ぶ</span>
+                    <span className="text-label-tertiary">→</span>
+                    <span>AIが予定に</span>
+                  </div>
+                  {isStaff && <p className="text-[12px] text-label-secondary mt-2">公式通販の商品一覧のリンクを貼ると、シリーズごとの予定にまとめます。</p>}
                 </div>
-                <div className="flex gap-2 mt-3">
+                <p className="text-[12px] text-label-secondary mt-3">リンクを貼って読み取ることもできます</p>
+                <div className="flex gap-2 mt-1.5">
                   <div className="flex-1 relative">
                     <Link2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary pointer-events-none" />
                     <input value={aiText} onChange={(e) => setAiText(e.target.value)} placeholder={isStaff ? 'Xのポスト・公式通販の一覧のリンク' : 'Xのポストのリンク'}

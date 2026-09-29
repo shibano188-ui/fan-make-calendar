@@ -132,7 +132,7 @@ export default function SubmitInfo() {
 
           <div className={labelCls}>ひとこと（任意）</div>
           <textarea value={comment} onChange={(e) => setComment(e.target.value.slice(0, 500))} rows={3}
-            placeholder="例: 受注は10/20まで。会場限定もあるみたいです"
+            placeholder="商品名や発売日、在庫状況などを書くと、登録の精度が上がります"
             className={`${inputCls} resize-none`} style={inputStyle} />
 
           <button onClick={send} disabled={!ready}

@@ -184,6 +184,14 @@
   from { opacity: 0; transform: translateY(-12px); }
   to   { opacity: 1; transform: none; }
 }
+/* 案内の「Xから共有するだけ」のデモ。3コマを順に出す（OnboardingTour の ShareDemo） */
+@keyframes shareDemo {
+  0%   { opacity: 0; transform: translateY(4px); }
+  5%   { opacity: 1; transform: none; }
+  30%  { opacity: 1; transform: none; }
+  34%  { opacity: 0; transform: translateY(-4px); }
+  100% { opacity: 0; }
+}
 @keyframes tourPulse {
   0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-color) 70%, transparent); }
   70%  { box-shadow: 0 0 0 10px transparent; }
