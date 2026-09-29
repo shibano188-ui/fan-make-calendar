@@ -170,6 +170,38 @@
   filter: drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff) drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff)
           drop-shadow(0 0.5px 1px rgba(0,0,0,0.18));
 }
+/* 起動のロゴ（LaunchLogo）。六角形がはまって巣になり、消える */
+@keyframes introCell {
+  from { opacity: 0; transform: scale(0.2); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes introHiveOut {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.82); }
+}
+/* FanHive のマークが組み上がる（FanHiveMark の animate） */
+@keyframes markBase {
+  from { opacity: 0; transform: scale(0.35); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes markGrowY {
+  from { opacity: 0; transform: scaleY(0); }
+  to   { opacity: 1; transform: scaleY(1); }
+}
+@keyframes markGrowX {
+  from { opacity: 0; transform: scaleX(0); }
+  to   { opacity: 1; transform: scaleX(1); }
+}
+@keyframes markBeeFly {
+  0%   { opacity: 0; transform: translate(-150px, 90px) rotate(-18deg) scale(0.55); }
+  15%  { opacity: 1; }
+  60%  { transform: translate(-30px, -18px) rotate(6deg) scale(1.08); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes markWing {
+  from { transform: scaleY(1); }
+  to   { transform: scaleY(0.45); }
+}
 /* 探すの「グッズ⇄イベント」の文字の入れ替え */
 @keyframes labelSwap {
   from { opacity: 0; transform: translateY(45%); filter: blur(2px); }
