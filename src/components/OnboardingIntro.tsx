@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { preloadOnboarding } from '../lib/onboardingPreload';
 import { haptic } from '../lib/haptics';
+import FanHiveMark from './FanHiveMark';
 
 // オンボーディングの最初の1枚: ようこそ（2026-09-30 柴野「いきなり作品を選ぶから始まると萎える」）。
 //
-// 黒地に黄色い六角形が1つずつはまって巣になり、真ん中が FanHive のアイコンに変わる（FanHive＝ハイブ＝巣）。
+// 黒地に黄色い六角形が1つずつはまって巣になり、真ん中から FanHive のマークが組み上がる（FanHive＝ハイブ＝巣）。
+// マークは地 → F・H の棒 → 蜂が飛んできて H の横棒に止まる（FanHiveMark・描き起こしたロゴ）。
 // そのあと上へずれて、ようこそと「はじめる」が出る。
 // 参考にした決まりごと（Netflix・TikTok の起動、各社のスプラッシュのガイド）:
 //   - 1秒前後で終える。わざと待たせない（先読みが遅いときだけ、そろうまで点で待つ）
@@ -39,7 +41,7 @@ export default function OnboardingIntro({ onStart }: { onStart: () => void }) {
   useEffect(() => {
     let alive = true;
     void preloadOnboarding().then(() => { if (alive) setLoaded(true); });
-    const t = reduced ? 0 : window.setTimeout(() => alive && setAnimDone(true), 1250);
+    const t = reduced ? 0 : window.setTimeout(() => alive && setAnimDone(true), 1850);
     return () => { alive = false; clearTimeout(t); };
   }, []);
   const ready = loaded && animDone;
@@ -51,24 +53,25 @@ export default function OnboardingIntro({ onStart }: { onStart: () => void }) {
     <div className="fixed inset-0 z-[310] max-w-app mx-auto flex flex-col items-center justify-center px-8"
       style={{ backgroundColor: BG, color: '#fff' }}>
       {/* ロゴ。巣が組み上がってアイコンに変わり、少し上へ */}
-      <div className="relative w-[120px] h-[120px]" style={{ animation: anim('introLift', 980, 480, 'cubic-bezier(0.32,0.72,0,1)') }}>
+      <div className="relative w-[120px] h-[120px]" style={{ animation: anim('introLift', 1560, 480, 'cubic-bezier(0.32,0.72,0,1)') }}>
         <svg viewBox="0 0 120 120" className="absolute inset-0 w-full h-full" aria-hidden
-          style={{ animation: anim('introHiveOut', 700, 200, 'ease-in') }}>
+          style={{ animation: anim('introHiveOut', 620, 200, 'ease-in') }}>
           {CELLS.map(([cx, cy], i) => (
             <polygon key={i} points={hexPoints(cx, cy, R - 1.2)} fill={HONEY}
               opacity={i === 6 ? 1 : 0.55 + (i % 3) * 0.15}
-              style={{ transformOrigin: `${cx}px ${cy}px`, animation: anim('introCell', i === 6 ? 420 : i * 55) }} />
+              style={{ transformOrigin: `${cx}px ${cy}px`, animation: anim('introCell', i === 6 ? 380 : i * 50) }} />
           ))}
         </svg>
-        <img src="/icon-512.png" alt="FanHive" className="absolute inset-[10px] rounded-[24px]"
-          // 巣が消えきる直前から出す（重なる時間を短くして、半透明が濁って見えないように）
-          style={{ animation: anim('introIcon', 820, 520) }} />
+        {/* 巣が消えるところから、マークが組み上がる（地 → F・H の棒 → 蜂が飛んできて止まる） */}
+        <div className="absolute inset-[10px] rounded-[24px] overflow-hidden">
+          {reduced ? <FanHiveMark size={100} /> : <FanHiveMark size={100} animate delayMs={640} />}
+        </div>
       </div>
 
-      <p className="text-[24px] font-bold mt-6 tracking-tight" style={{ animation: anim('introText', 1040, 420, 'cubic-bezier(0.32,0.72,0,1)') }}>
+      <p className="text-[24px] font-bold mt-6 tracking-tight" style={{ animation: anim('introText', 1620, 420, 'cubic-bezier(0.32,0.72,0,1)') }}>
         FanHive へようこそ
       </p>
-      <p className="text-[14px] leading-relaxed text-center mt-3" style={{ color: 'rgba(255,255,255,0.72)', animation: anim('introText', 1120, 420, 'cubic-bezier(0.32,0.72,0,1)') }}>
+      <p className="text-[14px] leading-relaxed text-center mt-3" style={{ color: 'rgba(255,255,255,0.72)', animation: anim('introText', 1700, 420, 'cubic-bezier(0.32,0.72,0,1)') }}>
         推しのグッズとイベントを<br />見逃さないためのアプリです。<br />はじめに使い方を一緒に確認しましょう！
       </p>
 
