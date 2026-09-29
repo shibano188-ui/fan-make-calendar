@@ -1967,3 +1967,17 @@ export async function listNotices(userId: string, days = 60): Promise<Notice[]> 
     createdAt: r.created_at as string,
   }));
 }
+
+// ─── バグ・改善の報告（feedbacks）──────────────────────────────
+// マイページから。読めるのは運営だけ（RLS）。調べるための情報（端末・ビルド）を一緒に送る
+
+export type FeedbackKind = 'bug' | 'improve' | 'feature' | 'other';
+
+export async function sendFeedback(kind: FeedbackKind, body: string, meta: { platform: string; build: string; page?: string }): Promise<void> {
+  const { error } = await supabase.from('feedbacks').insert({
+    kind, body: body.trim().slice(0, 2000),
+    platform: meta.platform, build: meta.build, page: meta.page ?? null,
+    user_agent: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 300) : null,
+  });
+  if (error) throw error;
+}

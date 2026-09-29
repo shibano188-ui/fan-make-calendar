@@ -109,8 +109,7 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
   // カレンダーの「この日に追加」から来たときは、その日付を入れて開く（下書きの日付より優先）
   const dateParam = searchParams.get('date');
   const presetDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null;
-  // 自分用の予定は出かける予定が多いので、最初はイベントにしておく
-  const [type, setType] = useState<ItemType>(draft0?.type ?? (personal ? 'event' : 'goods'));
+  const [type, setType] = useState<ItemType>(draft0?.type ?? 'goods');  // 自分用の予定も最初はグッズ（柴野 2026-09-30）
   const [workId, setWorkId] = useState<string | null>(draft0?.workId ?? null);
   const [workName, setWorkName] = useState<string>(draft0?.workName ?? '');
   const [workQuery, setWorkQuery] = useState<string>(draft0?.workQuery ?? '');
@@ -1011,10 +1010,11 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
       <div className="mx-auto w-full max-w-app">
         {/* ヘッダー */}
         <div className="sticky top-0 z-20 flex items-center justify-between px-3 py-2.5 material-bar scroll-edge" style={{ paddingTop: 'calc(var(--sat) + 10px)' }}>
-          {/* 入力中(キーボード表示中)は最初のタップがblurに食われて閉じないため pointerDown で確実に閉じる */}
+          {/* 閉じるのは指を離したとき（onClick）。触れた瞬間に閉じると、指を離した分のタップが戻った先の画面に届き、
+              ホームの一番上（課金の案内）が開いていた（2026-09-30）。入力中の1回目のタップがキーボードに取られないよう、
+              触れた瞬間はフォーカスを外さない（preventDefault）だけにする */}
           <div className="flex items-center gap-1 min-w-0">
-            {/* 入力中(キーボード表示中)は最初のタップがblurに食われて閉じないため pointerDown で確実に閉じる */}
-            <button onPointerDown={(e) => { e.preventDefault(); onClose(); }} aria-label="閉じる" className="pressable tap-44 p-1"><X size={22} /></button>
+            <button onPointerDown={(e) => e.preventDefault()} onClick={onClose} aria-label="閉じる" className="pressable tap-44 p-1"><X size={22} /></button>
             <span className="font-semibold truncate">{personal ? (editingPersonal ? '自分の予定を直す' : '自分の予定を追加') : demo ? '投稿（例）' : '投稿'}</span>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">

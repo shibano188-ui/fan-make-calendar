@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Bell, Crown, CalendarSync, Palette, Pencil, Check, MessageCircle, MessageSquareText, MapPin, UserRound, Star, Trash2 } from 'lucide-react';
+import { ChevronRight, Bell, Crown, CalendarSync, Palette, Pencil, Check, MessageCircle, MessageSquareText, MapPin, UserRound, Star, Trash2, Lightbulb } from 'lucide-react';
 
 // マイページ下部の規約類。iOS は画面を同梱していて住所が capacitor://localhost になるので、
 // 本番の URL を固定で開く（openExternal は http(s) しか開かない）
@@ -459,6 +459,13 @@ export default function MyPage() {
           className="pressable w-full flex items-center gap-2 px-3 py-2.5 text-left">
           <Bell size={16} className="text-label-secondary" />
           <span className="text-[14px] flex-1">通知の設定</span>
+          <ChevronRight size={16} className="text-label-tertiary" />
+        </button>
+        {/* バグ・改善の報告（2026-09-30）。何でも自由に書いてもらい、運営だけが読む */}
+        <button onClick={() => { haptic.select(); navigate('/feedback'); }}
+          className="pressable w-full flex items-center gap-2 px-3 py-2.5 text-left">
+          <Lightbulb size={16} className="text-label-secondary" />
+          <span className="text-[14px] flex-1">バグ・改善の報告</span>
           <ChevronRight size={16} className="text-label-tertiary" />
         </button>
         {/* 外部カレンダー連携（プレミアム）。購読URLだけで Apple / Google / Outlook に入れる */}

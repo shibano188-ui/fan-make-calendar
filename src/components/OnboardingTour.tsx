@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Heart, Bell, BellRing, BellOff, CalendarCheck, CalendarPlus, UserRound, Plus, Share2, Check } from 'lucide-react';
+import { Heart, Bell, BellRing, BellOff, CalendarCheck, CalendarPlus, UserRound, Plus, Share, Check, MessageCircle, Repeat2, BarChart2, Bookmark } from 'lucide-react';
 import { notificationPermission } from '../lib/notifications';
 import type { CalendarEvent } from '../types';
 import { setAdsSuppressed } from '../lib/adSuppress';
@@ -88,7 +88,7 @@ const COPY: Record<TourStep, { icon: typeof Heart; title: string; body?: string 
   // 本文は通知の設定（何日前か）に合わせて Bubble で組み立てる
   done: { icon: BellRing, title: 'これで通知が届きます！' },
   post: { icon: Plus, title: '見つけた情報はここから', body: 'Xで見つけたら、ポストの共有ボタンから FanHive を選ぶだけ。AIが予定にします。' },
-  personal: { icon: CalendarPlus, title: '自分だけの予定はここから', body: 'ほかの人には見えない、自分用の予定を作れます。' },
+  personal: { icon: CalendarPlus, title: '自分だけの予定はここから', body: 'カレンダーのこのボタンから、ほかの人には見えない自分用の予定を作れます。' },
   account: { icon: UserRound, title: 'メールを登録しておくと安心です', body: '機種変更やアプリの入れ直しのときも、フォローやカレンダーをそのまま引き継げます。登録はあとからいつでもできます。' },
 };
 
@@ -293,7 +293,8 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
       {hole ? (
         <>
           {/* 暗い幕（抜いた穴のまわりを大きな影で塗る。影は指を通すので、下の4枚で止める） */}
-          <div className="absolute" style={{ ...hole, borderRadius: radius, boxShadow: `0 0 0 200vmax ${DIM}`, transition: 'all 0.25s ease' }} />
+          {/* 自分だけの予定の段は、カレンダーの画面だと分かるよう幕を薄くする（濃いと何の画面か分からない） */}
+          <div className="absolute" style={{ ...hole, borderRadius: radius, boxShadow: `0 0 0 200vmax ${step === 'personal' ? 'rgba(0,0,0,0.45)' : DIM}`, transition: 'all 0.25s ease' }} />
           <div className="absolute inset-x-0 top-0 pointer-events-auto" style={{ height: Math.max(hole.top, 0) }} />
           <div className="absolute inset-x-0 bottom-0 pointer-events-auto" style={{ top: hole.top + hole.height }} />
           <div className="absolute left-0 pointer-events-auto" style={{ top: hole.top, height: hole.height, width: Math.max(hole.left, 0) }} />
@@ -376,15 +377,18 @@ function ShareDemo() {
   const anim = (i: number) => ({ ...bg, opacity: 0, animation: `shareDemo 5.4s ${i * 1.8}s infinite` });
   return (
     <div className="relative h-[56px] mt-2.5" aria-hidden>
-      <div className={frame} style={anim(0)}>
-        <span className="text-[15px] font-black">𝕏</span>
-        <div className="flex-1 min-w-0">
-          <div className="h-1.5 rounded-full w-3/4" style={{ backgroundColor: 'var(--fill-secondary, rgba(120,120,128,0.25))' }} />
-          <div className="h-1.5 rounded-full w-1/2 mt-1.5" style={{ backgroundColor: 'var(--fill-secondary, rgba(120,120,128,0.25))' }} />
+      {/* 1コマ目: Xのポスト。下の操作の並び（返信・リポスト・いいね・表示回数・ブックマーク・共有）を出して、その中の共有だと分かるようにする */}
+      <div className={`${frame} flex-col !items-stretch !gap-1.5 !py-1.5`} style={anim(0)}>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[13px] font-black leading-none">𝕏</span>
+          <div className="flex-1 h-1.5 rounded-full" style={{ backgroundColor: 'var(--fill-secondary, rgba(120,120,128,0.25))' }} />
         </div>
-        <span className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)', animation: 'tourPulse 1.4s ease-out infinite' }}>
-          <Share2 size={15} />
-        </span>
+        <div className="flex items-center justify-between px-0.5 text-label-tertiary">
+          <MessageCircle size={13} /><Repeat2 size={13} /><Heart size={13} /><BarChart2 size={13} /><Bookmark size={13} />
+          <span className="w-6 h-6 -my-1 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)', animation: 'tourPulse 1.4s ease-out infinite' }}>
+            <Share size={13} />
+          </span>
+        </div>
       </div>
       <div className={frame} style={anim(1)}>
         <span className="text-[11px] font-semibold whitespace-nowrap">共有先</span>

@@ -66,7 +66,7 @@ export default function SubmitInfo() {
     <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-primary)' }}>
       <div className="mx-auto w-full max-w-app">
         <div className="sticky top-0 z-20 flex items-center gap-1 px-3 py-2.5 material-bar scroll-edge" style={{ paddingTop: 'calc(var(--sat) + 10px)' }}>
-          <button onPointerDown={(e) => { e.preventDefault(); goBack(); }} aria-label="閉じる" className="pressable tap-44 p-1"><X size={22} /></button>
+          <button onPointerDown={(e) => e.preventDefault()} onClick={goBack} aria-label="閉じる" className="pressable tap-44 p-1"><X size={22} /></button>
           <span className="font-semibold">情報を送る</span>
         </div>
 
