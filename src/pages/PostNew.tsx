@@ -483,7 +483,7 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
         code === 'rate_limited' ? '混雑しています。少し待って再試行'
         : code === 'unsupported_url' ? (isStaff
           ? '読み取れるのはXのポストと、公式通販の商品一覧ページ（ちいかわマーケットなど）です。販売先のURLは下の「購入・予約ページのURL」へ、告知は本文を貼り付けてください'
-          : '読み取れるのはXのポストです。販売先のURLは下の「購入・予約ページのURL」へ、告知は本文を貼り付けてください')
+          : '読み取れるのはXのポストのリンクです。公式サイトや通販のページは、下の「＋」の「情報を送る」から送ってください')
         : '解析に失敗しました',
       );
     } finally {

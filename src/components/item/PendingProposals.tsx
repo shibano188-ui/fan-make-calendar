@@ -1,7 +1,7 @@
 import { Check, Hourglass } from 'lucide-react';
 import type { CalendarEvent } from '../../types';
 import type { EditProposal } from '../../lib/api';
-import { STATUS } from '../../design/tokens';
+import { STATUS, deriveItemType } from '../../design/tokens';
 import { haptic } from '../../lib/haptics';
 
 // ＋αで出された、まだ確かめ終わっていない提案（2026-09-29）。
@@ -41,6 +41,7 @@ interface Props {
 }
 
 export default function PendingProposals({ event, proposals, userId, onAgree }: Props) {
+  const type = deriveItemType(event);
   const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const pending = proposals.filter((p) => p.status === 'pending');
   // 同じ中身の提案はひとつにまとめて、何人が言っているかを出す
@@ -63,7 +64,7 @@ export default function PendingProposals({ event, proposals, userId, onAgree }: 
           {groups.map(({ head, count, mine }) => (
             <div key={head.id} className="flex items-center gap-2 mt-2">
               <div className="flex-1 min-w-0 text-[13px] leading-snug">
-                {describePatch(head.patch, event.type).join('・')}
+                {describePatch(head.patch, type).join('・')}
                 <span className="text-[11px] text-label-tertiary">{count > 1 ? `（${count}人）` : ''}</span>
               </div>
               {mine ? (
@@ -82,7 +83,7 @@ export default function PendingProposals({ event, proposals, userId, onAgree }: 
       )}
       {myRejected.map((p) => (
         <div key={p.id} className="text-[12px] text-label-secondary mt-2">
-          反映されませんでした：{describePatch(p.patch, event.type).join('・')}{p.reason ? `（${p.reason}）` : ''}
+          反映されませんでした：{describePatch(p.patch, type).join('・')}{p.reason ? `（${p.reason}）` : ''}
         </div>
       ))}
     </div>

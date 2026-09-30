@@ -119,6 +119,30 @@ export default function Saved() {
   const [homePref, setHomePref] = useState<string | null>(null);
 
   const today = todayStr();
+
+  // 見出し（2026年12月）が「今日」ボタンに押されて切れないよう、入りきる大きさまで文字を小さくする。
+  // 幅390pxで今月以外を見ると「2026年1…」になり、何月か読めなかった（2026-10-01）
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const titleText = view === 'list' ? '保存した予定' : periodLabel(view, anchor);
+  const showToday = view !== 'list' && !includesToday(view, anchor, today);
+  useLayoutEffect(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    // scrollWidth は整数に丸まるので、1px 未満のはみ出し（それでも「…」になる）を見逃す。文字そのものの幅で比べる
+    const range = document.createRange();
+    const overflows = () => {
+      range.selectNodeContents(el);
+      return range.getBoundingClientRect().width > el.getBoundingClientRect().width + 0.1;
+    };
+    const fit = () => {
+      let size = 20;
+      el.style.fontSize = '';
+      while (overflows() && size > 13) { size -= 1; el.style.fontSize = `${size}px`; }
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [titleText, showToday, premium]);
   const rootRef = useRef<HTMLDivElement>(null);
 
   // フィルター状態を sessionStorage に同期（詳細から戻っても維持）
@@ -360,14 +384,14 @@ export default function Saved() {
           {/* 見出し（＋今日）。右端の虫眼鏡を押すと、見出しと入れ替わって検索欄に広がる */}
           <ExpandingSearch value={query} onChange={setQuery} placeholder="保存した予定を検索"
             title={
-              <div className="flex items-center gap-2 min-w-0">
-                <h1 className="text-[20px] font-bold tracking-tight truncate">
-                  {view === 'list' ? '保存した予定' : periodLabel(view, anchor)}
+              <div className="flex items-center gap-1.5 min-w-0">
+                <h1 ref={titleRef} className="text-[20px] font-bold tracking-tight truncate">
+                  {titleText}
                 </h1>
                 {/* 今日を含まない期間を見ているときだけ出す */}
-                {view !== 'list' && !includesToday(view, anchor, today) && (
+                {showToday && (
                   <button onClick={() => { haptic.select(); setAnchor(today); }}
-                    className="pressable flex-shrink-0 text-[12px] font-semibold px-2.5 py-1 rounded-full"
+                    className="pressable flex-shrink-0 text-[12px] font-semibold px-2 py-1 rounded-full"
                     style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
                     今日
                   </button>

@@ -6,7 +6,7 @@ import Sheet from '../ui/Sheet';
 import EventEditForm from './EventEditForm';
 import { haptic } from '../../lib/haptics';
 import Chip from '../ui/Chip';
-import { STATUS, deriveStatus, type ItemStatus } from '../../design/tokens';
+import { STATUS, deriveStatus, deriveItemType, type ItemStatus } from '../../design/tokens';
 
 // 予定詳細の「＋α」から開く、情報を足す・直すためのパネル。
 // 画面いっぱいには広げない（元の予定を見ながら足せるように半分くらい）。
@@ -47,7 +47,8 @@ export default function AddInfoSheet({ event, onClose, onSaveEdit, onAddLink, on
   // 値段の修正（グッズのみ）。販路から取れた値段が違うとき・取れないときに直す。日時と同じ共同編集
   const [price, setPrice] = useState('');
   const priceNum = /^\d+$/.test(price.trim().replace(/[,，円¥￥]/g, '')) ? Number(price.trim().replace(/[,，円¥￥]/g, '')) : null;
-  const isGoods = event.type === 'goods';
+  // 種別は詳細ページと同じ決め方（カテゴリ優先）。DB の type が event のままのグッズがある
+  const isGoods = deriveItemType(event) === 'goods';
   const [busy, setBusy] = useState(false);
   // 発売状況（2026-09-29）。今の状態と違うものを選んだときだけ送る
   const current = deriveStatus(event);
