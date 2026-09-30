@@ -27,6 +27,17 @@ export function setAdsSuppressed(next: boolean): void {
   listeners.forEach((l) => l());
 }
 
+// 起動画面（LaunchSplash）の間も伏せる。案内（オンボーディング）の伏せ方とは別に持つ
+// （起動画面が消えるときに false に戻すと、案内が立てた「伏せる」まで消してしまうため）
+let splash = false;
+
+/** 起動画面の間だけバナーを伏せる */
+export function setSplashAdsSuppressed(next: boolean): void {
+  if (splash === next) return;
+  splash = next;
+  listeners.forEach((l) => l());
+}
+
 export function useAdsSuppressed(): boolean {
-  return useSyncExternalStore(subscribe, () => suppressed, () => false);
+  return useSyncExternalStore(subscribe, () => suppressed || splash, () => false);
 }

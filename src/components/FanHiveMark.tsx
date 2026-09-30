@@ -1,6 +1,6 @@
 // FanHive のマーク（黄色の地に白い F と H。H の横棒に黄色い蜂が止まる）。
 // 元のデータが無かったので、アイコンの画像（public/icon-512.png）を測って描き起こした（2026-09-30。public/logo.svg と同じ形）。
-// animate を付けると、ようこその画面用に組み上がっていく:
+// animate を付けると組み上がっていく（起動画面・ようこその画面。全部で約0.7秒）:
 //   地が広がる → F・H の棒が順に伸びる → 蜂が羽ばたきながら飛んできて横棒に止まる
 // 動かすのは大きさ・位置・透明度だけ。各部品は自分の箱を基準に伸ばす（transform-box: fill-box）。
 
@@ -17,23 +17,23 @@ export default function FanHiveMark({ size, animate = false, delayMs = 0, classN
       <defs>
         <clipPath id="fh-stripes"><ellipse cx="325" cy="255.5" rx="29" ry="18.5" /></clipPath>
       </defs>
-      <rect width="512" height="512" rx="112" fill={HONEY} style={a('markBase', 0, 420, 'center')} />
+      <rect width="512" height="512" rx="112" fill={HONEY} style={a('markBase', 0, 300, 'center')} />
       <g fill="#fff">
         {/* F: 縦棒は上から下へ、横棒は左から右へ */}
-        <rect x="103" y="166" width="40" height="180" style={a('markGrowY', 120, 300, 'top')} />
-        <rect x="103" y="166" width="134" height="35" style={a('markGrowX', 200, 300, 'left')} />
-        <rect x="103" y="242" width="124" height="35" style={a('markGrowX', 250, 300, 'left')} />
+        <rect x="103" y="166" width="40" height="180" style={a('markGrowY', 70, 220, 'top')} />
+        <rect x="103" y="166" width="134" height="35" style={a('markGrowX', 120, 220, 'left')} />
+        <rect x="103" y="242" width="124" height="35" style={a('markGrowX', 160, 220, 'left')} />
         {/* H: 2本の縦棒 → 横棒 */}
-        <rect x="256" y="166" width="41" height="180" style={a('markGrowY', 220, 300, 'top')} />
-        <rect x="368" y="166" width="41" height="180" style={a('markGrowY', 280, 300, 'top')} />
-        <rect x="296" y="232" width="73" height="48" style={a('markGrowX', 340, 260, 'left')} />
+        <rect x="256" y="166" width="41" height="180" style={a('markGrowY', 140, 220, 'top')} />
+        <rect x="368" y="166" width="41" height="180" style={a('markGrowY', 180, 220, 'top')} />
+        <rect x="296" y="232" width="73" height="48" style={a('markGrowX', 220, 200, 'left')} />
       </g>
       {/* 蜂。左下から弧を描いて飛んできて、横棒に止まる。羽は止まるまで羽ばたく */}
-      <g style={a('markBeeFly', 380, 620, 'center', 'cubic-bezier(0.22,1,0.36,1)')}>
-        <g fill="#fff" style={animate ? { animation: `markWing 110ms ease-in-out ${delayMs + 380}ms 5 alternate`, transformBox: 'fill-box', transformOrigin: 'bottom' } : undefined}>
+      <g style={a('markBeeFly', 240, 460, 'center', 'cubic-bezier(0.22,1,0.36,1)')}>
+        <g fill="#fff" style={animate ? { animation: `markWing 90ms ease-in-out ${delayMs + 240}ms 5 alternate`, transformBox: 'fill-box', transformOrigin: 'bottom' } : undefined}>
           <ellipse cx="331" cy="216" rx="14" ry="24" transform="rotate(-33 331 216)" />
         </g>
-        <g fill="#fff" style={animate ? { animation: `markWing 110ms ease-in-out ${delayMs + 380}ms 5 alternate`, transformBox: 'fill-box', transformOrigin: 'top' } : undefined}>
+        <g fill="#fff" style={animate ? { animation: `markWing 90ms ease-in-out ${delayMs + 240}ms 5 alternate`, transformBox: 'fill-box', transformOrigin: 'top' } : undefined}>
           <ellipse cx="331" cy="296" rx="14" ry="24" transform="rotate(33 331 296)" />
         </g>
         <g fill={HONEY}>
