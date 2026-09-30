@@ -48,7 +48,7 @@ module ASC
     res = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) { |h| h.request(r) }
     unless res.code.to_i.between?(200, 299)
       return nil if allow_fail
-      abort "#{method.to_s.upcase} #{uri} → #{res.code}\n#{res.body}"
+      abort "#{method.to_s.upcase} #{uri} → #{res.code}\n#{res.body.to_s.force_encoding('UTF-8')}"
     end
     res.body.to_s.empty? ? {} : JSON.parse(res.body)
   end
