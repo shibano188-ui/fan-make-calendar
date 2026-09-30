@@ -1,9 +1,10 @@
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Home, Search, CalendarDays, User, Plus, type LucideIcon } from 'lucide-react';
 import { haptic } from '../../lib/haptics';
 import { spring, prefersReducedMotion, type SpringHandle } from '../../lib/fluid';
 import { useTyping } from '../../hooks/useTyping';
+import PostChooser from '../PostChooser';
 
 const tabs: { label: string; icon: LucideIcon; path: string }[] = [
   { label: 'ホーム', icon: Home,     path: '/' },
@@ -25,6 +26,8 @@ export default function BottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
   const go = (p: string) => { haptic.select(); navigate(p); };
+  // ＋は「Xのポストから追加」「情報を送る」を選ぶシートを開く（2026-09-29）
+  const [chooser, setChooser] = useState(false);
   // 入力中は隠す（Android はキーボードの分だけ画面が縮み、バーがキーボードの上に乗ってしまう）
   const typing = useTyping();
 
@@ -93,8 +96,9 @@ export default function BottomNav() {
 
         {/* 中央＋（投稿） */}
         <button
-          onClick={() => go('/post')}
-          aria-label="投稿"
+          onClick={() => { haptic.select(); setChooser(true); }}
+          aria-label="情報を追加"
+          data-tour="post"
           data-skin-part="nav-add"
           className="pressable relative w-11 h-11 mx-1 rounded-full flex items-center justify-center flex-shrink-0"
           style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)', boxShadow: '0 2px 10px rgba(0,0,0,0.25)' }}
@@ -106,6 +110,7 @@ export default function BottomNav() {
           <TabButton key={t.path} {...t} idx={i + 2} active={i + 2 === activeIdx} onClick={() => go(t.path)} />
         ))}
       </div>
+      <PostChooser open={chooser} onClose={() => setChooser(false)} />
     </nav>
   );
 }

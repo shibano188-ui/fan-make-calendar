@@ -48,7 +48,7 @@ export default function AccountSheet({
           <>
             <p className="text-[13px] text-label-secondary leading-relaxed mb-3">
               {isLink
-                ? 'メールアドレスを登録すると、機種変更や別の端末でも同じデータ（フォロー・いいね・投稿）を引き継げます。'
+                ? 'メールアドレスを登録すると、機種変更や別の端末でも同じデータ（フォロー・いいね・投稿・自分の予定）を引き継げます。'
                 : '登録済みのメールアドレスを入力してください。確認コードを送ります。'}
             </p>
             <div className="flex items-center gap-2 rounded-[10px] px-3" style={inputStyle}>

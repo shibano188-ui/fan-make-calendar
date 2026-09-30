@@ -5,6 +5,7 @@ import { getIdentity, isStaffAdmin } from './_identity.js';
 import { withAiUsage, noteAiUsage, saveAiUsage, type AiCall } from './_aiusage.js';
 import { fetchProductList, excludeRegistered, type ProductList } from './_listsource.js';
 import { detectWork, listEvents } from './_listgroup.js';
+import { judgeClaim } from './_factcheck.js';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -32,7 +33,7 @@ function isShortUrl(url: string): boolean {
 //  ・まとめ記事やニュースを解析させられると、予定にならないゴミが生まれる
 //  ・任意のホストへサーバーが接続する口になっていた（内部アドレスも弾いていなかった）
 // 販売先のURLは解析対象ではない。投稿画面の購入リンク欄に入れてもらう。
-function isXPostUrl(url: string): boolean {
+export function isXPostUrl(url: string): boolean {
   try {
     const u = new URL(url);
     const host = u.host.replace(/^www\./, '').toLowerCase();
@@ -239,7 +240,7 @@ isOrderMade=trueの場合、「お渡し予定」「発送予定」「発売予�
 
 これらの情報がポストに一切ない場合: null（文字列ではなくJSONのnull）`;
 
-const EXTRACT_PROMPT_TWEET = `以下のXポストから、含まれるイベント・予定をすべて抽出してください。
+export const EXTRACT_PROMPT_TWEET = `以下のXポストから、含まれるイベント・予定をすべて抽出してください。
 1件のみの場合も必ず配列で返してください。
 日本語で回答し、情報がない・不明な場合はnullを設定してください。
 必ずJSON配列のみを返してください（余計な説明不要）。
@@ -284,7 +285,7 @@ async function fetchReservationEndFromImage(imageUrlOrJson: string): Promise<str
 type TweetContent = { text: string; imageUrl: string | null };
 
 // ツイートのテキスト・外部リンク・画像をまとめて取得
-async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
+export async function fetchTweetContent(tweetUrl: string): Promise<TweetContent> {
   const tweetId = tweetUrl.match(/\/status\/(\d+)/)?.[1];
   if (!tweetId) return { text: `URL: ${tweetUrl}`, imageUrl: null };
 
@@ -552,7 +553,7 @@ function hhmm(v: unknown): string | null {
 // 「予約受付中」「11時予約開始」「ご予約はこちら」が抜けていた（本人指摘・2026-09-27）。
 // 「予約特典」「予約不要」は予約販売の意味ではないので外す
 const ORDER_MADE_RE = /受注|受付期間|受付開始|予約(?!特典|不要|なし|無し)|事前受注|抽選販売|抽選受付|抽選予約|事後通販|申込期間|お申し込み期間/;
-function forceOrderMade(parsed: unknown[], text: string) {
+export function forceOrderMade(parsed: unknown[], text: string) {
   if (!ORDER_MADE_RE.test(text)) return;
   parsed.forEach(e => { (e as Record<string, unknown>).isOrderMade = true; });
 }
@@ -567,7 +568,7 @@ function allDatesEmpty(events: unknown[]): boolean {
 }
 
 // claudeComplete + parseRawText。日付が全く取れなければ1回だけ再試行（Haikuのばらつき対策）
-async function extractWithRetry(systemPrompt: string, content: string, maxTokens: number): Promise<unknown[]> {
+export async function extractWithRetry(systemPrompt: string, content: string, maxTokens: number): Promise<unknown[]> {
   const first = parseRawText(await claudeComplete(systemPrompt, content, maxTokens));
   if (!allDatesEmpty(first)) return first;
   try {
@@ -602,7 +603,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(429).json({ error: 'rate_limited' });
   }
 
-  const { url, imageBase64, mimeType, sharedText, page } = req.body as {
+  const { url, imageBase64, mimeType, sharedText, page, verify } = req.body as {
+    /** 照合（2026-09-29 追加。古い画面は送らない）。Xから追加で、AIが読んだ日付・タイトルを人が書き換えたときに
+     *  「書き換えた値がポストと合っているか」だけを返す: { ok, verdict, reason } */
+    verify?: { title?: string; date?: string | null; endDate?: string | null; preorderStart?: string | null; preorderEnd?: string | null };
     page?: number;
     url?: string;
     imageBase64?: string;
@@ -612,6 +616,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!url && !imageBase64) {
     return res.status(400).json({ error: 'url or imageBase64 is required' });
+  }
+
+  if (verify && url) {
+    const target = url.trim().match(/https?:\/\/\S+/)?.[0] ?? '';
+    if (!isXPostUrl(target)) return res.status(400).json({ error: 'verify_needs_x_post' });
+    const calls: AiCall[] = [];
+    try {
+      return await withAiUsage(calls, async () => {
+        const { text } = await fetchTweetContent(target);
+        const claims = [
+          verify.title ? `タイトル（名前）が「${verify.title}」に当たる予定である` : '',
+          verify.date ? `日付（発売日・開催日）が ${verify.date}${verify.endDate && verify.endDate !== verify.date ? `〜${verify.endDate}` : ''}` : '',
+          verify.preorderStart ? `予約・受付の開始が ${verify.preorderStart}` : '',
+          verify.preorderEnd ? `予約・受付の締切が ${verify.preorderEnd}` : '',
+        ].filter(Boolean);
+        const r = await judgeClaim({ eventTitle: verify.title ?? '', claims, evidence: text.startsWith('URL: ') ? [] : [text] });
+        return res.status(200).json({ ok: r.verdict === 'supported', verdict: r.verdict, reason: r.reason });
+      });
+    } finally {
+      await saveAiUsage({ endpoint: 'parse-event-verify', userId: identity ? identity.userId : null, tier: identity ? identity.tier : null, calls });
+    }
   }
 
   // このリクエストで走ったClaude呼び出しを集めて、最後に台帳へ1行書く。

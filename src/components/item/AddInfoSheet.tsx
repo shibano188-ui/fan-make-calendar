@@ -5,6 +5,8 @@ import type { EventPatch } from '../../lib/api';
 import Sheet from '../ui/Sheet';
 import EventEditForm from './EventEditForm';
 import { haptic } from '../../lib/haptics';
+import Chip from '../ui/Chip';
+import { STATUS, deriveStatus, type ItemStatus } from '../../design/tokens';
 
 // 予定詳細の「＋α」から開く、情報を足す・直すためのパネル。
 // 画面いっぱいには広げない（元の予定を見ながら足せるように半分くらい）。
@@ -14,7 +16,7 @@ import { haptic } from '../../lib/haptics';
 export type AddInfoTab = 'date' | 'link' | 'stock' | 'note';
 
 const TABS: { key: AddInfoTab; label: string }[] = [
-  { key: 'date', label: '日時・予約' },
+  { key: 'date', label: '日時・状況' },
   { key: 'link', label: 'リンク・値段' },
   { key: 'stock', label: '在庫' },
   { key: 'note', label: '詳細' },
@@ -28,7 +30,8 @@ interface Props {
   event: CalendarEvent;
   onClose: () => void;
   /** それぞれ false を返したら失敗＝パネルは開いたままにする（在庫の簡易チェックなど） */
-  onSaveEdit: (patch: EventPatch) => boolean | void | Promise<boolean | void>;
+  /** evidence: 同じ送信で貼られたURL（ボットが修正を確かめるときの裏付けに使う） */
+  onSaveEdit: (patch: EventPatch, evidence?: string[]) => boolean | void | Promise<boolean | void>;
   onAddLink: (url: string) => boolean | void | Promise<boolean | void>;
   onAddStock: (note: string) => boolean | void | Promise<boolean | void>;
   onAddNote: (text: string) => boolean | void | Promise<boolean | void>;
@@ -46,9 +49,12 @@ export default function AddInfoSheet({ event, onClose, onSaveEdit, onAddLink, on
   const priceNum = /^\d+$/.test(price.trim().replace(/[,，円¥￥]/g, '')) ? Number(price.trim().replace(/[,，円¥￥]/g, '')) : null;
   const isGoods = event.type === 'goods';
   const [busy, setBusy] = useState(false);
+  // 発売状況（2026-09-29）。今の状態と違うものを選んだときだけ送る
+  const current = deriveStatus(event);
+  const [saleStatus, setSaleStatus] = useState<ItemStatus | null>(null);
 
   const written = (rows: string[]) => rows.map((r) => r.trim()).filter(Boolean);
-  const filled = !!datePatch || priceNum != null || written(urls).length > 0 || written(stocks).length > 0 || !!note.trim();
+  const filled = !!datePatch || !!saleStatus || priceNum != null || written(urls).length > 0 || written(stocks).length > 0 || !!note.trim();
 
   // 入っているものを上から順に送る。通ったものは消し、失敗したものだけ残してパネルは開けておく
   const submit = async () => {
@@ -57,10 +63,10 @@ export default function AddInfoSheet({ event, onClose, onSaveEdit, onAddLink, on
     setBusy(true);
     let ok = true;
     // 日時と値段は1つの修正としてまとめて送る（履歴に1行で残る）
-    if (datePatch || priceNum != null) {
-      const patch: EventPatch = { ...(datePatch ?? {}), ...(priceNum != null ? { price: priceNum } : {}) };
-      if ((await onSaveEdit(patch)) === false) ok = false;
-      else { setDatePatch(null); setPrice(''); }
+    if (datePatch || saleStatus || priceNum != null) {
+      const patch: EventPatch = { ...(datePatch ?? {}), ...(saleStatus ? { saleStatus } : {}), ...(priceNum != null ? { price: priceNum } : {}) };
+      if ((await onSaveEdit(patch, written(urls))) === false) ok = false;
+      else { setDatePatch(null); setSaleStatus(null); setPrice(''); }
     }
     const leftUrls: string[] = [];
     for (const u of written(urls)) if ((await onAddLink(u)) === false) { leftUrls.push(u); ok = false; }
@@ -78,7 +84,7 @@ export default function AddInfoSheet({ event, onClose, onSaveEdit, onAddLink, on
 
   /** 入っているタブに点を付ける（別のタブに書いたことを忘れないように） */
   const hasInput = (k: AddInfoTab) =>
-    k === 'date' ? !!datePatch
+    k === 'date' ? !!datePatch || !!saleStatus
       : k === 'link' ? written(urls).length > 0 || priceNum != null
       : k === 'stock' ? written(stocks).length > 0
       : !!note.trim();
@@ -127,8 +133,19 @@ export default function AddInfoSheet({ event, onClose, onSaveEdit, onAddLink, on
     <Sheet onClose={onClose} title="情報を追加・修正" ariaLabel="情報を追加・修正" maxHeight="62dvh" fixed={tabs}>
       <div className="px-4 pt-1" style={{ minHeight: '38dvh' }}>
         {tab === 'date' && (
-          <EventEditForm event={event} showActions={false} onChange={setDatePatch}
-            onSave={() => {}} onClose={onClose} />
+          <>
+            {/* 発売状況。日付から出す状態が店の実際と違うとき（前倒しで予約終了・再販で発売中など）に直す */}
+            <p className="text-[12px] text-label-tertiary mt-3">{isGoods ? '発売状況' : '開催状況'}（今は「{STATUS[current][isGoods ? 'goodsLabel' : 'eventLabel']}」）</p>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {(Object.keys(STATUS) as ItemStatus[]).filter((k) => k !== current).map((k) => (
+                <Chip key={k} active={saleStatus === k} onClick={() => { haptic.select(); setSaleStatus(saleStatus === k ? null : k); }}>
+                  {STATUS[k][isGoods ? 'goodsLabel' : 'eventLabel']}
+                </Chip>
+              ))}
+            </div>
+            <EventEditForm event={event} showActions={false} onChange={setDatePatch}
+              onSave={() => {}} onClose={onClose} />
+          </>
         )}
 
         {tab === 'link' && (

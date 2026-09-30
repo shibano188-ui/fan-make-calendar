@@ -128,3 +128,25 @@ export function fileToBase64(file: File): Promise<{ data: string; mime: string }
     r.readAsDataURL(file);
   });
 }
+
+/** Xから追加で、AIが読んだ日付・タイトルを人が書き換えたときに、書き換えた値がポストと合うかをAIに照らし合わせてもらう
+ *  （2026-09-29）。contradicted（ポストに別の値がはっきり書いてある）のときだけ投稿を止める。
+ *  通信に失敗したときは止めない（照合の都合で投稿できなくなるのは避ける） */
+export async function verifyAgainstPost(url: string, claim: {
+  title?: string; date?: string | null; endDate?: string | null; preorderStart?: string | null; preorderEnd?: string | null;
+}): Promise<{ verdict: 'supported' | 'contradicted' | 'unknown'; reason: string }> {
+  try {
+    const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ?? '';
+    const res = await fetch(`${apiBase}/api/parse-event`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify({ url, verify: claim }),
+    });
+    if (!res.ok) return { verdict: 'unknown', reason: '' };
+    const j = await res.json() as { verdict?: string; reason?: string };
+    const verdict = j.verdict === 'supported' || j.verdict === 'contradicted' ? j.verdict : 'unknown';
+    return { verdict, reason: String(j.reason ?? '') };
+  } catch {
+    return { verdict: 'unknown', reason: '' };
+  }
+}

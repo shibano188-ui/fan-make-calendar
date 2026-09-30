@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Bell, Crown, CalendarSync, Palette, Pencil, Check, MessageCircle, MessageSquareText, MapPin, UserRound, Star, Trash2 } from 'lucide-react';
+import { ChevronRight, Bell, Crown, CalendarSync, Palette, Pencil, Check, MessageCircle, MessageSquareText, MapPin, UserRound, Star, Trash2, Lightbulb } from 'lucide-react';
 
 // マイページ下部の規約類。iOS は画面を同梱していて住所が capacitor://localhost になるので、
 // 本番の URL を固定で開く（openExternal は http(s) しか開かない）
@@ -376,6 +376,14 @@ export default function MyPage() {
       {/* 設定 */}
       <div className="mt-5 text-[12px] text-label-secondary mb-1">設定</div>
       <div className="rounded-[12px] border border-subtle divide-y" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-subtle)' }}>
+        {/* バグ・改善の報告（2026-09-30）。何でも自由に書いてもらい、運営だけが読む。
+            今は声を集めたい時期なので設定の一番上に置く（柴野） */}
+        <button onClick={() => { haptic.select(); navigate('/feedback'); }}
+          className="pressable w-full flex items-center gap-2 px-3 py-2.5 text-left">
+          <Lightbulb size={16} className="text-label-secondary" />
+          <span className="text-[14px] flex-1">バグ・改善の報告</span>
+          <ChevronRight size={16} className="text-label-tertiary" />
+        </button>
         {/* テーマ・カレンダーの配色（カスタマイズ）。カラーモードとアクセントカラーもこの先に移した */}
         <button onClick={() => { haptic.select(); navigate('/customize'); }} className="w-full flex items-center gap-2 px-3 py-2.5 pressable text-left">
           <Palette size={16} className="text-label-secondary" />
@@ -501,7 +509,7 @@ export default function MyPage() {
               <span className="text-[14px] flex-1" style={{ color: 'var(--color-destructive)' }}>アカウントを削除する</span>
             </div>
             <p className="text-[11px] text-label-secondary mt-1.5 ml-6">
-              投稿・いいね・保存した予定を含むすべてのデータが削除されます。この操作は取り消せません。
+              投稿・いいね・保存した予定・自分の予定を含むすべてのデータが削除されます。この操作は取り消せません。
             </p>
             <div className="mt-2 ml-6 flex gap-2">
               <button onClick={onDeleteAccount} disabled={deleting}

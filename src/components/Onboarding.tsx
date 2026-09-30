@@ -3,9 +3,10 @@ import { useLocation } from 'react-router-dom';
 import { setAdsSuppressed } from '../lib/adSuppress';
 import { ONBOARDING_KEY, TOUR_STEP_KEY } from '../lib/constants';
 import OnboardingWorkPicker from './OnboardingWorkPicker';
+import OnboardingIntro from './OnboardingIntro';
 import { startTour } from './OnboardingTour';
 
-// 初回オンボーディングの1枚目: 推しの作品を選ぶ（2026-09-29 柴野の方針で作り直し）。
+// 初回オンボーディング: ようこそ（OnboardingIntro）→ 推しの作品を選ぶ（2026-09-29 柴野の方針で作り直し）。
 //  - **スキップは無い**。1つ選ぶまで「次へ」を押せない。既定の作品を勝手に入れることもしない
 //  - 「次へ」のあとは説明のカードではなく、本物の画面で案内する（OnboardingTour）:
 //    探すで予定にいいね → カレンダーに入ったのを見る → ベルで通知をON
@@ -18,6 +19,8 @@ export default function Onboarding() {
   const [show, setShow] = useState(() => {
     try { return !localStorage.getItem(ONBOARDING_KEY) && !localStorage.getItem(TOUR_STEP_KEY); } catch { return false; }
   });
+  // 最初はようこその画面（ロゴのアニメーション・先読み）。「はじめる」で作品選びへ
+  const [intro, setIntro] = useState(true);
   const [count, setCount] = useState(0);
   // 1つ目を選んだ瞬間だけ「次へ」を揺らす。数が増えるたびに揺らすとうるさい
   const [nudge, setNudge] = useState(0);
@@ -38,6 +41,7 @@ export default function Onboarding() {
   };
 
   if (!visible) return null;
+  if (intro) return <OnboardingIntro onStart={() => setIntro(false)} />;
 
   const next = () => {
     if (count === 0) return;

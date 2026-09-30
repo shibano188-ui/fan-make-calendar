@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { X, Plus, Check, Sparkles, Link2, Loader2, Search, Share2, CalendarPlus, Trash2, ChevronLeft } from 'lucide-react';
+import { useNavigate, useSearchParams, useLocation, useParams } from 'react-router-dom';
+import { X, Plus, Check, Sparkles, Link2, Loader2, Search, Share2, CalendarPlus, Trash2, ChevronLeft, Lock } from 'lucide-react';
 import Chip from '../components/ui/Chip';
 import { resolveWorkName, sameWorkName } from '../lib/workName';
-import { getMyStaffRole, searchWorks, getOrCreateWork, createEvents, toggleLike, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, distinguishSameNameByPlace, isOtherPlaceMatch, listAllParticipatedWorks, type Work } from '../lib/api';
+import { getMyStaffRole, getPersonalEvent, createPersonalEvent, updatePersonalEvent, deletePersonalEvent, searchWorks, getOrCreateWork, createEvents, toggleLike, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, distinguishSameNameByPlace, isOtherPlaceMatch, listAllParticipatedWorks, type Work } from '../lib/api';
 import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES, GOODS_TAG, ONBOARDING_DEMO_KEY } from '../lib/constants';
 import { DEMO_POST_TEXT } from '../lib/demoPost';
 import { isPremiumCached, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
 import { affiliatize, buildOffer, primaryOffer, isAffiliateUrl, offerUrl, isNoiseLink } from '../lib/affiliate';
-import { parseEventsApiWithMeta, type ParsedEvent, type ListMeta } from '../lib/parseEvents';
+import { parseEventsApiWithMeta, verifyAgainstPost, type ParsedEvent, type ListMeta } from '../lib/parseEvents';
 import { logAiExtraction, logSearch } from '../lib/dataLogs';
 import { maybeAddWorkAlias } from '../lib/workAliases';
 import { searchProductCandidates, searchProductCandidatesWithMeta, titleMatchScore, retailerSearchUrls, highConfidenceCandidates, labelVariants, offerFromCandidate, buildPinnedOffer, variantMismatch, searchKeyword, type ProductCandidate } from '../lib/searchProduct';
@@ -18,6 +18,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
 import LineLoader from '../components/ui/LineLoader';
 import { useConfirm } from '../components/ui/ConfirmDialog';
+import { updateSaved } from '../lib/savedStore';
 import WorkFollowSheet from '../components/WorkFollowSheet';
 import { haptic } from '../lib/haptics';
 import { todayStr, deriveItemType, type ItemType } from '../design/tokens';
@@ -75,8 +76,13 @@ function readShare(sp: URLSearchParams): { url: string; text: string } {
   return { url, text };
 }
 
-export default function PostNew() {
+// personal: 自分用の予定（/personal/:id。2026-09-30 柴野「今までの投稿フォームをそのまま使う」）。
+//   同じフォームで、必須は作品（フォロー中から選ぶ）とタイトルだけ。カテゴリは自由に足せる。
+//   AI入力・重複検知・販売先を探す・購入リンクの一覧は出さない（リンクは1つだけ持てる）。本人のカレンダーにだけ入る
+export default function PostNew({ personal = false }: { personal?: boolean } = {}) {
   const navigate = useNavigate();
+  const { id: personalId } = useParams();
+  const editingPersonal = personal && !!personalId && personalId !== 'new';
   const location = useLocation();
   // 投稿したものをカレンダーに登録するか。前は自分の投稿が必ず入っていた（外せなかった）。
   // 選んだものは覚えておく（毎回外すのは手間なので）
@@ -96,13 +102,14 @@ export default function PostNew() {
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 共有から来たときは「新しい予定」なので下書きを引き継がない（前の予定の入力が残るのを防ぐ）
-  const share = readShare(searchParams);
-  const draft0 = useRef(share.url ? null : readDraft()).current;
+  const share = readShare(personal ? new URLSearchParams() : searchParams);
+  // 自分用の予定は下書きを使わない（みんなへの投稿の下書きと混ざらないように）
+  const draft0 = useRef(share.url || personal ? null : readDraft()).current;
   const today = todayStr();
   // カレンダーの「この日に追加」から来たときは、その日付を入れて開く（下書きの日付より優先）
   const dateParam = searchParams.get('date');
   const presetDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null;
-  const [type, setType] = useState<ItemType>(draft0?.type ?? 'goods');
+  const [type, setType] = useState<ItemType>(draft0?.type ?? 'goods');  // 自分用の予定も最初はグッズ（柴野 2026-09-30）
   const [workId, setWorkId] = useState<string | null>(draft0?.workId ?? null);
   const [workName, setWorkName] = useState<string>(draft0?.workName ?? '');
   const [workQuery, setWorkQuery] = useState<string>(draft0?.workQuery ?? '');
@@ -138,6 +145,12 @@ export default function PostNew() {
   const [locationDetail, setLocationDetail] = useState<string>(draft0?.locationDetail ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // Xのポストから追加は、最初はリンクの入力欄だけを出し、解析してからフォームを開く（リンクなしで投稿させない。2026-09-30 柴野）。
+  // Xから直接共有したとき・下書きを戻したとき・自分用の予定は最初から開く
+  const [formOpen, setFormOpen] = useState<boolean>(personal || !!share.url || searchParams.get('demo') === '1' || !!draft0?.formOpen);
+  // 自分用の予定: フォロー中の作品（ここからだけ選べる）と、自分で足したカテゴリ
+  const [myWorks, setMyWorks] = useState<Work[]>([]);
+  const [newCat, setNewCat] = useState('');
   // AI入力
   const [aiText, setAiText] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
@@ -182,8 +195,9 @@ export default function PostNew() {
 
   // 下書き保持（確認のため離れて戻っても内容を復元）。毎レンダーで保存。
   useEffect(() => {
+    if (personal) return;
     sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
-      type, workId, workName, workQuery, title, cats: [...cats], allDay, dateTBD, dateLabel, date, endDate, time, endTime,
+      formOpen, type, workId, workName, workQuery, title, cats: [...cats], allDay, dateTBD, dateLabel, date, endDate, time, endTime,
       isOrder, preAllDay, preStart, preEnd, preStartTime, preEndTime, price, link, offers, showExtra, stockNote, memo, imageUrl, prefecture, locationDetail,
       parsedList, pendingParsed, listMeta, fromList,
     }));
@@ -260,7 +274,8 @@ export default function PostNew() {
 
   // ライブ重複検知（タイトル＋作品が分かれば。作品は未選択でも名前から既存を解決）
   useEffect(() => {
-    if (!title.trim()) { setDupMatches([]); setOtherPlaces([]); return; }
+    // 自分用の予定は重複を気にしない（自分のメモなので邪魔になるだけ）
+    if (personal || !title.trim()) { setDupMatches([]); setOtherPlaces([]); return; }
     let alive = true;
     const t = setTimeout(async () => {
       let wid = workId;
@@ -378,6 +393,7 @@ export default function PostNew() {
 
   const applyParsed = (p: ParsedEvent) => {
     appliedRef.current = p;
+    setFormOpen(true);
     if (aiSourceRef.current) aiLogRef.current = { ...aiSourceRef.current, output: p };
     const parsedType = deriveItemType({ category: p.category ?? undefined });
     setType(parsedType);
@@ -704,7 +720,100 @@ export default function PostNew() {
   };
 
   const linkInfo = link.trim() ? affiliatize(link.trim()) : null;
-  const canSave = !!title.trim() && (!!workId || !!workQuery.trim()) && !saving;
+  const canSave = personal
+    ? !!title.trim() && !!workId && !saving
+    : !!title.trim() && (!!workId || !!workQuery.trim()) && !saving;
+
+  // ── 自分用の予定 ──────────────────────────────────────────
+  useEffect(() => {
+    if (!personal || !user) return;
+    listAllParticipatedWorks(user.id).then((ws) => {
+      setMyWorks(ws);
+      if (!editingPersonal && !workId && ws.length === 1) { setWorkId(ws[0].id); setWorkName(ws[0].name); }
+    }).catch(() => {});
+  }, [personal, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 直すときは今の中身をフォームに入れる
+  useEffect(() => {
+    if (!editingPersonal) return;
+    getPersonalEvent(personalId!).then((e) => {
+      if (!e) { toast('予定が見つかりませんでした', 'error'); goBack(); return; }
+      setType(e.type ?? 'event'); setWorkId(e.workId ?? null); setWorkName(e.workName ?? '');
+      setTitle(e.title); setCats(new Set(parseCategories(e.category)));
+      if (e.dateLabel) { setDateTBD(true); setDateLabel(e.dateLabel); }
+      if (e.date) setDate(e.date); else setDateTBD(true);
+      setEndDate(e.endDate || e.date || '');
+      if (e.time) { setAllDay(false); setTime(e.time); setEndTime(e.endTime ?? ''); }
+      setPrice(e.price != null ? String(e.price) : '');
+      setPrefecture(e.prefecture ?? ''); setLocationDetail(e.locationDetail ?? '');
+      setIsOrder(!!e.isOrderMade); setPreEndTouched(true);
+      if (e.preorderStart) setPreStart(e.preorderStart);
+      if (e.preorderEnd) setPreEnd(e.preorderEnd);
+      if (e.preorderStartTime || e.preorderEndTime) { setPreAllDay(false); setPreStartTime(e.preorderStartTime ?? ''); setPreEndTime(e.preorderEndTime ?? ''); }
+      setLink(e.link ?? ''); setImageUrl(e.imageUrl ?? '');
+      if (e.memo) { setShowExtra(true); setMemo(e.memo); }
+    }).catch(() => {});
+  }, [personalId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** 自分でカテゴリを足す（決まった一覧に無いもの） */
+  const addCustomCat = () => {
+    const c = newCat.trim().slice(0, 20);
+    if (!c) return;
+    haptic.select();
+    setCats((prev) => new Set(prev).add(c));
+    setNewCat('');
+  };
+
+  const savePersonal = async () => {
+    if (!user || !canSave || !workId) return;
+    haptic.select();
+    setSaving(true); setError('');
+    const input = {
+      workId, title, type,
+      date: date || null,
+      dateLabel: dateTBD ? (dateLabel || null) : null,
+      endDate: dateTBD ? null : (endDate || date || null),
+      time: allDay || dateTBD ? null : (time || null),
+      endTime: allDay || dateTBD ? null : (endTime || null),
+      category: cats.size ? serializeCategories([...cats]) ?? null : null,
+      price: type === 'goods' && price ? Number(price) : null,
+      prefecture: type === 'event' ? prefecture : null,
+      locationDetail: type === 'event' ? locationDetail : null,
+      isOrderMade: isOrder,
+      preorderStart: isOrder ? (preStart || null) : null,
+      preorderEnd: isOrder ? (preEnd || null) : null,
+      preorderStartTime: isOrder && !preAllDay ? (preStartTime || null) : null,
+      preorderEndTime: isOrder && !preAllDay ? (preEndTime || null) : null,
+      memo, imageUrl: imageUrl || null, link,
+    };
+    try {
+      if (editingPersonal) {
+        await updatePersonalEvent(personalId!, input);
+        toast('保存しました');
+      } else {
+        const ev = await createPersonalEvent(input);
+        // カレンダーに戻ったとき、取り直しを待たずに出す
+        updateSaved(user.id, (list) => [...list, ev]);
+        toast('カレンダーに追加しました');
+      }
+      goBack();
+    } catch {
+      setError('保存できませんでした。時間をおいてお試しください。');
+      setSaving(false);
+    }
+  };
+
+  const removePersonal = async () => {
+    if (!editingPersonal || !user) return;
+    if (!(await confirm({ title: 'この予定を消しますか？', confirmLabel: '消す', destructive: true }))) return;
+    haptic.select();
+    try {
+      await deletePersonalEvent(personalId!);
+      updateSaved(user.id, (list) => list.filter((e) => e.id !== personalId));
+      toast('消しました');
+      goBack();
+    } catch { toast('消せませんでした', 'error'); }
+  };
 
   // 開始日を動かしたとき、終了日が**開始日と同じ＝単日**のままなら一緒に動かす。
   // 単日の予定で終了日まで直すのが面倒だという話（案A）。すでに期間を指定している人は
@@ -729,6 +838,7 @@ export default function PostNew() {
     follows.some((w) => (id ? w.id === id : sameWorkName(w.name, name))) || canFollowMore(follows.length, isPremiumCached());
 
   const onSubmit = async () => {
+    if (personal) { void savePersonal(); return; }
     if (!user || !canSave) return;
     // オンボーディングの体験。ここまでの手順を見せるのが目的なので**保存しない**。
     // 例のポストを本当に登録すると、他の人の「探す」に実在しない予定が流れる。
@@ -741,6 +851,32 @@ export default function PostNew() {
     }
     setSaving(true); setError('');
     try {
+      // Xのポストから読んだ日付・タイトルを書き換えていたら、書き換えた値がポストと合うかをAIに照らし合わせる（2026-09-29）。
+      // 運営の確認には回さない。ポストに別の値がはっきり書いてあるときだけ止める（書いていないだけなら通す）
+      const read = appliedRef.current;
+      const srcUrl = aiLogRef.current?.sourceUrl;
+      if (read && srcUrl && /(^|\/\/)(www\.)?(x|twitter)\.com\//.test(srcUrl)) {
+        const changed = {
+          title: !!read.title && title.trim() !== read.title.trim(),
+          date: (read.date ?? '') !== (date || '') || (!dateTBD && (read.endDate || read.date || '') !== (endDate || date || '')),
+          preorderStart: isOrder && (read.preorderStart ?? '') !== (preStart || ''),
+          preorderEnd: isOrder && (read.preorderEnd ?? '') !== (preEnd || ''),
+        };
+        if (changed.title || changed.date || changed.preorderStart || changed.preorderEnd) {
+          const v = await verifyAgainstPost(srcUrl, {
+            title: changed.title ? title.trim() : undefined,
+            date: changed.date ? (date || null) : undefined,
+            endDate: changed.date && !dateTBD ? (endDate || null) : undefined,
+            preorderStart: changed.preorderStart ? (preStart || null) : undefined,
+            preorderEnd: changed.preorderEnd ? (preEnd || null) : undefined,
+          });
+          if (v.verdict === 'contradicted') {
+            setError(`Xのポストの内容と合わないため投稿できません${v.reason ? `（${v.reason}）` : ''}。ポストを確かめて直してください。`);
+            setSaving(false);
+            return;
+          }
+        }
+      }
       const myFollows = await listAllParticipatedWorks(user.id).catch(() => null);
       if (myFollows && !canPostTo(myFollows, workId, workName || workQuery.trim())) {
         setError(FOLLOW_TO_POST);
@@ -874,15 +1010,16 @@ export default function PostNew() {
       <div className="mx-auto w-full max-w-app">
         {/* ヘッダー */}
         <div className="sticky top-0 z-20 flex items-center justify-between px-3 py-2.5 material-bar scroll-edge" style={{ paddingTop: 'calc(var(--sat) + 10px)' }}>
-          {/* 入力中(キーボード表示中)は最初のタップがblurに食われて閉じないため pointerDown で確実に閉じる */}
+          {/* 閉じるのは指を離したとき（onClick）。触れた瞬間に閉じると、指を離した分のタップが戻った先の画面に届き、
+              ホームの一番上（課金の案内）が開いていた（2026-09-30）。入力中の1回目のタップがキーボードに取られないよう、
+              触れた瞬間はフォーカスを外さない（preventDefault）だけにする */}
           <div className="flex items-center gap-1 min-w-0">
-            {/* 入力中(キーボード表示中)は最初のタップがblurに食われて閉じないため pointerDown で確実に閉じる */}
-            <button onPointerDown={(e) => { e.preventDefault(); onClose(); }} aria-label="閉じる" className="pressable tap-44 p-1"><X size={22} /></button>
-            <span className="font-semibold truncate">{demo ? '投稿（例）' : '投稿'}</span>
+            <button onPointerDown={(e) => e.preventDefault()} onClick={onClose} aria-label="閉じる" className="pressable tap-44 p-1"><X size={22} /></button>
+            <span className="font-semibold truncate">{personal ? (editingPersonal ? '自分の予定を直す' : '自分の予定を追加') : demo ? '投稿（例）' : '投稿'}</span>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            {/* カレンダーに登録するか。前は自分の投稿が必ず入っていた（外せなかった） */}
-            <button onClick={() => {
+            {/* カレンダーに登録するか。前は自分の投稿が必ず入っていた（外せなかった）。自分用の予定は必ず入る */}
+            {!personal && <button onClick={() => {
                 haptic.select();
                 const next = !addToCalendar;
                 setAddToCalendar(next);
@@ -894,12 +1031,12 @@ export default function PostNew() {
                 ? { backgroundColor: 'var(--fill-primary)', border: '1px solid var(--accent-color)', color: 'var(--accent-text)' }
                 : { backgroundColor: 'var(--fill-tertiary)', border: '1px solid transparent', color: 'var(--label-tertiary)' }}>
               <CalendarPlus size={15} />カレンダー
-            </button>
-            <button onClick={onSubmit} disabled={!canSave}
+            </button>}
+            {(personal || formOpen) && <button onClick={onSubmit} disabled={!canSave}
               className="pressable px-3 py-1.5 rounded-full text-[13px] font-semibold"
               style={canSave ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' } : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-tertiary)' }}>
-              {saving ? '投稿中…' : '投稿'}
-            </button>
+              {personal ? (saving ? '保存中…' : '保存') : saving ? '投稿中…' : '投稿'}
+            </button>}
           </div>
         </div>
 
@@ -912,8 +1049,13 @@ export default function PostNew() {
               </p>
             </div>
           )}
-          {/* AI入力（ヒーロー） */}
-          <div className="mt-3 rounded-[12px] border border-subtle p-3" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+          {personal && (
+            <p className="text-[12px] text-label-tertiary mt-3 flex items-center gap-1">
+              <Lock size={12} /> あなたのカレンダーにだけ入ります。ほかの人には見えません。
+            </p>
+          )}
+          {/* AI入力（ヒーロー）。自分用の予定には出さない */}
+          {!personal && <div className="mt-3 rounded-[12px] border border-subtle p-3" style={{ backgroundColor: 'var(--bg-secondary)' }}>
             <div className="flex items-center gap-1.5 mb-2">
               <Sparkles size={15} style={{ color: 'var(--accent-color)' }} />
               <span className="text-[13px] font-semibold">AIで入力</span>
@@ -928,16 +1070,31 @@ export default function PostNew() {
             )}
             {!parsedList ? (
               <>
-                {/* 一番速い経路を先に出す。貼り付け欄を上に置くと「毎回コピーしてくるもの」と
-                    読まれて、共有ひとつで済むことが伝わらない */}
-                <div className="flex items-start gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-                  <Share2 size={15} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--accent-text)' }} />
-                  <p className="text-[12px] leading-relaxed">
-                    XのポストをFanHiveに共有するだけ！<br />AIが自動で予定にします。<br />
-                    {isStaff && <span className="text-label-secondary">公式通販の商品一覧のリンクを貼ると、シリーズごとの予定にまとめます。</span>}
-                  </p>
+                {/* 一番速い経路（Xアプリから共有）を先に、大きく出す。リンクを貼る欄を上に置くと
+                    「毎回コピーしてくるもの」と読まれて、共有ひとつで済むことが伝わらない（2026-09-30 柴野: こちらをおすすめに） */}
+                <div className="rounded-[10px] px-3 py-3" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 12%, transparent)' }}>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold px-1.5 py-[1px] rounded-full" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>おすすめ</span>
+                    <span className="text-[14px] font-bold">Xのアプリから共有するだけ</span>
+                  </div>
+                  {/* 手順は縦に番号で（横に並べると小さい画面で細切れに折り返す） */}
+                  <ol className="mt-2 flex flex-col gap-1.5 text-[13px]">
+                    {[
+                      <><Share2 size={14} style={{ color: 'var(--accent-text)' }} />ポストの共有ボタンを押す</>,
+                      <><img src="/icon-512.png" alt="" className="w-4 h-4 rounded-[4px]" />共有先から FanHive を選ぶ</>,
+                      <><Sparkles size={14} style={{ color: 'var(--accent-text)' }} />AIが予定にします</>,
+                    ].map((step, i) => (
+                      <li key={i} className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0"
+                          style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>{i + 1}</span>
+                        <span className="flex items-center gap-1.5">{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                  {isStaff && <p className="text-[12px] text-label-secondary mt-2">公式通販の商品一覧のリンクを貼ると、シリーズごとの予定にまとめます。</p>}
                 </div>
-                <div className="flex gap-2 mt-3">
+                <p className="text-[12px] text-label-secondary mt-3">リンクを貼って読み取ることもできます</p>
+                <div className="flex gap-2 mt-1.5">
                   <div className="flex-1 relative">
                     <Link2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary pointer-events-none" />
                     <input value={aiText} onChange={(e) => setAiText(e.target.value)} placeholder={isStaff ? 'Xのポスト・公式通販の一覧のリンク' : 'Xのポストのリンク'}
@@ -1004,7 +1161,10 @@ export default function PostNew() {
                 <button onClick={() => { setParsedList(null); setMergePick(new Set()); setListMeta(null); }} className="text-[12px] text-label-tertiary mt-1 pressable">キャンセル</button>
               </div>
             )}
-          </div>
+          </div>}
+
+          {/* フォームは解析してから開く（Xのポストから追加）。自分用の予定・共有から来たときは最初から */}
+          {(personal || formOpen) && (<>
 
           {/* 画像プレビュー（AIが自動取得・全枚数） */}
           {imageUrl && (
@@ -1023,7 +1183,7 @@ export default function PostNew() {
           )}
 
           {/* 重複検知バナー（ライブ） */}
-          {dupMatches.length > 0 && !dupDismissed && (
+          {!personal && dupMatches.length > 0 && !dupDismissed && (
             <div className="mt-3 rounded-[12px] p-3" style={{ border: '1px solid var(--color-warning)', backgroundColor: 'var(--bg-secondary)' }}>
               <div className="text-[13px] font-semibold mb-1.5">似た投稿があります</div>
               {dupMatches.map((m) => (
@@ -1036,7 +1196,7 @@ export default function PostNew() {
             </div>
           )}
 
-          {otherPlaces.length > 0 && prefecture.trim() && !title.includes(prefecture.trim().replace(/[都府県]$/, '')) && (
+          {!personal && otherPlaces.length > 0 && prefecture.trim() && !title.includes(prefecture.trim().replace(/[都府県]$/, '')) && (
             <div className="mt-3 rounded-[12px] p-3 text-[12px] text-label-secondary" style={{ backgroundColor: 'var(--bg-secondary)' }}>
               同じ名前の予定が別の場所（{otherPlaces.join('・')}）にあります。区別できるよう、タイトルの後ろに「{prefecture.trim().replace(/[都府県]$/, '')}」を付けて投稿します
             </div>
@@ -1048,7 +1208,19 @@ export default function PostNew() {
             <Chip active={type === 'event'} onClick={() => { haptic.select(); setType('event'); setCats(new Set()); }}>イベント</Chip>
           </div>
 
-          {/* 作品 */}
+          {/* 作品。自分用の予定はフォロー中の作品から選ぶだけ */}
+          {personal ? (
+            <>
+              <div className={labelCls}>作品 <span style={{ color: 'var(--color-destructive)' }}>*</span></div>
+              {myWorks.length === 0 ? (
+                <p className="text-[13px] text-label-secondary">フォロー中の作品がありません。先に作品をフォローしてください。</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {myWorks.map((w) => <Chip key={w.id} active={workId === w.id} onClick={() => { haptic.select(); setWorkId(w.id); setWorkName(w.name); }}>{w.name}</Chip>)}
+                </div>
+              )}
+            </>
+          ) : (<>
           <div className="flex items-end justify-between">
             <div className={labelCls}>作品 <span style={{ color: 'var(--color-destructive)' }}>*</span></div>
             <button onClick={() => { haptic.select(); setWorkSheetOpen(true); }}
@@ -1089,16 +1261,27 @@ export default function PostNew() {
               )}
             </div>
           )}
+          </>)}
 
           {/* タイトル */}
           <div className={labelCls}>タイトル <span style={{ color: 'var(--color-destructive)' }}>*</span></div>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} onBlur={onTitleBlur} placeholder={type === 'goods' ? '例: ぬいっぽ ハイキュー!!' : '例: POP UP STORE'} className={inputCls} style={inputStyle} />
+          <input value={title} onChange={(e) => setTitle(e.target.value)} onBlur={personal ? undefined : onTitleBlur} className={inputCls} style={inputStyle} />
 
           {/* カテゴリ */}
           <div className={labelCls}>カテゴリ</div>
           <div className="flex flex-wrap gap-1.5">
             {catList.map((c) => <Chip key={c} active={cats.has(c)} onClick={() => toggleCat(c)}>{c}</Chip>)}
+            {/* 自分で足したカテゴリ（自分用の予定だけ） */}
+            {personal && [...cats].filter((c) => !catList.includes(c)).map((c) => <Chip key={c} active onClick={() => toggleCat(c)}>{c}</Chip>)}
           </div>
+          {personal && (
+            <div className="flex gap-2 mt-2">
+              <input value={newCat} onChange={(e) => setNewCat(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addCustomCat()}
+                placeholder="カテゴリを自分で追加" className={inputCls} style={inputStyle} />
+              <button onClick={addCustomCat} disabled={!newCat.trim()}
+                className="pressable px-3 rounded-[10px] text-[13px] font-semibold flex-shrink-0" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>追加</button>
+            </div>
+          )}
 
           {/* 価格（グッズ） */}
           {type === 'goods' && (
@@ -1204,6 +1387,13 @@ export default function PostNew() {
           )}
 
 
+          {/* 自分用の予定はリンクを1つ持てるだけ（販売先を探す・購入リンクの一覧は出さない） */}
+          {personal ? (
+            <>
+              <div className={labelCls}>リンク</div>
+              <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://" inputMode="url" className={inputCls} style={inputStyle} />
+            </>
+          ) : (<>
           {/* 購入リンク（複数可。発売に向けて随時追加できる） */}
           <div className={labelCls}>購入リンク</div>
           <div className="flex gap-2">
@@ -1304,16 +1494,19 @@ export default function PostNew() {
               {linkInfo.hasAffiliate ? `✓ ${linkInfo.retailer}（アフィ対応）` : `${linkInfo.retailer || 'リンク'}（アフィ非対応・B2B送客）`}
             </div>
           )}
+          </>)}
 
           {/* 在庫メモ・メモ（＋で展開） */}
           {!showExtra ? (
             <button onClick={() => setShowExtra(true)} className="pressable flex items-center gap-1 text-[13px] mt-4" style={{ color: 'var(--accent-text)' }}>
-              <Plus size={16} /> 在庫メモ・メモを追加
+              <Plus size={16} /> {personal ? 'メモを追加' : '在庫メモ・メモを追加'}
             </button>
           ) : (
             <>
-              <div className={labelCls}>在庫メモ</div>
-              <input value={stockNote} onChange={(e) => setStockNote(e.target.value)} placeholder="例: 池袋本店 残りわずか" className={inputCls} style={inputStyle} />
+              {!personal && <>
+                <div className={labelCls}>在庫メモ</div>
+                <input value={stockNote} onChange={(e) => setStockNote(e.target.value)} placeholder="例: 池袋本店 残りわずか" className={inputCls} style={inputStyle} />
+              </>}
               <div className={labelCls}>メモ</div>
               <textarea value={memo} onChange={(e) => setMemo(e.target.value)} rows={3} placeholder="補足情報" className={`${inputCls} resize-none`} style={inputStyle} />
             </>
@@ -1325,13 +1518,21 @@ export default function PostNew() {
           <button onClick={onSubmit} disabled={!canSave}
             className="pressable w-full mt-6 py-3 rounded-[10px] font-semibold flex items-center justify-center gap-2"
             style={canSave ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' } : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-tertiary)' }}>
-            <Check size={18} /> {saving ? '投稿中…' : '投稿する'}
+            <Check size={18} /> {personal ? (saving ? '保存中…' : '保存する') : saving ? '投稿中…' : '投稿する'}
           </button>
-          {/* UGCの同意点。審査(1.2)で「規約に同意する場所」を見られる */}
-          <p className="text-[11px] text-label-tertiary mt-3 text-center leading-relaxed">
-            投稿すると<a href="/terms.html" className="underline" style={{ color: 'var(--accent-text)' }}>利用規約</a>に同意したものとみなされます。
-            <br />不適切な投稿は削除され、繰り返した場合は利用を停止します。
-          </p>
+          {/* UGCの同意点。審査(1.2)で「規約に同意する場所」を見られる。自分用の予定はほかの人に見えないので出さない */}
+          {!personal && (
+            <p className="text-[11px] text-label-tertiary mt-3 text-center leading-relaxed">
+              投稿すると<a href="/terms.html" className="underline" style={{ color: 'var(--accent-text)' }}>利用規約</a>に同意したものとみなされます。
+              <br />不適切な投稿は削除され、繰り返した場合は利用を停止します。
+            </p>
+          )}
+          {editingPersonal && (
+            <button onClick={removePersonal} className="pressable mt-8 flex items-center gap-1.5 text-[14px]" style={{ color: 'var(--color-destructive)' }}>
+              <Trash2 size={16} /> この予定を消す
+            </button>
+          )}
+          </>)}
         </div>
       </div>
 

@@ -4,6 +4,7 @@ import { loginPage, dashboardPage, enrichPage } from './_dashboard-html.js';
 import { planEnrich, applyEnrich, autoEnrich } from './_enrich.js';
 import { crawlNext } from './_crawl.js';
 import { crawlCatalogs } from './_catalog.js';
+import { processProposals, processSubmissions } from './_submissions.js';
 import { runBotPaced } from './_pace.js';
 import { sendPushes, fcmConfigured, type PushMessage } from './_fcm.js';
 import { collectAppStore, collectAppStoreAnalytics, collectPlay, type StoreResult } from './_stores.js';
@@ -301,15 +302,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const started = Date.now();
       // 店への機械的なアクセスの間隔を守る（アニメイトは約20分に1回。_pace.ts）
       // 巡回（決まった作品・ジャンプショップ）→ 店の全作品の巡回（_catalog.ts）→ 残りの時間で手直し。全部で100秒ほどまで
-      const { crawl, catalog, enrich } = await runBotPaced(client, async () => {
+      const { proposals, submissions, crawl, catalog, enrich } = await runBotPaced(client, async () => {
+        // 最優先: ＋αの提案の確認と、送られた情報の登録（2026-09-29。_submissions.ts）。
+        // テーブルがまだ無い環境（SQL未適用）では空振りするだけ
+        const proposals = await processProposals(client, 20_000).catch((e) => ({ error: String(e) }));
+        const submissions = await processSubmissions(client, 20_000).catch((e) => ({ error: String(e) }));
         const crawl = await crawlNext(client).catch((e) => ({ error: String(e) }));
         const catalog = await crawlCatalogs(client, Math.min(40_000, Math.max(0, 85_000 - (Date.now() - started)))).catch((e) => ({ error: String(e) }));
         const enrich = await autoEnrich(client, Math.max(0, 95_000 - (Date.now() - started)));
-        return { crawl, catalog, enrich };
+        return { proposals, submissions, crawl, catalog, enrich };
       });
       // 毎回の結果をログに残す（Vercel のログで、どの店がどれだけ進んだかを見る）
-      console.log('[bot]', JSON.stringify({ tookMs: Date.now() - started, crawl, catalog, enrich }));
-      return res.status(200).json({ crawl, catalog, enrich });
+      console.log('[bot]', JSON.stringify({ tookMs: Date.now() - started, proposals, submissions, crawl, catalog, enrich }));
+      return res.status(200).json({ proposals, submissions, crawl, catalog, enrich });
     }
     return collect(req, res);
   }

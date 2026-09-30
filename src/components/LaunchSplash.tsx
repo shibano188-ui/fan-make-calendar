@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import LaunchLogo, { LAUNCH_LOGO_MS, prefersReducedMotion } from './LaunchLogo';
 import { setSplashAdsSuppressed } from '../lib/adSuppress';
+import { SHOW_ONBOARDING, ONBOARDING_KEY, TOUR_STEP_KEY } from '../lib/constants';
 import { resolveTheme, THEME_VARS, type ThemeMode } from '../contexts/ThemeContext';
 
 // 毎回の起動画面（2026-09-30 柴野「出来がいいので毎回の起動時に出したい。読み込みも短く感じる」）。
@@ -39,6 +40,8 @@ function shouldShow(): boolean {
   try {
     const { search, pathname } = window.location;
     if (/[?&](url|text)=/.test(search)) return false;  // 共有から開いた
+    // 初回の案内（ようこその画面）がこれから出るなら出さない（同じロゴの動きが2回続くので）
+    if (SHOW_ONBOARDING && !localStorage.getItem(ONBOARDING_KEY) && !localStorage.getItem(TOUR_STEP_KEY)) return false;
     if (/^\/(widget|share|web)(\/|$)/.test(pathname)) return false;  // アプリの外枠を使わない画面
     if (Capacitor.isNativePlatform()) return true;
     if (sessionStorage.getItem(SEEN_KEY)) return false;

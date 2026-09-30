@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Heart, Bell, BellRing, BellOff, CalendarCheck, UserRound } from 'lucide-react';
+import { Heart, Bell, BellRing, BellOff, CalendarCheck, CalendarPlus, UserRound, Plus, Check, MessageCircle, Repeat2, BarChart2, Bookmark } from 'lucide-react';
 import { notificationPermission } from '../lib/notifications';
 import type { CalendarEvent } from '../types';
 import { setAdsSuppressed } from '../lib/adSuppress';
@@ -13,6 +13,8 @@ import { ONBOARDING_KEY, TOUR_STEP_KEY, TOUR_EVENT_KEY, TOUR_EVENT, LIKED_EVENT,
 //   calendar … 自動でカレンダーへ移り、いいねした予定がその日に入ったのを見せる
 //   bell     … そのままベルを押して通知をONにする（ここで初めて通知の許可を聞く）
 //   done     … 「これで通知が届きます！」（何日前に届くか・どこで変えられるか）
+//   post     … 真ん中の「＋」を光らせ、Xのアプリから共有するだけで予定になることを小さなデモで見せる（押させない）
+//   personal … カレンダーの右下の印を光らせ、自分だけの予定を作れることを伝える（押させない）
 //   account  … マイページへ移り、アカウント（データ引き継ぎ）の行を光らせて、メールを登録すると引き継げると伝える。
 //              登録はさせない（iOS 5.1.1(v)。登録しなくても全部使える）。「次へ」で課金の案内へ
 // **スキップは無い**。下のタブは押せなくしてある（index.css の body[data-tour-step]）。
@@ -21,12 +23,12 @@ import { ONBOARDING_KEY, TOUR_STEP_KEY, TOUR_EVENT_KEY, TOUR_EVENT, LIKED_EVENT,
 //
 // 段階は端末に残す（途中でアプリを閉じても、次の起動で続きから）。
 
-export type TourStep = 'like' | 'calendar' | 'bell' | 'done' | 'account';
+export type TourStep = 'like' | 'calendar' | 'bell' | 'done' | 'post' | 'personal' | 'account';
 
 function readStep(): TourStep | null {
   try {
     const v = localStorage.getItem(TOUR_STEP_KEY);
-    return v === 'like' || v === 'calendar' || v === 'bell' || v === 'done' || v === 'account' ? v : null;
+    return v === 'like' || v === 'calendar' || v === 'bell' || v === 'done' || v === 'post' || v === 'personal' || v === 'account' ? v : null;
   } catch { return null; }
 }
 
@@ -85,6 +87,8 @@ const COPY: Record<TourStep, { icon: typeof Heart; title: string; body?: string 
   bell: { icon: Bell, title: 'ベルを押して通知をONにしよう', body: '発売日や締切の前にお知らせします。' },
   // 本文は通知の設定（何日前か）に合わせて Bubble で組み立てる
   done: { icon: BellRing, title: 'これで通知が届きます！' },
+  post: { icon: Plus, title: '見つけた情報はここから', body: 'Xで見つけたら、ポストの共有ボタンから FanHive を選ぶだけ。AIが予定にします。' },
+  personal: { icon: CalendarPlus, title: '自分だけの予定はここから', body: 'カレンダーのこのボタンから、ほかの人には見えない自分用の予定を作れます。' },
   account: { icon: UserRound, title: 'メールを登録しておくと安心です', body: '機種変更やアプリの入れ直しのときも、フォローやカレンダーをそのまま引き継げます。登録はあとからいつでもできます。' },
 };
 
@@ -118,7 +122,7 @@ export default function OnboardingTour() {
   // 段階に合った画面へ連れていく。予定詳細（/item/…）は開いてよい（詳細の ♡・ベルでも進める）
   useEffect(() => {
     if (!step || pathname.startsWith('/item/')) return;
-    const want = step === 'like' ? '/explore' : step === 'account' ? '/mypage' : '/saved';
+    const want = step === 'like' ? '/explore' : step === 'account' ? '/mypage' : '/saved';  // post・personal もカレンダーの上で
     if (pathname !== want) navigate(want, { replace: true });
   }, [step, pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -172,7 +176,9 @@ export default function OnboardingTour() {
     onNext={() => {
       haptic.select();
       if (step === 'calendar') writeStep('bell');
-      else if (step === 'done') { writeStep('account'); navigate('/mypage'); }
+      else if (step === 'done') writeStep('post');
+      else if (step === 'post') writeStep('personal');
+      else if (step === 'personal') { writeStep('account'); navigate('/mypage'); }
       else if (step === 'account') void finish();
     }} />;
 }
@@ -216,6 +222,9 @@ function useRect(find: () => Element | null): Rect | null {
 const findHeader = () => document.querySelector('[data-skin-bar="main"]');
 const findNav = () => document.querySelector('[data-bottom-nav] > *');
 const findAccount = () => document.querySelector('[data-tour="account"]');
+const findPostButton = () => document.querySelector('[data-tour="post"]');
+const findDayHeading = () => document.querySelector('[data-tour="day-heading"]');
+const findPersonalButton = () => document.querySelector('[data-tour="personal"]');
 
 function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean; onNext: () => void }) {
   const id = tourEventId();
@@ -223,7 +232,13 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
   const framed = step === 'like' || step === 'calendar' || step === 'done';
   const header = useRect(framed ? findHeader : nothing);
   const nav = useRect(framed ? findNav : nothing);
-  const target = useRect(step === 'bell' ? findBell : step === 'account' ? findAccount : nothing);
+  // カレンダーに登録されました・これで通知が届きます: 吹き出しを日のパネルの予定のすぐ上に置く（上の見出しの位置だと、見てほしい予定から遠い）
+  const findTourCard = useCallback(() => (id ? document.querySelector(`[data-card-id="${CSS.escape(id)}"]`) : null), [id]);
+  const card = useRect(step === 'calendar' || step === 'done' ? findTourCard : nothing);
+  // 日のパネルの見出し（日付）。吹き出しはこれより上に置く（どの日に入ったかを隠さない）
+  const dayHeading = useRect(step === 'calendar' || step === 'done' ? findDayHeading : nothing);
+  const target = useRect(step === 'bell' ? findBell : step === 'account' ? findAccount
+    : step === 'post' ? findPostButton : step === 'personal' ? findPersonalButton : nothing);
 
   // 光らせる行が画面の外にあるとき（マイページのアカウントは下の方）は、真ん中まで一気に送ってから光らせる。
   // なめらかに送ると、動いている途中の位置に穴と吹き出しが出て、追いかけるような変な動きになる
@@ -252,14 +267,24 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
   if (framed) {
     const top = Math.max(header ? header.top + header.height : 0, 0);
     const bottom = nav ? nav.top - 10 : vh;
+    // 予定のカードが見えていれば、吹き出しはその上に（矢印でカード、通知の段はベルを指す）
+    const nearCard = step !== 'like' && card && card.top > top + 120;
     return (
       <div className="fixed inset-0 z-[250] pointer-events-none" style={fade}>
-        {/* 上の幕。見出し・検索欄・作品の並びを覆い、その上に案内を載せる */}
+        {/* 上の幕。見出し・検索欄・作品の並びを覆う。探すの段は、その上に案内を載せる */}
         <div className="absolute inset-x-0 top-0 pointer-events-auto flex flex-col justify-end px-4 pb-3"
           // 高さは見出しの下端まで。吹き出しの方が高ければ伸ばす（上にはみ出して見出しが切れないように）
-          style={{ minHeight: `max(${Math.max(top, 0)}px, calc(var(--sat) + 96px))`, paddingTop: 'calc(var(--sat) + 8px)', backgroundColor: DIM }}>
-          <Bubble step={step} arrow={step === 'done' ? undefined : 'down'} onNext={step === 'like' ? undefined : onNext} />
+          style={{ minHeight: `max(${Math.max(top, 0)}px, calc(var(--sat) + ${nearCard ? 0 : 96}px))`, paddingTop: nearCard ? undefined : 'calc(var(--sat) + 8px)', backgroundColor: DIM }}>
+          {!nearCard && <Bubble step={step} arrow={step === 'done' ? undefined : 'down'} onNext={step === 'like' ? undefined : onNext} />}
         </div>
+        {nearCard && (
+          <div className="absolute inset-x-0 px-4" style={{ bottom: vh - Math.min(card.top, dayHeading?.top ?? card.top) + 10 }}>
+            <Bubble step={step} arrow="down"
+              // 矢印は予定のカードの真ん中へ（ベルの真上を狙うと、パネルの「＋」を指しているように見えた）
+              arrowX={card.left + card.width / 2}
+              onNext={onNext} />
+          </div>
+        )}
         {/* 下の幕。タブを覆う（押せない） */}
         <div className="absolute inset-x-0 bottom-0 pointer-events-auto" style={{ top: bottom, backgroundColor: DIM }} />
       </div>
@@ -268,12 +293,13 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
 
   // bell: ベルだけを丸く抜く（ここだけ押せる）。account: アカウントの行を抜く（押させない。「次へ」で進む）。
   // 見つかるまで（シートが出てくる途中など）は全体を暗くして吹き出しだけ出す
-  const pad = step === 'bell' ? 6 : 2;
+  const round = step === 'bell' || step === 'post' || step === 'personal';
+  const pad = round ? 6 : 2;
   const hole = settled && target && {
     top: target.top - pad, left: target.left - pad,
     width: target.width + pad * 2, height: target.height + pad * 2,
   };
-  const radius = step === 'bell' ? 9999 : 12;
+  const radius = round ? 9999 : 12;
   // 吹き出しは、抜いたところの上に余裕があれば上、無ければ下
   const above = hole ? hole.top > 190 : true;
   const arrowX = hole ? hole.left + hole.width / 2 : vw / 2;
@@ -283,12 +309,14 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
       {hole ? (
         <>
           {/* 暗い幕（抜いた穴のまわりを大きな影で塗る。影は指を通すので、下の4枚で止める） */}
-          <div className="absolute" style={{ ...hole, borderRadius: radius, boxShadow: `0 0 0 200vmax ${DIM}`, transition: 'all 0.25s ease' }} />
+          {/* 自分だけの予定の段は、カレンダーの画面だと分かるよう幕を薄くする（濃いと何の画面か分からない） */}
+          <div className="absolute" style={{ ...hole, borderRadius: radius, boxShadow: `0 0 0 200vmax ${step === 'personal' ? 'rgba(0,0,0,0.45)' : DIM}`, transition: 'all 0.25s ease' }} />
           <div className="absolute inset-x-0 top-0 pointer-events-auto" style={{ height: Math.max(hole.top, 0) }} />
           <div className="absolute inset-x-0 bottom-0 pointer-events-auto" style={{ top: hole.top + hole.height }} />
           <div className="absolute left-0 pointer-events-auto" style={{ top: hole.top, height: hole.height, width: Math.max(hole.left, 0) }} />
           <div className="absolute right-0 pointer-events-auto" style={{ top: hole.top, height: hole.height, left: hole.left + hole.width }} />
-          {step === 'account' && <div className="absolute pointer-events-auto" style={hole} />}
+          {/* 押させない段階（見せるだけ。「次へ」で進む） */}
+          {step !== 'bell' && <div className="absolute pointer-events-auto" style={hole} />}
         </>
       ) : (
         <div className="absolute inset-0 pointer-events-auto" style={{ backgroundColor: DIM }} />
@@ -297,7 +325,7 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
         style={hole
           ? (above ? { bottom: vh - hole.top + 12 } : { top: hole.top + hole.height + 12 })
           : { top: 'calc(var(--sat) + 16px)' }}>
-        <Bubble step={step} arrow={hole ? (above ? 'down' : 'up') : undefined} arrowX={arrowX} onNext={step === 'account' ? onNext : undefined} />
+        <Bubble step={step} arrow={hole ? (above ? 'down' : 'up') : undefined} arrowX={arrowX} onNext={step === 'bell' ? undefined : onNext} />
       </div>}
     </div>
   );
@@ -339,6 +367,7 @@ function Bubble({ step, arrow, arrowX, onNext }: { step: TourStep; arrow?: 'up' 
       <div className="flex-1 min-w-0">
         <p className="text-[15px] font-bold leading-snug">{title}</p>
         {body && <p className="text-[12px] leading-snug mt-0.5" style={{ opacity: 0.75 }}>{body}</p>}
+        {step === 'post' && <ShareDemo />}
       </div>
       </div>
       {/* 「次へ」は文の下に置く（横に並べると文が細切れに折り返す） */}
@@ -352,6 +381,47 @@ function Bubble({ step, arrow, arrowX, onNext }: { step: TourStep; arrow?: 'up' 
         </div>
       )}
       {arrow === 'down' && tip('down')}
+    </div>
+  );
+}
+
+/** Xのアプリから共有するだけで予定になる、を3コマで繰り返し見せる（本物の共有シートは案内の中で開けないので絵で見せる）。
+ *  ポスト（共有ボタン）→ 共有先に FanHive → 予定になった */
+function ShareDemo() {
+  const frame = 'absolute inset-0 rounded-[10px] px-2.5 py-2 flex items-center gap-2';
+  const bg = { backgroundColor: 'var(--bg-primary)', color: 'var(--label-primary)' };
+  const anim = (i: number) => ({ ...bg, opacity: 0, animation: `shareDemo 5.4s ${i * 1.8}s infinite` });
+  return (
+    <div className="relative h-[56px] mt-2.5" aria-hidden>
+      {/* 1コマ目: Xのポスト。下の操作の並び（返信・リポスト・いいね・表示回数・ブックマーク・共有）を出して、その中の共有だと分かるようにする */}
+      <div className={`${frame} flex-col !items-stretch !gap-1.5 !py-1.5`} style={anim(0)}>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[13px] font-black leading-none">𝕏</span>
+          <div className="flex-1 h-1.5 rounded-full" style={{ backgroundColor: 'var(--fill-secondary, rgba(120,120,128,0.25))' }} />
+        </div>
+        <div className="flex items-center justify-between px-0.5 text-label-tertiary">
+          <MessageCircle size={13} /><Repeat2 size={13} /><Heart size={13} /><BarChart2 size={13} /><Bookmark size={13} />
+          <span className="w-6 h-6 -my-1 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)', animation: 'tourPulse 1.4s ease-out infinite' }}>
+            {/* Xの共有ボタンの形（上向きの矢印と受け皿）。ほかの操作と形が違うので、iOSの共有マークにしない */}
+            <svg viewBox="0 0 24 24" width={13} height={13} fill="currentColor" aria-hidden>
+              <path d="M12 2.59l5.7 5.7-1.41 1.42L13 6.41V16h-2V6.41l-3.3 3.3-1.41-1.42L12 2.59zM21 15l-.02 3.51c0 1.38-1.12 2.49-2.5 2.49H5.5C4.11 21 3 19.88 3 18.5V15h2v3.5c0 .28.22.5.5.5h12.98c.28 0 .5-.22.5-.5L19 15h2z" />
+            </svg>
+          </span>
+        </div>
+      </div>
+      <div className={frame} style={anim(1)}>
+        <span className="text-[11px] font-semibold whitespace-nowrap">共有先</span>
+        {[0, 1, 2].map((k) => <span key={k} className="w-7 h-7 rounded-[8px]" style={{ backgroundColor: 'var(--fill-tertiary)' }} />)}
+        <span className="flex flex-col items-center">
+          <img src="/icon-512.png" alt="" className="w-8 h-8 rounded-[9px]" style={{ boxShadow: '0 0 0 2px var(--accent-color)' }} />
+          <span className="text-[9px] font-bold mt-0.5">FanHive</span>
+        </span>
+      </div>
+      <div className={frame} style={anim(2)}>
+        <img src="/icon-512.png" alt="" className="w-8 h-8 rounded-[9px]" />
+        <span className="flex-1 text-[12px] font-bold">AIが予定にしました</span>
+        <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--color-success)', color: '#fff' }}><Check size={14} strokeWidth={3} /></span>
+      </div>
     </div>
   );
 }
