@@ -44,8 +44,8 @@ export default defineConfig({
         clientsClaim: true,
         skipWaiting: true,
         globPatterns: ['**/*.{js,css,html,svg,ico,woff,woff2}'],
-        // LP（lp.html）はフォント込みで 7MB あり、アプリの利用者に先読みさせる必要もないので外す
-        globIgnores: ['lp.html'],
+        // LP（lp.html と public/lp/ の画像・フォント）はアプリの利用者に先読みさせる必要が無いので外す
+        globIgnores: ['lp.html', 'lp/**'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
