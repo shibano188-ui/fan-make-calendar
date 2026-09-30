@@ -4,7 +4,7 @@ import { App } from '@capacitor/app';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { useAuth } from '../contexts/AuthContext';
 import { loadSaved } from '../lib/savedStore';
-import { rescheduleAll, notificationsSupported } from '../lib/notifications';
+import { rescheduleAll, notificationsSupported, NOTIFY_PERMISSION_EVENT } from '../lib/notifications';
 import { syncDeviceCalendar } from '../lib/deviceCalendar';
 import { registerPush, onPushOpened, loadDigestSetting } from '../lib/push';
 
@@ -31,10 +31,14 @@ export function useNotificationScheduler() {
   // ローカル通知とは独立に動く（片方が使えなくても、もう片方は生きる）。
   useEffect(() => {
     if (!user) return;
-    void registerPush(user.id);
+    // 起動時は許可されていれば登録するだけ（許可は聞かない）。ベルなどで許可されたら、その場で登録し直す
+    const register = () => { void registerPush(user.id); };
+    register();
+    window.addEventListener(NOTIFY_PERMISSION_EVENT, register);
     void onPushOpened((path) => navigate(path));
     // 別端末で「新着まとめ」を切っていたら、この端末の表示もそれに合わせる
     void loadDigestSetting(user.id).catch(() => { /* 取れなくても既定（受け取る）で動く */ });
+    return () => window.removeEventListener(NOTIFY_PERMISSION_EVENT, register);
   }, [user?.id, navigate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 起動 + 復帰で再スケジュール

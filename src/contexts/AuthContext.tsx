@@ -1,8 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { getWorksByNames, upsertParticipation } from '../lib/api';
-import { DEFAULT_WORK_NAMES } from '../lib/constants';
 import { setAppStateUser, setAppStateSync, syncAppState } from '../lib/appState';
 import { setStampUser } from '../lib/stampStore';
 import { refreshPremium, clearPremium } from '../lib/premium';
@@ -15,30 +13,18 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue>({ user: null, loading: true });
 
-// 初回起動時、デフォルト作品（ちいかわ・ハイキュー!!）へ自動参加させる。端末ごとに1回だけ。
-// user を公開する前にこれを await して完了させることで、Home 等が「参加0件」を先読みして
-// フォロー0のままキャッシュしてしまうレースを防ぐ。以後ユーザーが脱退しても再追加はしない。
-// v2: 旧レース条件でフォロー0のまま詰まった既存端末を回復させるためキーをバージョンアップ。
-// 未設定の端末（新規／旧フラグのみ持つ端末）で一度だけ再参加する。
-const DEFAULT_JOINED_KEY = 'fan_default_joined_v2';
+// 前はここで新しい人全員に既定の作品（ちいかわ・ハイキュー!!）を自動でフォローさせていた。
+// 2026-09-29 にやめた（柴野）。作品はオンボーディングで必ず1つ以上選んでもらう。
 // 端末設定をこの端末で一度でも同期できた人（値は user_id）。2回目からは起動時に同期を待たない
 const SYNCED_ONCE_KEY = 'fan_app_state_synced_v1';
-let defaultJoinPromise: Promise<void> | null = null;
-function ensureDefaultJoined(userId: string): Promise<void> {
-  if (localStorage.getItem(DEFAULT_JOINED_KEY)) return Promise.resolve();
-  if (!defaultJoinPromise) {
-    defaultJoinPromise = (async () => {
-      try {
-        const defaults = await getWorksByNames(DEFAULT_WORK_NAMES);
-        await Promise.all(defaults.map((w) => upsertParticipation(w.id, userId)));
-        localStorage.setItem(DEFAULT_JOINED_KEY, '1');
-      } catch (e) {
-        console.error('[ensureDefaultJoined]', e);
-        defaultJoinPromise = null; // 失敗時は次回リトライできるようクリア
-      }
-    })();
-  }
-  return defaultJoinPromise;
+
+// 匿名サインインは1回の起動で1回だけ。開発時の StrictMode は起動の処理を2回走らせるので、
+// そのままだと匿名アカウントが2つでき、画面は1つ目・通信は2つ目のアカウントになる。
+// その間に作品を押すと、DB が「本人ではない」と弾いて「フォローに失敗しました」になっていた（2026-09-29）
+let anonSignIn: ReturnType<typeof supabase.auth.signInAnonymously> | null = null;
+function signInAnonymouslyOnce() {
+  if (!anonSignIn) anonSignIn = supabase.auth.signInAnonymously().finally(() => { anonSignIn = null; });
+  return anonSignIn;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -49,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     let activatedId: string | null = null;
 
-    // user を公開する前にデフォルト参加とアプリ状態の同期を確定させる。
+    // user を公開する前にアプリ状態の同期を確定させる。
     // 同期はサーバーが遅い/落ちている場合に起動を止めないよう上限を切り、超えたらローカルのまま進む。
     const activate = async (u: User) => {
       // getSession と onAuthStateChange の両方から同じ人で呼ばれるので、2回目は何もしない
@@ -62,7 +48,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // 無料でも別端末で見られる＝「複数端末で使える」は有料の売りとして成立しなかった
       // （2026-08-14 本人判断で有料リストから外した）。
       setAppStateSync(true);
-      await ensureDefaultJoined(u.id);
       // 端末設定の同期を待つのは**その端末で初めて同期するときだけ**。
       // 2回目からは手元に前回の写しがあるので、画面を先に出して裏で同期する
       // （毎回待っていたため、起動のたびにデータの表示が1往復以上遅れていた）。
@@ -91,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user) {
         activate(session.user);
       } else {
-        supabase.auth.signInAnonymously().then(({ error }) => {
+        signInAnonymouslyOnce().then(({ error }) => {
           if (error && !cancelled) setLoading(false);
         });
       }

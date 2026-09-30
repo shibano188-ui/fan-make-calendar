@@ -3,8 +3,6 @@ import { pushAppState, clearSyncedAppState } from './appState';
 export const POST_CATEGORIES = ['書籍', 'グッズ', 'イベント', '誕生日', 'アニメ・映画', 'グルメ', 'キャンペーン'] as const;
 
 // ─── クローズドテスト中の暫定フラグ（作品2つフェーズ）─────────────────────
-// 初回起動した人を自動参加させるデフォルト作品（名前で照合）
-export const DEFAULT_WORK_NAMES = ['ちいかわ', 'ハイキュー!!'];
 // 作品タブの「人気のカレンダー」表示。作品が増えたら true に戻す
 export const SHOW_POPULAR_CALENDARS = false;
 
@@ -20,6 +18,24 @@ export const ONBOARDING_KEY = 'fan_onboarding_done_v2';
  *  投稿画面から戻ってきたときに、最後のカードを「自分の推しでやってみる」に切り替えるために使う。
  *  オンボーディングを閉じるときに一緒に消す。 */
 export const ONBOARDING_DEMO_KEY = 'fan_onboarding_demo_done';
+/** オンボーディングの作品選びで、必ず候補に出す作品（名前で照合）。SNS で予定表を出している8作品と同じ
+ *  （scripts/sns-schedule/works.mjs）。ほかの候補は予定の多い順に後ろへ並べる。
+ *  前は新しい人全員にちいかわ・ハイキュー!! を自動でフォローさせていたが、2026-09-29 にやめた（柴野） */
+export const ONBOARDING_FEATURED_WORKS = ['葬送のフリーレン', '呪術廻戦', 'ハイキュー!!', '進撃の巨人', '鬼滅の刃', '僕のヒーローアカデミア', 'ちいかわ', 'ブルーロック'];
+/** オンボーディングの続き（本物の画面での案内）の今の段階。作品を選んで「次へ」を押すと始まり、ベルを押すと消える。
+ *  途中でアプリを閉じても、次の起動でこの段階から続ける（OnboardingTour.tsx） */
+export const TOUR_STEP_KEY = 'fan_tour_step_v1';
+/** 案内の中でいいねした予定の id。カレンダーでその日を開いて見せるために使う */
+export const TOUR_EVENT_KEY = 'fan_tour_event_v1';
+/** 案内の段階が変わったことを知らせる window のイベント名 */
+export const TOUR_EVENT = 'fan-tour';
+/** いいねした（外したときは出さない）ことを知らせる window のイベント名。detail は予定の id */
+export const LIKED_EVENT = 'fan-liked';
+/** ベルを押して、通知の許可を聞き終えたことを知らせる window のイベント名 */
+export const BELL_EVENT = 'fan-bell';
+/** フォローが画面の外で変わったことを知らせる window のイベント名（workImages.ts の fan-work-images と同じ流儀）。
+ *  オンボーディングは開いているホームの上に重なるので、ホームは user が変わらない限り読み直さない。これで読み直させる */
+export const FOLLOWS_EVENT = 'fan-follows';
 
 /** 起動したときに最初に出す画面。カレンダーが主役のアプリなので既定はカレンダー。
  *  ホームに戻すなら '/' にする。 */
@@ -193,7 +209,6 @@ const ACCOUNT_SCOPED_KEYS = [
   'fan_liked_event_ids',    // likes テーブル
   'fan_calendar_event_ids', // calendar_adds テーブル
   'fan_reactions',          // reactions テーブル
-  'fan_default_joined_v2',  // 既定フォロー済みフラグ（新しい匿名ユーザーには再適用が要る）
   'fan_saved_events_v1',    // 保存した予定の控え（savedStore.ts）
   'fan_followed_works_v1',  // フォロー中の作品の控え（カレンダー上部の並び）
 ];

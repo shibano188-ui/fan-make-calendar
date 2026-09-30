@@ -5,7 +5,7 @@ import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveStatus, todayStr } from '../design/tokens';
-import { loadSeenEventIds, isNewItem, FEATURE_PREMIUM } from '../lib/constants';
+import { loadSeenEventIds, isNewItem, FEATURE_PREMIUM, FOLLOWS_EVENT } from '../lib/constants';
 import { listExploreEvents, listAllParticipatedWorks, toggleLike, toggleCalendarAdd, listLikedEventIds, listMyPriceChanges, type Work } from '../lib/api';
 import { useFeature } from '../lib/premium';
 import { unseenChanges } from '../lib/priceAlerts';
@@ -161,6 +161,14 @@ export default function Home() {
     const cachedL = getCached<string[]>(lkey);
     if (cachedL) setLikedIds(new Set(cachedL));
     listLikedEventIds(user.id).then((ids) => { setLikedIds(ids); setCached(lkey, [...ids]); }).catch(() => {});
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // オンボーディングはこの画面の上に重なって作品を選ばせるので、閉じてもこの画面は開き直さない。
+  // 知らせを受けて作品の並びを読み直す（読み直さないと、選んだ作品が上の並びに出ない）
+  useEffect(() => {
+    const onFollows = () => reloadFollows();
+    window.addEventListener(FOLLOWS_EVENT, onFollows);
+    return () => window.removeEventListener(FOLLOWS_EVENT, onFollows);
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 値下がり・再入荷（プレミアム）。1件ずつ知らせると煩わしいので、ここでは**件数だけ**出して

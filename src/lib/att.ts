@@ -1,41 +1,51 @@
-import { Capacitor } from '@capacitor/core';
-import { AdMob } from '@capacitor-community/admob';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 
 // iOSのトラッキング許可(ATT)。
 //
-// **要求そのものはネイティブ（AppDelegate.swift）が起動直後に主スレッドから出す**。
+// **要求そのものはネイティブ（AppDelegate.swift の TrackingPlugin）が主スレッドから出す**。
 // JS（AdMobプラグイン）から要求すると、Capacitor がプラグインの呼び出しを
 // バックグラウンドスレッドで実行するため、ダイアログが出ないまま完了することがある。
 // 2026-08-17 に Guideline 2.1「ATTの許可要求が見つからない」で却下された経路がこれ。
 //
-// ここが持つのは「その回答が出るまで待つ」だけ。用途は2つ:
-//  - 広告SDKの初期化を回答のあとにする（トラッキングに使えるデータを先に集めない）
-//  - 通知の許可を聞くのを回答のあとにする（システムのダイアログを重ねると片方が消える）
+// いつ出すか: **オンボーディングを終えたあと**（2026-09-29 柴野）。前は起動直後にネイティブが出していて、
+// オンボーディングの途中に割り込んでいた。案内を見終えた人は起動のたびに requestTracking() を呼ぶ
+// （答え済みなら何も出ずに返る）。
+//
+// ここが持つのは3つ:
+//  - requestTracking(): ダイアログを出して回答を待つ
+//  - waitForTrackingDecision(): 広告SDKの初期化を回答のあとにする（トラッキングに使えるデータを先に集めない）
+//  - waitForTrackingDialog(): 通知の許可を聞く前に、ATTのダイアログが出ていれば閉じるのを待つ
+//    （システムのダイアログを重ねると片方が消える）
 
-const isIOS = (): boolean => Capacitor.getPlatform() === 'ios';
+const isIOS = (): boolean => Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
 
-let pending: Promise<void> | null = null;
+const Tracking = registerPlugin<{ request(): Promise<{ status: string }> }>('Tracking');
 
-/** ATTの回答（許可/拒否/制限）が出るまで待つ。iOS以外とWeb版では何もせず即座に返る。 */
-export function waitForTrackingDecision(timeoutMs = 20_000): Promise<void> {
-  if (!Capacitor.isNativePlatform() || !isIOS()) return Promise.resolve();
-  if (!pending) pending = poll(timeoutMs);
-  return pending;
+let asking: Promise<void> | null = null;
+let decided: () => void = () => {};
+const decision = new Promise<void>((r) => { decided = r; });
+
+/** ATTのダイアログを出して、回答（許可/拒否/制限）が出るまで待つ。答え済みなら何も出さずに返る。
+ *  iOS以外とWeb版では何もしない。 */
+export function requestTracking(): Promise<void> {
+  if (!isIOS()) return Promise.resolve();
+  if (!asking) {
+    asking = Tracking.request()
+      .then(() => undefined)
+      .catch(() => undefined)   // 口が無い・失敗したときも広告と通知は止めない
+      .finally(() => decided());
+  }
+  return asking;
 }
 
-// ネイティブから完了を知らせる口が無いので、状態を見に行く。
-// ダイアログが出ている間は notDetermined のままなので、答えた時点で抜ける。
-// 端末の「Appからのトラッキング要求を許可」がOFFなら初回から denied で返り、待ちは発生しない。
-async function poll(timeoutMs: number): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  for (;;) {
-    try {
-      const { status } = await AdMob.trackingAuthorizationStatus();
-      if (status !== 'notDetermined') return;
-    } catch {
-      return;   // 状態が取れない環境では待たない（広告も通知も止めない）
-    }
-    if (Date.now() >= deadline) return;
-    await new Promise((r) => { setTimeout(r, 400); });
-  }
+/** ATTの回答が出るまで待つ（広告SDKの初期化用）。requestTracking() がまだ呼ばれていなければ、呼ばれて答えが出るまで待つ。
+ *  iOS以外とWeb版では即座に返る。 */
+export function waitForTrackingDecision(): Promise<void> {
+  if (!isIOS()) return Promise.resolve();
+  return decision;
+}
+
+/** ATTのダイアログが出ている最中なら、閉じるまで待つ（通知の許可を重ねないため）。出ていなければ即座に返る。 */
+export function waitForTrackingDialog(): Promise<void> {
+  return asking ?? Promise.resolve();
 }

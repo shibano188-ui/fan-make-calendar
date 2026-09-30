@@ -15,10 +15,12 @@ import { setPremiumOptimistic } from './premium';
 // 方式: Google Play Billing / Apple IAP。**アプリ内のデジタル課金はストア必須**で、
 // WebViewにStripeを出すと審査で落ちる。RevenueCat を挟んでいる。
 //
-// 「5件投稿で初月無料」は**ストア側の無料お試し**で実現する（2026-08-10 本人確定）。
+// 初月無料は**ストア側の無料お試し**で実現する。
 // Play Console 側で各基本プランに「デベロッパー指定」の特典（無料試用30日）を作り、
 // タグに `rc-ignore-offer` を付けてある。このタグが無いと SDK が全員に自動で無料試用を
-// 適用してしまうため、**対象者にだけこちらから明示的にその特典を指定して購入を開始する**。
+// 適用してしまうため、**こちらから明示的にその特典を指定して購入を開始する**。
+// 以前は「5件投稿で初月無料」だったが、2026-09-29 に条件を外した（柴野。運営のボットが
+// 予定を集めるので、投稿を促す理由が薄くなった）。今は**初めて買う人は全員**初月無料。
 
 export type PlanId = 'monthly' | 'yearly';
 
@@ -43,13 +45,19 @@ export function planOf(id: PlanId): Plan {
   return PLANS.find((p) => p.id === id) ?? PLANS[0];
 }
 
-/** 初月無料になる投稿数。ピッチで「5件投稿で初月無料」と言っているので、
- *  変えるときは資料（[[fanhive-pitch-script-shibano]] S22）も直す。 */
-export const FREE_TRIAL_POSTS = 5;
-
-/** 初月無料の対象か。数えるのは累計投稿数＝マイページの「投稿」と同じ値。 */
-export function trialEligible(posted: number): boolean {
-  return posted >= FREE_TRIAL_POSTS;
+/** 初月無料の対象か。**初めて買う人は全員**（投稿数などの条件は無い）。
+ *  iOS: 導入価格は Apple が「初めての人」を判定して自動で当てるので、こちらは常に true。
+ *  Android: 「デベロッパー指定」の特典は Play が対象者を絞らないので、
+ *    一度でも買ったことがある人（解約して戻ってきた人）には当てない。iOS と同じ扱いにそろえる。
+ *  ブラウザ版は買えない（表示だけ）ので true。 */
+export async function trialAvailable(): Promise<boolean> {
+  if (!billingSupported() || isIOS()) return true;
+  try {
+    const { customerInfo } = await Purchases.getCustomerInfo();
+    return customerInfo.allPurchasedProductIdentifiers.length === 0;
+  } catch {
+    return true;   // 分からないときは無料お試し付きで出す（買えないより良い。Play 側で弾かれたら通常の購入になる）
+  }
 }
 
 /** ストア決済が使えるか。ブラウザ版では買えないのでアプリ版へ案内する。 */

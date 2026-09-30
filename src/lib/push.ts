@@ -11,7 +11,6 @@
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { supabase } from './supabase';
-import { waitForTrackingDecision } from './att';
 
 // iOS だけ別のプラグインを使う理由:
 // @capacitor/push-notifications の iOS 実装が返すのは **APNsのデバイストークン**で、
@@ -56,7 +55,11 @@ async function saveToken(userId: string, token: string): Promise<void> {
   rememberToken(token);
 }
 
-/** 宛先を登録する。起動時とログイン直後に呼ぶ（同じトークンでも upsert で updated_at が延びる）。
+/** 宛先を登録する。起動時とログイン直後、通知が許可された直後に呼ぶ（同じトークンでも upsert で updated_at が延びる）。
+ *
+ *  **ここでは通知の許可を聞かない**。許可を聞くのはベルなどを押したとき（notifications.ts の ensurePermission）だけ。
+ *  前は起動時にここで聞いていて、オンボーディングの途中に割り込んでいた（2026-09-29 柴野）。
+ *  許可はローカル通知と共通（iOS・Android とも OS の通知の許可は1つ）なので、許可されていれば登録だけする。
  *
  *  ⚠️ google-services.json がまだ無いビルドでは Firebase の初期化に失敗して register() が投げる。
  *  プッシュが無いだけでアプリは動くので、握りつぶして黙って諦める。 */
@@ -65,16 +68,8 @@ export async function registerPush(userId: string): Promise<void> {
 
   if (isIOS()) {
     try {
-      // ATTの回答が出るまで通知の許可を聞かない。
-      // システムのダイアログを重ねると片方が表示されないまま消えることがあり、
-      // 実際にATTのダイアログが通知のダイアログに覆われていた（2026-08-17 Guideline 2.1）。
-      await waitForTrackingDecision();
       const { FirebaseMessaging } = await import('@capacitor-firebase/messaging');
-      const cur = await FirebaseMessaging.checkPermissions();
-      const state = cur.receive === 'prompt' || cur.receive === 'prompt-with-rationale'
-        ? (await FirebaseMessaging.requestPermissions()).receive
-        : cur.receive;
-      if (state !== 'granted') return;
+      if ((await FirebaseMessaging.checkPermissions()).receive !== 'granted') return;
 
       // トークンは後から作り直されることがある（アプリ再インストール・復元など）。
       // 更新を取りこぼすと通知が届かなくなるので購読しておく。
@@ -91,12 +86,7 @@ export async function registerPush(userId: string): Promise<void> {
   }
 
   try {
-    const cur = await PushNotifications.checkPermissions();
-    // 通知はローカル通知の側で既に許可を取っていることが多い。まだなら1回だけ聞く。
-    const state = cur.receive === 'prompt' || cur.receive === 'prompt-with-rationale'
-      ? (await PushNotifications.requestPermissions()).receive
-      : cur.receive;
-    if (state !== 'granted') return;
+    if ((await PushNotifications.checkPermissions()).receive !== 'granted') return;
 
     // 通知チャンネルを用意（同じidで何度呼んでも増えない）
     try {

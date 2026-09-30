@@ -7,13 +7,15 @@ import { ActionSheetProvider } from './components/ui/ActionSheet';
 import { ToastProvider } from './components/ui/Toast';
 import PhoneFrame from './components/PhoneFrame';
 import Onboarding from './components/Onboarding';
+import OnboardingTour from './components/OnboardingTour';
 import LaunchSplash, { markPageLoading } from './components/LaunchSplash';
 import { Capacitor } from '@capacitor/core';
 import { initAdMob, showBanner, hideBanner } from './lib/admob';
 import { installExternalLinkHandler } from './lib/openExternal';
 import { useFeature } from './lib/premium';
 import { useAdsSuppressed } from './lib/adSuppress';
-import { SHOW_ONBOARDING } from './lib/constants';
+import { SHOW_ONBOARDING, ONBOARDING_KEY } from './lib/constants';
+import { requestTracking } from './lib/att';
 
 // ピボット後IA（feat/pivot-rebuild）。旧 Calendar 中心の画面は順次置換。
 const AppShell        = lazy(() => import('./components/AppShell'));
@@ -123,7 +125,14 @@ function NativeShareHandler() {
 }
 
 function AdMobController() {
-  useEffect(() => { initAdMob(); }, []);
+  useEffect(() => {
+    // トラッキングの許可(ATT)は、オンボーディングを見終えた人にだけ起動時に聞く（答え済みなら何も出ない）。
+    // 見ている途中の人には、Onboarding が終わったときに聞く。広告SDKは回答が出るまで起動しない
+    let done = !SHOW_ONBOARDING;
+    try { done ||= !!localStorage.getItem(ONBOARDING_KEY); } catch { done = true; }
+    if (done) void requestTracking();
+    initAdMob();
+  }, []);
   return null;
 }
 
@@ -253,6 +262,7 @@ export default function App() {
               <Route path="/*" element={
                 <PhoneFrame>
                   {SHOW_ONBOARDING && <Onboarding />}
+                  {SHOW_ONBOARDING && <OnboardingTour />}
                   <Routes>
                     <Route element={<AppShell />}>
                       <Route path="/"        element={<Home />} />

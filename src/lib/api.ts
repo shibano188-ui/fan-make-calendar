@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import { sortByWorkOrder } from './workOrder';
 import type { CalendarEvent, EventVisit, Offer } from '../types';
-import { parseCategories, loadMutedEventIds, loadMutedWorkIds, ANON_NAME, isOfficialUser, isReservedDisplayName } from './constants';
+import { parseCategories, loadMutedEventIds, loadMutedWorkIds, ANON_NAME, isOfficialUser, isReservedDisplayName, LIKED_EVENT } from './constants';
 import { searchWorksByAlias, findWorkByExactAlias } from './workAliases';
 import { primaryOffer, getOffers } from './affiliate';
 import { requestDeviceCalendarSync } from './deviceCalendar';
@@ -23,12 +23,13 @@ export type Work = {
 
 // ─── 作品 ──────────────────────────────────────────────────────────
 
-export async function listWorks(): Promise<Work[]> {
+// フォロー数の多い順。オンボーディングの作品選びは画面に収まる数だけ出すので、多めに取れるよう件数を渡せる
+export async function listWorks(limit = 20): Promise<Work[]> {
   const { data, error } = await supabase
     .from('works')
     .select('id, name, participant_count')
     .order('participant_count', { ascending: false })
-    .limit(20);
+    .limit(limit);
   if (error) throw error;
   return (data ?? []).map(w => ({ id: w.id, name: w.name, participantCount: w.participant_count }));
 }
@@ -709,6 +710,9 @@ export async function toggleLike(eventId: string, userId: string): Promise<{ lik
 
   // 端末カレンダーに書く設定なら、起動・復帰を待たずに反映する（外したら消える）
   requestDeviceCalendarSync(userId);
+
+  // オンボーディングの案内は「いいねしたらカレンダーへ」なので、どの画面で押しても拾えるように知らせる
+  if (!existing) window.dispatchEvent(new CustomEvent(LIKED_EVENT, { detail: { id: eventId } }));
 
   return { liked: !existing, count: count ?? 0 };
 }

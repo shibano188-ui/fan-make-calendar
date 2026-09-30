@@ -21,7 +21,7 @@ let ready: Promise<void> | null = null;
 export function initAdMob(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return Promise.resolve();
   // iOS: トラッキング許可(ATT)の回答が出てから広告SDKを起動する。
-  // **要求はネイティブ(AppDelegate.swift)が起動直後に出す**。ここから要求してはいけない
+  // **要求は att.ts の requestTracking（オンボーディングのあと）が出す**。AdMob プラグインから要求してはいけない
   // （プラグインの呼び出しはバックグラウンドスレッドで走り、ダイアログが出ないことがある）。
   // 断られてもパーソナライズされないだけで広告自体は出るので、結果は見ない。→ [[att.ts]]
   if (!ready) {

@@ -24,6 +24,7 @@ import { useHiddenContent } from '../hooks/useHiddenContent';
 import { haptic } from '../lib/haptics';
 import { usePremium, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
 import { useAdBanner } from '../lib/useAdBanner';
+import { useTourStep, finishTourNow } from '../components/OnboardingTour';
 
 const STATUS_ORDER: ItemStatus[] = ['preorder_soon', 'preorder', 'sale_soon', 'onsale', 'preorder_ended', 'ended'];
 
@@ -261,17 +262,37 @@ export default function Explore() {
     try { if (has) await leaveCalendar(w.id, user.id); else await upsertParticipation(w.id, user.id); } catch { /* noop */ }
   };
 
+  // オンボーディングの案内（OnboardingTour）で「気になる予定に ♡」をやってもらっているところ。
+  // 選んだ作品にこれからの予定が1件も無いと続かないので、そのときは予定の一番多い作品の予定を代わりに出す（2026-09-29 柴野）
+  const touring = useTourStep() === 'like';
+  const isUpcoming = (e: CalendarEvent) => { const ref = e.endDate || e.date || ''; return !ref || ref >= today; };
+  const tourFallbackWorkId = useMemo(() => {
+    if (!touring || !items || followed.size === 0) return null;
+    if (items.some((e) => e.workId && followed.has(e.workId) && isUpcoming(e) && !isHidden(e))) return null;
+    const counts = new Map<string, number>();
+    for (const e of items) if (e.workId && isUpcoming(e) && !isHidden(e)) counts.set(e.workId, (counts.get(e.workId) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  }, [touring, items, followed, isHidden]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // フォロー中の作品の予定だけ表示（新作品は検索→作品パネルからフォロー）。
   // グッズ表示では「グッズあり」カテゴリのイベントも一緒に出す（物販あり＝グッズ一覧にも載せる）。
   const modeItems = useMemo(
     () => (items ?? []).filter((e) => {
-      if (!e.workId || !followed.has(e.workId)) return false;
+      if (!e.workId || !(followed.has(e.workId) || e.workId === tourFallbackWorkId)) return false;
       if (isHidden(e)) return false;
       if (mode === 'goods') return deriveItemType(e) === 'goods' || parseCategories(e.category).includes(GOODS_TAG);
       return deriveItemType(e) === 'event';
     }),
-    [items, mode, followed, isHidden],
+    [items, mode, followed, isHidden, tourFallbackWorkId],
   );
+
+  // 案内の間、今の表示（グッズ／イベント）にこれからの予定が無くて、もう片方にはあるなら切り替える
+  useEffect(() => {
+    if (!touring || !items || modeItems.some(isUpcoming)) return;
+    const other = (items ?? []).some((e) => e.workId && (followed.has(e.workId) || e.workId === tourFallbackWorkId) && isUpcoming(e)
+      && (mode === 'goods' ? deriveItemType(e) === 'event' : deriveItemType(e) === 'goods' || parseCategories(e.category).includes(GOODS_TAG)));
+    if (other) setMode((m) => (m === 'goods' ? 'event' : 'goods'));
+  }, [touring, items, modeItems]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const queryItems = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -521,6 +542,12 @@ export default function Explore() {
         )}
       </div>
 
+      {tourFallbackWorkId && (
+        <p className="px-4 pt-2 text-[12px] text-label-secondary leading-relaxed">
+          選んだ作品の予定はまだありません。予定の多い作品で試してみましょう。
+        </p>
+      )}
+
       <div
         className="px-3 pb-4"
         onClickCapture={(e) => {
@@ -541,7 +568,17 @@ export default function Explore() {
               </button>
             </div>
           ) : (
-            <p className="text-center text-label-secondary text-[13px] py-16">該当する{mode === 'goods' ? 'グッズ' : 'イベント'}がありません</p>
+            <div className="text-center py-16">
+              <p className="text-label-secondary text-[13px]">該当する{mode === 'goods' ? 'グッズ' : 'イベント'}がありません</p>
+              {/* 案内の途中で、いいねできる予定がどこにも無いときの逃げ道（スキップの無い案内で閉じ込めないため） */}
+              {touring && !tourFallbackWorkId && (
+                <button onClick={() => { haptic.select(); finishTourNow(); }}
+                  className="pressable mt-4 px-5 py-2 rounded-full text-[14px] font-semibold"
+                  style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+                  はじめる
+                </button>
+              )}
+            </div>
           )
         ) : (
           <>
