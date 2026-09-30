@@ -66,6 +66,15 @@ async function buildLines(work) {
       ?? t.match(/\/([^()（\s]+(?:\s[^()（\s]+)?)/)?.[1]
       ?? (t.split(/[\s/／]/)[0].length >= 3 ? t.split(/[\s/／]/)[0] : null);
   };
+  const tidy = (t) => t.replace(/\s+/g, ' ').trim();
+  // 元の商品名の、頭からシリーズ名の終わりまで（【】で囲まれていれば閉じ括弧まで）
+  const headOf = (title, series) => {
+    const t = tidy(title);
+    const i = t.indexOf(series);
+    if (i < 0) return series;
+    const end = i + series.length + (t[i + series.length] === '】' ? 1 : 0);
+    return t.slice(0, end).replace(/[\s/／]+$/, '');
+  };
   const typeOf = (title, series) => strip(title).replace(`【${series}】`, '').replace(series, '').replace(/^[\s/]+/, '').split(/[\s/]/)[0];
   // 同じ日・同じ節目で先頭の言葉が同じ商品が2つ以上あれば、それをシリーズ名にする（「ぱしゃこれ/烏野高校」「ぱしゃこれ/音駒高校」）
   const lead = (title) => { const x = strip(title).split(/[\s/／]/)[0]; return x.length >= 3 ? x : null; };
@@ -91,9 +100,11 @@ async function buildLines(work) {
     const price = !prices.length ? '' : lo === hi ? `${lo.toLocaleString()}円` : `${lo.toLocaleString()}〜${hi.toLocaleString()}円`;
     const shops = g.e.type === 'goods' ? shopsText(g.items) : '';
     const base = { date: g.date, label: g.label, kind: g.kind, extra: g.extra, price, shops, count: g.items.length };
-    if (g.items.length === 1) return { ...base, name: strip(g.items[0].title), sub: '' };
+    // 商品名は登録されている名前を削らずに出す（作品名を削ると「ちいかわ あいうえお」が「あいうえお」になり、誤植に見える・柴野 2026-09-30）。
+    // まとめた行は、商品名の頭からシリーズ名までをそのまま使う（「ちいかわ ぱしゃこれ 3種」）
+    if (g.items.length === 1) return { ...base, name: tidy(g.items[0].title), sub: '' };
     const types = [...new Set(g.items.map((x) => typeOf(x.title, g.series)).filter(Boolean))];
-    return { ...base, name: `${g.series} ${g.items.length}種`, sub: types.slice(0, 4).join('・') + (types.length > 4 ? ' ほか' : '') };
+    return { ...base, name: `${headOf(g.items[0].title, g.series)} ${g.items.length}種`, sub: types.slice(0, 4).join('・') + (types.length > 4 ? ' ほか' : '') };
   }).sort((a, b) => a.date.localeCompare(b.date) || (a.label ? 1 : 0) - (b.label ? 1 : 0) || a.name.localeCompare(b.name));
 }
 
@@ -236,7 +247,7 @@ let changed = 0;
 for (const work of targets) {
   const lines = await buildLines(work);
   // 中身の指紋（見出しの色・飾りも含める。変えたら作り直す）。更新日は含めない＝中身が同じなら作り直さない
-  const hash = crypto.createHash('sha256').update(JSON.stringify({ lines, color: work.color, title: work.title, v: 1 })).digest('hex').slice(0, 16);
+  const hash = crypto.createHash('sha256').update(JSON.stringify({ lines, color: work.color, title: work.title, v: 3 })).digest('hex').slice(0, 16);
   if (drive && manifest[work.name]?.hash === hash) { console.log(`${work.name}: 変化なし`); continue; }
   const files = await render(tab, work, lines);
   if (drive) {
