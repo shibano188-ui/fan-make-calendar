@@ -56,7 +56,17 @@ const JUDGE_PROMPT = `あなたはアニメ・キャラクターグッズの予�
 - contradicted: 資料に別の値がはっきり書かれている
 - unknown: 資料からは分からない
 購入リンクの追加を確かめるときは、そのページが予定と同じ商品（または同じシリーズ）の販売ページかを見ること。
-出力はJSONだけ: {"verdict":"supported|contradicted|unknown","reason":"20字以内の日本語"}`;
+reason は投稿した人にそのまま見せる。30字以内で、「資料」とは書かずに何が違うか・分からないかだけを書く（例: "ポストでは発売日が11月20日"、"値段が書かれていない"）。
+出力はJSONだけ: {"verdict":"supported|contradicted|unknown","reason":"30字以内の日本語"}`;
+
+/** 画面に出す理由。長いときは文の切れ目で切り、途中で切ったら「…」を付ける（60字でぶつ切りにすると文が途中で終わっていた） */
+function shortReason(r: string): string {
+  const t = r.trim().replace(/[。．]+$/, '');
+  if (t.length <= 40) return t;
+  const cut = t.slice(0, 40);
+  const at = Math.max(cut.lastIndexOf('、'), cut.lastIndexOf('。'));
+  return (at >= 20 ? cut.slice(0, at) : cut) + '…';
+}
 
 /** 確かめたいこと（1行ずつ）を、資料と照らし合わせる */
 export async function judgeClaim(opts: { eventTitle: string; claims: string[]; evidence: string[] }): Promise<{ verdict: Verdict; reason: string }> {
@@ -74,7 +84,7 @@ export async function judgeClaim(opts: { eventTitle: string; claims: string[]; e
     const raw = block.type === 'text' ? block.text : '';
     const json = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) as { verdict?: string; reason?: string };
     const verdict: Verdict = json.verdict === 'supported' || json.verdict === 'contradicted' ? json.verdict : 'unknown';
-    return { verdict, reason: String(json.reason ?? '').slice(0, 60) };
+    return { verdict, reason: shortReason(String(json.reason ?? '')) };
   } catch {
     return { verdict: 'unknown', reason: '確かめられませんでした' };
   }
