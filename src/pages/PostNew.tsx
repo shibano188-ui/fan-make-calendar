@@ -1236,8 +1236,9 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
           ) : (
             <div className="relative">
               <input value={workQuery} onChange={(e) => setWorkQuery(e.target.value)} placeholder="作品名を入力" className={inputCls} style={inputStyle} />
+              {/* 候補は重ねずに下へ押し出す。AIが入れた作品名が未確定のまま残ると、重ねた一覧がタイトル欄を隠していた */}
               {(workResults.length > 0 || masterNames.length > 0 || workQuery.trim()) && (
-                <div className="absolute left-0 right-0 mt-1 z-10 rounded-[10px] border border-subtle overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                <div className="mt-1 rounded-[10px] border border-subtle overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>
                   {workResults.map((w) => (
                     <button key={w.id} onClick={() => { haptic.select(); if (workQuery.trim() && w.name !== workQuery.trim()) { logSearch('post_work', workQuery, workResults.length, user?.id, w.name); maybeAddWorkAlias(w, workQuery); } setWorkId(w.id); setWorkName(w.name); setWorkResults([]); }}
                       className="pressable w-full text-left px-3 py-2.5 text-[14px] border-b border-subtle">{w.name}</button>
