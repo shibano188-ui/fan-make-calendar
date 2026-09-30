@@ -19,6 +19,12 @@
 //                     手元で 'simple'（＝明るい）に読み替える。
 //                     ストアの8枚は明るいテーマで揃えてあるので、
 //                     暗いテーマを使っている人の端末から撮るときに要る。
+//   --as-user         運営のアカウントで撮っても、一般の人の画面で写す（**アカウントは書き換えない**）。
+//                     運営かどうかの問い合わせ（staff）にだけ「該当なし」を返す。
+//                     投稿画面は運営にだけ「公式通販の一覧のリンク」の案内が出るので、ストアの絵に要る。
+//   --eval=<JS>       撮る直前にページの中で実行する。写したくない文字（マイページのメールアドレスなど）を
+//                     その場で書き換えるのに使う。**画面の上だけ**で、アカウントは変わらない
+//   --settle=<秒>     撮る前に追加で待つ。画像は初回だけ変換に数秒かかり、灰色の枠のまま写ることがある
 //
 // 1320x2868（6.9インチの必須サイズ）＝ 440x956 の 3x。
 // ステータスバー(上189px)はブラウザでは描けないので、既存のスクショから切り出して重ねる。
@@ -42,6 +48,9 @@ const headed = opts.includes('--headed');
 const waitFor = opts.find((a) => a.startsWith('--wait-for='))?.slice('--wait-for='.length);
 const waitSec = Number(opts.find((a) => a.startsWith('--timeout='))?.slice('--timeout='.length) ?? 300);
 const forceLight = opts.includes('--light');
+const asUser = opts.includes('--as-user');
+const evalJs = opts.find((a) => a.startsWith('--eval='))?.slice('--eval='.length);
+const settleSec = Number(opts.find((a) => a.startsWith('--settle='))?.slice('--settle='.length) ?? 0);
 const waitFile = opts.find((a) => a.startsWith('--wait-file='))?.slice('--wait-file='.length);
 const statePath = opts.find((a) => a.startsWith('--state='))?.slice('--state='.length);
 // 撮る直前に少しだけ動かす。一覧は貼りつく見出しの裏に前のカードが透けるので、
@@ -94,6 +103,14 @@ if (forceLight) {
   });
 }
 
+if (asUser) {
+  // supabase の maybeSingle() は「0件」を 406（PGRST116）で受け取り、null にする
+  await ctx.route(/\/rest\/v1\/staff\?/, (route) => route.fulfill({
+    status: 406, contentType: 'application/json',
+    body: JSON.stringify({ code: 'PGRST116', details: 'The result contains 0 rows', hint: null, message: 'Cannot coerce the result to a single JSON object' }),
+  }));
+}
+
 const p = await ctx.newPage();
 // ストア用の絵に、初回の案内と一度きりのヒントを写さない
 await p.addInitScript((light) => {
@@ -141,6 +158,7 @@ if (clickSel) {
   await p.click(clickSel);
   await p.waitForTimeout(2500);
 }
+if (settleSec) await p.waitForTimeout(settleSec * 1000);
 if (scrollBy) {
   await p.evaluate((dy) => {
     const scroller = [...document.querySelectorAll('*')].find((el) => {
@@ -152,6 +170,7 @@ if (scrollBy) {
   }, scrollBy);
   await p.waitForTimeout(800);
 }
+if (evalJs) { await p.evaluate(evalJs); await p.waitForTimeout(300); }
 await p.screenshot({ path: body });
 // 次の撮り直しでログインし直さずに済むよう、ログインした状態を残す
 if (statePath) {
