@@ -7,7 +7,7 @@ import { ActionSheetProvider } from './components/ui/ActionSheet';
 import { ToastProvider } from './components/ui/Toast';
 import PhoneFrame from './components/PhoneFrame';
 import Onboarding from './components/Onboarding';
-import LaunchSplash from './components/LaunchSplash';
+import LaunchSplash, { markPageLoading } from './components/LaunchSplash';
 import { Capacitor } from '@capacitor/core';
 import { initAdMob, showBanner, hideBanner } from './lib/admob';
 import { installExternalLinkHandler } from './lib/openExternal';
@@ -41,6 +41,8 @@ const WebDemo         = lazy(() => import('./pages/WebDemo'));
 const NotFound        = lazy(() => import('./pages/NotFound'));
 
 function PageLoader() {
+  // 起動画面は、これが出ている間は消えずに待つ（グルグルを見せない）
+  useEffect(() => markPageLoading(), []);
   return (
     <div className="flex items-center justify-center min-h-screen" style={{ backgroundColor: 'var(--bg-primary)' }}>
       <div
@@ -233,6 +235,9 @@ export default function App() {
           <AdMobController />
           <AdBannerController />
           <BackButtonHandler />
+          {/* 毎回の起動画面（ロゴが組み上がってふわっと消える）。案内より手前に出す。
+              Suspense の外に置く＝画面の部品を読み込んでいる間も出ていて、その間のグルグルを覆う */}
+          <LaunchSplash />
           <Suspense fallback={<PageLoader />}>
             <Routes>
               {/* ウィジェット・共有ターゲット（PhoneFrameなし） */}
@@ -248,8 +253,6 @@ export default function App() {
               <Route path="/*" element={
                 <PhoneFrame>
                   {SHOW_ONBOARDING && <Onboarding />}
-                  {/* 毎回の起動画面（ロゴが組み上がってふわっと消える）。案内より手前に出す */}
-                  <LaunchSplash />
                   <Routes>
                     <Route element={<AppShell />}>
                       <Route path="/"        element={<Home />} />
