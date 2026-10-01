@@ -384,7 +384,7 @@ export default function Explore() {
     const next = !showEnded;
     try { sessionStorage.setItem('explore_show_ended', next ? '1' : '0'); } catch { /* 覚えられなくても切り替える */ }
     setShowEnded(next);
-    toast(next ? '終了した予定も表示しています' : '終了した予定を隠しました');
+    toast(next ? '過去の予定も表示しています' : '過去の予定を隠しました');
   };
   const isOver = useCallback((e: CalendarEvent) => {
     // 在庫があるものは deriveStatus が「発売中」にする（発売日を過ぎていても今買えるので残る）
@@ -654,15 +654,16 @@ function ModeToggle({ mode, onToggle }: { mode: ItemType; onToggle: () => void }
 
 /** 「未読」を囲む円。円の埋まり具合＝まだ見ていない予定の割合。読み終わると円は消える。
  *  押すと未読のみ表示（ON の間は地の色を付ける） */
-/** 「終了」。押すと、終了した予定（発売済み・終了）も一覧に出す。未読と同じ形にそろえる */
+/** 「過去」。押すと、終わった予定（発売済み・売り切れ・終了）も一覧に出す。未読と同じ形にそろえる。
+ *  「終了」だと物騒に見えるので「過去」にした（柴野・2026-10-02） */
 function EndedButton({ active, count, onClick }: { active: boolean; count: number; onClick: () => void }) {
   return (
     <button onClick={onClick} aria-pressed={active}
-      aria-label={active ? '終了した予定を隠す' : `終了した予定も表示（${count}件）`}
+      aria-label={active ? '過去の予定を隠す' : `過去の予定も表示（${count}件）`}
       className="pressable relative flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center"
       style={{ backgroundColor: active ? 'color-mix(in srgb, var(--accent-color) 24%, transparent)' : 'var(--fill-tertiary)' }}>
       <span className="text-[10px] font-bold"
-        style={{ color: active ? 'var(--accent-text)' : count > 0 ? 'var(--label-primary)' : 'var(--label-tertiary)' }}>終了</span>
+        style={{ color: active ? 'var(--accent-text)' : count > 0 ? 'var(--label-primary)' : 'var(--label-tertiary)' }}>過去</span>
     </button>
   );
 }
