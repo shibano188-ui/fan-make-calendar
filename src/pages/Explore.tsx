@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams, useNavigationType, useLocation } from 'react-router-dom';
-import { ArrowDownToLine, ArrowLeftRight, History, Plus, SlidersHorizontal } from 'lucide-react';
+import { ArrowDownToLine, ArrowLeftRight, Plus, SlidersHorizontal } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import FilterPanel, { type Facet } from '../components/item/FilterPanel';
@@ -381,7 +381,10 @@ export default function Explore() {
   const [showEnded, setShowEnded] = useState(() => { try { return sessionStorage.getItem('explore_show_ended') === '1'; } catch { return false; } });
   const toggleEnded = () => {
     haptic.select();
-    setShowEnded((v) => { try { sessionStorage.setItem('explore_show_ended', v ? '0' : '1'); } catch { /* 覚えられなくても切り替える */ } return !v; });
+    const next = !showEnded;
+    try { sessionStorage.setItem('explore_show_ended', next ? '1' : '0'); } catch { /* 覚えられなくても切り替える */ }
+    setShowEnded(next);
+    toast(next ? '終了した予定も表示しています' : '終了した予定を隠しました');
   };
   const isOver = useCallback((e: CalendarEvent) => {
     // 店の在庫表記が「在庫あり」なら、発売日から時間がたった「発売済み」でも今買えるので残す（ジャンプショップの在庫品など）
@@ -507,6 +510,7 @@ export default function Explore() {
           <ModeToggle mode={mode} onToggle={() => { haptic.select(); setMode((m) => (m === 'goods' ? 'event' : 'goods')); }} />
           <UnreadButton unread={unread.n} total={unread.total} active={showUnseenOnly}
             onClick={() => { haptic.select(); setShowUnseenOnly((v) => !v); }} />
+          <EndedButton active={showEnded} count={endedCount} onClick={toggleEnded} />
           <button onClick={() => { haptic.select(); setFilterOpen((v) => !v); }}
             aria-label="絞り込み" aria-pressed={filterOpen}
             className="pressable relative w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
@@ -573,15 +577,6 @@ export default function Explore() {
           if (filterOpen) { e.stopPropagation(); haptic.select(); setFilterOpen(false); }
         }}
       >
-        {items !== null && endedCount > 0 && (
-          <div className="flex justify-center pt-1 pb-2">
-            <button onClick={toggleEnded} aria-pressed={showEnded}
-              className="pressable inline-flex items-center gap-1 h-8 px-3 rounded-full text-[12px] font-medium"
-              style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-secondary)' }}>
-              <History size={14} /> {showEnded ? '終了した予定を隠す' : `終了した予定も見る（${endedCount}件）`}
-            </button>
-          </div>
-        )}
         {items === null ? (
           <SkeletonList count={4} />
         ) : visible.length === 0 ? (
@@ -658,6 +653,19 @@ function ModeToggle({ mode, onToggle }: { mode: ItemType; onToggle: () => void }
 
 /** 「未読」を囲む円。円の埋まり具合＝まだ見ていない予定の割合。読み終わると円は消える。
  *  押すと未読のみ表示（ON の間は地の色を付ける） */
+/** 「終了」。押すと、終了した予定（発売済み・終了）も一覧に出す。未読と同じ形にそろえる */
+function EndedButton({ active, count, onClick }: { active: boolean; count: number; onClick: () => void }) {
+  return (
+    <button onClick={onClick} aria-pressed={active}
+      aria-label={active ? '終了した予定を隠す' : `終了した予定も表示（${count}件）`}
+      className="pressable relative flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center"
+      style={{ backgroundColor: active ? 'color-mix(in srgb, var(--accent-color) 24%, transparent)' : 'var(--fill-tertiary)' }}>
+      <span className="text-[10px] font-bold"
+        style={{ color: active ? 'var(--accent-text)' : count > 0 ? 'var(--label-primary)' : 'var(--label-tertiary)' }}>終了</span>
+    </button>
+  );
+}
+
 function UnreadButton({ unread, total, active, onClick }: { unread: number; total: number; active: boolean; onClick: () => void }) {
   const R = 15.5;
   const C = 2 * Math.PI * R;
