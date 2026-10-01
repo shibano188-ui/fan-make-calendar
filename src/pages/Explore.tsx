@@ -14,6 +14,7 @@ import { deriveItemType, deriveStatus, todayStr, STATUS, type ItemStatus, type I
 import { listExploreEvents, getHomePrefecture, searchWorks, listAllParticipatedWorks, upsertParticipation, leaveCalendar, toggleLike, toggleCalendarAdd, listLikedEventIds, type Work } from '../lib/api';
 import { parseCategories, loadSeenEventIds, saveSeenEventIds, isNewItem, GOODS_TAG } from '../lib/constants';
 import { getCached, setCached } from '../lib/swrCache';
+import { primaryOffer, getOffers } from '../lib/affiliate';
 import { buildWorkColorMap } from '../lib/workColors';
 import { logSearch } from '../lib/dataLogs';
 import { addToCalendar } from '../lib/googleCalendar';
@@ -375,7 +376,7 @@ export default function Explore() {
   );
 
   // 終了した予定（発売済み・終了・受付が終わって発売も過ぎたもの）は、ボタンを押したときだけ出す（2026-10-02）。
-  // 日付では切らない（発売日を過ぎても今買える「発売中」は残す）。絞り込みで状態を選んだときはそちらに従う。
+  // 日付では切らない（発売日を過ぎても今買える「発売中」・在庫ありは残す）。絞り込みで状態を選んだときはそちらに従う。
   // 詳細から戻ると画面が作り直されるので、押した状態は sessionStorage に持つ
   const [showEnded, setShowEnded] = useState(() => { try { return sessionStorage.getItem('explore_show_ended') === '1'; } catch { return false; } });
   const toggleEnded = () => {
@@ -383,6 +384,8 @@ export default function Explore() {
     setShowEnded((v) => { try { sessionStorage.setItem('explore_show_ended', v ? '0' : '1'); } catch { /* 覚えられなくても切り替える */ } return !v; });
   };
   const isOver = useCallback((e: CalendarEvent) => {
+    // 店の在庫表記が「在庫あり」なら、発売日から時間がたった「発売済み」でも今買えるので残す（ジャンプショップの在庫品など）
+    if (primaryOffer(getOffers(e))?.inStock === true) return false;
     const st = deriveStatus(e);
     return st === 'ended' || (st === 'preorder_ended' && !(e.date && e.date > today));
   }, [today]);
