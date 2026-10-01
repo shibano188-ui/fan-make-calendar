@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { forwardRef, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { Capacitor } from '@capacitor/core';
 import { Search, X } from 'lucide-react';
@@ -26,28 +26,19 @@ const run = (from: number, to: number, damping: number, response: number, onUpda
 // iOS だけは最初に focus し（キーボードは①と同時に上がる）、他は④で focus する
 const FOCUS_ON_TAP = Capacitor.getPlatform() === 'ios';
 
-/** 検索欄に入力しているあいだ、横のボタンを畳んで欄を横いっぱいにする（2026-10-02）。
- *  ボタンの並びをこれで包み、ExpandingSearch の onActiveChange で受けた値を hidden に渡す */
-export function HideWhileSearching({ hidden, gap, children }: { hidden: boolean; gap: number; children: ReactNode }) {
-  // 畳んだときは、親の並びの隙間（gap）ぶんも詰めて、検索欄を右端まで届かせる
-  return (
-    <div aria-hidden={hidden} className="flex items-center flex-shrink-0"
-      style={{
-        gap, maxWidth: hidden ? 0 : 400, overflow: hidden ? 'hidden' : 'visible', // 開いているときは隠さない（絞り込みの件数の丸がはみ出すため）
-         marginLeft: hidden ? -gap : 0, opacity: hidden ? 0 : 1, pointerEvents: hidden ? 'none' : undefined,
-        transition: hidden ? 'max-width 0.24s ease-out, margin 0.24s ease-out, opacity 0.12s ease-out' : 'max-width 0.28s ease-out, margin 0.28s ease-out, opacity 0.2s ease-in 0.08s',
-      }}>
-      {children}
-    </div>
-  );
-}
+/** 検索欄の横のボタンの並び。入力しているあいだは畳んで、検索欄を横いっぱいにする（2026-10-02）。
+ *  ExpandingSearch の sideRef に渡すと、開閉に合わせて ExpandingSearch が直接スタイルを変える
+ *  （親の state にすると、探すの一覧（カード数百枚）まで描き直して虫眼鏡の動きが重くなるため） */
+export const SearchSideButtons = forwardRef<HTMLDivElement, { gap: number; children: ReactNode }>(({ gap, children }, ref) => (
+  <div ref={ref} data-gap={gap} className="flex items-center flex-shrink-0" style={{ gap }}>{children}</div>
+));
 
-export default function ExpandingSearch({ value, onChange, placeholder, title, onSubmit, onActiveChange }: {
+export default function ExpandingSearch({ value, onChange, placeholder, title, onSubmit, sideRef }: {
   value: string; onChange: (v: string) => void; placeholder: string; title: ReactNode;
   /** Enter を押したとき（ホームは探すへ移る）。無ければキーボードを閉じるだけ */
   onSubmit?: (v: string) => void;
-  /** 入力中か（開いていて、キーボードが出ているか、まだ何も入れていない）。横のボタンを畳むのに使う */
-  onActiveChange?: (active: boolean) => void;
+  /** 入力中（開いていて、キーボードが出ているか、まだ何も入れていない）に畳む横のボタン（SearchSideButtons） */
+  sideRef?: RefObject<HTMLDivElement>;
 }) {
   const areaRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
@@ -64,7 +55,16 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
   const [focused, setFocused] = useState(false);
   const [shield, setShield] = useState(false);
   const active = open && (focused || !value.trim());
-  useEffect(() => { onActiveChange?.(active); }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 畳むのは一瞬で（幅を動かしながら欄を伸ばすと、伸びる先が動き続けて重く長く見える）。戻すときだけふわっと出す
+  useLayoutEffect(() => {
+    const el = sideRef?.current;
+    if (!el) return;
+    const gap = Number(el.dataset.gap) || 0;
+    Object.assign(el.style, active
+      ? { maxWidth: '0px', marginLeft: `${-gap}px`, opacity: '0', overflow: 'hidden', pointerEvents: 'none', transition: 'none' }
+      : { maxWidth: '', marginLeft: '', opacity: '1', overflow: '', pointerEvents: '', transition: 'opacity 0.2s ease-in' });
+    el.setAttribute('aria-hidden', String(active));
+  }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 丸は右端に留めておき、動いている間だけ幅から位置を計算する。
   // 閉じている／開ききっているときは幅に頼らない（タブを切り替えた直後など、幅が決まる前に
@@ -135,7 +135,8 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
     let arrived = false;
     moveRef.current = run(m.current, 1, 0.9, 0.2, (v) => {
         m.current = v; paint();
-        if (!arrived && v > 0.94) {
+        // 着ききる前（8割）に伸び始める（着くのを待つと、全体が長く感じる。2026-10-02）
+        if (!arrived && v > 0.8) {
           arrived = true;
           // ② 揺れる → ③ 伸びる
           wiggle();
@@ -151,7 +152,7 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
                   if (!FOCUS_ON_TAP) inputRef.current?.focus({ preventScroll: true });
                 }
             });
-          }, 70);
+          }, 0);
         }
     });
   };

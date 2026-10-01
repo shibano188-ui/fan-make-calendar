@@ -7,7 +7,7 @@ import ItemCard from '../components/item/ItemCard';
 import Chip from '../components/ui/Chip';
 import WorkChipsRow from '../components/WorkChipsRow';
 import { loadSharedFilters, saveSharedFilters } from '../lib/sharedFilters';
-import ExpandingSearch, { HideWhileSearching } from '../components/ui/ExpandingSearch';
+import ExpandingSearch, { SearchSideButtons } from '../components/ui/ExpandingSearch';
 import { useTyping } from '../hooks/useTyping';
 import SavedCalendar, { periodLabel, includesToday } from '../components/SavedCalendar';
 import FilterPanel, { type Facet } from '../components/item/FilterPanel';
@@ -42,7 +42,7 @@ const VIEWS: { key: View; label: string; icon: typeof Calendar }[] = [
 
 const FOLLOWED_KEY = 'fan_followed_works_v1';
 
-const STATUS_ORDER: ItemStatus[] = ['preorder_soon', 'preorder', 'sale_soon', 'onsale', 'preorder_ended', 'ended'];
+const STATUS_ORDER: ItemStatus[] = ['preorder_soon', 'preorder', 'sale_soon', 'onsale', 'preorder_ended', 'ended', 'soldout'];
 
 const PREF_TO_REGION: Record<string, string> = {};
 for (const r of REGIONS) for (const p of r.prefectures) PREF_TO_REGION[p] = r.name;
@@ -83,7 +83,7 @@ export default function Saved() {
 
   // 探すと同じ絞り込み
   const [query, setQuery] = useState<string>(_ss.query ?? '');
-  const [searching, setSearching] = useState(false);
+  const sideRef = useRef<HTMLDivElement>(null);
   const [filterOpen, setFilterOpen] = useState<boolean>(_ss.filterOpen ?? false);
   // 上部の作品の並び（TimeTree 風）。フォロー中の作品だけを出し、押すとその作品を隠す（もう一度で戻す）
   // 前回の並びを覚えておき、最初の描画から出す（後から出ると、カレンダーが1段下にずれて見える）
@@ -383,7 +383,7 @@ export default function Saved() {
         {/* 1行だけ: 見出し（＋今日）／プレミアム／表示切替／カスタマイズ／絞り込み。文字は見出しだけで、ボタンはアイコンのみ */}
         <div className="flex items-center gap-1.5 h-10">
           {/* 見出し（＋今日）。右端の虫眼鏡を押すと、見出しと入れ替わって検索欄に広がる */}
-          <ExpandingSearch value={query} onChange={setQuery} placeholder="保存した予定を検索" onActiveChange={setSearching}
+          <ExpandingSearch value={query} onChange={setQuery} placeholder="保存した予定を検索" sideRef={sideRef}
             title={
               <div className="flex items-center gap-1.5 min-w-0">
                 <h1 ref={titleRef} className="text-[20px] font-bold tracking-tight truncate">
@@ -400,7 +400,7 @@ export default function Saved() {
               </div>
             } />
 
-          <HideWhileSearching hidden={searching} gap={6}>
+          <SearchSideButtons ref={sideRef} gap={6}>
           {!premium && (
             <IconButton label="プレミアム" onClick={() => navigate('/premium')}>
               <Crown size={18} />
@@ -445,7 +445,7 @@ export default function Saved() {
                 style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>{activeCount}</span>
             )}
           </IconButton>
-          </HideWhileSearching>
+          </SearchSideButtons>
         </div>
 
         {/* 作品の並び。入りきらない分は右端の︾で広げて選ぶ */}

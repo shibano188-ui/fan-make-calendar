@@ -65,7 +65,9 @@ export default function AddInfoSheet({ event, onClose, onSaveEdit, onAddLink, on
     let ok = true;
     // 日時と値段は1つの修正としてまとめて送る（履歴に1行で残る）
     if (datePatch || saleStatus || priceNum != null) {
-      const patch: EventPatch = { ...(datePatch ?? {}), ...(saleStatus ? { saleStatus } : {}), ...(priceNum != null ? { price: priceNum } : {}) };
+      // 売り切れは ended として保存する（soldout は画面だけの状態。tokens.ts）
+      const stored = saleStatus === 'soldout' ? 'ended' : saleStatus;
+      const patch: EventPatch = { ...(datePatch ?? {}), ...(stored ? { saleStatus: stored } : {}), ...(priceNum != null ? { price: priceNum } : {}) };
       if ((await onSaveEdit(patch, written(urls))) === false) ok = false;
       else { setDatePatch(null); setSaleStatus(null); setPrice(''); }
     }
@@ -138,7 +140,8 @@ export default function AddInfoSheet({ event, onClose, onSaveEdit, onAddLink, on
             {/* 発売状況。日付から出す状態が店の実際と違うとき（前倒しで予約終了・再販で発売中など）に直す */}
             <p className="text-[12px] text-label-tertiary mt-3">{isGoods ? '発売状況' : '開催状況'}（今は「{STATUS[current][isGoods ? 'goodsLabel' : 'eventLabel']}」）</p>
             <div className="flex flex-wrap gap-1.5 mt-2">
-              {(Object.keys(STATUS) as ItemStatus[]).filter((k) => k !== current).map((k) => (
+              {/* グッズは「発売済み」（在庫が分からない）を選ばせず「売り切れ」を出す。イベントは逆 */}
+              {(Object.keys(STATUS) as ItemStatus[]).filter((k) => k !== current && k !== (isGoods ? 'ended' : 'soldout')).map((k) => (
                 <Chip key={k} active={saleStatus === k} onClick={() => { haptic.select(); setSaleStatus(saleStatus === k ? null : k); }}>
                   {STATUS[k][isGoods ? 'goodsLabel' : 'eventLabel']}
                 </Chip>

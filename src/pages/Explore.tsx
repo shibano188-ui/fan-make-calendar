@@ -5,7 +5,7 @@ import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import FilterPanel, { type Facet } from '../components/item/FilterPanel';
 import WorkFollowSheet from '../components/WorkFollowSheet';
-import ExpandingSearch, { HideWhileSearching } from '../components/ui/ExpandingSearch';
+import ExpandingSearch, { SearchSideButtons } from '../components/ui/ExpandingSearch';
 import WorkChipsRow from '../components/WorkChipsRow';
 import { loadSharedFilters, saveSharedFilters } from '../lib/sharedFilters';
 import { loadWorkImages } from '../lib/workImages';
@@ -14,7 +14,6 @@ import { deriveItemType, deriveStatus, todayStr, STATUS, type ItemStatus, type I
 import { listExploreEvents, getHomePrefecture, searchWorks, listAllParticipatedWorks, upsertParticipation, leaveCalendar, toggleLike, toggleCalendarAdd, listLikedEventIds, type Work } from '../lib/api';
 import { parseCategories, loadSeenEventIds, saveSeenEventIds, isNewItem, GOODS_TAG } from '../lib/constants';
 import { getCached, setCached } from '../lib/swrCache';
-import { primaryOffer, getOffers } from '../lib/affiliate';
 import { buildWorkColorMap } from '../lib/workColors';
 import { logSearch } from '../lib/dataLogs';
 import { addToCalendar } from '../lib/googleCalendar';
@@ -27,7 +26,7 @@ import { usePremium, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
 import { useAdBanner } from '../lib/useAdBanner';
 import { useTourStep, finishTourNow } from '../components/OnboardingTour';
 
-const STATUS_ORDER: ItemStatus[] = ['preorder_soon', 'preorder', 'sale_soon', 'onsale', 'preorder_ended', 'ended'];
+const STATUS_ORDER: ItemStatus[] = ['preorder_soon', 'preorder', 'sale_soon', 'onsale', 'preorder_ended', 'ended', 'soldout'];
 
 const PREF_TO_REGION: Record<string, string> = {};
 for (const r of REGIONS) for (const p of r.prefectures) PREF_TO_REGION[p] = r.name;
@@ -375,10 +374,10 @@ export default function Explore() {
     [workFacets, excludedWorks],
   );
 
-  // 終了した予定（発売済み・終了・受付が終わって発売も過ぎたもの）は、ボタンを押したときだけ出す（2026-10-02）。
+  // 終了した予定（発売済み・売り切れ・終了・受付が終わって発売も過ぎたもの）は、ボタンを押したときだけ出す（2026-10-02）。
   // 日付では切らない（発売日を過ぎても今買える「発売中」・在庫ありは残す）。絞り込みで状態を選んだときはそちらに従う。
   // 詳細から戻ると画面が作り直されるので、押した状態は sessionStorage に持つ
-  const [searching, setSearching] = useState(false);
+  const sideRef = useRef<HTMLDivElement>(null);
   const [showEnded, setShowEnded] = useState(() => { try { return sessionStorage.getItem('explore_show_ended') === '1'; } catch { return false; } });
   const toggleEnded = () => {
     haptic.select();
@@ -388,10 +387,9 @@ export default function Explore() {
     toast(next ? '終了した予定も表示しています' : '終了した予定を隠しました');
   };
   const isOver = useCallback((e: CalendarEvent) => {
-    // 店の在庫表記が「在庫あり」なら、発売日から時間がたった「発売済み」でも今買えるので残す（ジャンプショップの在庫品など）
-    if (primaryOffer(getOffers(e))?.inStock === true) return false;
+    // 在庫があるものは deriveStatus が「発売中」にする（発売日を過ぎていても今買えるので残る）
     const st = deriveStatus(e);
-    return st === 'ended' || (st === 'preorder_ended' && !(e.date && e.date > today));
+    return st === 'ended' || st === 'soldout' || (st === 'preorder_ended' && !(e.date && e.date > today));
   }, [today]);
   const endedCount = useMemo(() => (selectedStatuses.size ? 0 : queryItems.filter(isOver).length), [queryItems, selectedStatuses, isOver]);
 
@@ -507,8 +505,8 @@ export default function Explore() {
         {/* 上段: 見出し・検索（虫眼鏡から広がる）・グッズ⇄イベント・未読・絞り込み */}
         <div className="flex items-center gap-2">
           <ExpandingSearch value={query} onChange={setQuery} placeholder={mode === 'goods' ? 'グッズを検索' : 'イベントを検索'}
-            title={<span className="text-[22px] font-bold tracking-tight">探す</span>} onActiveChange={setSearching} />
-          <HideWhileSearching hidden={searching} gap={8}>
+            title={<span className="text-[22px] font-bold tracking-tight">探す</span>} sideRef={sideRef} />
+          <SearchSideButtons ref={sideRef} gap={8}>
           <ModeToggle mode={mode} onToggle={() => { haptic.select(); setMode((m) => (m === 'goods' ? 'event' : 'goods')); }} />
           <UnreadButton unread={unread.n} total={unread.total} active={showUnseenOnly}
             onClick={() => { haptic.select(); setShowUnseenOnly((v) => !v); }} />
@@ -525,7 +523,7 @@ export default function Explore() {
                 style={{ backgroundColor: 'var(--label-primary)', color: 'var(--bg-primary)' }}>{activeCount}</span>
             )}
           </button>
-          </HideWhileSearching>
+          </SearchSideButtons>
         </div>
 
         {/* 下段: 作品の並び（カレンダーと同じ。押すとその作品を隠す）＋ 作品を足す */}

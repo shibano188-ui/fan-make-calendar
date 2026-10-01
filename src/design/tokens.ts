@@ -2,7 +2,7 @@
 // 調査（メルカリ=清潔/高密度・四角画像、Airbnb=しぼり込み、Duolingo=達成演出、Fantastical=日時）を反映。
 import type { CalendarEvent } from '../types';
 import { parseCategories, isGoodsSubcategory } from '../lib/constants';
-import { stockHint } from '../lib/affiliate';
+import { stockHint, isStockStale } from '../lib/affiliate';
 
 export type ItemType = 'event' | 'goods';
 
@@ -25,7 +25,10 @@ export type ItemStatus =
   | 'preorder_ended' // 受付終了 ⚪
   | 'sale_soon'      // 発売前 🟣
   | 'onsale'         // 発売中・開催中 🟢
-  | 'ended';         // 終了（イベント期間後）⚪
+  | 'ended'          // 終了（イベント期間後）・グッズは発売日を過ぎて在庫が分からないもの ⚪
+  | 'soldout';       // 売り切れ（グッズだけ。どの店も売り切れ・＋αで売り切れ）⚪
+// soldout は画面で出すだけで、DB（events.sale_status）には入れない。＋αの「売り切れ」は ended として保存する
+// （古い iOS の画面は soldout を知らないので、保存すると壊れる）
 
 type StatusMeta = { color: string; goodsLabel: string; eventLabel: string };
 
@@ -37,6 +40,7 @@ export const STATUS: Record<ItemStatus, StatusMeta> = {
   sale_soon:      { color: 'var(--status-upcoming)', goodsLabel: '発売前',           eventLabel: '開催前' },
   onsale:         { color: 'var(--status-onsale)',   goodsLabel: '発売中',           eventLabel: '開催中' },
   ended:          { color: 'var(--status-ended)',    goodsLabel: '発売済み',         eventLabel: '終了' },
+  soldout:        { color: 'var(--status-ended)',    goodsLabel: '売り切れ',         eventLabel: '終了' },
 };
 
 export function statusLabel(status: ItemStatus, type: ItemType = 'event'): string {
@@ -104,11 +108,28 @@ function dateStatus(e: StatusFields, today: string): ItemStatus {
 
 /** 状態。日付で決めたうえで、店がはっきり書いている在庫の表記（stockHint）があればそちらを優先する。
  *  「在庫あり」なのに発売前・予約受付中、「予約受付中」なのに発売前、と出ていた（本人指摘・2026-09-28） */
+/** 店の在庫: どこかで買える／どの店も売り切れ／分からない。節目より前に取ったきりの在庫は使わない */
+function stockState(e: StatusFields): 'in' | 'out' | null {
+  const known = (e.offers ?? []).filter((o) => typeof o.inStock === 'boolean' && !isStockStale(e, o));
+  if (!known.length) return null;
+  return known.some((o) => o.inStock) ? 'in' : 'out';
+}
+
 export function deriveStatus(e: StatusFields, today = todayStr()): ItemStatus {
   const base = dateStatus(e, today);
-  if (base === 'ended') return base;
+  const goods = deriveItemType(e) === 'goods';
+  // 発売日を過ぎたグッズは在庫で分ける（2026-10-02）。買える→発売中・どこも売り切れ→売り切れ・分からない→発売済み。
+  // 前は日付だけで「発売済み」にしていて、今も買える在庫品（ジャンプショップなど）まで発売済みと出ていた
+  if (base === 'ended') {
+    if (!goods) return base;
+    if (e.saleStatus === 'ended') return 'soldout';
+    if (e.saleStatus === 'onsale') return 'onsale';
+    const st = stockState(e);
+    return st === 'in' ? 'onsale' : st === 'out' ? 'soldout' : 'ended';
+  }
   // ＋αで選ばれた発売状況（ボットが確かめてから反映したもの）は、日付や店の在庫表記より優先する
-  if (e.saleStatus) return e.saleStatus;
+  if (e.saleStatus) return goods && e.saleStatus === 'ended' ? 'soldout' : e.saleStatus;
+  if (goods && base === 'onsale' && stockState(e) === 'out') return 'soldout';
   const hint = stockHint(e);
   if (hint === 'instock') return 'onsale';
   if (hint === 'preorder' && base !== 'onsale') return 'preorder';
@@ -212,11 +233,12 @@ export function stageFlow(
     const steps = goods
       ? ['予約開始前', '予約受付中', '予約終了', '発売中', '発売済み']
       : ['受付開始前', '受付中', '受付終了', '開催中', '終了'];
-    const at: Record<ItemStatus, number> = { preorder_soon: 0, preorder: 1, preorder_ended: 2, sale_soon: 2, onsale: 3, ended: 4 };
+    if (s === 'soldout') steps[4] = '売り切れ';
+    const at: Record<ItemStatus, number> = { preorder_soon: 0, preorder: 1, preorder_ended: 2, sale_soon: 2, onsale: 3, ended: 4, soldout: 4 };
     return { steps, current: at[s] };
   }
-  const steps = goods ? ['発売前', '発売中', '発売済み'] : ['開催前', '開催中', '終了'];
-  const at: Record<ItemStatus, number> = { preorder_soon: 0, preorder: 0, preorder_ended: 0, sale_soon: 0, onsale: 1, ended: 2 };
+  const steps = goods ? ['発売前', '発売中', s === 'soldout' ? '売り切れ' : '発売済み'] : ['開催前', '開催中', '終了'];
+  const at: Record<ItemStatus, number> = { preorder_soon: 0, preorder: 0, preorder_ended: 0, sale_soon: 0, onsale: 1, ended: 2, soldout: 2 };
   return { steps, current: at[s] };
 }
 

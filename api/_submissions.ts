@@ -30,7 +30,7 @@ const same = (a: Patch, b: Patch) => JSON.stringify(Object.entries(a).sort()) ==
 
 const STATUS_WORD: Record<string, string> = {
   preorder_soon: '予約開始前', preorder: '予約受付中', preorder_ended: '予約終了',
-  sale_soon: '発売前', onsale: '発売中（在庫あり・販売中）', ended: '発売済み・販売終了',
+  sale_soon: '発売前', onsale: '発売中（在庫あり・販売中）', ended: '売り切れ・販売終了（イベントなら終了）',
 };
 
 /** 提案を「確かめたいこと」の文にする */

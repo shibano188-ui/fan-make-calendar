@@ -19,7 +19,7 @@ export function describePatch(p: EditProposal['patch'], type: CalendarEvent['typ
   if ('preorderStart' in p) out.push(`予約開始を ${md(p.preorderStart)} に`);
   if ('preorderEnd' in p) out.push(`予約締切を ${md(p.preorderEnd)} に`);
   if ('isOrderMade' in p) out.push(p.isOrderMade ? '予約・受注ありに' : '予約・受注なしに');
-  if (p.saleStatus) out.push(`${type === 'goods' ? '発売状況' : '開催状況'}を「${STATUS[p.saleStatus][type === 'goods' ? 'goodsLabel' : 'eventLabel']}」に`);
+  if (p.saleStatus) out.push(`${type === 'goods' ? '発売状況' : '開催状況'}を「${type === 'goods' && p.saleStatus === 'ended' ? '売り切れ' : STATUS[p.saleStatus][type === 'goods' ? 'goodsLabel' : 'eventLabel']}」に`);
   if (typeof p.price === 'number') out.push(`値段を ¥${p.price.toLocaleString()} に`);
   if (p.addedOfferUrl) {
     let host = p.addedOfferUrl;

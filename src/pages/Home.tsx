@@ -207,7 +207,7 @@ export default function Home() {
       if (!e.workId || !followIds.has(e.workId) || excluded.has(e.workId)) return false;
       if (isHidden(e)) return false;
       const st = deriveStatus(e);
-      if (st === 'ended') return false;
+      if (st === 'ended' || st === 'soldout') return false;
       // 受付終了でも発売・開催がこれからなら見せる（発売待ちはまだ「これからの予定」）
       if (st === 'preorder_ended') return !!e.date && e.date > today;
       return true;

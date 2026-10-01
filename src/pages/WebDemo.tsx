@@ -89,7 +89,7 @@ const VIEWS: { id: View; label: string; icon: typeof Home }[] = [
   { id: 'me', label: 'マイページ', icon: User },
 ];
 
-const STATUS_ORDER: ItemStatus[] = ['preorder', 'preorder_soon', 'onsale', 'sale_soon', 'preorder_ended', 'ended'];
+const STATUS_ORDER: ItemStatus[] = ['preorder', 'preorder_soon', 'onsale', 'sale_soon', 'preorder_ended', 'ended', 'soldout'];
 
 function yen(n?: number): string {
   return typeof n === 'number' && n > 0 ? `¥${n.toLocaleString('ja-JP')}` : '';
