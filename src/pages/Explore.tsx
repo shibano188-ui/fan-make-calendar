@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams, useNavigationType, useLocation } from 'react-router-dom';
-import { ArrowDownToLine, ArrowLeftRight, Plus, SlidersHorizontal } from 'lucide-react';
+import { ArrowDownToLine, ArrowLeftRight, History, Plus, SlidersHorizontal } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import FilterPanel, { type Facet } from '../components/item/FilterPanel';
@@ -14,6 +14,7 @@ import { deriveItemType, deriveStatus, todayStr, STATUS, type ItemStatus, type I
 import { listExploreEvents, getHomePrefecture, searchWorks, listAllParticipatedWorks, upsertParticipation, leaveCalendar, toggleLike, toggleCalendarAdd, listLikedEventIds, type Work } from '../lib/api';
 import { parseCategories, loadSeenEventIds, saveSeenEventIds, isNewItem, GOODS_TAG } from '../lib/constants';
 import { getCached, setCached } from '../lib/swrCache';
+import { primaryOffer, getOffers } from '../lib/affiliate';
 import { buildWorkColorMap } from '../lib/workColors';
 import { logSearch } from '../lib/dataLogs';
 import { addToCalendar } from '../lib/googleCalendar';
@@ -374,15 +375,32 @@ export default function Explore() {
     [workFacets, excludedWorks],
   );
 
+  // 終了した予定（発売済み・終了・受付が終わって発売も過ぎたもの）は、ボタンを押したときだけ出す（2026-10-02）。
+  // 日付では切らない（発売日を過ぎても今買える「発売中」・在庫ありは残す）。絞り込みで状態を選んだときはそちらに従う。
+  // 詳細から戻ると画面が作り直されるので、押した状態は sessionStorage に持つ
+  const [showEnded, setShowEnded] = useState(() => { try { return sessionStorage.getItem('explore_show_ended') === '1'; } catch { return false; } });
+  const toggleEnded = () => {
+    haptic.select();
+    setShowEnded((v) => { try { sessionStorage.setItem('explore_show_ended', v ? '0' : '1'); } catch { /* 覚えられなくても切り替える */ } return !v; });
+  };
+  const isOver = useCallback((e: CalendarEvent) => {
+    // 店の在庫表記が「在庫あり」なら、発売日から時間がたった「発売済み」でも今買えるので残す（ジャンプショップの在庫品など）
+    if (primaryOffer(getOffers(e))?.inStock === true) return false;
+    const st = deriveStatus(e);
+    return st === 'ended' || (st === 'preorder_ended' && !(e.date && e.date > today));
+  }, [today]);
+  const endedCount = useMemo(() => (selectedStatuses.size ? 0 : queryItems.filter(isOver).length), [queryItems, selectedStatuses, isOver]);
+
   const visible = useMemo(() => {
     return queryItems.filter((e) => {
       if (selectedStatuses.size && !selectedStatuses.has(deriveStatus(e))) return false;
+      if (!selectedStatuses.size && !showEnded && isOver(e)) return false;
       if (e.workId && excludedWorks.has(e.workId)) return false;
       if (selectedCategories.size && !parseCategories(e.category).some((c) => selectedCategories.has(c))) return false;
       if (allowedPrefs.size && (!e.prefecture || !allowedPrefs.has(e.prefecture))) return false;
       return true;
     });
-  }, [queryItems, selectedStatuses, excludedWorks, selectedCategories, allowedPrefs]);
+  }, [queryItems, selectedStatuses, excludedWorks, selectedCategories, allowedPrefs, showEnded, isOver]);
 
   // 未読の円: 今の絞り込み（未読のみ 以外）をかけた一覧のうち、まだ見ていないものの割合
   const unread = useMemo(() => {
@@ -555,6 +573,15 @@ export default function Explore() {
           if (filterOpen) { e.stopPropagation(); haptic.select(); setFilterOpen(false); }
         }}
       >
+        {items !== null && endedCount > 0 && (
+          <div className="flex justify-center pt-1 pb-2">
+            <button onClick={toggleEnded} aria-pressed={showEnded}
+              className="pressable inline-flex items-center gap-1 h-8 px-3 rounded-full text-[12px] font-medium"
+              style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-secondary)' }}>
+              <History size={14} /> {showEnded ? '終了した予定を隠す' : `終了した予定も見る（${endedCount}件）`}
+            </button>
+          </div>
+        )}
         {items === null ? (
           <SkeletonList count={4} />
         ) : visible.length === 0 ? (

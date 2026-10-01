@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useNavigationType } from 'react-router-dom';
 import { Plus, TrendingDown, ChevronRight, ChevronDown } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
@@ -39,9 +39,9 @@ const EMPTY_TEXT: Record<SectionKey, string> = {
 
 /** ホームの1かたまり。見出しは上部バーの下に貼りついたまま残るので、どこまでスクロールしていても
  *  見出しを押せば畳める。貼りついた状態で畳んだときは、見出しが上に来るようにスクロールを戻す */
-function Section({ title, empty, items, open, onToggle, stickyTop, seen, likedIds, workColorMap, onOpen, onLike, onCalendar }: {
+function Section({ title, empty, items, open, onToggle, stickyTop, seen, markViewed, likedIds, workColorMap, onOpen, onLike, onCalendar }: {
   title: string; empty: string; items: CalendarEvent[]; open: boolean; onToggle: () => void; stickyTop: number;
-  seen: Set<string>; likedIds: Set<string>; workColorMap: Map<string, string>;
+  seen: Set<string>; markViewed?: boolean; likedIds: Set<string>; workColorMap: Map<string, string>;
   onOpen: (e: CalendarEvent) => void;
   onLike: (e: CalendarEvent) => void | Promise<{ liked: boolean; count: number } | void>; onCalendar: (e: CalendarEvent) => void;
 }) {
@@ -69,7 +69,7 @@ function Section({ title, empty, items, open, onToggle, stickyTop, seen, likedId
       {open && items.length > 0 && (
         <div className="flex flex-col gap-2 px-3 pt-1">
           {items.map((e) => (
-            <ItemCard key={e.id} event={e} layout="compact" isNew={isNewItem(e.id, e.createdAt, seen)} likedInit={likedIds.has(e.id)}
+            <ItemCard key={e.id} event={e} layout="compact" isNew={isNewItem(e.id, e.createdAt, seen)} viewed={markViewed && seen.has(e.id)} likedInit={likedIds.has(e.id)}
               workColor={e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)'}
               onOpen={() => onOpen(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} />
           ))}
@@ -79,8 +79,13 @@ function Section({ title, empty, items, open, onToggle, stickyTop, seen, likedId
   );
 }
 
+// 新着の並び。詳細を開いて「戻る」で帰ってきたときはこれをそのまま使い、見たものに印を付けて残す
+// （見た瞬間に消えると、どれを見たか分からなくなる。2026-10-02）。タブを切り替えた・開き直したときだけ作り直す
+let lastFollowNew: string[] | null = null;
+
 export default function Home() {
   const navigate = useNavigate();
+  const keepNew = useRef(useNavigationType() === 'POP' && lastFollowNew !== null).current;
   const { user } = useAuth();
   const { isHidden } = useHiddenContent(user?.id);
   const toast = useToast();
@@ -210,12 +215,19 @@ export default function Home() {
     const preorderOpen = all.filter((e) => deriveStatus(e) === 'preorder')
       .sort((a, b) => (a.preorderEnd ?? '9999').localeCompare(b.preorderEnd ?? '9999')).slice(0, 12);
     // 新着は、まだ見ていないものだけ（探すの一覧で見た・詳細を開いたものは外す。0件でも見出しは出す）
-    const seenIds = loadSeenEventIds();
-    const followNew = all.filter((e) => !seenIds.has(e.id))
-      .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? '')).slice(0, 12);
+    let followNew: CalendarEvent[];
+    if (keepNew && lastFollowNew) {
+      const byId = new Map(all.map((e) => [e.id, e]));
+      followNew = lastFollowNew.map((id) => byId.get(id)).filter((e): e is CalendarEvent => !!e);
+    } else {
+      const seenIds = loadSeenEventIds();
+      followNew = all.filter((e) => !seenIds.has(e.id))
+        .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? '')).slice(0, 12);
+      if (items) lastFollowNew = followNew.map((e) => e.id);
+    }
     const popular = [...all].sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0)).filter((e) => (e.likes ?? 0) > 0).slice(0, 12);
     return { preorderOpen, followNew, popular };
-  }, [items, followIds, excluded, isHidden]);
+  }, [items, followIds, excluded, isHidden, keepNew]);
 
   const workColorMap = useMemo(() => buildWorkColorMap(follows), [follows]);
   const seen = useMemo(() => loadSeenEventIds(), [items]);
@@ -282,7 +294,7 @@ export default function Home() {
         <div className="pb-4">
           {([['followNew', 'フォロー作品の新着'], ['preorderOpen', '受付中'], ['popular', '人気']] as const).map(([k, title]) => (
             <Section key={k} title={title} empty={follows.length === 0 ? '作品をフォローすると、ここに予定が出ます' : EMPTY_TEXT[k]} items={sections[k]} open={!collapsed.has(k)} onToggle={() => toggleSection(k)} stickyTop={headerH}
-              seen={seen} likedIds={likedIds} workColorMap={workColorMap} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />
+              seen={seen} markViewed={k === 'followNew'} likedIds={likedIds} workColorMap={workColorMap} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />
           ))}
         </div>
       )}

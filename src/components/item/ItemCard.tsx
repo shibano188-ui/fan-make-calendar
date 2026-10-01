@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Heart, ImageOff, Lock } from 'lucide-react';
+import { Check, Heart, ImageOff, Lock } from 'lucide-react';
 import type { CalendarEvent } from '../../types';
 import { useLike, setLike } from '../../lib/likeStore';
 import { deriveStatus, deriveItemType, itemDateLines, todayStr } from '../../design/tokens';
@@ -17,6 +17,8 @@ interface Props {
   /** wide＝1行に1件の大きいカード（探すのグッズ）。画像を大きく、締切までの日数と販路の在庫まで出す */
   layout?: 'grid' | 'list' | 'wide' | 'compact';
   isNew?: boolean;
+  /** 見た印（ホームの新着で、開いて戻ってきたもの） */
+  viewed?: boolean;
   likedInit?: boolean;
   /** 作品ごとの色。カード左端の縦バーで示す。未指定なら表示しない。 */
   workColor?: string;
@@ -98,7 +100,7 @@ function CategoryLine({ event }: { event: CalendarEvent }) {
 }
 
 /** 探す/ホームの基本カード。メルカリ流＝画像が主役・価格を最強・枠線で区切り。 */
-export default function ItemCard({ event, layout = 'grid', isNew, likedInit, workColor, onOpen, onLike }: Props) {
+export default function ItemCard({ event, layout = 'grid', isNew, viewed, likedInit, workColor, onOpen, onLike }: Props) {
   const type = deriveItemType(event);
   const status = deriveStatus(event);
   // 種類違いが並ぶ予定は「¥330〜」（カードは狭いので下限だけ。幅は詳細ページで出す）
@@ -145,6 +147,11 @@ export default function ItemCard({ event, layout = 'grid', isNew, likedInit, wor
       </div>
       {isNew && (
         <span className="absolute top-1.5 right-1.5 text-[10px] font-bold rounded-full px-1.5 py-0.5" style={{ backgroundColor: 'var(--color-destructive)', color: '#fff' }}>新着</span>
+      )}
+      {viewed && !isNew && (
+        <span aria-label="見た" className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+          <Check size={13} strokeWidth={3} />
+        </span>
       )}
     </div>
   );
