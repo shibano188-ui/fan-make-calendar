@@ -277,13 +277,17 @@ const JUMP_SHOP_BUDGET_MS = 50_000;
 /** 比べるための作品名・商品名（記号・空白・長音符号を落とす。「ēlDLIVE」と「elDLIVE」を同じにする） */
 export const workKey = (s: string) => norm(s.normalize('NFKD').replace(/[\u0300-\u036f]/g, ''));
 
+// 店の「作品から探す」に並ぶが作品ではないもの（雑誌名）。作品として作らない（柴野の判断・2026-10-02。
+// sql/2026-10-02-merge-works.sql で消した）。外すと、『作品名』の付いた商品はその作品に入り、雑誌全体のグッズは入らない
+const NOT_WORKS = new Set(['少年ジャンプ＋', '週刊少年ジャンプ', 'ジャンプＳＱ．', 'すすめ!ジャンプへっぽこ探検隊!', 'ジャンプＳＱ', '少年ジャンプ+', 'ジャンプSQ.'].map((n) => workKey(n)));
+
 async function jumpShopWorks(): Promise<string[]> {
   const r = await fetch(`${JUMP_SHOP}/pages/works`, { headers: { 'User-Agent': 'Mozilla/5.0', Cookie: 'localization=JP' }, signal: AbortSignal.timeout(15000) }).catch(() => null);
   const html = r?.ok ? await r.text() : '';
   const names = new Set<string>();
   for (const m of html.matchAll(/<a[^>]+href="[^"]*filter\.p\.m\.custom\.works=[^"]+"[^>]*>([\s\S]{0,400}?)<\/a>/g)) {
     const t = m[1].replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
-    if (t && workKey(t).length >= 2) names.add(t);
+    if (t && workKey(t).length >= 2 && !NOT_WORKS.has(workKey(t))) names.add(t);
   }
   return [...names].sort((a, b) => workKey(b).length - workKey(a).length);
 }
