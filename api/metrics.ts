@@ -230,11 +230,35 @@ async function series() {
     if (!data || data.length < PAGE_SIZE) break;
   }
 
+  // LP（fanhive.jp/lp.html）の計測。src = 'test' は動作確認の分なので外す（sql/2026-09-30-lp-daily.sql）。
+  // 日ごとの合計は lp_page_views / lp_download_clicks としてグラフに載せ、
+  // 経路・ボタン別の内訳は行のまま渡して画面側で期間に合わせて足す
+  const lp: { day: string; src: string; placement: string; store: string; metric: string; value: number }[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await client
+      .from('lp_daily')
+      .select('day, src, placement, store, metric, value')
+      .neq('src', 'test')
+      .order('day', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) break; // 表がまだ無い環境では LP の欄が空になるだけ
+    for (const r of data ?? []) {
+      const v = Number(r.value);
+      lp.push({ ...r, value: v });
+      const key = `lp_${r.metric}`;
+      const row = byDay.get(r.day) ?? {};
+      row[key] = (row[key] ?? 0) + v;
+      names.add(key);
+      byDay.set(r.day, row);
+    }
+    if (!data || data.length < PAGE_SIZE) break;
+  }
+
   const days = [...byDay.keys()].sort();
   const out: Record<string, (number | null)[]> = {};
   for (const m of names) out[m] = days.map((d) => byDay.get(d)?.[m] ?? null);
 
-  return { days, series: out, updatedAt: new Date().toISOString() };
+  return { days, series: out, lp, updatedAt: new Date().toISOString() };
 }
 
 /** RevenueCat から今の数字を取って metrics_daily に入れる。

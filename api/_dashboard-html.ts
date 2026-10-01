@@ -67,6 +67,12 @@ const HEAD = `<!doctype html>
   .keys i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:middle}
   svg{display:block;width:100%;height:auto;touch-action:none}
   .full{grid-column:1/-1}
+  table{width:100%;border-collapse:collapse;margin:8px 0 12px;font-variant-numeric:tabular-nums}
+  th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;font-size:13px}
+  th{color:var(--sub);font-weight:400;font-size:12px}
+  th:first-child,td:first-child{text-align:left}
+  .tables{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:0 24px}
+  .tables h3{font-size:13px;margin:8px 0 0;font-weight:700}
   #err{color:var(--down);padding:20px 0}
 </style>
 </head>
@@ -167,6 +173,17 @@ var BOXES = [
     kind:'bar', keys:[{k:'ios_first', name:'iPhone', c:'#4ea87a'},
                       {k:'play_installs', name:'Android', c:'#d0a24a'}], fmt:NUM },
 
+  { title:'LPを見た人とダウンロードボタン',
+    note:'縦軸＝その日1日の回数。横軸＝日付。fanhive.jp/lp.html の閲覧（同じタブで開き直しても1回）と、' +
+         'App Store・Google Play のボタンが押された回数。動作確認の分（src=test）は除いている。',
+    kind:'bar', keys:[{k:'lp_page_views', name:'閲覧', c:'#7fb6d9'},
+                      {k:'lp_download_clicks', name:'ボタンを押した', c:'#d0a24a'}], fmt:NUM },
+
+  { title:'LPはどこから来たか・どのボタンが押されたか',
+    note:'表示している期間の合計。経路＝LPのURLに付けた ?src= の値（付いていなければ direct）。' +
+         '押された率＝ボタンを押した回数 ÷ 閲覧。',
+    kind:'table', render:lpTables },
+
   { title:'iPhoneはどこから入れたか',
     note:'縦軸＝初回ダウンロードの累計（App Store Connect の App Analytics）。横軸＝日付。' +
          '検索＝App Storeの検索から、ブラウズ＝App Storeのおすすめ・ランキングなどから、' +
@@ -239,6 +256,45 @@ var BOXES = [
 
 /* ---------- 描画 ---------- */
 
+var LP_PLACE = { hero:'上', footer:'下' };
+var LP_STORE = { app_store:'App Store', google_play:'Google Play' };
+function esc(t){ return String(t).replace(/[&<>"]/g, function(c){ return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]; }); }
+function pct(a, b){ return b ? (a / b * 100).toFixed(1) + '%' : '—'; }
+
+function lpTables(days){
+  var from = days[0];
+  var rows = (DATA.lp || []).filter(function(r){ return r.day >= from; });
+  if(!rows.length) return '<div class="note">この期間の記録はまだありません。</div>';
+
+  var bySrc = {}, byBtn = {};
+  rows.forEach(function(r){
+    var s = bySrc[r.src] || (bySrc[r.src] = { v:0, c:0 });
+    if(r.metric === 'page_views') s.v += r.value;
+    if(r.metric === 'download_clicks'){
+      s.c += r.value;
+      var k = (LP_PLACE[r.placement] || r.placement || '—') + 'の ' + (LP_STORE[r.store] || r.store || '—');
+      byBtn[k] = (byBtn[k] || 0) + r.value;
+    }
+  });
+
+  var srcs = Object.keys(bySrc).sort(function(a, b){ return bySrc[b].v - bySrc[a].v; });
+  var tv = 0, tc = 0;
+  srcs.forEach(function(k){ tv += bySrc[k].v; tc += bySrc[k].c; });
+  var t1 = '<table><tr><th>経路</th><th>閲覧</th><th>ボタン</th><th>押された率</th></tr>' +
+    srcs.map(function(k){
+      var s = bySrc[k];
+      return '<tr><td>' + esc(k) + '</td><td>' + NUM(s.v) + '</td><td>' + NUM(s.c) + '</td><td>' + pct(s.c, s.v) + '</td></tr>';
+    }).join('') +
+    '<tr><td><b>合計</b></td><td><b>' + NUM(tv) + '</b></td><td><b>' + NUM(tc) + '</b></td><td><b>' + pct(tc, tv) + '</b></td></tr></table>';
+
+  var btns = Object.keys(byBtn).sort(function(a, b){ return byBtn[b] - byBtn[a]; });
+  var t2 = '<table><tr><th>ボタン</th><th>押された回数</th></tr>' +
+    (btns.length ? btns.map(function(k){ return '<tr><td>' + esc(k) + '</td><td>' + NUM(byBtn[k]) + '</td></tr>'; }).join('')
+                 : '<tr><td>—</td><td>0</td></tr>') + '</table>';
+
+  return '<div class="tables"><div><h3>経路別</h3>' + t1 + '</div><div><h3>ボタン別</h3>' + t2 + '</div></div>';
+}
+
 function slice(arr, n){ return n > 0 ? arr.slice(Math.max(0, arr.length - n)) : arr.slice(); }
 function sum(a){ var t = 0; for(var i=0;i<a.length;i++){ if(a[i]!=null) t += a[i]; } return t; }
 function last(a){ for(var i=a.length-1;i>=0;i--){ if(a[i]!=null) return a[i]; } return null; }
@@ -261,6 +317,12 @@ function render(){
   g.innerHTML = '';
   BOXES.forEach(function(b){
     var el = document.createElement('div');
+    if(b.kind === 'table'){
+      el.className = 'box full';
+      el.innerHTML = '<h2>' + b.title + '</h2><div class="note">' + b.note + '</div>' + b.render(days);
+      g.appendChild(el);
+      return;
+    }
     el.className = 'box' + (b.keys.length > 1 ? ' full' : '');
     var keys = b.keys.map(function(s){
       return '<span><i style="background:' + s.c + '"></i>' + s.name + '</span>';
@@ -296,6 +358,8 @@ function cards(S){
       'iPhone ' + (ni == null ? '—' : NUM(ni)) + ' / Android ' + (nd == null ? '取り込み待ち' : NUM(nd))],
     ['新規ダウンロード（直近7日）', NUM(d7('ios_first') + d7('play_installs')),
       'iPhone ' + NUM(d7('ios_first')) + ' / Android ' + NUM(d7('play_installs'))],
+    ['LPの閲覧（直近7日）', NUM(d7('lp_page_views')),
+      'ボタンを押した ' + NUM(d7('lp_download_clicks')) + '（' + pct(d7('lp_download_clicks'), d7('lp_page_views')) + '）'],
     ['実際に使った人', NUM(last(ue) || 0), delta(ue, 7)],
     ['有料会員', NUM(last(pa) || 0), delta(pa, 7)],
     ['動いた人（1日平均・7日）', NUM(d7('active_users') / 7), ''],
