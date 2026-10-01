@@ -18,8 +18,8 @@ import { botCanFetch } from './_pace.js';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any>;
 
-// 巡回する作品（works.name と同じ表記）
-const FIXED_WORKS = ['葬送のフリーレン', '呪術廻戦', 'ハイキュー!!', '進撃の巨人', '鬼滅の刃', '僕のヒーローアカデミア', 'ちいかわ', 'ブルーロック', '名探偵コナン'];
+// 巡回する作品（works.name と同じ表記）。ヒカルの碁は盛り上がっているので足した（柴野・2026-10-02）
+const FIXED_WORKS = ['葬送のフリーレン', '呪術廻戦', 'ハイキュー!!', '進撃の巨人', '鬼滅の刃', '僕のヒーローアカデミア', 'ちいかわ', 'ブルーロック', '名探偵コナン', 'ヒカルの碁'];
 
 interface Source {
   key: string; work: string;

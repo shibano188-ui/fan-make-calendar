@@ -26,10 +26,28 @@ const run = (from: number, to: number, damping: number, response: number, onUpda
 // iOS だけは最初に focus し（キーボードは①と同時に上がる）、他は④で focus する
 const FOCUS_ON_TAP = Capacitor.getPlatform() === 'ios';
 
-export default function ExpandingSearch({ value, onChange, placeholder, title, onSubmit }: {
+/** 検索欄に入力しているあいだ、横のボタンを畳んで欄を横いっぱいにする（2026-10-02）。
+ *  ボタンの並びをこれで包み、ExpandingSearch の onActiveChange で受けた値を hidden に渡す */
+export function HideWhileSearching({ hidden, gap, children }: { hidden: boolean; gap: number; children: ReactNode }) {
+  // 畳んだときは、親の並びの隙間（gap）ぶんも詰めて、検索欄を右端まで届かせる
+  return (
+    <div aria-hidden={hidden} className="flex items-center flex-shrink-0"
+      style={{
+        gap, maxWidth: hidden ? 0 : 400, overflow: hidden ? 'hidden' : 'visible', // 開いているときは隠さない（絞り込みの件数の丸がはみ出すため）
+         marginLeft: hidden ? -gap : 0, opacity: hidden ? 0 : 1, pointerEvents: hidden ? 'none' : undefined,
+        transition: hidden ? 'max-width 0.24s ease-out, margin 0.24s ease-out, opacity 0.12s ease-out' : 'max-width 0.28s ease-out, margin 0.28s ease-out, opacity 0.2s ease-in 0.08s',
+      }}>
+      {children}
+    </div>
+  );
+}
+
+export default function ExpandingSearch({ value, onChange, placeholder, title, onSubmit, onActiveChange }: {
   value: string; onChange: (v: string) => void; placeholder: string; title: ReactNode;
   /** Enter を押したとき（ホームは探すへ移る）。無ければキーボードを閉じるだけ */
   onSubmit?: (v: string) => void;
+  /** 入力中か（開いていて、キーボードが出ているか、まだ何も入れていない）。横のボタンを畳むのに使う */
+  onActiveChange?: (active: boolean) => void;
 }) {
   const areaRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
@@ -45,6 +63,8 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
   const [open, setOpen] = useState(!!value);
   const [focused, setFocused] = useState(false);
   const [shield, setShield] = useState(false);
+  const active = open && (focused || !value.trim());
+  useEffect(() => { onActiveChange?.(active); }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 丸は右端に留めておき、動いている間だけ幅から位置を計算する。
   // 閉じている／開ききっているときは幅に頼らない（タブを切り替えた直後など、幅が決まる前に

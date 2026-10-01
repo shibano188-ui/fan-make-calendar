@@ -5,7 +5,7 @@ import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import FilterPanel, { type Facet } from '../components/item/FilterPanel';
 import WorkFollowSheet from '../components/WorkFollowSheet';
-import ExpandingSearch from '../components/ui/ExpandingSearch';
+import ExpandingSearch, { HideWhileSearching } from '../components/ui/ExpandingSearch';
 import WorkChipsRow from '../components/WorkChipsRow';
 import { loadSharedFilters, saveSharedFilters } from '../lib/sharedFilters';
 import { loadWorkImages } from '../lib/workImages';
@@ -378,6 +378,7 @@ export default function Explore() {
   // 終了した予定（発売済み・終了・受付が終わって発売も過ぎたもの）は、ボタンを押したときだけ出す（2026-10-02）。
   // 日付では切らない（発売日を過ぎても今買える「発売中」・在庫ありは残す）。絞り込みで状態を選んだときはそちらに従う。
   // 詳細から戻ると画面が作り直されるので、押した状態は sessionStorage に持つ
+  const [searching, setSearching] = useState(false);
   const [showEnded, setShowEnded] = useState(() => { try { return sessionStorage.getItem('explore_show_ended') === '1'; } catch { return false; } });
   const toggleEnded = () => {
     haptic.select();
@@ -506,7 +507,8 @@ export default function Explore() {
         {/* 上段: 見出し・検索（虫眼鏡から広がる）・グッズ⇄イベント・未読・絞り込み */}
         <div className="flex items-center gap-2">
           <ExpandingSearch value={query} onChange={setQuery} placeholder={mode === 'goods' ? 'グッズを検索' : 'イベントを検索'}
-            title={<span className="text-[22px] font-bold tracking-tight">探す</span>} />
+            title={<span className="text-[22px] font-bold tracking-tight">探す</span>} onActiveChange={setSearching} />
+          <HideWhileSearching hidden={searching} gap={8}>
           <ModeToggle mode={mode} onToggle={() => { haptic.select(); setMode((m) => (m === 'goods' ? 'event' : 'goods')); }} />
           <UnreadButton unread={unread.n} total={unread.total} active={showUnseenOnly}
             onClick={() => { haptic.select(); setShowUnseenOnly((v) => !v); }} />
@@ -523,6 +525,7 @@ export default function Explore() {
                 style={{ backgroundColor: 'var(--label-primary)', color: 'var(--bg-primary)' }}>{activeCount}</span>
             )}
           </button>
+          </HideWhileSearching>
         </div>
 
         {/* 下段: 作品の並び（カレンダーと同じ。押すとその作品を隠す）＋ 作品を足す */}
