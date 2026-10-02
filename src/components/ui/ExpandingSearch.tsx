@@ -1,6 +1,5 @@
 import { forwardRef, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
-import { Capacitor } from '@capacitor/core';
 import { Search, X } from 'lucide-react';
 import { prefersReducedMotion } from '../../lib/fluid';
 import { haptic } from '../../lib/haptics';
@@ -15,9 +14,9 @@ import { haptic } from '../../lib/haptics';
 
 const D = 36; // 閉じているときの丸の直径
 const EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
-// iOS の WebView は、タップの処理の中で focus しないとキーボードが出ない。
-// iOS だけは押した瞬間に focus し、他は広がりきってから focus する
-const FOCUS_ON_TAP = Capacitor.getPlatform() === 'ios';
+// 押した瞬間に focus して、キーボードと欄の広がりを同時に進める（2026-10-02）。
+// 前は iOS 以外は広がりきってから focus していて、そのあとキーボードが出て画面を並べ直すぶん、
+// 予定の多い探すでは「開くまでが長い」と感じた。iOS の WebView はタップの処理の中で focus しないとキーボードが出ない
 
 /** 検索欄の横のボタンの並び。入力しているあいだは畳んで、検索欄を横いっぱいにする（2026-10-02）。
  *  ExpandingSearch の sideRef に渡すと、開閉に合わせて ExpandingSearch が直接スタイルを変える
@@ -72,19 +71,18 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
     const o = (ms: number, delay = 0): KeyframeAnimationOptions => ({ duration: reduce ? 0 : ms, delay: reduce ? 0 : delay, easing: EASE, fill: 'both' });
     if (open) {
       anims.current = [
-        pill.animate([{ clipPath: shut }, { clipPath: full }], o(320)),
-        icon.animate([{ transform: `translateX(${W - D}px)` }, { transform: 'none' }], o(320)),
-        t.animate([{ opacity: 1 }, { opacity: 0 }], o(120)),
-        field.animate([{ opacity: 0 }, { opacity: 1 }], o(160, 140)),
+        pill.animate([{ clipPath: shut }, { clipPath: full }], o(240)),
+        icon.animate([{ transform: `translateX(${W - D}px)` }, { transform: 'none' }], o(240)),
+        t.animate([{ opacity: 1 }, { opacity: 0 }], o(100)),
+        field.animate([{ opacity: 0 }, { opacity: 1 }], o(140, 90)),
       ];
-      if (!FOCUS_ON_TAP) anims.current[0].finished.then(() => inputRef.current?.focus({ preventScroll: true })).catch(() => {});
     } else {
       anims.current = [
-        field.animate([{ opacity: 1 }, { opacity: 0 }], o(80)),
-        pill.animate([{ clipPath: full }, { clipPath: shut }], o(280)),
+        field.animate([{ opacity: 1 }, { opacity: 0 }], o(70)),
+        pill.animate([{ clipPath: full }, { clipPath: shut }], o(220)),
         // 閉じた形では虫眼鏡は右端に置かれている（marginLeft）。左から戻ってくるように逆向きにずらす
-        icon.animate([{ transform: `translateX(${-(W - D)}px)` }, { transform: 'none' }], o(280)),
-        t.animate([{ opacity: 0 }, { opacity: 1 }], o(160, 120)),
+        icon.animate([{ transform: `translateX(${-(W - D)}px)` }, { transform: 'none' }], o(220)),
+        t.animate([{ opacity: 0 }, { opacity: 1 }], o(140, 90)),
       ];
     }
     const mine = anims.current;
@@ -98,7 +96,7 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
     if (open) return;
     haptic.select();
     setOpen(true);
-    if (FOCUS_ON_TAP) inputRef.current?.focus({ preventScroll: true });
+    inputRef.current?.focus({ preventScroll: true });
   };
 
   const collapse = () => {
