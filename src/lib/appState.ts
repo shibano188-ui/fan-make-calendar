@@ -141,6 +141,15 @@ export async function syncAppState(userId: string): Promise<void> {
 
     for (const col of Object.keys(KEYS) as AppStateColumn[]) {
       const server = row ? row[col] : null;
+      // 見た予定は増えるだけのものなので、サーバーで上書きせず両方を合わせる。上書きすると、
+      // 上げ損ねた分（最後に見てすぐ閉じた分）が次の起動で未読に戻る（2026-10-04「全部見たのに1件残る」）
+      if (col === 'seen_event_ids' && Array.isArray(server)) {
+        const local = readLocal(col) as string[];
+        const merged = [...new Set([...(server as string[]), ...local])].slice(-5000);
+        writeLocal(col, merged);
+        if (merged.length > (server as string[]).length) upload[col] = merged;
+        continue;
+      }
       const local = localWins ? readLocal(col) : null;
       if (localWins && !isEmpty(local)) {
         upload[col] = local;

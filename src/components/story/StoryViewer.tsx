@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Heart, Share2, ChevronRight, ImageOff } from 'lucide-react';
+import { X, Heart, Share2, ChevronRight, ChevronLeft, ImageOff } from 'lucide-react';
 import type { CalendarEvent } from '../../types';
 import type { StoryGroup } from '../../lib/story';
 import { deriveStatus, deriveItemType, itemDateLines } from '../../design/tokens';
@@ -58,6 +58,10 @@ export default function StoryViewer({ groups, initial, onClose, onSeen, onOpenDe
   onLike: (e: CalendarEvent) => Promise<{ liked: boolean; count: number } | void>;
 }) {
   const [pos, setPos] = useState<StoryPosition>(initial);
+  // 押した側に矢印を一瞬出す（戻ったのか進んだのか分かるように）
+  const [flash, setFlash] = useState<{ side: 'prev' | 'next'; n: number } | null>(null);
+  const flashSide = (side: 'prev' | 'next') => setFlash((f) => ({ side, n: (f?.n ?? 0) + 1 }));
+  useEffect(() => { if (!flash) return; const t = setTimeout(() => setFlash(null), 350); return () => clearTimeout(t); }, [flash]);
   const group = groups[pos.group];
   const page = group?.pages[pos.page];
 
@@ -95,7 +99,7 @@ export default function StoryViewer({ groups, initial, onClose, onSeen, onOpenDe
   /** byTap: 押してめくったときだけ振動させる（5秒ごとに鳴るとうるさい） */
   const next = (byTap = true) => {
     if (!group) return onClose();
-    if (byTap) haptic.select();
+    if (byTap) { haptic.select(); flashSide('next'); }
     if (pos.page < group.pages.length - 1) return setPos({ group: pos.group, page: pos.page + 1 });
     // 次の作品へ（中身のある作品だけ）。最後まで見たら閉じる
     for (let g = pos.group + 1; g < groups.length; g++) {
@@ -105,6 +109,7 @@ export default function StoryViewer({ groups, initial, onClose, onSeen, onOpenDe
   };
   const prev = () => {
     haptic.select();
+    flashSide('prev');
     if (pos.page > 0) return setPos({ group: pos.group, page: pos.page - 1 });
     for (let g = pos.group - 1; g >= 0; g--) {
       if (groups[g].pages.length) return setPos({ group: g, page: groups[g].pages.length - 1 });
@@ -147,27 +152,36 @@ export default function StoryViewer({ groups, initial, onClose, onSeen, onOpenDe
     <div className="fixed inset-0 z-[110] flex flex-col select-none" style={{ backgroundColor: 'var(--bg-primary)' }}
       onClick={onTap} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
       onPointerDown={onPointerDown} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onPointerLeave={onPointerUp}>
-      <style>{'@keyframes story-fill { from { width: 0% } to { width: 100% } }'}</style>
+      <style>{'@keyframes story-fill { from { width: 0% } to { width: 100% } } @keyframes story-flash { from { opacity: 0.9 } to { opacity: 0 } }'}</style>
+      {flash && (
+        <span key={flash.n} className="fixed top-1/2 -translate-y-1/2 z-[1] w-14 h-14 rounded-full flex items-center justify-center pointer-events-none"
+          style={{ [flash.side === 'prev' ? 'left' : 'right']: 12, backgroundColor: 'rgba(0,0,0,0.45)', color: '#fff', animation: 'story-flash 0.35s ease-out forwards' }}>
+          {flash.side === 'prev' ? <ChevronLeft size={32} /> : <ChevronRight size={32} />}
+        </span>
+      )}
       <div className="mx-auto w-full max-w-app flex-1 flex flex-col min-h-0" style={{ paddingTop: 'calc(var(--sat) + 8px)' }}>
         {/* 進み具合（1本＝1予定）。今の1本が5秒で埋まり、埋まったら次へ。
-            多すぎると線が見えないので、21件からは今の1件の線と件数にする */}
-        {group.pages.length <= 20 ? (
-          <div className="flex gap-1 px-3">
-            {group.pages.map((p, i) => (
-              <span key={p.event.id} className="flex-1 h-[3px] rounded-full overflow-hidden" style={{ backgroundColor: 'var(--fill-secondary, rgba(120,120,128,0.24))' }}>
-                {i < pos.page && <span className="block h-full w-full" style={{ backgroundColor: 'var(--label-primary)' }} />}
-                {i === pos.page && <ProgressFill key={`${pos.group}-${pos.page}`} paused={paused} onDone={() => next(false)} />}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 px-3">
+            多すぎると線が見えないので、21件からは今の1件の線だけにする。
+            何件目かは常に大きく出す（戻ったのか進んだのか分かりにくかった） */}
+        <div className="flex items-center gap-2 px-3">
+          {group.pages.length <= 20 ? (
+            <div className="flex-1 flex gap-1">
+              {group.pages.map((p, i) => (
+                <span key={p.event.id} className="flex-1 h-[3px] rounded-full overflow-hidden" style={{ backgroundColor: 'var(--fill-secondary, rgba(120,120,128,0.24))' }}>
+                  {i < pos.page && <span className="block h-full w-full" style={{ backgroundColor: 'var(--label-primary)' }} />}
+                  {i === pos.page && <ProgressFill key={`${pos.group}-${pos.page}`} paused={paused} onDone={() => next(false)} />}
+                </span>
+              ))}
+            </div>
+          ) : (
             <span className="flex-1 h-[3px] rounded-full overflow-hidden" style={{ backgroundColor: 'var(--fill-secondary, rgba(120,120,128,0.24))' }}>
               <ProgressFill key={`${pos.group}-${pos.page}`} paused={paused} onDone={() => next(false)} />
             </span>
-            <span className="text-[11px] text-label-secondary tabular-nums">{pos.page + 1} / {group.pages.length}</span>
-          </div>
-        )}
+          )}
+          <span className="flex-shrink-0 px-2 py-0.5 rounded-full text-[14px] font-bold tabular-nums" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+            {pos.page + 1}<span className="text-label-tertiary font-semibold"> / {group.pages.length}</span>
+          </span>
+        </div>
         <div className="flex items-center gap-2 px-3 pt-2.5 pb-2">
           <WorkBadge title={group.title} color={group.color} image={group.image} size={32} />
           <span className="text-[14px] font-semibold truncate">{group.title}</span>

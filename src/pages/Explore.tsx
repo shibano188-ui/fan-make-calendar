@@ -298,10 +298,12 @@ export default function Explore() {
     () => (items ?? []).filter((e) => {
       if (!e.workId || !(followed.has(e.workId) || e.workId === tourFallbackWorkId)) return false;
       if (isHidden(e)) return false;
+      // 新着だけのときはグッズもイベントも出す（ホームの新着の数と揃える。片方だけだと、もう片方が残り続けた）
+      if (newOnly) return true;
       if (mode === 'goods') return deriveItemType(e) === 'goods' || parseCategories(e.category).includes(GOODS_TAG);
       return deriveItemType(e) === 'event';
     }),
-    [items, mode, followed, isHidden, tourFallbackWorkId],
+    [items, mode, followed, isHidden, tourFallbackWorkId, newOnly],
   );
 
   // 案内の間、今の表示（グッズ／イベント）にこれからの予定が無くて、もう片方にはあるなら切り替える
@@ -413,12 +415,17 @@ export default function Explore() {
 
   const visible = useMemo(() => {
     return queryItems.filter((e) => {
+      // 新着だけのときは、ホームの新着の数と同じものを全部出す。状態・カテゴリ・地域の絞り込みと「過去」を隠すのは効かせない
+      // （前は残った1件がこれらで隠れて、押しても何も出ず、新着1件のまま減らなかった。2026-10-04）
+      if (newOnly) {
+        if (e.workId !== onlyWork) return false;
+        return !seenSnapshot.has(e.id) && (e.createdAt ?? '') >= newSince && !(newCutoff && (e.createdAt ?? '') > newCutoff);
+      }
       if (selectedStatuses.size && !selectedStatuses.has(deriveStatus(e))) return false;
       if (!selectedStatuses.size && !showEnded && isOver(e)) return false;
       // 作品で絞って開いたときは、その作品だけ（共有の作品の絞り込みで隠していても出す）
       if (onlyWork) { if (e.workId !== onlyWork) return false; }
       else if (e.workId && excludedWorks.has(e.workId)) return false;
-      if (newOnly && (seenSnapshot.has(e.id) || (e.createdAt ?? '') < newSince || (newCutoff && (e.createdAt ?? '') > newCutoff))) return false;
       if (selectedCategories.size && !parseCategories(e.category).some((c) => selectedCategories.has(c))) return false;
       if (allowedPrefs.size && (!e.prefecture || !allowedPrefs.has(e.prefecture))) return false;
       return true;
@@ -439,10 +446,11 @@ export default function Explore() {
     for (const e of visible) {
       if (showUnseenOnly && seenSnapshot.has(e.id)) continue; // 未読のみ＝未閲覧に絞る
       const ref = e.endDate || e.date || '';
-      (ref && ref < today ? p : u).push(e);
+      // 新着だけのときは上下に分けない（終わった新着が「今日」より上に隠れて見落とされる）
+      (!newOnly && ref && ref < today ? p : u).push(e);
     }
     return { past: p, upcoming: u };
-  }, [visible, today, showUnseenOnly, seenSnapshot]);
+  }, [visible, today, showUnseenOnly, seenSnapshot, newOnly]);
 
   // 初回スクロール制御を1度だけ行うためのガード（フォロー作品の非同期ロードで
   // visible が後から埋まるため、内容が出揃ってから復元/今日への移動を実行する）

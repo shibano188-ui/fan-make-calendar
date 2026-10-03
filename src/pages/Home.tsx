@@ -336,7 +336,7 @@ export default function Home() {
           <span className="flex-1 min-w-0">
             <span className="block text-[14px] font-bold">新しい予定が<span style={{ color: 'var(--color-destructive)' }}>{unseenTotal}件</span>届いています！</span>
             {/* 「ストーリー」は Instagram の呼び名なので出さず、何ができるかで書く（2026-10-04 柴野） */}
-            <span className="block text-[11px] text-label-secondary mt-0.5">作品の丸を押すと、1件ずつ見られます</span>
+            <span className="block text-[11px] text-label-secondary mt-0.5">作品のアイコンを押すとチェックできます</span>
           </span>
           <ChevronRight size={16} className="text-label-tertiary flex-shrink-0" />
         </button>

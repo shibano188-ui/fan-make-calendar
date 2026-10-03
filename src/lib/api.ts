@@ -3,7 +3,7 @@ import { sortByWorkOrder } from './workOrder';
 import type { CalendarEvent, EventVisit, Offer } from '../types';
 import { parseCategories, loadMutedEventIds, loadMutedWorkIds, ANON_NAME, isOfficialUser, isReservedDisplayName, LIKED_EVENT } from './constants';
 import { searchWorksByAlias, findWorkByExactAlias } from './workAliases';
-import { primaryOffer, getOffers } from './affiliate';
+import { primaryOffer, getOffers, isSearchPageUrl } from './affiliate';
 import { requestDeviceCalendarSync } from './deviceCalendar';
 
 /** 2つのカテゴリ値（単一文字列 or JSON配列文字列）が完全に重ならない場合 true。
@@ -485,7 +485,7 @@ export async function findDuplicateEvents(
   title: string,
   sourceUrl?: string | null,
   category?: string | null,
-  opts?: { date?: string | null; endDate?: string | null; workName?: string | null; prefecture?: string | null },
+  opts?: { date?: string | null; endDate?: string | null; workName?: string | null; prefecture?: string | null; buyUrls?: string[] },
 ): Promise<{ byUrl: DuplicateMatch[]; byTitle: DuplicateMatch[]; byDateKeyword: DuplicateMatch[] }> {
   const seen = new Set<string>();
   const byUrl: DuplicateMatch[] = [];
@@ -509,6 +509,31 @@ export async function findDuplicateEvents(
       for (const row of data ?? []) {
         if (urlDedup.has(row.id as string)) continue;
         urlDedup.add(row.id as string);
+        seen.add(row.id as string);
+        byUrl.push({
+          id: row.id as string,
+          title: row.title as string,
+          date: row.event_date as string,
+          endDate: (row.end_date as string | null) ?? null,
+          prefecture: normalizePrefecture(row.prefecture as string | null) ?? null,
+          sourceUrl: row.source_url as string | null,
+          authorId: (row.author_id as string | null) ?? null,
+        });
+      }
+    }
+  }
+
+  // 購入先の URL が同じ予定（2026-10-04）。タイトルが少し違うと（「クリスマスグッズ」「クリスマスビジュアルグッズ」）
+  // タイトルの判定をすり抜けて、同じ商品のページを指す予定が2つできていた。検索結果のページは同じでも別の商品なので見ない
+  const buyUrls = [...new Set((opts?.buyUrls ?? []).map((u) => u.trim()).filter((u) => /^https?:\/\//.test(u) && !isSearchPageUrl(u)))].slice(0, 5);
+  if (buyUrls.length) {
+    const results = await Promise.all(buyUrls.flatMap((u) => [
+      supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, author_id').eq('work_id', workId).eq('pool', 0).eq('link_url', u),
+      supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, author_id').eq('work_id', workId).eq('pool', 0).contains('offers', [{ url: u }]),
+    ]));
+    for (const { data } of results) {
+      for (const row of data ?? []) {
+        if (seen.has(row.id as string)) continue;
         seen.add(row.id as string);
         byUrl.push({
           id: row.id as string,

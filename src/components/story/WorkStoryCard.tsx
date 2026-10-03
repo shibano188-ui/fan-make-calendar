@@ -60,12 +60,13 @@ export function WorkStoryCard({ group, followDays, next, height, onStory, onPick
               <span className="w-12 h-12 rounded-[8px] overflow-hidden bg-fill-3 flex-shrink-0 flex items-center justify-center">
                 <Thumb src={parseImageUrls(next.main.event.imageUrl)[0]} />
               </span>
-              <span className="min-w-0">
-                <span className="block text-[11px] text-label-secondary leading-tight">{next.main.label}まで（{md(next.main.date)}）</span>
-                <span className="block text-[20px] font-bold leading-tight" style={{ color: 'var(--accent-text)' }}>{daysText(next.main.days)}</span>
-              </span>
+              <span className="min-w-0 text-[11px] text-label-secondary leading-tight">{next.main.label}まで（{md(next.main.date)}）</span>
             </span>
-            <span className="block text-[12px] leading-snug line-clamp-2 mt-1.5">{next.main.event.title}</span>
+            {/* 画像の横は狭く「あと135日」が2行に折れていたので、下にカードの幅いっぱいで1行に出す */}
+            <span className={`block font-bold leading-tight whitespace-nowrap mt-1 ${next.main.days >= 100 ? 'text-[17px]' : 'text-[20px]'}`} style={{ color: 'var(--accent-text)' }}>
+              {daysText(next.main.days)}
+            </span>
+            <span className="block text-[12px] leading-snug line-clamp-2 mt-0.5">{next.main.event.title}</span>
           </button>
         ) : (
           <div className="text-[12px] text-label-tertiary mt-1">これからの締切・発売はまだありません</div>
