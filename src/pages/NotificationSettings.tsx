@@ -8,8 +8,9 @@ import { buildWorkColorMap } from '../lib/workColors';
 import { loadWorkImages } from '../lib/workImages';
 import { loadNotifyLeadDays, saveNotifyLeadDays, loadBellPrefs, saveBellPrefs, type BellPrefs, loadMutedWorkIds, toggleMutedWorkId } from '../lib/constants';
 import { ensurePermission, notificationPermission, notificationsSupported, rescheduleAll } from '../lib/notifications';
-import { pushSupported, isDigestOn, setDigestOn } from '../lib/push';
-import { useFeature } from '../lib/premium';
+import { pushSupported, isDigestOn, setDigestOn, getNotifyMode, setNotifyMode, type NotifyMode } from '../lib/push';
+import { useFeature, usePremium } from '../lib/premium';
+import { FEATURE_PREMIUM } from '../lib/constants';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
 import Toggle from '../components/ui/Toggle';
@@ -21,6 +22,12 @@ import { haptic } from '../lib/haptics';
 // 一番上は**許可の状態**。ここが断られていると下の設定は全部意味を持たないため、
 // 最初に出して、その場で直せるなら直せるようにしている。
 
+const MODE_TOAST: Record<NotifyMode, string> = {
+  instant: '新着を30分ごとにまとめてお知らせします',
+  thrice: '新着を9時・13時・19時にお知らせします',
+  daily: '新着を毎朝9時にお知らせします',
+};
+
 export default function NotificationSettings() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -28,6 +35,8 @@ export default function NotificationSettings() {
   const [perm, setPerm] = useState<'granted' | 'denied' | 'prompt' | 'unsupported' | null>(null);
   const [leadDays, setLeadDays] = useState(loadNotifyLeadDays());
   const [digestOn, setDigestEnabled] = useState(isDigestOn());
+  const premium = usePremium();
+  const [notifyMode, setNotifyModeState] = useState<NotifyMode>(getNotifyMode());
   const [bell, setBell] = useState<BellPrefs>(loadBellPrefs());
   // 作品ごとの通知（値下げ・再入荷と新着のまとめ）。フォロー中の作品を並べて、ここで切り替える
   const [works, setWorks] = useState<Work[]>(() => (user ? getCached<Work[]>(`follows:${user.id}`) ?? [] : []));
@@ -44,7 +53,6 @@ export default function NotificationSettings() {
     setMutedWorks(next);
     toast(next.has(w.id) ? `「${w.name}」の通知を止めました` : `「${w.name}」の通知を受け取ります`);
   };
-  const newEventDigest = useFeature('newEventDigest');
   const priceAlerts = useFeature('priceAlerts');
   const instantAlerts = useFeature('instantAlerts');
 
@@ -79,6 +87,15 @@ export default function NotificationSettings() {
     setDigestEnabled(next);
     if (user) await setDigestOn(user.id, next);
     toast(next ? '毎朝9時にまとめてお知らせします' : '新着のまとめ通知を止めました');
+  };
+
+  const onChangeMode = async (next: NotifyMode) => {
+    haptic.select();
+    const prev = notifyMode;
+    setNotifyModeState(next);
+    const ok = user ? await setNotifyMode(user.id, next) : false;
+    if (!ok) { setNotifyModeState(prev); toast('変更できませんでした。時間をおいてお試しください', 'error'); return; }
+    toast(MODE_TOAST[next]);
   };
 
   const onToggleBell = (key: keyof BellPrefs, next: boolean) => {
@@ -185,16 +202,31 @@ export default function NotificationSettings() {
               </p>
             </div>
 
-            {/* フォロー作品の新着まとめ（プレミアム・既定ON） */}
-            {newEventDigest && pushSupported() && (
+            {/* フォロー作品の新着まとめ（既定ON）。2026-10-04 から無料の人にも毎朝9時に送る。
+                課金の人は届き方を選べる（すぐ／1日3回／1日1回） */}
+            {pushSupported() && (
               <div className={row}>
                 <div className="flex items-center gap-2">
                   <BellRing size={16} className="text-label-secondary" />
-                  <span className="text-[14px] flex-1">フォロー作品の新着まとめ</span>
+                  <span className="text-[14px] flex-1">フォロー作品の新着</span>
                   <Toggle checked={digestOn} onChange={onToggleDigest} />
                 </div>
+                {digestOn && premium && (
+                  <div className="flex items-center gap-2 mt-2 ml-6">
+                    <span className="text-[13px] text-label-secondary flex-1">届き方</span>
+                    <select value={notifyMode} onChange={(e) => void onChangeMode(e.target.value as NotifyMode)}
+                      className="bg-transparent text-[14px] outline-none" style={{ color: 'var(--input-text)' }}>
+                      <option value="instant">すぐ（30分ごとにまとめて）</option>
+                      <option value="thrice">1日3回（9時・13時・19時）</option>
+                      <option value="daily">1日1回（9時）</option>
+                    </select>
+                  </div>
+                )}
                 <p className="text-[11px] text-label-secondary mt-1 ml-6">
-                  フォロー中の作品に追加された予定を、毎朝9時に1通でお知らせします。
+                  {premium
+                    ? 'フォロー中の作品に追加された予定をお知らせします。押すと、その作品の新着を1件ずつ見られます。'
+                    : 'フォロー中の作品に追加された予定を、毎朝9時に1通でお知らせします。押すと、その作品の新着を1件ずつ見られます。'}
+                  {!premium && FEATURE_PREMIUM && ' プレミアムなら「すぐ」「1日3回」も選べます。'}
                 </p>
               </div>
             )}

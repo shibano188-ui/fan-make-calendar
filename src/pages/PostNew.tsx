@@ -290,6 +290,8 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
         const dup = await findDuplicateEvents(wid, title.trim(), null, catStr ?? null, {
           date: dateTBD ? null : (date || null), endDate: dateTBD ? null : (endDate || null),
           workName: workName || workQuery.trim() || null, prefecture: type === 'event' ? (prefecture || null) : null,
+          // 購入先が同じなら、タイトルが違っても同じ予定（2026-10-04 フリーレンのクリスマスグッズが2つになっていた）
+          buyUrls: [link, ...offers.map((o) => o.url)],
         }).catch(() => ({ byUrl: [], byTitle: [], byDateKeyword: [] }));
         const pref = type === 'event' ? prefecture : null;
         for (const m of dup.byTitle) if (isOtherPlaceMatch(m, pref)) places.add(m.prefecture!);
@@ -305,7 +307,7 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
       setDupDismissed(false);
     }, 500);
     return () => { alive = false; clearTimeout(t); };
-  }, [workId, workQuery, title, date, endDate, dateTBD, prefecture, type]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [workId, workQuery, title, date, endDate, dateTBD, prefecture, type, link, offers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const catList = type === 'goods' ? GOODS_CATS : EVENT_CATS;
   const toggleCat = (c: string) => {

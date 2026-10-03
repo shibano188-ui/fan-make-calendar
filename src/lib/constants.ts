@@ -10,6 +10,8 @@ export const SHOW_POPULAR_CALENDARS = false;
  *  空欄のまま「投稿: 」の行ごと消すと、誰が出したのか分からない投稿になる。
  *  ブロックや通報は user_id で動くので、名前が共通でも支障は無い。 */
 export const ANON_NAME = '名無しさん';
+/** 自分のアイコン（絵文字）を選んでいないときに出すもの。マイページとホームで同じものにする */
+export const DEFAULT_AVATAR = '🐝';
 // 初回起動時のオンボーディング案内。再度出すなら true に戻す
 export const SHOW_ONBOARDING = true;
 // 案内を見終わった印。バナー広告を伏せる判断（adSuppress.ts）でも読むのでここに置く
@@ -322,11 +324,28 @@ export function isNewItem(id: string, createdAt: string | undefined, seen: Set<s
   const t = new Date(createdAt).getTime();
   return Number.isFinite(t) && Date.now() - t < 7 * 86400000;
 }
+// アカウントへ写すのは、少し待ってまとめて（ストーリーをめくるたび・スクロールで見るたびに書くと多すぎる）。
+// 起動時はサーバーの値が正になるので、端末で増えた分は必ず上げておく（上げ損ねると次の起動で未読に戻る）
+let seenPushTimer: ReturnType<typeof setTimeout> | null = null;
+let seenPending: string[] | null = null;
+function flushSeenPush(): void {
+  if (seenPushTimer) { clearTimeout(seenPushTimer); seenPushTimer = null; }
+  if (seenPending) { pushAppState('seen_event_ids', seenPending); seenPending = null; }
+}
+// 待っている間にアプリを閉じると、最後に見た分がアカウントに届かず、次の起動で未読に戻っていた
+// （「全部見たのに新着が1件残る」2026-10-04）。裏に回る・閉じるときは待たずに上げる
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSeenPush(); });
+  window.addEventListener('pagehide', flushSeenPush);
+}
 export function saveSeenEventIds(ids: Set<string>): void {
   try {
     // 肥大化防止に直近5000件だけ保持
-    const arr = [...ids];
-    localStorage.setItem(SEEN_EVENTS_KEY, JSON.stringify(arr.slice(-5000)));
+    const arr = [...ids].slice(-5000);
+    localStorage.setItem(SEEN_EVENTS_KEY, JSON.stringify(arr));
+    seenPending = arr;
+    if (seenPushTimer) clearTimeout(seenPushTimer);
+    seenPushTimer = setTimeout(flushSeenPush, 3000);
   } catch { /* 容量超過等は無視 */ }
 }
 

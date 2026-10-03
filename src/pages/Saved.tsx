@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { SlidersHorizontal, Crown, Palette, CalendarDays, CalendarRange, Calendar, List, Check, CalendarPlus } from 'lucide-react';
+import { SlidersHorizontal, Crown, Palette, CalendarDays, CalendarRange, Calendar, List, Check, CalendarPlus, X } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import Chip from '../components/ui/Chip';
@@ -17,7 +17,9 @@ import { getHomePrefecture, toggleLike, toggleCalendarAdd, listAllParticipatedWo
 import { loadWorkImages } from '../lib/workImages';
 import { useTheme } from '../contexts/ThemeContext';
 import { peekSaved, loadSaved, updateSaved } from '../lib/savedStore';
-import { parseCategories, isNotifyOn } from '../lib/constants';
+import { parseCategories, isNotifyOn, FEATURE_PREMIUM } from '../lib/constants';
+
+const SYNC_PROMO_KEY = 'fan_cal_sync_promo_hidden';
 import { buildWorkColorMap } from '../lib/workColors';
 import { logSearch } from '../lib/dataLogs';
 import { addToCalendar } from '../lib/googleCalendar';
@@ -69,6 +71,9 @@ export default function Saved() {
   // 表示中の月・週・日。見出しと「今日」ボタンのためにここで持つ
   const [anchor, setAnchor] = useState<string>(todayStr());
   const premium = usePremium();
+  // カレンダーの自動同期（プレミアム）の案内を消したか。端末に覚える
+  const [syncPromoHidden, setSyncPromoHidden] = useState(() => { try { return localStorage.getItem(SYNC_PROMO_KEY) === '1'; } catch { return false; } });
+  const hideSyncPromo = () => { setSyncPromoHidden(true); try { localStorage.setItem(SYNC_PROMO_KEY, '1'); } catch { /* noop */ } };
   // 月表示は1画面に収めて、下へスクロールできないようにする
   const monthFit = view === 'month';
   useEffect(() => {
@@ -455,6 +460,22 @@ export default function Saved() {
         )}
       </div>
 
+      {/* 課金の入口（無料の人だけ・2026-10-04 柴野）。いつものカレンダーへの自動同期を1行で。
+          カレンダーを見るための画面なので、✕で消せる（端末に覚える）。上部バーの外に置き、スクロールで流れる */}
+      {FEATURE_PREMIUM && !premium && !syncPromoHidden && (
+        <div className="mx-3 mt-2 flex items-center gap-2 pl-3 pr-1 py-1 rounded-[10px] border"
+          style={{ borderColor: 'color-mix(in srgb, var(--accent-color) 45%, transparent)' }}>
+          <button onClick={() => { haptic.select(); navigate('/premium'); }} className="pressable flex-1 min-w-0 flex items-center gap-2 py-1 text-left">
+            {/* ホーム上部の値下げ・再入荷の案内と同じ形（短い文言＋札）。狭い iPhone SE でも見切れない長さ */}
+            <span className="flex-1 min-w-0 truncate text-[12px] font-semibold">いつものカレンダーに自動同期</span>
+            <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+              style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 20%, transparent)', color: 'var(--accent-text)' }}>プレミアム</span>
+          </button>
+          <button onClick={() => { haptic.select(); hideSyncPromo(); }} aria-label="この案内を消す" className="pressable tap-44 p-1 flex-shrink-0">
+            <X size={16} className="text-label-tertiary" />
+          </button>
+        </div>
+      )}
 
       {/* 絞り込み: 対象（すべて/自分の投稿/通知ON）・細かい条件をここにまとめる */}
       {filterOpen && createPortal(

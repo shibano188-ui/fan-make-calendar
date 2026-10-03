@@ -139,7 +139,7 @@ export async function onPushOpened(go: (path: string) => void): Promise<void> {
   } catch { /* noop */ }
 }
 
-// ─── フォロー作品の新着まとめ（毎朝9時・プレミアム）のON/OFF ──────────────
+// ─── フォロー作品の新着まとめのON/OFF（毎朝9時・2026-10-04 から無料の人にも送る）──────────────
 //
 // ⚠️ 端末間同期（appState.ts の pushAppState）には**乗せない**。
 // あちらは「デバイス間の同時同期」の判定で止まることがあり、そうなるとOFFがサーバーに
@@ -162,6 +162,29 @@ export async function setDigestOn(userId: string, on: boolean): Promise<void> {
   );
 }
 
+// 届き方（課金の人だけが選べる・2026-10-04）。サーバーの api/notify-new-events.ts が読む。
+// instant … 30分ごとにまとめて ／ thrice … 9・13・19時 ／ daily … 9時（既定）
+export type NotifyMode = 'instant' | 'thrice' | 'daily';
+const NOTIFY_MODE_KEY = 'fan_new_events_notify';
+
+export function getNotifyMode(): NotifyMode {
+  try {
+    const v = localStorage.getItem(NOTIFY_MODE_KEY);
+    return v === 'instant' || v === 'thrice' ? v : 'daily';
+  } catch { return 'daily'; }
+}
+
+/** 止める設定と同じく、端末間同期には乗せずに直接書く（必ずサーバーに届かないと意味がない）。
+ *  列（sql/2026-10-04-new-events-notify.sql）が無い環境では書けないので、失敗を返す */
+export async function setNotifyMode(userId: string, mode: NotifyMode): Promise<boolean> {
+  try { localStorage.setItem(NOTIFY_MODE_KEY, mode); } catch { /* noop */ }
+  const { error } = await supabase.from('user_app_state').upsert(
+    { user_id: userId, new_events_notify: mode, updated_at: new Date().toISOString() },
+    { onConflict: 'user_id' },
+  );
+  return !error;
+}
+
 /** ログイン時にサーバーの設定を端末へ引き戻す（別端末で切った設定を尊重する）。 */
 export async function loadDigestSetting(userId: string): Promise<void> {
   const { data } = await supabase.from('user_app_state').select('new_events_digest_off').eq('user_id', userId).maybeSingle();
@@ -169,6 +192,12 @@ export async function loadDigestSetting(userId: string): Promise<void> {
   try {
     if (data.new_events_digest_off === true) localStorage.setItem(DIGEST_OFF_KEY, '1');
     else localStorage.removeItem(DIGEST_OFF_KEY);
+  } catch { /* noop */ }
+  // 届き方は列が無い環境もあるので別に読む（失敗しても止める設定の読み込みは済んでいる）
+  const { data: m } = await supabase.from('user_app_state').select('new_events_notify').eq('user_id', userId).maybeSingle();
+  const mode = (m as { new_events_notify?: string | null } | null)?.new_events_notify;
+  try {
+    if (mode === 'instant' || mode === 'thrice' || mode === 'daily') localStorage.setItem(NOTIFY_MODE_KEY, mode);
   } catch { /* noop */ }
 }
 
