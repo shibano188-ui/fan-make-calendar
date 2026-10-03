@@ -19,6 +19,7 @@ export default function AppShell() {
     const t = setTimeout(() => {
       void loadCachedLarge(EXPLORE_EVENTS_KEY).then(() => loadExploreRange());
       void import('../pages/Explore').catch(() => {});
+      void import('../pages/Home').catch(() => {});
     }, PREFETCH_DELAY_MS);
     return () => clearTimeout(t);
   }, []);
