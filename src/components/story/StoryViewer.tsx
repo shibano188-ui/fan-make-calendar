@@ -5,6 +5,7 @@ import type { CalendarEvent } from '../../types';
 import type { StoryGroup } from '../../lib/story';
 import { deriveStatus, deriveItemType, itemDateLines } from '../../design/tokens';
 import { parseImageUrls } from '../../lib/constants';
+import { optimizedImage } from '../../lib/image';
 import { getOffers, primaryOffer, priceRange, isStockStale } from '../../lib/affiliate';
 import { useLike, setLike } from '../../lib/likeStore';
 import { likeEffect } from '../../lib/likeEffect';
@@ -18,10 +19,15 @@ import NotifyBell from '../item/NotifyBell';
 import WorkBadge from './WorkBadge';
 
 // ホームのストーリー（2026-10-04 柴野）。詳細ページをもとに、1画面で読めるようにしたもの。
-// 自動では進めない。左3分の1＝前へ・右3分の2＝次へ・下へスワイプ＝閉じる。
-// 作品を見終えたら次の作品へ。最後まで見たら閉じる。
+// 5秒で次へ進む（画像を読み終えてから数え始める）。押している間は止まる（2026-10-04 柴野「自動で進めよう」）。
+// 左3分の1＝前へ・右3分の2＝次へ・下へスワイプ＝閉じる。作品を見終えたら次の作品へ。最後まで見たら閉じる。
 
 export type StoryPosition = { group: number; page: number };
+
+/** 1件を見せる長さ */
+const PAGE_MS = 5000;
+/** これより長く押したら「止めて見る」。指を離しても次へは進めない */
+const HOLD_MS = 250;
 
 function timeAgo(iso?: string): string {
   if (!iso) return '';
@@ -65,9 +71,31 @@ export default function StoryViewer({ groups, initial, onClose, onSeen, onOpenDe
 
   useEffect(() => { if (page) onSeen(page.event); }, [page?.event.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const next = () => {
+  // 画像を読み終えてから数え始める（読み込み中に進むと、画像を見ないまま次へ行ってしまう）
+  // 予定ごとに覚える（表示したあとで「まだ」に戻すと、キャッシュ済みの画像は先に読み終わっていて止まったままになる）
+  const [loadedId, setLoadedId] = useState<string | null>(null);
+  const loaded = !page || !parseImageUrls(page.event.imageUrl)[0] || loadedId === page.event.id;
+  const setLoaded = () => { if (page) setLoadedId(page.event.id); };
+  // 押している間・アプリが裏に回っている間は止める
+  const [holding, setHolding] = useState(false);
+  const [hidden, setHidden] = useState(document.hidden);
+  useEffect(() => {
+    const on = () => setHidden(document.hidden);
+    document.addEventListener('visibilitychange', on);
+    return () => document.removeEventListener('visibilitychange', on);
+  }, []);
+  const paused = holding || hidden || !loaded;
+  // 次の予定の画像を先に読んでおく（めくった瞬間に出るように）
+  useEffect(() => {
+    const following = group?.pages[pos.page + 1]?.event ?? groups[pos.group + 1]?.pages[groups[pos.group + 1]?.start ?? 0]?.event;
+    const src = parseImageUrls(following?.imageUrl)[0];
+    if (src) { const im = new Image(); im.src = optimizedImage(src, 828); }
+  }, [pos.group, pos.page]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** byTap: 押してめくったときだけ振動させる（5秒ごとに鳴るとうるさい） */
+  const next = (byTap = true) => {
     if (!group) return onClose();
-    haptic.select();
+    if (byTap) haptic.select();
     if (pos.page < group.pages.length - 1) return setPos({ group: pos.group, page: pos.page + 1 });
     // 次の作品へ（中身のある作品だけ）。最後まで見たら閉じる
     for (let g = pos.group + 1; g < groups.length; g++) {
@@ -83,9 +111,17 @@ export default function StoryViewer({ groups, initial, onClose, onSeen, onOpenDe
     }
   };
 
-  // 押した位置で前後を決める。ボタン・リンクを押したときはめくらない
+  // 押した位置で前後を決める。ボタン・リンクを押したときはめくらない。長押し（止めて見た）のあとはめくらない
+  const pressAt = useRef(0);
+  const onPointerDown = (ev: React.PointerEvent) => {
+    if ((ev.target as HTMLElement).closest('button, a, [role="button"]')) return;
+    pressAt.current = Date.now();
+    setHolding(true);
+  };
+  const onPointerUp = () => setHolding(false);
   const onTap = (ev: React.MouseEvent) => {
     if ((ev.target as HTMLElement).closest('button, a, [role="button"]')) return;
+    if (Date.now() - pressAt.current > HOLD_MS) return;
     const x = ev.clientX / window.innerWidth;
     if (x < 1 / 3) prev(); else next();
   };
@@ -109,20 +145,25 @@ export default function StoryViewer({ groups, initial, onClose, onSeen, onOpenDe
   // 下のタブ（z-[100]）より上に出す。親の重なり順に左右されないよう body の直下に描く
   return createPortal(
     <div className="fixed inset-0 z-[110] flex flex-col select-none" style={{ backgroundColor: 'var(--bg-primary)' }}
-      onClick={onTap} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      onClick={onTap} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
+      onPointerDown={onPointerDown} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onPointerLeave={onPointerUp}>
+      <style>{'@keyframes story-fill { from { width: 0% } to { width: 100% } }'}</style>
       <div className="mx-auto w-full max-w-app flex-1 flex flex-col min-h-0" style={{ paddingTop: 'calc(var(--sat) + 8px)' }}>
-        {/* 進み具合（1本＝1予定）。多すぎると線が見えないので、21件からは1本の線と件数にする */}
+        {/* 進み具合（1本＝1予定）。今の1本が5秒で埋まり、埋まったら次へ。
+            多すぎると線が見えないので、21件からは今の1件の線と件数にする */}
         {group.pages.length <= 20 ? (
           <div className="flex gap-1 px-3">
             {group.pages.map((p, i) => (
-              <span key={p.event.id} className="flex-1 h-[3px] rounded-full"
-                style={{ backgroundColor: i <= pos.page ? 'var(--label-primary)' : 'var(--fill-secondary, rgba(120,120,128,0.24))' }} />
+              <span key={p.event.id} className="flex-1 h-[3px] rounded-full overflow-hidden" style={{ backgroundColor: 'var(--fill-secondary, rgba(120,120,128,0.24))' }}>
+                {i < pos.page && <span className="block h-full w-full" style={{ backgroundColor: 'var(--label-primary)' }} />}
+                {i === pos.page && <ProgressFill key={`${pos.group}-${pos.page}`} paused={paused} onDone={() => next(false)} />}
+              </span>
             ))}
           </div>
         ) : (
           <div className="flex items-center gap-2 px-3">
             <span className="flex-1 h-[3px] rounded-full overflow-hidden" style={{ backgroundColor: 'var(--fill-secondary, rgba(120,120,128,0.24))' }}>
-              <span className="block h-full rounded-full" style={{ width: `${((pos.page + 1) / group.pages.length) * 100}%`, backgroundColor: 'var(--label-primary)' }} />
+              <ProgressFill key={`${pos.group}-${pos.page}`} paused={paused} onDone={() => next(false)} />
             </span>
             <span className="text-[11px] text-label-secondary tabular-nums">{pos.page + 1} / {group.pages.length}</span>
           </div>
@@ -135,22 +176,30 @@ export default function StoryViewer({ groups, initial, onClose, onSeen, onOpenDe
         </div>
 
         <div className="flex-1 min-h-0 overflow-hidden px-4 flex flex-col">
-          <div className="w-full rounded-[12px] overflow-hidden bg-fill-3 flex items-center justify-center flex-shrink-0" style={{ height: '38vh' }}>
+          {/* なぜ出ているか（締切まであと2日・今週発売・人気・新着）を画像の上に大きく */}
+          {(page.badge || (group.key === 'week' && e.workName)) && (
+            <div className="flex items-center gap-2 mb-2 min-w-0">
+              {page.badge && (
+                <span className="flex-shrink-0 text-[15px] font-bold rounded-full px-3 py-1"
+                  style={page.badge === '新着'
+                    ? { backgroundColor: 'var(--color-destructive)', color: '#fff' }
+                    : { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+                  {page.badge}
+                </span>
+              )}
+              {group.key === 'week' && e.workName && <span className="text-[13px] text-label-secondary truncate">{e.workName}</span>}
+            </div>
+          )}
+          {/* 予定ごとに作り直す。同じ img を使い回すと、次の画像を読み終えるまで前の予定の画像が出たままになる */}
+          <div key={e.id} className="w-full rounded-[12px] overflow-hidden bg-fill-3 flex items-center justify-center flex-shrink-0" style={{ height: '36vh' }}>
             {img
-              ? <OptImg src={img} w={828} alt={e.title} className="w-full h-full object-contain" />
+              ? <OptImg src={img} w={828} alt={e.title} className="w-full h-full object-contain"
+                  style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.15s' }}
+                  onLoad={setLoaded} onError={setLoaded} />
               : <ImageOff size={32} className="text-label-tertiary" />}
           </div>
           <div className="mt-3 flex items-center gap-1.5 flex-wrap">
             <StatusBadge status={deriveStatus(e)} type={type} />
-            {page.badge && (
-              <span className="text-[11px] font-bold rounded-full px-2 py-0.5"
-                style={page.badge === '新着'
-                  ? { backgroundColor: 'var(--color-destructive)', color: '#fff' }
-                  : { backgroundColor: 'color-mix(in srgb, var(--accent-color) 18%, transparent)', color: 'var(--accent-text)' }}>
-                {page.badge}
-              </span>
-            )}
-            {group.key === 'week' && e.workName && <span className="text-[12px] text-label-secondary">{e.workName}</span>}
           </div>
           <div className="mt-1.5 text-[18px] font-bold leading-snug line-clamp-3">{e.title}</div>
           <div className="mt-1 text-[13px] text-label-secondary">{itemDateLines(e).join(' / ')}</div>
@@ -181,6 +230,14 @@ export default function StoryViewer({ groups, initial, onClose, onSeen, onOpenDe
       </div>
     </div>,
     document.body,
+  );
+}
+
+/** 今の1件の進み具合。CSS のアニメーションで埋め、止めるときは animation-play-state で止める */
+function ProgressFill({ paused, onDone }: { paused: boolean; onDone: () => void }) {
+  return (
+    <span className="block h-full" onAnimationEnd={onDone}
+      style={{ backgroundColor: 'var(--label-primary)', animation: `story-fill ${PAGE_MS}ms linear forwards`, animationPlayState: paused ? 'paused' : 'running' }} />
   );
 }
 

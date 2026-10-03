@@ -1,5 +1,5 @@
 import { Fragment, useLayoutEffect, useRef, useState } from 'react';
-import { Pencil, Plus } from 'lucide-react';
+import { Pencil, Plus, ImageOff } from 'lucide-react';
 import type { CalendarEvent } from '../../types';
 import type { StoryGroup, NextDate } from '../../lib/story';
 import { parseImageUrls } from '../../lib/constants';
@@ -12,8 +12,6 @@ import { haptic } from '../../lib/haptics';
 // 中ほどは「次の予定」: いいねした予定があれば「あなたの予定」、無ければ「この作品の予定」で一番近い節目と、その次の予定の画像
 
 const BADGE = 64;
-/** 次の予定の画像の列を出せるカードの高さ */
-const THUMBS_MIN_H = 470;
 
 function md(d: string): string {
   const [, m, day] = d.split('-');
@@ -38,7 +36,7 @@ export function WorkStoryCard({ group, followDays, next, height, onStory, onPick
   return (
     <CardFrame height={height}>
       <BadgeSlot>
-        <button onClick={() => { haptic.select(); onStory(); }} aria-label={`${group.title}の新着をストーリーで見る`} className="pressable rounded-full">
+        <button onClick={() => { haptic.select(); onStory(); }} aria-label={`${group.title}の新着を1件ずつ見る`} className="pressable rounded-full">
           <WorkBadge title={group.title} color={group.color} image={group.image} size={BADGE} ring={group.pages.length ? (group.unseen > 0 ? 'unseen' : 'seen') : undefined} />
         </button>
         <button onClick={() => { haptic.select(); onPickIcon(); }} aria-label="作品アイコンを選ぶ"
@@ -52,50 +50,57 @@ export function WorkStoryCard({ group, followDays, next, height, onStory, onPick
         {followDays != null && <div className="text-[11px] text-label-tertiary mt-0.5">{followDays}日フォロー中</div>}
       </div>
 
-      {/* 高さが足りない端末では、はみ出した画像を切る（下の新着・ボタンに重ねない） */}
+      {/* 次の締切・発売。いいねした予定があればそれ（自分が買う・行くもの）、無ければ作品の全部から一番近いもの。
+          文字だけだと何の予定か分からなかったので、予定の画像と「◯◯まで あと◯日」を並べた小さなカードにする */}
       <div className="mx-3 mt-3 pt-2.5 border-t border-subtle flex-1 min-h-0 flex flex-col overflow-hidden">
-        <div className="text-[11px] text-label-secondary">{next.mine ? 'あなたの予定' : 'この作品の予定'}</div>
+        <div className="text-[11px] text-label-secondary">次の締切・発売{next.mine && <span className="text-label-tertiary">（いいねした予定）</span>}</div>
         {next.main ? (
-          <button onClick={() => { haptic.select(); onOpenEvent(next.main!.event); }} className="pressable text-left mt-0.5">
-            <div className="text-[12px] text-label-secondary">{next.main.label} {md(next.main.date)}</div>
-            <div className="text-[20px] font-bold leading-tight" style={{ color: 'var(--accent-text)' }}>{daysText(next.main.days)}</div>
-            <div className="text-[12px] leading-snug line-clamp-1 mt-0.5">{next.main.event.title}</div>
+          <button onClick={() => { haptic.select(); onOpenEvent(next.main!.event); }} className="pressable text-left mt-1.5">
+            <span className="flex items-center gap-2">
+              <span className="w-12 h-12 rounded-[8px] overflow-hidden bg-fill-3 flex-shrink-0 flex items-center justify-center">
+                <Thumb src={parseImageUrls(next.main.event.imageUrl)[0]} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[11px] text-label-secondary leading-tight">{next.main.label}まで（{md(next.main.date)}）</span>
+                <span className="block text-[20px] font-bold leading-tight" style={{ color: 'var(--accent-text)' }}>{daysText(next.main.days)}</span>
+              </span>
+            </span>
+            <span className="block text-[12px] leading-snug line-clamp-2 mt-1.5">{next.main.event.title}</span>
           </button>
         ) : (
-          <div className="text-[12px] text-label-tertiary mt-1">これからの予定はまだありません</div>
-        )}
-        {/* 背の低い端末（カードが低い）では画像の列を出さない。切れて細い帯になるだけなので */}
-        {next.after.length > 0 && height >= THUMBS_MIN_H && (
-          <div className="mt-2 grid grid-cols-3 gap-1">
-            {next.after.map((e) => (
-              <button key={e.id} onClick={() => { haptic.select(); onOpenEvent(e); }} aria-label={e.title}
-                className="pressable aspect-square rounded-[6px] overflow-hidden bg-fill-3">
-                <OptImg src={parseImageUrls(e.imageUrl)[0]} w={192} alt="" loading="lazy" className="w-full h-full object-cover" />
-              </button>
-            ))}
-          </div>
+          <div className="text-[12px] text-label-tertiary mt-1">これからの締切・発売はまだありません</div>
         )}
       </div>
 
       <div className="mx-3 pt-2.5 pb-3 border-t border-subtle mt-2">
-        <div className="text-[12px] text-center mb-2">
-          {group.unseen > 0
-            ? <span className="font-bold" style={{ color: 'var(--color-destructive)' }}>新着 {group.unseen}件</span>
-            : <span className="text-label-tertiary">新着なし</span>}
-        </div>
-        <button onClick={() => { haptic.select(); onNew(); }}
-          className="pressable w-full py-2 rounded-full text-[13px] font-semibold"
-          style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
-          新着を見る
+        {/* 件数はボタンに入れる（別の行にするとカードの高さを食う） */}
+        <button onClick={() => { haptic.select(); onNew(); }} disabled={group.unseen === 0}
+          className="pressable relative w-full py-1.5 rounded-full text-[13px] font-semibold whitespace-nowrap"
+          style={group.unseen > 0 ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' } : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-secondary)' }}>
+          {group.unseen > 0 ? '新着を見る' : '新着なし'}
+          {/* 件数は右上の丸に（文字に入れると狭い画面で2行に折れる） */}
+          {group.unseen > 0 && (
+            <span className="absolute -top-1.5 -right-1 min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center text-[11px] font-bold tabular-nums"
+              style={{ backgroundColor: 'var(--color-destructive)', color: '#fff' }}>
+              {group.unseen > 99 ? '99+' : group.unseen}
+            </span>
+          )}
         </button>
         <button onClick={() => { haptic.select(); onSearch(); }}
-          className="pressable w-full mt-1.5 py-2 rounded-full text-[13px] font-semibold"
+          className="pressable w-full mt-1.5 py-1.5 rounded-full text-[13px] font-semibold"
           style={{ backgroundColor: 'var(--fill-tertiary)' }}>
           この作品を探す
         </button>
       </div>
     </CardFrame>
   );
+}
+
+/** 次の締切の小さな画像。読み込めなかったら画像なしの印にする（壊れた画像の「?」を出さない） */
+function Thumb({ src }: { src?: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) return <ImageOff size={16} className="text-label-tertiary" />;
+  return <OptImg src={src} w={192} alt="" loading="lazy" className="w-full h-full object-cover" onError={() => setFailed(true)} />;
 }
 
 /** 先頭の「今週のまとめ」。ホームの今週発売・受付中・人気の区画だったもの */
@@ -106,7 +111,7 @@ export function WeekStoryCard({ group, height, counts, onStory }: {
   return (
     <CardFrame height={height}>
       <BadgeSlot>
-        <button onClick={() => { haptic.select(); onStory(); }} aria-label="今週のまとめをストーリーで見る" className="pressable rounded-full">
+        <button onClick={() => { haptic.select(); onStory(); }} aria-label="今週のまとめを1件ずつ見る" className="pressable rounded-full">
           <WorkBadge title={group.title} color={group.color} size={BADGE} label="今週" ring={group.pages.length ? (group.unseen > 0 ? 'unseen' : 'seen') : undefined} />
         </button>
       </BadgeSlot>

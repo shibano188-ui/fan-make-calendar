@@ -191,6 +191,8 @@ export default function Home() {
     if (!cutoff || !items) return 0;
     return items.filter((e) => e.workId && followIds.has(e.workId) && (e.createdAt ?? '') > cutoff && !isHidden(e)).length;
   }, [items, followIds, cutoff, isHidden]);
+  // まだ見ていない新着の合計（見るたびに減る）
+  const unseenTotal = useMemo(() => workGroups.reduce((n, g) => n + g.unseen, 0), [workGroups]);
   // 作品ごとの「次の予定」
   const nexts = useMemo(() => {
     const byWork = new Map<string, CalendarEvent[]>();
@@ -232,13 +234,16 @@ export default function Home() {
 
   const openEvent = (e: CalendarEvent) => navigate(`/item/${e.id}`);
   const onLike = async (e: CalendarEvent) => (user ? toggleLike(e.id, user.id) : undefined);
-  const goExplore = (workId: string, unread: boolean) => {
-    // 新着を見るときは、未読の多いほう（グッズ／イベント）で開く
+  // 新着を見る＝その作品の新着だけ（?new=1。ホームの作品の丸と同じ範囲）。この作品を探す＝その作品の予定すべて。
+  // グッズ／イベントは、その中で多いほうで開く（少ないほうで開くと何も出ないことがあった）
+  const goExplore = (workId: string, onlyNew: boolean) => {
     const g = workGroups.find((x) => x.workId === workId);
-    const unseen = (g?.pages ?? []).filter((p) => !seen.has(p.event.id));
-    const goods = unseen.filter((p) => deriveItemType(p.event) === 'goods').length;
-    const mode = unread && unseen.length ? (goods * 2 >= unseen.length ? 'goods' : 'event') : null;
-    navigate(`/explore?work=${workId}${unread ? '&unread=1' : ''}${mode ? `&mode=${mode}` : ''}`);
+    const pool = onlyNew
+      ? (g?.pages ?? []).filter((p) => !seen.has(p.event.id)).map((p) => p.event)
+      : (items ?? []).filter((e) => e.workId === workId && !isHidden(e));
+    const goods = pool.filter((e) => deriveItemType(e) === 'goods').length;
+    const mode = pool.length ? (goods * 2 >= pool.length ? 'goods' : 'event') : null;
+    navigate(`/explore?work=${workId}${onlyNew ? '&new=1' : ''}${mode ? `&mode=${mode}` : ''}`);
   };
 
   // カードの高さは、下のタブの手前まで（画面を埋める）
@@ -254,7 +259,7 @@ export default function Home() {
     measure();
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
-  }, [profile, followsReady, items === null, waiting > 0]);
+  }, [profile, followsReady, items === null, waiting > 0, unseenTotal > 0]);
 
   // 一番上の行。値下がり・再入荷があればその件数（中身は専用ページ）。
   // 無料の人には受け取れることの案内（決済が繋がるまでは出さない＝FEATURE_PREMIUM）。どちらも無ければ見出しだけ
@@ -284,6 +289,7 @@ export default function Home() {
   // 広告バナー: ステータスバー直下に表示し、ヘッダー余白をバナー高さ分広げて被りを防ぐ。
   const adPad = useAdBanner();
   const loading = items === null || (!followsReady && (authLoading || !!user));
+  // 無料の人の次の9時が今日か明日か（9時より前に開いたら今日）
 
   return (
     <div ref={rootRef}>
@@ -323,16 +329,31 @@ export default function Home() {
         </span>
       </button>
 
-      {!premium && FEATURE_PREMIUM && waiting > 0 && (
-        <button onClick={() => { haptic.select(); navigate('/premium'); }}
-          className="pressable mx-3 mt-1 w-[calc(100%-24px)] flex items-center gap-2 px-3 py-2 rounded-[10px] text-left" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-          <span className="flex-1 text-[12px] text-label-secondary leading-snug">
-            新しい予定が{waiting}件届いています。明日の朝9時にストーリーに入ります（プレミアムならすぐ見られます）
+      {/* まだ見ていない新着の数。見るたびに減る。押すと新着のある最初の作品から見られる */}
+      {!loading && unseenTotal > 0 && (
+        <button onClick={() => { haptic.select(); const g = workGroups.find((x) => x.unseen > 0); if (g) openStory(g.key); }}
+          className="pressable mx-3 mt-1 w-[calc(100%-24px)] flex items-center gap-2 px-3 py-2.5 rounded-[10px] text-left" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+          <span className="flex-1 min-w-0">
+            <span className="block text-[14px] font-bold">新しい予定が<span style={{ color: 'var(--color-destructive)' }}>{unseenTotal}件</span>届いています！</span>
+            {/* 「ストーリー」は Instagram の呼び名なので出さず、何ができるかで書く（2026-10-04 柴野） */}
+            <span className="block text-[11px] text-label-secondary mt-0.5">作品の丸を押すと、1件ずつ見られます</span>
           </span>
           <ChevronRight size={16} className="text-label-tertiary flex-shrink-0" />
         </button>
       )}
-
+      {/* 課金の入口（無料の人だけ）。新着とは別の枠にする（2026-10-04 柴野「課金に誘導する入り口を増やす」） */}
+      {!premium && FEATURE_PREMIUM && waiting > 0 && (
+        <button onClick={() => { haptic.select(); navigate('/premium'); }}
+          className="pressable mx-3 mt-1.5 w-[calc(100%-24px)] flex items-center gap-2 px-3 py-1.5 rounded-[10px] text-left border"
+          style={{ borderColor: 'color-mix(in srgb, var(--accent-color) 45%, transparent)' }}>
+          <Crown size={15} className="flex-shrink-0" style={{ color: 'var(--accent-text)' }} />
+          {/* 1行に収める（カードの高さを削らないように）。届く時刻は課金のページで説明する */}
+          <span className="flex-1 min-w-0 truncate text-[12px] font-semibold" style={{ color: 'var(--accent-text)' }}>
+            プレミアムなら{waiting}件をすぐ見られます
+          </span>
+          <ChevronRight size={16} className="text-label-tertiary flex-shrink-0" />
+        </button>
+      )}
       {loading ? (
         <div className="px-3 pt-3"><SkeletonList count={2} /></div>
       ) : (

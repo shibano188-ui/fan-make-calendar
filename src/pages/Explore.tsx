@@ -23,6 +23,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useHiddenContent } from '../hooks/useHiddenContent';
 import { haptic } from '../lib/haptics';
 import { usePremium, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
+import { storySince, freeCutoff } from '../lib/story';
 import { useAdBanner } from '../lib/useAdBanner';
 import { useTourStep, finishTourNow } from '../components/OnboardingTour';
 
@@ -53,9 +54,11 @@ export default function Explore() {
   // 作品・状態・カテゴリ・地域・近くの は、ホーム・探す・カレンダーで共通（lib/sharedFilters.ts）
   const _sf = loadSharedFilters();
   const _ss = loadExploreSession();
-  // ホームの作品カードから来たとき（2026-10-04）: ?work=<id> でその作品だけ、?unread=1 で未読だけ、?mode= でグッズ/イベント。
-  // 作品の絞り込みはカレンダーと共通（sharedFilters）なので書き換えず、この画面の中だけで効かせる
+  // ホームの作品カードから来たとき（2026-10-04）: ?work=<id> でその作品だけ、?new=1 でその作品の新着だけ、?mode= でグッズ/イベント。
+  // 「新着」はホームの作品の丸と同じもの（数え始めたあとに投稿され、まだ見ていない予定）。探すの「未読」（見ていない予定すべて）とは別。
+  // この間は絞り込みを保存しない（前は「新着を見る」で入れた未読が残り、普通に探すを開いても未読だけ・何も出ない、になっていた）
   const [onlyWork, setOnlyWork] = useState<string | null>(searchParams.get('work'));
+  const [newOnly, setNewOnly] = useState(searchParams.get('new') === '1' && !!searchParams.get('work'));
   const paramMode = searchParams.get('mode');
   const [mode, setMode] = useState<ItemType>(paramMode === 'goods' || paramMode === 'event' ? paramMode : (_ss.mode ?? 'goods'));
   const [items, setItems] = useState<CalendarEvent[] | null>(null);
@@ -84,8 +87,9 @@ export default function Explore() {
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [filterOpen, setFilterOpen] = useState<boolean>(_ss.filterOpen ?? false);
 
-  // フィルター状態をsessionStorageに同期
+  // フィルター状態をsessionStorageに同期（作品で絞って開いている間は保存しない）
   useEffect(() => {
+    if (onlyWork) return;
     sessionStorage.setItem('explore_filters', JSON.stringify({
       mode, query,
       statuses: [...selectedStatuses],
@@ -99,7 +103,7 @@ export default function Explore() {
       statuses: [...selectedStatuses], excludedWorks: [...excludedWorks], categories: [...selectedCategories],
       prefs: [...selectedPrefs], regions: [...selectedRegions], neighborActive,
     });
-  }, [mode, query, selectedStatuses, excludedWorks, selectedCategories, selectedPrefs, selectedRegions, neighborActive, filterOpen]);
+  }, [mode, query, selectedStatuses, excludedWorks, selectedCategories, selectedPrefs, selectedRegions, neighborActive, filterOpen, onlyWork]);
   const todayRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
@@ -206,8 +210,12 @@ export default function Explore() {
     seenIdsRef.current = latest;
     setSeenSnapshot(new Set(latest));
   }, [location.key]);
-  const [showUnseenOnly, setShowUnseenOnly] = useState(() => searchParams.get('unread') === '1' || sessionStorage.getItem('explore_unseen') === '1');
-  useEffect(() => { sessionStorage.setItem('explore_unseen', showUnseenOnly ? '1' : '0'); }, [showUnseenOnly]);
+  // 作品で絞って開いたときは、前に保存した「未読のみ」を持ち込まない（何も出なくなる）
+  const [showUnseenOnly, setShowUnseenOnly] = useState(() => !searchParams.get('work') && sessionStorage.getItem('explore_unseen') === '1');
+  useEffect(() => { if (!onlyWork) sessionStorage.setItem('explore_unseen', showUnseenOnly ? '1' : '0'); }, [showUnseenOnly, onlyWork]);
+  // 「新着」の範囲（ホームの作品の丸と同じ）。無料の人は毎朝9時までの投稿
+  const newSince = useMemo(() => storySince(), []);
+  const newCutoff = useMemo(() => (premium ? null : freeCutoff()), [premium]);
 
   // 広告バナー: ステータスバー直下に表示。ヘッダーの paddingTop を、ネイティブが実測した
   // バナー下端位置（env非依存）に合わせて広げ、不透明な余白の上にバナーを重ねる。
@@ -407,13 +415,15 @@ export default function Explore() {
     return queryItems.filter((e) => {
       if (selectedStatuses.size && !selectedStatuses.has(deriveStatus(e))) return false;
       if (!selectedStatuses.size && !showEnded && isOver(e)) return false;
-      if (e.workId && excludedWorks.has(e.workId)) return false;
-      if (onlyWork && e.workId !== onlyWork) return false;
+      // 作品で絞って開いたときは、その作品だけ（共有の作品の絞り込みで隠していても出す）
+      if (onlyWork) { if (e.workId !== onlyWork) return false; }
+      else if (e.workId && excludedWorks.has(e.workId)) return false;
+      if (newOnly && (seenSnapshot.has(e.id) || (e.createdAt ?? '') < newSince || (newCutoff && (e.createdAt ?? '') > newCutoff))) return false;
       if (selectedCategories.size && !parseCategories(e.category).some((c) => selectedCategories.has(c))) return false;
       if (allowedPrefs.size && (!e.prefecture || !allowedPrefs.has(e.prefecture))) return false;
       return true;
     });
-  }, [queryItems, selectedStatuses, excludedWorks, onlyWork, selectedCategories, allowedPrefs, showEnded, isOver]);
+  }, [queryItems, selectedStatuses, excludedWorks, onlyWork, newOnly, seenSnapshot, newSince, newCutoff, selectedCategories, allowedPrefs, showEnded, isOver]);
 
   // 未読の円: 今の絞り込み（未読のみ 以外）をかけた一覧のうち、まだ見ていないものの割合
   const unread = useMemo(() => {
@@ -548,10 +558,10 @@ export default function Explore() {
             </button>
           } />
         {onlyWork && (
-          <button onClick={() => { haptic.select(); setOnlyWork(null); navigate('/explore', { replace: true }); }}
+          <button onClick={() => { haptic.select(); setOnlyWork(null); setNewOnly(false); navigate('/explore', { replace: true }); }}
             className="pressable mt-2 self-start inline-flex items-center gap-1 h-7 px-3 rounded-full text-[12px] font-semibold"
             style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 18%, transparent)', color: 'var(--accent-text)' }}>
-            {followedWorks.find((w) => w.id === onlyWork)?.name ?? '1作品'}だけ表示中 <X size={13} />
+            {followedWorks.find((w) => w.id === onlyWork)?.name ?? '1作品'}{newOnly ? 'の新着だけ表示中' : 'だけ表示中'} <X size={13} />
           </button>
         )}
 

@@ -69,7 +69,7 @@ export const PREMIUM_FEATURE_ORDER: PremiumFeature[] = [
 export const PREMIUM_FEATURE_NOTES: Record<PremiumFeature, string> = {
   instantAlerts: 'いいねしたグッズの予約受付が始まった瞬間に届きます。無料プランは翌朝のまとめになります。',
   priceAlerts: 'いいねしたグッズが過去の最安値を更新したとき、売り切れから在庫が戻ったときに知らせます。',
-  newEventDigest: 'フォロー中の作品に予定が追加されたら、朝を待たずにストーリーに入り、通知も「すぐ」「1日3回」から選べます。無料プランは毎朝9時です。',
+  newEventDigest: 'フォロー中の作品に予定が追加されたら、朝を待たずにホームで見られます。通知も「すぐ」「1日3回」から選べます。無料プランは毎朝9時です。',
   noAds: 'アプリの下に出る広告が消えます。',
   calendarAutoSync: 'いいねした予定と自分の投稿が、Apple・Google・Outlookのカレンダーに自動で入ります。',
   unlimitedFollow: `フォローできる作品の数が無制限になります（無料プランは${FREE_FOLLOW_LIMIT}作品まで）。`,
