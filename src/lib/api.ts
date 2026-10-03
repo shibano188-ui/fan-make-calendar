@@ -1793,6 +1793,14 @@ export async function listAllParticipatedWorks(userId: string): Promise<Work[]> 
     }));
 }
 
+/** 作品をフォローした日（ホームの「◯日フォロー中」）。participations.created_at を使う。
+ *  取れなければ空で返す（表示が出ないだけ。フォローの一覧 listAllParticipatedWorks とは分けてあるので巻き込まない） */
+export async function listFollowDates(userId: string): Promise<Map<string, string>> {
+  const { data, error } = await supabase.from('participations').select('work_id, created_at').eq('user_id', userId);
+  if (error) return new Map();
+  return new Map((data ?? []).filter((r) => r.created_at).map((r) => [r.work_id as string, r.created_at as string]));
+}
+
 export async function countUserPostedEvents(userId: string): Promise<number> {
   const { count } = await supabase
     .from('events')

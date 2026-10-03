@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams, useNavigationType, useLocation } from 'react-router-dom';
-import { ArrowDownToLine, ArrowLeftRight, Plus, SlidersHorizontal } from 'lucide-react';
+import { ArrowDownToLine, ArrowLeftRight, Plus, SlidersHorizontal, X } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import FilterPanel, { type Facet } from '../components/item/FilterPanel';
@@ -53,7 +53,11 @@ export default function Explore() {
   // 作品・状態・カテゴリ・地域・近くの は、ホーム・探す・カレンダーで共通（lib/sharedFilters.ts）
   const _sf = loadSharedFilters();
   const _ss = loadExploreSession();
-  const [mode, setMode] = useState<ItemType>(_ss.mode ?? 'goods');
+  // ホームの作品カードから来たとき（2026-10-04）: ?work=<id> でその作品だけ、?unread=1 で未読だけ、?mode= でグッズ/イベント。
+  // 作品の絞り込みはカレンダーと共通（sharedFilters）なので書き換えず、この画面の中だけで効かせる
+  const [onlyWork, setOnlyWork] = useState<string | null>(searchParams.get('work'));
+  const paramMode = searchParams.get('mode');
+  const [mode, setMode] = useState<ItemType>(paramMode === 'goods' || paramMode === 'event' ? paramMode : (_ss.mode ?? 'goods'));
   const [items, setItems] = useState<CalendarEvent[] | null>(null);
   const [query, setQuery] = useState(searchParams.get('q') ?? _ss.query ?? '');
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set(_sf.statuses));
@@ -202,7 +206,7 @@ export default function Explore() {
     seenIdsRef.current = latest;
     setSeenSnapshot(new Set(latest));
   }, [location.key]);
-  const [showUnseenOnly, setShowUnseenOnly] = useState(() => sessionStorage.getItem('explore_unseen') === '1');
+  const [showUnseenOnly, setShowUnseenOnly] = useState(() => searchParams.get('unread') === '1' || sessionStorage.getItem('explore_unseen') === '1');
   useEffect(() => { sessionStorage.setItem('explore_unseen', showUnseenOnly ? '1' : '0'); }, [showUnseenOnly]);
 
   // 広告バナー: ステータスバー直下に表示。ヘッダーの paddingTop を、ネイティブが実測した
@@ -404,11 +408,12 @@ export default function Explore() {
       if (selectedStatuses.size && !selectedStatuses.has(deriveStatus(e))) return false;
       if (!selectedStatuses.size && !showEnded && isOver(e)) return false;
       if (e.workId && excludedWorks.has(e.workId)) return false;
+      if (onlyWork && e.workId !== onlyWork) return false;
       if (selectedCategories.size && !parseCategories(e.category).some((c) => selectedCategories.has(c))) return false;
       if (allowedPrefs.size && (!e.prefecture || !allowedPrefs.has(e.prefecture))) return false;
       return true;
     });
-  }, [queryItems, selectedStatuses, excludedWorks, selectedCategories, allowedPrefs, showEnded, isOver]);
+  }, [queryItems, selectedStatuses, excludedWorks, onlyWork, selectedCategories, allowedPrefs, showEnded, isOver]);
 
   // 未読の円: 今の絞り込み（未読のみ 以外）をかけた一覧のうち、まだ見ていないものの割合
   const unread = useMemo(() => {
@@ -542,6 +547,13 @@ export default function Explore() {
               <Plus size={13} /> 作品
             </button>
           } />
+        {onlyWork && (
+          <button onClick={() => { haptic.select(); setOnlyWork(null); navigate('/explore', { replace: true }); }}
+            className="pressable mt-2 self-start inline-flex items-center gap-1 h-7 px-3 rounded-full text-[12px] font-semibold"
+            style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 18%, transparent)', color: 'var(--accent-text)' }}>
+            {followedWorks.find((w) => w.id === onlyWork)?.name ?? '1作品'}だけ表示中 <X size={13} />
+          </button>
+        )}
 
         {/* 検索が未フォロー作品にヒット → フォロー導線（検索バー直下で常に見える） */}
         {workMatches.some((w) => !followed.has(w.id)) && (

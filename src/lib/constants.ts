@@ -322,11 +322,16 @@ export function isNewItem(id: string, createdAt: string | undefined, seen: Set<s
   const t = new Date(createdAt).getTime();
   return Number.isFinite(t) && Date.now() - t < 7 * 86400000;
 }
+// アカウントへ写すのは、少し待ってまとめて（ストーリーをめくるたび・スクロールで見るたびに書くと多すぎる）。
+// 起動時はサーバーの値が正になるので、端末で増えた分は必ず上げておく（上げ損ねると次の起動で未読に戻る）
+let seenPushTimer: ReturnType<typeof setTimeout> | null = null;
 export function saveSeenEventIds(ids: Set<string>): void {
   try {
     // 肥大化防止に直近5000件だけ保持
-    const arr = [...ids];
-    localStorage.setItem(SEEN_EVENTS_KEY, JSON.stringify(arr.slice(-5000)));
+    const arr = [...ids].slice(-5000);
+    localStorage.setItem(SEEN_EVENTS_KEY, JSON.stringify(arr));
+    if (seenPushTimer) clearTimeout(seenPushTimer);
+    seenPushTimer = setTimeout(() => { seenPushTimer = null; pushAppState('seen_event_ids', arr); }, 3000);
   } catch { /* 容量超過等は無視 */ }
 }
 

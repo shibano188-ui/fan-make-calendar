@@ -38,6 +38,16 @@ export function setSplashAdsSuppressed(next: boolean): void {
   listeners.forEach((l) => l());
 }
 
+// ホームのストーリーを開いている間も伏せる（全画面なので、上の進み具合の線と閉じるボタンがバナーの下に隠れる）
+let story = false;
+
+/** ストーリーを開いている間だけバナーを伏せる */
+export function setStoryAdsSuppressed(next: boolean): void {
+  if (story === next) return;
+  story = next;
+  listeners.forEach((l) => l());
+}
+
 export function useAdsSuppressed(): boolean {
-  return useSyncExternalStore(subscribe, () => suppressed || splash, () => false);
+  return useSyncExternalStore(subscribe, () => suppressed || splash || story, () => false);
 }
