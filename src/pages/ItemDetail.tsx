@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Pin, Share2, X, Plus } from 'lucide-react';
 import type { CalendarEvent, EventVisit } from '../types';
@@ -104,27 +104,6 @@ export default function ItemDetail() {
   const [visitStart, setVisitStart] = useState('');
   const [visitEnd, setVisitEnd] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
-  // タブの列はヘッダーのすぐ下に貼りつける（2026-10-04 柴野「下までスクロールしないと切り替えられない」）。
-  // ヘッダーの高さは端末の上の余白で変わるので測る
-  // 読み込み中は別の画面を出していてヘッダーがまだ無いので、ヘッダーができた時点で測り始める
-  const tabsAnchorRef = useRef<HTMLDivElement>(null);
-  const [headerH, setHeaderH] = useState(0);
-  const headerObs = useRef<ResizeObserver | null>(null);
-  const headerRef = useCallback((el: HTMLDivElement | null) => {
-    headerObs.current?.disconnect();
-    if (!el) return;
-    headerObs.current = new ResizeObserver(() => setHeaderH(el.offsetHeight));
-    headerObs.current.observe(el);
-  }, []);
-  // 貼りついた状態で切り替えたら、新しいタブの頭から読めるように、タブの列が上に来る位置へ戻す
-  const changeTab = (t: DetailTab) => {
-    haptic.select();
-    setTab(t);
-    const anchor = tabsAnchorRef.current;
-    if (!anchor) return;
-    const top = anchor.getBoundingClientRect().top;
-    if (top < headerH) window.scrollTo({ top: window.scrollY + top - headerH + 1 }); // +1: 端数で1px貼りつき損ねる
-  };
 
   // 開いたら最上部から表示（前ページのスクロール位置を引き継がない）。
   // ロード中は中身が短く効かないので、データ表示後(ev)にも実行＋全スクロール親を0に。
@@ -419,7 +398,7 @@ export default function ItemDetail() {
     <div ref={rootRef} className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--bg-primary)' }}>
       <div className="mx-auto w-full max-w-app flex-1 flex flex-col">
         {/* ヘッダー */}
-        <div ref={headerRef} className="sticky top-0 z-20 flex items-center px-2 py-2 material-bar scroll-edge" style={{ paddingTop: 'calc(var(--sat) + 8px)' }}>
+        <div className="sticky top-0 z-20 flex items-center px-2 py-2 material-bar scroll-edge" style={{ paddingTop: 'calc(var(--sat) + 8px)' }}>
           <button onClick={goBack} aria-label="戻る" className="pressable tap-44 p-2"><ArrowLeft size={22} /></button>
         </div>
 
@@ -633,10 +612,7 @@ export default function ItemDetail() {
               onAgree={(p) => { void submitProposal(p.patch, p.evidenceUrls); }} />
 
             {/* ここから下はタブで切り替える */}
-            <div ref={tabsAnchorRef} className="mt-5" />
-            <DetailTabs tab={tab} onChange={changeTab} stickyTop={headerH} />
-            {/* 短いタブに切り替えても、タブの列を上に貼りつけたまま読めるだけの高さを持たせる */}
-            <div style={{ minHeight: `calc(100dvh - ${headerH + 44}px)` }}>
+            <DetailTabs tab={tab} onChange={(t) => { haptic.select(); setTab(t); }} />
             {tab === 'detail' && (
               <div>
             {/* メモ */}
@@ -772,7 +748,6 @@ export default function ItemDetail() {
               <Contributors authorId={eff.authorId ?? null} authorName={authorName}
                 others={contributorIds} onOpen={(id) => { haptic.select(); setViewingUserId(id); }} />
             )}
-            </div>
 
             {/* 通報（確認ダイアログあり） */}
             <div className="mt-3">
@@ -862,12 +837,10 @@ const TABS: { key: DetailTab; label: string }[] = [
   { key: 'contributors', label: 'Contributors' },
 ];
 
-/** 詳細の下半分の切り替え。選んでいるものの下に線を引く。スクロールしてもヘッダーの下に貼りつく */
-function DetailTabs({ tab, onChange, stickyTop }: { tab: DetailTab; onChange: (t: DetailTab) => void; stickyTop: number }) {
+/** 詳細の下半分の切り替え。選んでいるものの下に線を引く */
+function DetailTabs({ tab, onChange }: { tab: DetailTab; onChange: (t: DetailTab) => void }) {
   return (
-    // 親の左右の余白(px-4)まで地を広げ、貼りついたときに下を流れる中身が横から見えないようにする
-    <div className="-mx-4 px-4 flex border-b border-subtle sticky z-10" role="tablist"
-      style={{ top: stickyTop, backgroundColor: 'var(--bg-primary)' }}>
+    <div className="mt-5 flex border-b border-subtle" role="tablist">
       {TABS.map((t) => (
         <button key={t.key} role="tab" aria-selected={tab === t.key} onClick={() => onChange(t.key)}
           className="pressable flex-1 py-2.5 text-[13px] font-semibold relative"
