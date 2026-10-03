@@ -1,3 +1,4 @@
+import { Fragment, useLayoutEffect, useRef, useState } from 'react';
 import { Pencil, Plus } from 'lucide-react';
 import type { CalendarEvent } from '../../types';
 import type { StoryGroup, NextDate } from '../../lib/story';
@@ -47,7 +48,7 @@ export function WorkStoryCard({ group, followDays, next, height, onStory, onPick
         </button>
       </BadgeSlot>
       <div className="px-3 pt-1 text-center">
-        <div className="text-[15px] font-bold leading-snug line-clamp-2">{group.title}</div>
+        <FitTitle text={group.title} />
         {followDays != null && <div className="text-[11px] text-label-tertiary mt-0.5">{followDays}日フォロー中</div>}
       </div>
 
@@ -101,7 +102,7 @@ export function WorkStoryCard({ group, followDays, next, height, onStory, onPick
 export function WeekStoryCard({ group, height, counts, onStory }: {
   group: StoryGroup; height: number; counts: { deadline: number; release: number; popular: number }; onStory: () => void;
 }) {
-  const rows = [['締切が近い', counts.deadline], ['今週発売', counts.release], ['人気', counts.popular]] as const;
+  const rows = [['締切間近', counts.deadline], ['今週発売', counts.release], ['人気', counts.popular]] as const;
   return (
     <CardFrame height={height}>
       <BadgeSlot>
@@ -138,6 +139,83 @@ export function AddWorkCard({ height, onAdd }: { height: number; onAdd: () => vo
       <Plus size={28} />
       <span className="text-[14px] font-semibold">作品を追加</span>
     </button>
+  );
+}
+
+// ─── 作品名 ─────────────────────────────────────────────────
+// 改行されると読みにくい（2026-10-04 柴野）。まず1行に収まるまで文字を小さくし（15→12px）、
+// それでも入らない長い名前だけ折る（12〜10px・3行まで。たいていは2行に収まる）。区切りのよいところでだけ折り、行の長さを揃える
+const TITLE_SIZES = [15, 14, 13, 12];
+
+/** 折ってよい位置で区切る。「の」「・」「－」「～」・空白の後と、カタカナの切れ目
+ *  （僕の｜ヒーローアカデミア、家庭教師ヒットマン｜REBORN!）。ほかの位置では折らない */
+function splitParts(text: string): string[] {
+  const chars = Array.from(text);
+  const kata = (c: string) => /[ァ-ヺー]/.test(c);
+  const parts: string[] = [];
+  let cur = '';
+  chars.forEach((c, i) => {
+    const next = chars[i + 1];
+    cur += c;
+    const after = /[の・\s/／!！?？）)」』】－～〜]/.test(c) && !/[!！?？]/.test(next ?? ''); // 「!!」の途中では折らない
+    // カタカナの切れ目。ただしカタカナの後ろがひらがな（ダイの・スライムだった）や記号のときは折らない
+    const edge = next !== undefined && kata(c) !== kata(next) && !/[ー・\s!！?？、。」』）)】]/.test(next) && !(kata(c) && /[ぁ-ゖ]/.test(next));
+    if (next !== undefined && (after || edge)) { parts.push(cur); cur = ''; }
+  });
+  if (cur) parts.push(cur);
+  return parts;
+}
+
+/** 区切りごとにブラウザにも折らせない（記号の後ろで勝手に折る:「カードファイト! ⏎ !ヴァンガード」）。
+ *  loose のときは、どうしても入らないかたまりを途中で折れるようにする（切れて読めなくなるよりよい） */
+function withBreaks(parts: string[], loose: boolean) {
+  return parts.map((p, i) => <Fragment key={i}><span className={loose ? undefined : 'whitespace-nowrap'}>{p}</span>{i < parts.length - 1 && <wbr />}</Fragment>);
+}
+
+const WRAP_SIZES = [12, 11, 10];
+
+function FitTitle({ text }: { text: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const parts = splitParts(text);
+  const [fit, setFit] = useState<{ size: number; wrap: boolean; loose: boolean }>({ size: TITLE_SIZES[0], wrap: false, loose: false });
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // 要素そのものの大きさを書き換えて測ると、React が戻さずに測った値が残る（2行にしたのに1行で切れていた）。
+    // 文字の幅は canvas で測り、要素には触らない
+    const ctx = document.createElement('canvas').getContext('2d');
+    const set = (next: { size: number; wrap: boolean; loose: boolean }) =>
+      setFit((f) => (f.size === next.size && f.wrap === next.wrap && f.loose === next.loose ? f : next));
+    const measure = () => {
+      const width = el.clientWidth;
+      if (!ctx || !width) return;
+      const cs = getComputedStyle(el);
+      const w = (t: string, size: number) => { ctx.font = `${cs.fontWeight} ${size}px ${cs.fontFamily}`; return ctx.measureText(t).width; };
+      // 1行に収まる大きさ
+      for (const size of TITLE_SIZES) if (w(text, size) <= width) return set({ size, wrap: false, loose: false });
+      // 折るときは、一番長いかたまりが1行に入る大きさ（狭い画面で「ヒーローアカデミア」が切れていた）
+      // 3行に入る見込みも見る（折る位置で行が余るので、幅の2.6行ぶんまで）
+      for (const size of WRAP_SIZES) {
+        if (Math.max(...parts.map((p) => w(p, size))) <= width && w(text, size) <= width * 2.6) return set({ size, wrap: true, loose: false });
+      }
+      set({ size: WRAP_SIZES[WRAP_SIZES.length - 1], wrap: true, loose: true });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [text]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div ref={ref} className={`font-bold leading-snug ${fit.wrap ? 'line-clamp-3' : 'overflow-hidden'}`}
+      style={{
+        fontSize: fit.size,
+        whiteSpace: fit.wrap ? 'normal' : 'nowrap',
+        wordBreak: fit.wrap ? 'keep-all' : undefined,
+        overflowWrap: fit.loose ? 'anywhere' : undefined,
+        textWrap: fit.wrap ? 'balance' : undefined,
+      } as React.CSSProperties}>
+      {fit.wrap ? withBreaks(parts, fit.loose) : text}
+    </div>
   );
 }
 

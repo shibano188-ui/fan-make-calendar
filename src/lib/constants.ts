@@ -10,6 +10,8 @@ export const SHOW_POPULAR_CALENDARS = false;
  *  空欄のまま「投稿: 」の行ごと消すと、誰が出したのか分からない投稿になる。
  *  ブロックや通報は user_id で動くので、名前が共通でも支障は無い。 */
 export const ANON_NAME = '名無しさん';
+/** 自分のアイコン（絵文字）を選んでいないときに出すもの。マイページとホームで同じものにする */
+export const DEFAULT_AVATAR = '🐝';
 // 初回起動時のオンボーディング案内。再度出すなら true に戻す
 export const SHOW_ONBOARDING = true;
 // 案内を見終わった印。バナー広告を伏せる判断（adSuppress.ts）でも読むのでここに置く

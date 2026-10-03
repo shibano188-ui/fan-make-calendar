@@ -3,7 +3,7 @@ import { useNavigate, useNavigationType, useSearchParams } from 'react-router-do
 import { TrendingDown, ChevronRight, Crown } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import { deriveItemType, todayStr } from '../design/tokens';
-import { loadSeenEventIds, addSeenEventId, FEATURE_PREMIUM, FOLLOWS_EVENT } from '../lib/constants';
+import { loadSeenEventIds, addSeenEventId, FEATURE_PREMIUM, FOLLOWS_EVENT, DEFAULT_AVATAR } from '../lib/constants';
 import { listExploreEvents, listAllParticipatedWorks, listFollowDates, toggleLike, listLikedEventIds, listMyPriceChanges, getUserPublicProfile, type Work } from '../lib/api';
 import { useFeature, usePremium } from '../lib/premium';
 import { unseenChanges } from '../lib/priceAlerts';
@@ -249,7 +249,7 @@ export default function Home() {
       const el = cardsRef.current;
       if (!el) return;
       const top = el.getBoundingClientRect().top + window.scrollY;
-      setCardH(Math.max(380, Math.round(window.innerHeight - top - 124)));
+      setCardH(Math.max(330, Math.round(window.innerHeight - top - 124)));
     };
     measure();
     window.addEventListener('resize', measure);
@@ -270,8 +270,11 @@ export default function Home() {
     <button onClick={() => { haptic.select(); navigate('/premium'); }}
       className="pressable w-full h-9 flex items-center gap-2 px-3 rounded-full"
       style={{ backgroundColor: 'var(--bg-secondary)' }}>
-      <TrendingDown size={16} className="text-label-secondary flex-shrink-0" />
-      <span className="flex-1 min-w-0 truncate text-left text-[12px] text-label-secondary">いいねしたグッズの値下がり・再入荷を受け取る</span>
+      {/* 前の「いいねしたグッズの値下がり・再入荷を受け取る」は長くて見切れ、何が届くのか・有料なのかが伝わらなかった。
+          何が届くかを短く書き、有料であることは札で示す。狭い iPhone SE でも見切れないよう、左のアイコンは付けない */}
+      <span className="flex-1 min-w-0 truncate text-left text-[12px] font-semibold">値下げ・再入荷を通知</span>
+      <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+        style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 20%, transparent)', color: 'var(--accent-text)' }}>プレミアム</span>
       <ChevronRight size={16} className="text-label-tertiary flex-shrink-0" />
     </button>
   ) : (
@@ -297,7 +300,7 @@ export default function Home() {
       {/* プロフィール。押すとマイページ */}
       <button onClick={() => { haptic.select(); navigate('/mypage'); }} className="pressable w-full flex items-center gap-3 px-4 pt-2 pb-1 text-left">
         <span className="w-12 h-12 rounded-full flex items-center justify-center text-[26px] flex-shrink-0" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-          {profile?.avatar ?? '🙂'}
+          {profile?.avatar ?? DEFAULT_AVATAR}
         </span>
         <span className="flex-1 min-w-0">
           <span className="block text-[16px] font-bold truncate">{profile?.name || '名無しのファン'}</span>
