@@ -9,7 +9,7 @@ import { loadSeenEventIds, isNewItem, FEATURE_PREMIUM, FOLLOWS_EVENT } from '../
 import { listExploreEvents, listAllParticipatedWorks, toggleLike, toggleCalendarAdd, listLikedEventIds, listMyPriceChanges, type Work } from '../lib/api';
 import { useFeature } from '../lib/premium';
 import { unseenChanges } from '../lib/priceAlerts';
-import { getCached, setCached } from '../lib/swrCache';
+import { getCached, setCached, loadCachedLarge, setCachedLarge, EXPLORE_EVENTS_KEY } from '../lib/swrCache';
 import { buildWorkColorMap } from '../lib/workColors';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
@@ -141,12 +141,14 @@ export default function Home() {
   useEffect(() => {
     let alive = true;
     const from = shiftMonths(today, -12), to = shiftMonths(today, 18);
-    const key = `explore-events:${from}_${to}`;
+    // 期間は日付で変わるが、キーは固定（昨日の一覧でも、取り直すまでの間に出すには十分）
+    const key = EXPLORE_EVENTS_KEY;
     // キャッシュを即表示し、裏で再取得して最新化（Exploreタブと共有）
     const cached = getCached<CalendarEvent[]>(key);
     if (cached) setItems(cached);
+    else void loadCachedLarge<CalendarEvent[]>(key).then((v) => { if (alive && v) setItems((prev) => prev ?? v); });
     listExploreEvents(from, to)
-      .then((d) => { if (!alive) return; setItems(d); setCached(key, d); })
+      .then((d) => { if (!alive) return; setItems(d); setCachedLarge(key, d); })
       .catch(() => { if (alive) setItems((prev) => prev ?? []); });
     return () => { alive = false; };
   }, [today]);

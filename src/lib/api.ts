@@ -1445,8 +1445,12 @@ export function listExploreEvents(from: string, to: string): Promise<CalendarEve
   return load;
 }
 
+// 前回のページ数。1回目で総数を数えてから残りを取ると往復が2回になるので、前回と同じ数だけ最初から並べて取る
+const EXPLORE_PAGES_LS = 'fanhive_explore_pages';
+
 async function fetchExploreEvents(from: string, to: string): Promise<CalendarEvent[]> {
-  await ensureEventEdits(); // 共同編集の修正を重ねた実効値で返す
+  // 共同編集の修正を重ねた実効値で返す。重ねるのは受け取ったあとなので、予定の取得と同時に走らせる
+  const editsReady = ensureEventEdits();
   // ⚠️ Supabase は1回に1000件までしか返さず、超えた分は黙って切る。
   // 古い順に取っているので、切れると「これからの予定」がまるごと消える（2026-09 に実際に起きた）。
   // 1回目で総数を数え、残りは1000件ずつ並列で取る。id でも並べて、区切りの前後で重複・欠落させない。
@@ -1460,11 +1464,18 @@ async function fetchExploreEvents(from: string, to: string): Promise<CalendarEve
     .order('event_date', { ascending: true })
     .order('id', { ascending: true })
     .range(i * PAGE, i * PAGE + PAGE - 1);
-  const first = await page(0, true);
+  let guess = 1;
+  try { guess = Math.min(10, Math.max(1, Number(localStorage.getItem(EXPLORE_PAGES_LS)) || 1)); } catch { /* noop */ }
+  const firstBatch = await Promise.all(Array.from({ length: guess }, (_, i) => page(i, i === 0)));
+  const first = firstBatch[0];
   if (first.error) throw first.error;
-  const pages = Math.ceil((first.count ?? 0) / PAGE);
-  const rest = await Promise.all(Array.from({ length: Math.max(0, pages - 1) }, (_, k) => page(k + 1)));
+  const pages = Math.max(1, Math.ceil((first.count ?? 0) / PAGE));
+  const more = await Promise.all(Array.from({ length: Math.max(0, pages - guess) }, (_, k) => page(guess + k)));
+  // 総数より先のページ（予定が減ったとき）は空かエラーで返るので、数えた範囲だけを見る
+  const rest = [...firstBatch.slice(1), ...more].slice(0, pages - 1);
   for (const r of rest) if (r.error) throw r.error;
+  try { localStorage.setItem(EXPLORE_PAGES_LS, String(pages)); } catch { /* noop */ }
+  await editsReady;
   // 取っている間にボットが予定を足すと区切りがずれて同じ行が2回来るので、id で1つにする
   const seen = new Set<string>();
   const data = [first.data ?? [], ...rest.map((r) => r.data ?? [])].flat()

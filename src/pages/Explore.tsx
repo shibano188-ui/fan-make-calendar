@@ -13,7 +13,7 @@ import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveItemType, deriveStatus, todayStr, STATUS, type ItemStatus, type ItemType } from '../design/tokens';
 import { listExploreEvents, getHomePrefecture, searchWorks, listAllParticipatedWorks, upsertParticipation, leaveCalendar, toggleLike, toggleCalendarAdd, listLikedEventIds, type Work } from '../lib/api';
 import { parseCategories, loadSeenEventIds, saveSeenEventIds, isNewItem, GOODS_TAG } from '../lib/constants';
-import { getCached, setCached } from '../lib/swrCache';
+import { getCached, setCached, loadCachedLarge, setCachedLarge, EXPLORE_EVENTS_KEY } from '../lib/swrCache';
 import { buildWorkColorMap } from '../lib/workColors';
 import { logSearch } from '../lib/dataLogs';
 import { addToCalendar } from '../lib/googleCalendar';
@@ -210,12 +210,14 @@ export default function Explore() {
   useEffect(() => {
     let alive = true;
     const from = shiftMonths(today, -12), to = shiftMonths(today, 18);
-    const key = `explore-events:${from}_${to}`;
+    // 期間は日付で変わるが、キーは固定（昨日の一覧でも、取り直すまでの間に出すには十分）
+    const key = EXPLORE_EVENTS_KEY;
     // キャッシュを即表示し、裏で再取得して最新化（Homeタブと共有）
     const cached = getCached<CalendarEvent[]>(key);
     if (cached) setItems(cached);
+    else void loadCachedLarge<CalendarEvent[]>(key).then((v) => { if (alive && v) setItems((prev) => prev ?? v); });
     listExploreEvents(from, to)
-      .then((data) => { if (!alive) return; setItems(data); setCached(key, data); })
+      .then((data) => { if (!alive) return; setItems(data); setCachedLarge(key, data); })
       .catch(() => { if (alive) setItems((prev) => prev ?? []); });
     return () => { alive = false; };
   }, [today]);

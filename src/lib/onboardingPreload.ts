@@ -1,6 +1,6 @@
 import type { CalendarEvent } from '../types';
 import { getWorksByNames, listExploreEvents, type Work } from './api';
-import { getCached, setCached } from './swrCache';
+import { getCached, setCachedLarge, EXPLORE_EVENTS_KEY } from './swrCache';
 import { todayStr } from '../design/tokens';
 import { ONBOARDING_FEATURED_WORKS } from './constants';
 
@@ -23,9 +23,9 @@ function shiftMonths(base: string, n: number): string {
 export function loadExploreRange(): Promise<CalendarEvent[]> {
   const today = todayStr();
   const from = shiftMonths(today, -12), to = shiftMonths(today, 18);
-  const key = `explore-events:${from}_${to}`;
+  const key = EXPLORE_EVENTS_KEY;
   return listExploreEvents(from, to)
-    .then((data) => { setCached(key, data); return data; })
+    .then((data) => { setCachedLarge(key, data); return data; })
     .catch(() => getCached<CalendarEvent[]>(key) ?? []);
 }
 
