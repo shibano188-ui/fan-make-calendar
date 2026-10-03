@@ -86,11 +86,14 @@ let lastFollowNew: string[] | null = null;
 export default function Home() {
   const navigate = useNavigate();
   const keepNew = useRef(useNavigationType() === 'POP' && lastFollowNew !== null).current;
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { isHidden } = useHiddenContent(user?.id);
   const toast = useToast();
   const [items, setItems] = useState<CalendarEvent[] | null>(null);
   const [follows, setFollows] = useState<Work[]>([]);
+  // フォロー中の作品を読み終えたか。一覧はキャッシュから先に出るので、読み終える前に「0作品」として
+  // フォローしていない人向けの案内が一瞬出ていた（2026-10-04 柴野「ヒヤヒヤする」）。読み終えるまでは読み込み中を出す
+  const [followsReady, setFollowsReady] = useState(false);
   const [followIds, setFollowIds] = useState<Set<string>>(new Set());
   const [followSheetOpen, setFollowSheetOpen] = useState(false);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
@@ -157,8 +160,9 @@ export default function Home() {
     if (!user) return;
     const fkey = `follows:${user.id}`;
     const cachedF = getCached<Work[]>(fkey);
-    if (cachedF) { setFollows(cachedF); setFollowIds(new Set(cachedF.map((w) => w.id))); }
-    listAllParticipatedWorks(user.id).then((ws) => { setFollows(ws); setFollowIds(new Set(ws.map((w) => w.id))); setCached(fkey, ws); }).catch(() => {});
+    if (cachedF) { setFollows(cachedF); setFollowIds(new Set(cachedF.map((w) => w.id))); setFollowsReady(true); }
+    listAllParticipatedWorks(user.id).then((ws) => { setFollows(ws); setFollowIds(new Set(ws.map((w) => w.id))); setCached(fkey, ws); })
+      .catch(() => {}).finally(() => setFollowsReady(true));
   };
 
   useEffect(() => {
@@ -290,7 +294,7 @@ export default function Home() {
       </div>
       <WorkFollowSheet open={followSheetOpen} onClose={() => setFollowSheetOpen(false)} onChanged={reloadFollows} />
 
-      {items === null ? (
+      {items === null || (!followsReady && (authLoading || !!user)) ? (
         <div className="px-3 pt-3"><SkeletonList count={3} /></div>
       ) : (
         <div className="pb-4">

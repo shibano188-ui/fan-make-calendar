@@ -46,7 +46,7 @@ export default function Explore() {
   const navType = useNavigationType(); // POP=戻る(復元) / PUSH=新規遷移(今日へ)
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { isHidden } = useHiddenContent(user?.id);
   const toast = useToast();
   const premium = usePremium();
@@ -64,6 +64,9 @@ export default function Explore() {
   const [neighborActive, setNeighborActive] = useState<boolean>(_sf.neighborActive);
   const [homePref, setHomePref] = useState<string | null>(null);
   const [followed, setFollowed] = useState<Set<string>>(new Set());
+  // フォロー中の作品を読み終えたか。一覧はキャッシュから先に出るので、読み終える前に「0作品」として
+  // フォローしていない人向けの案内が一瞬出ていた（2026-10-04 柴野「ヒヤヒヤする」）。読み終えるまでは読み込み中を出す
+  const [followsReady, setFollowsReady] = useState(false);
   // 上部の作品の並びに出す、フォロー中の作品（名前つき）
   const [followedWorks, setFollowedWorks] = useState<Work[]>([]);
   const [workImages, setWorkImages] = useState<Record<string, string>>(loadWorkImages);
@@ -228,8 +231,9 @@ export default function Explore() {
     if (!user) return;
     const fkey = `follows:${user.id}`;
     const cachedF = getCached<Work[]>(fkey);
-    if (cachedF) { setFollowed(new Set(cachedF.map((w) => w.id))); setFollowedWorks(cachedF); }
-    listAllParticipatedWorks(user.id).then((ws) => { setFollowed(new Set(ws.map((w) => w.id))); setFollowedWorks(ws); setCached(fkey, ws); }).catch(() => {});
+    if (cachedF) { setFollowed(new Set(cachedF.map((w) => w.id))); setFollowedWorks(cachedF); setFollowsReady(true); }
+    listAllParticipatedWorks(user.id).then((ws) => { setFollowed(new Set(ws.map((w) => w.id))); setFollowedWorks(ws); setCached(fkey, ws); })
+      .catch(() => {}).finally(() => setFollowsReady(true));
   };
   useEffect(() => { reloadFollows(); }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -580,7 +584,7 @@ export default function Explore() {
           if (filterOpen) { e.stopPropagation(); haptic.select(); setFilterOpen(false); }
         }}
       >
-        {items === null ? (
+        {items === null || (!followsReady && (authLoading || !!user)) ? (
           <SkeletonList count={4} />
         ) : visible.length === 0 ? (
           followed.size === 0 ? (
