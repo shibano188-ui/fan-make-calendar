@@ -25,7 +25,11 @@ export default function Feedback() {
   const toggleKind = (k: FeedbackKind) => {
     haptic.select();
     setKinds((prev) => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
+    setNeedKind(false);
   };
+  // 種類を選ばずに「送る」を押した印。押せないボタンだと理由が分からず止まる（iOS の人から「送れない」と言われた）ので、
+  // ボタンは本文があれば押せるようにして、押したときに種類を選んでもらう
+  const [needKind, setNeedKind] = useState(false);
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
@@ -36,9 +40,14 @@ export default function Feedback() {
     else navigate('/mypage', { replace: true });
   };
 
-  const ready = !!body.trim() && kinds.size > 0 && !busy;
+  const ready = !!body.trim() && !busy;
   const send = async () => {
     if (!ready) return;
+    if (kinds.size === 0) {
+      setNeedKind(true);
+      toast('種類を選んでください', 'error');
+      return;
+    }
     haptic.select();
     setBusy(true);
     try {
@@ -81,7 +90,9 @@ export default function Feedback() {
             <p className="text-[13px] text-label-secondary leading-relaxed mt-2">
               FanHive をさらに使いやすくするために、皆様のご意見をどんどん募集しています！
             </p>
-            <div className="text-[12px] text-label-secondary mb-1 mt-4">種類（いくつでも）</div>
+            <div className={`text-[12px] mb-1 mt-4 ${needKind ? 'text-red-400 font-semibold' : 'text-label-secondary'}`}>
+              {needKind ? '種類を選んでください（いくつでも）' : '種類（いくつでも）'}
+            </div>
             <div className="flex flex-wrap gap-1.5">
               {KINDS.map((k) => <Chip key={k.key} active={kinds.has(k.key)} onClick={() => toggleKind(k.key)}>{k.label}</Chip>)}
             </div>
