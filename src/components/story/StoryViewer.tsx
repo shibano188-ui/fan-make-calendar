@@ -11,7 +11,8 @@ import type { StoryGroup } from '../../lib/story';
 import { deriveStatus, deriveItemType, itemDateLines } from '../../design/tokens';
 import { parseImageUrls } from '../../lib/constants';
 import { optimizedImage } from '../../lib/image';
-import { getOffers, primaryOffer, priceRange, isStockStale } from '../../lib/affiliate';
+import { getOffers, priceRange, isStockStale, stockBadge, offerUrl, isSearchPageUrl, isAffiliateUrl, isOfficialOffer } from '../../lib/affiliate';
+import type { Offer } from '../../types';
 import { useLike, setLike } from '../../lib/likeStore';
 import { likeEffect } from '../../lib/likeEffect';
 import { shareToX } from '../../lib/share';
@@ -46,12 +47,22 @@ function timeAgo(iso?: string): string {
   return d < 30 ? `${d}日前` : new Date(iso).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' });
 }
 
-/** 在庫の一行。「在庫あり 3店」「どこも売り切れ」。店の情報が無い予定は出さない */
-function stockLine(e: CalendarEvent): { text: string; out: boolean } | null {
-  const offers = getOffers(e).filter((o) => typeof o.inStock === 'boolean' && !isStockStale(e, o));
-  if (!offers.length) return null;
-  const inStock = offers.filter((o) => o.inStock).length;
-  return inStock > 0 ? { text: `在庫あり ${inStock}店`, out: false } : { text: 'どこも売り切れ', out: true };
+/** その場で開けるお店（2026-10-04 柴野「在庫ありとか隠さずに、リンクに飛べちゃった方がいい。多すぎるとダメ」）。
+ *  詳細ページの代表販路（primaryOffer）と同じ順＝在庫あり・セットでない・公式・安い順で、上の2店だけ。
+ *  検索ページは商品が特定できないので、商品ページが1つでもあれば出さない */
+const STORY_SHOPS = 2;
+function storyShops(e: CalendarEvent): { shown: Offer[]; rest: number } {
+  const offers = getOffers(e).filter((o) => o.url);
+  const products = offers.filter((o) => !isSearchPageUrl(o.url));
+  const base = products.length ? products : offers;
+  const out = (o: Offer) => o.inStock === false && !isStockStale(e, o);
+  const sorted = [...base].sort((a, b) =>
+    (Number(out(a)) - Number(out(b))) ||
+    (Number(!!a.isSet) - Number(!!b.isSet)) ||
+    (Number(isOfficialOffer(b)) - Number(isOfficialOffer(a))) ||
+    (Number(isAffiliateUrl(offerUrl(b))) - Number(isAffiliateUrl(offerUrl(a)))) ||
+    ((a.price ?? Infinity) - (b.price ?? Infinity)));
+  return { shown: sorted.slice(0, STORY_SHOPS), rest: Math.max(0, offers.length - STORY_SHOPS) };
 }
 
 export default function StoryViewer({ groups, initial, onClose, onSeen, onOpenDetail, onLike }: {
@@ -154,8 +165,7 @@ export default function StoryViewer({ groups, initial, onClose, onSeen, onOpenDe
   const img = parseImageUrls(e.imageUrl)[0];
   const range = priceRange(getOffers(e));
   const price = range ? `¥${range.min.toLocaleString()}〜` : e.price != null ? `¥${e.price.toLocaleString()}` : null;
-  const stock = stockLine(e);
-  const hasShop = !!primaryOffer(getOffers(e));
+  const shops = storyShops(e);
 
   // 下のタブ（z-[100]）より上に出す。親の重なり順に左右されないよう body の直下に描く
   return createPortal(
@@ -215,37 +225,53 @@ export default function StoryViewer({ groups, initial, onClose, onSeen, onOpenDe
             </div>
           )}
           {/* 予定ごとに作り直す。同じ img を使い回すと、次の画像を読み終えるまで前の予定の画像が出たままになる */}
-          <div key={e.id} className="w-full rounded-[12px] overflow-hidden bg-fill-3 flex items-center justify-center flex-shrink-0" style={{ height: '36vh' }}>
+          {/* 小さい画面（SE）では画像の方を縮めて、下の文字とお店が切れないようにする（前はタイトルが潰れて消えていた） */}
+          <div key={e.id} className="w-full rounded-[12px] overflow-hidden bg-fill-3 flex items-center justify-center min-h-[120px]" style={{ height: '36vh' }}>
             {img
               ? <OptImg src={img} w={828} alt={e.title} className="w-full h-full object-contain"
                   style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.15s' }}
                   onLoad={setLoaded} onError={setLoaded} />
               : <ImageOff size={32} className="text-label-tertiary" />}
           </div>
+          <div className="flex-shrink-0 flex flex-col">
           <div className="mt-3 flex items-center gap-1.5 flex-wrap">
             <StatusBadge status={deriveStatus(e)} type={type} />
           </div>
           <div className="mt-1.5 text-[18px] font-bold leading-snug line-clamp-3">{e.title}</div>
           <div className="mt-1 text-[13px] text-label-secondary">{itemDateLines(e).join(' / ')}</div>
           {price && <div className="mt-1 text-[20px] font-bold" style={{ color: 'var(--accent-text)' }}>{price}</div>}
-          {stock && (
-            <button onClick={() => { haptic.select(); onOpenDetail(e, pos, 'stock'); }}
-              className="pressable self-start mt-1 flex items-center gap-0.5 text-[13px] font-semibold"
-              style={{ color: stock.out ? 'var(--color-destructive)' : 'var(--label-primary)' }}>
-              {stock.text}<ChevronRight size={15} className="text-label-tertiary" />
-            </button>
+          {/* お店はその場で開ける（2店まで）。ほかは詳細の在庫タブへ */}
+          {shops.shown.length > 0 && (
+            <div className="mt-2 flex flex-col gap-1.5">
+              {shops.shown.map((o, i) => {
+                const b = !isStockStale(e, o) && stockBadge(o);
+                const color = b && (b.tone === 'ok' ? 'var(--color-success)' : b.tone === 'out' ? 'var(--color-destructive)' : 'var(--status-info)');
+                return (
+                  <a key={`${i}-${o.url}`} href={offerUrl(o)} target="_blank" rel="noopener nofollow" onClick={() => haptic.select()}
+                    className="pressable flex items-center gap-2 rounded-[10px] px-3 py-2" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+                    <span className="flex-1 min-w-0 text-[13px] truncate" style={b && b.tone === 'out' ? { opacity: 0.55 } : undefined}>
+                      {o.label && <span className="font-semibold">{o.label}<span className="text-label-tertiary font-normal"> ・ </span></span>}
+                      {o.retailer || 'お店'}{isSearchPageUrl(o.url) && o.label !== '検索結果' ? '（検索）' : ''}
+                    </span>
+                    {b && <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ color: color as string, background: 'var(--fill-secondary, rgba(120,120,128,0.16))' }}>{b.text}</span>}
+                    <span className="flex-shrink-0 text-[13px] font-bold" style={{ color: 'var(--accent-text)' }}>{o.price ? `¥${o.price.toLocaleString()}` : '開く ↗'}</span>
+                  </a>
+                );
+              })}
+              {shops.rest > 0 && (
+                <button onClick={() => { haptic.select(); onOpenDetail(e, pos, 'stock'); }}
+                  className="pressable self-start flex items-center gap-0.5 text-[12px] text-label-secondary">
+                  ほか{shops.rest}店を見る<ChevronRight size={14} className="text-label-tertiary" />
+                </button>
+              )}
+            </div>
           )}
           {/* 受付開始の即時通知の案内（無料の人・予約受付がこれから始まるグッズだけ）。押したら閉じて課金の案内へ */}
           {FEATURE_PREMIUM && !instantAlerts && isPreorderSoon({ type, preorderStart: e.preorderStart }, todayStr()) && (
             <PromoLine className="mt-2" icon={<BellRing size={15} />} text="予約受付が始まった瞬間に通知" badge="プレミアム"
               onClick={() => { onClose(); navigate('/premium'); }} />
           )}
-          {!stock && hasShop && (
-            <button onClick={() => { haptic.select(); onOpenDetail(e, pos, 'stock'); }}
-              className="pressable self-start mt-1 flex items-center gap-0.5 text-[13px] text-label-secondary">
-              買えるお店を見る<ChevronRight size={15} className="text-label-tertiary" />
-            </button>
-          )}
+          </div>
         </div>
 
         <div className="px-4 pt-2" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 14px)' }}>
