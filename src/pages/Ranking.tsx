@@ -3,8 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ChevronRight, Crown } from 'lucide-react';
 import { listAllParticipatedWorks, type Work } from '../lib/api';
 import {
-  listRanking, listWorkNushi, currentMonth, daysLeftInMonth, postsToSeat,
-  NUSHI_SEATS, NUSHI_MIN_SCORE, POINTS_PER_POST,
+  listRanking, listWorkNushi, currentMonth, daysLeftInMonth, pointsToSeat,
+  NUSHI_SEATS, NUSHI_MIN_SCORE,
   type RankRow, type RankingResult, type WorkNushi,
 } from '../lib/ranking';
 import UserProfileModal from '../components/UserProfileModal';
@@ -104,7 +104,7 @@ export default function Ranking() {
     const myScore = data?.me?.score ?? 0;
     const seatScores = list.slice(0, NUSHI_SEATS).map((r) => r.score);
     for (let rank = list.length + 1; rank <= NUSHI_SEATS; rank++) {
-      items.push({ kind: 'seat', rank, need: postsToSeat(myScore, seatScores) });
+      items.push({ kind: 'seat', rank, need: pointsToSeat(myScore, seatScores) });
     }
     return items;
   }, [data, tab]);
@@ -210,7 +210,8 @@ export default function Ranking() {
               )}
 
               <div className="mt-4 text-[11px] text-label-tertiary leading-relaxed">
-                スコア = 投稿 × {POINTS_PER_POST} ＋ もらったいいね × 1。
+                {/* 計算式は出さない（2026-10-05 柴野）。何をすると点が入るかだけ言う */}
+                予定の投稿、情報の追加（日付の修正・購入先・在庫）、いいねで点数が増えます。
                 {tab !== TOTAL &&
                   `毎月1日に順位が確定し、上位${NUSHI_SEATS}名（${NUSHI_MIN_SCORE}点以上）がこの作品のヌシになります。`}
               </div>
@@ -274,11 +275,11 @@ function Row({ row, isWork, me, onSetName, onOpenUser }: {
           </span>
         </button>
         <div className="text-[11px] text-label-tertiary">
-          投稿{row.posts}・いいね{row.likes}
+          {/* 内訳（投稿数・いいね数）は出さない。点は＋αなどでも入るので、内訳を並べると合計と合わなく見える */}
           {/* 上位3位に居ても点が足りなければ席は決まらない。あと何点かをここで言う */}
           {isWork && top3 && !seated && (
             <span style={{ color: 'var(--accent-text)' }}>
-              ・あと{NUSHI_MIN_SCORE - row.score}点でヌシ
+              あと{NUSHI_MIN_SCORE - row.score}点でヌシ
             </span>
           )}
         </div>
@@ -313,7 +314,7 @@ function EmptySeat({ rank, need, showHint, onPost }: {
         <div className="text-[14px] font-semibold text-label-tertiary">—</div>
         {showHint && (
           <div className="text-[11px]" style={{ color: 'var(--accent-text)' }}>
-            {need > 0 ? `あと${need}件でヌシになれます` : '投稿するとヌシになれます'}
+            {need > 0 ? `あと${need}点でヌシになれます` : '投稿や情報の追加でヌシになれます'}
           </div>
         )}
       </div>

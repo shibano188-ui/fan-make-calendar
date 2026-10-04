@@ -30,10 +30,10 @@ export type WorkNushi = {
 /** ヌシの席の数と、席に着くのに要るスコア。SQL側の既定値と揃えてある
  *  （表示用。判定そのものは finalize_nushi の引数で決まる）。 */
 export const NUSHI_SEATS = 3;
-export const NUSHI_MIN_SCORE = 15;
+// 2026-10-05 に 15 → 10。投稿（ボットが店の商品を入れるので稼ぎにくくなった）に加えて＋αやいいねでも点が入るようにしたため
+// （sql/2026-10-05-ranking-contrib-score.sql の finalize_nushi と同じ値）
+export const NUSHI_MIN_SCORE = 10;
 
-/** 投稿1件ぶんの点数。「あと何件で3位」を出すのに使う（SQLの係数と同じ値） */
-export const POINTS_PER_POST = 3;
 
 /** 日本時間の「今月」（YYYY-MM-01）。月の境界はサーバー側もJSTで切っている。 */
 export function currentMonth(): string {
@@ -243,14 +243,12 @@ export async function listWorkNushi(workId: string): Promise<WorkNushi[]> {
   }));
 }
 
-/** 「あと◯件でヌシ」。席の最下位との差を投稿数に直す。
- *  席が空いていれば閾値との差を返す（＝誰でも今から取れる）。 */
-export function postsToSeat(myScore: number, seatScores: number[]): number {
-  const target = seatScores.length >= NUSHI_SEATS
-    ? Math.max(seatScores[NUSHI_SEATS - 1], NUSHI_MIN_SCORE)
-    : NUSHI_MIN_SCORE;
-  if (myScore >= target) return 0;
-  return Math.ceil((target - myScore + 1) / POINTS_PER_POST);
+/** 「あと◯点でヌシ」。席が埋まっていれば3位を1点上回るまで、空いていれば条件（NUSHI_MIN_SCORE）までの差。
+ *  点は投稿・＋α・いいねのどれでも入るので、件数ではなく点で言う（2026-10-05） */
+export function pointsToSeat(myScore: number, seatScores: number[]): number {
+  const third = seatScores.length >= NUSHI_SEATS ? seatScores[NUSHI_SEATS - 1] : null;
+  const need = third != null && third >= NUSHI_MIN_SCORE ? third - myScore + 1 : NUSHI_MIN_SCORE - myScore;
+  return Math.max(0, need);
 }
 
 /** バッジに出す作品名。長いと1行に収まらないので全角10文字で切る。 */
