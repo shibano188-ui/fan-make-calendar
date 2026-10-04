@@ -471,7 +471,7 @@ export default function Saved() {
           1. テーマを作れること（まだ1つも作っていない人）。作れること自体が知られていない（柴野）
           2. いつものカレンダーへの自動同期（プレミアム・無料の人だけ） */}
       {showThemePromo ? (
-        <PromoLine className="mx-3 mt-2" icon={<Palette size={15} />} text="言葉からカレンダーの見た目を作れます"
+        <PromoLine className="mx-3 mt-2" icon={<Palette size={15} />} text="アプリのテーマを自由に生成できます"
           onClick={() => navigate('/customize/theme')} onDismiss={() => hidePromo(THEME_PROMO_KEY, setThemePromoHidden)} />
       ) : FEATURE_PREMIUM && !premium && !syncPromoHidden ? (
         <PromoLine className="mx-3 mt-2" text="いつものカレンダーに自動同期" badge="プレミアム"
