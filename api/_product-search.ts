@@ -4,6 +4,7 @@
 // あみあみ・駿河屋・アニメイトは楽天/Yahoo!の公式出店店舗経由で価格が取れる → 公式店を優先表示。
 import { lookupShopifyProduct } from './_shopify.js';
 import { botMayFetch, botCanFetch } from './_pace.js';
+import { isPlaceholderImage } from './_image.js';
 
 export interface Candidate {
   title: string; price: number; url: string; image: string; shop: string; retailer: string; hasAffiliate: boolean;
@@ -139,6 +140,15 @@ async function searchYahoo(keyword: string): Promise<Candidate[]> {
 // 楽天のアニメイト系店舗(acosbyanimate)はコスプレ中心で品揃えが本店と別物のため、本店を直接見る必要がある。
 // アフィリエイトは未提携(2026-07-23審査落ち)なので hasAffiliate=false。提携が通れば affiliate.ts の wrap だけで成果化する。
 const ANIMATE_ORIGIN = 'https://www.animate-onlineshop.jp';
+/** アニメイトの画像の URL を、一覧と同じ 400×400 の正方形の指定にする（画像の名前はそのまま） */
+function squareAnimateImage(url: string): string {
+  try {
+    const u = new URL(url);
+    if (!u.pathname.includes('resize_image')) return url;
+    const name = u.searchParams.get('image') ?? '';
+    return `${u.origin}${u.pathname}?image=${encodeURIComponent(name)}&width=400&height=400&square=1`;
+  } catch { return url; }
+}
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36';
 
 function decodeEntities(s: string): string {
@@ -309,11 +319,15 @@ async function lookupAnimate(u: URL): Promise<UrlLookup | null> {
   const releaseText = html.match(/<p class="release">[\s\S]{0,80}?<span class="num">([^<]+)<\/span>/)?.[1];
   const release = releaseText ? parseReleaseText(releaseText) : null;
   const pre = parsePreorderText(html.match(/<meta name="description" content="([^"]*)"/)?.[1] ?? '');
-  const ogImage = html.match(/<meta property="og:image" content="([^"]+)"/)?.[1];
+  // アニメイトは property と content の間に空白が2つある（<meta property="og:image"  content="…">）。
+  // 空白1つで決め打ちしていて一度も取れていなかった（2026-10-05）。横長（1200×630）なので一覧と同じ正方形の指定にそろえる
+  const ogRaw = html.match(/<meta\s+property="og:image"\s+content="([^"]+)"/)?.[1];
+  const ogImage = ogRaw ? squareAnimateImage(decodeEntities(ogRaw)) : undefined;
   const jan = janFromHtml(html);
   return {
     ...(jan ? { jan } : {}),
-    ...(ogImage ? { image: decodeEntities(ogImage) } : {}),
+    // まだ画像の無い商品は、ページの代表画像も仮の画像（NO IMAGE）になる。画像として返さない
+    ...(ogImage && !isPlaceholderImage(ogImage) ? { image: ogImage } : {}),
     ...(release ? { release } : {}),
     ...(pre?.start ? { preorderStart: pre.start } : {}),
     ...(pre?.end ? { preorderEnd: pre.end } : {}),

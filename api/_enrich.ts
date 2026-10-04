@@ -11,6 +11,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { lookupByUrl, unwrapProductUrl, searchCandidatesWithMeta, highConfidence, searchKeyword, isSetTitle, labelVariants, type Candidate, type UrlLookup } from './_product-search.js';
 import { isSearchPage, isAff, representativePrice, type OfferRow } from './_offers.js';
+import { isPlaceholderImage, firstImage } from './_image.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any>;
@@ -193,10 +194,12 @@ async function planOne(row: any, removed: Set<string>, dateEdited: boolean): Pro
     }
   }
 
-  // 4.5 画像。予定に画像が無ければ、リンク先の商品ページの画像を入れる
-  if (!row.image_url) {
-    const img = [...hits.values()].find((h) => h.image)?.image;
-    if (img) { set.image_url = img; notes.push('画像を追加'); }
+  // 4.5 画像。予定に画像が無い、または仮の画像（アニメイトの NO IMAGE）なら、リンク先の商品ページの画像を入れる。
+  // 発売が近づくと店が本物の画像に差し替えるので、そのとき差し替わる（2026-10-05 柴野）
+  const placeholder = isPlaceholderImage(firstImage(row.image_url as string | null));
+  if (!row.image_url || placeholder) {
+    const img = [...hits.values()].find((h) => h.image && !isPlaceholderImage(h.image))?.image;
+    if (img) { set.image_url = img; notes.push(placeholder ? '仮の画像（NO IMAGE）を本物の画像に差し替え' : '画像を追加'); }
   }
 
   // 5. 代表価格

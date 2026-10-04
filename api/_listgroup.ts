@@ -4,6 +4,7 @@
 // 名前がほぼ同じでもアイテムが違えば分ける。迷ったら分ける側に倒す。
 import { createClient } from '@supabase/supabase-js';
 import { stripShopNoise, lookupByUrl } from './_product-search.js';
+import { isPlaceholderImage } from './_image.js';
 import type { ListProduct, ProductList } from './_listsource.js';
 
 // アイテムを表す語。まとまりの共通部分にこれが入っていれば「同じアイテム」、違いの部分に入っていれば別のアイテム。
@@ -196,7 +197,8 @@ function dateFromCollectionTitle(title: string): string | null {
 
 /** 画像のURLを、アプリの image_url の形（1枚なら文字列、複数ならJSON配列の文字列）にする。10枚まで */
 function imagesJson(urls: string[]): string | null {
-  const list = [...new Set(urls.filter(Boolean))].slice(0, 10);
+  // 仮の画像（NO IMAGE）は入れない。入れると、本物の画像が出たときに差し替わらない（api/_image.ts）
+  const list = [...new Set(urls.filter((u) => !!u && !isPlaceholderImage(u)))].slice(0, 10);
   return list.length === 0 ? null : list.length === 1 ? list[0] : JSON.stringify(list);
 }
 
