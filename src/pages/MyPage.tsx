@@ -26,7 +26,7 @@ import FanStarChart from '../components/FanStarChart';
 import { calcTitle, calcRadarData, calcGrade, type AchievementStats } from '../lib/achievements';
 import { listMyNushi, getMyTotalRank, shortWorkName, NUSHI_BADGE_LIMIT, type WorkNushi } from '../lib/ranking';
 import { REGIONS } from '../lib/prefectures';
-import { clearAccountScopedCache, FEATURE_GOOGLE_CALENDAR, FEATURE_PREMIUM, ANON_NAME } from '../lib/constants';
+import { clearAccountScopedCache, FEATURE_GOOGLE_CALENDAR, FEATURE_PREMIUM, ANON_NAME, DEFAULT_AVATAR } from '../lib/constants';
 import { isGoogleConfigured, isGoogleLinked, linkGoogle, unlinkGoogle } from '../lib/googleCalendar';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
@@ -166,7 +166,7 @@ export default function MyPage() {
         <button onClick={() => { haptic.select(); setAvatarOpen((v) => !v); setEditingField(null); }} aria-label="アバターを変更"
           className="pressable relative w-16 h-16 rounded-full flex items-center justify-center text-[32px] flex-shrink-0"
           style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-          {avatar ?? '🐝'}
+          {avatar ?? DEFAULT_AVATAR}
           <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center"
             style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
             <Pencil size={11} />

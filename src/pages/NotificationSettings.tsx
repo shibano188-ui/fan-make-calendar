@@ -8,8 +8,9 @@ import { buildWorkColorMap } from '../lib/workColors';
 import { loadWorkImages } from '../lib/workImages';
 import { loadNotifyLeadDays, saveNotifyLeadDays, loadBellPrefs, saveBellPrefs, type BellPrefs, loadMutedWorkIds, toggleMutedWorkId } from '../lib/constants';
 import { ensurePermission, notificationPermission, notificationsSupported, rescheduleAll } from '../lib/notifications';
-import { pushSupported, isDigestOn, setDigestOn } from '../lib/push';
-import { useFeature } from '../lib/premium';
+import { pushSupported, isDigestOn, setDigestOn, getNotifyMode, setNotifyMode, getWorkNotifyModes, setWorkNotifyMode, type NotifyMode } from '../lib/push';
+import { useFeature, usePremium } from '../lib/premium';
+import { FEATURE_PREMIUM } from '../lib/constants';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
 import Toggle from '../components/ui/Toggle';
@@ -21,6 +22,14 @@ import { haptic } from '../lib/haptics';
 // 一番上は**許可の状態**。ここが断られていると下の設定は全部意味を持たないため、
 // 最初に出して、その場で直せるなら直せるようにしている。
 
+const MODE_LABEL: Record<NotifyMode, string> = { instant: 'すぐ', thrice: '1日3回', daily: '1日1回' };
+
+const MODE_TOAST: Record<NotifyMode, string> = {
+  instant: '新着を30分ごとにまとめてお知らせします',
+  thrice: '新着を9時・13時・19時にお知らせします',
+  daily: '新着を毎朝9時にお知らせします',
+};
+
 export default function NotificationSettings() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -28,6 +37,8 @@ export default function NotificationSettings() {
   const [perm, setPerm] = useState<'granted' | 'denied' | 'prompt' | 'unsupported' | null>(null);
   const [leadDays, setLeadDays] = useState(loadNotifyLeadDays());
   const [digestOn, setDigestEnabled] = useState(isDigestOn());
+  const premium = usePremium();
+  const [notifyMode, setNotifyModeState] = useState<NotifyMode>(getNotifyMode());
   const [bell, setBell] = useState<BellPrefs>(loadBellPrefs());
   // 作品ごとの通知（値下げ・再入荷と新着のまとめ）。フォロー中の作品を並べて、ここで切り替える
   const [works, setWorks] = useState<Work[]>(() => (user ? getCached<Work[]>(`follows:${user.id}`) ?? [] : []));
@@ -38,13 +49,28 @@ export default function NotificationSettings() {
     if (!user) return;
     listAllParticipatedWorks(user.id).then((ws) => { setWorks(ws); setCached(`follows:${user.id}`, ws); }).catch(() => {});
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 作品ごとの届き方（課金の人）。'default'＝全体の設定に従う・'off'＝通知しない（ミュート）
+  const [workModes, setWorkModes] = useState<Record<string, NotifyMode>>(() => getWorkNotifyModes());
+  const workChoice = (w: Work): NotifyMode | 'off' | 'default' => (mutedWorks.has(w.id) ? 'off' : workModes[w.id] ?? 'default');
+  const onChangeWorkMode = async (w: Work, next: NotifyMode | 'off' | 'default') => {
+    haptic.select();
+    const prev = workChoice(w);
+    if (next === prev) return;
+    // 通知しない ⇔ それ以外 は、今までのミュートを切り替える（値下げ・再入荷も一緒に止まる・戻る）
+    if ((next === 'off') !== (prev === 'off')) setMutedWorks(toggleMutedWorkId(w.id));
+    if (next !== 'off') {
+      const mode = next === 'default' ? null : next;
+      setWorkModes((m) => { const n = { ...m }; if (mode) n[w.id] = mode; else delete n[w.id]; return n; });
+      if (user && !(await setWorkNotifyMode(user.id, w.id, mode))) { toast('変更できませんでした。時間をおいてお試しください', 'error'); return; }
+    }
+    toast(next === 'off' ? `「${w.name}」の通知を止めました` : next === 'default' ? `「${w.name}」は全体の設定でお知らせします` : `「${w.name}」の新着を${MODE_LABEL[next]}でお知らせします`);
+  };
   const onToggleWork = (w: Work) => {
     haptic.select();
     const next = toggleMutedWorkId(w.id);
     setMutedWorks(next);
     toast(next.has(w.id) ? `「${w.name}」の通知を止めました` : `「${w.name}」の通知を受け取ります`);
   };
-  const newEventDigest = useFeature('newEventDigest');
   const priceAlerts = useFeature('priceAlerts');
   const instantAlerts = useFeature('instantAlerts');
 
@@ -79,6 +105,15 @@ export default function NotificationSettings() {
     setDigestEnabled(next);
     if (user) await setDigestOn(user.id, next);
     toast(next ? '毎朝9時にまとめてお知らせします' : '新着のまとめ通知を止めました');
+  };
+
+  const onChangeMode = async (next: NotifyMode) => {
+    haptic.select();
+    const prev = notifyMode;
+    setNotifyModeState(next);
+    const ok = user ? await setNotifyMode(user.id, next) : false;
+    if (!ok) { setNotifyModeState(prev); toast('変更できませんでした。時間をおいてお試しください', 'error'); return; }
+    toast(MODE_TOAST[next]);
   };
 
   const onToggleBell = (key: keyof BellPrefs, next: boolean) => {
@@ -137,10 +172,13 @@ export default function NotificationSettings() {
             <button onClick={() => { haptic.select(); navigate('/premium'); }}
               className="pressable w-full text-left rounded-[12px] p-3 mb-3"
               style={{ border: '1.5px solid var(--accent-color)' }}>
-              <p className="text-[14px] font-semibold">受付開始をその場で受け取る</p>
+              {/* 2026-10-05 に今の動きに合わせて直した。前は「無料プランのお知らせは翌朝のまとめ」と書いていたが、
+                  無料の人に届くのは、ベルを押した予定の端末の通知（◯日前・当日の朝）だけで、受付開始のまとめは無い */}
+              <p className="text-[14px] font-semibold">プレミアムなら、受付開始の瞬間に届く</p>
               <p className="text-[11px] text-label-secondary mt-1 leading-relaxed">
-                無料プランのお知らせは翌朝のまとめです。プレミアムなら、受付が始まった時点と、
-                値下げ・再入荷があった時点でお知らせします。
+                無料プランでは、ベルを押した予定を前もって・当日の朝にお知らせします。
+                プレミアムなら、予約受付が始まった瞬間と、値下げ・再入荷があったときにもお知らせします。
+                新着も朝を待たずに、作品ごとに届き方を選べます。
               </p>
             </button>
           )}
@@ -185,16 +223,31 @@ export default function NotificationSettings() {
               </p>
             </div>
 
-            {/* フォロー作品の新着まとめ（プレミアム・既定ON） */}
-            {newEventDigest && pushSupported() && (
+            {/* フォロー作品の新着まとめ（既定ON）。2026-10-04 から無料の人にも毎朝9時に送る。
+                課金の人は届き方を選べる（すぐ／1日3回／1日1回） */}
+            {pushSupported() && (
               <div className={row}>
                 <div className="flex items-center gap-2">
                   <BellRing size={16} className="text-label-secondary" />
-                  <span className="text-[14px] flex-1">フォロー作品の新着まとめ</span>
+                  <span className="text-[14px] flex-1">フォロー作品の新着</span>
                   <Toggle checked={digestOn} onChange={onToggleDigest} />
                 </div>
+                {digestOn && premium && (
+                  <div className="flex items-center gap-2 mt-2 ml-6">
+                    <span className="text-[13px] text-label-secondary flex-1">届き方</span>
+                    <select value={notifyMode} onChange={(e) => void onChangeMode(e.target.value as NotifyMode)}
+                      className="bg-transparent text-[14px] outline-none" style={{ color: 'var(--input-text)' }}>
+                      <option value="instant">すぐ（30分ごとにまとめて）</option>
+                      <option value="thrice">1日3回（9時・13時・19時）</option>
+                      <option value="daily">1日1回（9時）</option>
+                    </select>
+                  </div>
+                )}
                 <p className="text-[11px] text-label-secondary mt-1 ml-6">
-                  フォロー中の作品に追加された予定を、毎朝9時に1通でお知らせします。
+                  {premium
+                    ? 'フォロー中の作品に追加された予定をお知らせします。押すと、新着を1件ずつ見られます。'
+                    : 'フォロー中の作品に追加された予定を、毎朝9時に1通でお知らせします。押すと、新着を1件ずつ見られます。'}
+                  {!premium && FEATURE_PREMIUM && ' プレミアムなら「すぐ」「1日3回」も選べます。'}
                 </p>
               </div>
             )}
@@ -222,7 +275,7 @@ export default function NotificationSettings() {
                   <span className="text-[14px] flex-1">受付開始のお知らせ</span>
                 </div>
                 <p className="text-[11px] text-label-secondary mt-1 ml-6">
-                  いいねしたグッズの予約受付が始まったら、その時点でお知らせします。
+                  いいねしてベルをONにしたグッズの予約受付が始まったら、その時点でお知らせします。
                 </p>
               </div>
             )}
@@ -232,8 +285,13 @@ export default function NotificationSettings() {
           {/* 作品ごとに止める。フォロー中の作品ページから飛ばずに、ここで切り替える */}
           {works.length > 0 && (
             <>
-              <p className="text-[12px] text-label-secondary px-1 mt-4 mb-0.5">作品ごとに通知を止める</p>
-              <p className="text-[11px] text-label-tertiary px-1 mb-1.5">OFFにすると、その作品の値下げ・再入荷と新着のまとめを止めます</p>
+              {/* 課金の人は、作品ごとに新着の届き方を選べる（2026-10-05）。無料の人は止めるか（毎朝9時）だけなのでトグル */}
+              <p className="text-[12px] text-label-secondary px-1 mt-4 mb-0.5">{premium ? '作品ごとの届き方' : '作品ごとに通知を止める'}</p>
+              <p className="text-[11px] text-label-tertiary px-1 mb-1.5">
+                {premium
+                  ? '新着の届き方を作品ごとに選べます。「通知しない」にすると、その作品の値下げ・再入荷も止めます'
+                  : 'OFFにすると、その作品の新着のお知らせ（毎朝9時）を止めます'}
+              </p>
               <div className="rounded-[12px] overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>
                 {works.map((w, i) => (
                   <div key={w.id} className={`flex items-center gap-2 px-3 py-2.5 ${i < works.length - 1 ? 'border-b border-subtle' : ''}`}>
@@ -241,7 +299,18 @@ export default function NotificationSettings() {
                       ? <img src={workImages[w.id]} alt="" className="w-5 h-5 rounded-[5px] object-cover flex-shrink-0" />
                       : <span className="w-5 h-5 rounded-[5px] flex-shrink-0" style={{ backgroundColor: workColors.get(w.id) ?? 'var(--accent-color)' }} />}
                     <span className="text-[14px] flex-1 truncate">{w.name}</span>
-                    <Toggle checked={!mutedWorks.has(w.id)} onChange={() => onToggleWork(w)} />
+                    {premium ? (
+                      <select value={workChoice(w)} onChange={(e) => void onChangeWorkMode(w, e.target.value as NotifyMode | 'off' | 'default')}
+                        className="bg-transparent text-[13px] outline-none text-right" style={{ color: 'var(--input-text)' }}>
+                        <option value="default">全体の設定（{MODE_LABEL[notifyMode]}）</option>
+                        <option value="instant">{MODE_LABEL.instant}</option>
+                        <option value="thrice">{MODE_LABEL.thrice}</option>
+                        <option value="daily">{MODE_LABEL.daily}</option>
+                        <option value="off">通知しない</option>
+                      </select>
+                    ) : (
+                      <Toggle checked={!mutedWorks.has(w.id)} onChange={() => onToggleWork(w)} />
+                    )}
                   </div>
                 ))}
               </div>

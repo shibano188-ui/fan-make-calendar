@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Bell, BellRing } from 'lucide-react';
 import type { CalendarEvent } from '../../types';
-import { BELL_EVENT, isNotifyOn, setNotifyOn, loadNotifyLeadDays, loadMutedEventIds, toggleMutedEventId, loadBellPrefs, takePriceHint } from '../../lib/constants';
+import { BELL_EVENT, isNotifyOn, setNotifyOn, loadNotifyLeadDays, loadMutedEventIds, toggleMutedEventId, loadBellPrefs, takePriceHint, takeInstantHint } from '../../lib/constants';
 import { ensurePermission, scheduleForEvent, cancelForEvent, notificationsSupported } from '../../lib/notifications';
 import { useToast } from '../ui/Toast';
 import { haptic } from '../../lib/haptics';
-import { useFeature } from '../../lib/premium';
+import { useFeature, isPreorderSoon } from '../../lib/premium';
+import { todayStr } from '../../design/tokens';
 
 /** 予定ごとの通知ベル。押すたびに ON／OFF が切り替わる（前はシートを開いてトグルを押す2段階だった）。
  *  ON にするもの（通知の設定ページで選べる・既定はどちらも）:
@@ -17,6 +18,7 @@ export default function NotifyBell({ event, liked, onSave, size = 18, variant = 
 }) {
   const toast = useToast();
   const priceAlerts = useFeature('priceAlerts');
+  const instantAlerts = useFeature('instantAlerts');
   const isGoods = event.type === 'goods';
   const [reminder, setReminder] = useState(false);
   const [priceMuted, setPriceMuted] = useState(false);
@@ -55,7 +57,9 @@ export default function NotifyBell({ event, liked, onSave, size = 18, variant = 
     if (!msg) { toast('通知の設定で、ベルでONにするものを選んでください'); return; }
     // オンボーディングの案内中は出さない（すぐ後に「これで通知が届きます！」で同じことを説明する）
     if (document.body.dataset.tourStep) return;
-    if (isGoods && !priceAlerts && takePriceHint()) msg += '（値下げ・再入荷の通知はプレミアムで受け取れます）';
+    // 受付前のグッズなら「受付開始の瞬間」を優先して添える（その場で一番ほしくなるもの）。どちらも週1回まで
+    if (!instantAlerts && isPreorderSoon({ type: event.type, preorderStart: event.preorderStart }, todayStr()) && takeInstantHint()) msg += '（受付開始の瞬間の通知はプレミアムで受け取れます）';
+    else if (isGoods && !priceAlerts && takePriceHint()) msg += '（値下げ・再入荷の通知はプレミアムで受け取れます）';
     toast(msg);
   };
 

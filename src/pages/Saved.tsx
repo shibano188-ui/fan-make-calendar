@@ -6,6 +6,7 @@ import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import Chip from '../components/ui/Chip';
 import WorkChipsRow from '../components/WorkChipsRow';
+import PromoLine from '../components/ui/PromoLine';
 import { loadSharedFilters, saveSharedFilters } from '../lib/sharedFilters';
 import ExpandingSearch, { SearchSideButtons } from '../components/ui/ExpandingSearch';
 import { useTyping } from '../hooks/useTyping';
@@ -17,7 +18,10 @@ import { getHomePrefecture, toggleLike, toggleCalendarAdd, listAllParticipatedWo
 import { loadWorkImages } from '../lib/workImages';
 import { useTheme } from '../contexts/ThemeContext';
 import { peekSaved, loadSaved, updateSaved } from '../lib/savedStore';
-import { parseCategories, isNotifyOn } from '../lib/constants';
+import { parseCategories, isNotifyOn, FEATURE_PREMIUM } from '../lib/constants';
+
+const SYNC_PROMO_KEY = 'fan_cal_sync_promo_hidden';
+const THEME_PROMO_KEY = 'fan_cal_theme_promo_hidden';
 import { buildWorkColorMap } from '../lib/workColors';
 import { logSearch } from '../lib/dataLogs';
 import { addToCalendar } from '../lib/googleCalendar';
@@ -69,6 +73,13 @@ export default function Saved() {
   // 表示中の月・週・日。見出しと「今日」ボタンのためにここで持つ
   const [anchor, setAnchor] = useState<string>(todayStr());
   const premium = usePremium();
+  // 機能の案内を消したか。端末に覚える
+  const readHidden = (key: string) => { try { return localStorage.getItem(key) === '1'; } catch { return false; } };
+  const [syncPromoHidden, setSyncPromoHidden] = useState(() => readHidden(SYNC_PROMO_KEY));
+  const [themePromoHidden, setThemePromoHidden] = useState(() => readHidden(THEME_PROMO_KEY));
+  const hidePromo = (key: string, set: (v: boolean) => void) => { set(true); try { localStorage.setItem(key, '1'); } catch { /* noop */ } };
+  const { userThemes, userThemesLoaded } = useTheme();
+  const showThemePromo = !themePromoHidden && userThemesLoaded && userThemes.length === 0;
   // 月表示は1画面に収めて、下へスクロールできないようにする
   const monthFit = view === 'month';
   useEffect(() => {
@@ -455,6 +466,17 @@ export default function Saved() {
         )}
       </div>
 
+      {/* 機能の案内（1つだけ出す・2026-10-05）。カレンダーを見るための画面なので、どちらも✕で消せる（端末に覚える）。
+          上部バーの外に置き、スクロールで流れる。
+          1. テーマを作れること（まだ1つも作っていない人）。作れること自体が知られていない（柴野）
+          2. いつものカレンダーへの自動同期（プレミアム・無料の人だけ） */}
+      {showThemePromo ? (
+        <PromoLine className="mx-3 mt-2" icon={<Palette size={15} />} text="アプリのテーマを自由に生成できます"
+          onClick={() => navigate('/customize/theme')} onDismiss={() => hidePromo(THEME_PROMO_KEY, setThemePromoHidden)} />
+      ) : FEATURE_PREMIUM && !premium && !syncPromoHidden ? (
+        <PromoLine className="mx-3 mt-2" text="いつものカレンダーに自動同期" badge="プレミアム"
+          onClick={() => navigate('/premium')} onDismiss={() => hidePromo(SYNC_PROMO_KEY, setSyncPromoHidden)} />
+      ) : null}
 
       {/* 絞り込み: 対象（すべて/自分の投稿/通知ON）・細かい条件をここにまとめる */}
       {filterOpen && createPortal(

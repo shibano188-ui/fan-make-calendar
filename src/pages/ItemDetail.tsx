@@ -1,19 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Pin, Share2, X, Plus } from 'lucide-react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Pin, Share2, X, Plus, BellRing } from 'lucide-react';
 import type { CalendarEvent, EventVisit } from '../types';
 import EventEditForm from '../components/item/EventEditForm';
 import StaffEditPanel from '../components/item/StaffEditPanel';
 import { getEventById, getWorkById, getDisplayName, toggleLike, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, addEventVisit, removeEventVisit, getMyStaffRole, getPersonalEvent, proposeEdit, listEditProposals, type EditProposal, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
-import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME, isOfficialUser } from '../lib/constants';
+import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME, isOfficialUser, FEATURE_PREMIUM } from '../lib/constants';
 import OfficialBadge from '../components/ui/OfficialBadge';
 import { deriveItemType, itemDateLines, todayStr, isDateUncertain, stageFlow } from '../design/tokens';
 import { resolveBuy, getOffers, offerUrl, primaryOffer, isSearchPageUrl, isSourceOnlyLink, priceRange, isStockStale, stockBadge, cheapestOfferUrl } from '../lib/affiliate';
 import { buildPinnedOffer } from '../lib/searchProduct';
 import { openBuyLink } from '../lib/dataLogs';
-import { openExternal } from '../lib/openExternal';
+import { shareToX } from '../lib/share';
 import ReactionButton from '../components/item/ReactionButton';
 import { checkStockNote } from '../lib/stockCheck';
 import StageStepper from '../components/item/StageStepper';
@@ -29,7 +29,8 @@ import PendingProposals, { samePatch } from '../components/item/PendingProposals
 import LineLoader from '../components/ui/LineLoader';
 import UserProfileModal from '../components/UserProfileModal';
 import { useConfirm } from '../components/ui/ConfirmDialog';
-import { usePremium, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
+import { usePremium, canFollowMore, FREE_FOLLOW_LIMIT, useFeature, isPreorderSoon } from '../lib/premium';
+import PromoLine from '../components/ui/PromoLine';
 import { countdownLabel } from '../lib/relativeDay';
 
 // 外部カレンダー連携（Google/ics への追加）は一旦保留。再開時は true に戻す。
@@ -65,7 +66,12 @@ export default function ItemDetail() {
   const [ev, setEv] = useState<CalendarEvent | null | undefined>(undefined); // undefined=loading
   const [workName, setWorkName] = useState('');
   const [authorName, setAuthorName] = useState<string | null>(null);
-  const [tab, setTab] = useState<DetailTab>('detail');
+  // ?tab=stock などで、そのタブから開ける（ホームのストーリーの「在庫あり ◯店」から在庫情報へ飛ぶ）
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState<DetailTab>(() => {
+    const t = searchParams.get('tab');
+    return TABS.some((x) => x.key === t) ? (t as DetailTab) : 'detail';
+  });
   const [viewingUserId, setViewingUserId] = useState<string | null>(null);
   // タイルと共有するいいねストア。fallback は読み込んだ予定の値。
   const { liked, count: likeCount } = useLike(id ?? '', { liked: !!ev?.likedByMe, count: ev?.likes ?? 0 });
@@ -95,6 +101,7 @@ export default function ItemDetail() {
     return () => { alive = false; };
   }, [user]);
   const premium = usePremium();
+  const instantAlerts = useFeature('instantAlerts');
   const [following, setFollowing] = useState(false);
   const [followCount, setFollowCount] = useState(0);
   const [visits, setVisits] = useState<EventVisit[]>([]);
@@ -251,14 +258,8 @@ export default function ItemDetail() {
     } catch { setFollowing(prev); }
   };
   const openBuy = () => { haptic.select(); if (buyUrl) openBuyLink(event, 'item', user?.id); };
-  // X で共有（2026-10-04 柴野）。公式サイトではなく FanHive の LP を載せ、見た人がアプリに来られるようにする。
-  // 本文は「タイトル・日付・#作品名 #FanHive」。LP は横長のプレビュー画像を持っているので大きなカードで出る
-  const onShare = () => {
-    haptic.select();
-    const tag = workName ? toHashtag(workName) : '';
-    const text = [eff.title, ...itemDateLines(eff), [tag, '#FanHive'].filter(Boolean).join(' ')].join('\n');
-    void openExternal(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(SHARE_LP_URL)}`);
-  };
+  // X で共有（タイトル・日付・#作品名 #FanHive ＋ LP）。中身は lib/share.ts（ストーリーと共通）
+  const onShare = () => { haptic.select(); shareToX(eff, workName); };
 
   // リンクの追加。詳細タブの入力欄と「＋α」のパネルの両方から呼ぶ。
   // 買えるページは購入リンクに、Xのポストやニュースなど買えないものはソースとして足す。
@@ -454,6 +455,12 @@ export default function ItemDetail() {
                   {/* 段階の流れ（今いる段階に色）。その下に、一番気になる日までの日数 */}
                   <StageStepper event={eff} />
                   {countdown && <div className="mt-2 text-[13px] font-bold" style={{ color: 'var(--accent-text)' }}>{countdown}</div>}
+                  {/* 受付開始の即時通知の案内（無料の人・予約受付がこれから始まるグッズだけ・2026-10-05）。
+                      一番ほしくなるのは「予約開始前」を見ているときなので、段階の表示のすぐ下に置く */}
+                  {FEATURE_PREMIUM && !instantAlerts && isPreorderSoon({ type: deriveItemType(eff), preorderStart: eff.preorderStart }, todayStr()) && (
+                    <PromoLine className="mt-2" icon={<BellRing size={15} />} text="予約受付が始まった瞬間に通知" badge="プレミアム"
+                      onClick={() => navigate('/premium')} />
+                  )}
                 </div>
               );
             })()}
@@ -820,13 +827,6 @@ function sourceLabel(url: string): string {
     if (/(^|\.)(x\.com|twitter\.com|t\.co)$/.test(h)) return 'Xのポスト';
     return h;
   } catch { return url; }
-}
-
-const SHARE_LP_URL = 'https://fanhive.jp/lp';
-/** X のハッシュタグにできない文字（記号・空白）を落とす。「ハイキュー!!」→「#ハイキュー」 */
-function toHashtag(name: string): string {
-  const body = name.replace(/[^\p{L}\p{N}_ー]/gu, '');
-  return body ? `#${body}` : '';
 }
 
 type DetailTab = 'detail' | 'links' | 'stock' | 'contributors';

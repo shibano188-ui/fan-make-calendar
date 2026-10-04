@@ -5,8 +5,9 @@ import { pushAppState } from './appState';
 // localStorage が正、アカウントへは appState で同期する（sql/2026-09-19-work-images.sql）。
 
 const STORAGE_KEY = 'fan_work_images';
-/** 保存する大きさ。表示は16〜20pxなので、Retina の3倍でも足りる */
-const SIZE = 96;
+/** 保存する大きさ。ホームの作品カードの丸（直径64px）を Retina の3倍で出せるように 192px（2026-10-04 に 96px から上げた）。
+ *  1枚あたり十数KB。カレンダーの小さな四角はこれを縮めて出す */
+const SIZE = 192;
 
 export function loadWorkImages(): Record<string, string> {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}'); } catch { return {}; }
@@ -24,7 +25,7 @@ export function setWorkImage(workId: string, dataUrl: string | null) {
   save(all);
 }
 
-/** 選んだ画像（data URL）を真ん中で正方形に切り抜き、96px の JPEG にする */
+/** 選んだ画像（data URL）を真ん中で正方形に切り抜き、SIZE 四方の JPEG にする */
 export function toWorkImage(dataUrl: string): Promise<string | null> {
   return new Promise((resolve) => {
     const img = new Image();

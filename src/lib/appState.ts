@@ -29,13 +29,16 @@ const KEYS = {
   work_images:         'fan_work_images',
   work_settings:       'fan_work_settings',
   work_order:          'fan_work_order',
+  seen_event_ids:      'fan_seen_event_ids',
+  streak:              'fan_streak',
+  story_since:         'fan_story_since',
 } as const;
 
 export type AppStateColumn = keyof typeof KEYS;
 
 /** まだ本番にSQLを流していない列。ここに入れておくと、列が無い環境でも同期が止まらない。
  *  流したら空にする（work_settings / work_order は 2026-09-21 に流し済み）。 */
-const PENDING_COLS: AppStateColumn[] = [];
+const PENDING_COLS: AppStateColumn[] = []; // sql/2026-10-04-home-story.sql は 2026-10-04 に柴野が本番に流した
 
 // 配列で持つもの（それ以外＝work_colors / work_images はオブジェクト）
 const IS_ARRAY: Record<AppStateColumn, boolean> = {
@@ -49,6 +52,9 @@ const IS_ARRAY: Record<AppStateColumn, boolean> = {
   work_images:         false,
   work_settings:       false,
   work_order:          true,
+  seen_event_ids:      true,
+  streak:              false,
+  story_since:         false,
 };
 
 function readLocal(col: AppStateColumn): unknown {
@@ -135,6 +141,15 @@ export async function syncAppState(userId: string): Promise<void> {
 
     for (const col of Object.keys(KEYS) as AppStateColumn[]) {
       const server = row ? row[col] : null;
+      // 見た予定は増えるだけのものなので、サーバーで上書きせず両方を合わせる。上書きすると、
+      // 上げ損ねた分（最後に見てすぐ閉じた分）が次の起動で未読に戻る（2026-10-04「全部見たのに1件残る」）
+      if (col === 'seen_event_ids' && Array.isArray(server)) {
+        const local = readLocal(col) as string[];
+        const merged = [...new Set([...(server as string[]), ...local])].slice(-5000);
+        writeLocal(col, merged);
+        if (merged.length > (server as string[]).length) upload[col] = merged;
+        continue;
+      }
       const local = localWins ? readLocal(col) : null;
       if (localWins && !isEmpty(local)) {
         upload[col] = local;
