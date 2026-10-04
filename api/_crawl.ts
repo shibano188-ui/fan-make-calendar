@@ -8,7 +8,7 @@
 // まだ一度も見ていない場所を先に見て、あとは前回見たのが古い順。
 // 1回に2か所、同じ場所は1日1回まで。前回見た時刻は bot_state（key='crawl'）に持つ。
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { fetchProductList, excludeRegistered, type ProductList } from './_listsource.js';
+import { fetchProductList, excludeRegistered, productKey, type ProductList } from './_listsource.js';
 import { fetchShopifyAll, fetchShopifyCollection, type ShopifyProduct } from './_shopify.js';
 import { listEvents, type ListEvent } from './_listgroup.js';
 import { representativePrice, type OfferRow } from './_offers.js';
@@ -199,6 +199,22 @@ async function findByJan(db: Db, jan: string): Promise<{ id: string; offers: Off
   return row ? { id: row.id as string, offers: (row.offers ?? []) as OfferRow[], price: (row.price as number | null) ?? null } : null;
 }
 
+/** 同じ作品・同じ名前・同じ発売日の予定のうち、同じ商品ページ（productKey）を持つもの */
+async function findTwin(db: Db, wid: string, e: ListEvent): Promise<{ id: string; title: string; event_date: string | null; offers: OfferRow[]; price: number | null } | null> {
+  const keys = new Set((e.offers as OfferRow[]).map((o) => productKey(o.url)));
+  if (!keys.size) return null;
+  let q = db.from('events').select('id, title, event_date, offers, price').eq('work_id', wid).eq('pool', 0).eq('title', e.title);
+  q = e.date ? q.eq('event_date', e.date) : q.is('event_date', null);
+  const { data } = await q.limit(20);
+  for (const row of data ?? []) {
+    const offers = (Array.isArray(row.offers) ? row.offers : []) as OfferRow[];
+    if (offers.some((o) => keys.has(productKey(o.url)))) {
+      return { id: row.id as string, title: row.title as string, event_date: (row.event_date as string | null) ?? null, offers, price: (row.price as number | null) ?? null };
+    }
+  }
+  return null;
+}
+
 /** 予定を入れる。**同じ商品が別の予定として二重に入らないようにする**（柴野の要望・2026-09-28）:
  *  1. 購入リンクごとに JANコードを取り、同じ JANコードの予定がもうあれば、そこに購入リンクを足す（店・作品を問わない）
  *  2. JANコードが取れないときは、名前・発売日・値段が同じ別の店の予定（findSame）に足す
@@ -245,6 +261,11 @@ export async function registerEvents(
       if (!error) { same.offers = nextOffers; merged++; }
       continue;
     }
+    // 最後の歯止め: 同じ作品・同じ名前・同じ発売日で、同じ商品ページを持つ予定がもう DB にあれば作らない（購入リンクだけ足す）。
+    // 上の判定は渡された rows（1000件で切れることがある）と、登録済みリンクの一覧に頼っていて、どちらかが漏れると二重に入っていた
+    // （2026-10-04 ちいかわ9巻の特装版が5件）。名前が同じでも商品ページが違うもの（キャラ別の商品など）は別の予定のまま
+    const twin = await findTwin(db, wid, e);
+    if (twin) { await addTo(twin, e.offers as OfferRow[]); rows.push(twin); continue; }
     const isOrderMade = e.isOrderMade || !!preStart;
     const first = e.offers[0];
     const row = {

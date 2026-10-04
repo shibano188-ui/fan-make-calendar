@@ -115,14 +115,29 @@ export async function excludeRegistered(list: ProductList): Promise<{ list: Prod
   try { host = new URL(list.products[0].url).host; } catch { /* ignore */ }
   const names = [...new Set([list.retailer, list.shop, host, host.replace(/^www\./, '')].filter(Boolean))];
   const registered = new Set<string>();
+  // ⚠️ Supabase は1回に1000件までしか返さず、超えた分は黙って切る。アニメイト・ムービックの予定は1000件を超えていて
+  // （2026-10-04 時点で 1,306件・1,100件）、漏れた商品が「未登録」に見えて同じ予定が何度も入っていた
+  // （ちいかわ9巻の特装版が5件など・35組41件）。1000件ずつ最後まで読む。並びは id で固定して取りこぼさない
+  const PAGE = 1000;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const readAll = async (build: () => any, take: (row: any) => void) => {
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await build().range(from, from + PAGE - 1);
+      if (error) throw new Error(error.message);
+      for (const row of data ?? []) take(row);
+      if (!data || data.length < PAGE) return;
+    }
+  };
   await Promise.all(names.flatMap((name) => [
     // contains() に配列を渡すと Postgres の配列の書き方（{…}）で送られて jsonb に当たらない。JSON の文字列で渡す
-    db.from('events').select('offers').eq('pool', 0).filter('offers', 'cs', JSON.stringify([{ retailer: name }])).then(({ data }) => {
-      for (const e of data ?? []) for (const o of (e.offers as { url?: string }[] | null) ?? []) if (o?.url) registered.add(productKey(o.url));
-    }),
-    db.from('event_offer_contribs').select('offer').filter('offer', 'cs', JSON.stringify({ retailer: name })).then(({ data }) => {
-      for (const c of data ?? []) { const u = (c.offer as { url?: string } | null)?.url; if (u) registered.add(productKey(u)); }
-    }),
+    readAll(
+      () => db.from('events').select('id, offers').eq('pool', 0).filter('offers', 'cs', JSON.stringify([{ retailer: name }])).order('id'),
+      (e) => { for (const o of (e.offers as { url?: string }[] | null) ?? []) if (o?.url) registered.add(productKey(o.url)); },
+    ),
+    readAll(
+      () => db.from('event_offer_contribs').select('id, offer').filter('offer', 'cs', JSON.stringify({ retailer: name })).order('id'),
+      (c) => { const u = (c.offer as { url?: string } | null)?.url; if (u) registered.add(productKey(u)); },
+    ),
   ]));
   const products = list.products.filter((p) => !registered.has(productKey(p.url)));
   return { list: { ...list, products }, excluded: list.products.length - products.length };
