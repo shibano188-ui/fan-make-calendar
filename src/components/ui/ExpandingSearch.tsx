@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Search, X } from 'lucide-react';
 import { prefersReducedMotion } from '../../lib/fluid';
 import { haptic } from '../../lib/haptics';
+import { useBackToClose } from '../../lib/backStack';
 
 // 虫眼鏡のボタンから広がる検索欄（探す・カレンダー・ホームの上部）。
 // 欄は最初から横いっぱいの大きさで置いておき、見える範囲（clip-path）と虫眼鏡の位置（transform）だけを動かす。
@@ -103,6 +104,8 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
     setOpen(false);
     inputRef.current?.blur();
   };
+  // Android の戻るで閉じる（前は、ホーム・探す・カレンダー・マイページの上で開いているとアプリごと終わっていた）
+  useBackToClose(open, collapse);
 
   // 外から文字が入った（URL の ?q= など）ときは開いておく
   useEffect(() => {

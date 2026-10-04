@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { ChevronsDown, ChevronsUp } from 'lucide-react';
 import type { Work } from '../lib/api';
 import { haptic } from '../lib/haptics';
+import { useBackToClose } from '../lib/backStack';
 
 // 上部の作品の並び（TimeTree 風）。カレンダーと探すで共通。
 // 押すとその作品を隠す（もう一度で戻す）。入りきらない分は横にスクロールするか、右端の︾で広げて選ぶ。
@@ -20,6 +21,8 @@ export default function WorkChipsRow({ works, colors, images, excluded, onToggle
 }) {
   const rowRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  // Android の戻るで閉じる（前は、ホーム・探す・カレンダー・マイページの上で開いているとアプリごと終わっていた）
+  useBackToClose(open, () => setOpen(false));
   const [top, setTop] = useState(0);
   useLayoutEffect(() => {
     if (open && rowRef.current) setTop(rowRef.current.getBoundingClientRect().top);

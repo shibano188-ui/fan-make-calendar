@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, X, Calendar, Music, Camera, Mail, Globe, Set
 import { listUpcomingEvents, listEventsByDate, listEvents, getWorkById } from '../lib/api';
 import { loadCalendarSettings } from '../contexts/ThemeContext';
 import type { CalendarEvent } from '../types';
+import { useBackToClose } from '../lib/backStack';
 
 // ─── 定数 ────────────────────────────────────────────────────────
 
@@ -344,6 +345,8 @@ const PAGES = [
 // ─── メインモーダル ────────────────────────────────────────────────
 
 export default function WidgetPreviewModal({ onClose }: { onClose: () => void }) {
+  // Android の戻るで閉じる（前は、ホーム・探す・カレンダー・マイページの上で開いているとアプリごと終わっていた）
+  useBackToClose(true, onClose);
   const [page, setPage] = useState(0);
   const [data, setData] = useState<PageData>({
     event: null, todayEvents: [], monthEvents: [], workName: '',

@@ -26,6 +26,7 @@ import { usePremium, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
 import { storySince, freeCutoff } from '../lib/story';
 import { useAdBanner } from '../lib/useAdBanner';
 import { useTourStep, finishTourNow } from '../components/OnboardingTour';
+import { useBackToClose } from '../lib/backStack';
 
 const STATUS_ORDER: ItemStatus[] = ['preorder_soon', 'preorder', 'sale_soon', 'onsale', 'preorder_ended', 'ended', 'soldout'];
 
@@ -86,6 +87,8 @@ export default function Explore() {
   const [workMatches, setWorkMatches] = useState<Work[]>([]);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [filterOpen, setFilterOpen] = useState<boolean>(_ss.filterOpen ?? false);
+  // Android の戻るで閉じる（前は、ホーム・探す・カレンダー・マイページの上で開いているとアプリごと終わっていた）
+  useBackToClose(filterOpen, () => setFilterOpen(false));
 
   // フィルター状態をsessionStorageに同期（作品で絞って開いている間は保存しない）
   useEffect(() => {

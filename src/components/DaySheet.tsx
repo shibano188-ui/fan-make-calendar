@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { spring, project, rubberband, createVelocityTracker, prefersReducedMotion, type SpringHandle } from '../lib/fluid';
+import { useBackToClose } from '../lib/backStack';
 
 // カレンダーの日付を押したときに下から出る、その日の予定のパネル。
 //
@@ -32,6 +33,8 @@ export default function DaySheet({ open, onClose, header, children }: Props) {
   const [detent, setDetent] = useState<Detent>('half');
   const closingRef = useRef(false);
   const onCloseRef = useRef(onClose);
+  // Android の戻るで閉じる
+  useBackToClose(open, () => onCloseRef.current());
   onCloseRef.current = onClose;
   const reduced = prefersReducedMotion();
 

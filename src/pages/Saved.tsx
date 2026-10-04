@@ -32,6 +32,7 @@ import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { haptic } from '../lib/haptics';
 import { usePremium } from '../lib/premium';
 import { useTourStep, tourEventId, tourLikedEvent } from '../components/OnboardingTour';
+import { useBackToClose } from '../lib/backStack';
 
 // 「予約受付中」は状態の選択肢と重なるので外した（前に選んでいた人は「すべて」に戻る）
 type Tab = 'all' | 'mine' | 'notify';
@@ -96,6 +97,8 @@ export default function Saved() {
   const [query, setQuery] = useState<string>(_ss.query ?? '');
   const sideRef = useRef<HTMLDivElement>(null);
   const [filterOpen, setFilterOpen] = useState<boolean>(_ss.filterOpen ?? false);
+  // Android の戻るで閉じる（前は、ホーム・探す・カレンダー・マイページの上で開いているとアプリごと終わっていた）
+  useBackToClose(filterOpen, () => setFilterOpen(false));
   // 上部の作品の並び（TimeTree 風）。フォロー中の作品だけを出し、押すとその作品を隠す（もう一度で戻す）
   // 前回の並びを覚えておき、最初の描画から出す（後から出ると、カレンダーが1段下にずれて見える）
   const [followedWorks, setFollowedWorks] = useState<Work[]>(() => {

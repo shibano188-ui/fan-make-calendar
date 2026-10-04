@@ -18,6 +18,7 @@ import ThemeList from '../components/theme/ThemeList';
 import { useNavigate } from 'react-router-dom';
 import { usePremium } from '../lib/premium';
 import { FREE_THEME_LIMIT } from '../lib/userThemes';
+import { useBackToClose } from '../lib/backStack';
 
 /** 「カラー・背景画像の設定」のタブ。選んだものがカレンダーで使う見た目になる */
 function LookTab({ active, onClick, children, dot }: {
@@ -81,6 +82,8 @@ function BgImageCropModal({
   onConfirm: (offsetX: number, offsetY: number) => void;
   onCancel: () => void;
 }) {
+  // Android の戻るで閉じる（前は、ホーム・探す・カレンダー・マイページの上で開いているとアプリごと終わっていた）
+  useBackToClose(true, onCancel);
   const [offsetX, setOffsetX] = useState(initialOffsetX);
   const [offsetY, setOffsetY] = useState(initialOffsetY);
   const containerRef = useRef<HTMLDivElement>(null);

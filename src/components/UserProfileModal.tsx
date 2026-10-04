@@ -11,6 +11,7 @@ import { useToast } from './ui/Toast';
 import { ANON_NAME, isOfficialUser } from '../lib/constants';
 import OfficialBadge from './ui/OfficialBadge';
 import { listWorkNushi, shortWorkName } from '../lib/ranking';
+import { useBackToClose } from '../lib/backStack';
 
 interface Profile {
   displayName: string | null;
@@ -40,6 +41,8 @@ export default function UserProfileModal({
   /** ブロックが成立したとき。開いていた投稿はもう見えないので、呼び出し側で画面を離れる */
   onBlocked?: () => void;
 }) {
+  // Android の戻るで閉じる（前は、ホーム・探す・カレンダー・マイページの上で開いているとアプリごと終わっていた）
+  useBackToClose(true, onClose);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [extras, setExtras] = useState<ProfileExtras | null>(null);
   const [loading, setLoading] = useState(true);

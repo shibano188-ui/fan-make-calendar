@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Poin
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { spring, project, rubberband, createVelocityTracker, prefersReducedMotion, type SpringHandle } from '../../lib/fluid';
+import { useBackToClose } from '../../lib/backStack';
 
 // ジェスチャー駆動の共通ボトムシート。
 // ・グラバー/ヘッダーを指で1:1追従（掴んだ位置を尊重）
@@ -44,6 +45,8 @@ export default function Sheet({
   const closingRef = useRef(false);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  // Android の戻るで閉じる
+  useBackToClose(open, () => onCloseRef.current());
   const reduced = prefersReducedMotion();
 
   const setY = (y: number) => {

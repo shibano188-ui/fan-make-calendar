@@ -22,6 +22,7 @@ import OptImg from '../ui/OptImg';
 import ReactionButton from '../item/ReactionButton';
 import NotifyBell from '../item/NotifyBell';
 import WorkBadge from './WorkBadge';
+import { useBackToClose } from '../../lib/backStack';
 
 // ホームのストーリー（2026-10-04 柴野）。詳細ページをもとに、1画面で読めるようにしたもの。
 // 5秒で次へ進む（画像を読み終えてから数え始める）。押している間は止まる（2026-10-04 柴野「自動で進めよう」）。
@@ -64,6 +65,8 @@ export default function StoryViewer({ groups, initial, onClose, onSeen, onOpenDe
 }) {
   const [pos, setPos] = useState<StoryPosition>(initial);
   const navigate = useNavigate();
+  // Android の戻るで閉じる（前はアプリごと終わっていた）
+  useBackToClose(true, onClose);
   const instantAlerts = useFeature('instantAlerts');
   // 押した側に矢印を一瞬出す（戻ったのか進んだのか分かるように）
   const [flash, setFlash] = useState<{ side: 'prev' | 'next'; n: number } | null>(null);

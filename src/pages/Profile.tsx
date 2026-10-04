@@ -27,6 +27,7 @@ import { REGIONS, ADJACENT } from '../lib/prefectures';
 const BOTTOM_TAB_H = 56;
 
 import { type AchievementStats, calcTitle, calcRadarData, calcGrade } from '../lib/achievements';
+import { useBackToClose } from '../lib/backStack';
 
 const BADGES = [
   // 投稿系
@@ -164,6 +165,8 @@ export default function Profile() {
   const [filterValue, setFilterValue] = useState<string | null>(() => loadRegionFilter().filterValue);
   const [includeAdjacent, setIncludeAdjacent] = useState(() => loadRegionFilter().includeAdjacent);
   const [showRegionPanel, setShowRegionPanel] = useState(false);
+  // Android の戻るで閉じる（前は、ホーム・探す・カレンダー・マイページの上で開いているとアプリごと終わっていた）
+  useBackToClose(showRegionPanel, () => setShowRegionPanel(false));
 
   const filterActive = filterMode !== 'none';
   const filterLabel = filterMode === 'pref' ? filterValue ?? '' : filterMode === 'region' ? `${filterValue}地方` : '';

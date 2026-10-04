@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useRef, useCallback, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useBackToClose } from '../../lib/backStack';
 
 // iOS 風の確認ダイアログ（window.confirm 置き換え。Phase F-1）
 
@@ -32,6 +33,9 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     resolverRef.current = null;
     setOpts(null);
   };
+  // Android の戻るで閉じる（前は、ホーム・探す・カレンダー・マイページの上で開いているとアプリごと終わっていた）
+  // 「OK」だけのダイアログ（hideCancel）は、戻るで OK と同じ扱いにする
+  useBackToClose(!!opts, () => close(!!opts?.hideCancel));
 
   return (
     <ConfirmContext.Provider value={confirm}>

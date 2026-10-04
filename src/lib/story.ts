@@ -133,7 +133,7 @@ export function nextDateOf(e: CalendarEvent, today = todayStr()): NextDate | nul
 }
 
 /** 作品カードに出す次の予定。いいねした予定（自分が買う・行くもの）を優先し、無ければ作品の全部から */
-export function workNext(items: CalendarEvent[], likedIds: Set<string>, isHidden: (e: CalendarEvent) => boolean): { mine: boolean; main: NextDate | null; after: CalendarEvent[] } {
+export function workNext(items: CalendarEvent[], likedIds: Set<string>, isHidden: (e: CalendarEvent) => boolean): { mine: boolean; main: NextDate | null; after: NextDate[] } {
   const today = todayStr();
   const dated = (list: CalendarEvent[]) => list
     .filter((e) => !isHidden(e))
@@ -142,7 +142,12 @@ export function workNext(items: CalendarEvent[], likedIds: Set<string>, isHidden
   const liked = dated(items.filter((e) => likedIds.has(e.id)));
   const mine = liked.length > 0;
   const list = mine ? liked : dated(items);
-  return { mine, main: list[0] ?? null, after: list.slice(1).filter((n) => !!n.event.imageUrl).slice(0, 3).map((n) => n.event) };
+  // その次の予定（カードの高さに余りがあるときに並べる）。同じ予定が2回並ばないよう、予定ごとに1つ
+  // いいねした予定が少ないときは、その作品のほかの予定で続きを埋める（カードの中ほどが空かないように）
+  const seen = new Set(list[0] ? [list[0].event.id] : []);
+  const rest = mine ? [...list.slice(1), ...dated(items)] : list.slice(1);
+  const after = rest.filter((n) => !seen.has(n.event.id) && seen.add(n.event.id)).slice(0, 4);
+  return { mine, main: list[0] ?? null, after };
 }
 
 // ─── 連続記録 ───────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useRef, useCallback, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useBackToClose } from '../../lib/backStack';
 
 // iOS 風のアクションシート（複数選択肢＋キャンセル。選んだ id を返す。キャンセルは null）
 
@@ -33,6 +34,8 @@ export function ActionSheetProvider({ children }: { children: ReactNode }) {
     resolverRef.current = null;
     setOpts(null);
   };
+  // Android の戻るで閉じる（前は、ホーム・探す・カレンダー・マイページの上で開いているとアプリごと終わっていた）
+  useBackToClose(!!opts, () => close(null));
 
   return (
     <ActionSheetContext.Provider value={show}>

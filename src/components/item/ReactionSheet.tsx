@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { REACTIONS } from '../../lib/reactions';
 import { useStamps, toggleStamp } from '../../lib/stampStore';
 import { haptic } from '../../lib/haptics';
+import { useBackToClose } from '../../lib/backStack';
 
 // リアクションを選ぶ、下から出るパネル。カレンダーの日付を押したときのパネル（DaySheet）と同じく
 // 後ろを暗くしない。外を押すか、下に引くと閉じる。1つ押したら閉じる（別のを足すときはもう一度開く）。
@@ -11,6 +12,8 @@ import { haptic } from '../../lib/haptics';
 export const STAMP_ON_BG = 'color-mix(in srgb, var(--accent-color) 24%, transparent)';
 
 export default function ReactionSheet({ eventId, onClose }: { eventId: string; onClose: () => void }) {
+  // Android の戻るで閉じる（前は、ホーム・探す・カレンダー・マイページの上で開いているとアプリごと終わっていた）
+  useBackToClose(true, onClose);
   const { counts, mine } = useStamps(eventId);
   const panelRef = useRef<HTMLDivElement>(null);
   const [closing, setClosing] = useState(false);

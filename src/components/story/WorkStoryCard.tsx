@@ -1,5 +1,5 @@
 import { Fragment, useLayoutEffect, useRef, useState } from 'react';
-import { Pencil, Plus, ImageOff } from 'lucide-react';
+import { Pencil, Plus, ImageOff, Heart } from 'lucide-react';
 import type { CalendarEvent } from '../../types';
 import type { StoryGroup, NextDate } from '../../lib/story';
 import { parseImageUrls } from '../../lib/constants';
@@ -12,6 +12,26 @@ import { haptic } from '../../lib/haptics';
 // 中ほどは「次の予定」: いいねした予定があれば「あなたの予定」、無ければ「この作品の予定」で一番近い節目と、その次の予定の画像
 
 const BADGE = 64;
+/** 箱の中で実際に空いている高さを測り、1行 rowH px の行がいくつ入るか（最大 max）。
+ *  カードの高さから式で見積もると、中身の高さ（作品名が2行になる等）で外れて空きが残った（2026-10-05） */
+function useFitRows(rowH: number, max: number, deps: unknown[]) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const usedRef = useRef<HTMLDivElement>(null);
+  const [rows, setRows] = useState(0);
+  useLayoutEffect(() => {
+    const box = boxRef.current, used = usedRef.current;
+    if (!box || !used) return;
+    const measure = () => {
+      const free = box.clientHeight - used.offsetHeight;
+      setRows(Math.max(0, Math.min(max, Math.floor(free / rowH))));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(box);
+    return () => ro.disconnect();
+  }, deps); // eslint-disable-line react-hooks/exhaustive-deps
+  return { boxRef, usedRef, rows };
+}
 
 function md(d: string): string {
   const [, m, day] = d.split('-');
@@ -25,7 +45,7 @@ function daysText(days: number): string {
 export function WorkStoryCard({ group, followDays, next, height, onStory, onPickIcon, onNew, onSearch, onOpenEvent }: {
   group: StoryGroup;
   followDays: number | null;
-  next: { mine: boolean; main: NextDate | null; after: CalendarEvent[] };
+  next: { mine: boolean; main: NextDate | null; after: NextDate[] };
   height: number;
   onStory: () => void;
   onPickIcon: () => void;
@@ -33,6 +53,8 @@ export function WorkStoryCard({ group, followDays, next, height, onStory, onPick
   onSearch: () => void;
   onOpenEvent: (e: CalendarEvent) => void;
 }) {
+  // その次の予定は、カードの中ほどに実際に空いた高さのぶんだけ並べる（1件 44px）
+  const fit = useFitRows(46, 4, [height, next.main?.event.id, next.after.length, group.title]);
   return (
     <CardFrame height={height} badge={
       <BadgeSlot>
@@ -54,8 +76,12 @@ export function WorkStoryCard({ group, followDays, next, height, onStory, onPick
 
       {/* 次の締切・発売。いいねした予定があればそれ（自分が買う・行くもの）、無ければ作品の全部から一番近いもの。
           文字だけだと何の予定か分からなかったので、予定の画像と「◯◯まで あと◯日」を並べた小さなカードにする */}
-      <div className="mx-3 mt-3 pt-2.5 border-t border-subtle flex-1 min-h-0 flex flex-col overflow-hidden">
-        <div className="text-[11px] text-label-secondary">次の締切・発売{next.mine && <span className="text-label-tertiary">（いいねした予定）</span>}</div>
+      <div ref={fit.boxRef} className="mx-3 mt-3 pt-2.5 border-t border-subtle flex-1 min-h-0 flex flex-col overflow-hidden">
+        <div ref={fit.usedRef} className="flex flex-col">
+        {/* いいねした予定のときはハートの印（「（いいねした予定）」と書くと2行に折れていた） */}
+        <div className="text-[11px] text-label-secondary flex items-center gap-1">
+          次の締切・発売{next.mine && <Heart size={10} fill="var(--accent-color)" style={{ color: 'var(--accent-color)' }} aria-label="いいねした予定" />}
+        </div>
         {next.main ? (
           <button onClick={() => { haptic.select(); onOpenEvent(next.main!.event); }} className="pressable text-left mt-1.5">
             <span className="flex items-center gap-2">
@@ -72,6 +98,23 @@ export function WorkStoryCard({ group, followDays, next, height, onStory, onPick
           </button>
         ) : (
           <div className="text-[12px] text-label-tertiary mt-1">これからの締切・発売はまだありません</div>
+        )}
+        </div>
+        {/* その次の予定。背の高い画面ではカードの中ほどが空くので、空いた高さのぶんだけ並べる（2026-10-05） */}
+        {next.main && fit.rows > 0 && next.after.length > 0 && (
+          <div className="mt-2.5 pt-2 border-t border-subtle flex flex-col gap-1.5">
+            {next.after.slice(0, fit.rows).map((n) => (
+              <button key={n.event.id} onClick={() => { haptic.select(); onOpenEvent(n.event); }} className="pressable flex items-center gap-2 text-left">
+                <span className="w-8 h-8 rounded-[6px] overflow-hidden bg-fill-3 flex-shrink-0 flex items-center justify-center">
+                  <Thumb src={parseImageUrls(n.event.imageUrl)[0]} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[10px] text-label-secondary leading-tight">{n.label} {md(n.date)}・{daysText(n.days)}</span>
+                  <span className="block text-[11px] leading-snug truncate">{n.event.title}</span>
+                </span>
+              </button>
+            ))}
+          </div>
         )}
       </div>
 
@@ -110,6 +153,10 @@ function Thumb({ src }: { src?: string }) {
 export function WeekStoryCard({ group, height, counts, onStory }: {
   group: StoryGroup; height: number; counts: { deadline: number; release: number; popular: number }; onStory: () => void;
 }) {
+  // 今週の予定の画像は、空いた高さのぶんだけ段を並べる（1段 = カードの幅の3分の1 ＋ すき間）
+  const fit = useFitRows(56, 4, [height, group.pages.length]);
+  // 画像のある予定から、今週のまとめに並ぶ順で
+  const thumbs = group.pages.map((p) => parseImageUrls(p.event.imageUrl)[0]).filter((u): u is string => !!u);
   const rows = [['締切間近', counts.deadline], ['今週発売', counts.release], ['人気', counts.popular]] as const;
   return (
     <CardFrame height={height} badge={
@@ -121,13 +168,23 @@ export function WeekStoryCard({ group, height, counts, onStory }: {
     }>
       
       <div className="px-3 pt-1 text-center text-[15px] font-bold">今週のまとめ</div>
-      <div className="mx-3 mt-3 pt-2.5 border-t border-subtle flex-1 flex flex-col gap-2.5">
+      <div ref={fit.boxRef} className="mx-3 mt-3 pt-2.5 border-t border-subtle flex-1 min-h-0 flex flex-col gap-2.5 overflow-hidden">
+        <div ref={fit.usedRef} className="flex flex-col gap-2.5">
         {rows.map(([label, n]) => (
           <div key={label} className="flex items-baseline justify-between">
             <span className="text-[13px] text-label-secondary">{label}</span>
             <span className="text-[20px] font-bold tabular-nums" style={{ color: n ? 'var(--accent-text)' : 'var(--label-tertiary)' }}>{n}</span>
           </div>
         ))}
+        </div>
+        {/* 今週の予定の画像。背の高い画面で空いた高さのぶんだけ（2026-10-05）。押すとまとめが開く */}
+        {fit.rows > 0 && thumbs.length > 0 && (
+          <button onClick={() => { haptic.select(); onStory(); }} aria-label="今週のまとめを1件ずつ見る" className="pressable grid grid-cols-3 gap-1 mt-0.5">
+            {thumbs.slice(0, fit.rows * 3).map((src, i) => (
+              <span key={i} className="aspect-square rounded-[6px] overflow-hidden bg-fill-3 flex items-center justify-center"><Thumb src={src} /></span>
+            ))}
+          </button>
+        )}
       </div>
       <div className="mx-3 pt-2.5 pb-3 border-t border-subtle mt-2">
         <button onClick={() => { haptic.select(); onStory(); }} disabled={!group.pages.length}

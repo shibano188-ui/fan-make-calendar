@@ -16,6 +16,7 @@ import { useFeature } from './lib/premium';
 import { useAdsSuppressed } from './lib/adSuppress';
 import { SHOW_ONBOARDING, ONBOARDING_KEY } from './lib/constants';
 import { requestTracking } from './lib/att';
+import { closeTopOverlay } from './lib/backStack';
 
 // ピボット後IA（feat/pivot-rebuild）。旧 Calendar 中心の画面は順次置換。
 const AppShell        = lazy(() => import('./components/AppShell'));
@@ -222,6 +223,8 @@ function BackButtonHandler() {
     (async () => {
       const { App } = await import('@capacitor/app');
       const handle = await App.addListener('backButton', ({ canGoBack }) => {
+        // 画面の上に重ねて開いているもの（新着を見る画面・シート・ダイアログなど）があれば、まずそれを閉じる
+        if (closeTopOverlay()) return;
         const atRoot = ROOT_PATHS.includes(window.location.pathname);
         if (!atRoot && canGoBack) window.history.back();
         else App.exitApp();
