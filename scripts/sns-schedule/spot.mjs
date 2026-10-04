@@ -7,6 +7,9 @@
 //   node scripts/sns-schedule/spot.mjs --no-image          商品の画像を入れない
 //   node scripts/sns-schedule/spot.mjs --drive             Google ドライブの「FanHive 予定表/直前 <日付>」に同期する
 //
+// 日付のフォルダには、画像と一緒に「00_購入リンク.txt」を入れる（投稿に販売先のリンクを付けたいとき用・柴野 2026-10-04）。
+// --drive のときは、日付が過ぎた「直前 <日付>」のフォルダを中身ごと消す（ドライブの容量を使い続けないように）
+//
 // 節目＝発売・予約開始・予約締切（受注は受注開始・受注締切、イベントは申込開始・申込締切・開催）。
 // 同じ日に節目が2つある予定（予約締切と発売が同じ日など）は1枚にまとめ、見出しに両方を出す。
 // 下の段に、その予定の節目をぜんぶ並べる（いつ予約できて、いつ届くかが1枚で分かるように）。
@@ -169,6 +172,41 @@ function cardHtml(work, e, date) {
   </body></html>`;
 }
 
+// ── 購入リンクのまとめ（00_購入リンク.txt）────────────────────────
+// 検索結果のページは商品が決まらないので、商品ページがあるときは出さない
+const isSearchPage = (u) => /list\.php|\/search|[?&](kw|keyword|q|smt|search_word)=/i.test(u);
+function linksText(date, items) {
+  const now = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 16).replace('T', ' ');
+  const out = [
+    `FanHive 直前ポスト ${mdw(date)} の購入リンク`,
+    '・アフィリエイト（広告）のリンクを含みます。投稿に載せるときは「PR」「広告」などと書いてください',
+    `・${now} 時点の情報です。売り切れ・受付終了になっていることがあります。載せる前に開いて確かめてください`,
+    '',
+  ];
+  for (const { file, work, e } of items) {
+    const kinds = milestones(e).filter((m) => m.date === date).map((m) => `${m.kind}${m.time ? ` ${m.time}` : ''}`).join('・');
+    const price = priceText(e);
+    const offers = (e.offers ?? []).filter((o) => o.url);
+    const products = offers.filter((o) => !isSearchPage(o.url));
+    const shown = products.length ? products : offers;
+    out.push('━━━━━━━━━━━━━━━━━━━━');
+    out.push(`[画像] ${file}`);
+    out.push(`${work}｜${e.title.replace(/\s+/g, ' ').trim()}`);
+    out.push(`${mdw(date)} ${kinds}${price ? ` ／ ${price}` : ''}`);
+    out.push(`FanHive: https://fanhive.jp/item/${e.id}`);
+    if (shown.length) {
+      out.push('販売先:');
+      for (const o of shown) out.push(`  ${o.retailer || 'お店'}${o.label ? `（${o.label}）` : ''} ${o.affiliateUrl || o.url}`);
+    } else if (e.link_url) {
+      out.push(`公式: ${e.link_url}`);
+    } else {
+      out.push('販売先: まだ登録されていません');
+    }
+    out.push('');
+  }
+  return Buffer.from(out.join('\n'), 'utf8');
+}
+
 // ── 本体 ─────────────────────────────────────────────────────
 if (TO_DRIVE && !process.env.GDRIVE_REFRESH_TOKEN) {
   console.log('GDRIVE_* が未設定なので何もしない（scripts/sns-schedule/drive-auth.mjs で入れる）');
@@ -197,6 +235,7 @@ const fileName = (work, e, date) => `${work}_${milestones(e).filter((m) => m.dat
 let total = 0;
 for (const [date, perWork] of byDate) {
   const files = {};
+  const listed = [];
   for (const work of targets) {
     for (const e of (perWork[work.name] ?? []).sort((a, b) => a.title.localeCompare(b.title))) {
       await tab.setContent(cardHtml(work, e, date), { waitUntil: 'networkidle' });
@@ -207,11 +246,14 @@ for (const [date, perWork] of byDate) {
         await tab.setContent(cardHtml(work, { ...e, image_url: null }, date), { waitUntil: 'networkidle' });
         await tab.evaluate(() => document.fonts.ready);
       }
-      files[fileName(work.name, e, date)] = await tab.screenshot();
+      const file = fileName(work.name, e, date);
+      files[file] = await tab.screenshot();
+      listed.push({ file, work: work.name, e });
     }
   }
   const n = Object.keys(files).length;
   total += n;
+  if (n) files['00_購入リンク.txt'] = linksText(date, listed);
   if (drive) {
     if (n) await drive.syncWork(`直前 ${date}`, files);
   } else {
@@ -224,3 +266,8 @@ for (const [date, perWork] of byDate) {
 }
 await browser.close();
 console.log(`合計 ${total}枚`);
+// 日付が過ぎたフォルダを消す（きょうのフォルダは残す）
+if (drive) {
+  const gone = await drive.pruneDated('直前 ', TODAY);
+  if (gone.length) console.log(`消したフォルダ: ${gone.join('・')}`);
+}

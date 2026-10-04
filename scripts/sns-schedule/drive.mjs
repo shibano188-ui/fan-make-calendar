@@ -62,13 +62,24 @@ export async function connect({ clientId, clientSecret, refreshToken }) {
       return res.ok ? res.json() : {};
     },
     writeManifest: (m) => put(root, 'manifest.json', JSON.stringify(m, null, 2), 'application/json'),
-    /** 作品のフォルダを、files（{名前: PNGのBuffer}）と同じ中身にする。要らなくなった月の画像はゴミ箱へ */
+    /** 作品のフォルダを、files（{名前: 中身の Buffer}）と同じ中身にする。要らなくなった月の画像はゴミ箱へ。
+     *  .txt は文字のファイル（直前ポストの購入リンクのまとめ）、それ以外は PNG として上げる */
     async syncWork(work, files) {
       const dir = await folder(work, root);
-      for (const [name, buf] of Object.entries(files)) await put(dir, name, buf, 'image/png');
+      for (const [name, buf] of Object.entries(files)) await put(dir, name, buf, name.endsWith('.txt') ? 'text/plain; charset=UTF-8' : 'image/png');
       for (const f of await list(`'${dir}' in parents`)) {
         if (!(f.name in files)) await call(`${API}/files/${f.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }) });
       }
+    },
+    /** 「直前 2026-10-04」のような日付のフォルダのうち、before より前の日のものを中身ごと消す（ゴミ箱に入れず完全に消す。
+     *  ゴミ箱は30日間ドライブの容量を使い続けるため）。drive.file の権限なので、このスクリプトが作ったフォルダしか消せない */
+    async pruneDated(prefix, before) {
+      const gone = [];
+      for (const f of await list(`'${root}' in parents and mimeType='${FOLDER}'`)) {
+        const d = f.name.startsWith(prefix) ? f.name.slice(prefix.length).trim() : '';
+        if (/^\d{4}-\d{2}-\d{2}$/.test(d) && d < before) { await call(`${API}/files/${f.id}`, { method: 'DELETE' }); gone.push(f.name); }
+      }
+      return gone;
     },
   };
 }
