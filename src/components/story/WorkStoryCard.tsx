@@ -34,7 +34,7 @@ export function WorkStoryCard({ group, followDays, next, height, onStory, onPick
   onOpenEvent: (e: CalendarEvent) => void;
 }) {
   return (
-    <CardFrame height={height}>
+    <CardFrame height={height} badge={
       <BadgeSlot>
         <button onClick={() => { haptic.select(); onStory(); }} aria-label={`${group.title}の新着を1件ずつ見る`} className="pressable rounded-full">
           <WorkBadge title={group.title} color={group.color} image={group.image} size={BADGE} ring={group.pages.length ? (group.unseen > 0 ? 'unseen' : 'seen') : undefined} />
@@ -45,6 +45,8 @@ export function WorkStoryCard({ group, followDays, next, height, onStory, onPick
           <Pencil size={12} className="text-label-secondary" />
         </button>
       </BadgeSlot>
+    }>
+      
       <div className="px-3 pt-1 text-center">
         <FitTitle text={group.title} />
         {followDays != null && <div className="text-[11px] text-label-tertiary mt-0.5">{followDays}日フォロー中</div>}
@@ -110,12 +112,14 @@ export function WeekStoryCard({ group, height, counts, onStory }: {
 }) {
   const rows = [['締切間近', counts.deadline], ['今週発売', counts.release], ['人気', counts.popular]] as const;
   return (
-    <CardFrame height={height}>
+    <CardFrame height={height} badge={
       <BadgeSlot>
         <button onClick={() => { haptic.select(); onStory(); }} aria-label="今週のまとめを1件ずつ見る" className="pressable rounded-full">
           <WorkBadge title={group.title} color={group.color} size={BADGE} label="今週" ring={group.pages.length ? (group.unseen > 0 ? 'unseen' : 'seen') : undefined} />
         </button>
       </BadgeSlot>
+    }>
+      
       <div className="px-3 pt-1 text-center text-[15px] font-bold">今週のまとめ</div>
       <div className="mx-3 mt-3 pt-2.5 border-t border-subtle flex-1 flex flex-col gap-2.5">
         {rows.map(([label, n]) => (
@@ -228,12 +232,16 @@ function FitTitle({ text }: { text: string }) {
 /** 1画面に2枚と、3枚目の端が少し見える幅（横に続くと分かるように） */
 const CARD_W = 'calc((100% - 36px) / 2.14)';
 
-function CardFrame({ height, children }: { height: number; children: React.ReactNode }) {
+function CardFrame({ height, badge, children }: { height: number; badge?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="snap-start flex-shrink-0 relative" style={{ width: CARD_W, height, paddingTop: BADGE / 2 }}>
-      <div className="h-full rounded-[16px] border border-subtle flex flex-col" style={{ backgroundColor: 'var(--bg-secondary)', paddingTop: BADGE / 2 }}>
+      {/* data-skin-part='card': テーマ（角の形・縁・影・飾り）をほかのカードと同じように当てるための印 */}
+      <div data-skin-part="card" className="h-full rounded-[16px] border border-subtle flex flex-col" style={{ backgroundColor: 'var(--bg-secondary)', paddingTop: BADGE / 2 }}>
         {children}
       </div>
+      {/* アイコンはカードの外に置く。中に置くと、テーマがカードの形を切り抜いたとき（角を落とす形など）に
+          はみ出した部分ごと切り取られて押せなくなる（2026-10-05） */}
+      {badge}
     </div>
   );
 }
