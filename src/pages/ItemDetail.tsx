@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Pin, Share2, X, Plus } from 'lucide-react';
+import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Pin, Share2, X, Plus, BellRing } from 'lucide-react';
 import type { CalendarEvent, EventVisit } from '../types';
 import EventEditForm from '../components/item/EventEditForm';
 import StaffEditPanel from '../components/item/StaffEditPanel';
 import { getEventById, getWorkById, getDisplayName, toggleLike, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, addEventVisit, removeEventVisit, getMyStaffRole, getPersonalEvent, proposeEdit, listEditProposals, type EditProposal, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
-import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME, isOfficialUser } from '../lib/constants';
+import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME, isOfficialUser, FEATURE_PREMIUM } from '../lib/constants';
 import OfficialBadge from '../components/ui/OfficialBadge';
 import { deriveItemType, itemDateLines, todayStr, isDateUncertain, stageFlow } from '../design/tokens';
 import { resolveBuy, getOffers, offerUrl, primaryOffer, isSearchPageUrl, isSourceOnlyLink, priceRange, isStockStale, stockBadge, cheapestOfferUrl } from '../lib/affiliate';
@@ -29,7 +29,8 @@ import PendingProposals, { samePatch } from '../components/item/PendingProposals
 import LineLoader from '../components/ui/LineLoader';
 import UserProfileModal from '../components/UserProfileModal';
 import { useConfirm } from '../components/ui/ConfirmDialog';
-import { usePremium, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
+import { usePremium, canFollowMore, FREE_FOLLOW_LIMIT, useFeature, isPreorderSoon } from '../lib/premium';
+import PromoLine from '../components/ui/PromoLine';
 import { countdownLabel } from '../lib/relativeDay';
 
 // 外部カレンダー連携（Google/ics への追加）は一旦保留。再開時は true に戻す。
@@ -100,6 +101,7 @@ export default function ItemDetail() {
     return () => { alive = false; };
   }, [user]);
   const premium = usePremium();
+  const instantAlerts = useFeature('instantAlerts');
   const [following, setFollowing] = useState(false);
   const [followCount, setFollowCount] = useState(0);
   const [visits, setVisits] = useState<EventVisit[]>([]);
@@ -453,6 +455,12 @@ export default function ItemDetail() {
                   {/* 段階の流れ（今いる段階に色）。その下に、一番気になる日までの日数 */}
                   <StageStepper event={eff} />
                   {countdown && <div className="mt-2 text-[13px] font-bold" style={{ color: 'var(--accent-text)' }}>{countdown}</div>}
+                  {/* 受付開始の即時通知の案内（無料の人・予約受付がこれから始まるグッズだけ・2026-10-05）。
+                      一番ほしくなるのは「予約開始前」を見ているときなので、段階の表示のすぐ下に置く */}
+                  {FEATURE_PREMIUM && !instantAlerts && isPreorderSoon({ type: deriveItemType(eff), preorderStart: eff.preorderStart }, todayStr()) && (
+                    <PromoLine className="mt-2" icon={<BellRing size={15} />} text="予約受付が始まった瞬間に通知" badge="プレミアム"
+                      onClick={() => navigate('/premium')} />
+                  )}
                 </div>
               );
             })()}

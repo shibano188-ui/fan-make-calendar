@@ -174,3 +174,10 @@ export function usePremium(): boolean {
 export function useFeature(_feature: PremiumFeature): boolean {
   return usePremium();
 }
+
+/** 受付開始の即時通知（instantAlerts）を案内してよい予定か（2026-10-05）。
+ *  予約・受注の受付がこれから始まるグッズだけ。これ以外で出すと、何の話か分からない */
+export function isPreorderSoon(e: { type?: string; preorderStart?: string | null }, today: string): boolean {
+  return e.type === 'goods' && !!e.preorderStart && e.preorderStart > today;
+}
+

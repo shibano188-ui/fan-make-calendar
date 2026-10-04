@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Heart, Share2, ChevronRight, ChevronLeft, ImageOff } from 'lucide-react';
+import { X, Heart, Share2, ChevronRight, ChevronLeft, ImageOff, BellRing } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useFeature, isPreorderSoon } from '../../lib/premium';
+import { FEATURE_PREMIUM } from '../../lib/constants';
+import { todayStr } from '../../design/tokens';
+import PromoLine from '../ui/PromoLine';
 import type { CalendarEvent } from '../../types';
 import type { StoryGroup } from '../../lib/story';
 import { deriveStatus, deriveItemType, itemDateLines } from '../../design/tokens';
@@ -58,6 +63,8 @@ export default function StoryViewer({ groups, initial, onClose, onSeen, onOpenDe
   onLike: (e: CalendarEvent) => Promise<{ liked: boolean; count: number } | void>;
 }) {
   const [pos, setPos] = useState<StoryPosition>(initial);
+  const navigate = useNavigate();
+  const instantAlerts = useFeature('instantAlerts');
   // 押した側に矢印を一瞬出す（戻ったのか進んだのか分かるように）
   const [flash, setFlash] = useState<{ side: 'prev' | 'next'; n: number } | null>(null);
   const flashSide = (side: 'prev' | 'next') => setFlash((f) => ({ side, n: (f?.n ?? 0) + 1 }));
@@ -224,6 +231,11 @@ export default function StoryViewer({ groups, initial, onClose, onSeen, onOpenDe
               style={{ color: stock.out ? 'var(--color-destructive)' : 'var(--label-primary)' }}>
               {stock.text}<ChevronRight size={15} className="text-label-tertiary" />
             </button>
+          )}
+          {/* 受付開始の即時通知の案内（無料の人・予約受付がこれから始まるグッズだけ）。押したら閉じて課金の案内へ */}
+          {FEATURE_PREMIUM && !instantAlerts && isPreorderSoon({ type, preorderStart: e.preorderStart }, todayStr()) && (
+            <PromoLine className="mt-2" icon={<BellRing size={15} />} text="予約受付が始まった瞬間に通知" badge="プレミアム"
+              onClick={() => { onClose(); navigate('/premium'); }} />
           )}
           {!stock && hasShop && (
             <button onClick={() => { haptic.select(); onOpenDetail(e, pos, 'stock'); }}

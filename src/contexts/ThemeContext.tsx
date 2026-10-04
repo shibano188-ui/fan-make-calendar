@@ -442,6 +442,8 @@ interface ThemeContextValue {
   setSkin: (id: SkinId) => void;
   /** 使う人が作ったテーマ。空なら1つも作っていない */
   userThemes: UserTheme[];
+  /** userThemes を一度でも読み終えたか（読む前の「0個」を「作っていない」と取り違えないため） */
+  userThemesLoaded: boolean;
   /** 今選んでいる生成テーマのid。null ならプリセット（skin）を使っている */
   userThemeId: string | null;
   /** 今効いている設定表（プリセットでも生成テーマでも同じ型） */
@@ -504,6 +506,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   // 生成テーマ。選択は端末に、中身はサーバー（user_themes）に置く
   const [userThemes, setUserThemes] = useState<UserTheme[]>([]);
+  const [userThemesLoaded, setUserThemesLoaded] = useState(false);
   const [userThemeId, setUserThemeId] = useState<string | null>(() => loadActiveThemeId());
 
   // 一覧の最新値。**保存した直後に selectUserTheme を呼ぶと、state はまだ古い**ので
@@ -522,6 +525,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const list = await listUserThemes();
     userThemesRef.current = list;
     setUserThemes(list);
+    setUserThemesLoaded(true);
     // 消されたテーマを選んだままにしない（形だけ残って混ざる）
     setUserThemeId(prev => {
       if (prev && !list.some(t => t.id === prev)) { saveActiveThemeId(null); return null; }   // 消されたテーマは外す
@@ -746,7 +750,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   return (
     <ThemeContext.Provider value={{
       settings: effective, updateSettings, currentWorkId, setCurrentCalendar, calFontFamily,
-      skin, setSkin, userThemes, userThemeId, activeSpec, appliedAccent, selectUserTheme, reloadUserThemes,
+      skin, setSkin, userThemes, userThemesLoaded, userThemeId, activeSpec, appliedAccent, selectUserTheme, reloadUserThemes,
       draft, setDraft,
       lookWorkId, setLookWorkId, workLooks, setLookActive, resetWorkLook,
     }}>

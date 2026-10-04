@@ -422,6 +422,17 @@ export function saveBellPrefs(p: BellPrefs): void {
   try { localStorage.setItem(BELL_PREFS_KEY, JSON.stringify(p)); } catch { /* noop */ }
 }
 
+// 無料の人が受付前のグッズのベルを押したときの「受付開始の瞬間の通知はプレミアムで」も週1回まで（2026-10-05）
+const INSTANT_HINT_KEY = 'fan_instant_hint_at';
+export function takeInstantHint(now = Date.now()): boolean {
+  try {
+    const last = Number(localStorage.getItem(INSTANT_HINT_KEY) ?? 0);
+    if (now - last < 7 * 86400000) return false;
+    localStorage.setItem(INSTANT_HINT_KEY, String(now));
+    return true;
+  } catch { return false; }
+}
+
 // 無料の人がグッズのベルを押したときの「値下げ通知はプレミアムで」は週1回まで
 const PRICE_HINT_KEY = 'fan_price_hint_at';
 export function takePriceHint(now = Date.now()): boolean {
