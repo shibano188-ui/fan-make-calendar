@@ -185,6 +185,29 @@ export async function setNotifyMode(userId: string, mode: NotifyMode): Promise<b
   return !error;
 }
 
+// 作品ごとの届き方（課金の人だけ・2026-10-05）。{ <work_id>: mode }。無い作品は全体の設定に従う。
+// 「通知しない」は作品ごとのミュート（constants の muted_work_ids）で表すので、ここには入れない
+const WORK_MODES_KEY = 'fan_new_events_notify_works';
+
+export function getWorkNotifyModes(): Record<string, NotifyMode> {
+  try {
+    const v = JSON.parse(localStorage.getItem(WORK_MODES_KEY) ?? '{}');
+    return v && typeof v === 'object' ? v : {};
+  } catch { return {}; }
+}
+
+/** mode を null にすると、その作品は全体の設定に戻る。列が無い環境では書けないので失敗を返す */
+export async function setWorkNotifyMode(userId: string, workId: string, mode: NotifyMode | null): Promise<boolean> {
+  const all = getWorkNotifyModes();
+  if (mode) all[workId] = mode; else delete all[workId];
+  try { localStorage.setItem(WORK_MODES_KEY, JSON.stringify(all)); } catch { /* noop */ }
+  const { error } = await supabase.from('user_app_state').upsert(
+    { user_id: userId, new_events_notify_works: all, updated_at: new Date().toISOString() },
+    { onConflict: 'user_id' },
+  );
+  return !error;
+}
+
 /** ログイン時にサーバーの設定を端末へ引き戻す（別端末で切った設定を尊重する）。 */
 export async function loadDigestSetting(userId: string): Promise<void> {
   const { data } = await supabase.from('user_app_state').select('new_events_digest_off').eq('user_id', userId).maybeSingle();
@@ -199,6 +222,9 @@ export async function loadDigestSetting(userId: string): Promise<void> {
   try {
     if (mode === 'instant' || mode === 'thrice' || mode === 'daily') localStorage.setItem(NOTIFY_MODE_KEY, mode);
   } catch { /* noop */ }
+  const { data: w } = await supabase.from('user_app_state').select('new_events_notify_works').eq('user_id', userId).maybeSingle();
+  const works = (w as { new_events_notify_works?: unknown } | null)?.new_events_notify_works;
+  try { if (works && typeof works === 'object') localStorage.setItem(WORK_MODES_KEY, JSON.stringify(works)); } catch { /* noop */ }
 }
 
 /** ログアウト時に**この端末の宛先だけ**を消す。
