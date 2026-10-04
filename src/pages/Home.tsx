@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useNavigationType, useSearchParams } from 'react-router-dom';
-import { TrendingDown, ChevronRight, Crown } from 'lucide-react';
+import { TrendingDown, ChevronRight, Crown, Pencil } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import { deriveItemType, todayStr } from '../design/tokens';
 import { loadSeenEventIds, addSeenEventId, FEATURE_PREMIUM, FOLLOWS_EVENT, DEFAULT_AVATAR } from '../lib/constants';
@@ -28,6 +28,7 @@ import StoryViewer, { type StoryPosition } from '../components/story/StoryViewer
 import { WorkStoryCard, WeekStoryCard, AddWorkCard } from '../components/story/WorkStoryCard';
 import { useWorkImagePicker } from '../components/story/useWorkImagePicker';
 import ProfileTicket from '../components/home/ProfileTicket';
+import PromoLine from '../components/ui/PromoLine';
 
 // ホーム（2026-10-04 作り直し・柴野）。仕様 → Obsidian: Decisions/2026-10-04-fanhive-home-story-premium.md
 //   上: プロフィール（アイコン・名前・称号・ヌシ・連続記録・追加した予定）
@@ -39,6 +40,8 @@ function shiftMonths(base: string, n: number): string {
   d.setMonth(d.getMonth() + n);
   return todayStr(d);
 }
+
+const ICON_TIP_KEY = 'fan_home_icon_tip_hidden';
 
 // 詳細を開いて「戻る」で帰ってきたら、ストーリーの続きから開き直す
 let storyResume: { key: string; eventId: string } | null = null;
@@ -70,6 +73,7 @@ export default function Home() {
     return () => window.removeEventListener('fan-work-images', onChange);
   }, []);
   const iconPicker = useWorkImagePicker();
+  const [iconTipHidden, setIconTipHidden] = useState(() => { try { return localStorage.getItem(ICON_TIP_KEY) === '1'; } catch { return false; } });
   const [seen, setSeen] = useState<Set<string>>(loadSeenEventIds);
   const [streak, setStreak] = useState(() => currentStreak(loadStreak()));
   const today = todayStr();
@@ -338,6 +342,13 @@ export default function Home() {
           </span>
           <ChevronRight size={16} className="text-label-tertiary flex-shrink-0" />
         </button>
+      )}
+      {/* 作品のアイコンに推しの画像を入れられることの案内（2026-10-05 柴野）。知らないと、頭文字のアイコンのままだと思われる。
+          フォロー中の作品に1つも画像を入れていない人だけ・✕で消せる（端末に覚える）。押すと最初の作品の画像を選ぶ */}
+      {!loading && follows.length > 0 && !iconTipHidden && follows.every((w) => !workImages[w.id]) && (
+        <PromoLine className="mx-3 mt-1.5" icon={<Pencil size={14} />} text="推しの画像を作品のアイコンにできます"
+          onClick={() => void iconPicker.pick(workGroups[0]?.key ?? follows[0].id)}
+          onDismiss={() => { setIconTipHidden(true); try { localStorage.setItem(ICON_TIP_KEY, '1'); } catch { /* noop */ } }} />
       )}
       {loading ? (
         <div className="px-3 pt-3"><SkeletonList count={2} /></div>
