@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams, useNavigationType, useLocation } from 'react-router-dom';
 import { ArrowDownToLine, ArrowLeftRight, Plus, SlidersHorizontal, X } from 'lucide-react';
 import type { CalendarEvent } from '../types';
@@ -452,6 +452,64 @@ export default function Explore() {
     return { past: p, upcoming: u };
   }, [visible, today, showUnseenOnly, seenSnapshot, newOnly]);
 
+  // 作るカードの数を絞る（2026-10-05）。前は探すを開くたびに全部（6作品で973件）作っていて、開くたびに約0.35秒止まっていた。
+  // 最初は「今日」の前後だけ作り、端に近づいたら足していく。content-visibility（描画を省く）だけでは、部品を作る時間は減らない。
+  // 詳細から戻ったときは、作っていた数も sessionStorage から戻す（同じ位置に戻せるように）
+  const WINDOW_STEP = 40;
+  const initialWindow = (): { past: number; up: number } => {
+    if (navType === 'POP') {
+      try { const w = JSON.parse(sessionStorage.getItem('explore_window') ?? 'null'); if (w && w.past >= 0 && w.up > 0) return w; } catch { /* noop */ }
+    }
+    return { past: 20, up: WINDOW_STEP };
+  };
+  const [win, setWin] = useState(initialWindow);
+  // 絞り込みが変わったら、また今日の前後から（並びが変わるので、足した数を持ち越さない）
+  const windowKey = [mode, query, onlyWork, newOnly, showEnded, showUnseenOnly, [...selectedStatuses].join(), [...excludedWorks].join(), [...selectedCategories].join(), [...allowedPrefs].join()].join('|');
+  const firstWindowKey = useRef(windowKey);
+  useEffect(() => {
+    if (firstWindowKey.current === windowKey) return;
+    firstWindowKey.current = '';
+    setWin({ past: 20, up: WINDOW_STEP });
+  }, [windowKey]);
+  const shownPast = useMemo(() => past.slice(Math.max(0, past.length - win.past)), [past, win.past]);
+  const shownUpcoming = useMemo(() => upcoming.slice(0, win.up), [upcoming, win.up]);
+  // 上に足すと中身が下へずれるので、見ていた予定が動いた分だけスクロールを戻す。
+  // 足した高さで戻すと、自分で位置を保つブラウザ（スクロールアンカーのある Safari）では二重に戻って大きく跳ねた（-8,090px）。
+  // 見ていた予定の動きで測れば、ブラウザが保った場合は0になるので、どちらの Safari でも合う
+  const pastGrowFrom = useRef<{ id: string; top: number } | null>(null);
+  const growPast = useCallback(() => {
+    if (win.past >= past.length) return;
+    const el = [...document.querySelectorAll<HTMLElement>('[data-event-id]')].find((x) => x.getBoundingClientRect().top >= 0);
+    pastGrowFrom.current = el ? { id: el.dataset.eventId!, top: el.getBoundingClientRect().top } : null;
+    setWin((w) => (w.past >= past.length ? w : { ...w, past: w.past + WINDOW_STEP }));
+  }, [past.length, win.past]);
+  const growUp = useCallback(() => setWin((w) => (w.up >= upcoming.length ? w : { ...w, up: w.up + WINDOW_STEP })), [upcoming.length]);
+  useLayoutEffect(() => {
+    const a = pastGrowFrom.current;
+    pastGrowFrom.current = null;
+    if (!a) return;
+    const el = document.querySelector<HTMLElement>(`[data-event-id="${a.id}"]`);
+    if (!el) return;
+    const moved = el.getBoundingClientRect().top - a.top;
+    if (Math.abs(moved) > 1) setScrollTop(getScrollTop() + moved);
+  }, [shownPast.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 端の目印が画面に近づいたら足す（画面の1.5枚ぶん手前から）
+  const topSentinel = useRef<HTMLDivElement>(null);
+  const bottomSentinel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const io = new IntersectionObserver((entries) => {
+      for (const en of entries) {
+        if (!en.isIntersecting) continue;
+        // 最初のスクロール（今日へ・戻った位置へ）が終わる前に上を足すと、位置合わせとぶつかる
+        if (en.target === topSentinel.current && didInitScroll.current) growPast();
+        if (en.target === bottomSentinel.current) growUp();
+      }
+    }, { rootMargin: '1200px 0px' });
+    if (topSentinel.current) io.observe(topSentinel.current);
+    if (bottomSentinel.current) io.observe(bottomSentinel.current);
+    return () => io.disconnect();
+  }, [growPast, growUp, shownPast.length, shownUpcoming.length]);
+
   // 初回スクロール制御を1度だけ行うためのガード（フォロー作品の非同期ロードで
   // visible が後から埋まるため、内容が出揃ってから復元/今日への移動を実行する）
   // 初回スクロール制御。visible が出揃ってから1度だけ実行する。
@@ -469,12 +527,18 @@ export default function Explore() {
       // ユーザー操作・アンマウントで即中断（gen guard）。
       const start = performance.now();
       const gen = scrollLoopGen.current;
+      // 押した予定を、押したときと同じ画面の高さに合わせる（2026-10-05）。スクロールの量だけで戻すと、
+      // 画面の外のカードの高さが見積もり（196px）のままなので、実際の高さとの差だけずれていた
+      let anchor: { id: string; top: number } | null = null;
+      try { anchor = JSON.parse(sessionStorage.getItem('explore_anchor') ?? 'null'); } catch { /* noop */ }
       const tryScroll = () => {
         if (gen !== scrollLoopGen.current) return;
-        setScrollTop(top);
-        if (Math.abs(getScrollTop() - top) > 2 && performance.now() - start < 2000) {
-          requestAnimationFrame(tryScroll);
-        }
+        const el = anchor ? document.querySelector<HTMLElement>(`[data-event-id="${anchor.id}"]`) : null;
+        let off: number;
+        if (el && anchor) { const d = el.getBoundingClientRect().top - anchor.top; if (Math.abs(d) > 1) setScrollTop(getScrollTop() + d); off = Math.abs(d); }
+        else { setScrollTop(top); off = Math.abs(getScrollTop() - top); }
+        // 画像の読み込みで高さが変わるので、合うまで最大2秒やり直す
+        if ((off > 2 || performance.now() - start < 600) && performance.now() - start < 2000) requestAnimationFrame(tryScroll);
       };
       requestAnimationFrame(tryScroll);
     } else {
@@ -519,12 +583,19 @@ export default function Explore() {
 
   // content-visibility: 画面外カードの描画・レイアウト計算をスキップして長いリストを軽くする。
   // containIntrinsicSize は未描画時の高さの見積もり（スクロールバー・復元位置の安定用）。
+  // 詳細から戻ったとき用に覚える: スクロールの量・作っていた数・押した予定が画面のどの高さにあったか
+  const saveReturnPoint = (id: string) => {
+    sessionStorage.setItem('explore_scroll', String(getScrollTop()));
+    sessionStorage.setItem('explore_window', JSON.stringify(win));
+    const el = document.querySelector<HTMLElement>(`[data-event-id="${id}"]`);
+    if (el) sessionStorage.setItem('explore_anchor', JSON.stringify({ id, top: el.getBoundingClientRect().top }));
+  };
   const renderCard = (e: CalendarEvent) => (
     <div key={e.id} ref={observeSeen} data-event-id={e.id}
       style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 196px' }}>
       <ItemCard event={e} layout={mode === 'goods' ? 'wide' : 'list'} isNew={isNewItem(e.id, e.createdAt, seenSnapshot)} likedInit={likedIds.has(e.id)}
         workColor={e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)'}
-        onOpen={() => { sessionStorage.setItem('explore_scroll', String(getScrollTop())); navigate(`/item/${e.id}`); }} onLike={() => onLikeTile(e)} onCalendar={() => onCalendarTile(e)} />
+        onOpen={() => { saveReturnPoint(e.id); navigate(`/item/${e.id}`); }} onLike={() => onLikeTile(e)} onCalendar={() => onCalendarTile(e)} />
     </div>
   );
 
@@ -641,14 +712,15 @@ export default function Explore() {
           )
         ) : (
           <>
-            {past.length > 0 && <div className={gridClass}>{past.map(renderCard)}</div>}
+            <div ref={topSentinel} />
+            {shownPast.length > 0 && <div className={gridClass}>{shownPast.map(renderCard)}</div>}
             <div ref={todayRef} className="flex items-center gap-2 py-3">
               <div className="flex-1 h-px" style={{ backgroundColor: 'var(--separator)' }} />
               <span className="text-[12px] font-semibold" style={{ color: 'var(--accent-text)' }}>今日 {today.slice(5).replace('-', '/')}</span>
               <div className="flex-1 h-px" style={{ backgroundColor: 'var(--separator)' }} />
             </div>
             {upcoming.length > 0
-              ? <div className={gridClass}>{upcoming.map(renderCard)}</div>
+              ? <><div className={gridClass}>{shownUpcoming.map(renderCard)}</div><div ref={bottomSentinel} /></>
               : <p className="text-center text-label-tertiary text-[12px] py-6">これからの{mode === 'goods' ? 'グッズ' : 'イベント'}はありません</p>}
           </>
         )}
