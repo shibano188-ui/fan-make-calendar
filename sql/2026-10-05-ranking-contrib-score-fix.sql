@@ -1,54 +1,7 @@
--- ランキング・ヌシの点数に、＋α（情報の追加）と「いいねしたこと」を足す（柴野の判断・2026-10-05）。
--- 背景: ボットが店の商品を入れるようになり、人の投稿は「ボットが取れないもの」に寄せた（Decisions/2026-09-27-list-grouping-and-bots.md）。
---       投稿といいねだけの点数だと、人が点数を取る手段が細る。
--- 仕様 → Obsidian: Decisions/2026-10-05-ranking-contrib-score.md
---
---   投稿（X からの追加・情報提供で公開されたもの）… 1件 3点（今までどおり。情報提供で公開された予定は本人の投稿として入る）
---   ＋α: 日付などの修正 … 2点（情報提供で既存の予定にまとめられた分・ボットが確かめて反映した修正の提案も、修正として記録される）
---   ＋α: 購入先の追加・在庫の報告 … 1点
---     ・自分の予定への＋αは数えない ・1つの予定につき1人1種類1回まで ・1日（日本時間）10点まで
---     ・取り消された＋αは行が消えるので、数え直せば点数からも消える
---   もらったいいね … 1件 1点（今までどおり）
---   いいねしたこと … 他の人の予定へのいいね10回で1点・1日（日本時間）1点まで（作品ごと）
---   ヌシ … 上位3名・10点以上（15点から下げた。投稿が稼ぎにくくなったので、投稿2件＋修正2回で届く高さに）
---
--- 古い iOS アプリは posts / likes / score を読むので、列は消さずに plus / likes_given を足す。
--- score は生成列なので作り直す（既存の行も自動で計算し直される）。前月以前の確定済みのヌシ（work_nushi）には触らない。
---
--- ⚠️ 集計の作り方とヌシの条件を変えるので、PR で見てもらってから流す。流したら PR にそう書く。
--- 2026-10-05 に本番へ流した（柴野）。最初の版は集計の関数が「column reference "n" is ambiguous」で落ちた
--- （列の追加・点数・ヌシの条件は入った）。関数だけ直したのが 2026-10-05-ranking-contrib-score-fix.sql。このファイルも直した版にしてある
+-- 2026-10-05-ranking-contrib-score.sql の直し（2026-10-05）。
+-- 集計の関数の中で、変数の n と CTE の列の n がぶつかり「column reference "n" is ambiguous」で落ちていた。
+-- 列の追加・点数の作り直し・ヌシの条件は本番に入っているので、関数だけを置き換えて、今月を数え直す。
 
-begin;
-
--- 1. 列を足す
-alter table public.work_month_scores add column if not exists plus int not null default 0;         -- ＋αの点数（上限込み）
-alter table public.work_month_scores add column if not exists likes_given int not null default 0;  -- いいねしたことの点数
-
--- 2. score を作り直す（それに頼るビューと索引を先に外す）
-drop view if exists public.month_scores_total;
-drop index if exists public.work_month_scores_rank_idx;
-alter table public.work_month_scores drop column if exists score;
--- 係数はここ1箇所。JS側は score を読むだけで計算しない（2箇所に置くと必ずずれる）
-alter table public.work_month_scores add column score int generated always as (posts * 3 + plus + likes + likes_given) stored;
-create index if not exists work_month_scores_rank_idx
-  on public.work_month_scores (work_id, month, score desc, reached_at);
-
--- 総合ランキング（全作品を合算）。PostgREST では group by ができないので、合算はここで作っておく
-create or replace view public.month_scores_total
-with (security_invoker = on) as
-select month,
-       user_id,
-       sum(posts)::int       as posts,
-       sum(likes)::int       as likes,
-       sum(plus)::int        as plus,
-       sum(likes_given)::int as likes_given,
-       sum(score)::int       as score,
-       max(reached_at)       as reached_at
-  from public.work_month_scores
- group by month, user_id;
-
--- 3. 集計
 create or replace function public.refresh_work_month_scores(target_month date)
 returns int
 language plpgsql
@@ -170,49 +123,6 @@ begin
 end;
 $fn$;
 
--- 4. ヌシの条件: 上位3名・10点以上（既定値を変えるだけ。毎月1日の確定は api/metrics.ts が引数なしで呼ぶ）
-create or replace function public.finalize_nushi(
-  target_month date,
-  seats int default 3,
-  min_score int default 10
-) returns int
-language plpgsql
-security definer
-set search_path = public, auth, pg_temp
-as $fn$
-declare
-  mm date := date_trunc('month', target_month)::date;
-  n  int;
-begin
-  -- 確定の前に必ず数え直す（月末ぎりぎりの投稿・いいねを取りこぼさない）
-  perform public.refresh_work_month_scores(mm);
 
-  insert into public.work_nushi (work_id, month, user_id, rank, posts, likes, score)
-  select work_id, month, user_id, rnk, posts, likes, score
-    from (
-      select s.*,
-             row_number() over (
-               partition by s.work_id
-               -- 同点なら先に到達したほうが上
-               order by s.score desc, s.reached_at asc nulls last
-             ) as rnk
-        from public.work_month_scores s
-       where s.month = mm
-         and s.score >= min_score
-    ) ranked
-   where rnk <= seats
-  on conflict (work_id, month, user_id) do nothing;
-
-  get diagnostics n = row_count;
-  return n;
-end;
-$fn$;
-
-commit;
-
--- 5. 今月を新しい点数で数え直す（前月以前の確定済みのヌシは変わらない）
-select public.refresh_work_month_scores(date_trunc('month', now() at time zone 'Asia/Tokyo')::date);
-
--- 確認用:
---   select user_id, posts, plus, likes, likes_given, score from month_scores_total
---    where month = date_trunc('month', now() at time zone 'Asia/Tokyo')::date order by score desc limit 10;
+-- 今月を新しい点数で数え直す（前月以前の確定済みのヌシは変わらない）
+select public.refresh_work_month_scores(date_trunc('month', now() at time zone 'Asia/Tokyo')::date) as 作り直した行数;
