@@ -428,6 +428,51 @@ function normalizeTitleForDup(t: string): string {
   return t.replace(/　/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
+/** 名前の空白・記号・括弧を全部落として比べる形（「描き下ろし 指揮者ver.」と「描き下ろし指揮者ver.」、
+ *  「シリーズ＆5周年」と「シリーズ5周年」を同じにする。2026-10-04 どちらも同じ予定が2つ入っていた） */
+export function squashTitle(t: string): string {
+  return t.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+}
+
+/** 1つの商品を指すページか（アニメイト・ムービック・Shopify・楽天・Yahoo!・Amazon・あみあみ・駿河屋・プレバン）。
+ *  アフィリエイトの包み（楽天の pc=・バリューコマースの vc_url=）は中身の URL で見る */
+export function isProductPageUrl(raw: string): boolean {
+  let u: URL;
+  try { u = new URL(raw); } catch { return false; }
+  const inner = u.searchParams.get('pc') ?? u.searchParams.get('vc_url');
+  if (inner) { try { u = new URL(inner); } catch { /* 包みのまま見る */ } }
+  const host = u.host.toLowerCase().replace(/^www\./, '');
+  const path = u.pathname;
+  return /\/pd\/\d+/.test(path) || (host === 'animate-onlineshop.jp' && u.searchParams.has('product_id'))
+    || /^\/shop\/g\/g[^/]+/.test(path)
+    || /\/products\/[^/]+/.test(path)
+    || (host === 'item.rakuten.co.jp' && /^\/[^/]+\/[^/]+/.test(path))
+    || (host === 'store.shopping.yahoo.co.jp' && /^\/[^/]+\/[^/]+\.html/.test(path))
+    || (/amazon\.co\.jp$/.test(host) && /\/(dp|gp\/product)\//.test(path))
+    || (/amiami\.(jp|com)$/.test(host) && u.searchParams.has('gcode'))
+    || (host === 'suruga-ya.jp' && /\/product\/detail\//.test(path))
+    || (host === 'p-bandai.jp' && /\/item\/item-\d+/.test(path));
+}
+
+/** 2つの名前が同じ商品のものか。作品名・汎用語・記号を除いて同じか、片方がもう片方を含む
+ *  （「ステッカーセット」と「ステッカーセット/凪 誠士郎」）。はみ出しが版の違いだけ（「2」「第2弾」「ver.B」）なら別の商品 */
+function relatedTitle(a: string, b: string, workName?: string | null): boolean {
+  const A = squashTitle(stripForKeywords(a, workName));
+  const B = squashTitle(stripForKeywords(b, workName));
+  if (!A || !B) return false;
+  if (A === B) return true;
+  const [short, long] = A.length < B.length ? [A, B] : [B, A];
+  if (short.length < 4 || !long.includes(short)) return false;
+  return !/^(\d+|vol\d+|第\d+弾|ver[a-z0-9]|[a-z]|其ノ.)$/i.test(long.replace(short, ''));
+}
+
+/** 画像の URL を比べる形。X の画像は ?name=orig などの付け方が違っても同じ画像 */
+function imageKey(u: string): string | null {
+  const t = u.trim();
+  if (!/^https?:\/\//.test(t)) return null;
+  return t.replace(/[?#].*$/, '');
+}
+
 // 重複判定で情報量の少ない汎用語（同日の別イベント同士の誤検知を防ぐ）
 const DUP_GENERIC_WORDS = ['発売', '開催', '開始', '決定', '予約', '受付', '販売', '登場', '公開', '情報', '解禁', 'イベント', 'グッズ', 'キャンペーン', 'コラボ'];
 
@@ -437,6 +482,8 @@ function stripForKeywords(title: string, workName?: string | null): string {
     .replace(/[【】「」『』（）()[\]・！!？?～〜:：、。,.\s　]+/g, ' ')
     .toLowerCase()
     .trim();
+  // 「アニメ『鬼滅の刃』ハロウィン2026」の「アニメ」「TVアニメ」も中身の無い前置き（単語として独立しているときだけ。「アニメイト」は残す）
+  t = t.replace(/(^|\s)(tv)?アニメ(?=\s|$)/g, ' ');
   if (workName) t = t.split(workName.toLowerCase()).join(' ');
   for (const w of DUP_GENERIC_WORDS) t = t.split(w).join(' ');
   return t.replace(/\s+/g, ' ').trim();
@@ -485,12 +532,43 @@ export async function findDuplicateEvents(
   title: string,
   sourceUrl?: string | null,
   category?: string | null,
-  opts?: { date?: string | null; endDate?: string | null; workName?: string | null; prefecture?: string | null; buyUrls?: string[] },
-): Promise<{ byUrl: DuplicateMatch[]; byTitle: DuplicateMatch[]; byDateKeyword: DuplicateMatch[] }> {
+  opts?: {
+    date?: string | null; endDate?: string | null; workName?: string | null; prefecture?: string | null; buyUrls?: string[];
+    /** 予約・受注の期間。同じ期間で名前が同じなら同じ予定（2026-10-04 呪術廻戦PLAZA が発売日の欄ずれですり抜けた） */
+    preorderStart?: string | null; preorderEnd?: string | null;
+    /** 画像。同じ画像を使う予定は似た投稿として知らせる（1枚の告知画像を別の商品が共有していることも多いので止めない） */
+    imageUrls?: string[];
+  },
+): Promise<{ byUrl: DuplicateMatch[]; byTitle: DuplicateMatch[]; byDateKeyword: DuplicateMatch[]; strong: DuplicateMatch[] }> {
   const seen = new Set<string>();
   const byUrl: DuplicateMatch[] = [];
   const byTitle: DuplicateMatch[] = [];
   const byDateKeyword: DuplicateMatch[] = [];
+  // 同じ予定と言い切れるもの。投稿させずに既存の予定へ案内する（「違う予定として投稿」で閉じられる警告では防げなかった）:
+  //   同じ商品ページ／空白・記号を除いた名前が同じで、発売日（開催日）か予約・受注の期間も同じ
+  const strong: DuplicateMatch[] = [];
+  const strongIds = new Set<string>();
+  const toMatch = (row: Record<string, unknown>): DuplicateMatch => ({
+    id: row.id as string,
+    title: row.title as string,
+    date: row.event_date as string,
+    endDate: (row.end_date as string | null) ?? null,
+    prefecture: normalizePrefecture(row.prefecture as string | null) ?? null,
+    sourceUrl: row.source_url as string | null,
+    authorId: (row.author_id as string | null) ?? null,
+  });
+  const markStrong = (row: Record<string, unknown>) => {
+    if (strongIds.has(row.id as string)) return;
+    strongIds.add(row.id as string);
+    strong.push(toMatch(row));
+  };
+  const squashed = squashTitle(title);
+  const newPrefStrong = normalizePrefecture(opts?.prefecture ?? null) ?? null;
+  // 巡回する POP UP の別会場（同じ名前で都道府県が違う）は同じ予定ではない
+  const samePlace = (row: Record<string, unknown>) => {
+    const rp = normalizePrefecture(row.prefecture as string | null) ?? null;
+    return !newPrefStrong || !rp || newPrefStrong === rp;
+  };
 
   if (sourceUrl) {
     const normUrl = normalizeSourceUrl(sourceUrl);
@@ -529,10 +607,18 @@ export async function findDuplicateEvents(
   if (buyUrls.length) {
     const results = await Promise.all(buyUrls.flatMap((u) => [
       supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, author_id').eq('work_id', workId).eq('pool', 0).eq('link_url', u),
-      supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, author_id').eq('work_id', workId).eq('pool', 0).contains('offers', [{ url: u }]),
+      // jsonb の包含は JSON の文字列で渡す。配列のまま渡すと Postgres の配列の書き方（{...}）になり、
+      // % や & を含む URL（ほぼすべての購入リンク）で「invalid input syntax for type json」になって何も返らなかった（2026-10-04）
+      supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, author_id').eq('work_id', workId).eq('pool', 0).contains('offers', JSON.stringify([{ url: u }])),
     ]));
-    for (const { data } of results) {
+    for (const [i, { data }] of results.entries()) {
+      // 止めるのは商品ページが同じときだけ。公式のお知らせページは別の予定（3日ある試合・各会場の POP UP）も同じページを指す。
+      // 名前も同じか、片方がもう片方を含むときだけ（自動で付けた楽天などのリンクが、別の商品の予定にも付いていることがある）
+      const product = isProductPageUrl(buyUrls[Math.floor(i / 2)]);
       for (const row of data ?? []) {
+        // 発売日が1か月以上離れていれば別の発売（同じ名前の再販・別の弾。まどマギのクリアカード 9/4 と 10/24）
+        const farApart = !!opts?.date && !!row.event_date && Math.abs(Date.parse(row.event_date as string) - Date.parse(opts.date)) > 30 * 86400_000;
+        if (product && !farApart && relatedTitle(title, row.title as string, opts?.workName)) markStrong(row);
         if (seen.has(row.id as string)) continue;
         seen.add(row.id as string);
         byUrl.push({
@@ -545,6 +631,40 @@ export async function findDuplicateEvents(
           authorId: (row.author_id as string | null) ?? null,
         });
       }
+    }
+  }
+
+  // 同じ画像（X の同じ画像など）。止めはせず、似た投稿として知らせる
+  const imageKeys = [...new Set((opts?.imageUrls ?? []).map(imageKey).filter((k): k is string => !!k))].slice(0, 4);
+  if (imageKeys.length) {
+    const results = await Promise.all(imageKeys.map((k) =>
+      supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, author_id').eq('work_id', workId).eq('pool', 0)
+        .ilike('image_url', `%${k.replace(/[%_\\]/g, (c) => `\\${c}`)}%`).limit(20)));
+    for (const { data } of results) {
+      for (const row of data ?? []) {
+        if (seen.has(row.id as string) || !samePlace(row)) continue;
+        seen.add(row.id as string);
+        byUrl.push(toMatch(row));
+      }
+    }
+  }
+
+  // 予約・受注の期間が同じ予定。名前が（空白・記号を除いて）同じなら同じ予定、片方がもう片方を含むなら似た投稿
+  if (opts?.preorderStart) {
+    let q = supabase.from('events').select('id, title, event_date, end_date, prefecture, source_url, author_id')
+      .eq('work_id', workId).eq('pool', 0).eq('preorder_start_date', opts.preorderStart);
+    q = opts.preorderEnd ? q.eq('preorder_end_date', opts.preorderEnd) : q.is('preorder_end_date', null);
+    const { data } = await q.limit(200);
+    const strip = (t: string) => squashTitle(stripForKeywords(t, opts.workName));
+    const mine = strip(title);
+    for (const row of data ?? []) {
+      if (!samePlace(row)) continue;
+      const theirs = strip(row.title as string);
+      if (squashTitle(row.title as string) === squashed || (mine && mine === theirs)) markStrong(row);
+      else if (!(mine && theirs && mine.length >= 4 && theirs.length >= 4 && (mine.includes(theirs) || theirs.includes(mine)))) continue;
+      if (seen.has(row.id as string)) continue;
+      seen.add(row.id as string);
+      byDateKeyword.push(toMatch(row));
     }
   }
 
@@ -569,6 +689,7 @@ export async function findDuplicateEvents(
     // 正規化タイトルがnormと完全一致、またはnorm+スペースで始まる（地名付きバリアント）
     const rowNorm = normalizeTitleForDup(row.title as string);
     const titleMatch = rowNorm === norm || rowNorm.startsWith(`${norm} `);
+    if (rowNorm === norm && samePlace(row) && opts?.date && row.event_date === opts.date) markStrong(row);
     if (!seen.has(row.id as string) && titleMatch) {
       seen.add(row.id as string);
       byTitle.push({
@@ -598,12 +719,15 @@ export async function findDuplicateEvents(
         .or(`end_date.gte.${newStart},and(end_date.is.null,event_date.gte.${newStart})`);
       const newPref = normalizePrefecture(opts.prefecture ?? null) ?? null;
       for (const row of d3 ?? []) {
-        if (seen.has(row.id as string)) continue;
         if (!row.event_date) continue;
         const rowPref = normalizePrefecture(row.prefecture as string | null) ?? null;
         if (newPref && rowPref && newPref !== rowPref) continue;
         const rowKeywords = stripForKeywords(row.title as string, opts.workName);
         if (!rowKeywords) continue;
+        // 空白・記号を除いた名前まで同じで、期間も重なる＝同じ予定（ほかの判定で先に見つかっていても）
+        const kw = squashTitle(rowKeywords);
+        if (squashTitle(row.title as string) === squashed || (kw.length >= 2 && kw === squashTitle(newKeywords))) markStrong(row);
+        if (seen.has(row.id as string)) continue;
         const sim = bigramSimilarity(newKeywords, rowKeywords);
         // カテゴリ不一致は通常スキップだが、類似度が非常に高い場合は同一予定の
         // カテゴリ選択ゆれ（例: グッズ/グルメ）とみなして検知する
@@ -624,7 +748,7 @@ export async function findDuplicateEvents(
     }
   }
 
-  return { byUrl, byTitle, byDateKeyword };
+  return { byUrl, byTitle, byDateKeyword, strong };
 }
 
 /** 同じ名前で場所（都道府県）が違う既存予定か。巡回するPOP UP・コラボカフェの各会場は重複ではない。 */

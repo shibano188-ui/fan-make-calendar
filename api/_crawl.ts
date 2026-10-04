@@ -199,6 +199,38 @@ async function findByJan(db: Db, jan: string): Promise<{ id: string; offers: Off
   return row ? { id: row.id as string, offers: (row.offers ?? []) as OfferRow[], price: (row.price as number | null) ?? null } : null;
 }
 
+/** 同じシリーズの予定（2026-10-04 柴野「重複は絶対に避けたい」）。新しい予定にせず、購入リンクを足す先。
+ *  - 同じ店: 名前・発売日・値段が同じで、どちらかがキャラ別のリンク（label）を持つもの。キャラ違いがお店に後から追加されるたびに
+ *    同じ名前の予定が増えていた（ブルーロック withCAT ステッカーセットが5件など）。一覧のまとめ（_listgroup.ts）が
+ *    全キャラでは成り立たずに分けたまとまりも、名前が同じになって区別できないので1つにする（18TRIP 硬質カードホルダーが6件）
+ *  - 別の店: 名前が同じで、発売日が7日以内・値段が同じ（片方が無いのも可）。店によって発売日が数日ずれる
+ *    （アニメイト 12/15・ムービック 12/18）と findSame（発売日まで同じ）をすり抜けていた。
+ *    「名探偵コナン アクリルスタンド」のような短い名前は別のシリーズのことがあるので、作品名を除いて10文字以上のときだけ
+ *  名前が同じでも、同じ店でキャラ名の無い商品どうし（ジャンプショップのキャラ別商品など）は別の予定のまま。書籍は巻・版を取り違えないよう見ない */
+async function findSameLine(db: Db, wid: string, workName: string | null, e: ListEvent): Promise<{ id: string; offers: OfferRow[]; price: number | null } | null> {
+  if (!e.date || e.categories.includes('書籍')) return null;
+  const k = sameKey(e.title);
+  const core = workName ? k.split(sameKey(workName)).join('') : k;
+  if (k.length < 6) return null;
+  const day = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86400_000).toISOString().slice(0, 10);
+  const { data } = await db.from('events').select('id, title, event_date, offers, price')
+    .eq('work_id', wid).eq('pool', 0).gte('event_date', day(e.date, -7)).lte('event_date', day(e.date, 7)).limit(500);
+  const mine = e.offers as OfferRow[];
+  const shops = new Set(mine.map((o) => o.retailer ?? ''));
+  const labeled = (offers: OfferRow[]) => offers.some((o) => !!(o as { label?: string }).label);
+  for (const row of data ?? []) {
+    if (sameKey(String(row.title ?? '')) !== k) continue;
+    const offers = (Array.isArray(row.offers) ? row.offers : []) as OfferRow[];
+    const target = { id: row.id as string, offers, price: (row.price as number | null) ?? null };
+    if (offers.some((o) => shops.has(o.retailer ?? ''))) {
+      if (row.event_date === e.date && (labeled(offers) || labeled(mine)) && (e.price == null || target.price == null || e.price === target.price)) return target;
+      continue;
+    }
+    if (core.length >= 10 && (e.price == null || target.price == null || e.price === target.price)) return target;
+  }
+  return null;
+}
+
 /** 同じ作品・同じ名前・同じ発売日の予定のうち、同じ商品ページ（productKey）を持つもの */
 async function findTwin(db: Db, wid: string, e: ListEvent): Promise<{ id: string; title: string; event_date: string | null; offers: OfferRow[]; price: number | null } | null> {
   const keys = new Set((e.offers as OfferRow[]).map((o) => productKey(o.url)));
@@ -225,6 +257,9 @@ export async function registerEvents(
   createdAt?: (e: ListEvent) => string | null,
 ): Promise<{ added: number; merged: number }> {
   let added = 0, merged = 0;
+  // 同じシリーズの予定を探すとき、名前から作品名を除いた長さを見る（findSameLine）
+  const { data: work } = await db.from('works').select('name').eq('id', wid).maybeSingle();
+  const workName = (work?.name as string | undefined) ?? null;
   const addTo = async (target: { id: string; offers: OfferRow[]; price: number | null }, more: OfferRow[]) => {
     const urls = new Set(target.offers.map((o) => o.url));
     const add = more.filter((o) => !urls.has(o.url));
@@ -264,7 +299,7 @@ export async function registerEvents(
     // 最後の歯止め: 同じ作品・同じ名前・同じ発売日で、同じ商品ページを持つ予定がもう DB にあれば作らない（購入リンクだけ足す）。
     // 上の判定は渡された rows（1000件で切れることがある）と、登録済みリンクの一覧に頼っていて、どちらかが漏れると二重に入っていた
     // （2026-10-04 ちいかわ9巻の特装版が5件）。名前が同じでも商品ページが違うもの（キャラ別の商品など）は別の予定のまま
-    const twin = await findTwin(db, wid, e);
+    const twin = await findTwin(db, wid, e) ?? await findSameLine(db, wid, workName, e);
     if (twin) { await addTo(twin, e.offers as OfferRow[]); rows.push(twin); continue; }
     const isOrderMade = e.isOrderMade || !!preStart;
     const first = e.offers[0];

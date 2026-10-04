@@ -172,6 +172,8 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
   // ライブ重複検知
   const [dupMatches, setDupMatches] = useState<{ id: string; title: string }[]>([]);
   const [dupDismissed, setDupDismissed] = useState(false);
+  // 同じ予定と言い切れるもの（同じ商品ページ・名前と日付/期間が同じ）がある。閉じられない・投稿もさせない
+  const [dupStrong, setDupStrong] = useState(false);
   // 同じ名前で都道府県が違う既存予定（巡回POP UPの別会場など）。重複ではないので警告にせず、
   // 投稿時にタイトルへ都道府県を付けて区別することを知らせるだけ。
   const [otherPlaces, setOtherPlaces] = useState<string[]>([]);
@@ -272,6 +274,17 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
     return () => { alive = false; clearTimeout(t); };
   }, [workQuery, workId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 重複を探すときに渡す今の入力（入力中の検知と、投稿ボタンを押したときの確認で同じものを見る）
+  const dupOpts = (offersNow: Offer[]) => ({
+    date: dateTBD ? null : (date || null), endDate: dateTBD ? null : (endDate || null),
+    workName: workName || workQuery.trim() || null, prefecture: type === 'event' ? (prefecture || null) : null,
+    // 購入先が同じなら、タイトルが違っても同じ予定（2026-10-04 フリーレンのクリスマスグッズが2つになっていた）
+    buyUrls: [link, ...offersNow.map((o) => o.url)],
+    // 予約・受注の期間と画像も見る（2026-10-04 呪術廻戦PLAZA は発売日の欄がずれていて、名前も「＆」1文字違いだった）
+    preorderStart: isOrder ? (preStart || null) : null, preorderEnd: isOrder ? (preEnd || null) : null,
+    imageUrls: parseImageUrls(imageUrl || undefined),
+  });
+
   // ライブ重複検知（タイトル＋作品が分かれば。作品は未選択でも名前から既存を解決）
   useEffect(() => {
     // 自分用の予定は重複を気にしない（自分のメモなので邪魔になるだけ）
@@ -285,17 +298,15 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
       }
       const seen = new Map<string, string>();
       const places = new Set<string>();
+      let strong = false;
       if (wid) {
         const catStr = cats.size ? serializeCategories([...cats]) : null;
-        const dup = await findDuplicateEvents(wid, title.trim(), null, catStr ?? null, {
-          date: dateTBD ? null : (date || null), endDate: dateTBD ? null : (endDate || null),
-          workName: workName || workQuery.trim() || null, prefecture: type === 'event' ? (prefecture || null) : null,
-          // 購入先が同じなら、タイトルが違っても同じ予定（2026-10-04 フリーレンのクリスマスグッズが2つになっていた）
-          buyUrls: [link, ...offers.map((o) => o.url)],
-        }).catch(() => ({ byUrl: [], byTitle: [], byDateKeyword: [] }));
+        const dup = await findDuplicateEvents(wid, title.trim(), null, catStr ?? null, dupOpts(offers))
+          .catch(() => ({ byUrl: [], byTitle: [], byDateKeyword: [], strong: [] }));
         const pref = type === 'event' ? prefecture : null;
         for (const m of dup.byTitle) if (isOtherPlaceMatch(m, pref)) places.add(m.prefecture!);
-        for (const m of [...dup.byUrl, ...dup.byTitle.filter((m) => !isOtherPlaceMatch(m, pref)), ...dup.byDateKeyword]) if (!seen.has(m.id)) seen.set(m.id, m.title);
+        strong = dup.strong.length > 0;
+        for (const m of [...dup.strong, ...dup.byUrl, ...dup.byTitle.filter((m) => !isOtherPlaceMatch(m, pref)), ...dup.byDateKeyword]) if (!seen.has(m.id)) seen.set(m.id, m.title);
       } else {
         // 作品未確定でもタイトルで全体検知（保守的・正規化完全一致）
         const g = await findDuplicatesByTitleGlobal(title.trim()).catch(() => []);
@@ -303,11 +314,12 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
       }
       if (!alive) return;
       setDupMatches([...seen].map(([id, t2]) => ({ id, title: t2 })));
+      setDupStrong(strong);
       setOtherPlaces([...places]);
       setDupDismissed(false);
     }, 500);
     return () => { alive = false; clearTimeout(t); };
-  }, [workId, workQuery, title, date, endDate, dateTBD, prefecture, type, link, offers]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [workId, workQuery, title, date, endDate, dateTBD, prefecture, type, link, offers, isOrder, preStart, preEnd, imageUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const catList = type === 'goods' ? GOODS_CATS : EVENT_CATS;
   const toggleCat = (c: string) => {
@@ -333,7 +345,7 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
     setError(''); setAiError(''); setParsedList(null); setPendingParsed([]); setMergePick(new Set()); setListMeta(null); setFromList(null);
     appliedRef.current = null;
     setCandidates(null); setSearchingProduct(false); setPicked(new Set());
-    setDupMatches([]); setDupDismissed(false);
+    setDupMatches([]); setDupDismissed(false); setDupStrong(false);
     aiSourceRef.current = null; aiLogRef.current = null;
     clearDraft();
   };
@@ -676,6 +688,7 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
     const follows = await listAllParticipatedWorks(user.id).catch(() => [] as Work[]);
     const willFollow = new Set<string>();
     let blocked = 0;
+    let skipped = 0;
     for (const p of parsedList) {
       try {
         const name = (p.work || workName || workQuery).trim();
@@ -690,6 +703,13 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
         works.set(name, wid);
         const offersP = p.offers ?? [];
         const prim = primaryOffer(offersP);
+        // 同じ予定がもうあれば入れない（まとめて投稿は1件ずつの確認をしないので、ここで止める）
+        const dup = await findDuplicateEvents(wid, p.title, null, p.category ?? null, {
+          date: p.dateLabel ? null : (p.date || null), endDate: p.dateLabel ? null : (p.endDate || p.date || null), workName: name,
+          buyUrls: offersP.map((o) => o.url),
+          preorderStart: p.isOrderMade ? (p.preorderStart || null) : null, preorderEnd: p.isOrderMade ? (p.preorderEnd || null) : null,
+        }).catch(() => null);
+        if (dup?.strong.length) { skipped++; continue; }
         const ids = await createEvents(wid, [{
           title: p.title, type: 'goods',
           date: p.date || null, dateLabel: p.dateLabel || null,
@@ -717,8 +737,9 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
     } catch { /* フォローできなくても投稿は成立している */ }
     setBulkSaving(false);
     setParsedList(failed); setMergePick(new Set());
-    toast(blocked ? `${posted}件投稿しました。${blocked}件はフォローしていない作品のため投稿していません`
-      : failed.length ? `${posted}件投稿しました（${failed.length}件は投稿できませんでした）` : `${posted}件投稿しました`);
+    const already = skipped ? `。${skipped}件は同じ予定がもうあるので入れていません` : '';
+    toast(blocked ? `${posted}件投稿しました。${blocked}件はフォローしていない作品のため投稿していません${already}`
+      : failed.length ? `${posted}件投稿しました（${failed.length}件は投稿できませんでした）${already}` : `${posted}件投稿しました${already}`);
   };
 
   const linkInfo = link.trim() ? affiliatize(link.trim()) : null;
@@ -936,6 +957,16 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
         prefecture: type === 'event' ? (prefecture.trim() || undefined) : undefined,
         locationDetail: type === 'event' ? (locationDetail.trim() || undefined) : undefined,
       };
+      // 投稿の直前にもう一度確かめる。入力中の検知は0.5秒待ってから動くので、その前に押すと素通りしていた。
+      // 同じ予定と言い切れるものがあれば投稿しない（「違う予定として投稿」で閉じていても）
+      const finalDup = await findDuplicateEvents(wid, finalTitle, null, cats.size ? serializeCategories([...cats]) ?? null : null, dupOpts(allOffers)).catch(() => null);
+      if (finalDup?.strong.length) {
+        setDupMatches(finalDup.strong.map((m) => ({ id: m.id, title: m.title })));
+        setDupStrong(true); setDupDismissed(false);
+        setError('同じ予定がもう投稿されています。足りない情報は、その予定の詳細ページから足せます。');
+        setSaving(false);
+        return;
+      }
       const createdIds = await createEvents(wid, [eventPayload], user.id);
       // カレンダーに登録＝保存（いいね）。外してあれば登録しない。
       // 下のフォローと互いに待たないので、並べて走らせる（前は1つずつ待っていた）
@@ -1187,13 +1218,16 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
           {/* 重複検知バナー（ライブ） */}
           {!personal && dupMatches.length > 0 && !dupDismissed && (
             <div className="mt-3 rounded-[12px] p-3" style={{ border: '1px solid var(--color-warning)', backgroundColor: 'var(--bg-secondary)' }}>
-              <div className="text-[13px] font-semibold mb-1.5">似た投稿があります</div>
+              <div className="text-[13px] font-semibold mb-1.5">{dupStrong ? '同じ予定がもう投稿されています' : '似た投稿があります'}</div>
               {dupMatches.map((m) => (
                 <div key={m.id} className="text-[13px] py-0.5">「{m.title}」</div>
               ))}
               <div className="flex gap-2 mt-2">
                 <button onClick={() => navigate(`/item/${dupMatches[0].id}`)} className="pressable flex-1 py-2 rounded-[8px] text-[12px] font-semibold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>投稿を確認</button>
-                <button onClick={() => setDupDismissed(true)} className="pressable flex-1 py-2 rounded-[8px] text-[12px]" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>違う予定として投稿</button>
+                {/* 同じ予定と言い切れるときは閉じさせない（閉じて投稿すると同じ予定が2つになる） */}
+                {!dupStrong && (
+                  <button onClick={() => setDupDismissed(true)} className="pressable flex-1 py-2 rounded-[8px] text-[12px]" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>違う予定として投稿</button>
+                )}
               </div>
             </div>
           )}
