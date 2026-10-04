@@ -172,10 +172,13 @@ export default function NotificationSettings() {
             <button onClick={() => { haptic.select(); navigate('/premium'); }}
               className="pressable w-full text-left rounded-[12px] p-3 mb-3"
               style={{ border: '1.5px solid var(--accent-color)' }}>
-              <p className="text-[14px] font-semibold">受付開始をその場で受け取る</p>
+              {/* 2026-10-05 に今の動きに合わせて直した。前は「無料プランのお知らせは翌朝のまとめ」と書いていたが、
+                  無料の人に届くのは、ベルを押した予定の端末の通知（◯日前・当日の朝）だけで、受付開始のまとめは無い */}
+              <p className="text-[14px] font-semibold">プレミアムなら、受付開始の瞬間に届く</p>
               <p className="text-[11px] text-label-secondary mt-1 leading-relaxed">
-                無料プランのお知らせは翌朝のまとめです。プレミアムなら、受付が始まった時点と、
-                値下げ・再入荷があった時点でお知らせします。
+                無料プランでは、ベルを押した予定を前もって・当日の朝にお知らせします。
+                プレミアムなら、予約受付が始まった瞬間と、値下げ・再入荷があったときにもお知らせします。
+                新着も朝を待たずに、作品ごとに届き方を選べます。
               </p>
             </button>
           )}
