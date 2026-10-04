@@ -1,4 +1,4 @@
-# 毎朝、SNS 用の「作品ごとの予定表」の画像を作り直して Google ドライブに同期する。
+# 毎朝、SNS 用の「作品ごとの予定表」と「直前の個別ポスト」の画像を作り、Google ドライブに同期する。
 # 中身が前回と変わった作品だけ作り直す（scripts/sns-schedule/run.mjs）。本番の DB は読むだけ。
 # Secrets（GDRIVE_*）は scripts/sns-schedule/drive-auth.mjs で入れる。
 name: SNS 予定表
@@ -21,6 +21,12 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: node scripts/sns-schedule/run.mjs --drive
+        env:
+          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
+      # 直前の個別ポスト（1予定1枚）。きょう・あすに節目がある予定を「直前 <日付>」のフォルダへ
+      - run: node scripts/sns-schedule/spot.mjs --days 2 --drive
         env:
           GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
           GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
