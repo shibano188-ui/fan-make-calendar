@@ -245,8 +245,8 @@ export default function NotificationSettings() {
                 )}
                 <p className="text-[11px] text-label-secondary mt-1 ml-6">
                   {premium
-                    ? 'フォロー中の作品に追加された予定をお知らせします。押すと、その作品の新着を1件ずつ見られます。'
-                    : 'フォロー中の作品に追加された予定を、毎朝9時に1通でお知らせします。押すと、その作品の新着を1件ずつ見られます。'}
+                    ? 'フォロー中の作品に追加された予定をお知らせします。押すと、新着を1件ずつ見られます。'
+                    : 'フォロー中の作品に追加された予定を、毎朝9時に1通でお知らせします。押すと、新着を1件ずつ見られます。'}
                   {!premium && FEATURE_PREMIUM && ' プレミアムなら「すぐ」「1日3回」も選べます。'}
                 </p>
               </div>
@@ -275,7 +275,7 @@ export default function NotificationSettings() {
                   <span className="text-[14px] flex-1">受付開始のお知らせ</span>
                 </div>
                 <p className="text-[11px] text-label-secondary mt-1 ml-6">
-                  いいねしたグッズの予約受付が始まったら、その時点でお知らせします。
+                  いいねしてベルをONにしたグッズの予約受付が始まったら、その時点でお知らせします。
                 </p>
               </div>
             )}
@@ -290,7 +290,7 @@ export default function NotificationSettings() {
               <p className="text-[11px] text-label-tertiary px-1 mb-1.5">
                 {premium
                   ? '新着の届き方を作品ごとに選べます。「通知しない」にすると、その作品の値下げ・再入荷も止めます'
-                  : 'OFFにすると、その作品の値下げ・再入荷と新着のまとめを止めます'}
+                  : 'OFFにすると、その作品の新着のお知らせ（毎朝9時）を止めます'}
               </p>
               <div className="rounded-[12px] overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>
                 {works.map((w, i) => (
