@@ -347,9 +347,10 @@ export default function Home() {
           className="pressable mx-3 mt-1.5 w-[calc(100%-24px)] flex items-center gap-2 px-3 py-1.5 rounded-[10px] text-left border"
           style={{ borderColor: 'color-mix(in srgb, var(--accent-color) 45%, transparent)' }}>
           <Crown size={15} className="flex-shrink-0" style={{ color: 'var(--accent-text)' }} />
-          {/* 1行に収める（カードの高さを削らないように）。届く時刻は課金のページで説明する */}
+          {/* 1行に収める（カードの高さを削らないように）。件数は出さない（「◯件」が何のことか分かりにくかった）。
+              出すのは、まだ届いていない新着があるときだけ */}
           <span className="flex-1 min-w-0 truncate text-[12px] font-semibold" style={{ color: 'var(--accent-text)' }}>
-            プレミアムなら{waiting}件をすぐ見られます
+            プレミアムなら新着をすぐ確認できます
           </span>
           <ChevronRight size={16} className="text-label-tertiary flex-shrink-0" />
         </button>
