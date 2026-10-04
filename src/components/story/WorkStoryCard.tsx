@@ -53,8 +53,8 @@ export function WorkStoryCard({ group, followDays, next, height, onStory, onPick
   onSearch: () => void;
   onOpenEvent: (e: CalendarEvent) => void;
 }) {
-  // その次の予定は、カードの中ほどに実際に空いた高さのぶんだけ並べる（1件 44px）
-  const fit = useFitRows(46, 4, [height, next.main?.event.id, next.after.length, group.title]);
+  // その次の予定は、カードの中ほどに実際に空いた高さのぶんだけ並べる（1件 58px・3行）
+  const fit = useFitRows(58, 4, [height, next.main?.event.id, next.after.length, group.title]);
   return (
     <CardFrame height={height} badge={
       <BadgeSlot>
@@ -109,7 +109,9 @@ export function WorkStoryCard({ group, followDays, next, height, onStory, onPick
                   <Thumb src={parseImageUrls(n.event.imageUrl)[0]} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[10px] text-label-secondary leading-tight">{n.label} {md(n.date)}・{daysText(n.days)}</span>
+                  {/* 「発売 10/9」の後で改行し、「あと5日」は1行で少し目立たせる（前は「・あと5日」が変な所で折れていた） */}
+                  <span className="block text-[10px] text-label-secondary leading-tight truncate">{n.label} {md(n.date)}</span>
+                  <span className="block text-[12px] font-bold leading-tight whitespace-nowrap" style={{ color: 'var(--accent-text)' }}>{daysText(n.days)}</span>
                   <span className="block text-[11px] leading-snug truncate">{n.event.title}</span>
                 </span>
               </button>
