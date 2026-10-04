@@ -27,6 +27,7 @@ import {
 import StoryViewer, { type StoryPosition } from '../components/story/StoryViewer';
 import { WorkStoryCard, WeekStoryCard, AddWorkCard } from '../components/story/WorkStoryCard';
 import { useWorkImagePicker } from '../components/story/useWorkImagePicker';
+import ProfileTicket from '../components/home/ProfileTicket';
 
 // ホーム（2026-10-04 作り直し・柴野）。仕様 → Obsidian: Decisions/2026-10-04-fanhive-home-story-premium.md
 //   上: プロフィール（アイコン・名前・称号・ヌシ・連続記録・追加した予定）
@@ -289,6 +290,8 @@ export default function Home() {
   // 広告バナー: ステータスバー直下に表示し、ヘッダー余白をバナー高さ分広げて被りを防ぐ。
   const adPad = useAdBanner();
   const loading = items === null || (!followsReady && (authLoading || !!user));
+  // 使い始めた月（会員証の「2026.06〜」）
+  const memberSince = user?.created_at ? user.created_at.slice(0, 7).replace('-', '.') : null;
   // 無料の人の次の9時が今日か明日か（9時より前に開いたら今日）
 
   return (
@@ -303,31 +306,12 @@ export default function Home() {
       <WorkFollowSheet open={followSheetOpen} onClose={() => setFollowSheetOpen(false)} onChanged={reloadFollows} />
       {iconPicker.input}
 
-      {/* プロフィール。押すとマイページ */}
-      <button onClick={() => { haptic.select(); navigate('/mypage'); }} className="pressable w-full flex items-center gap-3 px-4 pt-2 pb-1 text-left">
-        <span className="w-12 h-12 rounded-full flex items-center justify-center text-[26px] flex-shrink-0" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-          {profile?.avatar ?? DEFAULT_AVATAR}
-        </span>
-        <span className="flex-1 min-w-0">
-          <span className="block text-[16px] font-bold truncate">{profile?.name || '名無しのファン'}</span>
-          <span className="flex items-center gap-1 mt-0.5 flex-wrap">
-            {profile?.title && (
-              <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] font-bold"
-                style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 18%, transparent)', color: 'var(--accent-text)' }}>
-                <Crown size={10} strokeWidth={2.5} />{profile.title}
-              </span>
-            )}
-            {profile?.nushi.slice(0, 1).map((n) => (
-              <span key={n.workId} className="text-[11px] text-label-secondary">{shortWorkName(n.workName)}のヌシ</span>
-            ))}
-          </span>
-          <span className="block text-[11px] text-label-tertiary mt-0.5">追加した予定 {likedIds.size}件</span>
-        </span>
-        <span className="flex flex-col items-center flex-shrink-0" aria-label={`${streak}日連続`}>
-          <span className="text-[22px] leading-none" style={{ filter: streak ? 'none' : 'grayscale(1)', opacity: streak ? 1 : 0.4 }}>🔥</span>
-          <span className="text-[12px] font-bold tabular-nums mt-0.5">{streak}日</span>
-        </span>
-      </button>
+      {/* プロフィール（会員証・チケットの見た目）。押すとマイページ */}
+      <div className="px-3 pt-2">
+        <ProfileTicket avatar={profile?.avatar ?? DEFAULT_AVATAR} name={profile?.name || '名無しのファン'}
+          title={profile?.title} nushi={profile?.nushi[0] ? shortWorkName(profile.nushi[0].workName) : undefined}
+          added={likedIds.size} since={memberSince} streak={streak} onOpen={() => navigate('/mypage')} />
+      </div>
 
       {/* まだ見ていない新着の数。見るたびに減る。押すと新着のある最初の作品から見られる */}
       {!loading && unseenTotal > 0 && (
