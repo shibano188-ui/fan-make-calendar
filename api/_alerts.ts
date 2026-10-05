@@ -10,15 +10,15 @@ import { sendPushes, fcmConfigured, type PushMessage } from './_fcm.js';
 //   4. プッシュ宛先(push_tokens)を持っている人
 //
 // 同意の取り方が種類で逆なので、ここは一本化できない（NotifyBell のシートと揃える）:
-//   値下げ・再入荷 … オプトアウト。いいね済みは自動で対象で、止めた人だけ muted_* に入る
-//   受付開始       … オプトイン。ベルをONにした予定（notify_event_ids）だけ
+//   値下げ・再入荷     … オプトアウト。いいね済みは自動で対象で、止めた人だけ muted_* に入る
+//   受付開始・予約締切 … オプトイン。ベルをONにした予定（notify_event_ids）だけ
 //
 // 1人に複数件たまったときは**1通にまとめる**（通知欄が同じ日に何通も並ぶと、次から開かれなくなる）。
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any>;
 
-export type AlertKind = 'price_drop' | 'restock' | 'preorder_start';
+export type AlertKind = 'price_drop' | 'restock' | 'preorder_start' | 'preorder_end';
 
 export type Alert = {
   eventId: string;
@@ -28,6 +28,8 @@ export type Alert = {
   kind: AlertKind;
   oldPrice?: number | null;
   newPrice?: number | null;
+  /** 予約締切のとき: 締切の時刻（'HH:MM'）。時刻の分かる締切だけ送る */
+  endTime?: string | null;
 };
 
 const yen = (n: number) => `${n.toLocaleString('ja-JP')}円`;
@@ -37,6 +39,9 @@ function oneMessage(c: Alert): { title: string; body: string } {
   const tag = c.workName ? `【${c.workName}】` : '';
   if (c.kind === 'preorder_start') {
     return { title: `${tag}受付が始まりました`, body: `「${c.title}」の予約受付が始まりました` };
+  }
+  if (c.kind === 'preorder_end') {
+    return { title: `${tag}まもなく予約締切（${c.endTime}まで）`, body: `「${c.title}」の予約は${c.endTime}までです` };
   }
   if (c.kind === 'restock') {
     return { title: `${tag}再入荷しました`, body: `「${c.title}」が買えるようになりました` };
@@ -49,6 +54,9 @@ function oneMessage(c: Alert): { title: string; body: string } {
 function manyMessage(list: Alert[]): { title: string; body: string } {
   if (list.every((c) => c.kind === 'preorder_start')) {
     return { title: `受付が始まったものが${list.length}件あります`, body: 'いいねした予定の予約受付が始まりました' };
+  }
+  if (list.every((c) => c.kind === 'preorder_end')) {
+    return { title: `予約締切が近いものが${list.length}件あります`, body: 'いいねした予定の予約締切が近づいています' };
   }
   if (list.every((c) => c.kind === 'price_drop')) {
     return { title: `値下がりが${list.length}件あります`, body: 'いいねしたグッズが過去最安になりました' };
@@ -160,7 +168,7 @@ export async function pushAlerts(db: Db, alerts: Alert[]): Promise<{ sent: numbe
 
   /** この人にこの通知を送ってよいか（種類ごとに同意の取り方が逆）。 */
   function wants(uid: string, c: Alert): boolean {
-    if (c.kind === 'preorder_start') return !!bellOn.get(uid)?.has(c.eventId); // オプトイン
+    if (c.kind === 'preorder_start' || c.kind === 'preorder_end') return !!bellOn.get(uid)?.has(c.eventId); // オプトイン
     if (mutedEvents.get(uid)?.has(c.eventId)) return false;                    // オプトアウト
     if (c.workId && mutedWorks.get(uid)?.has(c.workId)) return false;
     return true;
@@ -203,8 +211,9 @@ export async function pushAlerts(db: Db, alerts: Alert[]): Promise<{ sent: numbe
   const messages: PushMessage[] = [];
   for (const [uid, list] of perUser) {
     const text = list.length === 1 ? oneMessage(list[0]) : manyMessage(list);
-    // タップ先: 1件ならその商品、複数ならまとめのページ
-    const data = list.length === 1 ? { eventId: list[0].eventId } : { path: '/price-drops' };
+    // タップ先: 1件ならその商品、複数ならまとめのページ（値段の話でなければお知らせの一覧）
+    const priceOnly = list.every((c) => c.kind === 'price_drop' || c.kind === 'restock');
+    const data: Record<string, string> = list.length === 1 ? { eventId: list[0].eventId } : { path: priceOnly ? '/price-drops' : '/notices' };
     for (const token of tokensByUser.get(uid) ?? []) {
       messages.push({ token, title: text.title, body: text.body, data });
     }

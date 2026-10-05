@@ -67,7 +67,7 @@ export const PREMIUM_FEATURE_ORDER: PremiumFeature[] = [
 /** 案内画面に出す一行説明。使う人の言葉で書く（機能名だけでは何が嬉しいか伝わらない）。
  *  FREE_FOLLOW_LIMIT を参照するので、この定義より後ろに置くこと。 */
 export const PREMIUM_FEATURE_NOTES: Record<PremiumFeature, string> = {
-  instantAlerts: 'いいねしたグッズの予約受付が始まった瞬間に届きます。無料プランは、ベルを押した予定を前もって・当日の朝にお知らせします。',
+  instantAlerts: 'いいねしたグッズの予約受付が始まった瞬間と、締切の直前に届きます。無料プランは、ベルを押した予定を前もって・当日の朝にお知らせします。',
   priceAlerts: 'いいねしたグッズが過去の最安値を更新したとき、売り切れから在庫が戻ったときに知らせます。',
   newEventDigest: 'フォロー中の作品に予定が追加されたら、朝を待たずにホームで見られます。通知も「すぐ」「1日3回」から、作品ごとに選べます。無料プランは毎朝9時です。',
   noAds: 'アプリの下に出る広告が消えます。',
