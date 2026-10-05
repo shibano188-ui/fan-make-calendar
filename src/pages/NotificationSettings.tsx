@@ -275,7 +275,7 @@ export default function NotificationSettings() {
                   <span className="text-[14px] flex-1">受付開始・締切のお知らせ</span>
                 </div>
                 <p className="text-[11px] text-label-secondary mt-1 ml-6">
-                  いいねしてベルをONにしたグッズの予約受付が始まったら、その時点でお知らせします。予約締切の直前（1時間前。時刻が分からなければ当日18時）にもお知らせします。早く受付が終わったものには届きません。
+                  いいねしてベルをONにしたグッズの予約受付が始まったら、その時点でお知らせします。締切の時刻が分かっているものは、その1時間前にもお知らせします。早く受付が終わったものには届きません。
                 </p>
               </div>
             )}

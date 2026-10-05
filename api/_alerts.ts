@@ -28,7 +28,7 @@ export type Alert = {
   kind: AlertKind;
   oldPrice?: number | null;
   newPrice?: number | null;
-  /** 予約締切のとき: 締切の時刻（'HH:MM'）。分からなければ null */
+  /** 予約締切のとき: 締切の時刻（'HH:MM'）。時刻の分かる締切だけ送る */
   endTime?: string | null;
 };
 
@@ -41,8 +41,7 @@ function oneMessage(c: Alert): { title: string; body: string } {
     return { title: `${tag}受付が始まりました`, body: `「${c.title}」の予約受付が始まりました` };
   }
   if (c.kind === 'preorder_end') {
-    if (c.endTime) return { title: `${tag}まもなく予約締切（${c.endTime}まで）`, body: `「${c.title}」の予約は${c.endTime}までです` };
-    return { title: `${tag}本日が予約締切です`, body: `「${c.title}」の予約は本日までです` };
+    return { title: `${tag}まもなく予約締切（${c.endTime}まで）`, body: `「${c.title}」の予約は${c.endTime}までです` };
   }
   if (c.kind === 'restock') {
     return { title: `${tag}再入荷しました`, body: `「${c.title}」が買えるようになりました` };

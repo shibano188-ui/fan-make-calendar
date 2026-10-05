@@ -18,7 +18,8 @@ import { runBotPaced } from './_pace.js';
 //   - 二重送信は event_alerts_sent（event_id + kind の主キー）で防ぐ
 //
 // 予約締切も受付開始と同じく**1回だけ**送る（回数を揃える。2026-10-05 柴野）:
-//   - 締切の時刻があればその1時間前、無ければ締切日の 18:00（夜の締切に間に合う時間）
+//   - 締切の**時刻が分かっている予定だけ**、その1時間前。時刻が無い予定は送らない
+//     （端末の「本日が予約締切」が当日の朝9時に出るので、夕方にもう1回は要らない。2026-10-05 柴野）
 //   - 締切を過ぎたもの・**早期終了したもの**は送らない。早期終了は2通りで見る
 //     ① 店の「予約受付終了」の表記を見つけると _enrich.ts が締切を昨日に書き直す → 日付で外れる
 //     ② 購入リンクに終了の表記がある・在庫の分かるリンクが全部「在庫なし」（下の endedEarly）
@@ -29,10 +30,6 @@ import { runBotPaced } from './_pace.js';
 const DEFAULT_START_HOUR = '09:00';
 /** 開始からこれ以上経っていたら送らない。 */
 const CATCH_UP_MS = 2 * 60 * 60 * 1000;
-/** 締切の時刻が無い予定に、締切の通知を出す時刻（JST）。 */
-const DEFAULT_END_NOTIFY = '18:00';
-/** 締切の時刻が無い予定の締切（その日いっぱい）。 */
-const DEFAULT_END_HOUR = '23:59';
 /** 締切の時刻があるとき、何分前に知らせるか。 */
 const END_LEAD_MIN = 60;
 
@@ -163,9 +160,10 @@ async function sendEndAlerts(db: Db): Promise<Record<string, unknown>> {
     const date = r.preorder_end_date as string | null;
     if (!date || !days.includes(date)) return false; // パッチ・早期終了の書き直しで日付が動いたものはここで外れる
     const time = (r.preorder_end_time as string | null)?.slice(0, 5) ?? null;
-    const endAt = Date.parse(`${date}T${time ?? DEFAULT_END_HOUR}:00+09:00`);
-    const sendAt = time ? endAt - END_LEAD_MIN * 60_000 : Date.parse(`${date}T${DEFAULT_END_NOTIFY}:00+09:00`);
-    if (Number.isNaN(endAt) || Number.isNaN(sendAt)) return false;
+    if (!time) return false; // 時刻の無い締切は端末の当日朝の通知に任せる
+    const endAt = Date.parse(`${date}T${time}:00+09:00`);
+    const sendAt = endAt - END_LEAD_MIN * 60_000;
+    if (Number.isNaN(endAt)) return false;
     if (!(sendAt <= now && now - sendAt <= CATCH_UP_MS && now < endAt)) return false;
     if (endedEarly(r.offers)) { ended++; return false; }
     return true;
