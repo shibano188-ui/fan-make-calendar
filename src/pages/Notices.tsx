@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, TrendingDown, PackageCheck, BellRing, Sparkles } from 'lucide-react';
+import { ArrowLeft, TrendingDown, PackageCheck, BellRing, AlarmClock, Sparkles } from 'lucide-react';
 import { listNotices, type Notice, type NoticeKind } from '../lib/api';
 import { getNoticesSeenAt, markNoticesSeen } from '../lib/notices';
 import { useAuth } from '../contexts/AuthContext';
@@ -14,6 +14,7 @@ const META: Record<NoticeKind, { icon: typeof TrendingDown; label: string; color
   price_drop:     { icon: TrendingDown, label: '値下がり',   color: 'var(--color-success)' },
   restock:        { icon: PackageCheck, label: '再入荷',     color: 'var(--accent-text)' },
   preorder_start: { icon: BellRing,     label: '受付開始',   color: 'var(--accent-text)' },
+  preorder_end:   { icon: AlarmClock,   label: '予約締切',   color: 'var(--color-destructive)' },
   new_events:     { icon: Sparkles,     label: '新着まとめ', color: 'var(--label-secondary)' },
 };
 
@@ -57,7 +58,7 @@ export default function Notices() {
           ) : notices.length === 0 ? (
             <p className="px-1 py-10 text-center text-[13px] text-label-tertiary">
               まだお知らせはありません。<br />
-              値下がり・再入荷・受付開始・フォロー作品の新着が、ここに残ります。
+              値下がり・再入荷・受付開始・予約締切・フォロー作品の新着が、ここに残ります。
             </p>
           ) : notices.map((n) => {
             const { icon: Icon, label, color } = META[n.kind] ?? META.new_events;

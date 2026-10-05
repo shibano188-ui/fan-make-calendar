@@ -8,6 +8,7 @@ import type { CalendarEvent } from '../types';
 import { deriveItemType, datePeriod } from '../design/tokens';
 import { loadNotifyEventIds, loadNotifyLeadDays } from './constants';
 import { waitForTrackingDialog } from './att';
+import { isPremiumCached } from './premium';
 
 // ローカル通知が使えるか（ネイティブ かつ プラグイン同梱の新APK）。
 // 旧APK/PWAでは false になり、機能ごと無効化される。
@@ -66,8 +67,8 @@ function triggersFor(e: CalendarEvent): Trigger[] {
   if (e.preorderEnd) {
     if (lead > 0) out.push({ kind: 'pend1', at: morningOf(e.preorderEnd, -lead), title: `${tag}予約締切まであと${lead}日`, body: `「${e.title}」の予約締切が近づいています` });
     out.push({ kind: 'pend0', at: morningOf(e.preorderEnd), title: `${tag}本日が予約締切${e.preorderEndTime ? `（${hm(e.preorderEndTime)}まで）` : ''}`, body: `「${e.title}」の予約は本日までです` });
-    // 締切は買う時間が要るので1時間前
-    if (e.preorderEndTime) out.push({ kind: 'pendT', at: beforeTime(e.preorderEnd, e.preorderEndTime, 60), title: `${tag}まもなく予約締切（${hm(e.preorderEndTime)}まで）`, body: `「${e.title}」の予約は${hm(e.preorderEndTime)}までです` });
+    // 締切は買う時間が要るので1時間前。プレミアムはサーバーが同じ時刻に送る（早期終了なら送らない）ので、端末からは出さない
+    if (e.preorderEndTime && !isPremiumCached()) out.push({ kind: 'pendT', at: beforeTime(e.preorderEnd, e.preorderEndTime, 60), title: `${tag}まもなく予約締切（${hm(e.preorderEndTime)}まで）`, body: `「${e.title}」の予約は${hm(e.preorderEndTime)}までです` });
   }
   // ピンした日があれば直近のピンを基準にする（無ければ予定本来の日）
   const today = new Date().toISOString().slice(0, 10);
