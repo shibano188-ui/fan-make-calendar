@@ -32,7 +32,8 @@ function fold(line: string): string {
 
 type EventRow = {
   id: string; title: string; event_date: string | null; end_date: string | null; date_label: string | null;
-  event_time: string | null; preorder_end_date: string | null; memo: string | null; link_url: string | null;
+  event_time: string | null; preorder_start_date: string | null; preorder_start_time: string | null;
+  preorder_end_date: string | null; memo: string | null; link_url: string | null;
 };
 
 function vevent(uid: string, summary: string, start: string, end: string | null, time: string | null, desc: string, url: string, stamp: string): string[] {
@@ -89,7 +90,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 自分の投稿でも、保存していなければ入れない（投稿時に入れるかはフォームのトグルで決める）
   const { data: likeRows } = await db.from('likes').select('event_id').eq('user_id', userId);
   const likedIds = (likeRows ?? []).map((r) => r.event_id as string);
-  const cols = 'id, title, event_date, end_date, date_label, event_time, preorder_end_date, memo, link_url';
+  const cols = 'id, title, event_date, end_date, date_label, event_time, preorder_start_date, preorder_start_time, preorder_end_date, memo, link_url';
   const results = likedIds.length
     ? [await db.from('events').select(cols).eq('pool', 0).in('id', likedIds)]
     : [];
@@ -134,6 +135,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const vague = !!e.date_label;
         const summary = vague ? `${e.title}（${e.date_label}）` : e.title;
         body.push(...vevent(e.id, summary, e.event_date, vague ? null : e.end_date, vague ? null : e.event_time, e.memo ?? '', url, stamp));
+      }
+      // 受付開始も、日付が別なら独立した予定として出す。時刻が分かればその時刻に置く
+      // （人気のグッズは開始から数分で売り切れる。通知と同じく一番大事な日なのに入っていなかった。2026-10-05 柴野）
+      if (e.preorder_start_date && e.preorder_start_date !== e.event_date) {
+        body.push(...vevent(`${e.id}-start`, `【受付開始】${e.title}`, e.preorder_start_date, null,
+          e.preorder_start_time?.slice(0, 5) ?? null, e.memo ?? '', url, stamp));
       }
       // 受付の締切は見逃すと取り返しがつかないので、日付が別なら独立した予定として出す
       if (e.preorder_end_date && e.preorder_end_date !== e.event_date) {
