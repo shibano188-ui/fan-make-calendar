@@ -4,48 +4,52 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>プレスリリース・掲載情報 - FanHive</title>
+  <link rel="icon" href="/icon-64.png" />
   <style>
-    /* tokushoho.html と同じ見た目に揃える */
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 720px; margin: 0 auto; padding: 16px 16px 24px; color: #1a1a1a; line-height: 1.7; padding-top: calc(16px + env(safe-area-inset-top)); }
-    h1 { font-size: 1.5rem; margin-bottom: 8px; }
-    h2 { font-size: 1.1rem; margin-top: 32px; }
-    p, li { font-size: 0.95rem; color: #333; }
-    ul { padding-left: 20px; }
-    li { margin-bottom: 12px; }
-    .date { font-size: 0.85rem; color: #888; }
-    .updated { font-size: 0.85rem; color: #888; margin-bottom: 32px; }
-    a { color: #0066cc; }
-    nav { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e2e2e2; font-size: 0.9rem; }
-    nav a { margin-right: 16px; }
-    /* ダークの上書きは最後に置く（tokushoho.html の注記と同じ理由） */
-    @media (prefers-color-scheme: dark) {
-      body { background: #000; color: #f2f2f7; }
-      p, li { color: #d1d1d6; }
-      .date, .updated { color: #8e8e93; }
-      nav { border-top-color: #38383a; }
-      a { color: #6cb0ff; }
-    }
+    /* LP（lp.html）の配色・書体に揃える。LP にダークモードは無いので、ここも明るいまま */
+    @font-face { font-family: 'Noto Sans JP'; font-weight: 400; font-display: swap; src: url('/lp/fonts/noto-sans-jp-400.woff2') format('woff2'); }
+    @font-face { font-family: 'Noto Sans JP'; font-weight: 700; font-display: swap; src: url('/lp/fonts/noto-sans-jp-700.woff2') format('woff2'); }
+    body { margin: 0; background: #FFFBF3; color: #2A1C22; font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif; line-height: 1.8; }
+    .wrap { max-width: 720px; margin: 0 auto; padding: calc(24px + env(safe-area-inset-top)) 16px 40px; }
+    .brand { display: inline-flex; align-items: center; gap: 10px; color: #2A1C22; font-weight: 700; font-size: 18px; text-decoration: none; }
+    .brand img { width: 32px; height: 32px; border-radius: 9px; }
+    h1 { font-size: clamp(26px, 7vw, 34px); line-height: 1.4; margin: 28px 0 4px; }
+    h2 { font-size: 18px; margin: 36px 0 12px; }
+    .updated { font-size: 13px; color: #7A6A6E; margin: 0; }
+    .item { display: block; background: #fff; border: 1px solid #F5E8D2; border-radius: 18px; padding: 18px 20px; color: #2A1C22; text-decoration: none; }
+    .item:hover { background: #FDF6E7; }
+    .date { font-size: 13px; color: #7F5D0C; font-weight: 700; }
+    .title { display: block; font-weight: 700; margin-top: 4px; }
+    .media { font-size: 13px; color: #6B555C; }
+    p { color: #6B555C; margin: 0; }
+    a { color: #7F5D0C; }
+    footer { margin-top: 48px; padding-top: 22px; border-top: 1px solid #F1E1BE; display: flex; flex-wrap: wrap; gap: 10px 20px; font-size: 14px; }
+    footer a { color: #2A1C22; }
   </style>
 </head>
 <body>
-  <h1>プレスリリース・掲載情報</h1>
-  <p class="updated">最終更新日：2026年10月6日</p>
+  <div class="wrap">
+    <a class="brand" href="/"><img src="/icon-64.png" alt="" />FanHive</a>
 
-  <h2>プレスリリース</h2>
-  <ul>
-    <li>
-      <span class="date">2026年10月6日</span><br>
-      <a href="https://zero-press.net/p/r-muvhzf10ehyz" target="_blank" rel="noopener">推し活の予定、ぜんぶここに。グッズの発売日・予約締切を見逃さないアプリ「FanHive」</a>（Zero Press）
-    </li>
-  </ul>
+    <h1>プレスリリース・掲載情報</h1>
+    <p class="updated">最終更新日：2026年10月6日</p>
 
-  <h2>取材・お問い合わせ</h2>
-  <p>IM Compass（担当：柴野 爽）<br>contact@fanhive.jp</p>
+    <h2>プレスリリース</h2>
+    <a class="item" href="https://zero-press.net/p/r-muvhzf10ehyz" target="_blank" rel="noopener">
+      <span class="date">2026年10月6日</span>
+      <span class="title">推し活の予定、ぜんぶここに。グッズの発売日・予約締切を見逃さないアプリ「FanHive」</span>
+      <span class="media">Zero Press</span>
+    </a>
 
-  <nav>
-    <a href="/">FanHive トップ</a>
-    <a href="/terms.html">利用規約</a>
-    <a href="/privacy.html">プライバシーポリシー</a>
-  </nav>
+    <h2>取材・お問い合わせ</h2>
+    <p>contact@fanhive.jp</p>
+
+    <footer>
+      <a href="/">FanHive トップ</a>
+      <a href="/terms.html">利用規約</a>
+      <a href="/privacy.html">プライバシーポリシー</a>
+      <a href="/tokushoho.html">特定商取引法に基づく表記</a>
+    </footer>
+  </div>
 </body>
 </html>
