@@ -480,6 +480,16 @@ export default function MyPage() {
             {icsOpen && <div className="mt-2 ml-6"><CalendarSubscribe userId={user.id} /></div>}
           </div>
         )}
+        {/* 無料の人にも行だけ見せて、押したらプレミアムの案内へ（あること自体が見えないと選ばれない。2026-10-05 柴野） */}
+        {!calendarSync && FEATURE_PREMIUM && (
+          <button onClick={() => { haptic.select(); navigate('/premium'); }}
+            className="pressable w-full flex items-center gap-2 px-3 py-2.5 text-left">
+            <CalendarSync size={16} className="text-label-secondary" />
+            <span className="text-[14px] flex-1">カレンダー連携</span>
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+              style={{ color: 'var(--accent-on)', backgroundColor: 'var(--accent-color)' }}>プレミアム</span>
+          </button>
+        )}
         {/* Googleカレンダー連携。フラグが立つまで**何も出さない**。
             「外部カレンダー連携（近日）」を出していたが、そのすぐ上にある
             「端末のカレンダーに書き込む」「カレンダー自動同期」で既に連携できるので矛盾する。
