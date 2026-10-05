@@ -25,8 +25,10 @@
     .media { font-size: 13px; color: #6B555C; }
     p { color: #6B555C; margin: 0; }
     a { color: #7F5D0C; }
-    footer { margin-top: 48px; padding-top: 22px; border-top: 1px solid #F1E1BE; display: flex; flex-wrap: wrap; gap: 10px 20px; font-size: 14px; }
-    footer a { color: #2A1C22; }
+    /* フッターは LP と同じ並び・見た目 */
+    footer { margin-top: 48px; border-top: 1px solid #F1E1BE; padding: 26px 0 40px; }
+    footer nav { display: flex; flex-wrap: wrap; gap: 12px 20px; font-size: 14px; }
+    footer .copy { font-size: 13px; color: #7A6A6E; margin: 18px 0 0; line-height: 1.75; }
   </style>
 </head>
 <body>
@@ -47,10 +49,15 @@
     <p>contact@fanhive.jp</p>
 
     <footer>
-      <a href="/">FanHive トップ</a>
-      <a href="/terms.html">利用規約</a>
-      <a href="/privacy.html">プライバシーポリシー</a>
-      <a href="/tokushoho.html">特定商取引法に基づく表記</a>
+      <nav>
+        <a href="/terms.html">利用規約</a>
+        <a href="/privacy.html">プライバシーポリシー</a>
+        <a href="/tokushoho.html">特定商取引法に基づく表記</a>
+        <a href="mailto:contact@fanhive.jp">お問い合わせ</a>
+        <a href="mailto:contact@fanhive.jp">権利者向け窓口</a>
+        <a href="/press.html">プレスリリース</a>
+      </nav>
+      <p class="copy">© 2026 FanHive.</p>
     </footer>
   </div>
 </body>
