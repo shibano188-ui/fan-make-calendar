@@ -84,6 +84,10 @@ export default function CalendarSubscribe({ userId }: { userId: string }) {
       <button onClick={onRegen} className="pressable text-[11px] text-label-tertiary text-left">
         URLを作り直す（今のURLは使えなくなります）
       </button>
+      {/* アプリ側に「やめる」ボタンは無い（購読はカレンダーアプリ側のもの）。やめ方だけ書いておく */}
+      <p className="text-[11px] text-label-tertiary">
+        同期を止めたいときは、カレンダーアプリで「FanHive」のカレンダーを削除してください。
+      </p>
     </div>
   );
 }
