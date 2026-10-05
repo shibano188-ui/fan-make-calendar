@@ -1,6 +1,6 @@
 {
   "crons": [
-    { "path": "/api/refresh-offers", "schedule": "0 18 * * *" },
+    { "path": "/api/refresh-offers", "schedule": "0 23 * * *" },
     { "path": "/api/metrics", "schedule": "35 15 * * *" }
   ],
   "functions": { "api/refresh-offers.ts": { "maxDuration": 300 } },
