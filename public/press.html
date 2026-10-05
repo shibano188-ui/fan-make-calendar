@@ -10,7 +10,9 @@
     @font-face { font-family: 'Noto Sans JP'; font-weight: 400; font-display: swap; src: url('/lp/fonts/noto-sans-jp-400.woff2') format('woff2'); }
     @font-face { font-family: 'Noto Sans JP'; font-weight: 700; font-display: swap; src: url('/lp/fonts/noto-sans-jp-700.woff2') format('woff2'); }
     body { margin: 0; background: #FFFBF3; color: #2A1C22; font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif; line-height: 1.8; }
-    .wrap { max-width: 720px; margin: 0 auto; padding: calc(24px + env(safe-area-inset-top)) 16px 40px; }
+    /* LP と同じくスマホ優先。768px 以上で 720px まで広げる */
+    .wrap { max-width: 520px; margin: 0 auto; padding: calc(24px + env(safe-area-inset-top)) 20px 40px; }
+    @media (min-width: 768px) { .wrap { max-width: 720px; } }
     .brand { display: inline-flex; align-items: center; gap: 10px; color: #2A1C22; font-weight: 700; font-size: 18px; text-decoration: none; }
     .brand img { width: 32px; height: 32px; border-radius: 9px; }
     h1 { font-size: clamp(26px, 7vw, 34px); line-height: 1.4; margin: 28px 0 4px; }
