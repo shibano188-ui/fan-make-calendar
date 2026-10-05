@@ -177,7 +177,7 @@ export default function NotificationSettings() {
               <p className="text-[14px] font-semibold">プレミアムなら、受付開始の瞬間に届く</p>
               <p className="text-[11px] text-label-secondary mt-1 leading-relaxed">
                 無料プランでは、ベルを押した予定を前もって・当日の朝にお知らせします。
-                プレミアムなら、予約受付が始まった瞬間と、値下げ・再入荷があったときにもお知らせします。
+                プレミアムなら、予約受付が始まった瞬間・締切の直前と、値下げ・再入荷があったときにもお知らせします。
                 新着も朝を待たずに、作品ごとに届き方を選べます。
               </p>
             </button>
@@ -267,15 +267,15 @@ export default function NotificationSettings() {
               </button>
             )}
 
-            {/* 受付開始の即時通知（プレミアム・設定項目は無い＝説明だけ） */}
+            {/* 受付開始・予約締切の即時通知（プレミアム・設定項目は無い＝説明だけ） */}
             {instantAlerts && (
               <div className={row}>
                 <div className="flex items-center gap-2">
                   <BellRing size={16} className="text-label-secondary" />
-                  <span className="text-[14px] flex-1">受付開始のお知らせ</span>
+                  <span className="text-[14px] flex-1">受付開始・締切のお知らせ</span>
                 </div>
                 <p className="text-[11px] text-label-secondary mt-1 ml-6">
-                  いいねしてベルをONにしたグッズの予約受付が始まったら、その時点でお知らせします。
+                  いいねしてベルをONにしたグッズの予約受付が始まったら、その時点でお知らせします。締切の時刻が分かっているものは、その1時間前にもお知らせします。早く受付が終わったものには届きません。
                 </p>
               </div>
             )}
