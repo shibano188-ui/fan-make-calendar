@@ -1,6 +1,6 @@
 // ローカル通知（ネイティブのみ）。
 // 対象は「いいね済み × ベルON × 未来の日付」の予定。サーバー不要で端末にスケジュールする。
-// トリガー: 予約受付開始 / 予約締切(前日・当日) / 発売・開催(前日・当日) の朝9時。
+// トリガー: 予約受付開始 / 予約締切 / 発売・開催 の、◯日前（設定）と当日の朝9時。
 // 時刻が分かっていれば、その少し前にも出す（受付開始・発売は10分前、締切は1時間前）。
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
@@ -8,6 +8,7 @@ import type { CalendarEvent } from '../types';
 import { deriveItemType, datePeriod } from '../design/tokens';
 import { loadNotifyEventIds, loadNotifyLeadDays } from './constants';
 import { waitForTrackingDialog } from './att';
+import { isPremiumCached } from './premium';
 
 // ローカル通知が使えるか（ネイティブ かつ プラグイン同梱の新APK）。
 // 旧APK/PWAでは false になり、機能ごと無効化される。
@@ -16,7 +17,7 @@ export const notificationsSupported = (): boolean =>
 const native = notificationsSupported;
 
 // 後ろに足すこと（並びが通知IDに入っている。1予定あたり10種類まで）
-const KINDS = ['pstart', 'pend1', 'pend0', 'd1', 'd0', 'pstartT', 'pendT', 'd0T'] as const;
+const KINDS = ['pstart', 'pend1', 'pend0', 'd1', 'd0', 'pstartT', 'pendT', 'd0T', 'pstart0'] as const;
 type Kind = (typeof KINDS)[number];
 
 // 文字列→正整数ハッシュ（通知IDのベース。Javaのint上限内に収める）
@@ -55,11 +56,12 @@ function triggersFor(e: CalendarEvent): Trigger[] {
   const onsaleWord = isGoods ? '発売' : '開催';
   const lead = loadNotifyLeadDays(); // マイページの「◯日前」設定
 
-  // lead=0（当日のみ）のときは前もっての通知は出さない。受付開始だけは当日の通知が他に無いので、当日の朝に出す
+  // lead=0（当日のみ）のときは前もっての通知は出さない。当日の朝は締切・発売と同じく必ず出す
+  // （前は ◯日前 を選ぶと受付開始の当日朝が出ず、時刻の無い予定は当日に何も届かなかった。2026-10-05 柴野）
   if (e.preorderStart) {
-    out.push(lead > 0
-      ? { kind: 'pstart', at: morningOf(e.preorderStart, -lead), title: `${tag}受付開始まであと${lead}日`, body: `「${e.title}」の予約受付がもうすぐ始まります` }
-      : { kind: 'pstart', at: morningOf(e.preorderStart), title: `${tag}本日受付開始${e.preorderStartTime ? `（${hm(e.preorderStartTime)}〜）` : ''}`, body: `「${e.title}」の予約受付が本日始まります` });
+    if (lead > 0) out.push({ kind: 'pstart', at: morningOf(e.preorderStart, -lead), title: `${tag}受付開始まであと${lead}日`, body: `「${e.title}」の予約受付がもうすぐ始まります` });
+    // プレミアムで時刻の無い予定は、サーバーが同じ朝9時に「受付が始まりました」を送るので、端末からは出さない
+    if (e.preorderStartTime || !isPremiumCached()) out.push({ kind: 'pstart0', at: morningOf(e.preorderStart), title: `${tag}本日受付開始${e.preorderStartTime ? `（${hm(e.preorderStartTime)}〜）` : ''}`, body: `「${e.title}」の予約受付が本日始まります` });
     // 時刻が分かっていれば10分前にも（人気のグッズは開始から数分で売り切れる）
     if (e.preorderStartTime) out.push({ kind: 'pstartT', at: beforeTime(e.preorderStart, e.preorderStartTime, 10), title: `${tag}まもなく受付開始（${hm(e.preorderStartTime)}〜）`, body: `「${e.title}」の予約受付がまもなく始まります` });
   }
