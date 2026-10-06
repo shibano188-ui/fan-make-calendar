@@ -53,6 +53,29 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- 真っ白のまま止まったときの立て直し（2026-10-06 柴野の Android で発生。開き直したら直った）。
+         端末に残った古い版の画面が、入れ替わった本番の部品を読めずに描けなくなることがある。
+         部品の読み込みに失敗した／15秒たっても何も描けていないときは、Service Worker とその保存分を消して1回だけ読み込み直す。
+         保存しているデータ（localStorage）は消えない。1回だけにするのは、オフラインなどで延々と読み込み直さないため。 -->
+    <script>
+      (function () {
+        var KEY = 'fan_boot_recovered';
+        function recover() {
+          try { if (sessionStorage.getItem(KEY)) return; sessionStorage.setItem(KEY, '1'); } catch (e) { return; }
+          var reload = function () { location.reload(); };
+          if (!('serviceWorker' in navigator)) return reload();
+          navigator.serviceWorker.getRegistrations()
+            .then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); })
+            .then(function () { return window.caches ? caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }) : null; })
+            .then(reload, reload);
+        }
+        window.addEventListener('vite:preloadError', recover);
+        setTimeout(function () {
+          var root = document.getElementById('root');
+          if (root && !root.children.length && navigator.onLine !== false) recover();
+        }, 15000);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
 
     <!-- バリューコマース LinkSwitch: VC提携済み店舗への <a> リンクをクリック時に自動アフィリンク化。
