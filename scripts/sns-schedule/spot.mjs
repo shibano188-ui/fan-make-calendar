@@ -4,7 +4,7 @@
 //   node scripts/sns-schedule/spot.mjs 2026-10-09          日付を指定
 //   node scripts/sns-schedule/spot.mjs --days 3            きょうから3日ぶん
 //   node scripts/sns-schedule/spot.mjs ちいかわ            作品を絞る（名前は works.name と同じ）
-//   node scripts/sns-schedule/spot.mjs --no-image          商品の画像を入れない
+//   node scripts/sns-schedule/spot.mjs --image             商品の画像を入れる（ふだんは入れない）
 //   node scripts/sns-schedule/spot.mjs --drive             Google ドライブの「FanHive 予定表/直前 <日付>」に同期する
 //
 // 日付のフォルダには、画像と一緒に「00_購入リンク.txt」を入れる（投稿に販売先のリンクを付けたいとき用・柴野 2026-10-04）。
@@ -15,7 +15,7 @@
 // 下の段に、その予定の節目をぜんぶ並べる（いつ予約できて、いつ届くかが1枚で分かるように）。
 //
 // 決めごと（Obsidian Decisions/2026-09-29-fanhive-sns-post-plan の「2. 直前の個別ポスト」）
-// - 商品の画像は入れてよい（柴野 2026-10-04。予定表では使わない決めだったが、個別ポストでは入れる）。--no-image で外せる
+// - 商品の画像は入れない（柴野 2026-10-06。公式の画像をそのまま載せるのは避ける）。--image で入れられる
 // - 在庫（在庫あり・売り切れ）は出さない（まだ正確さを担保できない）
 // - 商品名は登録されている名前を削らずに出す
 // - 時期だけ決まっている発売（「10月下旬」など）は日付が無いので出さない
@@ -28,7 +28,7 @@ import { connect } from './drive.mjs';
 
 const args = process.argv.slice(2);
 const TO_DRIVE = args.includes('--drive');
-const NO_IMAGE = args.includes('--no-image');
+const WITH_IMAGE = args.includes('--image');
 const daysArg = args.indexOf('--days');
 const DAYS = daysArg >= 0 ? Math.max(1, +args[daysArg + 1] || 1) : 1;
 const plain = args.filter((a, i) => !a.startsWith('--') && !(daysArg >= 0 && i === daysArg + 1));
@@ -100,7 +100,7 @@ const KIND_COLOR = { '予約開始': '#1f7a4d', '受注開始': '#1f7a4d', '申�
 function cardHtml(work, e, date) {
   const all = milestones(e);
   const today = all.filter((m) => m.date === date);
-  const img = NO_IMAGE ? null : firstImage(e.image_url);
+  const img = WITH_IMAGE ? firstImage(e.image_url) : null;
   const price = priceText(e);
   const shops = e.type === 'goods' ? shopsText(e) : '';
   const steps = all.map((m) => `<div class="step${m.date === date ? ' now' : m.date < date ? ' past' : ''}">
