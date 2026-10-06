@@ -97,11 +97,20 @@ export default function CalendarSubscribe({ userId }: { userId: string }) {
         <a href={webcal ?? undefined} onClick={() => haptic.select()} aria-disabled={!webcal}
           className={btn} style={accent}>Appleのカレンダーに追加</a>
       )}
-      {/* Google: スマホのアプリには「URLで追加」が無いので、ブラウザ版の追加画面を cid で開く */}
-      <button disabled={!webcal} className={btn} style={accent}
-        onClick={() => { haptic.select(); if (webcal) openExternal(`https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcal)}`); }}>
-        Googleカレンダーに追加
-      </button>
+      {/* Google: スマホのアプリには「URLで追加」が無いので、ブラウザ版の追加画面を cid で開く。
+          ⚠️ Android はこのリンクを Googleカレンダーのアプリが受け取り、「追加しました」と出るのに何も入らない
+          （2026-10-06 柴野の実機で確認）。Android では PC で追加してもらう案内にする */}
+      {isAndroid ? (
+        <div className="rounded-[10px] px-3 py-2 text-[12px] text-label-secondary" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+          <span className="font-semibold text-label-primary">Googleカレンダーに追加するには</span><br />
+          下の「URLをコピー」で URL を控え、パソコンで calendar.google.com を開いて「他のカレンダー ＋」→「URLで追加」に貼ってください。追加すると、スマホのGoogleカレンダーにも出ます。
+        </div>
+      ) : (
+        <button disabled={!webcal} className={btn} style={accent}
+          onClick={() => { haptic.select(); if (webcal) openExternal(`https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcal)}`); }}>
+          Googleカレンダーに追加
+        </button>
+      )}
       {/* Outlook: Web版の「Webから追加」を開く */}
       <button disabled={!https} className={btn} style={accent}
         onClick={() => { haptic.select(); if (https) openExternal(`https://outlook.live.com/calendar/0/addfromweb?url=${encodeURIComponent(https)}&name=FanHive`); }}>
