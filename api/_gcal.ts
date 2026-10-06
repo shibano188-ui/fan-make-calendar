@@ -99,11 +99,18 @@ async function accessTokenFor(refreshToken: string): Promise<string> {
   throw new Error(`token: ${String(j.error ?? 'unknown')}`);
 }
 
+// 最初の同期で予定をまとめて作ると、Google が 403（rateLimitExceeded）や 429 で一時的に断ってくる。少し待って3回までやり直す
 async function gfetch(token: string, path: string, init: RequestInit = {}): Promise<Response> {
-  return fetch(`${API}${path}`, {
-    ...init,
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(init.headers ?? {}) },
-  });
+  for (let i = 0; ; i++) {
+    const r = await fetch(`${API}${path}`, {
+      ...init,
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(init.headers ?? {}) },
+    });
+    const retry = r.status === 429 || r.status >= 500
+      || (r.status === 403 && /rateLimitExceeded|userRateLimitExceeded|quotaExceeded/.test(await r.clone().text()));
+    if (!retry || i >= 3) return r;
+    await new Promise((ok) => setTimeout(ok, 1000 * 2 ** i));
+  }
 }
 
 async function ensureCalendar(token: string, calendarId: string | null): Promise<string> {
@@ -164,7 +171,7 @@ export async function syncUser(db: SupabaseClient, userId: string): Promise<{ ok
       const r = await gfetch(token, `${base}/${id}`, { method: 'PUT', body: JSON.stringify({ ...body, status: 'confirmed' }) });
       if (!r.ok) errors.push(`put ${r.status}`);
     };
-    await inBatches([...want.entries()], 5, async ([id, body]) => {
+    await inBatches([...want.entries()], 3, async ([id, body]) => {
       const h = (body.extendedProperties as { private: { h: string } }).private.h;
       if (have.has(id)) {
         if (have.get(id) !== h) await put(id, body);
@@ -214,7 +221,7 @@ function donePage(res: VercelResponse, ok: boolean, message: string) {
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>FanHive</title>
 <style>body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;background:#fffaf0;color:#222;
 display:flex;min-height:100vh;align-items:center;justify-content:center;text-align:center;padding:24px;box-sizing:border-box}
-h1{font-size:20px;margin:0 0 12px}p{font-size:15px;line-height:1.7;margin:0;color:#555}</style></head>
+h1{font-size:20px;margin:0 0 12px}p{font-size:15px;line-height:1.7;margin:0;color:#555}h1,p{word-break:auto-phrase;text-wrap:balance}</style></head>
 <body><div><h1>${ok ? 'Googleカレンダーと連携しました' : '連携できませんでした'}</h1><p>${message}</p></div></body></html>`);
 }
 
@@ -249,8 +256,8 @@ export async function gcalHandler(req: VercelRequest, res: VercelResponse, actio
     }, { onConflict: 'user_id' });
     const r = await syncUser(db, userId);
     return donePage(res, true, r.ok
-      ? 'Googleカレンダーに「FanHive」カレンダーを作り、予定を入れました。<br>このページを閉じて FanHive に戻ってください。'
-      : '「FanHive」カレンダーを作りました。予定の書き込みは FanHive に戻ってから「今すぐ同期」を押してください。');
+      ? '「FanHive」カレンダーに予定を入れました。このページを閉じて、FanHive に戻ってください。'
+      : 'FanHive アプリで「今すぐ同期」を押すと、予定が入ります。');
   }
 
   // 毎日の見直し（日付の修正・プレミアムの期限切れに追随する）。Vercel の cron から呼ぶ
