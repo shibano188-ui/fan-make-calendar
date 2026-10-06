@@ -51,6 +51,8 @@ export default function PhoneFrame({ children }: Props) {
     () => !Capacitor.isNativePlatform() && window.matchMedia('(min-width: 640px)').matches,
   );
   useEffect(() => {
+    // 幅が変わったとき（スマホを横にしたときなど）も、ネイティブでは枠を出さない
+    if (Capacitor.isNativePlatform()) return;
     const mq = window.matchMedia('(min-width: 640px)');
     const onChange = () => setDesktop(mq.matches);
     mq.addEventListener('change', onChange);
