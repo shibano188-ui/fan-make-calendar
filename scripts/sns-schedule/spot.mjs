@@ -1,5 +1,6 @@
-// SNS 用の「直前の個別ポスト」の画像（1予定1枚・1080x810 の PNG。商品画像を入れるときは 1080x1350）を作る。
-// 画像なしは横長にして、引用されたときに縦に長くなりすぎないようにする（柴野 2026-10-06）
+// SNS 用の「直前の個別ポスト」の画像（1予定1枚・幅1080 の PNG）を作る。
+// 画像なしは 1080x810 の横長にして、引用されたときに縦に長くなりすぎないようにする（柴野 2026-10-06）。
+// 商品名は見切れさせない。長くて入らないときだけ縦に伸ばす。商品画像を入れるときは 1080x1350
 //
 //   node scripts/sns-schedule/spot.mjs                     きょう（日本時間）に節目がある予定を sns-out/直前/<日付>/ に書き出す
 //   node scripts/sns-schedule/spot.mjs 2026-10-09          日付を指定
@@ -30,7 +31,6 @@ import { connect } from './drive.mjs';
 const args = process.argv.slice(2);
 const TO_DRIVE = args.includes('--drive');
 const WITH_IMAGE = args.includes('--image');
-const HEIGHT = WITH_IMAGE ? 1350 : 810;
 const daysArg = args.indexOf('--days');
 const DAYS = daysArg >= 0 ? Math.max(1, +args[daysArg + 1] || 1) : 1;
 const plain = args.filter((a, i) => !a.startsWith('--') && !(daysArg >= 0 && i === daysArg + 1));
@@ -114,7 +114,7 @@ function cardHtml(work, e, date) {
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     :root { --work: ${work.color}; }
-    body { width: 1080px; height: ${HEIGHT}px; background: #fffdf7; color: #1d1d1f; border-top: 18px solid var(--work);
+    body { width: 1080px; height: 1350px; background: #fffdf7; color: #1d1d1f; border-top: 18px solid var(--work);
       font-family: "Noto Sans JP", sans-serif; padding: 40px 64px 36px; display: flex; flex-direction: column; }
     .work { font-size: 58px; font-weight: 900; line-height: 1.2; display: inline-block; padding: 2px 6px 2px 0; ${work.title} }
     .when { margin-top: 10px; display: flex; align-items: baseline; gap: 22px; border-bottom: 5px solid var(--work); padding-bottom: 18px; }
@@ -126,12 +126,14 @@ function cardHtml(work, e, date) {
       display: flex; align-items: center; justify-content: center; overflow: hidden; }
     .pic img { max-width: 100%; max-height: 100%; object-fit: contain; }
     .name { margin-top: 24px; font-size: 40px; font-weight: 800; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-    .noimg .name { margin-top: 26px; font-size: 46px; -webkit-line-clamp: 2; }
+    body.noimg { height: auto; min-height: 810px; }
+    .noimg .name { margin-top: 26px; font-size: 46px; display: block; overflow: visible; }
     .info { margin-top: 12px; display: flex; align-items: baseline; gap: 24px; }
     .info .price { font-size: 38px; font-weight: 800; color: #3a3a3c; }
     .info .shops { font-size: 26px; color: #6b6b70; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .steps { margin-top: 22px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-    .noimg .foot { margin-top: auto; }
+    .noimg .gap { flex: 1 0 26px; }
+    .noimg .foot { margin-top: 0; }
     .step { border: 2px solid #e2dccd; border-radius: 16px; padding: 10px 18px; background: #fff; }
     .step .k { font-size: 22px; font-weight: 800; }
     .step .d { font-size: 28px; font-weight: 700; margin-top: 2px; }
@@ -162,6 +164,7 @@ function cardHtml(work, e, date) {
     <div class="name">${esc(e.title.replace(/\s+/g, ' ').trim())}</div>
     ${price || shops ? `<div class="info">${price ? `<div class="price">${esc(price)}</div>` : ''}${shops ? `<div class="shops">${esc(shops)}</div>` : ''}</div>` : ''}
     ${all.length > 1 ? `<div class="steps">${steps}</div>` : ''}
+    <div class="gap"></div>
     <div class="foot">
       <div>
         <div class="brand"><img src="${ICON}"><div><div class="bn">FanHive</div><div class="tag">推しのグッズとイベントをまとめるアプリ</div></div></div>
@@ -231,7 +234,7 @@ for (const work of targets) {
 }
 
 const browser = await chromium.launch();
-const tab = await browser.newPage({ viewport: { width: 1080, height: HEIGHT } });
+const tab = await browser.newPage({ viewport: { width: 1080, height: 810 } });
 // 名前が長すぎるとファイル名に使えないので、先頭だけ。同じ名前は id の頭で分ける
 const fileName = (work, e, date) => `${work}_${milestones(e).filter((m) => m.date === date).map((m) => m.kind).join('・')}_${e.title.replace(/[\\/:*?"<>|\s]+/g, ' ').trim().slice(0, 40)}_${e.id.slice(0, 6)}.png`;
 let total = 0;
@@ -249,7 +252,7 @@ for (const [date, perWork] of byDate) {
         await tab.evaluate(() => document.fonts.ready);
       }
       const file = fileName(work.name, e, date);
-      files[file] = await tab.screenshot();
+      files[file] = await tab.screenshot({ fullPage: true });
       listed.push({ file, work: work.name, e });
     }
   }
