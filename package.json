@@ -39,6 +39,7 @@
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.0",
     "@vercel/analytics": "^2.0.1",
+    "@vercel/functions": "^3.9.11",
     "groq-sdk": "^1.2.0",
     "lucide-react": "^0.511.0",
     "patch-package": "^8.0.1",
