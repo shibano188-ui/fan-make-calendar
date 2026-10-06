@@ -5,6 +5,7 @@ import { parseCategories, loadMutedEventIds, loadMutedWorkIds, ANON_NAME, isOffi
 import { searchWorksByAlias, findWorkByExactAlias } from './workAliases';
 import { primaryOffer, getOffers, isSearchPageUrl } from './affiliate';
 import { requestDeviceCalendarSync } from './deviceCalendar';
+import { requestGoogleSync } from './googleLink';
 
 /** 2つのカテゴリ値（単一文字列 or JSON配列文字列）が完全に重ならない場合 true。
  *  どちらかが空なら false（＝別イベントとは判定しない）。複数カテゴリの重複検知に使う。 */
@@ -390,6 +391,7 @@ export async function createEvents(
   if (error) throw error;
   invalidateExploreEvents();
   requestDeviceCalendarSync(authorId);
+  requestGoogleSync();
   return (data ?? []).map(r => r.id as string);
 }
 
@@ -859,6 +861,8 @@ export async function toggleLike(eventId: string, userId: string): Promise<{ lik
 
   // 端末カレンダーに書く設定なら、起動・復帰を待たずに反映する（外したら消える）
   requestDeviceCalendarSync(userId);
+  // Googleで連携していれば、FanHive カレンダーにも反映する
+  requestGoogleSync();
 
   // オンボーディングの案内は「いいねしたらカレンダーへ」なので、どの画面で押しても拾えるように知らせる
   if (!existing) window.dispatchEvent(new CustomEvent(LIKED_EVENT, { detail: { id: eventId } }));
@@ -1131,11 +1135,13 @@ export async function addEventVisit(eventId: string, userId: string, start: stri
   if (error || !data) return null;
   // 「行く」登録＝自分のカレンダーに出したいので、いいねも確保（案①）
   await likeEvent(eventId, userId).catch(() => {});
+  requestGoogleSync();
   return { id: data.id as string, start: data.start_date as string, end: data.end_date as string };
 }
 
 export async function removeEventVisit(visitId: string): Promise<void> {
   await supabase.from('event_visits').delete().eq('id', visitId);
+  requestGoogleSync();
 }
 
 // いいねを冪等に付与（無ければ追加して like_count 更新）。toggleLike と違い解除しない。
@@ -1147,6 +1153,7 @@ export async function likeEvent(eventId: string, userId: string): Promise<void> 
   const { count } = await supabase
     .from('likes').select('*', { count: 'exact', head: true }).eq('event_id', eventId);
   await supabase.from('events').update({ like_count: count ?? 0 }).eq('id', eventId);
+  requestGoogleSync();
 }
 
 // ── 共同編集: 購入リンクの追記（append-only） ──
@@ -1516,17 +1523,20 @@ export async function getPersonalEvent(id: string): Promise<CalendarEvent | null
 export async function createPersonalEvent(e: PersonalEventInput): Promise<CalendarEvent> {
   const data = await writePersonal(personalRow(e), (r) => supabase.from('personal_events').insert(r).select('*, works(name)').single());
   if (!data) throw new Error('personal_events insert returned nothing');
+  requestGoogleSync();
   return personalToEvent(data as unknown as Record<string, unknown>);
 }
 
 export async function updatePersonalEvent(id: string, e: PersonalEventInput): Promise<void> {
   await writePersonal({ ...personalRow(e), updated_at: new Date().toISOString() },
     (r) => supabase.from('personal_events').update(r).eq('id', id).select('id').maybeSingle());
+  requestGoogleSync();
 }
 
 export async function deletePersonalEvent(id: string): Promise<void> {
   const { error } = await supabase.from('personal_events').delete().eq('id', id);
   if (error) throw error;
+  requestGoogleSync();
 }
 
 // ─── 情報を送る（info_submissions）───────────────────────────────
