@@ -1,9 +1,10 @@
 {
   "crons": [
     { "path": "/api/refresh-offers", "schedule": "0 23 * * *" },
-    { "path": "/api/metrics", "schedule": "35 15 * * *" }
+    { "path": "/api/metrics", "schedule": "35 15 * * *" },
+    { "path": "/api/google-sync-all", "schedule": "0 19 * * *" }
   ],
-  "functions": { "api/refresh-offers.ts": { "maxDuration": 300 } },
+  "functions": { "api/refresh-offers.ts": { "maxDuration": 300 }, "api/ics.ts": { "maxDuration": 300 } },
   "images": {
     "sizes": [192, 384, 640, 828],
     "remotePatterns": [{ "protocol": "https", "hostname": "^.*$" }],
@@ -12,7 +13,11 @@
     "minimumCacheTTL": 2678400
   },
   "redirects": [{ "source": "/about.html", "destination": "/tokushoho.html", "permanent": true }],
-  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
+  "rewrites": [
+    { "source": "/api/google-callback", "destination": "/api/ics?action=google-callback" },
+    { "source": "/api/google-sync-all", "destination": "/api/ics?action=google-sync-all" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
   "headers": [
     {
       "source": "/sw.js",
