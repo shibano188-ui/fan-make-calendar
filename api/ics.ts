@@ -150,7 +150,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     for (const e of applyPatchesToRows((data ?? []) as EventRow[], patches)) {
       if (seen.has(e.id)) continue;
       seen.add(e.id);
-      const url = e.link_url || `https://fanhive.jp/item/${e.id}`;
+      const url = e.link_url ?? ''; // リンクが無い予定は出さない（FanHive のページで代わりにしない。柴野）
       const desc = describe(e, url);
       const visits = visitsByEvent.get(e.id) ?? [];
       if (visits.length) {
@@ -190,7 +190,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .select('id, title, event_date, end_date, event_time, memo, link_url').eq('user_id', userId);
   for (const p of personal ?? []) {
     if (!p.event_date) continue;
-    const url = (p.link_url as string | null) || 'https://fanhive.jp/saved';
+    const url = (p.link_url as string | null) ?? '';
     const desc = [((p.memo as string | null) ?? '').trim(), url].filter(Boolean).join('\n');
     body.push(...vevent(`personal-${p.id}`, String(p.title), p.event_date as string, (p.end_date as string | null) ?? null,
       ((p.event_time as string | null) ?? null)?.slice(0, 5) ?? null, desc, url, stamp));
