@@ -71,10 +71,25 @@ export async function unlinkGoogleCalendar(): Promise<boolean> {
   }
 }
 
+// 目印はカレンダー連携の画面を開いたときにしか付かないので、付いていなければ起動ごとに1回だけ表を見に行く
+// （連携してから画面を開かずにいいねした・別の端末で連携した、のときに同期されなかった。2026-10-06 柴野）
+let checked: Promise<boolean> | null = null;
+function isLinked(): Promise<boolean> {
+  try { if (localStorage.getItem(LINKED_KEY) === '1') return Promise.resolve(true); } catch { /* 下で確かめる */ }
+  if (!checked) {
+    checked = supabase.auth.getSession()
+      .then(({ data: { session } }) => (session ? getGoogleLink(session.user.id) : null))
+      .then((l) => !!l && l.lastError !== 'revoked')
+      .catch(() => false);
+  }
+  return checked;
+}
+
 let pending: ReturnType<typeof setTimeout> | undefined;
 /** 予定を変えたあとに呼ぶ。連続した操作はまとめて1回にする */
 export function requestGoogleSync(delayMs = 3000): void {
-  try { if (localStorage.getItem(LINKED_KEY) !== '1') return; } catch { return; }
   clearTimeout(pending);
-  pending = setTimeout(() => { void syncGoogleNow(); }, delayMs);
+  pending = setTimeout(() => {
+    void isLinked().then((linked) => { if (linked) void syncGoogleNow(); });
+  }, delayMs);
 }
