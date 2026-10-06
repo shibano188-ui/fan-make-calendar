@@ -18,6 +18,10 @@ import { Check } from 'lucide-react';
 // 連携できているかは、カレンダーが実際に取りに来た日時（api/ics が ics_tokens.fetched に残す）で見せる。
 // 追加した直後に相手が一度取りに来るので、追加しても「まだ」のままなら登録できていない。
 
+// 購読をやめても記録は残るので、最近取りに来た相手だけを「連携済み」にする。
+// Google は 8〜24時間おき（遅いと1日以上）に来るので、3日来なければ外れたとみなす
+const LINKED_WITHIN_MS = 3 * 24 * 60 * 60 * 1000;
+
 const FETCHER_LABEL: Record<string, string> = { google: 'Googleカレンダー', apple: 'Appleのカレンダー', outlook: 'Outlook', other: 'ほかのカレンダー' };
 
 function fmtFetched(iso: string): string {
@@ -69,7 +73,9 @@ export default function CalendarSubscribe({ userId }: { userId: string }) {
 
   const btn = 'pressable w-full flex items-center justify-center px-3 py-2.5 rounded-[10px] text-[13px] font-semibold';
   const accent = { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' };
-  const linked = fetched ? Object.entries(fetched).sort((a, b) => b[1].localeCompare(a[1])) : [];
+  const linked = fetched
+    ? Object.entries(fetched).filter(([, at]) => Date.now() - Date.parse(at) < LINKED_WITHIN_MS).sort((a, b) => b[1].localeCompare(a[1]))
+    : [];
 
   return (
     <div className="flex flex-col gap-2">
@@ -103,7 +109,7 @@ export default function CalendarSubscribe({ userId }: { userId: string }) {
       {isAndroid ? (
         <div className="rounded-[10px] px-3 py-2 text-[12px] text-label-secondary" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
           <span className="font-semibold text-label-primary">Googleカレンダーに追加するには</span><br />
-          下の「URLをコピー」で URL を控え、パソコンで calendar.google.com を開いて「他のカレンダー ＋」→「URLで追加」に貼ってください。追加すると、スマホのGoogleカレンダーにも出ます。
+          下の「URLをコピー」で URL を控え、パソコンで calendar.google.com を開いて「他のカレンダー ＋」→「URLで追加」に貼ってください。
         </div>
       ) : (
         <button disabled={!webcal} className={btn} style={accent}
@@ -129,10 +135,6 @@ export default function CalendarSubscribe({ userId }: { userId: string }) {
       <button onClick={onRegen} className="pressable text-[11px] text-label-tertiary text-left">
         URLを作り直す（今のURLは使えなくなります）
       </button>
-      {/* アプリ側に「やめる」ボタンは無い（購読はカレンダーアプリ側のもの）。やめ方だけ書いておく */}
-      <p className="text-[11px] text-label-tertiary">
-        同期を止めたいときは、カレンダーアプリで「FanHive」のカレンダーを削除してください。
-      </p>
     </div>
   );
 }
