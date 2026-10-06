@@ -257,7 +257,7 @@ export async function gcalHandler(req: VercelRequest, res: VercelResponse, actio
     }, { onConflict: 'user_id' });
     // 最初の同期は予定が多いと時間がかかるので、ページは先に出して裏で書く（ページを閉じても続く）
     waitUntil(syncUser(db, userId));
-    return donePage(res, true, '予定を入れています。少しすると Googleカレンダーに出ます。このページは閉じて、FanHive に戻ってください。');
+    return donePage(res, true, '予定を入れています。しばらくすると Googleカレンダーに表示されます。このページは閉じて、FanHive に戻ってください。');
   }
 
   // 毎日の見直し（日付の修正・プレミアムの期限切れに追随する）。Vercel の cron から呼ぶ
