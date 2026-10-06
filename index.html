@@ -6,6 +6,22 @@
          上限を1にすると拡大自体が起きない。入力欄のフォント下限16pxとの二段構え（index.css）。 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 
+    <!-- fanhive.jp のトップをブラウザで開いた人は LP へ飛ばす（2026-10-06 柴野: Web 版は想定していない）。
+         ⚠️ Android アプリも同じ https://fanhive.jp を開くので、アプリの中では飛ばさない。
+         Capacitor はページのスクリプトより先に window.Capacitor と window.androidBridge を用意する
+         （Bridge.java の addDocumentStartJavaScript / MessageHandler.java の addJavascriptInterface）。
+         iOS は同梱（capacitor://localhost）なので当たらない。プレビュー URL も当たらないよう本番のホスト名だけにする。
+         トップ以外（/item/… /widget/… /web など）はそのまま。 -->
+    <script>
+      (function () {
+        var host = location.hostname;
+        if (host !== 'fanhive.jp' && host !== 'www.fanhive.jp') return;
+        if (location.pathname !== '/') return;
+        if (window.androidBridge || (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())) return;
+        location.replace('/lp.html' + location.search);
+      })();
+    </script>
+
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="apple-touch-icon" href="/icon.svg" />
