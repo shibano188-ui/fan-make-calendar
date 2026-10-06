@@ -1,12 +1,12 @@
 // SNS 用の「直前の個別ポスト」の画像（1予定1枚・幅1080 の PNG）を作る。
 // 画像なしは 1080x810 の横長にして、引用されたときに縦に長くなりすぎないようにする（柴野 2026-10-06）。
-// 商品名は見切れさせない。長くて入らないときだけ縦に伸ばす。商品画像を入れるときは 1080x1350
+// 商品名は見切れさせない。長くて入らないときだけ縦に伸ばす。
+// 商品画像のある予定は、画像ありの版（1080x1350・前からの形）も「…_画像あり.png」として一緒に作る（柴野 2026-10-06。投稿するときに選べるように）
 //
 //   node scripts/sns-schedule/spot.mjs                     きょう（日本時間）に節目がある予定を sns-out/直前/<日付>/ に書き出す
 //   node scripts/sns-schedule/spot.mjs 2026-10-09          日付を指定
 //   node scripts/sns-schedule/spot.mjs --days 3            きょうから3日ぶん
 //   node scripts/sns-schedule/spot.mjs ちいかわ            作品を絞る（名前は works.name と同じ）
-//   node scripts/sns-schedule/spot.mjs --image             商品の画像を入れる（ふだんは入れない）
 //   node scripts/sns-schedule/spot.mjs --drive             Google ドライブの「FanHive 予定表/直前 <日付>」に同期する
 //
 // 日付のフォルダには、画像と一緒に「00_購入リンク.txt」を入れる（投稿に販売先のリンクを付けたいとき用・柴野 2026-10-04）。
@@ -17,7 +17,7 @@
 // 下の段に、その予定の節目をぜんぶ並べる（いつ予約できて、いつ届くかが1枚で分かるように）。
 //
 // 決めごと（Obsidian Decisions/2026-09-29-fanhive-sns-post-plan の「2. 直前の個別ポスト」）
-// - 商品の画像は入れない（柴野 2026-10-06。公式の画像をそのまま載せるのは避ける）。--image で入れられる
+// - 画像なしをふつうにする（柴野 2026-10-06。公式の画像をそのまま載せるのは避ける）。画像ありの版は選べるように並べて置くだけ
 // - 在庫（在庫あり・売り切れ）は出さない（まだ正確さを担保できない）
 // - 商品名は登録されている名前を削らずに出す
 // - 時期だけ決まっている発売（「10月下旬」など）は日付が無いので出さない
@@ -30,7 +30,6 @@ import { connect } from './drive.mjs';
 
 const args = process.argv.slice(2);
 const TO_DRIVE = args.includes('--drive');
-const WITH_IMAGE = args.includes('--image');
 const daysArg = args.indexOf('--days');
 const DAYS = daysArg >= 0 ? Math.max(1, +args[daysArg + 1] || 1) : 1;
 const plain = args.filter((a, i) => !a.startsWith('--') && !(daysArg >= 0 && i === daysArg + 1));
@@ -99,10 +98,10 @@ const firstImage = (v) => {
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const KIND_COLOR = { '予約開始': '#1f7a4d', '受注開始': '#1f7a4d', '申込開始': '#1f7a4d', '予約締切': '#c0392b', '受注締切': '#c0392b', '申込締切': '#c0392b', '発売': '#1d1d1f', '開催': '#2456a6' };
 
-function cardHtml(work, e, date) {
+function cardHtml(work, e, date, withImage) {
   const all = milestones(e);
   const today = all.filter((m) => m.date === date);
-  const img = WITH_IMAGE ? firstImage(e.image_url) : null;
+  const img = withImage ? firstImage(e.image_url) : null;
   const price = priceText(e);
   const shops = e.type === 'goods' ? shopsText(e) : '';
   const steps = all.map((m) => `<div class="step${m.date === date ? ' now' : m.date < date ? ' past' : ''}">
@@ -243,20 +242,22 @@ for (const [date, perWork] of byDate) {
   const listed = [];
   for (const work of targets) {
     for (const e of (perWork[work.name] ?? []).sort((a, b) => a.title.localeCompare(b.title))) {
-      await tab.setContent(cardHtml(work, e, date), { waitUntil: 'networkidle' });
-      await tab.evaluate(() => document.fonts.ready);
-      // 画像が読めなかった予定は、画像なしの組み方に切り替える（壊れた画像の枠を出さない）
-      const broken = await tab.evaluate(() => { const i = document.querySelector('.pic img'); return !!i && !(i.complete && i.naturalWidth > 0); });
-      if (broken) {
-        await tab.setContent(cardHtml(work, { ...e, image_url: null }, date), { waitUntil: 'networkidle' });
-        await tab.evaluate(() => document.fonts.ready);
-      }
       const file = fileName(work.name, e, date);
+      await tab.setContent(cardHtml(work, e, date, false), { waitUntil: 'networkidle' });
+      await tab.evaluate(() => document.fonts.ready);
       files[file] = await tab.screenshot({ fullPage: true });
-      listed.push({ file, work: work.name, e });
+      const shot = [file];
+      // 画像ありの版。商品画像が無い・読めなかった予定は作らない（画像なしと同じになる・壊れた画像の枠を出さない）
+      if (firstImage(e.image_url)) {
+        await tab.setContent(cardHtml(work, e, date, true), { waitUntil: 'networkidle' });
+        await tab.evaluate(() => document.fonts.ready);
+        const ok = await tab.evaluate(() => { const i = document.querySelector('.pic img'); return !!i && i.complete && i.naturalWidth > 0; });
+        if (ok) { const f = file.replace(/\.png$/, '_画像あり.png'); files[f] = await tab.screenshot({ fullPage: true }); shot.push(f); }
+      }
+      listed.push({ file: shot.join('／'), work: work.name, e });
     }
   }
-  const n = Object.keys(files).length;
+  const n = listed.length;
   total += n;
   if (n) files['00_購入リンク.txt'] = linksText(date, listed);
   if (drive) {
@@ -267,10 +268,10 @@ for (const [date, perWork] of byDate) {
     if (n) fs.mkdirSync(dir, { recursive: true });
     for (const [name, buf] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), buf);
   }
-  console.log(`${date}: ${n}枚${n && !drive ? `（sns-out/直前/${date}/）` : ''}`);
+  console.log(`${date}: ${n}件（${Object.keys(files).length}枚）${n && !drive ? `（sns-out/直前/${date}/）` : ''}`);
 }
 await browser.close();
-console.log(`合計 ${total}枚`);
+console.log(`合計 ${total}件`);
 // 日付が過ぎたフォルダを消す（きょうのフォルダは残す）
 if (drive) {
   const gone = await drive.pruneDated('直前 ', TODAY);
