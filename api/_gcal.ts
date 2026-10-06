@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createHash, randomBytes } from 'node:crypto';
+import { waitUntil } from '@vercel/functions';
 import { isPremium, loadCalendarItems, type CalendarItem } from './_calendarItems.js';
 
 // 「Googleで連携」（2026-10-06）。相手の Google アカウントに「FanHive」カレンダーを作り、サーバーから予定を書く。
@@ -254,10 +255,9 @@ export async function gcalHandler(req: VercelRequest, res: VercelResponse, actio
     await db.from('google_calendar_links').upsert({
       user_id: userId, refresh_token: refresh, calendar_id: (prev?.calendar_id as string | null) ?? null, last_error: null,
     }, { onConflict: 'user_id' });
-    const r = await syncUser(db, userId);
-    return donePage(res, true, r.ok
-      ? '「FanHive」カレンダーに予定を入れました。このページを閉じて、FanHive に戻ってください。'
-      : 'FanHive アプリで「今すぐ同期」を押すと、予定が入ります。');
+    // 最初の同期は予定が多いと時間がかかるので、ページは先に出して裏で書く（ページを閉じても続く）
+    waitUntil(syncUser(db, userId));
+    return donePage(res, true, '予定を入れています。少しすると Googleカレンダーに出ます。このページは閉じて、FanHive に戻ってください。');
   }
 
   // 毎日の見直し（日付の修正・プレミアムの期限切れに追随する）。Vercel の cron から呼ぶ
