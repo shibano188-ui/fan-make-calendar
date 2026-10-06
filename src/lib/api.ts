@@ -2091,6 +2091,14 @@ export async function regenerateIcsToken(userId: string): Promise<string | null>
   return token;
 }
 
+/** 購読カレンダーが最後に取りに来た日時（相手ごと）。{ google: ISO, apple: ISO, ... }
+ *  api/ics が書く。列が無い環境（SQL を流す前）では null を返す（表示を出さない）。 */
+export async function getIcsFetched(userId: string): Promise<Record<string, string> | null> {
+  const { data, error } = await supabase.from('ics_tokens').select('fetched').eq('user_id', userId).maybeSingle();
+  if (error) return null;
+  return (data?.fetched as Record<string, string> | null) ?? {};
+}
+
 export function icsSubscribeUrl(token: string): string {
   return `https://fanhive.jp/api/ics?t=${token}`;
 }

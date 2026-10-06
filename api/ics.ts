@@ -30,6 +30,23 @@ function fold(line: string): string {
   return out.join('\r\n');
 }
 
+// 取りに来た相手を見分ける（アプリの「連携済み」の表示に使う）。
+// ブラウザで URL を開いただけのときは数えない（連携できたと誤解させないため）。
+function fetcherOf(ua: string): string | null {
+  if (/Google-Calendar-Importer/i.test(ua)) return 'google';
+  if (/dataaccessd|CalendarAgent|iOS\/|macOS\//i.test(ua)) return 'apple';
+  if (/Microsoft|Outlook|Exchange/i.test(ua)) return 'outlook';
+  if (!ua || /Mozilla/i.test(ua)) return null;
+  return 'other';
+}
+
+// TZID=Asia/Tokyo を使うので定義も載せる。Google・Apple は無くても読むが、Outlook は無いと時刻がずれたり取り込めないことがある
+const VTIMEZONE = [
+  'BEGIN:VTIMEZONE', 'TZID:Asia/Tokyo',
+  'BEGIN:STANDARD', 'DTSTART:19700101T000000', 'TZOFFSETFROM:+0900', 'TZOFFSETTO:+0900', 'TZNAME:JST', 'END:STANDARD',
+  'END:VTIMEZONE',
+];
+
 type EventRow = {
   id: string; title: string; event_date: string | null; end_date: string | null; date_label: string | null;
   event_time: string | null; preorder_start_date: string | null; preorder_start_time: string | null;
@@ -76,6 +93,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { data: row } = await db.from('ics_tokens').select('user_id').eq('token', token).maybeSingle();
   if (!row) return empty('この購読URLは無効です（アプリで作り直してください）');
   const userId = row.user_id as string;
+
+  // いつ・どこから取りに来たかを残す。列が無い環境（SQL を流す前）では error が返るだけなので黙って飛ばす
+  const fetcher = fetcherOf(String(req.headers['user-agent'] ?? ''));
+  if (fetcher) {
+    const { data: f, error: fe } = await db.from('ics_tokens').select('fetched').eq('token', token).maybeSingle();
+    if (!fe) {
+      const fetched = { ...((f?.fetched as Record<string, string> | null) ?? {}), [fetcher]: new Date().toISOString() };
+      await db.from('ics_tokens').update({ fetched }).eq('token', token);
+    }
+  }
 
   // プレミアムが切れたら中身を止める。エラーではなく空のカレンダーを返す
   // （カレンダーアプリは404を出し続けると購読ごと壊れることがある）。
@@ -162,6 +189,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   return res.status(200).send([
     'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//FanHive//JP', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
     'X-WR-CALNAME:FanHive', 'X-WR-TIMEZONE:Asia/Tokyo',
+    // 更新間隔の希望（Apple・Outlook は見る。Google は見ない）
+    'REFRESH-INTERVAL;VALUE=DURATION:PT1H', 'X-PUBLISHED-TTL:PT1H',
+    ...VTIMEZONE,
     ...body,
     'END:VCALENDAR',
   ].join('\r\n'));
