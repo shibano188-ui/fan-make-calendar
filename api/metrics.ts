@@ -73,6 +73,9 @@ export async function collect(req: VercelRequest, res: VercelResponse) {
   const now = await client.rpc('collect_daily_metrics', { target_day: today, include_snapshot: true });
   if (now.error) return res.status(500).json({ error: now.error.message });
 
+  // 新しく来た人の内訳（アプリ・Web・テスト）。関数がまだ無い環境では飛ばす（sql/2026-10-08-screen-views.sql）
+  for (const d of [yesterday, today]) await client.rpc('collect_acquisition_metrics', { target_day: d });
+
   // ストア側。失敗してもアプリ側の集計は成功扱いにする（片方の障害で全部止めない）
   let rc: { ok: boolean; detail: unknown } = { ok: false, detail: 'skipped' };
   try { rc = await collectRevenueCat(today); } catch (e) { rc = { ok: false, detail: String(e) }; }
@@ -257,11 +260,39 @@ async function series() {
     if (!data || data.length < PAGE_SIZE) break;
   }
 
+  // 新しく来た人が最初に開いたときの来た元（screen_views の最初の '/open'）。人ごとに1回だけ数える。
+  // 行のまま渡して画面側で期間に合わせて足す。表がまだ無い環境では空
+  const firstSeen = new Map<string, { day: string; platform: string; referrer: string | null }>();
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await client
+      .from('screen_views')
+      .select('user_id, created_at, platform, referrer')
+      .eq('path', '/open')
+      .order('created_at', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) break;
+    for (const r of data ?? []) {
+      if (firstSeen.has(r.user_id)) continue;
+      const day = new Date(Date.parse(r.created_at) + 9 * 3600_000).toISOString().slice(0, 10);
+      firstSeen.set(r.user_id, { day, platform: r.platform, referrer: r.referrer });
+    }
+    if (!data || data.length < PAGE_SIZE) break;
+  }
+  const refCount = new Map<string, { day: string; platform: string; referrer: string; value: number }>();
+  for (const f of firstSeen.values()) {
+    const referrer = f.referrer ?? '';
+    const k = `${f.day}|${f.platform}|${referrer}`;
+    const row = refCount.get(k) ?? { day: f.day, platform: f.platform, referrer, value: 0 };
+    row.value++;
+    refCount.set(k, row);
+  }
+  const ref = [...refCount.values()];
+
   const days = [...byDay.keys()].sort();
   const out: Record<string, (number | null)[]> = {};
   for (const m of names) out[m] = days.map((d) => byDay.get(d)?.[m] ?? null);
 
-  return { days, series: out, lp, updatedAt: new Date().toISOString() };
+  return { days, series: out, lp, ref, updatedAt: new Date().toISOString() };
 }
 
 /** RevenueCat から今の数字を取って metrics_daily に入れる。

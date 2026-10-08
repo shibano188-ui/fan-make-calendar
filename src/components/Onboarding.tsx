@@ -5,6 +5,7 @@ import { ONBOARDING_KEY, TOUR_STEP_KEY } from '../lib/constants';
 import OnboardingWorkPicker from './OnboardingWorkPicker';
 import OnboardingIntro from './OnboardingIntro';
 import { startTour } from './OnboardingTour';
+import { logScreen } from '../lib/screenLog';
 
 // 初回オンボーディング: ようこそ（OnboardingIntro）→ 推しの作品を選ぶ（2026-09-29 柴野の方針で作り直し）。
 //  - **スキップは無い**。1つ選ぶまで「次へ」を押せない。既定の作品を勝手に入れることもしない
@@ -33,6 +34,11 @@ export default function Onboarding() {
   useEffect(() => {
     if (visible) setAdsSuppressed(true);
   }, [visible]);
+
+  // どこで離れたかを見るため、案内の段階も画面として記録する
+  useEffect(() => {
+    if (visible) logScreen(intro ? '/onboarding/intro' : '/onboarding/works');
+  }, [visible, intro]);
 
   const onCountChange = (n: number) => {
     if (prevCount.current === 0 && n > 0) setNudge((k) => k + 1);

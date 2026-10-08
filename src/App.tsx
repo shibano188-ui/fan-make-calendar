@@ -17,6 +17,7 @@ import { useAdsSuppressed } from './lib/adSuppress';
 import { SHOW_ONBOARDING, ONBOARDING_KEY } from './lib/constants';
 import { requestTracking } from './lib/att';
 import { closeTopOverlay } from './lib/backStack';
+import { entryReferrer, logScreen, screenName } from './lib/screenLog';
 
 // ピボット後IA（feat/pivot-rebuild）。旧 Calendar 中心の画面は順次置換。
 const AppShell        = lazy(() => import('./components/AppShell'));
@@ -236,6 +237,24 @@ function BackButtonHandler() {
   return null;
 }
 
+// 見た画面の記録（src/lib/screenLog.ts）。起動と、30分以上たって戻ってきたときは '/open' として数える
+const RESUME_GAP_MS = 30 * 60_000;
+function ScreenLogger() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    logScreen('/open', entryReferrer());
+    let hiddenAt = 0;
+    const onVisible = () => {
+      if (document.visibilityState === 'hidden') hiddenAt = Date.now();
+      else if (hiddenAt && Date.now() - hiddenAt > RESUME_GAP_MS) logScreen('/open');
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
+  useEffect(() => { logScreen(screenName(pathname)); }, [pathname]);
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -249,6 +268,7 @@ export default function App() {
           <AdMobController />
           <AdBannerController />
           <BackButtonHandler />
+          <ScreenLogger />
           {/* 毎回の起動画面（ロゴが組み上がってふわっと消える）。案内より手前に出す。
               Suspense の外に置く＝画面の部品を読み込んでいる間も出ていて、その間のグルグルを覆う */}
           <LaunchSplash />

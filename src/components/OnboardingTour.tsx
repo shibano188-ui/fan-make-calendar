@@ -6,6 +6,7 @@ import type { CalendarEvent } from '../types';
 import { setAdsSuppressed } from '../lib/adSuppress';
 import { requestTracking } from '../lib/att';
 import { haptic } from '../lib/haptics';
+import { logScreen } from '../lib/screenLog';
 import { ONBOARDING_KEY, TOUR_STEP_KEY, TOUR_EVENT_KEY, TOUR_EVENT, LIKED_EVENT, BELL_EVENT, FEATURE_PREMIUM, loadNotifyLeadDays } from '../lib/constants';
 
 // オンボーディングの続き: **本物の画面**で、これから使う操作を1回ずつやってもらう（2026-09-29 柴野）。
@@ -37,6 +38,7 @@ function writeStep(step: TourStep | null): void {
     if (step) localStorage.setItem(TOUR_STEP_KEY, step);
     else { localStorage.removeItem(TOUR_STEP_KEY); localStorage.removeItem(TOUR_EVENT_KEY); }
   } catch { /* 残せなくても、この起動の間は続けられる */ }
+  if (step !== current) logScreen(`/tour/${step ?? 'end'}`);
   current = step;
   window.dispatchEvent(new Event(TOUR_EVENT));
 }
