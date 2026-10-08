@@ -16,7 +16,7 @@
 --    UA は auth.sessions にしか無く、ログアウトなどで消えると unknown になる。
 --
 -- 適用：
---   本番……（未適用）
+--   本番……2026-10-08 柴野（SQL Editor。過去分の埋め直しまで・840行）
 -- =========================================================
 
 create table if not exists public.screen_views (
