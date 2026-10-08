@@ -15,11 +15,26 @@
     (function () {
       var IOS = 'https://apps.apple.com/jp/app/id6801161205';
       var ANDROID = 'https://play.google.com/store/apps/details?id=jp.llp.fanhive';
+      // どこから来たか（?src=x_boost など）を LP と同じ表（lp_daily）に「get の押下」として1回数えてから飛ばす。
+      // 数えるのは本番のホストだけ。keepalive で、すぐストアへ移っても送り切る
+      var src = (new URLSearchParams(location.search).get('src') || '').toLowerCase();
+      function track(store) {
+        if (['fanhive.jp', 'www.fanhive.jp'].indexOf(location.hostname) < 0) return;
+        try {
+          fetch('https://jsgidtwxhueqgtvshdku.supabase.co/rest/v1/rpc/lp_track', {
+            method: 'POST', keepalive: true,
+            headers: { 'Content-Type': 'application/json', apikey: 'sb_publishable_LrqixF2NR51n00kWn6cxZg_vE3T_uhl' },
+            body: JSON.stringify({ p_metric: 'download_clicks', p_src: src || null, p_placement: 'get', p_store: store })
+          });
+        } catch (e) { /* 数えられなくても飛ばす */ }
+      }
+      // Google Play には来た元を渡す（Play Console の獲得レポートに出る）
+      if (src) ANDROID += '&referrer=' + encodeURIComponent('utm_source=' + src);
       var ua = navigator.userAgent || '';
       // iPadOS 13 以降の Safari は Mac と名乗るので、タッチの有無で見分ける
       var isIOS = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
-      if (isIOS) location.replace(IOS);
-      else if (/Android/.test(ua)) location.replace(ANDROID);
+      if (isIOS) { track('app_store'); location.replace(IOS); }
+      else if (/Android/.test(ua)) { track('google_play'); location.replace(ANDROID); }
     })();
   </script>
   <style>

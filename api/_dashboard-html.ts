@@ -269,7 +269,7 @@ var BOXES = [
 
 /* ---------- 描画 ---------- */
 
-var LP_PLACE = { hero:'上', footer:'下' };
+var LP_PLACE = { hero:'上', footer:'下', get:'get.html（そのままストアへ）' };
 var LP_STORE = { app_store:'App Store', google_play:'Google Play' };
 function esc(t){ return String(t).replace(/[&<>"]/g, function(c){ return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]; }); }
 function pct(a, b){ return b ? (a / b * 100).toFixed(1) + '%' : '—'; }
