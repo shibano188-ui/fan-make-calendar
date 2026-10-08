@@ -84,6 +84,8 @@ export async function collect(req: VercelRequest, res: VercelResponse) {
   let nushi: { ok: boolean; detail: unknown } = { ok: false, detail: 'skipped' };
   try { nushi = await collectNushi(client, today); } catch (e) { nushi = { ok: false, detail: String(e) }; }
 
+  // 返事は Cron にしか届かないので、ストアの取り込みが止まったときに理由を追えるようログにも出す
+  console.log('[metrics]', JSON.stringify({ revenuecat: rc, stores }));
   return res.status(200).json({ ok: true, days: [yesterday, today], revenuecat: rc, stores, nushi });
 }
 
@@ -100,7 +102,8 @@ async function collectStores(today: string, days: number) {
   };
   const [appStore, play, appStoreAnalytics] = await Promise.all([
     run(() => collectAppStore(today, days)),
-    run(() => collectPlay(today, days)),
+    // Play の CSV は1週間以上遅れて行が足されることがある。7日だと遅れた日を二度と拾えないので長めに読み直す
+    run(() => collectPlay(today, Math.max(days, 35))),
     // 分析レポートは Apple が作った分を毎回まとめて取り直す（日数の指定は関係ない）
     run(() => collectAppStoreAnalytics()),
   ]);
