@@ -5,7 +5,7 @@ import { setAppStateUser, setAppStateSync, syncAppState } from '../lib/appState'
 import { setStampUser } from '../lib/stampStore';
 import { refreshPremium, clearPremium } from '../lib/premium';
 import { configureBilling } from '../lib/billing';
-import { IS_AUTOMATED, setScreenLogUser } from '../lib/screenLog';
+import { setScreenLogUser } from '../lib/screenLog';
 
 type AuthContextValue = {
   user: User | null;
@@ -24,9 +24,7 @@ const SYNCED_ONCE_KEY = 'fan_app_state_synced_v1';
 // その間に作品を押すと、DB が「本人ではない」と弾いて「フォローに失敗しました」になっていた（2026-09-29）
 let anonSignIn: ReturnType<typeof supabase.auth.signInAnonymously> | null = null;
 function signInAnonymouslyOnce() {
-  // 動作確認のスクリプト・クローラーには印を付ける（ダッシュボードの人数から外す。sql/2026-10-08-screen-views.sql）
-  if (!anonSignIn) anonSignIn = supabase.auth.signInAnonymously(IS_AUTOMATED ? { options: { data: { automated: true } } } : undefined)
-    .finally(() => { anonSignIn = null; });
+  if (!anonSignIn) anonSignIn = supabase.auth.signInAnonymously().finally(() => { anonSignIn = null; });
   return anonSignIn;
 }
 
