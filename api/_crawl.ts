@@ -348,14 +348,43 @@ async function jumpShopWorks(): Promise<string[]> {
   return [...names].sort((a, b) => workKey(b).length - workKey(a).length);
 }
 
-/** 作品のIDを返す。名前か別名が同じ作品があればそれ、無ければ作る */
-export async function resolveWork(db: Db, name: string): Promise<string | null> {
+// 店の作品一覧には「劇場版『ゾンビランドサガ ゆめぎんがパラダイス』」「劇団「忍たま乱太郎」長屋物語」のような、
+// 作品ではなく映画・舞台1本の名前が並ぶ。そのまま作ると元の作品と別の作品になる（10-02 のチェンソーマン、10-08 のゾンビランドサガ・忍たま乱太郎）
+const STAGE_PREFIX = /^(?:劇場版|映画|劇団|舞台|ミュージカル)\s*/;
+const ANIME_PREFIX = /^(?:TVアニメ|テレビアニメ|アニメ)\s*/;
+
+/** 作品を探す名前の候補（長い順）と、どれも無いときに作る名前。
+ *  かっこの中を作品名とみなし、末尾の語（副題）を1つずつ外して既存の作品に当てる。
+ *  映画・舞台の名前で既存の作品が無いときは、最初の語（「ゾンビランドサガ」）で作る。
+ *  英字だけの語（「劇場版 ONE PIECE FILM RED」の ONE）は作品名の一部のことが多いので、そのときは丸ごと */
+export function workNameCandidates(name: string): { tries: string[]; create: string } {
+  const t = name.trim();
+  const stage = STAGE_PREFIX.test(t);
+  const inner = t.match(/[『「]([^』」]+)[』」]/)?.[1]?.trim();
+  if (!stage && !ANIME_PREFIX.test(t) && !inner) return { tries: [t], create: t };
+  const core = inner || t.replace(STAGE_PREFIX, '').replace(ANIME_PREFIX, '').trim();
+  const words = core.split(/\s+/);
+  const tries = [t, ...words.map((_, i) => words.slice(0, words.length - i).join(' '))];
+  return { tries: [...new Set(tries)], create: stage && /[^\x00-\x7f]/.test(words[0]) ? words[0] : core };
+}
+
+async function findWorkId(db: Db, name: string): Promise<string | null> {
   const k = workKey(name);
+  if (k.length < 2) return null;
   const { data: works } = await db.from('works').select('id, name').ilike('name', `%${name.slice(0, 2)}%`).limit(200);
   const hit = (works ?? []).find((w) => workKey(String(w.name)) === k);
   if (hit) return hit.id as string;
   const { data: al } = await db.from('work_aliases').select('work_id').eq('alias_norm', k).limit(1).maybeSingle();
-  if (al?.work_id) return al.work_id as string;
+  return (al?.work_id as string | undefined) ?? null;
+}
+
+/** 作品のIDを返す。名前か別名が同じ作品があればそれ、無ければ作る */
+export async function resolveWork(db: Db, rawName: string): Promise<string | null> {
+  const { tries, create: name } = workNameCandidates(rawName);
+  for (const n of tries) {
+    const id = await findWorkId(db, n);
+    if (id) return id;
+  }
   const { data: made, error } = await db.from('works').insert({ name }).select('id').single();
   if (made) return made.id as string;
   if (error?.code === '23505') {
