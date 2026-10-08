@@ -9,7 +9,7 @@
 -- 関数を置き換えたあと、過去分を埋め直す（下の最後の select）。
 --
 -- 適用：
---   本番……（未適用）
+--   本番……2026-10-08 柴野（SQL Editor。過去分の埋め直しまで。30日の new_ios_app 48→20）
 -- =========================================================
 
 create or replace function public.collect_acquisition_metrics(target_day date) returns int
