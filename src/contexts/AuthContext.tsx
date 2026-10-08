@@ -5,6 +5,7 @@ import { setAppStateUser, setAppStateSync, syncAppState } from '../lib/appState'
 import { setStampUser } from '../lib/stampStore';
 import { refreshPremium, clearPremium } from '../lib/premium';
 import { configureBilling } from '../lib/billing';
+import { setScreenLogUser } from '../lib/screenLog';
 
 type AuthContextValue = {
   user: User | null;
@@ -43,6 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       activatedId = u.id;
       setAppStateUser(u.id);
       setStampUser(u.id);
+      setScreenLogUser(u.id);
       // 端末設定（通知ベル・ミュート・作品の色など）の同期は**全員**に開放している。
       // 元は有料機能だったが、投稿・いいね・フォローはそもそもアカウントに紐付いていて
       // 無料でも別端末で見られる＝「複数端末で使える」は有料の売りとして成立しなかった
@@ -96,6 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearPremium();       // 別アカウントに有料状態を持ち越さない
         setAppStateSync(false);
         setStampUser(null);
+        setScreenLogUser(null);
       }
     });
 

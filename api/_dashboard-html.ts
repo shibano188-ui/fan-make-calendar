@@ -158,6 +158,19 @@ var USDJPY = function(v){ return USD(v) + '（約' + YEN(v * RATE) + '）'; };
 var NUM = function(v){ return Math.round(v).toLocaleString('ja-JP'); };
 
 var BOXES = [
+  { title:'どこから来たか',
+    note:'表示している期間に新しく来た人の内訳。来た人＝アプリかWebで初めて開かれたアカウント（テスト・ボットは除く）。' +
+         'テスト・ボット＝チームの動作確認のスクリプト・クローラーと、それと同じ回線から作られたもの。' +
+         'ストアの経路はストアの公式の数字（Androidは内訳が取れない）。Webの来た元は 2026-10-08 から記録している。',
+    kind:'table', render:acqTables },
+
+  { title:'新しく来た人（テスト・ボットを除く）',
+    note:'縦軸＝その日に初めて開かれたアカウントの数。横軸＝日付。アプリとWebに分けている。',
+    kind:'bar', keys:[{k:'acq_new_ios_app',     name:'iPhoneアプリ', c:'#4ea87a'},
+                      {k:'acq_new_android_app', name:'Androidアプリ', c:'#d0a24a'},
+                      {k:'acq_new_web_phone',   name:'スマホのWeb', c:'#7fb6d9'},
+                      {k:'acq_new_web_pc',      name:'PCのWeb', c:'#b58ad0'}], fmt:NUM },
+
   { title:'アプリを入れた人',
     note:'縦軸＝人数。横軸＝日付。ストアの数字だけで数えている。' +
          'iPhone＝App Storeの新規ダウンロードの累計、Android＝Play Consoleのその日にインストールされている数。' +
@@ -210,8 +223,8 @@ var BOXES = [
     kind:'line', keys:[{k:'users_total', name:'のべ訪問端末', c:'#5b7f96'}], fmt:NUM, zero:false },
 
   { title:'新しく開かれた数',
-    note:'縦軸＝その日に新しく開かれた端末・ブラウザの数。横軸＝日付。棒が高い日は何かが当たった日。' +
-         'これも利用者数ではなく、増減の勢いを見るためのもの。',
+    note:'縦軸＝その日に新しく開かれた端末・ブラウザの数。横軸＝日付。' +
+         '⚠️ テスト・ボットも入っている。人の数は上の「新しく来た人」を見る。',
     kind:'bar', keys:[{k:'signups', name:'新しく開かれた数', c:'#5b7f96'}], fmt:NUM },
 
   { title:'動いた人',
@@ -295,6 +308,56 @@ function lpTables(days){
   return '<div class="tables"><div><h3>経路別</h3>' + t1 + '</div><div><h3>ボタン別</h3>' + t2 + '</div></div>';
 }
 
+// 表示している期間の合計（days は画面で選んだ期間の日付）
+function rangeSum(k, days){
+  var a = DATA.series[k] || [], i0 = DATA.days.indexOf(days[0]), t = 0;
+  for(var i = Math.max(0, i0); i < a.length; i++){ if(a[i] != null) t += a[i]; }
+  return t;
+}
+function table(head, rows){
+  return '<table><tr>' + head.map(function(h){ return '<th>' + h + '</th>'; }).join('') + '</tr>' +
+    rows.map(function(r){ return '<tr>' + r.map(function(c){ return '<td>' + c + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>';
+}
+
+// よく来る元はホスト名ではなく名前で出す
+var REF_NAMES = [[/^t\\.co$|(^|\\.)x\\.com$|(^|\\.)twitter\\.com$/, 'X'], [/facebook\\.com$/, 'Facebook'], [/instagram\\.com$/, 'Instagram'],
+                 [/^com\\.google\\.android\\.googlequicksearchbox$|(^|\\.)google\\./, 'Google検索'], [/(^|\\.)yahoo\\.co\\.jp$/, 'Yahoo!検索'],
+                 [/(^|\\.)bing\\.com$/, 'Bing検索'], [/pr-free\\.jp$/, 'PR-FREE'], [/prtimes\\.jp$/, 'PR TIMES'], [/(^|\\.)line\\.me$/, 'LINE']];
+function refName(host){
+  for(var i = 0; i < REF_NAMES.length; i++){ if(REF_NAMES[i][0].test(host)) return REF_NAMES[i][1]; }
+  return host;
+}
+
+var ACQ_KINDS = [['ios_app','iPhoneアプリ'], ['android_app','Androidアプリ'], ['web_phone','スマホのWeb'], ['web_pc','PCのWeb'], ['unknown','分からない']];
+function acqTables(days){
+  var human = 0;
+  ACQ_KINDS.forEach(function(k){ human += rangeSum('acq_new_' + k[0], days); });
+  var test = rangeSum('acq_new_test', days);
+  var t1 = table(['経路', '人数', '割合'],
+    ACQ_KINDS.filter(function(k){ return k[0] !== 'unknown' || rangeSum('acq_new_unknown', days) > 0; }).map(function(k){
+      var v = rangeSum('acq_new_' + k[0], days);
+      return [k[1], NUM(v), pct(v, human)];
+    }).concat([['<b>合計</b>', '<b>' + NUM(human) + '</b>', ''], ['<span class="note">（除外）テスト・ボット</span>', NUM(test), '']]));
+
+  var stores = [['App Storeの検索', 'asc_an_first_from_search'], ['App Storeのおすすめ・ランキング', 'asc_an_first_from_browse'],
+                ['XなどのアプリのリンクからApp Storeへ', 'asc_an_first_from_app'], ['ブラウザのリンクからApp Storeへ', 'asc_an_first_from_web'],
+                ['Google Play（内訳なし）', 'play_installs']];
+  var t2 = table(['ストア', '新規ダウンロード'], stores.map(function(r){ return [r[1] === 'play_installs' ? r[0] : 'iPhone: ' + r[0], NUM(rangeSum(r[1], days))]; }));
+
+  var from = days[0], byRef = {};
+  (DATA.ref || []).forEach(function(r){
+    if(r.day < from || r.platform !== 'web') return;
+    var k = !r.referrer ? '直接・ブックマーク・アプリ内のリンク' : r.referrer.indexOf('utm:') === 0 ? 'リンクの印: ' + r.referrer.slice(4) : refName(r.referrer);
+    byRef[k] = (byRef[k] || 0) + r.value;
+  });
+  var refs = Object.keys(byRef).sort(function(a, b){ return byRef[b] - byRef[a]; });
+  var t3 = refs.length ? table(['来た元', '人数'], refs.map(function(k){ return [esc(k), NUM(byRef[k])]; }))
+                       : '<div class="note">この期間の記録はまだありません。</div>';
+
+  return '<div class="tables"><div><h3>新しく来た人</h3>' + t1 + '</div><div><h3>アプリはストアのどこから入れたか</h3>' + t2 +
+         '</div><div><h3>Webはどこから来たか</h3>' + t3 + '</div></div>';
+}
+
 function slice(arr, n){ return n > 0 ? arr.slice(Math.max(0, arr.length - n)) : arr.slice(); }
 function sum(a){ var t = 0; for(var i=0;i<a.length;i++){ if(a[i]!=null) t += a[i]; } return t; }
 function last(a){ for(var i=a.length-1;i>=0;i--){ if(a[i]!=null) return a[i]; } return null; }
@@ -368,7 +431,10 @@ function cards(S){
       mrr == null ? '記録はこれから' : '約' + YEN(mrr * RATE) + '（1ドル' + RATE + '円で計算）'],
     ['売上（直近28日）', rev == null ? '—' : USD(rev),
       rev == null ? '記録はこれから' : '約' + YEN(rev * RATE)],
-    ['のべ訪問端末', NUM(last(ut) || 0), 'Web含む・利用者数ではない']
+    ['新しく来た人（直近7日）', NUM(d7('acq_new_ios_app') + d7('acq_new_android_app') + d7('acq_new_web_phone') + d7('acq_new_web_pc') + d7('acq_new_unknown')),
+      'アプリ ' + NUM(d7('acq_new_ios_app') + d7('acq_new_android_app')) + ' / Web ' + NUM(d7('acq_new_web_phone') + d7('acq_new_web_pc')) +
+      '（テスト・ボット ' + NUM(d7('acq_new_test')) + ' は除く）'],
+    ['のべ訪問端末', NUM(last(ut) || 0), 'Web・テスト・ボット含む・利用者数ではない']
   ];
 
   document.getElementById('cards').innerHTML = items.map(function(it){
