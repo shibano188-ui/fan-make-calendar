@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useLayoutEffect } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
@@ -7,7 +7,7 @@ import { ActionSheetProvider } from './components/ui/ActionSheet';
 import { ToastProvider } from './components/ui/Toast';
 import PhoneFrame from './components/PhoneFrame';
 import Onboarding from './components/Onboarding';
-import OnboardingTour from './components/OnboardingTour';
+import OnboardingTour, { useTourStep } from './components/OnboardingTour';
 import LaunchSplash, { markPageLoading } from './components/LaunchSplash';
 import { Capacitor } from '@capacitor/core';
 import { initAdMob, showBanner, hideBanner } from './lib/admob';
@@ -18,6 +18,7 @@ import { SHOW_ONBOARDING, ONBOARDING_KEY } from './lib/constants';
 import { requestTracking } from './lib/att';
 import { closeTopOverlay } from './lib/backStack';
 import { entryReferrer, logScreen, screenName } from './lib/screenLog';
+import { eventIdFromUrl, setPendingEvent, takePendingEvent, hasPendingEvent, readInstallReferrer } from './lib/deepLink';
 
 // ピボット後IA（feat/pivot-rebuild）。旧 Calendar 中心の画面は順次置換。
 const AppShell        = lazy(() => import('./components/AppShell'));
@@ -126,6 +127,47 @@ function NativeShareHandler() {
     return () => window.removeEventListener('sendIntentReceived', handleAndroid);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  return null;
+}
+
+// 共有ページ（fanhive.jp/e/<id>）のリンク・Android のストアから来た予定を開く（lib/deepLink.ts）。
+// 案内（オンボーディング）を終えた人はすぐ開く。途中の人は覚えておき、終わってタブの画面に戻ってから開く
+// （案内のあとの課金の案内などを飛ばさないように）
+const TAB_ROOTS = ['/', '/explore', '/saved', '/mypage'];
+function onboardingDone(): boolean {
+  if (!SHOW_ONBOARDING) return true;
+  try { return !!localStorage.getItem(ONBOARDING_KEY); } catch { return false; }
+}
+function DeepLinkHandler() {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const tourStep = useTourStep();
+  const [pendingTick, setPendingTick] = useState(0);
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const open = (id: string) => {
+      if (onboardingDone()) navigate(`/item/${id}`);
+      else { setPendingEvent(id); setPendingTick((n) => n + 1); }
+    };
+    let remove: (() => void) | undefined;
+    (async () => {
+      const { App: CapApp } = await import('@capacitor/app');
+      const sub = await CapApp.addListener('appUrlOpen', (e) => { const id = eventIdFromUrl(e.url); if (id) open(id); });
+      remove = () => { sub.remove(); };
+      const launch = await CapApp.getLaunchUrl();
+      const id = launch?.url ? eventIdFromUrl(launch.url) : null;
+      if (id) open(id);
+      const ref = await readInstallReferrer();
+      if (ref) open(ref);
+    })();
+    return () => remove?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (tourStep || !onboardingDone() || !TAB_ROOTS.includes(pathname) || !hasPendingEvent()) return;
+    const id = takePendingEvent();
+    if (id) navigate(`/item/${id}`);
+  }, [pathname, tourStep, pendingTick, navigate]);
   return null;
 }
 
@@ -265,6 +307,7 @@ export default function App() {
         <ActionSheetProvider>
         <ToastProvider>
           <NativeShareHandler />
+          <DeepLinkHandler />
           <ExternalLinkHandler />
           <AdMobController />
           <AdBannerController />

@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "jp.llp.fanhive",
+      "sha256_cert_fingerprints": [
+        "CB:01:5B:80:59:04:F8:67:D9:BE:A3:14:10:A4:BB:51:CE:63:94:3F:D2:BA:17:D3:BF:1C:58:A4:01:BC:34:5B"
+      ]
+    }
+  }
+]
