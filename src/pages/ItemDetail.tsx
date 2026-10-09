@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Pin, Share2, X, Plus, BellRing } from 'lucide-react';
 import type { CalendarEvent, EventVisit } from '../types';
@@ -55,8 +55,9 @@ function summarizePatch(p: EventPatch): string {
 // 初めていいねしたあと、共有ボタンに1回だけ出す吹き出し（2026-10-09 柴野）
 const SHARE_HINT_KEY = 'fan_share_hint_shown_v1';
 
-// shared … X などで共有された予定のページ（/e/:id・SharedItem）。ログインせずに見せ、
-//          ♡・ベル・フォローなどアプリでしかできない操作は GetAppSheet でアプリへ案内する
+// shared … X などで共有された予定のページ（/e/:id・SharedItem）。ログインせずに見せる。
+//          ♡・リアクション・ベル・フォロー・ピンなどアプリでしかできないボタンは出さない（どれを押しても案内が出てうるさかった・2026-10-09 柴野）。
+//          アプリへの案内（GetAppSheet）は上の「アプリで開く」と下の1本のボタンだけ
 export default function ItemDetail({ shared = false }: { shared?: boolean }) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -122,10 +123,6 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
   const [visitEnd, setVisitEnd] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
   const [getAppOpen, setGetAppOpen] = useState(false);
-  // 共有ページで、アプリでしかできない操作を押したら案内を出す（ボタン自身の処理は止める）
-  const appOnly = shared
-    ? { onClickCapture: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); haptic.select(); setGetAppOpen(true); } }
-    : {};
   const tourStep = useTourStep();
   const [shareHint, setShareHint] = useState(false);
 
@@ -460,13 +457,11 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
                 {catColor && <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: catColor }} />}
                 {cats.length > 0 && <span>{cats.join(' ・ ')}</span>}
               </div>
-              {event.workId && (
-                <span className="contents" {...appOnly}>
+              {event.workId && !shared && (
                 <button onClick={onFollow} className="pressable text-[11px] px-2.5 py-0.5 rounded-full font-medium"
                   style={following ? { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-secondary)' } : { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
                   {following ? 'フォロー中' : '＋フォロー'}
                 </button>
-                </span>
               )}
             </div>
 
@@ -506,11 +501,9 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
                   {countdown && <div className="mt-2 text-[13px] font-bold" style={{ color: 'var(--accent-text)' }}>{countdown}</div>}
                   {/* 受付開始の即時通知の案内（無料の人・予約受付がこれから始まるグッズだけ・2026-10-05）。
                       一番ほしくなるのは「予約開始前」を見ているときなので、段階の表示のすぐ下に置く */}
-                  {FEATURE_PREMIUM && !instantAlerts && isPreorderSoon({ type: deriveItemType(eff), preorderStart: eff.preorderStart }, todayStr()) && (
-                    <div {...appOnly}>
-                      <PromoLine className="mt-2" icon={<BellRing size={15} />} text="予約受付が始まった瞬間に通知" badge="プレミアム"
-                        onClick={() => navigate('/premium')} />
-                    </div>
+                  {!shared && FEATURE_PREMIUM && !instantAlerts && isPreorderSoon({ type: deriveItemType(eff), preorderStart: eff.preorderStart }, todayStr()) && (
+                    <PromoLine className="mt-2" icon={<BellRing size={15} />} text="予約受付が始まった瞬間に通知" badge="プレミアム"
+                      onClick={() => navigate('/premium')} />
                   )}
                 </div>
               );
@@ -586,7 +579,7 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
             )}
 
             {/* ピンした日（期間のある予定のみ・イベント/グッズ共通）。登録すると自分のカレンダーはその日だけ表示する */}
-            {!!eff.endDate && eff.endDate !== eff.date && (
+            {!shared && !!eff.endDate && eff.endDate !== eff.date && (
               <div className="mt-3">
                 {visits.length > 0 && (
                   <div className="flex flex-col gap-1.5 mb-2">
@@ -599,7 +592,7 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
                   </div>
                 )}
                 {!visitOpen ? (
-                  <div className="flex items-center gap-2 flex-wrap" {...appOnly}>
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button onClick={openVisitPicker} className="pressable flex items-center gap-1.5 px-3 py-2 rounded-[10px] text-[13px] font-semibold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
                       <Pin size={15} /> {visits.length > 0 ? '別の日にもピン！' : 'この日にピン！'}
                     </button>
@@ -644,25 +637,43 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
               );
             })()}
 
+            {/* 共有ページ: 押せるのは共有だけ。いいねの数は文字で出す。購入リンクは中身の中に（X から来た人に一番役に立つ） */}
+            {shared && (
+              <div className="mt-5 flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-[13px] text-label-secondary">
+                    {likeCount > 0 && <><Heart size={15} fill="var(--accent-color)" style={{ color: 'var(--accent-color)' }} />{likeCount}人がカレンダーに追加</>}
+                  </span>
+                  <button onClick={onShare} className="pressable flex items-center gap-1 text-[13px] text-label-secondary" aria-label="Xで共有">
+                    <Share2 size={16} /> 共有
+                  </button>
+                </div>
+                {buyMode !== 'none' && (
+                  <button onClick={openBuy} className="pressable w-full py-3 rounded-[10px] font-semibold flex items-center justify-center gap-2"
+                    style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
+                    {buyMode === 'cart' ? <ShoppingCart size={18} /> : <ExternalLink size={18} />}
+                    {buyMode === 'cart' || (retailer && !retailer.includes('.')) ? `購入する${retailer ? `（${retailer}）` : ''}` : '販売ページを開く'}
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* アクション: いいね・リアクション・カレンダー・共有 */}
+            {!shared && (
             <div className="relative mt-5">
               <div className="flex items-center justify-around py-2 rounded-[12px] border border-subtle" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                <span className="contents" {...appOnly}>
                 <button onClick={(e) => { if (!liked) likeEffect(e.currentTarget); onLike(); }} className="pressable flex flex-col items-center gap-0.5" aria-label="いいね">
                   <Heart size={22} fill={liked ? 'var(--accent-color)' : 'none'} style={{ color: liked ? 'var(--accent-color)' : 'var(--label-secondary)' }} />
                   <span className="text-[10px] text-label-tertiary leading-none">{likeCount > 0 ? likeCount : 'いいね'}</span>
                 </button>
                 <ReactionButton eventId={event.id} size={22} variant="labeled" />
-                </span>
                 {EXTERNAL_CALENDAR_ENABLED && (
                   <button onClick={onCalendar} className="pressable flex flex-col items-center gap-0.5" aria-label="カレンダーに追加">
                     <CalendarPlus size={22} style={{ color: calAdded ? 'var(--accent-color)' : 'var(--label-secondary)' }} />
                     <span className="text-[10px] text-label-tertiary leading-none">{calAdded ? '追加済み' : 'カレンダー'}</span>
                   </button>
                 )}
-                <span className="contents" {...appOnly}>
-                  <NotifyBell event={eff} liked={liked} onSave={onLike} variant="labeled" />
-                </span>
+                <NotifyBell event={eff} liked={liked} onSave={onLike} variant="labeled" />
                 <span className="relative">
                   <button onClick={onShare} className="pressable flex flex-col items-center gap-0.5" aria-label="Xで共有">
                     <Share2 size={22} className="text-label-secondary" />
@@ -679,6 +690,7 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
                 </span>
               </div>
             </div>
+            )}
 
             <PendingProposals event={eff} proposals={proposals} userId={user?.id ?? null}
               onAgree={(p) => { void submitProposal(p.patch, p.evidenceUrls); }} />
@@ -830,17 +842,13 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
           </div>
         </div>
 
-        {/* 共有ページの固定バー: ♡ と通知はアプリで（購入リンクは「リンク」のタブから開ける） */}
+        {/* 共有ページの固定バー: アプリへの案内は1本だけ */}
         {shared && (
-          <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-app border-t border-separator px-4 py-3 flex gap-2"
+          <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-app border-t border-separator px-4 py-3"
             style={{ backgroundColor: 'color-mix(in srgb, var(--bg-primary) 92%, transparent)', backdropFilter: 'blur(20px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}>
-            <button onClick={() => { haptic.select(); setGetAppOpen(true); }} className="pressable flex-1 py-3 rounded-[10px] font-semibold flex items-center justify-center gap-1.5 text-[14px]"
+            <button onClick={() => { haptic.select(); setGetAppOpen(true); }} className="pressable w-full py-3 rounded-[10px] font-semibold flex items-center justify-center gap-1.5 text-[14px]"
               style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
-              <Heart size={18} /> カレンダーに追加
-            </button>
-            <button onClick={() => { haptic.select(); setGetAppOpen(true); }} className="pressable flex-1 py-3 rounded-[10px] font-semibold flex items-center justify-center gap-1.5 text-[14px]"
-              style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
-              <BellRing size={18} /> 締切前に通知
+              <BellRing size={18} /> アプリでカレンダーに追加・締切前に通知
             </button>
           </div>
         )}
