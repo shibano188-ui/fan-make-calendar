@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
+import { Capacitor } from '@capacitor/core';
 import { supabase } from '../lib/supabase';
 import { setAppStateUser, setAppStateSync, syncAppState } from '../lib/appState';
 import { setStampUser } from '../lib/stampStore';
@@ -75,10 +76,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshPremium(u.id).catch(() => { /* 取れなければ無料のまま */ });
     };
 
-    // 既存セッションを確認し、なければ匿名サインイン（成功時は onAuthStateChange 経由で activate）
+    // 既存セッションを確認し、なければ匿名サインイン（成功時は onAuthStateChange 経由で activate）。
+    // 共有された予定のページ（/e/:id）を Web で見に来た人はアカウントを作らない（見るだけ。人数も膨らむ）
+    const sharedPage = !Capacitor.isNativePlatform() && /^\/e\//.test(window.location.pathname);
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         activate(session.user);
+      } else if (sharedPage) {
+        setLoading(false);
       } else {
         signInAnonymouslyOnce().then(({ error }) => {
           if (error && !cancelled) setLoading(false);

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Pin, Share2, X, Plus, BellRing } from 'lucide-react';
 import type { CalendarEvent, EventVisit } from '../types';
@@ -7,7 +7,7 @@ import StaffEditPanel from '../components/item/StaffEditPanel';
 import { getEventById, getWorkById, getDisplayName, toggleLike, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, addEventVisit, removeEventVisit, getMyStaffRole, getPersonalEvent, proposeEdit, listEditProposals, type EditProposal, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
-import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME, isOfficialUser, FEATURE_PREMIUM } from '../lib/constants';
+import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME, isOfficialUser, FEATURE_PREMIUM, ONBOARDING_KEY } from '../lib/constants';
 import OfficialBadge from '../components/ui/OfficialBadge';
 import { deriveItemType, itemDateLines, todayStr, isDateUncertain, stageFlow } from '../design/tokens';
 import { resolveBuy, getOffers, offerUrl, primaryOffer, isSearchPageUrl, isSourceOnlyLink, priceRange, isStockStale, stockBadge, cheapestOfferUrl } from '../lib/affiliate';
@@ -32,6 +32,9 @@ import { useConfirm } from '../components/ui/ConfirmDialog';
 import { usePremium, canFollowMore, FREE_FOLLOW_LIMIT, useFeature, isPreorderSoon } from '../lib/premium';
 import PromoLine from '../components/ui/PromoLine';
 import { countdownLabel } from '../lib/relativeDay';
+import { useTourStep } from '../components/OnboardingTour';
+import GetAppSheet from '../components/item/GetAppSheet';
+import FanHiveMark from '../components/FanHiveMark';
 
 // 外部カレンダー連携（Google/ics への追加）は一旦保留。再開時は true に戻す。
 const EXTERNAL_CALENDAR_ENABLED = false;
@@ -49,10 +52,17 @@ function summarizePatch(p: EventPatch): string {
   return parts.join(' ') || '変更';
 }
 
-export default function ItemDetail() {
+// 初めていいねしたあと、共有ボタンに1回だけ出す吹き出し（2026-10-09 柴野）
+const SHARE_HINT_KEY = 'fan_share_hint_shown_v1';
+
+// shared … X などで共有された予定のページ（/e/:id・SharedItem）。ログインせずに見せ、
+//          ♡・ベル・フォローなどアプリでしかできない操作は GetAppSheet でアプリへ案内する
+export default function ItemDetail({ shared = false }: { shared?: boolean }) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  // 共有ページでは、この端末に Web のセッションがあっても使わない（見るだけ・直す操作は出さない）
+  const { user: authUser } = useAuth();
+  const user = shared ? null : authUser;
   const { hideReportedEvent } = useHiddenContent(user?.id);
   const toast = useToast();
   // リンク・共有から直接開いた人は履歴が無く、navigate(-1) では何も起きない（下のタブも無い画面なので閉じ込められる）。
@@ -111,6 +121,13 @@ export default function ItemDetail() {
   const [visitStart, setVisitStart] = useState('');
   const [visitEnd, setVisitEnd] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
+  const [getAppOpen, setGetAppOpen] = useState(false);
+  // 共有ページで、アプリでしかできない操作を押したら案内を出す（ボタン自身の処理は止める）
+  const appOnly = shared
+    ? { onClickCapture: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); haptic.select(); setGetAppOpen(true); } }
+    : {};
+  const tourStep = useTourStep();
+  const [shareHint, setShareHint] = useState(false);
 
   // 開いたら最上部から表示（前ページのスクロール位置を引き継がない）。
   // ロード中は中身が短く効かないので、データ表示後(ev)にも実行＋全スクロール親を0に。
@@ -160,6 +177,23 @@ export default function ItemDetail() {
     return () => { alive = false; };
   }, [id, user?.id]);
 
+  // 案内（オンボーディング）が終わってから、いいねした予定を見たときに1回だけ
+  useEffect(() => {
+    if (shared || !liked || tourStep) return;
+    try {
+      if (!localStorage.getItem(ONBOARDING_KEY) || localStorage.getItem(SHARE_HINT_KEY)) return;
+      localStorage.setItem(SHARE_HINT_KEY, '1');
+    } catch { return; }
+    setShareHint(true);
+  }, [shared, liked, tourStep]);
+  useEffect(() => {
+    if (!shareHint) return;
+    const hide = () => setShareHint(false);
+    const t = setTimeout(hide, 6000);
+    document.addEventListener('pointerdown', hide);
+    return () => { clearTimeout(t); document.removeEventListener('pointerdown', hide); };
+  }, [shareHint]);
+
   if (ev === undefined) {
     return <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg-primary)' }}>
       <LineLoader />
@@ -168,7 +202,9 @@ export default function ItemDetail() {
   if (ev === null) {
     return <div className="min-h-screen flex flex-col items-center justify-center gap-3" style={{ backgroundColor: 'var(--bg-primary)' }}>
       <p className="text-label-secondary text-[14px]">見つかりませんでした</p>
-      <button onClick={goBack} className="pressable text-[14px]" style={{ color: 'var(--accent-text)' }}>戻る</button>
+      {shared
+        ? <a href="/lp" className="pressable text-[14px]" style={{ color: 'var(--accent-text)' }}>FanHive について</a>
+        : <button onClick={goBack} className="pressable text-[14px]" style={{ color: 'var(--accent-text)' }}>戻る</button>}
     </div>;
   }
 
@@ -400,10 +436,21 @@ export default function ItemDetail() {
       <div className="mx-auto w-full max-w-app flex-1 flex flex-col">
         {/* ヘッダー */}
         <div className="sticky top-0 z-20 flex items-center px-2 py-2 material-bar scroll-edge" style={{ paddingTop: 'calc(var(--sat) + 8px)' }}>
-          <button onClick={goBack} aria-label="戻る" className="pressable tap-44 p-2"><ArrowLeft size={22} /></button>
+          {shared ? (
+            <div className="flex-1 flex items-center justify-between px-2">
+              <a href="/lp" className="flex items-center gap-2">
+                <FanHiveMark size={28} />
+                <span className="text-[16px] font-bold">FanHive</span>
+              </a>
+              <button onClick={() => { haptic.select(); setGetAppOpen(true); }} className="pressable px-3 py-1.5 rounded-full text-[13px] font-semibold"
+                style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>アプリで開く</button>
+            </div>
+          ) : (
+            <button onClick={goBack} aria-label="戻る" className="pressable tap-44 p-2"><ArrowLeft size={22} /></button>
+          )}
         </div>
 
-        <div className={`flex-1 ${buyMode !== 'none' ? 'pb-28' : 'pb-10'}`}>
+        <div className={`flex-1 ${shared || buyMode !== 'none' ? 'pb-28' : 'pb-10'}`}>
           {/* 作品・カテゴリ・フォロー → タイトル を画像より上に（開いた瞬間に何のページか分かるように） */}
           <div className="px-4 pt-1 pb-3">
             {/* 作品・カテゴリ＋フォロー */}
@@ -414,10 +461,12 @@ export default function ItemDetail() {
                 {cats.length > 0 && <span>{cats.join(' ・ ')}</span>}
               </div>
               {event.workId && (
+                <span className="contents" {...appOnly}>
                 <button onClick={onFollow} className="pressable text-[11px] px-2.5 py-0.5 rounded-full font-medium"
                   style={following ? { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-secondary)' } : { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
                   {following ? 'フォロー中' : '＋フォロー'}
                 </button>
+                </span>
               )}
             </div>
 
@@ -458,8 +507,10 @@ export default function ItemDetail() {
                   {/* 受付開始の即時通知の案内（無料の人・予約受付がこれから始まるグッズだけ・2026-10-05）。
                       一番ほしくなるのは「予約開始前」を見ているときなので、段階の表示のすぐ下に置く */}
                   {FEATURE_PREMIUM && !instantAlerts && isPreorderSoon({ type: deriveItemType(eff), preorderStart: eff.preorderStart }, todayStr()) && (
-                    <PromoLine className="mt-2" icon={<BellRing size={15} />} text="予約受付が始まった瞬間に通知" badge="プレミアム"
-                      onClick={() => navigate('/premium')} />
+                    <div {...appOnly}>
+                      <PromoLine className="mt-2" icon={<BellRing size={15} />} text="予約受付が始まった瞬間に通知" badge="プレミアム"
+                        onClick={() => navigate('/premium')} />
+                    </div>
                   )}
                 </div>
               );
@@ -548,7 +599,7 @@ export default function ItemDetail() {
                   </div>
                 )}
                 {!visitOpen ? (
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap" {...appOnly}>
                     <button onClick={openVisitPicker} className="pressable flex items-center gap-1.5 px-3 py-2 rounded-[10px] text-[13px] font-semibold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
                       <Pin size={15} /> {visits.length > 0 ? '別の日にもピン！' : 'この日にピン！'}
                     </button>
@@ -596,22 +647,36 @@ export default function ItemDetail() {
             {/* アクション: いいね・リアクション・カレンダー・共有 */}
             <div className="relative mt-5">
               <div className="flex items-center justify-around py-2 rounded-[12px] border border-subtle" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                <span className="contents" {...appOnly}>
                 <button onClick={(e) => { if (!liked) likeEffect(e.currentTarget); onLike(); }} className="pressable flex flex-col items-center gap-0.5" aria-label="いいね">
                   <Heart size={22} fill={liked ? 'var(--accent-color)' : 'none'} style={{ color: liked ? 'var(--accent-color)' : 'var(--label-secondary)' }} />
                   <span className="text-[10px] text-label-tertiary leading-none">{likeCount > 0 ? likeCount : 'いいね'}</span>
                 </button>
                 <ReactionButton eventId={event.id} size={22} variant="labeled" />
+                </span>
                 {EXTERNAL_CALENDAR_ENABLED && (
                   <button onClick={onCalendar} className="pressable flex flex-col items-center gap-0.5" aria-label="カレンダーに追加">
                     <CalendarPlus size={22} style={{ color: calAdded ? 'var(--accent-color)' : 'var(--label-secondary)' }} />
                     <span className="text-[10px] text-label-tertiary leading-none">{calAdded ? '追加済み' : 'カレンダー'}</span>
                   </button>
                 )}
-                <NotifyBell event={eff} liked={liked} onSave={onLike} variant="labeled" />
-                <button onClick={onShare} className="pressable flex flex-col items-center gap-0.5" aria-label="Xで共有">
-                  <Share2 size={22} className="text-label-secondary" />
-                  <span className="text-[10px] text-label-tertiary leading-none">共有</span>
-                </button>
+                <span className="contents" {...appOnly}>
+                  <NotifyBell event={eff} liked={liked} onSave={onLike} variant="labeled" />
+                </span>
+                <span className="relative">
+                  <button onClick={onShare} className="pressable flex flex-col items-center gap-0.5" aria-label="Xで共有">
+                    <Share2 size={22} className="text-label-secondary" />
+                    <span className="text-[10px] text-label-tertiary leading-none">共有</span>
+                  </button>
+                  {shareHint && (
+                    <span className="absolute bottom-full right-[-8px] mb-2 z-10 whitespace-nowrap px-3 py-2 rounded-[10px] text-[12px] font-semibold shadow-float"
+                      style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+                      気になる予定は X で共有もできます！
+                      <span className="absolute top-full right-[18px] w-0 h-0"
+                        style={{ borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderTop: '6px solid var(--accent-color)' }} />
+                    </span>
+                  )}
+                </span>
               </div>
             </div>
 
@@ -756,8 +821,8 @@ export default function ItemDetail() {
                 others={contributorIds} onOpen={(id) => { haptic.select(); setViewingUserId(id); }} />
             )}
 
-            {/* 通報（確認ダイアログあり） */}
-            <div className="mt-3">
+            {/* 通報（確認ダイアログあり）。共有ページでは出さない */}
+            <div className={shared ? 'hidden' : 'mt-3'}>
               <button onClick={onReport} disabled={reported} className="pressable text-[12px] text-label-tertiary">
                 {reported ? '通報しました' : '通報する'}
               </button>
@@ -765,8 +830,23 @@ export default function ItemDetail() {
           </div>
         </div>
 
+        {/* 共有ページの固定バー: ♡ と通知はアプリで（購入リンクは「リンク」のタブから開ける） */}
+        {shared && (
+          <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-app border-t border-separator px-4 py-3 flex gap-2"
+            style={{ backgroundColor: 'color-mix(in srgb, var(--bg-primary) 92%, transparent)', backdropFilter: 'blur(20px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}>
+            <button onClick={() => { haptic.select(); setGetAppOpen(true); }} className="pressable flex-1 py-3 rounded-[10px] font-semibold flex items-center justify-center gap-1.5 text-[14px]"
+              style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+              <Heart size={18} /> カレンダーに追加
+            </button>
+            <button onClick={() => { haptic.select(); setGetAppOpen(true); }} className="pressable flex-1 py-3 rounded-[10px] font-semibold flex items-center justify-center gap-1.5 text-[14px]"
+              style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
+              <BellRing size={18} /> 締切前に通知
+            </button>
+          </div>
+        )}
+
         {/* 固定バー: 購入/公式リンク */}
-        {buyMode !== 'none' && (
+        {!shared && buyMode !== 'none' && (
           <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-app border-t border-separator px-4 py-3"
             style={{ backgroundColor: 'color-mix(in srgb, var(--bg-primary) 92%, transparent)', backdropFilter: 'blur(20px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}>
             <button onClick={openBuy} className="pressable w-full py-3 rounded-[10px] font-semibold flex items-center justify-center gap-2"
@@ -795,6 +875,8 @@ export default function ItemDetail() {
           </div>
         )}
       </div>
+
+      {getAppOpen && <GetAppSheet eventId={event.id} onClose={() => setGetAppOpen(false)} />}
 
       {addOpen && (
         <AddInfoSheet

@@ -16,6 +16,11 @@
   "rewrites": [
     { "source": "/api/google-callback", "destination": "/api/ics?action=google-callback" },
     { "source": "/api/google-sync-all", "destination": "/api/ics?action=google-sync-all" },
+    {
+      "source": "/e/:id",
+      "has": [{ "type": "header", "key": "user-agent", "value": ".*(bot|Bot|facebookexternalhit|line-poker|Slack|Discord|Embedly|WhatsApp|Hatena).*" }],
+      "destination": "/api/ics?action=share-page&id=:id"
+    },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "headers": [

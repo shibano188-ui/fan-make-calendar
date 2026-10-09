@@ -42,6 +42,7 @@ const WidgetCountdown = lazy(() => import('./pages/WidgetCountdown'));
 const WidgetToday     = lazy(() => import('./pages/WidgetToday'));
 const WidgetMonth     = lazy(() => import('./pages/WidgetMonth'));
 const ShareTarget     = lazy(() => import('./pages/ShareTarget'));
+const SharedItem      = lazy(() => import('./pages/SharedItem'));
 // web版のデモ（design/panel ブランチ限定・PhoneFrame の外で全画面に描く）
 const WebDemo         = lazy(() => import('./pages/WebDemo'));
 const NotFound        = lazy(() => import('./pages/NotFound'));
@@ -279,6 +280,8 @@ export default function App() {
               <Route path="/widget/today/:workId"     element={<WidgetToday />} />
               <Route path="/widget/month/:workId"     element={<WidgetMonth />} />
               <Route path="/share"                    element={<ShareTarget />} />
+              {/* X などで共有された予定（スマホの枠なし・ログインなしで見られる） */}
+              <Route path="/e/:id"                    element={<SharedItem />} />
 
               {/* web版デモ。スマホの枠を通さず、そのまま画面幅を使う */}
               <Route path="/web"                      element={<WebDemo />} />

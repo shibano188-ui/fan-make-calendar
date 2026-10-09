@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { isPremium, loadCalendarItems, type CalendarItem } from './_calendarItems.js';
 import { gcalHandler } from './_gcal.js';
+import { shareHandler } from './_sharePage.js';
 
 // カレンダー自動同期（プレミアム）: 保存した予定を .ics で配信する。
 // Google/Appleカレンダーに「URLで購読」してもらう方式なので、こちらから送信はしない。
@@ -73,6 +74,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 「Googleで連携」の入口も相乗りしている（関数は12個が上限）。/api/google-callback 等は vercel.json でここへ流す
   const action = String(req.query.action ?? '');
   if (action.startsWith('google-')) return gcalHandler(req, res, action);
+  // 共有された予定のページのカード（X などのクローラー向け）。api/_sharePage.ts
+  if (action.startsWith('share-')) return shareHandler(req, res, action);
 
   const token = String(req.query.t ?? '').trim();
   res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
