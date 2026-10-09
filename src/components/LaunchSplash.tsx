@@ -42,7 +42,7 @@ function shouldShow(): boolean {
     if (/[?&](url|text)=/.test(search)) return false;  // 共有から開いた
     // 初回の案内（ようこその画面）がこれから出るなら出さない（同じロゴの動きが2回続くので）
     if (SHOW_ONBOARDING && !localStorage.getItem(ONBOARDING_KEY) && !localStorage.getItem(TOUR_STEP_KEY)) return false;
-    if (/^\/(widget|share|web)(\/|$)/.test(pathname)) return false;  // アプリの外枠を使わない画面
+    if (/^\/(widget|share|web|e)(\/|$)/.test(pathname)) return false;  // アプリの外枠を使わない画面
     if (Capacitor.isNativePlatform()) return true;
     if (sessionStorage.getItem(SEEN_KEY)) return false;
     sessionStorage.setItem(SEEN_KEY, '1');

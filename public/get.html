@@ -29,7 +29,9 @@
         } catch (e) { /* 数えられなくても飛ばす */ }
       }
       // Google Play には来た元を渡す（Play Console の獲得レポートに出る）
-      if (src) ANDROID += '&referrer=' + encodeURIComponent('utm_source=' + src);
+      // 共有ページから来たときは予定の id も渡す（e=…・アプリを入れたあとにその予定を開くのに使う予定）
+      var ev = new URLSearchParams(location.search).get('e') || '';
+      if (src) ANDROID += '&referrer=' + encodeURIComponent('utm_source=' + src + (ev ? '&utm_content=' + ev : ''));
       var ua = navigator.userAgent || '';
       // iPadOS 13 以降の Safari は Mac と名乗るので、タッチの有無で見分ける
       var isIOS = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
