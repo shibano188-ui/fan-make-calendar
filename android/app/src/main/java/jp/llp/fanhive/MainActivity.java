@@ -17,6 +17,8 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // アプリ内のプラグイン（npm のパッケージではないもの）は super.onCreate の前に登録する
+        registerPlugin(InstallReferrerPlugin.class);
         super.onCreate(savedInstanceState);
         // ステータスバーの実測高さを CSS 変数 --sat として WebView に注入する。
         // CSS env(safe-area-inset-top) は一部のAndroid端末(例: Nothing OS / Android 15 の

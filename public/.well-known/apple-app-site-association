@@ -1,0 +1,13 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "JX3B783DS6.jp.llp.fanhive",
+        "appIDs": ["JX3B783DS6.jp.llp.fanhive"],
+        "paths": ["/e/*"],
+        "components": [{ "/": "/e/*" }]
+      }
+    ]
+  }
+}

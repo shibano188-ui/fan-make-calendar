@@ -11,5 +11,11 @@
 	     Xcodeが production に差し替える。 -->
 	<key>aps-environment</key>
 	<string>development</string>
+	<!-- 共有ページ（https://fanhive.jp/e/<id>）のリンクをアプリで開く（Universal Links）。
+	     確かめ方は public/.well-known/apple-app-site-association。受け取りは src/lib/deepLink.ts -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:fanhive.jp</string>
+	</array>
 </dict>
 </plist>

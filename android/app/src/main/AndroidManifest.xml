@@ -22,6 +22,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- 共有ページ（https://fanhive.jp/e/<id>）のリンクをアプリで開く（App Links）。
+                 確かめ方は public/.well-known/assetlinks.json。受け取りは src/lib/deepLink.ts -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="fanhive.jp" android:pathPrefix="/e/" />
+            </intent-filter>
+
             <!-- X（Twitter）などからのURL・テキストシェアを受け取る -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
