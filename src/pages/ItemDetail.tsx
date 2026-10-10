@@ -33,7 +33,7 @@ import { usePremium, canFollowMore, FREE_FOLLOW_LIMIT, useFeature, isPreorderSoo
 import PromoLine from '../components/ui/PromoLine';
 import { countdownLabel } from '../lib/relativeDay';
 import { useTourStep } from '../components/OnboardingTour';
-import GetAppSheet from '../components/item/GetAppSheet';
+import GetAppSheet, { openAppHref } from '../components/item/GetAppSheet';
 import FanHiveMark from '../components/FanHiveMark';
 
 // 外部カレンダー連携（Google/ics への追加）は一旦保留。再開時は true に戻す。
@@ -57,7 +57,7 @@ const SHARE_HINT_KEY = 'fan_share_hint_shown_v1';
 
 // shared … X などで共有された予定のページ（/e/:id・SharedItem）。ログインせずに見せる。
 //          ♡・リアクション・ベル・フォロー・ピンなどアプリでしかできないボタンは出さない（どれを押しても案内が出てうるさかった・2026-10-09 柴野）。
-//          アプリへの案内（GetAppSheet）は上の「アプリで開く」と下の1本のボタンだけ
+//          アプリへの案内は上の「アプリで開く」（直接アプリ／ストアへ）と下の1本のボタン（GetAppSheet）だけ
 export default function ItemDetail({ shared = false }: { shared?: boolean }) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -439,8 +439,9 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
                 <FanHiveMark size={28} />
                 <span className="text-[16px] font-bold">FanHive</span>
               </a>
-              <button onClick={() => { haptic.select(); setGetAppOpen(true); }} className="pressable px-3 py-1.5 rounded-full text-[13px] font-semibold"
-                style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>アプリで開く</button>
+              {/* 入っている人はアプリのこの予定へ、無い人はストアへ（openAppHref） */}
+              <a href={openAppHref(event.id)} onClick={() => haptic.select()} className="pressable px-3 py-1.5 rounded-full text-[13px] font-semibold"
+                style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>アプリで開く</a>
             </div>
           ) : (
             <button onClick={goBack} aria-label="戻る" className="pressable tap-44 p-2"><ArrowLeft size={22} /></button>

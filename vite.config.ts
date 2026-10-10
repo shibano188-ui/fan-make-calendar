@@ -39,7 +39,9 @@ export default defineConfig({
         // /api/ 配下は SPA ではない（指標ダッシュボード等）。除外しないと
         // Service Worker が index.html を返してしまい、PWAを一度開いた端末では開けない。
         // 規約類の .html も同じ（/about.html → /tokushoho.html の転送もサーバーに届かなくなる）。
-        navigateFallbackDenylist: [/^\/api\//, /\.html$/],
+        // 判定は「パス＋クエリ」に当たるので、/get.html?src=share のようにクエリが付いても外れるようにする
+        // （$ だけだと共有ページの「アプリで開く」→ /get.html?… が SPA の 404 になっていた・2026-10-10）
+        navigateFallbackDenylist: [/^\/api\//, /\.html($|\?)/],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
