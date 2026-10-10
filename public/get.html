@@ -36,6 +36,17 @@
       // iPadOS 13 以降の Safari は Mac と名乗るので、タッチの有無で見分ける
       var isIOS = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
       if (isIOS) { track('app_store'); location.replace(IOS); }
+      else if (/; wv\)|TwitterAndroid/.test(ua)) {
+        // X などのアプリ内ブラウザ（WebView）では https の Play が Web のまま開く（2026-10-11 柴野の Android で確認）。
+        // market:// なら Play のアプリに渡せることがあるので先に試し、1.5秒たっても画面が残っていれば Web の Play へ。
+        // ページごと移ると、開けなかったときにエラー画面で止まるので、見えない iframe で試す
+        track('google_play');
+        var f = document.createElement('iframe');
+        f.style.display = 'none';
+        f.src = ANDROID.replace('https://play.google.com/store/apps/', 'market://');
+        document.documentElement.appendChild(f);
+        setTimeout(function () { if (!document.hidden) location.replace(ANDROID); }, 1500);
+      }
       else if (/Android/.test(ua)) { track('google_play'); location.replace(ANDROID); }
     })();
   </script>
