@@ -8,7 +8,8 @@ import FanHiveMark from '../FanHiveMark';
 
 /**
  * 「アプリで開く」の行き先。
- * Android … intent:// で、アプリが入っていればその予定を開き、無ければ get.html → Play へ
+ * Android … intent:// で、アプリが入っていればその予定を開き、無ければ get.html → Play へ。
+ *   ただし X などのアプリ内ブラウザ（WebView）では intent:// が効かないので get.html → Play
  *   （X のアプリ内ブラウザや同じドメインの中のリンクでは App Links が働かないので、ふつうのリンクではアプリが開かない）
  * iOS … open.fanhive.jp の Universal Link。入っていればアプリのその予定、無ければ get.html → App Store に転送（vercel.json）。
  *   同じドメイン（fanhive.jp）の中のリンクでは Universal Link が働かないので、別のドメインにしている。
@@ -23,6 +24,9 @@ export function openAppHref(eventId: string): string {
     return `https://open.fanhive.jp/e/${encodeURIComponent(eventId)}`;
   }
   if (!/Android/.test(ua)) return get;
+  // X などのアプリ内ブラウザ（WebView・UA に「; wv)」）は intent:// を開けず、押しても何も起きない（2026-10-11 柴野の Android で確認）。
+  // そこでは get.html → Play に送る（入っている人は Play の「開く」から）
+  if (/; wv\)|TwitterAndroid/.test(ua)) return get;
   const fallback = encodeURIComponent(`${location.origin}${get}`);
   return `intent://fanhive.jp/e/${encodeURIComponent(eventId)}#Intent;scheme=https;package=jp.llp.fanhive;S.browser_fallback_url=${fallback};end`;
 }
