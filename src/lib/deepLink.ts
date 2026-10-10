@@ -11,11 +11,11 @@ const PENDING_KEY = 'fan_pending_event_v1';
 const REFERRER_CHECKED_KEY = 'fan_install_referrer_checked_v1';
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
-/** https://fanhive.jp/e/<id> から予定の id を取る。違う URL なら null */
+/** https://fanhive.jp/e/<id>（open.fanhive.jp も）から予定の id を取る。違う URL なら null */
 export function eventIdFromUrl(raw: string): string | null {
   try {
     const u = new URL(raw);
-    if (!/^(www\.)?fanhive\.jp$/.test(u.hostname)) return null;
+    if (!/^((www|open)\.)?fanhive\.jp$/.test(u.hostname)) return null;
     const m = u.pathname.match(/^\/e\/([0-9a-f-]{36})\/?$/i);
     return m ? m[1].toLowerCase() : null;
   } catch { return null; }

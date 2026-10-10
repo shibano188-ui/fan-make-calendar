@@ -12,10 +12,12 @@
 	<key>aps-environment</key>
 	<string>development</string>
 	<!-- 共有ページ（https://fanhive.jp/e/<id>）のリンクをアプリで開く（Universal Links）。
-	     確かめ方は public/.well-known/apple-app-site-association。受け取りは src/lib/deepLink.ts -->
+	     確かめ方は public/.well-known/apple-app-site-association。受け取りは src/lib/deepLink.ts
+	     open.fanhive.jp は共有ページの「アプリで開く」用（同じドメインの中のリンクでは開かないので別のドメイン・1.17〜） -->
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:fanhive.jp</string>
+		<string>applinks:open.fanhive.jp</string>
 	</array>
 </dict>
 </plist>

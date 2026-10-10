@@ -10,11 +10,19 @@ import FanHiveMark from '../FanHiveMark';
  * 「アプリで開く」の行き先。
  * Android … intent:// で、アプリが入っていればその予定を開き、無ければ get.html → Play へ
  *   （X のアプリ内ブラウザや同じドメインの中のリンクでは App Links が働かないので、ふつうのリンクではアプリが開かない）
- * iOS ほか … get.html → App Store（入っている人はストアの「開く」から）
+ * iOS … open.fanhive.jp の Universal Link。入っていればアプリのその予定、無ければ get.html → App Store に転送（vercel.json）。
+ *   同じドメイン（fanhive.jp）の中のリンクでは Universal Link が働かないので、別のドメインにしている。
+ *   1.16 以前のアプリは open.fanhive.jp を知らないので、ストアに行く（ストアの「開く」から）
+ * パソコンなど … get.html（ストアの2つのボタン）
  */
 export function openAppHref(eventId: string): string {
   const get = `/get.html?src=share&e=${encodeURIComponent(eventId)}`;
-  if (!/Android/.test(navigator.userAgent)) return get;
+  const ua = navigator.userAgent;
+  // iPadOS 13 以降の Safari は Mac と名乗るので、タッチの有無で見分ける（get.html と同じ）
+  if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) {
+    return `https://open.fanhive.jp/e/${encodeURIComponent(eventId)}`;
+  }
+  if (!/Android/.test(ua)) return get;
   const fallback = encodeURIComponent(`${location.origin}${get}`);
   return `intent://fanhive.jp/e/${encodeURIComponent(eventId)}#Intent;scheme=https;package=jp.llp.fanhive;S.browser_fallback_url=${fallback};end`;
 }
