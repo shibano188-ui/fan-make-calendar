@@ -29,3 +29,11 @@
 - 下から出るパネルの中をスクロールさせるときは `flex: 1` に頼らない。
   `position: absolute; top: Xpx; bottom: 0; overflow-y: scroll;` で高さを決める
 - `lucide-react` の `Map` アイコンは JS の `Map` を上書きする。`import { Map as MapIcon }` と別名にする
+
+## 共有ページからアプリを開く（2026-10-11）
+
+- Service Worker の `navigateFallbackDenylist` は**パス＋クエリ**に当たる。`/\.html$/` だと `/get.html?src=…` が外れず SPA の 404 になる（`/\.html($|\?)/` にしてある）
+- 同じドメイン（fanhive.jp）の中のリンクや X のアプリ内ブラウザでは App Links / Universal Links が働かない。行き先は `GetAppSheet.tsx` の `openAppHref`
+  - iOS … 別ドメイン `open.fanhive.jp` の Universal Link（1.17〜）。入っていなければ vercel.json で get.html → App Store
+  - Android … Chrome などは `intent://`。X などの WebView（UA に `; wv)`）は intent:// を開けないので get.html → Play
+- `open.fanhive.jp` の `/.well-known/` は転送しない（AASA をそのまま返す）。`www` はドメイン設定で apex へ 308 転送なので使えない
