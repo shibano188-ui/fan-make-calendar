@@ -12,7 +12,21 @@
     "formats": ["image/webp"],
     "minimumCacheTTL": 2678400
   },
-  "redirects": [{ "source": "/about.html", "destination": "/tokushoho.html", "permanent": true }],
+  "redirects": [
+    { "source": "/about.html", "destination": "/tokushoho.html", "permanent": true },
+    {
+      "source": "/e/:id",
+      "has": [{ "type": "host", "value": "open.fanhive.jp" }],
+      "destination": "https://fanhive.jp/get.html?src=share&e=:id",
+      "permanent": false
+    },
+    {
+      "source": "/:path((?!\\.well-known/).*)",
+      "has": [{ "type": "host", "value": "open.fanhive.jp" }],
+      "destination": "https://fanhive.jp/:path",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     { "source": "/api/google-callback", "destination": "/api/ics?action=google-callback" },
     { "source": "/api/google-sync-all", "destination": "/api/ics?action=google-sync-all" },
