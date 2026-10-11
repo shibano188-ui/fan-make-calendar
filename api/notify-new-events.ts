@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { sendPushes, fcmConfigured, type PushMessage } from './_fcm.js';
-import { activePremiumUsers, logNotifications, selectAll } from './_alerts.js';
+import { activePremiumUsers, logNotifications, selectAll, writeSkippingBad } from './_alerts.js';
 
 // フォロー作品の新着まとめ。
 //
@@ -174,23 +174,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  // 9時の回は、その日の分を記録できた人にだけ送る（**入った行だけ**が返るので、二度回っても二重に送らない）
+  // 9時の回は、その日の分を記録できた人にだけ送る（**入った行だけ**が返るので、二度回っても二重に送らない）。
+  // 記録できない人（消えたアカウントなど）はその人だけ飛ばす。前は1人の失敗で全員分が「送り済み」扱いになっていた
   let targets = new Set(perUser.keys());
+  let skippedUsers = 0;
   if (slot === 'daily') {
-    const { data: inserted } = await db
-      .from('user_alert_digests')
-      .upsert([...perUser.keys()].map((user_id) => ({ user_id, digest_date: jstDate() })), {
-        onConflict: 'user_id,digest_date',
-        ignoreDuplicates: true,
-      })
-      .select('user_id');
-    targets = new Set((inserted ?? []).map((r) => r.user_id as string));
-    if (!targets.size) return done({ skipped: 'already sent today' });
+    const { written, failed } = await writeSkippingBad<{ user_id: string; digest_date: string }, { user_id: string }>(
+      'new-events digest',
+      [...perUser.keys()].map((user_id) => ({ user_id, digest_date: jstDate() })),
+      (rows) => db.from('user_alert_digests').upsert(rows, { onConflict: 'user_id,digest_date', ignoreDuplicates: true }).select('user_id'),
+    );
+    targets = new Set(written.map((r) => r.user_id));
+    skippedUsers = failed;
+    if (!targets.size) {
+      // 全員書けなかったのは「送り済み」ではない。気づけるようにエラーで返す
+      if (failed) return res.status(500).json({ slot, error: `user_alert_digests に書けなかった（${failed}人）` });
+      return done({ skipped: 'already sent today' });
+    }
   }
   // 送る前に進めておく（途中で落ちても、同じ分を次の回にもう一度送らない）。送った届き方の分だけ進める
   if (hasCursor) {
     const rows = [...targets].flatMap((user_id) => [...(perUser.get(user_id)?.modes ?? [])].map((m) => ({ user_id, mode: m, notified_until: now })));
-    if (rows.length) await db.from('new_event_notify_cursor').upsert(rows, { onConflict: 'user_id,mode' });
+    await writeSkippingBad('new-events cursor', rows, (r) => db.from('new_event_notify_cursor').upsert(r, { onConflict: 'user_id,mode' }));
   }
 
   const messages: PushMessage[] = [];
@@ -213,5 +218,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const { sent, failed, deadTokens } = await sendPushes(messages);
   if (deadTokens.length) await db.from('push_tokens').delete().in('token', deadTokens);
-  return res.status(200).json({ slot, newEvents: newEvents.length, users: targets.size, sent, failed });
+  return res.status(200).json({ slot, newEvents: newEvents.length, users: targets.size, skippedUsers, sent, failed });
 }
