@@ -20,6 +20,7 @@
       var src = (new URLSearchParams(location.search).get('src') || '').toLowerCase();
       function track(store) {
         if (['fanhive.jp', 'www.fanhive.jp'].indexOf(location.hostname) < 0) return;
+        if (navigator.webdriver) return; // 自動操作のブラウザは数えない
         try {
           fetch('https://jsgidtwxhueqgtvshdku.supabase.co/rest/v1/rpc/lp_track', {
             method: 'POST', keepalive: true,
