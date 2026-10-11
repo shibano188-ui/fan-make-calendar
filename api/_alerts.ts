@@ -113,15 +113,41 @@ function asIdSet(v: unknown): Set<string> {
   return new Set(Array.isArray(v) ? (v as unknown[]).filter((x): x is string => typeof x === 'string') : []);
 }
 
+/** まとめて書き、失敗したら1行ずつ書き直す。書けない行だけを飛ばして、ほかの人の分は書く。
+ *  消えたアカウントの行が1つ混ざるだけで（auth.users への外部キー）文全体が失敗し、
+ *  新着のまとめが 10/6〜10/11 の6日間だれにも届かなかった（2026-10-11）。
+ *  `write` は渡した行を書いて、書けた行を返すこと（要らなければ select なしでよい）。 */
+export async function writeSkippingBad<R, O = unknown>(
+  label: string,
+  rows: R[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  write: (rows: R[]) => PromiseLike<{ data: any; error: { message: string } | null }>,
+): Promise<{ written: O[]; failed: number }> {
+  if (!rows.length) return { written: [], failed: 0 };
+  const all = await write(rows);
+  if (!all.error) return { written: (all.data ?? []) as O[], failed: 0 };
+  console.error(`[${label}] まとめて書けなかったので1行ずつ書き直す:`, all.error.message);
+  const written: O[] = [];
+  let failed = 0;
+  for (let i = 0; i < rows.length; i += 20) {
+    const results = await Promise.all(rows.slice(i, i + 20).map((r) => write([r])));
+    for (const r of results) {
+      if (r.error) failed++;
+      else written.push(...((r.data ?? []) as O[]));
+    }
+  }
+  if (failed) console.error(`[${label}] 書けなかった行: ${failed}/${rows.length}`);
+  return { written, failed };
+}
+
 /** お知らせ履歴に残す。**プッシュが送れたかとは無関係に書く**
  *  （通知を切っている人・端末を持っていない人も、アプリで見返せるようにするため）。 */
 export async function logNotifications(
   db: Db,
   rows: { user_id: string; kind: string; title: string; body: string; path: string; event_id: string | null }[],
 ): Promise<void> {
-  if (!rows.length) return;
-  // 履歴が書けなくても通知は送る（ここで止めると通知そのものが届かなくなる）
-  await db.from('notifications').insert(rows);
+  // 履歴が書けなくても通知は送る（ここで止めると通知そのものが届かなくなる）。書けない人がいても、ほかの人の分は残す
+  await writeSkippingBad('notifications', rows, (r) => db.from('notifications').insert(r));
 }
 
 /** 検知したものをプッシュする。戻り値は送信数（Cronのレスポンスに出して様子を見るため）。 */
