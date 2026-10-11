@@ -288,11 +288,31 @@ async function series() {
   }
   const ref = [...refCount.values()];
 
+  // マイページの「バグ・改善の報告」（feedbacks）。新しい順に100件。名前は user_settings から引く。
+  // 期間に関係なく出す（数が少なく、古いものも読み返したいため）。表がまだ無い環境では空
+  const feedbacks: { at: string; kinds: string[]; body: string; platform: string | null; build: string | null; page: string | null; name: string | null }[] = [];
+  const fb = await client
+    .from('feedbacks')
+    .select('user_id, kinds, body, platform, build, page, created_at')
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if (!fb.error && fb.data?.length) {
+    const ids = [...new Set(fb.data.map((r) => r.user_id as string))];
+    const { data: names } = await client.from('user_settings').select('user_id, display_name').in('user_id', ids);
+    const nameOf = new Map((names ?? []).map((n) => [n.user_id as string, n.display_name as string | null]));
+    for (const r of fb.data) {
+      feedbacks.push({
+        at: r.created_at, kinds: r.kinds ?? [], body: r.body ?? '',
+        platform: r.platform, build: r.build, page: r.page, name: nameOf.get(r.user_id) ?? null,
+      });
+    }
+  }
+
   const days = [...byDay.keys()].sort();
   const out: Record<string, (number | null)[]> = {};
   for (const m of names) out[m] = days.map((d) => byDay.get(d)?.[m] ?? null);
 
-  return { days, series: out, lp, ref, updatedAt: new Date().toISOString() };
+  return { days, series: out, lp, ref, feedbacks, updatedAt: new Date().toISOString() };
 }
 
 /** RevenueCat から今の数字を取って metrics_daily に入れる。
