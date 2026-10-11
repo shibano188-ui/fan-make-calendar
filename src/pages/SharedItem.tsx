@@ -15,7 +15,8 @@ export default function SharedItem() {
   const native = Capacitor.isNativePlatform();
 
   useEffect(() => {
-    if (native || !['fanhive.jp', 'www.fanhive.jp'].includes(location.hostname)) return;
+    // 自動操作のブラウザ（navigator.webdriver）は数えない
+    if (native || navigator.webdriver || !['fanhive.jp', 'www.fanhive.jp'].includes(location.hostname)) return;
     const src = (new URLSearchParams(location.search).get('src') || 'x').toLowerCase();
     fetch(LP_TRACK, {
       method: 'POST', keepalive: true,
