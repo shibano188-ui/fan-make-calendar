@@ -74,6 +74,14 @@ const HEAD = `<!doctype html>
   .tables{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:0 24px}
   .tables h3{font-size:13px;margin:8px 0 0;font-weight:700}
   #err{color:var(--down);padding:20px 0}
+  .fb{padding:10px 0;border-bottom:1px solid var(--line)}
+  .fb-h{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;font-size:12px;color:var(--sub)}
+  .fb-h b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .fb-m{color:var(--dim)}
+  .fb-b{white-space:pre-wrap;word-break:break-word;margin-top:4px}
+  .tag{padding:0 7px;border-radius:5px;border:1px solid var(--line);font-size:11px}
+  .tag.bug{color:var(--down);border-color:var(--down)}
+  details summary{cursor:pointer;color:var(--accent);font-size:13px;padding:10px 0}
 </style>
 </head>
 `;
@@ -158,6 +166,11 @@ var USDJPY = function(v){ return USD(v) + '（約' + YEN(v * RATE) + '）'; };
 var NUM = function(v){ return Math.round(v).toLocaleString('ja-JP'); };
 
 var BOXES = [
+  { title:'問い合わせ（バグ・改善の報告）',
+    note:'マイページの「バグ・改善の報告」から届いたもの。新しい順に最大100件（期間の切り替えに関係なく出す）。' +
+         'contact@fanhive.jp へのメールはここには出ない。',
+    kind:'table', render:fbList },
+
   { title:'どこから来たか',
     note:'表示している期間に新しく来た人の内訳。来た人＝アプリかWebで初めて開かれたアカウント（テスト・ボットは除く）。' +
          'テスト・ボット＝チームの動作確認のスクリプト・クローラーと、それと同じ回線から作られたもの、ストアの審査の端末。' +
@@ -356,6 +369,24 @@ function acqTables(days){
 
   return '<div class="tables"><div><h3>新しく来た人</h3>' + t1 + '</div><div><h3>アプリはストアのどこから入れたか</h3>' + t2 +
          '</div><div><h3>Webはどこから来たか</h3>' + t3 + '</div></div>';
+}
+
+var FB_KIND = { bug:'バグ', improve:'改善してほしい', feature:'ほしい機能', other:'その他' };
+var FB_SHOW = 5;
+function fbList(){
+  var rows = DATA.feedbacks || [];
+  if(!rows.length) return '<div class="note">まだ届いていません。</div>';
+  var item = function(r){
+    var t = new Date(r.at);
+    var when = (t.getMonth() + 1) + '/' + t.getDate() + ' ' + t.getHours() + ':' + ('0' + t.getMinutes()).slice(-2);
+    var tags = r.kinds.map(function(k){ return '<span class="tag' + (k === 'bug' ? ' bug' : '') + '">' + esc(FB_KIND[k] || k) + '</span>'; }).join('');
+    var meta = [r.name || '名前なし', r.platform, r.build && 'build ' + r.build, r.page].filter(Boolean).map(esc).join(' · ');
+    return '<div class="fb"><div class="fb-h"><b>' + when + '</b>' + tags + '<span class="fb-m">' + meta + '</span></div>' +
+           '<div class="fb-b">' + esc(r.body) + '</div></div>';
+  };
+  var head = rows.slice(0, FB_SHOW).map(item).join('');
+  var rest = rows.slice(FB_SHOW);
+  return head + (rest.length ? '<details><summary>残り' + rest.length + '件を見る</summary>' + rest.map(item).join('') + '</details>' : '');
 }
 
 function slice(arr, n){ return n > 0 ? arr.slice(Math.max(0, arr.length - n)) : arr.slice(); }
