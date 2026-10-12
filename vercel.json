@@ -1,4 +1,5 @@
 {
+  "regions": ["hnd1"],
   "crons": [
     { "path": "/api/refresh-offers", "schedule": "0 23 * * *" },
     { "path": "/api/metrics", "schedule": "35 15 * * *" },
