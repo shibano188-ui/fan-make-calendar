@@ -144,7 +144,9 @@ async function crawlMovic(db: Db, authorId: string, budgetMs: number): Promise<{
     // 新着は1日1回。作品は、登録済みの作品名で商品名から見分ける（見分けられない商品は入れない）
     if (s.dailyAt && Date.now() - Date.parse(s.dailyAt) < 24 * 3600_000) return { added, merged, read, note: '今日の新着は済んでいる' };
     const html = await getHtml(`${MOVIC}/shop/e/enew_snd/`);
-    const items = html ? toList(parseMovicList(html)).filter((p) => p.inStock !== false) : [];
+    // 読めないとき（混雑の 503 など）は見たことにしない。次の回にもう一度見る
+    if (!html) return { added, merged, read, note: '新着が読めない' };
+    const items = toList(parseMovicList(html)).filter((p) => p.inStock !== false);
     read = items.length;
     const { list } = await excludeRegistered({ title: 'ムービック 新着', shop: 'ムービック', retailer: 'ムービック', products: items, nextPage: null });
     const { done } = await lookupMovicItems(list.products, until);
@@ -162,7 +164,12 @@ async function crawlMovic(db: Db, authorId: string, budgetMs: number): Promise<{
     const w = s.works[s.i ?? 0];
     const page = s.page ?? 1;
     const html = await getHtml(page > 1 ? `${MOVIC}${w.url.replace(/\/$/, `_p${page}/`)}` : `${MOVIC}${w.url}`);
-    if (!html) { s.i = (s.i ?? 0) + 1; s.page = 1; s.wid = null; s.workName = undefined; continue; } // 読めない作品は飛ばす
+    if (!html) {
+      // サイトごと読めない（混雑の 503・アクセス制限など）ときは進めない。2026-10-11〜12 に飛ばし続けて作品をほぼ全部読み落とした。
+      // 作品一覧のページが読めれば、その作品のページだけが無いので飛ばす
+      if (!(await getHtml(`${MOVIC}/shop/pages/search_title.aspx`))) { await save(); return { added, merged, read, note: `サイトが読めない（作品 ${s.i ?? 0}/${s.works.length}）` }; }
+      s.i = (s.i ?? 0) + 1; s.page = 1; s.wid = null; s.workName = undefined; continue;
+    }
     const items = toList(parseMovicList(html)).filter((p) => p.inStock !== false);
     read += items.length;
     if (!s.wid) {
@@ -425,6 +432,8 @@ async function crawlAnimate(db: Db, authorId: string): Promise<{ added: number; 
   if ((s.newPages ?? 0) < ANIMATE_NEW_PAGES) {
     const page = (s.newPages ?? 0) + 1;
     const list = await fetchProductList(`${ANIMATE}/products/list.php?sort=5`, page).catch(() => null);
+    // 読めないとき（アクセス制限の 403 など）は進めない。次の回に同じページを読む
+    if (!list) return { added: 0, merged: 0, read: 0, note: `新着 ${page}ページ目が読めない` };
     const items = (list?.products ?? []).filter((p) => p.inStock !== false);
     read = items.length;
     r = await registerByTitle(db, authorId, shop, items);
