@@ -24,6 +24,17 @@ const SEARCH_PAGE_PATTERNS = [
 export const isSearchPage = (u: string) => !!u && SEARCH_PAGE_PATTERNS.some((re) => re.test(u));
 
 export interface OfferRow { retailer?: string; shop?: string; url: string; affiliateUrl?: string; hasAffiliate?: boolean; price?: number; fetchedAt?: string; official?: boolean; isSet?: boolean; inStock?: boolean; stockLabel?: string; pinned?: boolean; label?: string; jan?: string; }
+// 保存は素のURLでも、表示時に src/lib/affiliate.ts がA8に包む販路（アニメイトの商品ページ・www.amiami.jp）。
+// クライアントの primaryOffer は包んだ後のURLで判定するので、代表価格の選び方だけはこれも数えて揃える。
+// isAff には入れない（楽天・Yahoo! を足して値段を比べる判定〈_enrich・バックフィル〉はそのまま）。
+function wrapsToA8(u: string): boolean {
+  try {
+    const x = new URL(u);
+    const h = x.host.toLowerCase();
+    if (/(^|\.)animate(-onlineshop)?\.(co\.)?jp$/.test(h)) return /\/pd\/\d+/.test(x.pathname) || /^\d+$/.test(x.searchParams.get('product_id') ?? '');
+    return h === 'www.amiami.jp';
+  } catch { return false; }
+}
 export const isAff = (o: OfferRow) => isAffiliateUrl(o.affiliateUrl || o.url) || isAffiliateUrl(o.url);
 // src/lib/affiliate.ts の isOfficialOffer と同じ（公式店/公式通販か）。代表選びを揃える。
 const OFFICIAL_BRANDS = ['あみあみ', '駿河屋', 'アニメイト', '楽天ブックス'];
@@ -37,7 +48,7 @@ export const isOfficial = (o: OfferRow) => !!o.official || OFFICIAL_BRANDS.some(
 export function representativePrice(live: OfferRow[], current: number | null, hadRemoval: boolean): number | null {
   const products = live.filter((o) => !isSearchPage(o.url));
   const base = products.length ? products : live;
-  const affOffers = base.filter(isAff);
+  const affOffers = base.filter((o) => isAff(o) || wrapsToA8(o.url));
   const rep = [...(affOffers.length ? affOffers : base)].sort((a, b) =>
     (Number(b.inStock !== false) - Number(a.inStock !== false)) ||
     (Number(!!a.isSet) - Number(!!b.isSet)) ||

@@ -17,8 +17,6 @@ export const VC = {
   sid: '3776607',
   pid: {
     yahoo: '892664375',   // Yahoo!ショッピング（提携済み）
-    // アニメイト: 2026-07-23 にVC・A8とも審査落ち。提携していないプログラムのpidで包むと
-    // 成果が付かないうえ無駄なリダイレクトを挟むだけなので変換しない。再申請が通ったら復活させる。
   },
 } as const;
 
@@ -34,8 +32,25 @@ const A8_HOST = 'px.a8.net';
 export const A8 = {
   mat: {
     amiami: '4B86H3+BBTY5U+NA2+614CY',  // あみあみ: 2026-07-24 承認・稼働
+    animate: '4BEET3+3MDY9E+4ADS+60OXD', // アニメイト: 2026-10-20 承認
   },
 } as const;
+
+// アニメイトは A8 の指定で、商品番号を affland.php に渡す形でしか成果が付かない（lurl はエンコードしない）。
+// 商品番号が取れない検索・一覧ページはトップへ飛ばされるので変換しない。
+function animateLink(url: string, u: URL): string {
+  const id = u.pathname.match(/\/pd\/(\d+)/)?.[1] ?? u.searchParams.get('product_id');
+  if (!id || !/^\d+$/.test(id)) return url;
+  const land = `https://www.animate-onlineshop.jp/affiliate/affland.php?company_id=30000&lurl=https://www.animate-onlineshop.jp/products/detail.php?product_id=${id}&lstid=AMAUTOTRACK`;
+  return a8Link(land, A8.mat.animate);
+}
+
+// あみあみは A8 の指定で、www.amiami.jp 内のURLに affid=fc を付けたときだけ成果が付く。
+function amiamiLink(url: string, u: URL): string {
+  if (u.host.toLowerCase() !== 'www.amiami.jp') return url;
+  u.searchParams.set('affid', 'fc');
+  return a8Link(u.toString(), A8.mat.amiami);
+}
 
 function a8Link(url: string, mat: string): string {
   if (!mat || hostOf(url) === A8_HOST) return url;
@@ -64,10 +79,9 @@ const RULES: Rule[] = [
   },
   // 楽天: 正式にはAPIでアフィURL生成。暫定はそのまま（LinkSwitch相当は後段）
   { name: '楽天', kind: 'affiliate', test: (h) => /(^|\.)rakuten\.co\.jp$/.test(h) || /(^|\.)r10\.to$/.test(h) },
-  // アニメイト: 現在は未提携（VC・A8とも審査落ち・2026-07-23）。wrap が無いので isAffiliateUrl=false＝成果は付かない。
-  // 再申請が通ったら wrap: (url) => vcLink(url, VC.pid.animate) を足すだけで成果化する。
-  { name: 'アニメイト', kind: 'affiliate', test: (h) => /(^|\.)animate(-onlineshop)?\.(co\.)?jp$/.test(h) },
-  { name: 'あみあみ', kind: 'affiliate', test: (h) => /(^|\.)amiami\.(com|jp)$/.test(h), wrap: (url) => a8Link(url, A8.mat.amiami) },
+  // アニメイト: A8（2026-10-20 承認）。商品ページだけ変換する
+  { name: 'アニメイト', kind: 'affiliate', test: (h) => /(^|\.)animate(-onlineshop)?\.(co\.)?jp$/.test(h), wrap: animateLink },
+  { name: 'あみあみ', kind: 'affiliate', test: (h) => /(^|\.)amiami\.(com|jp)$/.test(h), wrap: amiamiLink },
   { name: 'Yahoo!ショッピング', kind: 'affiliate', test: (h) => /(^|\.)shopping\.yahoo\.co\.jp$/.test(h) || /(^|\.)store\.shopping\.yahoo\.co\.jp$/.test(h), wrap: (url) => vcLink(url, VC.pid.yahoo) },
   // 駿河屋: 直リンク(suruga-ya.jp)はASP案件が無く成果なし。楽天/Yahoo!の駿河屋公式店経由(別ホスト)なら計上される。
   { name: '駿河屋', kind: 'affiliate', test: (h) => /(^|\.)suruga-ya\.jp$/.test(h) },
