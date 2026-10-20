@@ -27,6 +27,8 @@ import { chromium } from 'playwright';
 import QRCode from 'qrcode';
 import { WORKS } from './works.mjs';
 import { connect } from './drive.mjs';
+// アプリと同じアフィ変換（アニメイト・あみあみの A8 など）。Node 22.18 以降は .ts をそのまま読める
+import { offerUrl } from '../../src/lib/affiliate.ts';
 
 const args = process.argv.slice(2);
 const TO_DRIVE = args.includes('--drive');
@@ -200,9 +202,9 @@ function linksText(date, items) {
     out.push(`FanHive: https://fanhive.jp/item/${e.id}`);
     if (shown.length) {
       out.push('販売先:');
-      for (const o of shown) out.push(`  ${o.retailer || 'お店'}${o.label ? `（${o.label}）` : ''} ${o.affiliateUrl || o.url}`);
+      for (const o of shown) out.push(`  ${o.retailer || 'お店'}${o.label ? `（${o.label}）` : ''} ${offerUrl(o)}`);
     } else if (e.link_url) {
-      out.push(`公式: ${e.link_url}`);
+      out.push(`公式: ${offerUrl({ url: e.link_url })}`);
     } else {
       out.push('販売先: まだ登録されていません');
     }
