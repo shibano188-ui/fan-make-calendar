@@ -138,7 +138,7 @@ async function searchYahoo(keyword: string): Promise<Candidate[]> {
 
 // アニメイト本店。API は無いが検索ページ(list.php?smt=)はサーバーから取得できるので HTML を読む。
 // 楽天のアニメイト系店舗(acosbyanimate)はコスプレ中心で品揃えが本店と別物のため、本店を直接見る必要がある。
-// アフィリエイトは未提携(2026-07-23審査落ち)なので hasAffiliate=false。提携が通れば affiliate.ts の wrap だけで成果化する。
+// アフィリエイトは A8（2026-10-20 承認）。変換は表示時に affiliate.ts の offerUrl が行うので、ここは素のURLのまま hasAffiliate=false。
 const ANIMATE_ORIGIN = 'https://www.animate-onlineshop.jp';
 /** アニメイトの画像の URL を、一覧と同じ 400×400 の正方形の指定にする（画像の名前はそのまま） */
 function squareAnimateImage(url: string): string {
