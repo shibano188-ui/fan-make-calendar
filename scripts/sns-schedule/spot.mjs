@@ -92,6 +92,7 @@ function priceText(e) {
 
 const firstImage = (v) => {
   if (!v) return null;
+  v = v.replace(/&square=1(?=&|"|$)/g, ''); // アニメイトの正方形への引き伸ばしを外す（src/lib/image.ts の unstretchImage と同じ）
   try { const a = JSON.parse(v); if (Array.isArray(a)) return a.find((s) => /^https?:/.test(s)) ?? null; } catch { /* 1枚だけの文字列 */ }
   return /^https?:/.test(v) ? v : null;
 };

@@ -9,3 +9,9 @@ export function optimizedImage(url: string, w: OptWidth): string {
   if (import.meta.env.DEV || !url.startsWith('https://')) return url;
   return `/_vercel/image?url=${encodeURIComponent(url)}&w=${w}&q=75`;
 }
+
+// アニメイトの画像の square=1（正方形に引き伸ばす指定）を外す。A8 の規約で縦横比を変えられないため（2026-10-20）。
+// 保存済みの image_url（1枚なら文字列、複数なら JSON 配列の文字列）にそのまま掛けられる。
+export function unstretchImage<T extends string | null | undefined>(v: T): T {
+  return (v ? v.replace(/&square=1(?=&|"|$)/g, '') : v) as T;
+}
