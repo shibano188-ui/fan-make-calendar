@@ -4,6 +4,7 @@ import type { CalendarEvent, EventVisit, Offer } from '../types';
 import { parseCategories, loadMutedEventIds, loadMutedWorkIds, ANON_NAME, isOfficialUser, isReservedDisplayName, LIKED_EVENT } from './constants';
 import { searchWorksByAlias, findWorkByExactAlias } from './workAliases';
 import { primaryOffer, getOffers, isSearchPageUrl } from './affiliate';
+import { unstretchImage } from './image';
 import { requestDeviceCalendarSync } from './deviceCalendar';
 import { requestGoogleSync } from './googleLink';
 
@@ -209,7 +210,7 @@ function buildEvent(e: Record<string, unknown>): CalendarEvent {
     likes: (e.like_count as number) ?? 0,
     likedByMe: false,
     createdAt: e.created_at as string,
-    imageUrl: (e.image_url as string | null) ?? undefined,
+    imageUrl: unstretchImage(e.image_url as string | null) ?? undefined,
     sourceUrl: (e.source_url as string | null) ?? undefined,
     isOrderMade: (e.is_order_made as boolean | null) ?? false,
     preorderStart: (e.preorder_start_date as string | null) ?? undefined,
@@ -1457,7 +1458,7 @@ function personalToEvent(r: Record<string, unknown>): CalendarEvent {
     preorderStartTime: hm(r.preorder_start_time),
     preorderEndTime: hm(r.preorder_end_time),
     memo: (r.memo as string | null) ?? undefined,
-    imageUrl: (r.image_url as string | null) ?? undefined,
+    imageUrl: unstretchImage(r.image_url as string | null) ?? undefined,
     link: (r.link_url as string | null) ?? undefined,
     workId: r.work_id as string,
     workName: works?.name ?? '',
