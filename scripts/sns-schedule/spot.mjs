@@ -27,8 +27,6 @@ import { chromium } from 'playwright';
 import QRCode from 'qrcode';
 import { WORKS } from './works.mjs';
 import { connect } from './drive.mjs';
-// アプリと同じアフィ変換（アニメイト・あみあみの A8 など）。Node 22.18 以降は .ts をそのまま読める
-import { offerUrl } from '../../src/lib/affiliate.ts';
 
 const args = process.argv.slice(2);
 const TO_DRIVE = args.includes('--drive');
@@ -182,14 +180,25 @@ function cardHtml(work, e, date, withImage) {
 // ── 購入リンクのまとめ（00_購入リンク.txt）────────────────────────
 // 検索結果のページは商品が決まらないので、商品ページがあるときは出さない
 const isSearchPage = (u) => /list\.php|\/search|[?&](kw|keyword|q|smt|search_word)=/i.test(u);
+// 楽天・Yahoo! は保存されている URL そのものがアフィのリンクなので、中の商品ページの URL を取り出す
+function plainUrl(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname === 'hb.afl.rakuten.co.jp') return u.searchParams.get('pc') || url;
+    if (u.hostname.endsWith('valuecommerce.com')) return u.searchParams.get('vc_url') || url;
+  } catch { /* そのまま */ }
+  return url;
+}
 function linksText(date, items) {
   const now = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 16).replace('T', ' ');
   const out = [
     `FanHive 直前ポスト ${mdw(date)} の購入リンク`,
-    '・アフィリエイト（広告）のリンクを含みます。投稿に載せるときは「PR」「広告」などと書いてください',
     `・${now} 時点の情報です。売り切れ・受付終了になっていることがあります。載せる前に開いて確かめてください`,
     '',
   ];
+  // X に載せるリンクはアフィリエイトを通さない元の URL にする（2026-10-24）。
+  // A8 のリンク（px.a8.net）は X が投稿・リプで弾くため、アニメイトのリンクが載せられなくなっていた。
+  // X から直接買ってもらうより、アプリに来てもらって買ってもらうのが目的なので、アフィは全部外す
   for (const { file, work, e } of items) {
     const kinds = milestones(e).filter((m) => m.date === date).map((m) => `${m.kind}${m.time ? ` ${m.time}` : ''}`).join('・');
     const price = priceText(e);
@@ -203,9 +212,9 @@ function linksText(date, items) {
     out.push(`FanHive: https://fanhive.jp/item/${e.id}`);
     if (shown.length) {
       out.push('販売先:');
-      for (const o of shown) out.push(`  ${o.retailer || 'お店'}${o.label ? `（${o.label}）` : ''} ${offerUrl(o)}`);
+      for (const o of shown) out.push(`  ${o.retailer || 'お店'}${o.label ? `（${o.label}）` : ''} ${plainUrl(o.url)}`);
     } else if (e.link_url) {
-      out.push(`公式: ${offerUrl({ url: e.link_url })}`);
+      out.push(`公式: ${plainUrl(e.link_url)}`);
     } else {
       out.push('販売先: まだ登録されていません');
     }
