@@ -431,6 +431,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   //     （アドレスバーや履歴にパスワードを残さないため）
   if (typeof req.query.key === 'string') {
     if (req.query.key !== pass) return html(res, loginPage('リンクが古いか、間違っています'), 401);
+    // Notion に埋め込む用（?key=…&embed=1）。埋め込みの中ではブラウザが Cookie を送らない（よそのサイトの中なので）ため、
+    // Cookie を置いて飛ばすと毎回パスワードの画面になる。その場で表示する（期間の切り替えなどは画面の中だけで動く）
+    if (req.query.embed === '1') return render(res);
     res.setHeader('Set-Cookie', sessionCookie(pass));
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Location', '/api/metrics');
