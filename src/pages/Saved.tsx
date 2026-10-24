@@ -545,7 +545,7 @@ export default function Saved() {
         <button data-tour="personal" onClick={() => { haptic.select(); navigate(`/personal/new?date=${view === 'list' || includesToday(view, anchor, today) ? today : anchor}`); }}
           aria-label="自分の予定を追加"
           // 下の真ん中の「＋」（みんなに公開する情報）と見分けるため、塗りではなく白地にカレンダーの印
-          className="pressable material-thick fixed right-4 z-30 w-12 h-12 rounded-full flex items-center justify-center shadow-float"
+          className="pressable material-thick fixed right-[var(--fab-right)] z-30 w-12 h-12 rounded-full flex items-center justify-center shadow-float"
           style={{ color: 'var(--accent-text)', bottom: 'calc(var(--sab) + 92px)' }}>
           <CalendarPlus size={22} />
         </button>
