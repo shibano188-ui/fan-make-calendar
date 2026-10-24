@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import BottomNav from './nav/BottomNav';
 import DraftBar from './theme/DraftBar';
+import SupportNoticeSheet from './SupportNoticeSheet';
 import { useNotificationScheduler } from '../hooks/useNotificationScheduler';
 import { loadExploreRange } from '../lib/onboardingPreload';
 import { loadCachedLarge, EXPLORE_EVENTS_KEY } from '../lib/swrCache';
@@ -33,6 +34,8 @@ export default function AppShell() {
         {/* 作りかけのテーマがあるときだけ出る。他の画面で見た目を確かめて戻ってこられる */}
         <DraftBar />
         <BottomNav />
+        {/* 運営からのお知らせ（問い合わせへの返事など）を、開いたときに1回だけカードで出す */}
+        <SupportNoticeSheet />
       </div>
     </div>
   );

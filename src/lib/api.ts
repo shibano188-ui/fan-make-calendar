@@ -2156,6 +2156,26 @@ export async function listNotices(userId: string, days = 60): Promise<Notice[]> 
   }));
 }
 
+/** 運営からのお知らせ（support）だけ。起動時にカードで出すために使う（全件を読むより軽い）。 */
+export async function listSupportNotices(userId: string): Promise<Notice[]> {
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('id, kind, title, body, path, created_at')
+    .eq('user_id', userId)
+    .eq('kind', 'support')
+    .order('created_at', { ascending: false })
+    .limit(5);
+  if (error || !data) return [];
+  return data.map((r) => ({
+    id: r.id as string,
+    kind: r.kind as NoticeKind,
+    title: r.title as string,
+    body: (r.body as string) ?? '',
+    path: (r.path as string) || '/',
+    createdAt: r.created_at as string,
+  }));
+}
+
 // ─── バグ・改善の報告（feedbacks）──────────────────────────────
 // マイページから。読めるのは運営だけ（RLS）。調べるための情報（端末・ビルド）を一緒に送る
 
