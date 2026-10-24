@@ -2124,7 +2124,8 @@ export function icsWebcalUrl(token: string): string {
 // 送った側（Cron）が notifications に書く。クライアントは読むだけ（RLSで自分宛てのみ）。
 // 端末の通知欄は消えるので、見返す場所をアプリの中に持つ。
 
-export type NoticeKind = 'price_drop' | 'restock' | 'preorder_start' | 'preorder_end' | 'new_events';
+// support … 運営から個別に送るお知らせ（問い合わせへの返事など）。path が https:// なら外のページを開く
+export type NoticeKind = 'price_drop' | 'restock' | 'preorder_start' | 'preorder_end' | 'new_events' | 'support';
 export type Notice = {
   id: string;
   kind: NoticeKind;
