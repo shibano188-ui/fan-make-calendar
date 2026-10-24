@@ -2124,7 +2124,8 @@ export function icsWebcalUrl(token: string): string {
 // 送った側（Cron）が notifications に書く。クライアントは読むだけ（RLSで自分宛てのみ）。
 // 端末の通知欄は消えるので、見返す場所をアプリの中に持つ。
 
-export type NoticeKind = 'price_drop' | 'restock' | 'preorder_start' | 'preorder_end' | 'new_events';
+// support … 運営から個別に送るお知らせ（問い合わせへの返事など）。path が https:// なら外のページを開く
+export type NoticeKind = 'price_drop' | 'restock' | 'preorder_start' | 'preorder_end' | 'new_events' | 'support';
 export type Notice = {
   id: string;
   kind: NoticeKind;
@@ -2144,6 +2145,26 @@ export async function listNotices(userId: string, days = 60): Promise<Notice[]> 
     .gte('created_at', since)
     .order('created_at', { ascending: false })
     .limit(200);
+  if (error || !data) return [];
+  return data.map((r) => ({
+    id: r.id as string,
+    kind: r.kind as NoticeKind,
+    title: r.title as string,
+    body: (r.body as string) ?? '',
+    path: (r.path as string) || '/',
+    createdAt: r.created_at as string,
+  }));
+}
+
+/** 運営からのお知らせ（support）だけ。起動時にカードで出すために使う（全件を読むより軽い）。 */
+export async function listSupportNotices(userId: string): Promise<Notice[]> {
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('id, kind, title, body, path, created_at')
+    .eq('user_id', userId)
+    .eq('kind', 'support')
+    .order('created_at', { ascending: false })
+    .limit(5);
   if (error || !data) return [];
   return data.map((r) => ({
     id: r.id as string,
