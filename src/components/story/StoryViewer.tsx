@@ -274,7 +274,7 @@ export default function StoryViewer({ groups, initial, onClose, onSeen, onOpenDe
           </div>
         </div>
 
-        <div className="px-4 pt-2" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 14px)' }}>
+        <div className="px-4 pt-2" style={{ paddingBottom: 'calc(var(--sab) + 14px)' }}>
           <StoryActions event={e} onLike={() => onLike(e)} />
           <button onClick={() => { haptic.select(); onOpenDetail(e, pos); }}
             className="pressable w-full mt-3 py-3 rounded-full text-[15px] font-semibold"

@@ -233,7 +233,7 @@ export default function Sheet({
         {/* 本文（スクロール領域） */}
         <div
           className={`flex-1 min-h-0 overflow-y-auto overscroll-contain ${contentClassName}`}
-          style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}
+          style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 'max(16px, var(--sab))' }}
         >
           {children}
         </div>

@@ -390,8 +390,8 @@ export default function Saved() {
       // ページ全体の高さを画面ぴったりにする（はみ出すと、少しだけ下にスクロールできてしまう）
       style={monthFit ? {
         // 入力中は Android で画面がキーボードの分だけ縮むので、縮む前の高さのまま止める（カレンダーはキーボードに隠れてよい）
-        height: typing ? `calc(${screenH.current}px - env(safe-area-inset-bottom) - 76px)` : 'calc(100dvh - env(safe-area-inset-bottom) - 76px)',
-        marginBottom: 'calc(env(safe-area-inset-bottom) + 76px - 7rem)',
+        height: typing ? `calc(${screenH.current}px - var(--sab) - 76px)` : 'calc(100dvh - var(--sab) - 76px)',
+        marginBottom: 'calc(var(--sab) + 76px - 7rem)',
       } : undefined}>
       <div ref={headerRef} className="sticky top-0 z-20 flex-shrink-0 -mx-3 px-3 pt-1 pb-2 material-bar scroll-edge" data-skin-bar="main" style={{ paddingTop: 'calc(var(--sat) + 4px)' }}>
         {/* 1行だけ: 見出し（＋今日）／プレミアム／表示切替／カスタマイズ／絞り込み。文字は見出しだけで、ボタンはアイコンのみ */}
@@ -545,8 +545,8 @@ export default function Saved() {
         <button data-tour="personal" onClick={() => { haptic.select(); navigate(`/personal/new?date=${view === 'list' || includesToday(view, anchor, today) ? today : anchor}`); }}
           aria-label="自分の予定を追加"
           // 下の真ん中の「＋」（みんなに公開する情報）と見分けるため、塗りではなく白地にカレンダーの印
-          className="pressable material-thick fixed right-4 z-30 w-12 h-12 rounded-full flex items-center justify-center shadow-float"
-          style={{ color: 'var(--accent-text)', bottom: 'calc(env(safe-area-inset-bottom) + 92px)' }}>
+          className="pressable material-thick fixed right-[var(--fab-right)] z-30 w-12 h-12 rounded-full flex items-center justify-center shadow-float"
+          style={{ color: 'var(--accent-text)', bottom: 'calc(var(--sab) + 92px)' }}>
           <CalendarPlus size={22} />
         </button>
       )}

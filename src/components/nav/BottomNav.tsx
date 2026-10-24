@@ -68,7 +68,7 @@ export default function BottomNav() {
       data-bottom-nav
       className="fixed inset-x-0 z-[100] flex justify-center pointer-events-none"
       style={{
-        bottom: 'calc(env(safe-area-inset-bottom) + 10px)',
+        bottom: 'calc(var(--sab) + 10px)',
         transform: typing ? 'translateY(calc(100% + 40px))' : 'none',
         opacity: typing ? 0 : 1,
         visibility: typing ? 'hidden' : 'visible',

@@ -68,7 +68,7 @@ export default function ReactionSheet({ eventId, onClose }: { eventId: string; o
           <div className="px-4 pt-1 pb-3 text-[15px] font-bold">リアクション</div>
         </div>
         {/* Slack と同じく小さく並べて左に寄せる。右は空いてよい（スタンプが増えたら折り返す） */}
-        <div className="flex flex-wrap gap-2 px-4" style={{ paddingBottom: 'max(20px, env(safe-area-inset-bottom))' }}>
+        <div className="flex flex-wrap gap-2 px-4" style={{ paddingBottom: 'max(20px, var(--sab))' }}>
           {REACTIONS.map((r) => {
             const on = mine.includes(r.type);
             const n = counts[r.type] ?? 0;

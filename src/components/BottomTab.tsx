@@ -36,7 +36,7 @@ export default function BottomTab() {
         backgroundColor: 'color-mix(in srgb, var(--bg-primary) 88%, transparent)',
         backdropFilter: 'saturate(180%) blur(20px)',
         WebkitBackdropFilter: 'saturate(180%) blur(20px)',
-        paddingBottom: 'env(safe-area-inset-bottom)',
+        paddingBottom: 'var(--sab)',
       }}
     >
       <div className="flex">

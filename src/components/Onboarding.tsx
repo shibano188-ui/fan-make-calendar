@@ -61,7 +61,7 @@ export default function Onboarding() {
         <OnboardingWorkPicker onCountChange={onCountChange} />
       </div>
 
-      <div className="px-8 pt-4" style={{ paddingBottom: 'max(40px, env(safe-area-inset-bottom))' }}>
+      <div className="px-8 pt-4" style={{ paddingBottom: 'max(40px, var(--sab))' }}>
         {/* 選ぶ前は薄く、選んだら濃くなって1回揺れる（文字で「次へを押して」とは書かない） */}
         <button
           key={nudge}

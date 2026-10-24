@@ -846,7 +846,7 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
         {/* 共有ページの固定バー: アプリへの案内は1本だけ */}
         {shared && (
           <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-app border-t border-separator px-4 py-3"
-            style={{ backgroundColor: 'color-mix(in srgb, var(--bg-primary) 92%, transparent)', backdropFilter: 'blur(20px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}>
+            style={{ backgroundColor: 'color-mix(in srgb, var(--bg-primary) 92%, transparent)', backdropFilter: 'blur(20px)', paddingBottom: 'calc(var(--sab) + 12px)' }}>
             <button onClick={() => { haptic.select(); setGetAppOpen(true); }} className="pressable w-full py-3 rounded-[10px] font-semibold flex items-center justify-center gap-1.5 text-[14px]"
               style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
               <BellRing size={18} /> アプリでカレンダーに追加・締切前に通知
@@ -857,7 +857,7 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
         {/* 固定バー: 購入/公式リンク */}
         {!shared && buyMode !== 'none' && (
           <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-app border-t border-separator px-4 py-3"
-            style={{ backgroundColor: 'color-mix(in srgb, var(--bg-primary) 92%, transparent)', backdropFilter: 'blur(20px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}>
+            style={{ backgroundColor: 'color-mix(in srgb, var(--bg-primary) 92%, transparent)', backdropFilter: 'blur(20px)', paddingBottom: 'calc(var(--sab) + 12px)' }}>
             <button onClick={openBuy} className="pressable w-full py-3 rounded-[10px] font-semibold flex items-center justify-center gap-2"
               style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
               {buyMode === 'cart' ? <ShoppingCart size={18} /> : <ExternalLink size={18} />}
@@ -872,7 +872,7 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
             色は購入バー（アクセント）と分ける＝主役は購入のままにする */}
         {user && (
           <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-app z-30 pointer-events-none"
-            style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + ${buyMode !== 'none' ? 108 : 36}px)` }}>
+            style={{ paddingBottom: `calc(var(--sab) + ${buyMode !== 'none' ? 108 : 36}px)` }}>
             <div className="flex justify-end px-4">
               <button onClick={() => { haptic.select(); setAddOpen(true); }} aria-label="情報を追加・修正"
                 className="pressable shadow-float pointer-events-auto w-14 h-14 rounded-full relative flex items-center justify-center"

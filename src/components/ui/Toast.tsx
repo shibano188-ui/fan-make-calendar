@@ -24,7 +24,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={show}>
       {children}
       {toast && createPortal(
-        <div className="fixed inset-x-0 z-[400] flex justify-center pointer-events-none" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 92px)' }}>
+        <div className="fixed inset-x-0 z-[400] flex justify-center pointer-events-none" style={{ bottom: 'calc(var(--sab) + 92px)' }}>
           <div
             className="material-thick flex items-center gap-2 px-4 py-2.5 rounded-full shadow-card"
             style={{ animation: 'toastIn 0.35s cubic-bezier(0.32,0.72,0,1) both' }}

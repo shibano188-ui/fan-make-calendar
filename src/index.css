@@ -92,6 +92,16 @@
    * 被る。ネイティブ(MainActivity)が起動時に WindowInsets の実測値でこの変数を上書きするため、
    * アプリ内の上部バーは env() でなく var(--sat) を参照する。Web/PWA ではこの既定(env)が使われる。 */
   --sat: env(safe-area-inset-top);
+  /* 下の安全余白（Android のナビゲーションバー・iPhone のホームバー）。
+   * Android では env(safe-area-inset-bottom) が 0 を返し、下のメニューがナビゲーションバーに
+   * 被る端末があった（Galaxy Z Fold7・2026-10-24 の問い合わせ）。Capacitor 8 の SystemBars が
+   * WindowInsets の実測値を --safe-area-inset-bottom に入れてくれるので、大きい方を使う。
+   * iOS・Web ではこの変数が無く、env() がそのまま使われる。下の余白は env() でなく var(--sab) を参照する。 */
+  --sab: max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px));
+  /* 右下に浮かぶ丸いボタンの右端。中身の列（max-w-app = 480px）の右端に合わせる
+   * （折りたたみを開いた画面・横向きで、画面の端に離れていかないように）。
+   * 横向きの Android は3ボタンのナビゲーションバーが右に来るので、その分も避ける */
+  --fab-right: max(calc(16px + max(env(safe-area-inset-right), var(--safe-area-inset-right, 0px))), calc((100vw - 480px) / 2 + 16px));
 
   /* ─ 3-layer backgrounds (iOS semantic) ─ */
   --bg-primary:        #0e0e10;

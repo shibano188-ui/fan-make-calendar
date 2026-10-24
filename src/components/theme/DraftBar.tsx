@@ -19,7 +19,7 @@ export default function DraftBar() {
   return (
     <div
       className="fixed inset-x-0 z-[110] flex justify-center px-4 pointer-events-none"
-      style={{ bottom: 'calc(env(safe-area-inset-bottom) + 78px)' }}
+      style={{ bottom: 'calc(var(--sab) + 78px)' }}
     >
       <button
         onClick={() => navigate('/customize/theme')}

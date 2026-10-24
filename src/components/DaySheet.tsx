@@ -155,7 +155,7 @@ export default function DaySheet({ open, onClose, header, children }: Props) {
             WebkitOverflowScrolling: 'touch',
             paddingBottom: detent === 'half'
               ? `calc(${(1 - HALF) * 100}dvh - var(--sat) - 8px + 16px)`
-              : 'max(16px, env(safe-area-inset-bottom))',
+              : 'max(16px, var(--sab))',
           }}
         >
           {children}

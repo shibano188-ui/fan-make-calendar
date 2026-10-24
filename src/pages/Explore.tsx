@@ -733,8 +733,8 @@ export default function Explore() {
         <button
           onClick={() => { haptic.select(); scrollToToday(true); }}
           aria-label="今日へ"
-          className="pressable material-thick fixed right-4 z-30 w-11 h-11 rounded-full flex items-center justify-center shadow-float"
-          style={{ color: 'var(--label-primary)', bottom: 'calc(env(safe-area-inset-bottom) + 92px)' }}
+          className="pressable material-thick fixed right-[var(--fab-right)] z-30 w-11 h-11 rounded-full flex items-center justify-center shadow-float"
+          style={{ color: 'var(--label-primary)', bottom: 'calc(var(--sab) + 92px)' }}
         >
           <ArrowDownToLine size={20} />
         </button>
