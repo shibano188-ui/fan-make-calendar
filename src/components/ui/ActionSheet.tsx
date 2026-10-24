@@ -48,7 +48,7 @@ export function ActionSheetProvider({ children }: { children: ReactNode }) {
         >
           <div
             className="absolute inset-x-0 bottom-0 max-w-app mx-auto px-3"
-            style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
+            style={{ paddingBottom: 'max(12px, var(--sab))' }}
             onClick={e => e.stopPropagation()}
           >
             <div

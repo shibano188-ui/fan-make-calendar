@@ -35,7 +35,7 @@ export default function GetAppSheet({ eventId, onClose }: { eventId: string; onC
   const href = openAppHref(eventId);
   return (
     <Sheet onClose={onClose} showClose={false} ariaLabel="アプリで受け取る">
-      <div className="px-5 pt-2 pb-[calc(env(safe-area-inset-bottom)+20px)] flex flex-col items-center text-center">
+      <div className="px-5 pt-2 pb-[calc(var(--sab)+20px)] flex flex-col items-center text-center">
         <FanHiveMark size={56} />
         <h2 className="mt-3 text-[18px] font-bold">FanHive アプリで受け取る</h2>
         <div className="mt-4 w-full flex flex-col gap-3 text-left text-[14px]">

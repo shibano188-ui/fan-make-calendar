@@ -103,7 +103,7 @@ export default function AiDemo({ onSkip }: { onSkip: () => void }) {
         </div>
       )}
 
-      <div className="px-5" style={{ paddingBottom: 'max(32px, env(safe-area-inset-bottom))' }}>
+      <div className="px-5" style={{ paddingBottom: 'max(32px, var(--sab))' }}>
         <button onClick={() => { haptic.select(); onSkip(); }}
           className="w-full py-2.5 text-[13px] text-label-tertiary pressable">
           スキップ

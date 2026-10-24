@@ -63,7 +63,7 @@ export default function PremiumWelcome() {
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--bg-primary)' }}>
       <div className="mx-auto w-full max-w-app flex-1 flex flex-col px-5"
-        style={{ paddingTop: 'calc(var(--sat) + 32px)', paddingBottom: 'max(24px, env(safe-area-inset-bottom))' }}>
+        style={{ paddingTop: 'calc(var(--sat) + 32px)', paddingBottom: 'max(24px, var(--sab))' }}>
 
         {step === 0 ? (
           <>

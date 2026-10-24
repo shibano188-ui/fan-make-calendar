@@ -217,7 +217,7 @@ export default function Premium() {
 
         {/* 購入。金額・期間と規約はボタンのすぐ下に置く（別画面に逃がすと審査で落ちる） */}
         {!premium && (
-          <div className="px-5 pt-2" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
+          <div className="px-5 pt-2" style={{ paddingBottom: 'max(16px, var(--sab))' }}>
             <button onClick={onBuy} disabled={busy}
               className="pressable w-full py-3.5 rounded-full text-[15px] font-bold disabled:opacity-50"
               style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
