@@ -25,12 +25,8 @@ import { useLike, setLike, getLike } from '../lib/likeStore';
 import { syncNotifyWithLike } from '../lib/notifications';
 import ImageCarousel from '../components/item/ImageCarousel';
 import NotifyBell from '../components/item/NotifyBell';
-<<<<<<< HEAD
-import EventColorPicker from '../components/item/EventColorPicker';
 import SchedulePanel from '../components/item/SchedulePanel';
-=======
 import EventStylePicker from '../components/item/EventStylePicker';
->>>>>>> main
 import AddInfoSheet from '../components/item/AddInfoSheet';
 import PendingProposals, { samePatch } from '../components/item/PendingProposals';
 import LineLoader from '../components/ui/LineLoader';
@@ -591,7 +587,6 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
               </div>
             )}
 
-<<<<<<< HEAD
             {/* 複数部・二次受付など。投稿者と運営が足せる。見るのは誰でも */}
             <SchedulePanel schedules={schedules} canEdit={canFix && !shared}
               onAdd={async (s) => {
@@ -603,12 +598,8 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
                 removeEventSchedule(sid).catch(() => toast('消せませんでした', 'error'));
               }} />
 
-            {/* カレンダーに入っている予定だけ、この予定の色を選べる */}
-            {!shared && liked && <EventColorPicker eventId={event.id} workId={event.workId} />}
-=======
             {/* カレンダーに入っている予定だけ、この予定の色と記号を選べる */}
             {!shared && liked && <EventStylePicker eventId={event.id} workId={event.workId} />}
->>>>>>> main
 
             {/* ピンした日（期間のある予定のみ・イベント/グッズ共通）。登録すると自分のカレンダーはその日だけ表示する */}
             {!shared && !!eff.endDate && eff.endDate !== eff.date && (
