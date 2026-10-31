@@ -238,7 +238,7 @@ export default function Home() {
   }, [items, followsReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openEvent = (e: CalendarEvent) => navigate(`/item/${e.id}`);
-  const onLike = async (e: CalendarEvent) => (user ? toggleLike(e.id, user.id) : undefined);
+  const onLike = async (e: CalendarEvent, want: boolean) => (user ? toggleLike(e.id, user.id, want) : undefined);
   // 新着を見る＝その作品の新着だけ（?new=1。ホームの作品の丸と同じ範囲）。この作品を探す＝その作品の予定すべて。
   // グッズ／イベントは、その中で多いほうで開く（少ないほうで開くと何も出ないことがあった）
   const goExplore = (workId: string, onlyNew: boolean) => {
@@ -378,7 +378,7 @@ export default function Home() {
       )}
 
       {story && (
-        <StoryViewer groups={story.groups} initial={story.initial} onClose={closeStory} onSeen={onSeen} onLike={onLike}
+        <StoryViewer groups={story.groups} initial={story.initial} onClose={closeStory} onSeen={onSeen} onLike={onLike} likedIds={likedIds}
           onOpenDetail={(e, pos, tab) => {
             storyResume = { key: story.groups[pos.group].key, eventId: e.id };
             setStory(null);

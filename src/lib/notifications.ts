@@ -6,7 +6,7 @@ import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import type { CalendarEvent } from '../types';
 import { deriveItemType, datePeriod } from '../design/tokens';
-import { loadNotifyEventIds, loadNotifyLeadDays } from './constants';
+import { isNotifyOn, loadBellPrefs, loadNotifyEventIds, loadNotifyLeadDays, setNotifyOn } from './constants';
 import { waitForTrackingDialog } from './att';
 import { isPremiumCached } from './premium';
 
@@ -144,6 +144,20 @@ export async function scheduleForEvent(e: CalendarEvent): Promise<void> {
       extra: { eventId: e.id },
     }));
   if (notifications.length) await LocalNotifications.schedule({ notifications });
+}
+
+/** ♡に通知をそろえる（2026-10-31 柴野）。♡で ON にし、許可がまだならここで聞く。断られたら OFF のまま。♡を外したら OFF。
+ *  案内の間はベルの段階で聞くので、♡では何もしない。 */
+export async function syncNotifyWithLike(e: CalendarEvent, liked: boolean): Promise<void> {
+  if (!liked) {
+    if (isNotifyOn(e.id)) { setNotifyOn(e.id, false); await cancelForEvent(e.id); }
+    return;
+  }
+  const prefs = loadBellPrefs();
+  if (!native() || document.body.dataset.tourStep || !prefs.reminder || !prefs.onLike) return;
+  if (!(await ensurePermission())) return;
+  setNotifyOn(e.id, true);
+  await scheduleForEvent(e);
 }
 
 /** 無料お試しの終わりを知らせる通知のID。予定用のIDと衝突しない固定値にしてある。 */

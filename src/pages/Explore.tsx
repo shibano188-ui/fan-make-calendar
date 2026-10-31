@@ -573,7 +573,7 @@ export default function Explore() {
   // 隠した作品は上の作品の並びで見えるので、絞り込みの数には入れない（カレンダーと同じ）
   const activeCount = selectedStatuses.size + selectedCategories.size + selectedPrefs.size + selectedRegions.size + (neighborActive ? 1 : 0);
 
-  const onLikeTile = async (e: CalendarEvent) => { haptic.select(); return user ? toggleLike(e.id, user.id) : undefined; };
+  const onLikeTile = async (e: CalendarEvent, want: boolean) => { haptic.select(); return user ? toggleLike(e.id, user.id, want) : undefined; };
   const onCalendarTile = async (e: CalendarEvent) => {
     haptic.select();
     const r = await addToCalendar(e);
@@ -598,7 +598,7 @@ export default function Explore() {
       style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 196px' }}>
       <ItemCard event={e} layout={mode === 'goods' ? 'wide' : 'list'} isNew={isNewItem(e.id, e.createdAt, seenSnapshot)} likedInit={likedIds.has(e.id)}
         workColor={e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)'}
-        onOpen={() => { saveReturnPoint(e.id); navigate(`/item/${e.id}`); }} onLike={() => onLikeTile(e)} onCalendar={() => onCalendarTile(e)} />
+        onOpen={() => { saveReturnPoint(e.id); navigate(`/item/${e.id}`); }} onLike={(want) => onLikeTile(e, want)} onCalendar={() => onCalendarTile(e)} />
     </div>
   );
 

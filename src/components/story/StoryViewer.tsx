@@ -14,6 +14,7 @@ import { optimizedImage } from '../../lib/image';
 import { getOffers, priceRange, isStockStale, stockBadge, offerUrl, isSearchPageUrl, isAffiliateUrl, isOfficialOffer } from '../../lib/affiliate';
 import type { Offer } from '../../types';
 import { useLike, setLike } from '../../lib/likeStore';
+import { syncNotifyWithLike } from '../../lib/notifications';
 import { likeEffect } from '../../lib/likeEffect';
 import { shareToX } from '../../lib/share';
 import { haptic } from '../../lib/haptics';
@@ -65,14 +66,16 @@ function storyShops(e: CalendarEvent): { shown: Offer[]; rest: number } {
   return { shown: sorted.slice(0, STORY_SHOPS), rest: Math.max(0, offers.length - STORY_SHOPS) };
 }
 
-export default function StoryViewer({ groups, initial, onClose, onSeen, onOpenDetail, onLike }: {
+export default function StoryViewer({ groups, initial, onClose, onSeen, onOpenDetail, onLike, likedIds }: {
   groups: StoryGroup[];
   initial: StoryPosition;
   onClose: () => void;
   onSeen: (e: CalendarEvent) => void;
   /** 詳細へ。戻ってきたときに続きから開けるよう、今の位置も渡す */
   onOpenDetail: (e: CalendarEvent, pos: StoryPosition, tab?: 'stock') => void;
-  onLike: (e: CalendarEvent) => Promise<{ liked: boolean; count: number } | void>;
+  onLike: (e: CalendarEvent, want: boolean) => Promise<{ liked: boolean; count: number } | void>;
+  /** 保存済みの予定。ストーリーの予定は全予定の一覧から来るので likedByMe が入っていない */
+  likedIds: Set<string>;
 }) {
   const [pos, setPos] = useState<StoryPosition>(initial);
   const navigate = useNavigate();
@@ -275,7 +278,7 @@ export default function StoryViewer({ groups, initial, onClose, onSeen, onOpenDe
         </div>
 
         <div className="px-4 pt-2" style={{ paddingBottom: 'calc(var(--sab) + 14px)' }}>
-          <StoryActions event={e} onLike={() => onLike(e)} />
+          <StoryActions event={e} likedInit={likedIds.has(e.id)} onLike={(want) => onLike(e, want)} />
           <button onClick={() => { haptic.select(); onOpenDetail(e, pos); }}
             className="pressable w-full mt-3 py-3 rounded-full text-[15px] font-semibold"
             style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
@@ -297,14 +300,16 @@ function ProgressFill({ paused, onDone }: { paused: boolean; onDone: () => void 
 }
 
 /** 詳細ページと同じ操作の列（いいね・リアクション・通知・共有）。いいねで FanHive のカレンダーに入る */
-function StoryActions({ event, onLike }: { event: CalendarEvent; onLike: () => Promise<{ liked: boolean; count: number } | void> }) {
-  const { liked, count } = useLike(event.id, { liked: !!event.likedByMe, count: event.likes ?? 0 });
+function StoryActions({ event, likedInit, onLike }: { event: CalendarEvent; likedInit: boolean; onLike: (want: boolean) => Promise<{ liked: boolean; count: number } | void> }) {
+  const { liked, count } = useLike(event.id, { liked: likedInit, count: event.likes ?? 0 });
   const like = async (el?: HTMLElement) => {
     const prev = { liked, count };
     if (!liked && el) likeEffect(el);
     setLike(event.id, { liked: !prev.liked, count: prev.count + (prev.liked ? -1 : 1) });
-    try { const r = await onLike(); if (r && typeof r === 'object') setLike(event.id, r); }
+    const notify = syncNotifyWithLike(event, !prev.liked);
+    try { const r = await onLike(!prev.liked); if (r && typeof r === 'object') setLike(event.id, r); }
     catch { setLike(event.id, prev); }
+    await notify;
   };
   return (
     <div className="flex items-center justify-around py-2 rounded-[12px] border border-subtle" style={{ backgroundColor: 'var(--bg-secondary)' }}>
@@ -313,7 +318,7 @@ function StoryActions({ event, onLike }: { event: CalendarEvent; onLike: () => P
         <span className="text-[10px] text-label-tertiary leading-none">{count > 0 ? count : 'いいね'}</span>
       </button>
       <ReactionButton eventId={event.id} size={22} variant="labeled" />
-      <NotifyBell event={event} liked={liked} onSave={() => void like()} variant="labeled" />
+      <NotifyBell event={event} liked={liked} onSave={() => like()} variant="labeled" />
       <button onClick={() => { haptic.select(); shareToX(event, event.workName); }} className="pressable flex flex-col items-center gap-0.5" aria-label="Xで共有">
         <Share2 size={22} className="text-label-secondary" />
         <span className="text-[10px] text-label-tertiary leading-none">共有</span>
