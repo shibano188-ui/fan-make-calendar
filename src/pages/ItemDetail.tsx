@@ -25,6 +25,7 @@ import { useLike, setLike, getLike } from '../lib/likeStore';
 import { syncNotifyWithLike } from '../lib/notifications';
 import ImageCarousel from '../components/item/ImageCarousel';
 import NotifyBell from '../components/item/NotifyBell';
+import EventColorPicker from '../components/item/EventColorPicker';
 import AddInfoSheet from '../components/item/AddInfoSheet';
 import PendingProposals, { samePatch } from '../components/item/PendingProposals';
 import LineLoader from '../components/ui/LineLoader';
@@ -582,6 +583,9 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
                 )}
               </div>
             )}
+
+            {/* カレンダーに入っている予定だけ、この予定の色を選べる */}
+            {!shared && liked && <EventColorPicker eventId={event.id} workId={event.workId} />}
 
             {/* ピンした日（期間のある予定のみ・イベント/グッズ共通）。登録すると自分のカレンダーはその日だけ表示する */}
             {!shared && !!eff.endDate && eff.endDate !== eff.date && (

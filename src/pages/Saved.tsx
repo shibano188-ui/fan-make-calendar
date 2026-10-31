@@ -22,7 +22,7 @@ import { parseCategories, isNotifyOn, FEATURE_PREMIUM } from '../lib/constants';
 
 const SYNC_PROMO_KEY = 'fan_cal_sync_promo_hidden';
 const THEME_PROMO_KEY = 'fan_cal_theme_promo_hidden';
-import { buildWorkColorMap } from '../lib/workColors';
+import { buildWorkColorMap, eventColorFrom } from '../lib/workColors';
 import { logSearch } from '../lib/dataLogs';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useAuth } from '../contexts/AuthContext';
@@ -533,7 +533,7 @@ export default function Saved() {
         <div className="flex flex-col gap-2 pb-4">
           {listItems.map((e) => (
             <ItemCard key={e.id} event={e} layout="list" likedInit={e.likedByMe}
-              workColor={e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)'}
+              workColor={eventColorFrom(workColorMap, e)}
               onOpen={() => openItem(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} />
           ))}
         </div>
