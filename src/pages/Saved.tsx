@@ -220,7 +220,7 @@ export default function Saved() {
     updateSaved(user.id, apply);
   };
 
-  // リスト表示のカードから色と記号を選ぶ。選んだらカードの色へすぐ映す
+  // リスト表示のカードから色とアイコンを選ぶ。選んだらカードの色へすぐ映す
   const [styling, setStyling] = useState<CalendarEvent | null>(null);
   const [styleTick, setStyleTick] = useState(0);
 

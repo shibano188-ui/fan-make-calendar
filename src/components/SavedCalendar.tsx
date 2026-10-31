@@ -137,7 +137,7 @@ export default function SavedCalendar({ events, scope, anchor, setAnchor, onOpen
     return list.sort((a, b) => Number(isDone(a)) - Number(isDone(b)));
   }, [events]);
 
-  // 色と記号を選んでいる予定。選ぶたびに styleTick を進めて、カレンダーへすぐ映す
+  // 色とアイコンを選んでいる予定。選ぶたびに styleTick を進めて、カレンダーへすぐ映す
   const [styling, setStyling] = useState<CalendarEvent | null>(null);
   const [styleTick, setStyleTick] = useState(0);
 

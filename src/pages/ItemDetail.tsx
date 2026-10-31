@@ -598,7 +598,7 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
                 removeEventSchedule(sid).catch(() => toast('消せませんでした', 'error'));
               }} />
 
-            {/* カレンダーに入っている予定だけ、この予定の色と記号を選べる */}
+            {/* カレンダーに入っている予定だけ、この予定の色とアイコンを選べる */}
             {!shared && liked && <EventStylePicker eventId={event.id} workId={event.workId} />}
 
             {/* ピンした日（期間のある予定のみ・イベント/グッズ共通）。登録すると自分のカレンダーはその日だけ表示する */}

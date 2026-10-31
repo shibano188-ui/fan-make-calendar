@@ -15,10 +15,10 @@ const STORAGE_KEY = 'fan_work_colors';
 // 予定ごとの色も同じ保存先に `e:<予定のid>` で入れる（2026-10-31 柴野「作品の中でも予定ごとに色を決めたい」）。
 // 表の列を増やさずに、端末をまたいで引き継げる
 const EVENT_PREFIX = 'e:';
-// カレンダーの帯の先頭に付ける記号も同じく `m:<予定のid>`
+// カレンダーの帯の先頭に付けるアイコンも同じく `m:<予定のid>`
 const MARK_PREFIX = 'm:';
 
-/** 選べる記号。絵文字ではなく文字なので、帯の文字色に合わせて読める */
+/** 選べるアイコン。絵文字ではなく文字なので、帯の文字色に合わせて読める */
 export const EVENT_MARKS = ['★', '♥', '♦', '♪', '✿', '●', '▲', '■', '✓', '！', '？', '☆', '♠', '♣', '◆'];
 
 /**
@@ -53,7 +53,7 @@ export function eventColorFrom(colors: Map<string, string>, e: { id: string; wor
   return colors.get(EVENT_PREFIX + e.id) ?? (e.workId ? colors.get(e.workId) : undefined) ?? 'var(--accent-color)';
 }
 
-/** カレンダーの帯の先頭の記号。無ければ空 */
+/** カレンダーの帯の先頭のアイコン。無ければ空 */
 export function eventMarkFrom(colors: Map<string, string>, id: string): string {
   return colors.get(MARK_PREFIX + id) ?? '';
 }
@@ -75,5 +75,5 @@ export const loadEventColor = (id: string): string | null => loadOne(EVENT_PREFI
 export const loadEventMark = (id: string): string | null => loadOne(MARK_PREFIX + id);
 /** 予定の色を選ぶ。null で作品の色に戻す */
 export const saveEventColor = (id: string, color: string | null): void => saveOne(EVENT_PREFIX + id, color);
-/** 帯の先頭の記号を選ぶ。null で記号なし */
+/** 帯の先頭のアイコンを選ぶ。null でアイコンなし */
 export const saveEventMark = (id: string, mark: string | null): void => saveOne(MARK_PREFIX + id, mark);
