@@ -66,7 +66,7 @@ export default function NotifyBell({ event, liked, onSave, size = 18, variant = 
   };
 
   const turnOff = async () => {
-    if (reminder) { setNotifyOn(event.id, false); setReminder(false); await cancelForEvent(event.id); }
+    if (reminder) { setNotifyOn(event.id, false); setReminder(false); await cancelForEvent(event.id, event.schedules?.map((s) => s.id)); }
     if (priceOn) { toggleMutedEventId(event.id); setPriceMuted(true); }
     toast('この予定の通知を止めました');
   };

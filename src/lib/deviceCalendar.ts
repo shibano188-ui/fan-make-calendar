@@ -145,6 +145,8 @@ export function buildDesired(events: CalendarEvent[]): Record<string, Desired> {
     // アプリ内の予定へのリンク。**これが目印を兼ねる**（対応表が消えても、この行があるかどうかで
     // 「自分が入れた予定か」「どの予定か」が分かる → 入れ直しても重複しない。下の findExisting 参照）
     const marker = `https://fanhive.jp/item/${e.id}`;
+    const hasSession = e.schedules?.some((s) => s.kind === 'session');
+    const hasPreorder = e.schedules?.some((s) => s.kind === 'preorder');
     // ⚠️ url はiOS（EventKit）にしか入らない。AndroidのCalendarContractにURL列が無く、
     // プラグインも書いていないので、メモ欄に必ず本文としても入れる（カレンダーアプリが
     // リンクとして拾う）。作品名・カテゴリも「何の予定か」が分かるようここに載せる。
@@ -171,7 +173,7 @@ export function buildDesired(events: CalendarEvent[]): Record<string, Desired> {
             isAllDay: true, description: `${desc}#visit-${v.id}`, location, url, color,
           };
       }
-    } else if (e.date) {
+    } else if (e.date && !hasSession) {
       // 曖昧日付（「7月上旬」など）は date が代表日でしかなく、期間・時刻は意味を持たない。
       // 代表日の全日予定にして、見た人が誤解しないようタイトルにラベルを添える。
       const vague = !!e.dateLabel;
@@ -182,8 +184,21 @@ export function buildDesired(events: CalendarEvent[]): Record<string, Desired> {
         ? { title, startDate: jstTime(e.date, time), endDate: jstTime(end || e.date, time), isAllDay: false, description: desc, location, url, color }
         : { title, startDate: utcMidnight(e.date), endDate: allDayEnd(end || e.date), isAllDay: true, description: desc, location, url, color };
     }
+    // 複数部・二次受付。ピンした予定はピンした日だけなので出さない
+    if (!e.visits?.length) {
+      for (const s of e.schedules ?? []) {
+        const allDay = (key: string, title: string, start: string, end: string) => {
+          out[key] = { title, startDate: utcMidnight(start), endDate: allDayEnd(end), isAllDay: true, description: desc.replace(marker, `${marker}#${s.id}`), location, url, color };
+        };
+        if (s.kind === 'session') allDay(`${e.id}-${s.id}`, `${e.title}（${s.label}）`, s.start, s.end || s.start);
+        else {
+          allDay(`${e.id}-${s.id}`, `【${s.label}】${e.title}`, s.start, s.start);
+          if (s.end) allDay(`${e.id}-${s.id}-end`, `【${s.label} 締切】${e.title}`, s.end, s.end);
+        }
+      }
+    }
     // 受付の締切は見逃すと取り返しがつかないので、日付が別なら独立した予定として出す
-    if (e.preorderEnd && e.preorderEnd !== e.date) {
+    if (e.preorderEnd && e.preorderEnd !== e.date && !hasPreorder) {
       out[`${e.id}-deadline`] = {
         title: `【締切】${e.title}`,
         startDate: utcMidnight(e.preorderEnd),

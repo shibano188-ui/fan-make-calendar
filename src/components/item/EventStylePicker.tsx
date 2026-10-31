@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Check, ChevronDown } from 'lucide-react';
+import { Check, ChevronRight } from 'lucide-react';
 import Sheet from '../ui/Sheet';
 import { EVENT_MARKS, WORK_COLORS, buildWorkColorMap, loadEventColor, loadEventMark, saveEventColor, saveEventMark } from '../../lib/workColors';
 import { haptic } from '../../lib/haptics';
 
-// 予定ごとの色と、カレンダーの帯の先頭に付ける記号を選ぶ（2026-10-31 柴野）。
-// カレンダーのカードからはシートで、詳細ページでは折りたたんで出す
+// 予定ごとの色と、カレンダーの帯の先頭に付けるアイコンを選ぶ（2026-10-31 柴野）。
+// カレンダーのカードからも詳細ページからも、同じシートで選ぶ
 
 function Picker({ eventId, workId, onChange }: { eventId: string; workId?: string; onChange?: () => void }) {
   const [color, setColor] = useState(() => loadEventColor(eventId));
@@ -47,14 +47,14 @@ function Picker({ eventId, workId, onChange }: { eventId: string; workId?: strin
         </div>
       </div>
       <div>
-        <div className="text-[12px] text-label-secondary mb-1.5">カレンダーの帯の先頭の記号</div>
+        <div className="text-[12px] text-label-secondary mb-1.5">アイコン</div>
         <div className="grid grid-cols-8 gap-2">
           <button onClick={() => pickMark(null)} aria-pressed={!mark} className={`${cell} text-[11px]`}
             style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-secondary)', boxShadow: mark ? undefined : ring }}>
             なし
           </button>
           {EVENT_MARKS.map((m) => (
-            <button key={m} onClick={() => pickMark(m)} aria-label={`記号 ${m}`} aria-pressed={mark === m} className={`${cell} text-[16px]`}
+            <button key={m} onClick={() => pickMark(m)} aria-label={`アイコン ${m}`} aria-pressed={mark === m} className={`${cell} text-[16px]`}
               style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)', boxShadow: mark === m ? ring : undefined }}>
               {m}
             </button>
@@ -65,10 +65,10 @@ function Picker({ eventId, workId, onChange }: { eventId: string; workId?: strin
   );
 }
 
-/** カレンダーのカードから開くシート */
+/** 色とアイコンを選ぶシート */
 export function EventStyleSheet({ eventId, workId, onClose, onChange }: { eventId: string; workId?: string; onClose: () => void; onChange: () => void }) {
   return (
-    <Sheet onClose={onClose} title={<span className="font-semibold">色と記号</span>} ariaLabel="色と記号" zIndex={320}>
+    <Sheet onClose={onClose} title={<span className="font-semibold">予定の色とアイコン</span>} ariaLabel="予定の色とアイコン" zIndex={320}>
       <div className="px-4 pt-1 pb-[calc(var(--sab)+20px)]">
         <Picker eventId={eventId} workId={workId} onChange={onChange} />
       </div>
@@ -76,7 +76,7 @@ export function EventStyleSheet({ eventId, workId, onClose, onChange }: { eventI
   );
 }
 
-/** 詳細ページの折りたたみ。いつも開いていると見にくいので、押したときだけ出す */
+/** 詳細ページの行。いつも出ていると見にくいので、押すとシートを開く */
 export default function EventStylePicker({ eventId, workId }: { eventId: string; workId?: string }) {
   const [open, setOpen] = useState(false);
   const [, setTick] = useState(0);
@@ -85,13 +85,13 @@ export default function EventStylePicker({ eventId, workId }: { eventId: string;
   const workColor = workId ? buildWorkColorMap([{ id: workId }]).get(workId) : undefined;
   return (
     <div className="mt-3">
-      <button onClick={() => { haptic.select(); setOpen((v) => !v); }} aria-expanded={open}
+      <button onClick={() => { haptic.select(); setOpen(true); }}
         className="pressable w-full flex items-center gap-2 py-1 text-[13px] text-label-secondary">
         <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] text-[#141414]" style={{ backgroundColor: color ?? workColor ?? 'var(--accent-color)' }}>{mark}</span>
-        カレンダーの色と記号
-        <ChevronDown size={15} className="ml-auto" style={{ transform: open ? 'rotate(180deg)' : undefined, transition: 'transform 0.2s ease' }} />
+        予定の色とアイコン
+        <ChevronRight size={15} className="ml-auto" />
       </button>
-      {open && <div className="pt-2"><Picker eventId={eventId} workId={workId} onChange={() => setTick((t) => t + 1)} /></div>}
+      {open && <EventStyleSheet eventId={eventId} workId={workId} onClose={() => setOpen(false)} onChange={() => setTick((t) => t + 1)} />}
     </div>
   );
 }

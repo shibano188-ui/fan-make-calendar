@@ -192,6 +192,7 @@ const SCHEMA = (memoDesc: string) => `[
     "preorderStartTime": "isOrderMade=trueの場合のみ: 予約・受付の開始時刻をHH:mm形式で（「11時予約開始」→\"11:00\"）。書かれていなければnull",
     "preorderEnd": "isOrderMade=trueの場合のみ: 予約・受付終了日をYYYY-MM-DD形式で or null",
     "preorderEndTime": "isOrderMade=trueの場合のみ: 予約・受付の終了時刻をHH:mm形式で。書かれていなければnull",
+    "schedules": "同じ予定の中に複数の回があるときだけ配列で。昼の部・夜の部、東京公演・大阪公演、一次受付・二次受付など。1回だけならnull。形: [{\"kind\":\"session\"（開催の回）または\"preorder\"（受付の回）,\"label\":\"昼の部\",\"start\":\"YYYY-MM-DD\"（受付の回は受付開始日）,\"end\":\"YYYY-MM-DD\"（受付の回は締切日・なければnull）,\"time\":\"HH:mm\" or null,\"endTime\":\"HH:mm\" or null}]。文中に明記された日付だけを使い、推測しない",
     "sellsGoods": "イベント・展示・コラボ・カフェ・POP UP等で、会場や関連でグッズ・物販が販売されることが読み取れる場合はtrue（『物販』『グッズ販売』『限定グッズ』『会場限定』『グッズ受注』等）。商品そのものの投稿（categoriesがグッズ）や物販の言及が無い場合はfalse",
     "memo": "${memoDesc}"
   }
@@ -518,10 +519,27 @@ function parseRawText(rawText: string): unknown[] {
         preorderEnd: fixEndAfterStart(preorderStart, fixYear(obj.preorderEnd)),
         preorderStartTime: isOrderMade ? hhmm(obj.preorderStartTime) : null,
         preorderEndTime: isOrderMade ? hhmm(obj.preorderEndTime) : null,
+        schedules: cleanSchedules(obj.schedules, fixYear),
       };
     }
     return item;
   });
+}
+
+/** AI が返した日程を確かめる。形の合わないものは捨てる（2件以上あるときだけ「複数の回」として残す） */
+function cleanSchedules(raw: unknown, fixYear: (d: unknown) => unknown): unknown[] | null {
+  if (!Array.isArray(raw)) return null;
+  const ymd = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+  const list = raw.flatMap((r) => {
+    const o = (r ?? {}) as Record<string, unknown>;
+    const kind = o.kind === 'preorder' ? 'preorder' : o.kind === 'session' ? 'session' : null;
+    const label = typeof o.label === 'string' ? o.label.trim().slice(0, 40) : '';
+    const start = ymd(fixYear(o.start));
+    if (!kind || !label || !start) return [];
+    const end = ymd(fixYear(o.end));
+    return [{ kind, label, start, end: end && end >= start ? end : null, time: hhmm(o.time), endTime: hhmm(o.endTime) }];
+  });
+  return list.length >= 2 ? list.slice(0, 12) : null;
 }
 
 // ── 商品の一覧ページ → 予定 ─────────────────────────

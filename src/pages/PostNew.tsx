@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams, useLocation, useParams } from 'react-rout
 import { X, Plus, Check, Sparkles, Link2, Loader2, Search, Share2, CalendarPlus, Trash2, ChevronLeft, Lock } from 'lucide-react';
 import Chip from '../components/ui/Chip';
 import { resolveWorkName, sameWorkName } from '../lib/workName';
-import { getMyStaffRole, getPersonalEvent, createPersonalEvent, updatePersonalEvent, deletePersonalEvent, searchWorks, getOrCreateWork, createEvents, toggleLike, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, distinguishSameNameByPlace, isOtherPlaceMatch, listAllParticipatedWorks, type Work } from '../lib/api';
+import { getMyStaffRole, getPersonalEvent, createPersonalEvent, updatePersonalEvent, deletePersonalEvent, searchWorks, getOrCreateWork, createEvents, addEventSchedules, toggleLike, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, distinguishSameNameByPlace, isOtherPlaceMatch, listAllParticipatedWorks, type Work } from '../lib/api';
 import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES, GOODS_TAG, ONBOARDING_DEMO_KEY } from '../lib/constants';
 import { DEMO_POST_TEXT } from '../lib/demoPost';
 import { isPremiumCached, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
@@ -156,6 +156,8 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
   const [parsedList, setParsedList] = useState<ParsedEvent[] | null>(draft0?.parsedList ?? null);
+  // AI が読み取った、同じ予定の中の回（昼の部・二次受付など）。投稿と一緒に入れる
+  const [parsedSchedules, setParsedSchedules] = useState<NonNullable<ParsedEvent['schedules']>>([]);
   // 解析で複数見つかったとき、選んで反映したもの以外の残り。1件投稿したらこの一覧に戻って続けて投稿する
   // （前は1つ選ぶと残りが消え、全部登録するには解析からやり直しだった）
   const [pendingParsed, setPendingParsed] = useState<ParsedEvent[]>(draft0?.pendingParsed ?? []);
@@ -445,6 +447,7 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
       setDateTBD(false); setDateLabel(''); setDate(p.date); setEndDate(p.endDate || p.date);
     }
     if (p.time && !p.dateLabel) { setAllDay(false); setTime(p.time); if (p.endTime) setEndTime(p.endTime); }
+    setParsedSchedules(p.schedules ?? []);
     if (p.isOrderMade) {
       setIsOrder(true); if (p.preorderStart) setPreStart(p.preorderStart); if (p.preorderEnd) { setPreEnd(p.preorderEnd); setPreEndTouched(true); }
       // 「11時予約開始」のように時刻が分かれば、終日を外して時刻を入れる
@@ -968,6 +971,10 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
         return;
       }
       const createdIds = await createEvents(wid, [eventPayload], user.id);
+      // AI が読み取った複数の回も一緒に入れる。入らなくても投稿は成立している
+      if (createdIds[0] && parsedSchedules.length) {
+        await addEventSchedules(createdIds[0], parsedSchedules.map((s) => ({ ...s, end: s.end ?? undefined, time: s.time ?? undefined, endTime: s.endTime ?? undefined }))).catch(() => {});
+      }
       // カレンダーに登録＝保存（いいね）。外してあれば登録しない。
       // 下のフォローと互いに待たないので、並べて走らせる（前は1つずつ待っていた）
       const liked = addToCalendar && createdIds[0]
@@ -1423,6 +1430,22 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
             </>
           )}
 
+
+          {/* AI が見つけた複数の回。投稿すると予定の中の日程になる */}
+          {parsedSchedules.length > 0 && !personal && (
+            <>
+              <div className={labelCls}>日程（{parsedSchedules.length}件）</div>
+              <div className="flex flex-col gap-1">
+                {parsedSchedules.map((s, i) => (
+                  <div key={i} className="flex items-center gap-2 text-[13px]">
+                    <span className="font-semibold truncate">{s.label}</span>
+                    <span className="text-label-secondary flex-shrink-0">{s.end && s.end !== s.start ? `${s.start.slice(5).replace('-', '/')}〜${s.end.slice(5).replace('-', '/')}` : s.start.slice(5).replace('-', '/')}</span>
+                    <button type="button" onClick={() => { haptic.select(); setParsedSchedules((prev) => prev.filter((_, k) => k !== i)); }} aria-label={`${s.label}を外す`} className="pressable ml-auto text-label-tertiary"><X size={15} /></button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
           {/* 自分用の予定はリンクを1つ持てるだけ（販売先を探す・購入リンクの一覧は出さない） */}
           {personal ? (

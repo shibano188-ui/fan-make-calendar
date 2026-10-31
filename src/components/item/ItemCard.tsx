@@ -27,7 +27,7 @@ interface Props {
   /** want … 押したあとの状態（♡を付ける＝true） */
   onLike?: (want: boolean) => void | Promise<{ liked: boolean; count: number } | void>;
   onCalendar?: () => void;
-  /** カレンダーの中のカードだけ渡す。色と記号を選ぶボタンが出る */
+  /** カレンダーの中のカードだけ渡す。色とアイコンを選ぶボタンが出る */
   onStyle?: () => void;
 }
 
@@ -238,7 +238,7 @@ export default function ItemCard({ event, layout = 'grid', isNew, viewed, likedI
 function CardActions({ liked, likeCount, onLike, event, onStyle, large }: { liked?: boolean; likeCount?: number; onLike?: () => void; event: CalendarEvent; onStyle?: () => void; large?: boolean }) {
   const size = large ? 23 : 18;
   const styleButton = onStyle && (
-    <button onClick={(e) => { e.stopPropagation(); onStyle(); }} aria-label="色と記号" className="pressable tap-44 flex items-center text-label-secondary">
+    <button onClick={(e) => { e.stopPropagation(); onStyle(); }} aria-label="予定の色とアイコン" className="pressable tap-44 flex items-center text-label-secondary">
       <Palette size={size} />
     </button>
   );
