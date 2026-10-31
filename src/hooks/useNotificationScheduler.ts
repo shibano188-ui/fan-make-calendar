@@ -7,6 +7,7 @@ import { loadSaved } from '../lib/savedStore';
 import { rescheduleAll, notificationsSupported, NOTIFY_PERMISSION_EVENT } from '../lib/notifications';
 import { syncDeviceCalendar } from '../lib/deviceCalendar';
 import { registerPush, onPushOpened, loadDigestSetting } from '../lib/push';
+import { askReviewLater } from '../lib/review';
 
 /** ローカル通知の運用フック（ネイティブのみ）。
  *  - 起動時・アプリ復帰時に、いいね済み×ベルON×未来の予定を組み直す
@@ -22,7 +23,7 @@ export function useNotificationScheduler() {
     let handle: { remove: () => void } | undefined;
     LocalNotifications.addListener('localNotificationActionPerformed', (e) => {
       const id = e.notification.extra?.eventId as string | undefined;
-      if (id) navigate(`/item/${id}`);
+      if (id) { navigate(`/item/${id}`); askReviewLater(); }
     }).then((h) => { handle = h; });
     return () => { handle?.remove(); };
   }, [navigate]);
@@ -35,7 +36,7 @@ export function useNotificationScheduler() {
     const register = () => { void registerPush(user.id); };
     register();
     window.addEventListener(NOTIFY_PERMISSION_EVENT, register);
-    void onPushOpened((path) => navigate(path));
+    void onPushOpened((path) => { navigate(path); askReviewLater(); });
     // 別端末で「新着まとめ」を切っていたら、この端末の表示もそれに合わせる
     void loadDigestSetting(user.id).catch(() => { /* 取れなくても既定（受け取る）で動く */ });
     return () => window.removeEventListener(NOTIFY_PERMISSION_EVENT, register);

@@ -7,6 +7,7 @@ import { primaryOffer, getOffers, isSearchPageUrl } from './affiliate';
 import { unstretchImage } from './image';
 import { requestDeviceCalendarSync } from './deviceCalendar';
 import { requestGoogleSync } from './googleLink';
+import { noteLikeForReview } from './review';
 
 /** 2つのカテゴリ値（単一文字列 or JSON配列文字列）が完全に重ならない場合 true。
  *  どちらかが空なら false（＝別イベントとは判定しない）。複数カテゴリの重複検知に使う。 */
@@ -868,7 +869,10 @@ export async function toggleLike(eventId: string, userId: string, want?: boolean
   requestGoogleSync();
 
   // オンボーディングの案内は「いいねしたらカレンダーへ」なので、どの画面で押しても拾えるように知らせる
-  if (!existing && liked) window.dispatchEvent(new CustomEvent(LIKED_EVENT, { detail: { id: eventId } }));
+  if (!existing && liked) {
+    window.dispatchEvent(new CustomEvent(LIKED_EVENT, { detail: { id: eventId } }));
+    noteLikeForReview();
+  }
 
   return { liked, count: count ?? 0 };
 }

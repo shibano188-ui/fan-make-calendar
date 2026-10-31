@@ -16,7 +16,7 @@ import type { Offer } from '../../types';
 import { useLike, setLike } from '../../lib/likeStore';
 import { syncNotifyWithLike } from '../../lib/notifications';
 import { likeEffect } from '../../lib/likeEffect';
-import { shareToX } from '../../lib/share';
+import { useShareEvent } from '../../hooks/useShareEvent';
 import { haptic } from '../../lib/haptics';
 import { setStoryAdsSuppressed } from '../../lib/adSuppress';
 import StatusBadge from '../ui/StatusBadge';
@@ -302,6 +302,7 @@ function ProgressFill({ paused, onDone }: { paused: boolean; onDone: () => void 
 /** 詳細ページと同じ操作の列（いいね・リアクション・通知・共有）。いいねで FanHive のカレンダーに入る */
 function StoryActions({ event, likedInit, onLike }: { event: CalendarEvent; likedInit: boolean; onLike: (want: boolean) => Promise<{ liked: boolean; count: number } | void> }) {
   const { liked, count } = useLike(event.id, { liked: likedInit, count: event.likes ?? 0 });
+  const shareEvent = useShareEvent();
   const like = async (el?: HTMLElement) => {
     const prev = { liked, count };
     if (!liked && el) likeEffect(el);
@@ -319,7 +320,7 @@ function StoryActions({ event, likedInit, onLike }: { event: CalendarEvent; like
       </button>
       <ReactionButton eventId={event.id} size={22} variant="labeled" />
       <NotifyBell event={event} liked={liked} onSave={() => like()} variant="labeled" />
-      <button onClick={() => { haptic.select(); shareToX(event, event.workName); }} className="pressable flex flex-col items-center gap-0.5" aria-label="Xで共有">
+      <button onClick={() => { haptic.select(); void shareEvent(event, event.workName); }} className="pressable flex flex-col items-center gap-0.5" aria-label="共有">
         <Share2 size={22} className="text-label-secondary" />
         <span className="text-[10px] text-label-tertiary leading-none">共有</span>
       </button>
