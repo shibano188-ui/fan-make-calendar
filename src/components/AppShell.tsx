@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import BottomNav from './nav/BottomNav';
 import DraftBar from './theme/DraftBar';
 import SupportNoticeSheet from './SupportNoticeSheet';
+import SurveySheet from './SurveySheet';
 import { useNotificationScheduler } from '../hooks/useNotificationScheduler';
 import { loadExploreRange } from '../lib/onboardingPreload';
 import { loadCachedLarge, EXPLORE_EVENTS_KEY } from '../lib/swrCache';
@@ -36,6 +37,8 @@ export default function AppShell() {
         <BottomNav />
         {/* 運営からのお知らせ（問い合わせへの返事など）を、開いたときに1回だけカードで出す */}
         <SupportNoticeSheet />
+        {/* アンケートの案内 */}
+        <SurveySheet />
       </div>
     </div>
   );

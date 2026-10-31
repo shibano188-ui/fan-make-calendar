@@ -172,7 +172,7 @@ export default function StoryViewer({ groups, initial, onClose, onSeen, onOpenDe
 
   // 下のタブ（z-[100]）より上に出す。親の重なり順に左右されないよう body の直下に描く
   return createPortal(
-    <div className="fixed inset-0 z-[110] flex flex-col select-none" style={{ backgroundColor: 'var(--bg-primary)' }}
+    <div role="dialog" aria-modal="true" aria-label="ストーリー" className="fixed inset-0 z-[110] flex flex-col select-none" style={{ backgroundColor: 'var(--bg-primary)' }}
       onClick={onTap} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
       onPointerDown={onPointerDown} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onPointerLeave={onPointerUp}>
       <style>{'@keyframes story-fill { from { width: 0% } to { width: 100% } } @keyframes story-flash { from { opacity: 0.9 } to { opacity: 0 } }'}</style>
