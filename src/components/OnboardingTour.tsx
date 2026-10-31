@@ -77,7 +77,7 @@ export function tourLikedEvent(): CalendarEvent | null {
   return likedEvent;
 }
 
-// 作品を1つも選ばず、追加のお願いだけで進んだ人か（探すには予定の多い作品が出るので、そのわけを伝える）
+// 作品を1つも選ばず、追加の依頼だけで進んだ人か（探すには予定の多い作品が出るので、そのわけを伝える）
 let noWorkPicked = false;
 
 /** 作品を選び終えたら呼ぶ。探すへ移るのは OnboardingTour が段階を見てやる */
@@ -345,7 +345,7 @@ function Bubble({ step, arrow, arrowX, onNext }: { step: TourStep; arrow?: 'up' 
   const { icon: Icon, title } = denied ? { icon: BellOff, title: '通知はあとからONにできます' } : COPY[step];
   const body = denied ? '端末の設定でFanHiveの通知を許可すると届くようになります。'
     : step === 'done' ? doneBody()
-    : step === 'like' && noWorkPicked ? 'お願いした作品が入るまで、予定の多い作品で試してみましょう。'
+    : step === 'like' && noWorkPicked ? '依頼した作品が入るまで、予定の多い作品で試してみましょう。'
     : COPY[step].body;
   const ref = useRef<HTMLDivElement>(null);
   // 矢印は目印の真上（真下）に。吹き出しの端からはみ出さないように寄せる
