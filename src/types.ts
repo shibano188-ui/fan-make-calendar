@@ -1,3 +1,14 @@
+/** 予定の中の日程（sql/2026-10-31-event-schedules.sql）。session＝昼の部など開催の回、preorder＝二次受付など受付の回 */
+export type EventSchedule = {
+  id: string;
+  kind: 'session' | 'preorder';
+  label: string;
+  start: string;   // 'YYYY-MM-DD'。受付の回は受付開始
+  end?: string;    // 'YYYY-MM-DD'。受付の回は締切
+  time?: string;   // 'HH:mm'
+  endTime?: string;
+};
+
 export type CalendarEvent = {
   id: string;
   title: string;
@@ -44,6 +55,8 @@ export type CalendarEvent = {
 
   // ─ 個人の「行く日」（本人のみ・保存カレンダーの表示絞り込み用。共有データではない）─
   visits?: EventVisit[];
+  /** 予定の中の日程。読み込んだ画面でだけ入る（カレンダー・通知・詳細） */
+  schedules?: EventSchedule[];
 };
 
 // 個人の来店予定（1件1来店。単日は start=end）

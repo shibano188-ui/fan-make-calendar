@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Pin, Share2, X, Plus, BellRing } from 'lucide-react';
-import type { CalendarEvent, EventVisit } from '../types';
+import type { CalendarEvent, EventSchedule, EventVisit } from '../types';
 import EventEditForm from '../components/item/EventEditForm';
 import StaffEditPanel from '../components/item/StaffEditPanel';
-import { getEventById, getWorkById, getDisplayName, toggleLike, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, addEventVisit, removeEventVisit, getMyStaffRole, getPersonalEvent, proposeEdit, listEditProposals, type EditProposal, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
+import { getEventById, getWorkById, getDisplayName, toggleLike, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, addEventVisit, removeEventVisit, listEventSchedules, addEventSchedules, removeEventSchedule, getMyStaffRole, getPersonalEvent, proposeEdit, listEditProposals, type EditProposal, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME, isOfficialUser, FEATURE_PREMIUM, ONBOARDING_KEY } from '../lib/constants';
@@ -26,6 +26,7 @@ import { syncNotifyWithLike } from '../lib/notifications';
 import ImageCarousel from '../components/item/ImageCarousel';
 import NotifyBell from '../components/item/NotifyBell';
 import EventColorPicker from '../components/item/EventColorPicker';
+import SchedulePanel from '../components/item/SchedulePanel';
 import AddInfoSheet from '../components/item/AddInfoSheet';
 import PendingProposals, { samePatch } from '../components/item/PendingProposals';
 import LineLoader from '../components/ui/LineLoader';
@@ -118,6 +119,7 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
   const [following, setFollowing] = useState(false);
   const [followCount, setFollowCount] = useState(0);
   const [visits, setVisits] = useState<EventVisit[]>([]);
+  const [schedules, setSchedules] = useState<EventSchedule[]>([]);
   const [visitOpen, setVisitOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false); // 「＋α」で開く情報追加パネル
   const [editing, setEditing] = useState(false); // 投稿者だけのその場編集（日付）
@@ -172,6 +174,7 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
       listStockReports(id).then((rs) => { if (alive) setStockReports(rs); });
       listEventEdits(id).then((es) => { if (alive) setEdits(es); });
       listEditProposals(id).then((ps) => { if (alive) setProposals(ps); });
+      listEventSchedules([id]).then((ss) => { if (alive) setSchedules(ss); }).catch(() => {});
       if (user) listEventVisits(id, user.id).then((vs) => { if (alive) setVisits(vs); }).catch(() => {});
     })();
     return () => { alive = false; };
@@ -583,6 +586,17 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
                 )}
               </div>
             )}
+
+            {/* 複数部・二次受付など。投稿者と運営が足せる。見るのは誰でも */}
+            <SchedulePanel schedules={schedules} canEdit={canFix && !shared}
+              onAdd={async (s) => {
+                try { const [added] = await addEventSchedules(event.id, [s]); if (added) setSchedules((prev) => [...prev, added].sort((a, b) => a.start.localeCompare(b.start))); return true; }
+                catch { toast('足せませんでした。時間をおいてお試しください', 'error'); return false; }
+              }}
+              onRemove={(sid) => {
+                setSchedules((prev) => prev.filter((s) => s.id !== sid));
+                removeEventSchedule(sid).catch(() => toast('消せませんでした', 'error'));
+              }} />
 
             {/* カレンダーに入っている予定だけ、この予定の色を選べる */}
             {!shared && liked && <EventColorPicker eventId={event.id} workId={event.workId} />}

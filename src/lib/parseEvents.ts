@@ -24,6 +24,8 @@ export type ParsedEvent = {
   preorderEnd?: string | null;
   preorderStartTime?: string | null; // 「11時予約開始」の 11:00
   preorderEndTime?: string | null;
+  /** 複数部・二次受付など、同じ予定の中の回 */
+  schedules?: { kind: 'session' | 'preorder'; label: string; start: string; end?: string | null; time?: string | null; endTime?: string | null }[] | null;
   sellsGoods?: boolean;        // イベントで物販がある（会場/関連でグッズ販売）→「グッズあり」カテゴリ付与
   offers?: Offer[];            // Shopifyのコレクションから作ったシリーズの、中の商品ぜんぶ（名前付きの購入リンク）
   kind?: string | null;        // シリーズのアイテムの種類（「お守り」）。まとめたときにリンクの名前を「お守り（ハチワレ）」にする
@@ -61,6 +63,7 @@ function rawToParsed(raw: Record<string, unknown>): ParsedEvent {
     preorderEnd: clean(raw.preorderEnd),
     preorderStartTime: clean(raw.preorderStartTime),
     preorderEndTime: clean(raw.preorderEndTime),
+    schedules: Array.isArray(raw.schedules) ? raw.schedules as ParsedEvent['schedules'] : null,
     sellsGoods: raw.sellsGoods === true || raw.sellsGoods === 'true',
     ...(Array.isArray(raw.offers) ? { offers: (raw.offers as Offer[]).filter((o) => o && typeof o.url === 'string') } : {}),
     ...(typeof raw.kind === 'string' ? { kind: raw.kind } : {}),

@@ -212,13 +212,24 @@ type ViewProps = {
 
 type Range = { start: string; end: string; label?: string };
 
+/** 日程（昼の部・二次受付など）が掛かる日。受付の回は開始と締切の2日 */
+function scheduleRanges(e: CalendarEvent): Range[] {
+  return (e.schedules ?? []).flatMap((s): Range[] => s.kind === 'session'
+    ? [{ start: s.start, end: s.end || s.start, label: s.label }]
+    : [{ start: s.start, end: s.start, label: `${s.label} 開始` }, ...(s.end ? [{ start: s.end, end: s.end, label: `${s.label} 締切` }] : [])]);
+}
+
 /** 予定が掛かる期間。来店予定（visits）があればその期間だけ（ピンした日だけ見たい人の表示）。
  *  無ければ date〜endDate に加えて、受付開始と締切を別の日として出す（2026-10-31 柴野。
  *  1件にまとめると発売日しか出ず、外部カレンダーにだけ締切が出ていた。api/_calendarItems.ts と同じ分け方） */
 function rangesOf(e: CalendarEvent): Range[] {
   if (e.visits && e.visits.length > 0) return e.visits.map((v) => ({ start: v.start, end: v.end }));
-  const out: Range[] = [];
-  if (e.date) out.push({ start: e.date, end: e.endDate || e.date });
+  const out = scheduleRanges(e);
+  // 回が登録されていれば、本体の日付は同じものを指すので重ねて出さない
+  const hasSession = e.schedules?.some((s) => s.kind === 'session');
+  const hasPreorder = e.schedules?.some((s) => s.kind === 'preorder');
+  if (e.date && !hasSession) out.push({ start: e.date, end: e.endDate || e.date });
+  if (hasPreorder) return out;
   if (e.preorderStart && e.preorderStart !== e.date) out.push({ start: e.preorderStart, end: e.preorderStart, label: '受付開始' });
   if (e.preorderEnd && e.preorderEnd !== e.date) out.push({ start: e.preorderEnd, end: e.preorderEnd, label: '締切' });
   return out;

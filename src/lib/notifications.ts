@@ -38,7 +38,8 @@ function morningOf(dateStr: string, dayOffset = 0, hour = 9): Date {
   return d;
 }
 
-type Trigger = { kind: Kind; at: Date; title: string; body: string };
+/** key は通知IDの元。日程の分は `<予定のid>:<日程のid>` にして、本体の通知と重ならないようにする */
+type Trigger = { kind: Kind; at: Date; title: string; body: string; key?: string };
 
 /** 時刻が分かっている予定を、何分前に知らせるか。種類ごとに違うと「いつ来るのか」が分からなくなるので1つにする */
 const BEFORE_MIN = 60;
@@ -52,28 +53,53 @@ function beforeTime(dateStr: string, time: string, beforeMin: number): Date {
 }
 const hm = (t?: string | null) => (t ? t.slice(0, 5) : '');
 
+/** 日程（昼の部・二次受付など）ごとの通知 */
+function scheduleTriggers(e: CalendarEvent, tag: string, lead: number): Trigger[] {
+  return (e.schedules ?? []).flatMap((s): Trigger[] => {
+    const key = `${e.id}:${s.id}`;
+    const out: Trigger[] = [];
+    if (s.kind === 'preorder') {
+      out.push({ key, kind: 'pstart0', at: morningOf(s.start), title: `${tag}本日から${s.label}`, body: `「${e.title}」の${s.label}が本日始まります` });
+      if (s.end) {
+        if (lead > 0) out.push({ key, kind: 'pend1', at: morningOf(s.end, -lead), title: `${tag}${s.label}の締切まであと${lead}日`, body: `「${e.title}」の${s.label}の締切が近づいています` });
+        out.push({ key, kind: 'pend0', at: morningOf(s.end), title: `${tag}本日が${s.label}の締切`, body: `「${e.title}」の${s.label}は本日までです` });
+      }
+      return out;
+    }
+    if (lead > 0) out.push({ key, kind: 'd1', at: morningOf(s.start, -lead), title: `${tag}${s.label}まであと${lead}日`, body: `「${e.title}」の${s.label}が近づいています` });
+    out.push({ key, kind: 'd0', at: morningOf(s.start), title: `${tag}本日 ${s.label}${s.time ? `（${s.time}〜）` : ''}`, body: `「${e.title}」の${s.label}は本日です` });
+    if (s.time) out.push({ key, kind: 'd0T', at: beforeTime(s.start, s.time, BEFORE_MIN), title: `${tag}まもなく ${s.label}（${s.time}〜）`, body: `「${e.title}」の${s.label}がまもなく始まります` });
+    return out;
+  });
+}
+
 function triggersFor(e: CalendarEvent): Trigger[] {
   const out: Trigger[] = [];
   const tag = e.workName ? `【${e.workName}】` : '';
   const isGoods = deriveItemType(e) === 'goods';
   const onsaleWord = isGoods ? '発売' : '開催';
   const lead = loadNotifyLeadDays(); // マイページの「◯日前」設定
+  out.push(...scheduleTriggers(e, tag, lead));
+  const hasSession = e.schedules?.some((s) => s.kind === 'session');
+  const hasPreorder = e.schedules?.some((s) => s.kind === 'preorder');
 
   // lead=0（当日のみ）のときは前もっての通知は出さない。当日の朝は締切・発売と同じく必ず出す
   // （前は ◯日前 を選ぶと受付開始の当日朝が出ず、時刻の無い予定は当日に何も届かなかった。2026-10-05 柴野）
-  if (e.preorderStart) {
+  if (e.preorderStart && !hasPreorder) {
     if (lead > 0) out.push({ kind: 'pstart', at: morningOf(e.preorderStart, -lead), title: `${tag}受付開始まであと${lead}日`, body: `「${e.title}」の予約受付がもうすぐ始まります` });
     // プレミアムで時刻の無い予定は、サーバーが同じ朝9時に「受付が始まりました」を送るので、端末からは出さない
     if (e.preorderStartTime || !isPremiumCached()) out.push({ kind: 'pstart0', at: morningOf(e.preorderStart), title: `${tag}本日受付開始${e.preorderStartTime ? `（${hm(e.preorderStartTime)}〜）` : ''}`, body: `「${e.title}」の予約受付が本日始まります` });
     // 時刻が分かっていれば1時間前にも（人気のグッズは開始から数分で売り切れる）
     if (e.preorderStartTime) out.push({ kind: 'pstartT', at: beforeTime(e.preorderStart, e.preorderStartTime, BEFORE_MIN), title: `${tag}まもなく受付開始（${hm(e.preorderStartTime)}〜）`, body: `「${e.title}」の予約受付がまもなく始まります` });
   }
-  if (e.preorderEnd) {
+  if (e.preorderEnd && !hasPreorder) {
     if (lead > 0) out.push({ kind: 'pend1', at: morningOf(e.preorderEnd, -lead), title: `${tag}予約締切まであと${lead}日`, body: `「${e.title}」の予約締切が近づいています` });
     out.push({ kind: 'pend0', at: morningOf(e.preorderEnd), title: `${tag}本日が予約締切${e.preorderEndTime ? `（${hm(e.preorderEndTime)}まで）` : ''}`, body: `「${e.title}」の予約は本日までです` });
     // 締切は買う時間が要るので1時間前。プレミアムはサーバーが同じ時刻に送る（早期終了なら送らない）ので、端末からは出さない
     if (e.preorderEndTime && !isPremiumCached()) out.push({ kind: 'pendT', at: beforeTime(e.preorderEnd, e.preorderEndTime, BEFORE_MIN), title: `${tag}まもなく予約締切（${hm(e.preorderEndTime)}まで）`, body: `「${e.title}」の予約は${hm(e.preorderEndTime)}までです` });
   }
+  // 開催の回が登録されていれば、本体の日付の通知は回の通知と重なるので出さない
+  if (hasSession) return out;
   // ピンした日があれば直近のピンを基準にする（無ければ予定本来の日）
   const today = new Date().toISOString().slice(0, 10);
   const nextVisit = (e.visits ?? [])
@@ -132,12 +158,12 @@ export async function ensurePermission(): Promise<boolean> {
 /** 1予定分を組み直す（既存を消してから未来分のみ登録）。 */
 export async function scheduleForEvent(e: CalendarEvent): Promise<void> {
   if (!native()) return;
-  await cancelForEvent(e.id);
+  await cancelForEvent(e.id, e.schedules?.map((s) => s.id));
   const now = Date.now();
   const notifications = triggersFor(e)
     .filter((t) => t.at.getTime() > now)
     .map((t) => ({
-      id: notifId(e.id, t.kind),
+      id: notifId(t.key ?? e.id, t.kind),
       title: t.title,
       body: t.body,
       schedule: { at: t.at },
@@ -150,7 +176,7 @@ export async function scheduleForEvent(e: CalendarEvent): Promise<void> {
  *  案内の間はベルの段階で聞くので、♡では何もしない。 */
 export async function syncNotifyWithLike(e: CalendarEvent, liked: boolean): Promise<void> {
   if (!liked) {
-    if (isNotifyOn(e.id)) { setNotifyOn(e.id, false); await cancelForEvent(e.id); }
+    if (isNotifyOn(e.id)) { setNotifyOn(e.id, false); await cancelForEvent(e.id, e.schedules?.map((s) => s.id)); }
     return;
   }
   const prefs = loadBellPrefs();
@@ -185,9 +211,10 @@ export async function scheduleTrialEndReminder(expiresAt: string | null, isTrial
 }
 
 /** 1予定分の通知を全キャンセル。 */
-export async function cancelForEvent(eventId: string): Promise<void> {
+export async function cancelForEvent(eventId: string, scheduleIds: string[] = []): Promise<void> {
   if (!native()) return;
-  await LocalNotifications.cancel({ notifications: KINDS.map((k) => ({ id: notifId(eventId, k) })) });
+  const keys = [eventId, ...scheduleIds.map((s) => `${eventId}:${s}`)];
+  await LocalNotifications.cancel({ notifications: keys.flatMap((key) => KINDS.map((k) => ({ id: notifId(key, k) }))) });
 }
 
 // iOSは**アプリあたり保留中の通知が64件まで**で、超えたぶんは黙って捨てられる
@@ -220,7 +247,7 @@ export async function rescheduleAll(events: CalendarEvent[]): Promise<void> {
 
   await LocalNotifications.schedule({
     notifications: capped.map(({ e, t }) => ({
-      id: notifId(e.id, t.kind),
+      id: notifId(t.key ?? e.id, t.kind),
       title: t.title,
       body: t.body,
       schedule: { at: t.at },

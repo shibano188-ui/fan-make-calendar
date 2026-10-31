@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { sortByWorkOrder } from './workOrder';
-import type { CalendarEvent, EventVisit, Offer } from '../types';
+import type { CalendarEvent, EventSchedule, EventVisit, Offer } from '../types';
 import { parseCategories, loadMutedEventIds, loadMutedWorkIds, ANON_NAME, isOfficialUser, isReservedDisplayName, LIKED_EVENT } from './constants';
 import { searchWorksByAlias, findWorkByExactAlias } from './workAliases';
 import { primaryOffer, getOffers, isSearchPageUrl } from './affiliate';
@@ -1405,10 +1405,51 @@ export async function listSavedEvents(userId: string): Promise<CalendarEvent[]> 
     if (!ev) continue;
     (ev.visits ??= []).push({ id: r.id as string, start: r.start_date as string, end: r.end_date as string });
   }
+  // 複数部・二次受付など。カレンダーと通知の両方で使う
+  for (const s of await listEventSchedules([...map.keys()])) {
+    const ev = map.get(s.eventId);
+    if (ev) (ev.schedules ??= []).push(s);
+  }
   // 自分用の予定も同じ一覧に混ぜる（カレンダーと通知の組み直しの両方がここを使う）。
   // テーブルがまだ無い環境（SQL未適用）では黙って空にする
   const personal = await listPersonalEvents(userId).catch(() => []);
   return [...(await resolveAuthorNames([...map.values()])), ...personal];
+}
+
+// ─── 予定の中の日程（event_schedules）──────────────────────────
+// 複数部・二次受付など。表が無い環境（SQL未適用）では空のまま動く
+
+/** 日程の入力。AI の読み取りと詳細ページの両方から使う */
+export type EventScheduleInput = Omit<EventSchedule, 'id'>;
+
+function toSchedule(r: Record<string, unknown>): EventSchedule & { eventId: string } {
+  return {
+    id: r.id as string, eventId: r.event_id as string, kind: r.kind as EventSchedule['kind'], label: r.label as string,
+    start: r.start_date as string, end: (r.end_date as string | null) ?? undefined,
+    time: ((r.start_time as string | null) ?? undefined)?.slice(0, 5), endTime: ((r.end_time as string | null) ?? undefined)?.slice(0, 5),
+  };
+}
+
+export async function listEventSchedules(eventIds: string[]): Promise<(EventSchedule & { eventId: string })[]> {
+  if (eventIds.length === 0) return [];
+  const { data, error } = await supabase.from('event_schedules').select('*').in('event_id', eventIds).order('start_date').order('start_time');
+  if (error) return [];
+  return (data ?? []).map((r) => toSchedule(r as Record<string, unknown>));
+}
+
+export async function addEventSchedules(eventId: string, items: EventScheduleInput[]): Promise<EventSchedule[]> {
+  if (items.length === 0) return [];
+  const { data, error } = await supabase.from('event_schedules').insert(items.map((s) => ({
+    event_id: eventId, kind: s.kind, label: s.label, start_date: s.start, end_date: s.end ?? null,
+    start_time: s.time ?? null, end_time: s.endTime ?? null,
+  }))).select('*');
+  if (error) throw error;
+  return (data ?? []).map((r) => toSchedule(r as Record<string, unknown>));
+}
+
+export async function removeEventSchedule(id: string): Promise<void> {
+  const { error } = await supabase.from('event_schedules').delete().eq('id', id);
+  if (error) throw error;
 }
 
 // ─── 自分用の予定（personal_events）──────────────────────────────

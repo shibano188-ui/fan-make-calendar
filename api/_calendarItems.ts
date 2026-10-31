@@ -60,6 +60,16 @@ export async function loadCalendarItems(db: SupabaseClient, userId: string): Pro
     visitsByEvent.set(v.event_id as string, list);
   }
 
+  // 複数部・二次受付など。表がまだ無い環境では error が返るだけなので、黙って空にする
+  type ScheduleRow = { id: string; event_id: string; kind: string; label: string; start_date: string; end_date: string | null; start_time: string | null };
+  const { data: scheduleRows } = likedIds.length
+    ? await db.from('event_schedules').select('id, event_id, kind, label, start_date, end_date, start_time').in('event_id', likedIds)
+    : { data: [] as ScheduleRow[] };
+  const schedulesByEvent = new Map<string, ScheduleRow[]>();
+  for (const s of (scheduleRows ?? []) as ScheduleRow[]) {
+    schedulesByEvent.set(s.event_id, [...(schedulesByEvent.get(s.event_id) ?? []), s]);
+  }
+
   const seen = new Set<string>();
   const items: CalendarItem[] = [];
   for (const { data } of results) {
@@ -70,6 +80,16 @@ export async function loadCalendarItems(db: SupabaseClient, userId: string): Pro
       const desc = describe(e, url);
       const base = { desc, url, workId: e.work_id ?? null };
       const visits = visitsByEvent.get(e.id) ?? [];
+      const schedules = visits.length ? [] : schedulesByEvent.get(e.id) ?? [];
+      const sessions = schedules.filter((s) => s.kind === 'session');
+      const rounds = schedules.filter((s) => s.kind === 'preorder');
+      for (const s of sessions) {
+        items.push({ ...base, uid: `${e.id}-s-${s.id}`, summary: `${e.title}（${s.label}）`, start: s.start_date, end: s.end_date, time: s.start_time?.slice(0, 5) ?? null });
+      }
+      for (const s of rounds) {
+        items.push({ ...base, uid: `${e.id}-s-${s.id}`, summary: `【${s.label}】${e.title}`, start: s.start_date, end: null, time: null });
+        if (s.end_date) items.push({ ...base, uid: `${e.id}-s-${s.id}-end`, summary: `【${s.label} 締切】${e.title}`, start: s.end_date, end: null, time: null });
+      }
       if (visits.length) {
         for (const v of visits) {
           // 1日だけの来店で時刻があるなら時刻を活かす（開催時間のあるイベント用）
@@ -77,7 +97,7 @@ export async function loadCalendarItems(db: SupabaseClient, userId: string): Pro
           items.push({ ...base, uid: `${e.id}-visit-${v.id}`, summary: e.title, start: v.start,
             end: single ? null : v.end, time: single ? e.event_time?.slice(0, 5) ?? null : null });
         }
-      } else if (e.event_date) {
+      } else if (e.event_date && !sessions.length) {
         // 曖昧日付（「7月上旬」など）は date が代表日でしかなく、期間・時刻は意味を持たない
         // （rowToEvent と同じ不変条件）。カレンダーには代表日の全日予定として置き、
         // 見た人が誤解しないようタイトルにラベルを添える。
@@ -87,12 +107,12 @@ export async function loadCalendarItems(db: SupabaseClient, userId: string): Pro
       }
       // 受付開始も、日付が別なら独立した予定として出す。時刻が分かればその時刻に置く
       // （人気のグッズは開始から数分で売り切れる。通知と同じく一番大事な日なのに入っていなかった。2026-10-05 柴野）
-      if (e.preorder_start_date && e.preorder_start_date !== e.event_date) {
+      if (!rounds.length && e.preorder_start_date && e.preorder_start_date !== e.event_date) {
         items.push({ ...base, uid: `${e.id}-start`, summary: `【受付開始】${e.title}`, start: e.preorder_start_date,
           end: null, time: e.preorder_start_time?.slice(0, 5) ?? null });
       }
       // 受付の締切は見逃すと取り返しがつかないので、日付が別なら独立した予定として出す
-      if (e.preorder_end_date && e.preorder_end_date !== e.event_date) {
+      if (!rounds.length && e.preorder_end_date && e.preorder_end_date !== e.event_date) {
         items.push({ ...base, uid: `${e.id}-deadline`, summary: `【締切】${e.title}`, start: e.preorder_end_date, end: null, time: null });
       }
     }
