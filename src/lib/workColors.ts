@@ -12,6 +12,9 @@ export const WORK_COLORS = [
 ];
 
 const STORAGE_KEY = 'fan_work_colors';
+// 予定ごとの色も同じ保存先に `e:<予定のid>` で入れる（2026-10-31 柴野「作品の中でも予定ごとに色を決めたい」）。
+// 表の列を増やさずに、端末をまたいで引き継げる
+const EVENT_PREFIX = 'e:';
 
 /**
  * 作品ID→色のMapを返す。`works` に渡した作品で未割当のものがあれば
@@ -22,7 +25,7 @@ export function buildWorkColorMap(works: { id: string }[] = []): Map<string, str
   const saved: Record<string, string> = (() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}'); } catch { return {}; }
   })();
-  const usedColors = new Set<string>(Object.values(saved));
+  const usedColors = new Set<string>(Object.entries(saved).filter(([k]) => !k.startsWith(EVENT_PREFIX)).map(([, c]) => c));
   const updated = { ...saved };
   let hasNew = false;
   works.forEach((w) => {
@@ -38,4 +41,23 @@ export function buildWorkColorMap(works: { id: string }[] = []): Map<string, str
     pushAppState('work_colors', updated);
   }
   return new Map(Object.entries(updated));
+}
+
+/** 予定の色。自分で選んだ色があればそれ、無ければ作品の色 */
+export function eventColorFrom(colors: Map<string, string>, e: { id: string; workId?: string }): string {
+  return colors.get(EVENT_PREFIX + e.id) ?? (e.workId ? colors.get(e.workId) : undefined) ?? 'var(--accent-color)';
+}
+
+export function loadEventColor(id: string): string | null {
+  try { return (JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') as Record<string, string>)[EVENT_PREFIX + id] ?? null; }
+  catch { return null; }
+}
+
+/** 予定の色を選ぶ。null で作品の色に戻す */
+export function saveEventColor(id: string, color: string | null): void {
+  let saved: Record<string, string> = {};
+  try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}'); } catch { /* 空から始める */ }
+  if (color) saved[EVENT_PREFIX + id] = color; else delete saved[EVENT_PREFIX + id];
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(saved)); } catch { /* この端末では残らないだけ */ }
+  pushAppState('work_colors', saved);
 }

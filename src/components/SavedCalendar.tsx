@@ -6,7 +6,7 @@ import DaySheet from './DaySheet';
 import { todayStr, deriveStatus } from '../design/tokens';
 import { relativeDayLabel } from '../lib/relativeDay';
 import { haptic } from '../lib/haptics';
-import { buildWorkColorMap } from '../lib/workColors';
+import { buildWorkColorMap, eventColorFrom } from '../lib/workColors';
 import { stripWorkName } from '../lib/stripWorkName';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -84,17 +84,9 @@ function useSwipe(onPrev: () => void, onNext: () => void) {
   };
 }
 
-/** その日に掛かる予定。
- *  個人の来店予定(visits)があればその日/期間だけに絞る。無ければ date〜endDate。 */
+/** その日に掛かる予定。予定が掛かる期間は rangesOf */
 function eventsOnDay(events: CalendarEvent[], day: string): CalendarEvent[] {
-  return events.filter((e) => {
-    if (e.visits && e.visits.length > 0) {
-      return e.visits.some((v) => v.start <= day && day <= v.end);
-    }
-    if (!e.date) return false;
-    const end = e.endDate || e.date;
-    return e.date <= day && day <= end;
-  });
+  return events.filter((e) => rangesOf(e).some((r) => r.start <= day && day <= r.end));
 }
 
 type Props = {
@@ -151,8 +143,7 @@ export default function SavedCalendar({ events, scope, anchor, setAnchor, onOpen
     );
     return buildWorkColorMap(works);
   }, [events]);
-  const colorOf = (e: CalendarEvent): string =>
-    e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)';
+  const colorOf = (e: CalendarEvent): string => eventColorFrom(workColorMap, e);
 
   const pickedEvents = useMemo(() => (picked ? eventsOnDay(events, picked) : []), [events, picked]);
 
@@ -202,7 +193,7 @@ export default function SavedCalendar({ events, scope, anchor, setAnchor, onOpen
             </button>
           </div>
         )}>
-        {picked && <DayList events={pickedEvents} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />}
+        {picked && <DayList events={pickedEvents} day={picked} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />}
       </DaySheet>
     </div>
   );
@@ -219,15 +210,22 @@ type ViewProps = {
   onCalendar: (e: CalendarEvent) => void;
 };
 
-/** 予定が掛かる期間。来店予定（visits）があればその期間ごと、無ければ date〜endDate の1本 */
-function rangesOf(e: CalendarEvent): { start: string; end: string }[] {
+type Range = { start: string; end: string; label?: string };
+
+/** 予定が掛かる期間。来店予定（visits）があればその期間だけ（ピンした日だけ見たい人の表示）。
+ *  無ければ date〜endDate に加えて、受付開始と締切を別の日として出す（2026-10-31 柴野。
+ *  1件にまとめると発売日しか出ず、外部カレンダーにだけ締切が出ていた。api/_calendarItems.ts と同じ分け方） */
+function rangesOf(e: CalendarEvent): Range[] {
   if (e.visits && e.visits.length > 0) return e.visits.map((v) => ({ start: v.start, end: v.end }));
-  if (!e.date) return [];
-  return [{ start: e.date, end: e.endDate || e.date }];
+  const out: Range[] = [];
+  if (e.date) out.push({ start: e.date, end: e.endDate || e.date });
+  if (e.preorderStart && e.preorderStart !== e.date) out.push({ start: e.preorderStart, end: e.preorderStart, label: '受付開始' });
+  if (e.preorderEnd && e.preorderEnd !== e.date) out.push({ start: e.preorderEnd, end: e.preorderEnd, label: '締切' });
+  return out;
 }
 
-/** 週の中での1本の帯。start/end はその週の何日目か（0=日曜） */
-type Seg = { e: CalendarEvent; start: number; end: number; lane: number; contL: boolean; contR: boolean };
+/** 週の中での1本の帯。start/end はその週の何日目か（0=日曜）。label は「締切」など、発売・開催以外の日の印 */
+type Seg = { e: CalendarEvent; start: number; end: number; lane: number; contL: boolean; contR: boolean; label?: string };
 
 function dayIndex(weekStart: string, day: string): number {
   return Math.round((parse(day).getTime() - parse(weekStart).getTime()) / 86400000);
@@ -247,6 +245,7 @@ function layoutWeek(events: CalendarEvent[], weekStart: string): Seg[] {
         end: dayIndex(weekStart, r.end > weekEnd ? weekEnd : r.end),
         contL: r.start < weekStart,
         contR: r.end > weekEnd,
+        label: r.label,
       });
     }
   }
@@ -377,7 +376,7 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, selected, onTapD
                   const solid = !c.startsWith('var(');
                   const span = s.end - s.start + 1;
                   return (
-                    <div key={`${s.e.id}-${s.start}`}
+                    <div key={`${s.e.id}-${s.start}-${s.label ?? ''}`}
                       className="absolute h-[14px] px-[3px] text-[10px] leading-[14px] font-medium whitespace-nowrap overflow-hidden"
                       style={{
                         top: BAR_TOP + s.lane * CHIP_H,
@@ -391,7 +390,7 @@ function MonthView({ events, anchor, setAnchor, today, colorOf, selected, onTapD
                           : { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }),
                       }}>
                       {/* 帯は作品の色で見分けられるので、先頭の作品名は省いて中身を出す */}
-                      {stripWorkName(s.e.title, s.e.workName)}
+                      {s.label && <b>{s.label} </b>}{stripWorkName(s.e.title, s.e.workName)}
                     </div>
                   );
                 })}
@@ -416,7 +415,7 @@ function WeekView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, o
       {days.map((day) => (
         <div key={day}>
           <div className="mb-2"><DayHeading day={day} count={eventsOnDay(events, day).length} today={today} /></div>
-          <DayList events={eventsOnDay(events, day)} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />
+          <DayList events={eventsOnDay(events, day)} day={day} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />
         </div>
       ))}
     </div>
@@ -432,7 +431,7 @@ function DayView({ events, anchor, setAnchor, today, colorOf, onOpen, onLike, on
     // 予定が少ない日でも左右スワイプを受けられるよう、面を確保しておく
     <div {...swipe} className="min-h-[60dvh]">
       <div className="flex justify-center mb-2"><RelativeBadge day={anchor} today={today} /></div>
-      <DayList events={dayEvents} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />
+      <DayList events={dayEvents} day={anchor} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} />
     </div>
   );
 }
@@ -467,7 +466,7 @@ function RelativeBadge({ day, today }: { day: string; today: string }) {
   );
 }
 
-function DayList({ events, colorOf, onOpen, onLike, onCalendar }: { events: CalendarEvent[] } & Pick<ViewProps, 'colorOf' | 'onOpen' | 'onLike' | 'onCalendar'>) {
+function DayList({ events, day, colorOf, onOpen, onLike, onCalendar }: { events: CalendarEvent[]; day: string } & Pick<ViewProps, 'colorOf' | 'onOpen' | 'onLike' | 'onCalendar'>) {
   if (events.length === 0) {
     return (
       <div className="flex items-center gap-2 text-[12px] text-label-tertiary py-3 px-1">
@@ -477,10 +476,17 @@ function DayList({ events, colorOf, onOpen, onLike, onCalendar }: { events: Cale
   }
   return (
     <div className="flex flex-col gap-2">
-      {events.map((e) => (
-        <ItemCard key={e.id} event={e} layout="list" likedInit={e.likedByMe} workColor={colorOf(e)}
-          onOpen={() => onOpen(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} />
-      ))}
+      {events.map((e) => {
+        // 発売・開催以外の日は、なぜこの日に入っているかを添える
+        const labels = rangesOf(e).filter((r) => r.label && r.start <= day && day <= r.end).map((r) => r.label);
+        return (
+          <div key={e.id}>
+            {labels.length > 0 && <div className="px-1 pb-1 text-[12px] font-bold" style={{ color: 'var(--accent-text)' }}>{labels.join('・')}</div>}
+            <ItemCard event={e} layout="list" likedInit={e.likedByMe} workColor={colorOf(e)}
+              onOpen={() => onOpen(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} />
+          </div>
+        );
+      })}
     </div>
   );
 }
