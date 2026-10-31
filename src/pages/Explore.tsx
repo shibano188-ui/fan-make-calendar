@@ -284,16 +284,17 @@ export default function Explore() {
   };
 
   // オンボーディングの案内（OnboardingTour）で「気になる予定に ♡」をやってもらっているところ。
-  // 選んだ作品にこれからの予定が1件も無いと続かないので、そのときは予定の一番多い作品の予定を代わりに出す（2026-09-29 柴野）
+  // 選んだ作品にこれからの予定が1件も無いと続かないので、そのときは予定の一番多い作品の予定を代わりに出す（2026-09-29 柴野）。
+  // 作品の追加をお願いして1つもフォローしていない人も同じ
   const touring = useTourStep() === 'like';
   const isUpcoming = (e: CalendarEvent) => { const ref = e.endDate || e.date || ''; return !ref || ref >= today; };
   const tourFallbackWorkId = useMemo(() => {
-    if (!touring || !items || followed.size === 0) return null;
+    if (!touring || !items || !followsReady) return null;
     if (items.some((e) => e.workId && followed.has(e.workId) && isUpcoming(e) && !isHidden(e))) return null;
     const counts = new Map<string, number>();
     for (const e of items) if (e.workId && isUpcoming(e) && !isHidden(e)) counts.set(e.workId, (counts.get(e.workId) ?? 0) + 1);
     return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-  }, [touring, items, followed, isHidden]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [touring, items, followed, followsReady, isHidden]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // フォロー中の作品の予定だけ表示（新作品は検索→作品パネルからフォロー）。
   // グッズ表示では「グッズあり」カテゴリのイベントも一緒に出す（物販あり＝グッズ一覧にも載せる）。
