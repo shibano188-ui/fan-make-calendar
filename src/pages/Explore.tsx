@@ -285,7 +285,7 @@ export default function Explore() {
 
   // オンボーディングの案内（OnboardingTour）で「気になる予定に ♡」をやってもらっているところ。
   // 選んだ作品にこれからの予定が1件も無いと続かないので、そのときは予定の一番多い作品の予定を代わりに出す（2026-09-29 柴野）。
-  // 作品の追加をお願いして1つもフォローしていない人も同じ
+  // 作品の追加を依頼して1つもフォローしていない人も同じ
   const touring = useTourStep() === 'like';
   const isUpcoming = (e: CalendarEvent) => { const ref = e.endDate || e.date || ''; return !ref || ref >= today; };
   const tourFallbackWorkId = useMemo(() => {

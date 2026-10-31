@@ -23,14 +23,14 @@ import { FOLLOWS_EVENT } from '../lib/constants';
 // 画面に収まる数だけ出す（端末の高さで収まる数が変わるので、描いてから測って、はみ出す行のチップは隠す）。
 //
 // 検索で見つからない作品を**ここで作ることはしない**（オンボーディングなので。作品を作るのは投稿から）。
-// 代わりに追加の希望を運営へ送れて、送ったら1つも選んでいなくても先へ進める（2026-10-31 柴野）。
-// 作品選びで止まった人の多くが、推しを検索して0件のまま離れていた。希望は問い合わせと同じ feedbacks に入る。
+// 代わりに追加の依頼を運営へ送れて、送ったら1つも選んでいなくても先へ進める（2026-10-31 柴野）。
+// 作品選びで止まった人の多くが、推しを検索して0件のまま離れていた。依頼は問い合わせと同じ feedbacks に入る。
 // 検索からフォローしたら検索を閉じて候補の並びに戻し、選んだ作品を先頭に選択中で出す。
 
 interface Props {
   /** フォロー中の作品の数が変わったとき。「次へ」を押せるかと演出に使う */
   onCountChange: (n: number) => void;
-  /** 作品の追加をお願いしたとき。1つも選んでいなくても「次へ」を押せるようにする */
+  /** 作品の追加を依頼したとき。1つも選んでいなくても「次へ」を押せるようにする */
   onRequested: () => void;
 }
 
@@ -43,7 +43,7 @@ export default function OnboardingWorkPicker({ onCountChange, onRequested }: Pro
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Work[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  // 追加をお願いした作品名
+  // 追加を依頼した作品名
   const [requested, setRequested] = useState<Set<string>>(new Set());
   // 画面に収まるチップの数。測り終えるまでは null（全部隠しておく。一瞬全部出てから消えるのを防ぐ）
   const [fit, setFit] = useState<number | null>(null);
@@ -157,7 +157,7 @@ export default function OnboardingWorkPicker({ onCountChange, onRequested }: Pro
     setRequested((prev) => new Set(prev).add(name));
     onRequested();
     // 送れなくても先へは進ませる（閉じ込めない）
-    await sendFeedback(['feature'], `作品の追加希望: ${name}`, { platform: Capacitor.getPlatform(), build: __BUILD_TIME__, page: '/onboarding/works' })
+    await sendFeedback(['feature'], `作品の追加依頼: ${name}`, { platform: Capacitor.getPlatform(), build: __BUILD_TIME__, page: '/onboarding/works' })
       .catch(() => toast('送れませんでした。このまま先へ進めます'));
   };
 
@@ -199,13 +199,13 @@ export default function OnboardingWorkPicker({ onCountChange, onRequested }: Pro
               <p className="text-[12px] text-label-tertiary leading-relaxed">見つかりません。略称・正式名でも検索してみてください。</p>
               {requested.has(query.trim()) ? (
                 <p className="mt-3 flex items-center gap-1.5 text-[13px] font-semibold" style={{ color: 'var(--accent-text)' }}>
-                  <Check size={15} className="flex-shrink-0" /> 追加の希望を受け取りました。先へ進めます
+                  <Check size={15} className="flex-shrink-0" /> 追加の依頼を受け取りました。先へ進めます
                 </p>
               ) : (
                 <button onClick={requestWork} disabled={!user}
                   className="pressable mt-3 w-full py-2.5 rounded-[10px] text-[14px] font-semibold disabled:opacity-50"
                   style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
-                  <span className="block truncate px-3">「{query.trim()}」の追加をお願いする</span>
+                  <span className="block truncate px-3">「{query.trim()}」の追加を依頼する</span>
                 </button>
               )}
             </div>

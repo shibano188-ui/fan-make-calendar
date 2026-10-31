@@ -852,6 +852,18 @@ html[data-bars='band'] .material-bar.scroll-edge[data-skin-bar='main'] > button,
 html[data-bars='band'] .material-bar.scroll-edge[data-skin-bar='main'] > div[style*='fill'] {
   background-color: #17171a !important;
   color: #f4f2ec !important;
+  /* 墨の面の中のボタンは var(--label-primary) を直接使っている。ライトのときは黒のままで、墨の上で読めなかった */
+  --label-primary: #f4f2ec;
+  --label-secondary: rgba(244, 242, 236, 0.7);
+  --label-tertiary: rgba(244, 242, 236, 0.5);
+  --accent-text: var(--accent-color);
+  --fill-secondary: rgba(244, 242, 236, 0.2);
+  --fill-tertiary: rgba(244, 242, 236, 0.1);
+}
+/* 上の「帯の文字は accent-on」の指定が墨の面の中まで届くと、黒い面に黒い文字になる */
+html[data-bars='band'] .material-bar.scroll-edge[data-skin-bar='main'] > div > div .text-label-secondary,
+html[data-bars='band'] .material-bar.scroll-edge[data-skin-bar='main'] > div > div .text-label-tertiary {
+  color: rgba(244, 242, 236, 0.7) !important;
 }
 /* ⚠️ 上の一括指定は**選択中のボタンまで塗り潰す**。帯の中に表示切替（月/週/日/リスト）が
    あるので、そのままだと押しても色が変わらず、どれを選んでいるか分からなくなる。

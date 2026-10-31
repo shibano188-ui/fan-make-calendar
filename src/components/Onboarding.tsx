@@ -8,7 +8,7 @@ import { startTour } from './OnboardingTour';
 import { logScreen } from '../lib/screenLog';
 
 // 初回オンボーディング: ようこそ（OnboardingIntro）→ 推しの作品を選ぶ（2026-09-29 柴野の方針で作り直し）。
-//  - **スキップは無い**。1つ選ぶか、見つからない作品の追加をお願いするまで「次へ」を押せない。既定の作品を勝手に入れることもしない
+//  - **スキップは無い**。1つ選ぶか、見つからない作品の追加を依頼するまで「次へ」を押せない。既定の作品を勝手に入れることもしない
 //  - 「次へ」のあとは説明のカードではなく、本物の画面で案内する（OnboardingTour）:
 //    探すで予定にいいね → カレンダーに入ったのを見る → ベルで通知をON
 //  - 前にあった説明カード3枚とAI入力の体験は外した。AI入力の体験は投稿の入口を作り替えてから戻す
@@ -25,7 +25,7 @@ export default function Onboarding() {
   const [count, setCount] = useState(0);
   // 1つ目を選んだ瞬間だけ「次へ」を揺らす。数が増えるたびに揺らすとうるさい
   const [nudge, setNudge] = useState(0);
-  // 見つからない作品の追加をお願いしたか。選んでいなくても先へ進める
+  // 見つからない作品の追加を依頼したか。選んでいなくても先へ進める
   const [requested, setRequested] = useState(false);
   const prevCount = useRef(0);
   const { pathname } = useLocation();
