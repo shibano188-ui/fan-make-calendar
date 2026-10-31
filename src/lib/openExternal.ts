@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
+import { AppLauncher } from '@capacitor/app-launcher';
 
 // 外部リンクを開く唯一の入口。
 //
@@ -41,6 +42,25 @@ export async function openExternal(url: string): Promise<void> {
     }
   }
   window.open(url, '_blank', 'noopener');
+}
+
+/**
+ * アプリ内ブラウザを通さず OS に渡す。対応するアプリ（X など）が入っていればそのアプリが開く。
+ * Browser プラグインの画面の中では、ほかのアプリに移らない。
+ * 古い Android アプリにはプラグインが無いので window.open に落とす（Android はこれでも OS に渡る）。
+ */
+export async function openInApp(url: string): Promise<void> {
+  if (!url || !isHttpUrl(url)) return;
+  if (Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('AppLauncher')) {
+    try {
+      const { completed } = await AppLauncher.openUrl({ url });
+      if (completed) return;
+    } catch {
+      /* 下のやり方で開く */
+    }
+  }
+  if (Capacitor.getPlatform() === 'android') window.open(url, '_blank', 'noopener');
+  else await openExternal(url);
 }
 
 /**

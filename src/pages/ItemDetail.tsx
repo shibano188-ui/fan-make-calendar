@@ -13,7 +13,7 @@ import { deriveItemType, itemDateLines, todayStr, isDateUncertain, stageFlow } f
 import { resolveBuy, getOffers, offerUrl, primaryOffer, isSearchPageUrl, isSourceOnlyLink, priceRange, isStockStale, stockBadge, cheapestOfferUrl } from '../lib/affiliate';
 import { buildPinnedOffer } from '../lib/searchProduct';
 import { openBuyLink } from '../lib/dataLogs';
-import { shareToX } from '../lib/share';
+import { useShareEvent } from '../hooks/useShareEvent';
 import ReactionButton from '../components/item/ReactionButton';
 import { checkStockNote } from '../lib/stockCheck';
 import StageStepper from '../components/item/StageStepper';
@@ -126,6 +126,7 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
   const [getAppOpen, setGetAppOpen] = useState(false);
   const tourStep = useTourStep();
   const [shareHint, setShareHint] = useState(false);
+  const shareEvent = useShareEvent();
 
   // 開いたら最上部から表示（前ページのスクロール位置を引き継がない）。
   // ロード中は中身が短く効かないので、データ表示後(ev)にも実行＋全スクロール親を0に。
@@ -295,7 +296,7 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
   };
   const openBuy = () => { haptic.select(); if (buyUrl) openBuyLink(event, 'item', user?.id); };
   // X で共有（タイトル・日付・#作品名 #FanHive ＋ LP）。中身は lib/share.ts（ストーリーと共通）
-  const onShare = () => { haptic.select(); shareToX(eff, workName); };
+  const onShare = () => { haptic.select(); void shareEvent(eff, workName); };
 
   // リンクの追加。詳細タブの入力欄と「＋α」のパネルの両方から呼ぶ。
   // 買えるページは購入リンクに、Xのポストやニュースなど買えないものはソースとして足す。
@@ -648,7 +649,7 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
                   <span className="flex items-center gap-1.5 text-[13px] text-label-secondary">
                     {likeCount > 0 && <><Heart size={15} fill="var(--accent-color)" style={{ color: 'var(--accent-color)' }} />{likeCount}人がカレンダーに追加</>}
                   </span>
-                  <button onClick={onShare} className="pressable flex items-center gap-1 text-[13px] text-label-secondary" aria-label="Xで共有">
+                  <button onClick={onShare} className="pressable flex items-center gap-1 text-[13px] text-label-secondary" aria-label="共有">
                     <Share2 size={16} /> 共有
                   </button>
                 </div>
@@ -679,7 +680,7 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
                 )}
                 <NotifyBell event={eff} liked={liked} onSave={onLike} variant="labeled" />
                 <span className="relative">
-                  <button onClick={onShare} className="pressable flex flex-col items-center gap-0.5" aria-label="Xで共有">
+                  <button onClick={onShare} className="pressable flex flex-col items-center gap-0.5" aria-label="共有">
                     <Share2 size={22} className="text-label-secondary" />
                     <span className="text-[10px] text-label-tertiary leading-none">共有</span>
                   </button>

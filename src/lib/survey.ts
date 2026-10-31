@@ -14,6 +14,10 @@ const MAX_SHOWS = 3;
 
 type State = { shown: number; lastAt: number; answered: boolean };
 
+// 同じ起動で評価のカードと重ねないため（lib/review.ts）
+let shownThisLaunch = false;
+export const surveyShownThisLaunch = (): boolean => shownThisLaunch;
+
 function load(): State {
   try { return { shown: 0, lastAt: 0, answered: false, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') as Partial<State> }; }
   catch { return { shown: 0, lastAt: 0, answered: false }; }
@@ -34,6 +38,7 @@ export function shouldAskSurvey(createdAt: string, now = Date.now()): boolean {
 }
 
 export function markSurveyShown(now = Date.now()): void {
+  shownThisLaunch = true;
   const s = load();
   save({ ...s, shown: s.shown + 1, lastAt: now });
 }
