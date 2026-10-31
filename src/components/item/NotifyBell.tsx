@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Bell, BellRing } from 'lucide-react';
 import type { CalendarEvent } from '../../types';
-import { BELL_EVENT, isNotifyOn, setNotifyOn, loadNotifyLeadDays, loadMutedEventIds, toggleMutedEventId, loadBellPrefs, takePriceHint, takeInstantHint } from '../../lib/constants';
+import { BELL_EVENT, NOTIFY_CHANGE_EVENT, isNotifyOn, setNotifyOn, loadNotifyLeadDays, loadMutedEventIds, toggleMutedEventId, loadBellPrefs, takePriceHint, takeInstantHint } from '../../lib/constants';
 import { ensurePermission, scheduleForEvent, cancelForEvent, notificationsSupported } from '../../lib/notifications';
 import { useToast } from '../ui/Toast';
 import { haptic } from '../../lib/haptics';
@@ -12,7 +12,8 @@ import { todayStr } from '../../design/tokens';
  *  ON にするもの（通知の設定ページで選べる・既定はどちらも）:
  *   - 発売日・締切のリマインダー（ローカル通知をスケジュールする）
  *   - 値下げ・再入荷アラート（**プレミアム限定**・グッズのみ。配信側 api/_alerts.ts は「いいね済みかつミュートでない」を送る）
- *  保存していない予定でも押せて、押したら保存（いいね）も同時にする。保存を外すとリマインダーも止める。 */
+ *  保存していない予定でも押せて、押したら保存（いいね）も同時にする。
+ *  ♡で ON・♡を外すと OFF は syncNotifyWithLike。ここで liked を見て消すと、♡の状態が届く前の一瞬で設定が消える。 */
 export default function NotifyBell({ event, liked, onSave, size = 18, variant = 'icon' }: {
   event: CalendarEvent; liked: boolean; onSave?: () => unknown; size?: number; variant?: 'icon' | 'labeled';
 }) {
@@ -23,11 +24,12 @@ export default function NotifyBell({ event, liked, onSave, size = 18, variant = 
   const [reminder, setReminder] = useState(false);
   const [priceMuted, setPriceMuted] = useState(false);
 
-  // 保存状態に同期。保存を外したらリマインダーも止める
   useEffect(() => {
-    if (!liked && isNotifyOn(event.id)) { setNotifyOn(event.id, false); cancelForEvent(event.id); }
-    setReminder(liked && isNotifyOn(event.id));
+    const sync = () => setReminder(liked && isNotifyOn(event.id));
+    sync();
     setPriceMuted(loadMutedEventIds().has(event.id));
+    window.addEventListener(NOTIFY_CHANGE_EVENT, sync);
+    return () => window.removeEventListener(NOTIFY_CHANGE_EVENT, sync);
   }, [liked, event.id]);
 
   // 値下げ・再入荷が実際に届く状態か（プレミアム・グッズ・保存済み・ミュートしていない）

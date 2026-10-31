@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Check, Heart, ImageOff, Lock } from 'lucide-react';
 import type { CalendarEvent } from '../../types';
 import { useLike, setLike } from '../../lib/likeStore';
+import { syncNotifyWithLike } from '../../lib/notifications';
 import { deriveStatus, deriveItemType, itemDateLines, todayStr } from '../../design/tokens';
 import { countdownLabel } from '../../lib/relativeDay';
 import { parseCategories, getPrimaryCategoryColor, parseImageUrls, LIKED_EVENT } from '../../lib/constants';
@@ -23,7 +24,8 @@ interface Props {
   /** 作品ごとの色。カード左端の縦バーで示す。未指定なら表示しない。 */
   workColor?: string;
   onOpen?: () => void;
-  onLike?: () => void | Promise<{ liked: boolean; count: number } | void>;
+  /** want … 押したあとの状態（♡を付ける＝true） */
+  onLike?: (want: boolean) => void | Promise<{ liked: boolean; count: number } | void>;
   onCalendar?: () => void;
 }
 
@@ -119,8 +121,11 @@ export default function ItemCard({ event, layout = 'grid', isNew, viewed, likedI
   const handleLike = async () => {
     const prev = { liked, count: likeCount };
     setLike(event.id, { liked: !prev.liked, count: prev.count + (prev.liked ? -1 : 1) });
-    try { const r = await onLike?.(); if (r && typeof r === 'object') setLike(event.id, { liked: r.liked, count: r.count }); }
+    // 通信を待たずに許可を聞く。ベルから来たときは、聞き終えてからベルの処理へ戻る
+    const notify = syncNotifyWithLike(event, !prev.liked);
+    try { const r = await onLike?.(!prev.liked); if (r && typeof r === 'object') setLike(event.id, { liked: r.liked, count: r.count }); }
     catch { setLike(event.id, prev); }
+    await notify;
   };
   const firstImg = parseImageUrls(event.imageUrl)[0];
   const showImg = !!firstImg && !imgError;

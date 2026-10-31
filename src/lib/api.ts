@@ -834,7 +834,8 @@ export async function addLikeTap(eventId: string, _userId: string): Promise<numb
   return (data as number) ?? 0;
 }
 
-export async function toggleLike(eventId: string, userId: string): Promise<{ liked: boolean; count: number }> {
+/** want を渡すとその状態にする（画面の表示が古くても、押した人の意図と逆にならない）。無ければ反転する */
+export async function toggleLike(eventId: string, userId: string, want?: boolean): Promise<{ liked: boolean; count: number }> {
   const { data: existing } = await supabase
     .from('likes')
     .select('id')
@@ -842,9 +843,10 @@ export async function toggleLike(eventId: string, userId: string): Promise<{ lik
     .eq('user_id', userId)
     .maybeSingle();
 
-  if (existing) {
+  const liked = want ?? !existing;
+  if (existing && !liked) {
     await supabase.from('likes').delete().eq('id', existing.id);
-  } else {
+  } else if (!existing && liked) {
     await supabase.from('likes').insert({ event_id: eventId, user_id: userId });
   }
 
@@ -866,9 +868,9 @@ export async function toggleLike(eventId: string, userId: string): Promise<{ lik
   requestGoogleSync();
 
   // オンボーディングの案内は「いいねしたらカレンダーへ」なので、どの画面で押しても拾えるように知らせる
-  if (!existing) window.dispatchEvent(new CustomEvent(LIKED_EVENT, { detail: { id: eventId } }));
+  if (!existing && liked) window.dispatchEvent(new CustomEvent(LIKED_EVENT, { detail: { id: eventId } }));
 
-  return { liked: !existing, count: count ?? 0 };
+  return { liked, count: count ?? 0 };
 }
 
 // ─── ユーザー設定 ──────────────────────────────────────────────────

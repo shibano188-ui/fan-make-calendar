@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Bell, BellRing, ChevronRight, TrendingDown } from 'lucide-react';
+import { ArrowLeft, Bell, BellRing, ChevronRight, Heart, TrendingDown } from 'lucide-react';
 import { App } from '@capacitor/app';
 import { listSavedEvents, listAllParticipatedWorks, type Work } from '../lib/api';
 import { getCached, setCached } from '../lib/swrCache';
@@ -183,6 +183,17 @@ export default function NotificationSettings() {
             </button>
           )}
 
+
+          {/* ♡で通知もONにするか（既定ON）。外すとベルを押した予定だけになる */}
+          <div className="rounded-[12px] overflow-hidden mb-4" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+            <div className="px-3 py-2.5">
+              <div className="flex items-center gap-2">
+                <Heart size={16} className="text-label-secondary" />
+                <span className="text-[14px] flex-1">♡を押したら通知もONにする</span>
+                <Toggle checked={bell.onLike} onChange={(v) => onToggleBell('onLike', v)} />
+              </div>
+            </div>
+          </div>
 
           {/* 予定のベルを押したときに何をONにするか。ベルは1回押すだけにしたので、細かい選択はここで */}
           <p className="text-[12px] text-label-secondary px-1 mb-1.5">予定のベルを押したときにONにするもの</p>

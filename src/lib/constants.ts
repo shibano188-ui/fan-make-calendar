@@ -35,6 +35,8 @@ export const TOUR_EVENT = 'fan-tour';
 export const LIKED_EVENT = 'fan-liked';
 /** ベルを押して、通知の許可を聞き終えたことを知らせる window のイベント名 */
 export const BELL_EVENT = 'fan-bell';
+/** 予定の通知のON／OFFが変わった合図。ベルの表示をそろえる */
+export const NOTIFY_CHANGE_EVENT = 'fan-notify-change';
 /** フォローが画面の外で変わったことを知らせる window のイベント名（workImages.ts の fan-work-images と同じ流儀）。
  *  オンボーディングは開いているホームの上に重なるので、ホームは user が変わらない限り読み直さない。これで読み直させる */
 export const FOLLOWS_EVENT = 'fan-follows';
@@ -408,15 +410,16 @@ export function setNotifyOn(id: string, on: boolean): Set<string> {
   const set = loadNotifyEventIds();
   if (on) set.add(id); else set.delete(id);
   saveNotifyEventIds(set);
+  window.dispatchEvent(new Event(NOTIFY_CHANGE_EVENT));
   return new Set(set);
 }
 
 // ─── ベルを押したときにONにするもの（通知の設定ページで選ぶ・既定はどちらもON）──────
 const BELL_PREFS_KEY = 'fan_bell_prefs';
-export interface BellPrefs { reminder: boolean; price: boolean; }
+export interface BellPrefs { reminder: boolean; price: boolean; onLike: boolean; }
 export function loadBellPrefs(): BellPrefs {
-  try { return { reminder: true, price: true, ...JSON.parse(localStorage.getItem(BELL_PREFS_KEY) ?? '{}') as Partial<BellPrefs> }; }
-  catch { return { reminder: true, price: true }; }
+  try { return { reminder: true, price: true, onLike: true, ...JSON.parse(localStorage.getItem(BELL_PREFS_KEY) ?? '{}') as Partial<BellPrefs> }; }
+  catch { return { reminder: true, price: true, onLike: true }; }
 }
 export function saveBellPrefs(p: BellPrefs): void {
   try { localStorage.setItem(BELL_PREFS_KEY, JSON.stringify(p)); } catch { /* noop */ }

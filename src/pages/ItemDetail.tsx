@@ -22,6 +22,7 @@ import { useHiddenContent } from '../hooks/useHiddenContent';
 import { haptic } from '../lib/haptics';
 import { likeEffect } from '../lib/likeEffect';
 import { useLike, setLike, getLike } from '../lib/likeStore';
+import { syncNotifyWithLike } from '../lib/notifications';
 import ImageCarousel from '../components/item/ImageCarousel';
 import NotifyBell from '../components/item/NotifyBell';
 import AddInfoSheet from '../components/item/AddInfoSheet';
@@ -229,8 +230,10 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
     if (!user) return;
     const prev = { liked, count: likeCount };
     setLike(event.id, { liked: !prev.liked, count: prev.count + (prev.liked ? -1 : 1) });
-    try { const r = await toggleLike(event.id, user.id); setLike(event.id, { liked: r.liked, count: r.count }); }
+    const notify = syncNotifyWithLike(eff, !prev.liked);
+    try { const r = await toggleLike(event.id, user.id, !prev.liked); setLike(event.id, { liked: r.liked, count: r.count }); }
     catch { setLike(event.id, prev); }
+    await notify;
   };
 
   const onCalendar = async () => {
