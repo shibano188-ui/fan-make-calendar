@@ -17,6 +17,7 @@ import { deriveStatus, todayStr, STATUS, type ItemStatus } from '../design/token
 import { getHomePrefecture, toggleLike, toggleCalendarAdd, listAllParticipatedWorks, type Work } from '../lib/api';
 import { loadWorkImages } from '../lib/workImages';
 import { useTheme } from '../contexts/ThemeContext';
+import { EventStyleSheet } from '../components/item/EventStylePicker';
 import { peekSaved, loadSaved, updateSaved } from '../lib/savedStore';
 import { parseCategories, isNotifyOn, FEATURE_PREMIUM } from '../lib/constants';
 
@@ -219,13 +220,17 @@ export default function Saved() {
     updateSaved(user.id, apply);
   };
 
+  // リスト表示のカードから色と記号を選ぶ。選んだらカードの色へすぐ映す
+  const [styling, setStyling] = useState<CalendarEvent | null>(null);
+  const [styleTick, setStyleTick] = useState(0);
+
   // 保存中の予定に出てくる作品の色マップ（未割当はパレットから付与して永続化）
   const workColorMap = useMemo(() => {
     const works = Array.from(
       new Map((items ?? []).filter((e) => e.workId).map((e) => [e.workId!, { id: e.workId! }])).values(),
     );
     return buildWorkColorMap(works);
-  }, [items]);
+  }, [items, styleTick]);
 
   // 作品の並びの四角の色。カレンダーの帯と同じ保存先なので、同じ作品は同じ色になる
   const followedColor = useMemo(() => buildWorkColorMap(followedWorks), [followedWorks]);
@@ -534,10 +539,11 @@ export default function Saved() {
           {listItems.map((e) => (
             <ItemCard key={e.id} event={e} layout="list" likedInit={e.likedByMe}
               workColor={eventColorFrom(workColorMap, e)}
-              onOpen={() => openItem(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} />
+              onOpen={() => openItem(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onStyle={() => setStyling(e)} />
           ))}
         </div>
       )}
+      {styling && <EventStyleSheet eventId={styling.id} workId={styling.workId} onClose={() => setStyling(null)} onChange={() => setStyleTick((t) => t + 1)} />}
 
       {/* 自分用の予定を作る入口（2026-09-29）。みんなに公開する情報は下の真ん中の「＋」から。
           日付は表示中の日（月表示なら今日か、見ている月の1日）を入れておく */}

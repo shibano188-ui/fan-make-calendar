@@ -51,7 +51,6 @@ export default function Survey() {
   const [recommend, setRecommend] = useState<number | null>(null);
   const [complaint, setComplaint] = useState('');
   const [wish, setWish] = useState('');
-  const [spread, setSpread] = useState('');
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
 
@@ -72,7 +71,6 @@ export default function Survey() {
       `すすめたい: ${recommend}/5`,
       complaint.trim() && `不満なところ: ${complaint.trim()}`,
       wish.trim() && `ほしい機能: ${wish.trim()}`,
-      spread.trim() && `広めたくなる条件: ${spread.trim()}`,
     ].filter(Boolean);
     try {
       await sendFeedback(['other'], lines.join('\n'), { platform: Capacitor.getPlatform(), build: __BUILD_TIME__, page: `survey:${SURVEY_ID}` });
@@ -98,8 +96,7 @@ export default function Survey() {
               style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 16%, transparent)', color: 'var(--accent-text)' }}>
               <Heart size={28} />
             </div>
-            <p className="text-[18px] font-bold mt-4">ありがとうございます！</p>
-            <p className="text-[14px] text-label-secondary leading-relaxed mt-2">いただいた声は、運営が全部読んでアプリづくりに活かします。</p>
+            <p className="text-[18px] font-bold mt-4">ありがとうございました！</p>
             <button onClick={() => { haptic.select(); goBack(); }}
               className="pressable w-full mt-8 py-3 rounded-full text-[15px] font-semibold"
               style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
@@ -118,7 +115,6 @@ export default function Survey() {
             </div>
             <TextQuestion label="不満なところ・使いにくいところ" value={complaint} onChange={setComplaint} />
             <TextQuestion label="ほしい機能" value={wish} onChange={setWish} />
-            <TextQuestion label="どうなったら人に広めたくなりますか？" value={spread} onChange={setSpread} />
             <button onClick={send} disabled={!ready}
               className="pressable w-full mt-6 py-3 rounded-full text-[15px] font-semibold"
               style={ready ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' } : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-tertiary)' }}>

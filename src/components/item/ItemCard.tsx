@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Heart, ImageOff, Lock } from 'lucide-react';
+import { Check, Heart, ImageOff, Lock, Palette } from 'lucide-react';
 import type { CalendarEvent } from '../../types';
 import { useLike, setLike } from '../../lib/likeStore';
 import { syncNotifyWithLike } from '../../lib/notifications';
@@ -27,6 +27,8 @@ interface Props {
   /** want … 押したあとの状態（♡を付ける＝true） */
   onLike?: (want: boolean) => void | Promise<{ liked: boolean; count: number } | void>;
   onCalendar?: () => void;
+  /** カレンダーの中のカードだけ渡す。色と記号を選ぶボタンが出る */
+  onStyle?: () => void;
 }
 
 function yen(n?: number): string {
@@ -102,7 +104,7 @@ function CategoryLine({ event }: { event: CalendarEvent }) {
 }
 
 /** 探す/ホームの基本カード。メルカリ流＝画像が主役・価格を最強・枠線で区切り。 */
-export default function ItemCard({ event, layout = 'grid', isNew, viewed, likedInit, workColor, onOpen, onLike }: Props) {
+export default function ItemCard({ event, layout = 'grid', isNew, viewed, likedInit, workColor, onOpen, onLike, onStyle }: Props) {
   const type = deriveItemType(event);
   const status = deriveStatus(event);
   // 種類違いが並ぶ予定は「¥330〜」（カードは狭いので下限だけ。幅は詳細ページで出す）
@@ -205,7 +207,7 @@ export default function ItemCard({ event, layout = 'grid', isNew, viewed, likedI
               </div>
             )}
           </button>
-          <div className="mt-auto pt-2 flex justify-end"><CardActions liked={liked} likeCount={likeCount} onLike={handleLike} event={event} large /></div>
+          <div className="mt-auto pt-2 flex justify-end"><CardActions liked={liked} likeCount={likeCount} onLike={handleLike} event={event} onStyle={onStyle} large /></div>
         </div>
       </div>
     );
@@ -226,19 +228,25 @@ export default function ItemCard({ event, layout = 'grid', isNew, viewed, likedI
         </div>
       </button>
       <div className="px-2 pb-2 pt-1 mt-auto">
-        <CardActions liked={liked} likeCount={likeCount} onLike={handleLike} event={event} />
+        <CardActions liked={liked} likeCount={likeCount} onLike={handleLike} event={event} onStyle={onStyle} />
       </div>
     </div>
   );
 }
 
 /** large＝予定パネル用（よく押すので大きめ・間隔も広め）。ホームの2列は今の大きさのまま */
-function CardActions({ liked, likeCount, onLike, event, large }: { liked?: boolean; likeCount?: number; onLike?: () => void; event: CalendarEvent; large?: boolean }) {
+function CardActions({ liked, likeCount, onLike, event, onStyle, large }: { liked?: boolean; likeCount?: number; onLike?: () => void; event: CalendarEvent; onStyle?: () => void; large?: boolean }) {
   const size = large ? 23 : 18;
+  const styleButton = onStyle && (
+    <button onClick={(e) => { e.stopPropagation(); onStyle(); }} aria-label="色と記号" className="pressable tap-44 flex items-center text-label-secondary">
+      <Palette size={size} />
+    </button>
+  );
   // 自分用の予定（personal_events）は ♡・リアクションが無い（本人のカレンダーにしか無い）。通知のベルだけ
   if (event.personal) {
     return (
-      <div data-skin-part="card-actions" className="flex items-center">
+      <div data-skin-part="card-actions" className={`flex items-center ${large ? 'gap-5' : 'gap-4'}`}>
+        {styleButton}
         <NotifyBell event={event} liked size={size} />
       </div>
     );
@@ -259,6 +267,7 @@ function CardActions({ liked, likeCount, onLike, event, large }: { liked?: boole
       </button>
       <ReactionButton eventId={event.id} size={size} />
       <NotifyBell event={event} liked={!!liked} onSave={onLike} size={size} />
+      {styleButton}
     </div>
   );
 }
