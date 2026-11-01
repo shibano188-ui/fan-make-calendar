@@ -465,7 +465,127 @@ async function crawlAnimate(db: Db, authorId: string): Promise<{ added: number; 
   return { ...r, read, note };
 }
 
-/** 店の全作品の巡回を、1回ぶん進める。ムービック・KADOKAWAストア・コトブキヤ・アニメイト */
+// ── eeo Store ─────────────────────────
+// 新着順の一覧（1ページ40件・約840ページ）に、名前・値段・売り切れ・通販期間・お届け時期がある。規約・robots.txt に禁止は無い（2026-11-01 確認）。
+// 作品の分類は無いので、登録済みの作品名で商品名から見分ける（知らない作品の商品は入れない）。
+const EEO = 'https://eeo.today/store/101';
+const EEO_PAGES_PER_RUN = 3;
+const EEO_DAILY_PAGES = 5;
+
+/** 「12月中旬予定」のように年の無いお届け時期。今月より前の月なら来年 */
+function deliveryFromText(t: string, today: string): { date: string; dateLabel: string | null } | null {
+  const m = t.match(/(?:(\d{4})年\s*)?(\d{1,2})月\s*(上旬|中旬|下旬)/);
+  if (!m) return parseReleaseText(t);
+  const mon = Number(m[2]);
+  const y = m[1] ? Number(m[1]) : Number(today.slice(0, 4)) + (mon < Number(today.slice(5, 7)) ? 1 : 0);
+  return { date: `${y}-${String(mon).padStart(2, '0')}-${{ 上旬: '05', 中旬: '15', 下旬: '25' }[m[3]]}`, dateLabel: m[3] };
+}
+
+export function parseEeoList(html: string, today: string): ListProduct[] {
+  const out: ListProduct[] = [];
+  // 最後の商品の後ろにはページ全体の JSON が続くので、商品の </li> までに切る
+  for (const b of html.split('<li class="ec-shelfGrid__item">').slice(1).map((x) => x.split('</li>')[0])) {
+    const url = b.match(/href="(https:\/\/eeo\.today\/store\/101\/products\/detail\/\d+)"/)?.[1];
+    const title = b.match(/ec-shelfGrid__item-title">([^<]+)</)?.[1]?.replace(/&amp;/g, '&').trim();
+    const price = b.match(/[￥¥]\s*([\d,]+)/)?.[1];
+    if (!url || !title || !price) continue;
+    const img = b.match(/data-src="([^"]+)"/)?.[1];
+    const image = img ? new URL(img, 'https://eeo.today').toString() : '';
+    const end = b.match(/通販期間[：:]\s*(\d{4})年(\d{1,2})月(\d{1,2})日/);
+    const preorderEnd = end ? `${end[1]}-${end[2].padStart(2, '0')}-${end[3].padStart(2, '0')}` : undefined;
+    const open = !!preorderEnd && preorderEnd >= today;
+    const delivery = b.match(/お届け[：:]\s*([^<]+)/)?.[1] ?? '';
+    const release = deliveryFromText(delivery, today);
+    // 通販期間が過ぎたものは、もう買えない
+    const soldOut = /sold_text|売り切れ|在庫なし|受付終了|販売終了/i.test(b) || (!!preorderEnd && !open);
+    // 通販期間が書かれていなくても、お届けが先なら予約で売っている
+    const preorder = open || (!soldOut && !!release && release.date > today);
+    out.push({
+      title, url, price: Number(price.replace(/,/g, '')), inStock: !soldOut,
+      ...(preorder ? { stockLabel: '予約受付中', ...(open ? { preorderEnd } : {}) } : soldOut ? {} : { stockLabel: '在庫あり' }),
+      ...(release ? { release } : {}),
+      image, images: image ? [image] : [],
+    });
+  }
+  return out;
+}
+
+interface EeoState { phase: 'initial' | 'daily'; page?: number; dailyAt?: string }
+
+async function crawlEeo(db: Db, authorId: string): Promise<{ added: number; merged: number; read: number; note: string }> {
+  const { data: st } = await db.from('bot_state').select('value').eq('key', 'catalog:eeo').maybeSingle();
+  const s: EeoState = { phase: 'initial', page: 1, ...((st?.value ?? {}) as Partial<EeoState>) };
+  if (s.phase === 'daily' && s.dailyAt && Date.now() - Date.parse(s.dailyAt) < 24 * 3600_000) return { added: 0, merged: 0, read: 0, note: '今日の新着は済んでいる' };
+  const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+  let added = 0, merged = 0, read = 0;
+  for (let n = 0; n < EEO_PAGES_PER_RUN; n++) {
+    const html = await getHtml(`${EEO}/products/list?pageno=${s.page ?? 1}`);
+    // 読めないときは進めない。次の回に同じページを読む
+    if (!html) break;
+    const items = parseEeoList(html, today);
+    read += items.length;
+    const r = await registerByTitle(db, authorId, 'eeo Store', items.filter((p) => p.inStock !== false), s.phase === 'initial' ? backdate : undefined);
+    added += r.added; merged += r.merged;
+    const last = !items.length || (s.phase === 'daily' && (s.page ?? 1) >= EEO_DAILY_PAGES);
+    if (last) {
+      s.phase = 'daily'; s.page = 1; s.dailyAt = new Date().toISOString();
+      break;
+    }
+    s.page = (s.page ?? 1) + 1;
+  }
+  await db.from('bot_state').upsert({ key: 'catalog:eeo', value: s, updated_at: new Date().toISOString() });
+  return { added, merged, read, note: `${s.page}ページ目まで` };
+}
+
+// ── AMNIBUS ─────────────────────────
+// 一覧の HTML の data-items に、作品名・値段・在庫・予約締切・発送時期の入った JSON がある。ページ送りと検索にはこの JSON が無いので、
+// 新着50件だけを1日1回読む。検索の結果には作品名が無く、別の作品の商品が混ざるおそれがあるので使わない。robots.txt は Crawl-delay: 15。
+const AMNIBUS = 'https://amnibus.com';
+
+export function parseAmnibusList(html: string, today: string): ListProduct[] {
+  const raw = html.match(/data-items='(\[[\s\S]*?\])'/)?.[1];
+  if (!raw) return [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let rows: any[];
+  try {
+    rows = JSON.parse(raw.replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'));
+  } catch { return []; }
+  return rows.flatMap((p) => {
+    const name = String(p.fullName ?? p.name ?? '').trim();
+    const price = Number(p.getPriceIncTaxMin ?? 0);
+    if (!p.id || !name || !price) return [];
+    // 商品名に作品名が入っていないので、作品の見分けと一覧での表示のために頭に付ける
+    const title = `${String(p.artworkTitle ?? '').trim()} ${name}`.trim();
+    const pc = p.productClasses?.[0];
+    const type = pc?.productType;
+    const period = type?.reservationPeriod ? new Date(Date.parse(type.reservationPeriod) + 9 * 3600_000).toISOString().slice(0, 10) : undefined;
+    const open = !!period && period >= today;
+    const canBuy = !p.isDiscontinued && p.stockFind !== false && pc?.canSale !== false && (open || !!type?.isStockSale);
+    const release = deliveryFromText(String(type?.deliverySchedule ?? ''), today);
+    const image = String(p.mainListImage?.filename ?? '');
+    return [{
+      title, url: `${AMNIBUS}/products/detail/${p.id}`, price, inStock: canBuy,
+      ...(open ? { stockLabel: '予約受付中', preorderEnd: period } : canBuy ? { stockLabel: '在庫あり' } : {}),
+      ...(release ? { release } : {}),
+      image, images: image ? [image] : [],
+    } as ListProduct];
+  });
+}
+
+async function crawlAmnibus(db: Db, authorId: string): Promise<{ added: number; merged: number; read: number; note: string }> {
+  const { data: st } = await db.from('bot_state').select('value').eq('key', 'catalog:amnibus').maybeSingle();
+  const s = (st?.value ?? {}) as { dailyAt?: string };
+  if (s.dailyAt && Date.now() - Date.parse(s.dailyAt) < 24 * 3600_000) return { added: 0, merged: 0, read: 0, note: '今日の新着は済んでいる' };
+  const html = await getHtml(`${AMNIBUS}/products/list`);
+  // 読めないときは見たことにしない
+  const items = html ? parseAmnibusList(html, new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)) : [];
+  if (!items.length) return { added: 0, merged: 0, read: 0, note: '新着が読めない' };
+  const r = await registerByTitle(db, authorId, 'AMNIBUS', items.filter((p) => p.inStock !== false));
+  await db.from('bot_state').upsert({ key: 'catalog:amnibus', value: { dailyAt: new Date().toISOString() }, updated_at: new Date().toISOString() });
+  return { ...r, read: items.length, note: '新着' };
+}
+
+/** 店の全作品の巡回を、1回ぶん進める。ムービック・KADOKAWAストア・コトブキヤ・アニメイト・eeo Store・AMNIBUS */
 export async function crawlCatalogs(db: Db, budgetMs: number): Promise<Record<string, unknown>> {
   const { data: bot } = await db.from('staff').select('user_id').eq('role', 'bot').limit(1).maybeSingle();
   if (!bot?.user_id || budgetMs < 5000) return { skipped: true };
@@ -476,5 +596,8 @@ export async function crawlCatalogs(db: Db, budgetMs: number): Promise<Record<st
   const kotobukiya = await crawlKotobukiya(db, bot.user_id as string, share).catch((e) => ({ error: String(e) }));
   // アニメイトは時間ではなく「20分に1回・1ページ」で進むので、持ち時間の外
   const animate = await crawlAnimate(db, bot.user_id as string).catch((e) => ({ error: String(e) }));
-  return { movic, kadokawa, kotobukiya, animate };
+  // eeo Store と AMNIBUS も「1回に読むページ数」で進むので、持ち時間の外
+  const eeo = await crawlEeo(db, bot.user_id as string).catch((e) => ({ error: String(e) }));
+  const amnibus = await crawlAmnibus(db, bot.user_id as string).catch((e) => ({ error: String(e) }));
+  return { movic, kadokawa, kotobukiya, animate, eeo, amnibus };
 }
