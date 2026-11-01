@@ -34,7 +34,7 @@ interface Source {
   urls?: () => Promise<string[]>;
   /** URLでは読めない一覧（ジャンプショップの新着など）を直接返す。first=この場所を初めて見る回 */
   lists?: (first: boolean) => Promise<ProductList[]>;
-  /** 店全体が1作品の公式ストア。商品名で絞らず、今買えるものは発売済みでも入れる */
+  /** 店全体が1作品の公式ストア。商品名で絞らず、発売から1か月以内か受付中の買えるものを入れる */
   wholeShop?: boolean;
 }
 
@@ -111,6 +111,12 @@ export function upcoming(list: ProductList): ProductList {
     return /予約|受付前/.test(p.stockLabel ?? '');
   });
   return { ...list, products };
+}
+
+/** 公式ストアの全商品から、買えるもののうち発売から1か月以内か受付中のものだけ残す。何年も前の在庫品を予定にしない */
+function recentInStore(list: ProductList): ProductList {
+  const since = new Date(Date.now() + 9 * 3600_000 - 30 * 86400_000).toISOString().slice(0, 10);
+  return { ...list, products: list.products.filter((p) => p.inStock !== false && (p.release ? p.release.date >= since : /予約|受付前/.test(p.stockLabel ?? ''))) };
 }
 
 /** ちいかわマーケットの「10月3日予約商品」は予約開始日 */
@@ -205,7 +211,7 @@ async function crawlSource(db: Db, src: Source, authorId: string, first = false)
   for (const got of lists) {
     read += got.products.length;
     const mine = src.key === CHIIKAWA_MARKET.key || src.wholeShop ? got : await onlyThisWork(db, got, wid, src.work);
-    const buyable = src.wholeShop ? { ...mine, products: mine.products.filter((p) => p.inStock !== false) } : upcoming(mine);
+    const buyable = src.wholeShop ? recentInStore(mine) : upcoming(mine);
     const { list } = await excludeRegistered(buyable).catch(() => ({ list: buyable }));
     if (!list.products.length) continue;
     const preStart = preorderFromTitle(got.title);
