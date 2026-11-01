@@ -3,13 +3,13 @@
 // （staff.role = 'bot'）の投稿として入れる。普通の投稿と同じ扱い（新着の通知にも入る）。
 // 直すのは運営の各自（staff.role = 'admin'）が詳細ページから行う。
 //
-// 巡回先 = ちいかわマーケット ＋ 決まった9作品 × アニメイト・ムービックの検索 ＋ ジャンプショップの全作品（_jumpshop.ts）。
+// 巡回先 = ちいかわマーケット ＋ 決まった作品 × アニメイト・ムービックの検索 ＋ ジャンプショップの全作品（_jumpshop.ts）＋ 作品の公式ストア。
 // ゆくゆくはフォローされている作品を全部にしたいが、巡回が重くなるので今は9作品だけ（柴野の判断・2026-09-27）。
 // まだ一度も見ていない場所を先に見て、あとは前回見たのが古い順。
 // 1回に2か所、同じ場所は1日1回まで。前回見た時刻は bot_state（key='crawl'）に持つ。
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchProductList, excludeRegistered, productKey, type ProductList } from './_listsource.js';
-import { fetchShopifyAll, fetchShopifyCollection, type ShopifyProduct } from './_shopify.js';
+import { fetchShopifyAll, fetchShopifyCollection, fetchShopifyNewest, parseBodyDates, type ShopifyProduct } from './_shopify.js';
 import { listEvents, type ListEvent } from './_listgroup.js';
 import { representativePrice, type OfferRow } from './_offers.js';
 import { lookupByUrl } from './_product-search.js';
@@ -19,14 +19,23 @@ import { botCanFetch } from './_pace.js';
 type Db = SupabaseClient<any>;
 
 // 巡回する作品（works.name と同じ表記）。ヒカルの碁は盛り上がっているので足した（柴野・2026-10-02）
-const FIXED_WORKS = ['葬送のフリーレン', '呪術廻戦', 'ハイキュー!!', '進撃の巨人', '鬼滅の刃', '僕のヒーローアカデミア', 'ちいかわ', 'ブルーロック', '名探偵コナン', 'ヒカルの碁'];
+const FIXED_WORKS = ['葬送のフリーレン', '呪術廻戦', 'ハイキュー!!', '進撃の巨人', '鬼滅の刃', '僕のヒーローアカデミア', 'ちいかわ', 'ブルーロック', '名探偵コナン', 'ヒカルの碁',
+  // 作品の追加依頼が来たので足した（柴野・2026-11-01）
+  'プロジェクトセカイ カラフルステージ! feat. 初音ミク', 'あんさんぶるスターズ!!'];
+// 店の検索に使う語が作品名と違うもの。正式名のままだと長すぎて、商品名の短い表記に当たらない
+const SEARCH_WORDS: Record<string, string> = {
+  'プロジェクトセカイ カラフルステージ! feat. 初音ミク': 'プロジェクトセカイ',
+  'あんさんぶるスターズ!!': 'あんさんぶるスターズ',
+};
 
 interface Source {
   key: string; work: string;
   /** 読む一覧のURL（投稿画面と同じ fetchProductList で読む） */
   urls?: () => Promise<string[]>;
-  /** URLでは読めない一覧（ジャンプショップの新着など）を直接返す */
-  lists?: () => Promise<ProductList[]>;
+  /** URLでは読めない一覧（ジャンプショップの新着など）を直接返す。first=この場所を初めて見る回 */
+  lists?: (first: boolean) => Promise<ProductList[]>;
+  /** 店全体が1作品の公式ストア。商品名で絞らず、今買えるものは発売済みでも入れる */
+  wholeShop?: boolean;
 }
 
 const todayJst = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
@@ -46,15 +55,36 @@ const CHIIKAWA_MARKET: Source = {
 // ジャンプショップは作品を問わず全部（柴野の判断・2026-09-28）。1つの巡回先として扱い、中は crawlJumpShop が回す
 const JUMP_SHOP_SOURCE: Source = { key: 'jumpshop', work: '' };
 
+// ブラスタの公式ストア（Shopify）。受付期間・発売日は商品の説明文にしか無いので、そこから読む（作品の追加依頼から・2026-11-01）
+const BLACKSTAR_ORIGIN = 'https://bsofficialstore.com';
+const BLACKSTAR_STORE: Source = {
+  key: 'bsofficialstore', work: 'ブラックスター -Theater Starless-', wholeShop: true,
+  lists: async (first) => {
+    const got = await (first ? fetchShopifyAll(BLACKSTAR_ORIGIN) : fetchShopifyNewest(BLACKSTAR_ORIGIN));
+    if (!got) return [];
+    return [{ title: '', shop: got.shop, retailer: got.shop, nextPage: null, products: got.products.map(withBodyDates) }];
+  },
+};
+
+/** 説明文の日付を商品に入れる。受付中なら「予約受付中」にして、予定の締切に出す */
+function withBodyDates(p: ShopifyProduct): ShopifyProduct & { preorderEnd?: string } {
+  const { preorderEnd, release } = parseBodyDates(p.body ?? '', todayJst());
+  return {
+    ...p,
+    ...(release ? { release: { date: release, dateLabel: null } } : {}),
+    ...(preorderEnd ? { preorderEnd, ...(p.inStock ? { stockLabel: '予約受付中' } : {}) } : {}),
+  };
+}
+
 const searchSources = (w: string): Source[] => [
   // アニメイトは登録の新しい順（sort=5）、ムービックは新着順（seq=nd）
-  { key: `animate:${w}`, work: w, urls: async () => [`https://www.animate-onlineshop.jp/products/list.php?smt=${encodeURIComponent(w)}&sort=5`] },
-  { key: `movic:${w}`, work: w, urls: async () => [`https://www.movic.jp/shop/goods/search.aspx?search=x&keyword=${encodeURIComponent(w)}&seq=nd`] },
+  { key: `animate:${w}`, work: w, urls: async () => [`https://www.animate-onlineshop.jp/products/list.php?smt=${encodeURIComponent(SEARCH_WORDS[w] ?? w)}&sort=5`] },
+  { key: `movic:${w}`, work: w, urls: async () => [`https://www.movic.jp/shop/goods/search.aspx?search=x&keyword=${encodeURIComponent(SEARCH_WORDS[w] ?? w)}&seq=nd`] },
 ];
 
 /** 巡回先の一覧 */
 function listSources(): Source[] {
-  return [CHIIKAWA_MARKET, ...FIXED_WORKS.flatMap(searchSources), JUMP_SHOP_SOURCE];
+  return [CHIIKAWA_MARKET, ...FIXED_WORKS.flatMap(searchSources), JUMP_SHOP_SOURCE, BLACKSTAR_STORE];
 }
 
 const norm = (s: string) => s.normalize('NFKC').toLowerCase().replace(/[\s!?・/\\\-ー~〜、。,.:;'"「」『』【】[\]()（）《》<>＜＞#＆&+*★☆♪]/g, '');
@@ -142,6 +172,7 @@ export async function crawlNext(db: Db): Promise<{ sources: string[]; added: num
     .sort((a, b) => (seen[a.key] ?? '').localeCompare(seen[b.key] ?? '')).slice(0, 2);
   if (!picks.length) return { sources: [], added: 0, merged: 0, read: 0, skipped: '今日の巡回は済んでいる' };
   const now = new Date().toISOString();
+  const firstTime = new Set(picks.filter((p) => !seen[p.key]).map((p) => p.key));
   for (const p of picks) seen[p.key] = now;
   // 巡回先から外れた作品の記録は残さない
   const keys = new Set(sources.map((x) => x.key));
@@ -149,11 +180,11 @@ export async function crawlNext(db: Db): Promise<{ sources: string[]; added: num
   await db.from('bot_state').upsert({ key: 'crawl', value: { seen }, updated_at: now });
 
   const results = [];
-  for (const src of picks) results.push(src === JUMP_SHOP_SOURCE ? await crawlJumpShop(db, authorId, 'daily') : await crawlSource(db, src, authorId));
+  for (const src of picks) results.push(src === JUMP_SHOP_SOURCE ? await crawlJumpShop(db, authorId, 'daily') : await crawlSource(db, src, authorId, firstTime.has(src.key)));
   return { sources: picks.map((p) => p.key), added: results.reduce((n, r) => n + r.added, 0), merged: results.reduce((n, r) => n + r.merged, 0), read: results.reduce((n, r) => n + r.read, 0) };
 }
 
-async function crawlSource(db: Db, src: Source, authorId: string): Promise<{ added: number; merged: number; read: number }> {
+async function crawlSource(db: Db, src: Source, authorId: string, first = false): Promise<{ added: number; merged: number; read: number }> {
   const wid = await workId(db, src.work);
   if (!wid) return { added: 0, merged: 0, read: 0 };
   const { data: existing } = await db.from('events').select('id, title, event_date, offers, price')
@@ -166,16 +197,21 @@ async function crawlSource(db: Db, src: Source, authorId: string): Promise<{ add
     const got = await fetchProductList(url).catch(() => null);
     if (got) lists.push(got);
   }
-  lists.push(...((await src.lists?.().catch(() => [])) ?? []));
+  lists.push(...((await src.lists?.(first).catch(() => [])) ?? []));
   for (const got of lists) {
     read += got.products.length;
-    const mine = src.key === CHIIKAWA_MARKET.key ? got : await onlyThisWork(db, got, wid, src.work);
-    const { list } = await excludeRegistered(upcoming(mine)).catch(() => ({ list: upcoming(mine) }));
+    const mine = src.key === CHIIKAWA_MARKET.key || src.wholeShop ? got : await onlyThisWork(db, got, wid, src.work);
+    const buyable = src.wholeShop ? { ...mine, products: mine.products.filter((p) => p.inStock !== false) } : upcoming(mine);
+    const { list } = await excludeRegistered(buyable).catch(() => ({ list: buyable }));
     if (!list.products.length) continue;
     const preStart = preorderFromTitle(got.title);
     // ちいかわマーケットの新商品は発売日の11時に販売開始。データのどこにも時刻が無い（告知にだけ出る）ので決め打ちする
     const saleTime = src.key === CHIIKAWA_MARKET.key && !preStart ? '11:00' : null;
-    const r = await registerEvents(db, wid, await listEvents(list, src.work), rows, authorId, preStart, saleTime);
+    // 公式ストアを初めて読む回は、昔からある在庫品が新着に並ばないよう登録日を60日前にする（ジャンプショップと同じ）
+    const backdate = src.wholeShop && first
+      ? (e: ListEvent) => (!e.date && !e.isOrderMade ? new Date(Date.now() - 60 * 86400_000).toISOString() : null)
+      : undefined;
+    const r = await registerEvents(db, wid, await listEvents(list, src.work), rows, authorId, preStart, saleTime, backdate);
     added += r.added; merged += r.merged;
   }
   return { added, merged, read };

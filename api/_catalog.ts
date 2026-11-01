@@ -48,6 +48,8 @@ const backdate = (e: ListEvent) => (!e.date ? new Date(Date.now() - 60 * 86400_0
 // 登録済みの作品名と別名。1回の実行で1度だけ作る（detectWork は呼ぶたびに全作品を読むので、商品ごとには使わない）。
 // 3文字未満の名前は外す（「A3!」などが関係ない商品名に当たらないように）。一番長く一致したものにする
 type WorkDict = { key: string; name: string }[];
+// 検索には使うが、商品名の見分けには使わない別名。長音を落として比べるので「ブラスタ」は「ブラスター」にも当たる
+const LOOSE_ALIASES = new Set([workKey('ブラスタ')]);
 let dictCache: { at: number; dict: WorkDict } | null = null;
 async function workDict(db: Db): Promise<WorkDict> {
   if (dictCache && Date.now() - dictCache.at < 5 * 60_000) return dictCache.dict;
@@ -60,7 +62,7 @@ async function workDict(db: Db): Promise<WorkDict> {
   const { data: al } = await db.from('work_aliases').select('alias_norm, works(name)').limit(10000);
   for (const a of al ?? []) {
     const name = (a.works as { name?: string } | null)?.name;
-    if (name) out.push({ key: workKey(String(a.alias_norm)), name });
+    if (name && !LOOSE_ALIASES.has(workKey(String(a.alias_norm)))) out.push({ key: workKey(String(a.alias_norm)), name });
   }
   const dict = out.filter((d) => d.key.length >= 3).sort((a, b) => b.key.length - a.key.length);
   dictCache = { at: Date.now(), dict };
