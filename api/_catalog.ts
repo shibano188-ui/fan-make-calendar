@@ -77,7 +77,7 @@ async function registerByTitle(
   const dict = await workDict(db);
   const byWork = new Map<string, ListProduct[]>();
   for (const p of items) {
-    const w = matchWork(p.title, dict);
+    const w = matchWork(p.workText ?? p.title, dict);
     if (w) byWork.set(w, [...(byWork.get(w) ?? []), p]);
   }
   let added = 0, merged = 0;
@@ -502,6 +502,8 @@ export function parseEeoList(html: string, today: string): ListProduct[] {
     const preorder = open || (!soldOut && !!release && release.date > today);
     out.push({
       title, url, price: Number(price.replace(/,/g, '')), inStock: !soldOut,
+      // 商品名の「」の中が作品名
+      ...(title.match(/「([^」]+)」/)?.[1] ? { workText: title.match(/「([^」]+)」/)![1] } : {}),
       ...(preorder ? { stockLabel: '予約受付中', ...(open ? { preorderEnd } : {}) } : soldOut ? {} : { stockLabel: '在庫あり' }),
       ...(release ? { release } : {}),
       image, images: image ? [image] : [],
@@ -551,7 +553,9 @@ export function parseAmnibusRows(rows: any[], today: string): ListProduct[] {
     const price = Number(p.getPriceIncTaxMin ?? 0);
     if (!p.id || !name || !price) return [];
     // 商品名に作品名が入っていないので、作品の見分けと一覧での表示のために頭に付ける
-    const title = `${String(p.artworkTitle ?? '').trim()} ${name}`.trim();
+    const artwork = String(p.artworkTitle ?? '').trim();
+    if (!artwork) return [];
+    const title = `${artwork} ${name}`;
     const pc = p.productClasses?.[0];
     const type = pc?.productType;
     const period = type?.reservationPeriod ? new Date(Date.parse(type.reservationPeriod) + 9 * 3600_000).toISOString().slice(0, 10) : undefined;
@@ -560,7 +564,7 @@ export function parseAmnibusRows(rows: any[], today: string): ListProduct[] {
     const release = deliveryFromText(String(type?.deliverySchedule ?? ''), today);
     const image = String(p.mainListImage?.filename ?? '');
     return [{
-      title, url: `${AMNIBUS}/products/detail/${p.id}`, price, inStock: canBuy,
+      title, workText: artwork, url: `${AMNIBUS}/products/detail/${p.id}`, price, inStock: canBuy,
       ...(open ? { stockLabel: '予約受付中', preorderEnd: period } : canBuy ? { stockLabel: '在庫あり' } : {}),
       ...(release ? { release } : {}),
       image, images: image ? [image] : [],
