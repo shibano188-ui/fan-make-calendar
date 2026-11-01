@@ -538,18 +538,14 @@ async function crawlEeo(db: Db, authorId: string): Promise<{ added: number; merg
 }
 
 // ── AMNIBUS ─────────────────────────
-// 一覧の HTML の data-items に、作品名・値段・在庫・予約締切・発送時期の入った JSON がある。ページ送りと検索にはこの JSON が無いので、
-// 新着50件だけを1日1回読む。検索の結果には作品名が無く、別の作品の商品が混ざるおそれがあるので使わない。robots.txt は Crawl-delay: 15。
+// /products/list?pageno=N に Accept: application/json を付けると、作品名・値段・在庫・予約締切・発送時期の入った JSON が50件ずつ返る
+// （サイト自身の無限スクロールと同じ）。robots.txt が Crawl-delay: 15 なので、1回の実行で1ページだけ（実行は10分おき）。
 const AMNIBUS = 'https://amnibus.com';
+const AMNIBUS_DAILY_PAGES = 3;
+interface AmnibusState { phase: 'initial' | 'daily'; page?: number; dailyAt?: string }
 
-export function parseAmnibusList(html: string, today: string): ListProduct[] {
-  const raw = html.match(/data-items='(\[[\s\S]*?\])'/)?.[1];
-  if (!raw) return [];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let rows: any[];
-  try {
-    rows = JSON.parse(raw.replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'));
-  } catch { return []; }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function parseAmnibusRows(rows: any[], today: string): ListProduct[] {
   return rows.flatMap((p) => {
     const name = String(p.fullName ?? p.name ?? '').trim();
     const price = Number(p.getPriceIncTaxMin ?? 0);
@@ -574,15 +570,19 @@ export function parseAmnibusList(html: string, today: string): ListProduct[] {
 
 async function crawlAmnibus(db: Db, authorId: string): Promise<{ added: number; merged: number; read: number; note: string }> {
   const { data: st } = await db.from('bot_state').select('value').eq('key', 'catalog:amnibus').maybeSingle();
-  const s = (st?.value ?? {}) as { dailyAt?: string };
-  if (s.dailyAt && Date.now() - Date.parse(s.dailyAt) < 24 * 3600_000) return { added: 0, merged: 0, read: 0, note: '今日の新着は済んでいる' };
-  const html = await getHtml(`${AMNIBUS}/products/list`);
-  // 読めないときは見たことにしない
-  const items = html ? parseAmnibusList(html, new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)) : [];
-  if (!items.length) return { added: 0, merged: 0, read: 0, note: '新着が読めない' };
-  const r = await registerByTitle(db, authorId, 'AMNIBUS', items.filter((p) => p.inStock !== false));
-  await db.from('bot_state').upsert({ key: 'catalog:amnibus', value: { dailyAt: new Date().toISOString() }, updated_at: new Date().toISOString() });
-  return { ...r, read: items.length, note: '新着' };
+  const s: AmnibusState = { phase: 'initial', page: 1, ...((st?.value ?? {}) as Partial<AmnibusState>) };
+  if (s.phase === 'daily' && s.dailyAt && Date.now() - Date.parse(s.dailyAt) < 24 * 3600_000) return { added: 0, merged: 0, read: 0, note: '今日の新着は済んでいる' };
+  const page = s.page ?? 1;
+  const res = await fetch(`${AMNIBUS}/products/list?pageno=${page}`, { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: AbortSignal.timeout(30000) }).catch(() => null);
+  const body = res?.ok ? await res.json().catch(() => null) as { data?: unknown[] } | null : null;
+  // 読めないときは進めない。次の回に同じページを読む
+  if (!Array.isArray(body?.data)) return { added: 0, merged: 0, read: 0, note: `${page}ページ目が読めない` };
+  const items = parseAmnibusRows(body.data, new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10));
+  const r = await registerByTitle(db, authorId, 'AMNIBUS', items.filter((p) => p.inStock !== false), s.phase === 'initial' ? backdate : undefined);
+  const done = !items.length || (s.phase === 'daily' && page >= AMNIBUS_DAILY_PAGES);
+  if (done) { s.phase = 'daily'; s.page = 1; s.dailyAt = new Date().toISOString(); } else s.page = page + 1;
+  await db.from('bot_state').upsert({ key: 'catalog:amnibus', value: s, updated_at: new Date().toISOString() });
+  return { ...r, read: items.length, note: `${page}ページ目` };
 }
 
 /** 店の全作品の巡回を、1回ぶん進める。ムービック・KADOKAWAストア・コトブキヤ・アニメイト・eeo Store・AMNIBUS */
