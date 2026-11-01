@@ -66,6 +66,26 @@ export interface ShopifyProduct {
   /** false=売り切れ。まだ売り出していない（受付前）ときは undefined にして stockLabel で伝える */
   inStock?: boolean; stockLabel?: string;
   release?: { date: string; dateLabel: string | null };
+  /** 商品の説明文（タグを除いた文字）。受付期間などを読むのに使う */
+  body?: string;
+}
+
+/** 説明文から、受付の締切と発売日を読む（今日より前の締切は、書き換え忘れの古い文なので無かったことにする）。YYYY-MM-DD
+ *  締切の書き方は「受付期間：2026年11月29日(日)23:59まで」「受注期間：10/23(金)12:00～11/8(日)23:59まで」。範囲なら最後の日付 */
+export function parseBodyDates(body: string, today: string): { preorderEnd?: string; release?: string } {
+  const pad = (n: string) => n.padStart(2, '0');
+  const period = body.match(/(?:受付|受注)期間[\s\S]{0,60}?まで/)?.[0] ?? '';
+  const last = [...period.matchAll(/(?:(\d{4})年\s*)?(\d{1,2})(?:月|\/)\s*(\d{1,2})/g)].pop();
+  let end: string | undefined;
+  if (last) {
+    const md = `${pad(last[2])}-${pad(last[3])}`;
+    const y = Number(today.slice(0, 4));
+    // 年が無いときは今年。2か月以上前になるなら来年（年末に年明けの締切を書いているとき）
+    end = last[1] ? `${last[1]}-${md}` : `${y}-${md}` < new Date(Date.parse(today) - 60 * 86400_000).toISOString().slice(0, 10) ? `${y + 1}-${md}` : `${y}-${md}`;
+  }
+  const r = body.match(/発売日[：:]\s*(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日/);
+  const release = r ? `${r[1]}-${pad(r[2])}-${pad(r[3])}` : undefined;
+  return { ...(end && end >= today ? { preorderEnd: end } : {}), ...(release ? { release } : {}) };
 }
 
 // Shopify は「売り切れ」と「まだ売り出していない」を区別しない（どちらも available=false）。
@@ -112,6 +132,7 @@ function toProducts(origin: string, raw: any[]): ShopifyProduct[] {
       price: prices.length ? Math.min(...prices) : 0,
       ...stockOf(vs.some((v) => v.available), tags, String(p.title ?? ''), release),
       ...(release ? { release } : {}),
+      body: String(p.body_html ?? '').replace(/<[^>]+>/g, '\n').replace(/&nbsp;/g, ' '),
       image: String(p.images?.[0]?.src ?? ''),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       images: ((p.images ?? []) as any[]).map((im) => String(im?.src ?? '')).filter(Boolean),

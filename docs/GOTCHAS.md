@@ -37,3 +37,8 @@
   - iOS … 別ドメイン `open.fanhive.jp` の Universal Link（1.17〜）。入っていなければ vercel.json で get.html → App Store
   - Android … Chrome などは `intent://`。X などの WebView（UA に `; wv)`）は intent:// を開けないので get.html → Play
 - `open.fanhive.jp` の `/.well-known/` は転送しない（AASA をそのまま返す）。`www` はドメイン設定で apex へ 308 転送なので使えない
+
+## 公式ストアを巡回に足す前に利用規約を読む
+
+- Colorful Palette Store（プロセカ公式）は、利用規約でクローリング・スクレイピングを禁止している。`robots.txt` は止めていないが、読み取りは作らない（2026-11-01）
+- 足す前に `robots.txt` と利用規約の両方を確かめる。ブラスタの公式ストア（Shopify）はどちらにも禁止が無かったので巡回している
