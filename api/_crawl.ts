@@ -71,6 +71,8 @@ function withBodyDates(p: ShopifyProduct): ShopifyProduct & { preorderEnd?: stri
   const { preorderEnd, release } = parseBodyDates(p.body ?? '', todayJst());
   return {
     ...p,
+    // 【通常版Blu-ray】のような版の違いは、頭の【】だと予定の名前から落ちて同じ名前が並ぶので、後ろに回す
+    title: p.title.replace(/^【([^】]*(?:版|盤|Blu-ray|DVD)[^】]*)】\s*(.+)$/, '$2（$1）'),
     ...(release ? { release: { date: release, dateLabel: null } } : {}),
     ...(preorderEnd ? { preorderEnd, ...(p.inStock ? { stockLabel: '予約受付中' } : {}) } : {}),
   };
@@ -209,7 +211,11 @@ async function crawlSource(db: Db, src: Source, authorId: string, first = false)
     const saleTime = src.key === CHIIKAWA_MARKET.key && !preStart ? '11:00' : null;
     // 公式ストアを初めて読む回は、昔からある在庫品が新着に並ばないよう登録日を60日前にする（ジャンプショップと同じ）
     const backdate = src.wholeShop && first
-      ? (e: ListEvent) => (!e.date && !e.isOrderMade ? new Date(Date.now() - 60 * 86400_000).toISOString() : null)
+      ? (e: ListEvent) => {
+        if (e.isOrderMade) return null;
+        const monthAgo = new Date(Date.now() + 9 * 3600_000 - 30 * 86400_000).toISOString().slice(0, 10);
+        return !e.date ? new Date(Date.now() - 60 * 86400_000).toISOString() : e.date < monthAgo ? `${e.date}T00:00:00+09:00` : null;
+      }
       : undefined;
     const r = await registerEvents(db, wid, await listEvents(list, src.work), rows, authorId, preStart, saleTime, backdate);
     added += r.added; merged += r.merged;
