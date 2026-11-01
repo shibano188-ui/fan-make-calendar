@@ -34,7 +34,7 @@ interface Source {
   urls?: () => Promise<string[]>;
   /** URLでは読めない一覧（ジャンプショップの新着など）を直接返す。first=この場所を初めて見る回 */
   lists?: (first: boolean) => Promise<ProductList[]>;
-  /** 店全体が1作品の公式ストア。商品名で絞らず、発売から1か月以内か受付中の買えるものを入れる */
+  /** 店全体が1作品の公式ストア。商品名で絞らず、買えるものを入れる（古さの下限は OLDEST_RELEASE） */
   wholeShop?: boolean;
 }
 
@@ -113,10 +113,12 @@ export function upcoming(list: ProductList): ProductList {
   return { ...list, products };
 }
 
-/** 公式ストアの全商品から、買えるもののうち発売から1か月以内か受付中のものだけ残す。何年も前の在庫品を予定にしない */
+// 巡回で予定にする発売日の下限（柴野・2026-11-01）。店に在庫が残っていても、これより前の商品は入れない
+const OLDEST_RELEASE = '2025-01-01';
+
+/** 公式ストアの全商品から、買えるもののうち下限より新しいか受付中のものだけ残す。何年も前の在庫品を予定にしない */
 function recentInStore(list: ProductList): ProductList {
-  const since = new Date(Date.now() + 9 * 3600_000 - 30 * 86400_000).toISOString().slice(0, 10);
-  return { ...list, products: list.products.filter((p) => p.inStock !== false && (p.release ? p.release.date >= since : /予約|受付前/.test(p.stockLabel ?? ''))) };
+  return { ...list, products: list.products.filter((p) => p.inStock !== false && (p.release ? p.release.date >= OLDEST_RELEASE : /予約|受付前/.test(p.stockLabel ?? ''))) };
 }
 
 /** ちいかわマーケットの「10月3日予約商品」は予約開始日 */
@@ -318,9 +320,10 @@ export async function registerEvents(
     const { error } = await db.from('events').update({ offers: next, price: representativePrice(next, target.price, false) }).eq('id', target.id);
     if (!error) { target.offers = next; merged++; }
   };
-  // 巡回では、発売から1か月より前の商品を予定にしない。店に在庫が残っていても、過去の巻や昔のグッズはこれからの予定ではない
-  const since = new Date(Date.now() + 9 * 3600_000 - 30 * 86400_000).toISOString().slice(0, 10);
+  // 巡回では古い商品を予定にしない。コミックは過去の巻が作品ごとに並ぶので、発売から1か月より前は入れない
+  const bookSince = new Date(Date.now() + 9 * 3600_000 - 30 * 86400_000).toISOString().slice(0, 10);
   for (const e of events) {
+    const since = e.categories.includes('書籍') ? bookSince : OLDEST_RELEASE;
     if (!keepOld && e.date && e.date < since && !e.isOrderMade && !preStart) continue;
     const offers = e.offers as OfferRow[];
     await fillJans(offers);
