@@ -5,7 +5,7 @@
 -- 行は消さず pool=9 にする。戻すときは update events set pool = 0 where pool = 9;
 --
 -- 適用：
---   本番……未適用
+--   本番……2026-11-01 柴野（確認済み: pool=9 が7,240件）
 
 begin;
 update events e set pool = 9
