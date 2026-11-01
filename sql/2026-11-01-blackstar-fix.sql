@@ -4,7 +4,8 @@
 -- 消す行は無い。id を直接指定しているので本番専用。
 --
 -- 適用：
---   本番……未
+--   本番……2026-11-01 柴野（SQL Editor）
+--   開発……2026-11-01 柴野（id が無いので更新0件）
 
 begin;
 update events set title = '6thアルバム「BLACKSTARⅥ」（通常盤）' where id = 'fb5331f7-eaa5-4f29-b579-c2fdf1488399' and title = '6thアルバム「BLACKSTARVI」';
