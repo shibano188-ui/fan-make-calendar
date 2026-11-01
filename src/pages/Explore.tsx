@@ -321,8 +321,10 @@ export default function Explore() {
   const queryItems = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return modeItems;
-    return modeItems.filter((e) => `${e.title} ${e.workName ?? ''} ${e.category ?? ''}`.toLowerCase().includes(q));
-  }, [modeItems, query]);
+    // 略称（プロセカなど）は商品名に入っていないので、検索語に当たった作品の予定も出す
+    const matchedWorks = new Set(workMatches.map((w) => w.id));
+    return modeItems.filter((e) => (e.workId && matchedWorks.has(e.workId)) || `${e.title} ${e.workName ?? ''} ${e.category ?? ''}`.toLowerCase().includes(q));
+  }, [modeItems, query, workMatches]);
 
   // 検索クエリログ（データ資産化②の素材）: 入力が1秒落ち着いたらヒット件数つきで記録
   const queryCountRef = useRef(0);
