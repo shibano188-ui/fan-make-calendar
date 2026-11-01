@@ -28,6 +28,10 @@ import { useAdBanner } from '../lib/useAdBanner';
 import { useTourStep, finishTourNow } from '../components/OnboardingTour';
 import { useBackToClose } from '../lib/backStack';
 
+// 発売日を過ぎても店で買い続けられる公式ストア。ここの在庫品は、過去ではなく「今日」の位置に出す
+const STOCK_STORE = /^ブラックスター.*Official Store$/;
+const isStoreStock = (e: CalendarEvent) => STOCK_STORE.test(e.retailer ?? '') && deriveStatus(e) === 'onsale';
+
 const STATUS_ORDER: ItemStatus[] = ['preorder_soon', 'preorder', 'sale_soon', 'onsale', 'preorder_ended', 'ended', 'soldout'];
 
 const PREF_TO_REGION: Record<string, string> = {};
@@ -449,13 +453,19 @@ export default function Explore() {
   const { past, upcoming } = useMemo(() => {
     const p: CalendarEvent[] = [];
     const u: CalendarEvent[] = [];
+    const stock: CalendarEvent[] = [];
     for (const e of visible) {
       if (showUnseenOnly && seenSnapshot.has(e.id)) continue; // 未読のみ＝未閲覧に絞る
       const ref = e.endDate || e.date || '';
       // 新着だけのときは上下に分けない（終わった新着が「今日」より上に隠れて見落とされる）
-      (!newOnly && ref && ref < today ? p : u).push(e);
+      if (!newOnly && ref && ref < today) {
+        (isStoreStock(e) ? stock : p).push(e);
+      } else u.push(e);
     }
-    return { past: p, upcoming: u };
+    // 今買える公式ストアの商品は、今日の予定のすぐ下に新しい順で並べる。売り切れると上の過去へ移る
+    const next = u.findIndex((e) => (e.endDate || e.date || '') > today);
+    const at = next < 0 ? u.length : next;
+    return { past: p, upcoming: [...u.slice(0, at), ...stock.reverse(), ...u.slice(at)] };
   }, [visible, today, showUnseenOnly, seenSnapshot, newOnly]);
 
   // 作るカードの数を絞る（2026-10-05）。前は探すを開くたびに全部（6作品で973件）作っていて、開くたびに約0.35秒止まっていた。

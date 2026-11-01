@@ -9,7 +9,7 @@
 // 1回に2か所、同じ場所は1日1回まで。前回見た時刻は bot_state（key='crawl'）に持つ。
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchProductList, excludeRegistered, productKey, type ProductList } from './_listsource.js';
-import { fetchShopifyAll, fetchShopifyCollection, fetchShopifyNewest, parseBodyDates, type ShopifyProduct } from './_shopify.js';
+import { fetchShopifyAll, fetchShopifyCollection, parseBodyDates, type ShopifyProduct } from './_shopify.js';
 import { listEvents, type ListEvent } from './_listgroup.js';
 import { representativePrice, type OfferRow } from './_offers.js';
 import { lookupByUrl } from './_product-search.js';
@@ -60,8 +60,9 @@ const JUMP_SHOP_SOURCE: Source = { key: 'jumpshop', work: '' };
 const BLACKSTAR_ORIGIN = 'https://bsofficialstore.com';
 const BLACKSTAR_STORE: Source = {
   key: 'bsofficialstore', work: 'ブラックスター -Theater Starless-', wholeShop: true,
-  lists: async (first) => {
-    const got = await (first ? fetchShopifyAll(BLACKSTAR_ORIGIN) : fetchShopifyNewest(BLACKSTAR_ORIGIN));
+  lists: async () => {
+    // 登録済みの商品の在庫も見るので、毎回全商品を読む（syncShopStock）
+    const got = await fetchShopifyAll(BLACKSTAR_ORIGIN);
     if (!got) return [];
     return [{ title: '', shop: got.shop, retailer: got.shop, nextPage: null, products: got.products.map(withBodyDates) }];
   },
@@ -196,6 +197,25 @@ export async function crawlNext(db: Db): Promise<{ sources: string[]; added: num
   return { sources: picks.map((p) => p.key), added: results.reduce((n, r) => n + r.added, 0), merged: results.reduce((n, r) => n + r.merged, 0), read: results.reduce((n, r) => n + r.read, 0) };
 }
 
+/** 公式ストアの全商品を読んだ回に、登録済みの予定の在庫を店に合わせる。店から消えた商品は売り切れにする */
+async function syncShopStock(db: Db, wid: string, products: ProductList['products']): Promise<void> {
+  if (!products.length) return;
+  const host = new URL(products[0].url).host;
+  const stock = new Map(products.map((p) => [productKey(p.url), p]));
+  const { data } = await db.from('events').select('id, offers').eq('work_id', wid).eq('pool', 0).limit(1000);
+  for (const row of data ?? []) {
+    let changed = false;
+    const offers = ((Array.isArray(row.offers) ? row.offers : []) as OfferRow[]).map((o) => {
+      if (!o.url.includes(host)) return o;
+      const inStock = stock.get(productKey(o.url))?.inStock !== false && stock.has(productKey(o.url));
+      if (o.inStock === inStock) return o;
+      changed = true;
+      return { ...o, inStock };
+    });
+    if (changed) await db.from('events').update({ offers }).eq('id', row.id);
+  }
+}
+
 async function crawlSource(db: Db, src: Source, authorId: string, first = false): Promise<{ added: number; merged: number; read: number }> {
   const wid = await workId(db, src.work);
   if (!wid) return { added: 0, merged: 0, read: 0 };
@@ -212,6 +232,7 @@ async function crawlSource(db: Db, src: Source, authorId: string, first = false)
   lists.push(...((await src.lists?.(first).catch(() => [])) ?? []));
   for (const got of lists) {
     read += got.products.length;
+    if (src.wholeShop) await syncShopStock(db, wid, got.products);
     const mine = src.key === CHIIKAWA_MARKET.key || src.wholeShop ? got : await onlyThisWork(db, got, wid, src.work);
     const buyable = src.wholeShop ? recentInStore(mine) : upcoming(mine);
     const { list } = await excludeRegistered(buyable).catch(() => ({ list: buyable }));
@@ -320,11 +341,9 @@ export async function registerEvents(
     const { error } = await db.from('events').update({ offers: next, price: representativePrice(next, target.price, false) }).eq('id', target.id);
     if (!error) { target.offers = next; merged++; }
   };
-  // 巡回では古い商品を予定にしない。コミックは過去の巻が作品ごとに並ぶので、発売から1か月より前は入れない
-  const bookSince = new Date(Date.now() + 9 * 3600_000 - 30 * 86400_000).toISOString().slice(0, 10);
   for (const e of events) {
-    const since = e.categories.includes('書籍') ? bookSince : OLDEST_RELEASE;
-    if (!keepOld && e.date && e.date < since && !e.isOrderMade && !preStart) continue;
+    // 巡回では古い商品を予定にしない
+    if (!keepOld && e.date && e.date < OLDEST_RELEASE && !e.isOrderMade && !preStart) continue;
     const offers = e.offers as OfferRow[];
     await fillJans(offers);
     // 1. JANコードで同じ商品の予定を探す。見つかったリンクはそこへ足し、残りだけで新しい予定にする
