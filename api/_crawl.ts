@@ -304,7 +304,7 @@ async function findTwin(db: Db, wid: string, e: ListEvent): Promise<{ id: string
 export async function registerEvents(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db: Db, wid: string, events: ListEvent[], rows: any[], authorId: string, preStart: string | null, saleTime: string | null,
-  createdAt?: (e: ListEvent) => string | null,
+  createdAt?: (e: ListEvent) => string | null, keepOld = false,
 ): Promise<{ added: number; merged: number }> {
   let added = 0, merged = 0;
   // 同じシリーズの予定を探すとき、名前から作品名を除いた長さを見る（findSameLine）
@@ -318,7 +318,10 @@ export async function registerEvents(
     const { error } = await db.from('events').update({ offers: next, price: representativePrice(next, target.price, false) }).eq('id', target.id);
     if (!error) { target.offers = next; merged++; }
   };
+  // 巡回では、発売から1か月より前の商品を予定にしない。店に在庫が残っていても、過去の巻や昔のグッズはこれからの予定ではない
+  const since = new Date(Date.now() + 9 * 3600_000 - 30 * 86400_000).toISOString().slice(0, 10);
   for (const e of events) {
+    if (!keepOld && e.date && e.date < since && !e.isOrderMade && !preStart) continue;
     const offers = e.offers as OfferRow[];
     await fillJans(offers);
     // 1. JANコードで同じ商品の予定を探す。見つかったリンクはそこへ足し、残りだけで新しい予定にする

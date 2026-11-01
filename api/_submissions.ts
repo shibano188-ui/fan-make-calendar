@@ -222,7 +222,7 @@ export async function processSubmissions(db: Db, budgetMs: number): Promise<Reco
           const events = await listEvents(list, String(s.work_name));
           const { data: rows } = await db.from('events').select('id, title, event_date, offers, price').eq('work_id', workId).eq('pool', 0);
           const before = new Set((rows ?? []).map((x) => x.id as string));
-          const res = await registerEvents(db, workId, events, rows ?? [], s.user_id as string, null, null);
+          const res = await registerEvents(db, workId, events, rows ?? [], s.user_id as string, null, null, undefined, true);
           for (const x of rows ?? []) if (!before.has(x.id as string)) created.push(x.id as string);
           if (res.merged) merged.push('store');
         } else {
