@@ -68,11 +68,15 @@ export interface ShopifyProduct {
   release?: { date: string; dateLabel: string | null };
   /** 商品の説明文（タグを除いた文字）。受付期間などを読むのに使う */
   body?: string;
+  /** 店に出した日（products.json の published_at）。YYYY-MM-DD */
+  publishedAt?: string;
 }
 
 /** 説明文から、受付の締切と発売日を読む（今日より前の締切は、書き換え忘れの古い文なので無かったことにする）。YYYY-MM-DD
- *  締切の書き方は「受付期間：2026年11月29日(日)23:59まで」「受注期間：10/23(金)12:00～11/8(日)23:59まで」。範囲なら最後の日付 */
-export function parseBodyDates(body: string, today: string): { preorderEnd?: string; release?: string } {
+ *  締切の書き方は「受付期間：2026年11月29日(日)23:59まで」「受注期間：10/23(金)12:00～11/8(日)23:59まで」。範囲なら最後の日付
+ *  発売日の書き方は「発売日：2026年7月21日(火)」「【発売日】2021年12月21日(火)」。無ければ「発送時期：2026年11月下旬」を時期として読む。
+ *  発送時期に年が無いときは、店に出した日（published）の年。出した月より前の月なら翌年 */
+export function parseBodyDates(body: string, today: string, published?: string): { preorderEnd?: string; release?: string; releaseLabel?: string } {
   const pad = (n: string) => n.padStart(2, '0');
   const period = body.match(/(?:受付|受注)期間[\s\S]{0,60}?まで/)?.[0] ?? '';
   const last = [...period.matchAll(/(?:(\d{4})年\s*)?(\d{1,2})(?:月|\/)\s*(\d{1,2})/g)].pop();
@@ -83,9 +87,17 @@ export function parseBodyDates(body: string, today: string): { preorderEnd?: str
     // 年が無いときは今年。2か月以上前になるなら来年（年末に年明けの締切を書いているとき）
     end = last[1] ? `${last[1]}-${md}` : `${y}-${md}` < new Date(Date.parse(today) - 60 * 86400_000).toISOString().slice(0, 10) ? `${y + 1}-${md}` : `${y}-${md}`;
   }
-  const r = body.match(/発売日[：:]\s*(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日/);
+  const r = body.match(/発売日[】：:\s]*(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
   const release = r ? `${r[1]}-${pad(r[2])}-${pad(r[3])}` : undefined;
-  return { ...(end && end >= today ? { preorderEnd: end } : {}), ...(release ? { release } : {}) };
+  const dates = { ...(end && end >= today ? { preorderEnd: end } : {}) };
+  if (release) return { ...dates, release };
+  const ship = body.match(/発送時期[：:]\s*(?:(\d{4})\s*年\s*)?(\d{1,2})\s*月\s*(上旬|中旬|下旬)/);
+  const base = published ?? today;
+  if (ship) {
+    const year = ship[1] ? Number(ship[1]) : Number(base.slice(0, 4)) + (Number(ship[2]) < Number(base.slice(5, 7)) ? 1 : 0);
+    return { ...dates, release: `${year}-${pad(ship[2])}-${{ 上旬: '05', 中旬: '15', 下旬: '25' }[ship[3]]}`, releaseLabel: ship[3] };
+  }
+  return dates;
 }
 
 // Shopify は「売り切れ」と「まだ売り出していない」を区別しない（どちらも available=false）。
@@ -133,6 +145,7 @@ function toProducts(origin: string, raw: any[]): ShopifyProduct[] {
       ...stockOf(vs.some((v) => v.available), tags, String(p.title ?? ''), release),
       ...(release ? { release } : {}),
       body: String(p.body_html ?? '').replace(/<[^>]+>/g, '\n').replace(/&nbsp;/g, ' '),
+      ...(p.published_at ? { publishedAt: new Date(new Date(p.published_at).getTime() + 9 * 3600_000).toISOString().slice(0, 10) } : {}),
       image: String(p.images?.[0]?.src ?? ''),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       images: ((p.images ?? []) as any[]).map((im) => String(im?.src ?? '')).filter(Boolean),

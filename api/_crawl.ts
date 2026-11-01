@@ -56,6 +56,7 @@ const CHIIKAWA_MARKET: Source = {
 const JUMP_SHOP_SOURCE: Source = { key: 'jumpshop', work: '' };
 
 // ブラスタの公式ストア（Shopify）。受付期間・発売日は商品の説明文にしか無いので、そこから読む（作品の追加依頼から・2026-11-01）
+// 説明文に発売日も発送時期も無い在庫品は、店に出した日を発売日にする
 const BLACKSTAR_ORIGIN = 'https://bsofficialstore.com';
 const BLACKSTAR_STORE: Source = {
   key: 'bsofficialstore', work: 'ブラックスター -Theater Starless-', wholeShop: true,
@@ -68,12 +69,13 @@ const BLACKSTAR_STORE: Source = {
 
 /** 説明文の日付を商品に入れる。受付中なら「予約受付中」にして、予定の締切に出す */
 function withBodyDates(p: ShopifyProduct): ShopifyProduct & { preorderEnd?: string } {
-  const { preorderEnd, release } = parseBodyDates(p.body ?? '', todayJst());
+  const { preorderEnd, release, releaseLabel } = parseBodyDates(p.body ?? '', todayJst(), p.publishedAt);
+  const date = release ?? (preorderEnd ? undefined : p.publishedAt);
   return {
     ...p,
-    // 【通常版Blu-ray】のような版の違いは、頭の【】だと予定の名前から落ちて同じ名前が並ぶので、後ろに回す
-    title: p.title.replace(/^【([^】]*(?:版|盤|Blu-ray|DVD)[^】]*)】\s*(.+)$/, '$2（$1）'),
-    ...(release ? { release: { date: release, dateLabel: null } } : {}),
+    // 【通常版Blu-ray】【ZAKURO Ver.】のような版の違いは、頭の【】だと予定の名前から落ちて同じ名前が並ぶので、後ろに回す
+    title: p.title.replace(/^【([^】]*(?:版|盤|Blu-ray|DVD|Ver\.)[^】]*)】\s*(.+)$/, '$2（$1）'),
+    ...(date ? { release: { date, dateLabel: releaseLabel ?? null } } : {}),
     ...(preorderEnd ? { preorderEnd, ...(p.inStock ? { stockLabel: '予約受付中' } : {}) } : {}),
   };
 }
