@@ -1673,6 +1673,10 @@ async function fetchExploreEvents(from: string, to: string): Promise<CalendarEve
     .range(i * PAGE, i * PAGE + PAGE - 1);
   let guess = 1;
   try { guess = Math.min(10, Math.max(1, Number(localStorage.getItem(EXPLORE_PAGES_LS)) || 1)); } catch { /* noop */ }
+  // 公式ストアの在庫品は発売日が古くても今買えるので、期間より前のものも取る（探すの「今日」の位置に出す）
+  const oldStock = from < new Date().toISOString().slice(0, 10)
+    ? supabase.from('events').select('*, works(name)').eq('pool', 0).like('retailer', 'ブラックスター%').lt('event_date', from).limit(1000)
+    : Promise.resolve({ data: [] as Record<string, unknown>[], error: null });
   const firstBatch = await Promise.all(Array.from({ length: guess }, (_, i) => page(i, i === 0)));
   const first = firstBatch[0];
   if (first.error) throw first.error;
@@ -1685,7 +1689,7 @@ async function fetchExploreEvents(from: string, to: string): Promise<CalendarEve
   await editsReady;
   // 取っている間にボットが予定を足すと区切りがずれて同じ行が2回来るので、id で1つにする
   const seen = new Set<string>();
-  const data = [first.data ?? [], ...rest.map((r) => r.data ?? [])].flat()
+  const data = [first.data ?? [], ...rest.map((r) => r.data ?? []), (await oldStock).data ?? []].flat()
     .filter((e) => !seen.has(e.id as string) && !!seen.add(e.id as string));
   const events = data.map((e) => {
     const works = (e as Record<string, unknown>).works as { name: string } | null;
