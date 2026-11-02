@@ -3,7 +3,7 @@
 -- 同じ人が2人以上当たるとき・もう送ってあるときは何もしない。流したあとの select で1行出れば送れている。
 --
 -- 適用：
---   本番……未
+--   本番……2026-11-02 柴野
 
 insert into notifications (user_id, kind, title, body, path)
 select u.user_id, 'support', 'ご依頼の作品を追加しました',
