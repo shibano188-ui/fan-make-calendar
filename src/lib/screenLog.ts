@@ -9,8 +9,13 @@ import { supabase } from './supabase';
 
 const PLATFORM = Capacitor.getPlatform() as 'ios' | 'android' | 'web';
 
+// OnePlus8Pro の QKR1.191246.002 は Google Play のテスト端末（Android 11・Chrome 90 のまま）。新しい匿名アカウントで
+// 数分だけ触り、作品の追加依頼に「anonymous」を打って二度と来ない（2026-10-31〜11-04 に4件）。UA に印が付かないので名前で見る
+export const TEST_DEVICE_UA = /OnePlus8Pro Build\/QKR1\.191246\.002/;
+
 export const IS_AUTOMATED = typeof navigator !== 'undefined' && (
   navigator.webdriver === true || /headless|bot|crawl|spider|lighthouse|playstore-google/i.test(navigator.userAgent)
+  || TEST_DEVICE_UA.test(navigator.userAgent)
 );
 
 type Row = { path: string; platform: typeof PLATFORM; referrer: string | null };
