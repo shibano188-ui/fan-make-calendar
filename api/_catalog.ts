@@ -38,6 +38,7 @@ interface CatalogState {
   wid?: string | null; // 今の作品の works.id（作品ページの見出しから決めたもの）
   workName?: string;   // 今の作品の名前
   dailyAt?: string;    // 新着を最後に見た時刻
+  firstDone?: string[]; // 先に読む作品（MOVIC_FIRST）のうち、順番を前に移したもの
 }
 
 const monthAgo = () => new Date(Date.now() + 9 * 3600_000 - 30 * 86400_000).toISOString().slice(0, 10);
@@ -116,21 +117,29 @@ function movicWorkName(html: string, fallback: string): string {
   return last || fallback;
 }
 
-/** 商品ページで発売日・在庫・JANコードを取る（一覧には無い）。time が尽きたら残りは次の回 */
-async function lookupMovicItems(items: ListProduct[], until: number): Promise<{ done: ListProduct[]; left: number }> {
+/** 商品ページで発売日・在庫・JANコードを取る（一覧には無い）。time が尽きたら残りは次の回。
+ *  since を渡すと、発売日がそれより前の商品に当たったところでやめて old=true を返す（発売日の新しい順に読んでいるとき用） */
+async function lookupMovicItems(items: ListProduct[], until: number, since?: string): Promise<{ done: ListProduct[]; left: number; old: boolean }> {
   const done: ListProduct[] = [];
   for (const p of items) {
     if (Date.now() > until) break;
     await delay(GAP_MS);
     const hit = await lookupByUrl(p.url).catch(() => null);
+    if (since && hit?.release && hit.release.date < since) return { done, left: 0, old: true };
     if (hit?.release) p.release = hit.release;
     if (hit?.inStock !== undefined) p.inStock = hit.inStock;
     if (hit?.stockLabel) p.stockLabel = hit.stockLabel;
     if (hit?.jan) p.jan = hit.jan;
     done.push(p);
   }
-  return { done, left: items.length - done.length };
+  return { done, left: items.length - done.length, old: false };
 }
+
+/** 全作品の巡回で読む下限。1年より前に発売された商品は見ない（柴野・2026-11-05） */
+const yearAgo = () => new Date(Date.now() + 9 * 3600_000 - 365 * 86400_000).toISOString().slice(0, 10);
+
+// 作品の追加依頼があった作品。全作品の巡回の順番を待たずに、今の作品の次に読む（一度読んだら firstDone に入る）
+const MOVIC_FIRST = ['TRIGUN', 'とんがり帽子のアトリエ'];
 
 const toList = (items: ReturnType<typeof parseMovicList>): ListProduct[] =>
   items.map((c) => ({ title: c.title, url: c.url, price: c.price, inStock: c.inStock, image: c.image, images: c.image ? [c.image] : [] }));
@@ -162,10 +171,23 @@ async function crawlMovic(db: Db, authorId: string, budgetMs: number): Promise<{
   if (!s.works?.length) { s.works = await movicWorks(); s.i = 0; s.page = 1; s.wid = null; }
   if (!s.works.length) return { added, merged, read, note: '作品一覧が読めない' };
 
+  // 依頼のあった作品を、今の作品のすぐ後ろへ移す（もう読み終えた作品は移さない）
+  for (const name of MOVIC_FIRST) {
+    if (s.firstDone?.includes(name)) continue;
+    const cur = s.i ?? 0;
+    const j = s.works.findIndex((w, k) => k > cur && workKey(w.name).includes(workKey(name)));
+    if (j > cur + 1) s.works.splice(cur + 1, 0, ...s.works.splice(j, 1));
+    s.firstDone = [...(s.firstDone ?? []), name];
+  }
+
+  const since = yearAgo();
   while (Date.now() < until && (s.i ?? 0) < s.works.length) {
     const w = s.works[s.i ?? 0];
     const page = s.page ?? 1;
-    const html = await getHtml(page > 1 ? `${MOVIC}${w.url.replace(/\/$/, `_p${page}/`)}` : `${MOVIC}${w.url}`);
+    // 発売日の新しい順（_srd）で読み、1年より前の商品に当たったら次の作品へ。
+    // 前は既定の並びで全ページ・全商品を開いていて、呪術廻戦（31ページ）だけで何日もかかっていた
+    const base = w.url.replace(/\/$/, '_srd');
+    const html = await getHtml(`${MOVIC}${base}${page > 1 ? `_p${page}` : ''}/`);
     if (!html) {
       // サイトごと読めない（混雑の 503・アクセス制限など）ときは進めない。2026-10-11〜12 に飛ばし続けて作品をほぼ全部読み落とした。
       // 作品一覧のページが読めれば、その作品のページだけが無いので飛ばす
@@ -182,7 +204,7 @@ async function crawlMovic(db: Db, authorId: string, budgetMs: number): Promise<{
     }
     const workName = s.workName ?? w.name;
     const { list } = await excludeRegistered({ title: workName, shop: 'ムービック', retailer: 'ムービック', products: items, nextPage: null });
-    const { done, left } = await lookupMovicItems(list.products, until);
+    const { done, left, old } = await lookupMovicItems(list.products, until, since);
     if (s.wid && done.length) {
       // JANコードが取れなかった商品は、名前・発売日・値段が同じ別の店の予定で見分ける（その作品の既存の予定を渡す）
       const { data: existing } = await db.from('events').select('id, title, event_date, offers, price').eq('work_id', s.wid).eq('type', 'goods').eq('pool', 0);
@@ -190,7 +212,7 @@ async function crawlMovic(db: Db, authorId: string, budgetMs: number): Promise<{
       added += r.added; merged += r.merged;
     }
     if (left) break; // このページの残りは次の回（読み直しても登録済みは外れる）
-    if (html.includes(`${w.url.replace(/\/$/, '')}_p${page + 1}/`)) s.page = page + 1;
+    if (!old && html.includes(`${base}_p${page + 1}/`)) s.page = page + 1;
     else { s.i = (s.i ?? 0) + 1; s.page = 1; s.wid = null; s.workName = undefined; }
   }
   if ((s.i ?? 0) >= s.works.length) { s.phase = 'daily'; s.works = []; }
