@@ -121,18 +121,26 @@ function movicWorkName(html: string, fallback: string): string {
  *  since を渡すと、発売日がそれより前の商品に当たったところでやめて old=true を返す（発売日の新しい順に読んでいるとき用） */
 async function lookupMovicItems(items: ListProduct[], until: number, since?: string): Promise<{ done: ListProduct[]; left: number; old: boolean }> {
   const done: ListProduct[] = [];
-  for (const p of items) {
+  let i = 0;
+  for (; i < items.length; i++) {
+    const p = items[i];
     if (Date.now() > until) break;
     await delay(GAP_MS);
     const hit = await lookupByUrl(p.url).catch(() => null);
-    if (since && hit?.release && hit.release.date < since) return { done, left: 0, old: true };
-    if (hit?.release) p.release = hit.release;
-    if (hit?.inStock !== undefined) p.inStock = hit.inStock;
-    if (hit?.stockLabel) p.stockLabel = hit.stockLabel;
-    if (hit?.jan) p.jan = hit.jan;
+    if (!hit) {
+      // 混雑の 503 などで読めないときは、この商品から次の回に回す（読めないまま進むと発売日が分からず、
+      // 1年より前で打ち切れないうえ、この商品は予定にならずに読み落とす）。サイトは読めてこの商品だけ壊れているなら飛ばす
+      if (!(await getHtml(`${MOVIC}/shop/pages/search_title.aspx`))) break;
+      continue;
+    }
+    if (since && hit.release && hit.release.date < since) return { done, left: 0, old: true };
+    if (hit.release) p.release = hit.release;
+    if (hit.inStock !== undefined) p.inStock = hit.inStock;
+    if (hit.stockLabel) p.stockLabel = hit.stockLabel;
+    if (hit.jan) p.jan = hit.jan;
     done.push(p);
   }
-  return { done, left: items.length - done.length, old: false };
+  return { done, left: items.length - i, old: false };
 }
 
 /** 全作品の巡回で読む下限。1年より前に発売された商品は見ない（柴野・2026-11-05） */
@@ -160,9 +168,11 @@ async function crawlMovic(db: Db, authorId: string, budgetMs: number): Promise<{
     const items = toList(parseMovicList(html)).filter((p) => p.inStock !== false);
     read = items.length;
     const { list } = await excludeRegistered({ title: 'ムービック 新着', shop: 'ムービック', retailer: 'ムービック', products: items, nextPage: null });
-    const { done } = await lookupMovicItems(list.products, until);
+    const { done, left } = await lookupMovicItems(list.products, until);
     const r = await registerByTitle(db, authorId, 'ムービック', done);
     added += r.added; merged += r.merged;
+    // 時間切れ・混雑で読み残したら、見たことにしない（次の回に残りを読む。登録済みは外れる）
+    if (left) return { added, merged, read, note: `新着の残り ${left}件は次の回` };
     s.dailyAt = new Date().toISOString();
     await save();
     return { added, merged, read, note: '新着' };
