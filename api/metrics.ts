@@ -293,10 +293,12 @@ async function series() {
   const feedbacks: { at: string; kinds: string[]; body: string; platform: string | null; build: string | null; page: string | null; name: string | null }[] = [];
   const fb = await client
     .from('feedbacks')
-    .select('user_id, kinds, body, platform, build, page, created_at')
+    .select('user_id, kinds, body, platform, build, page, created_at, user_agent')
     .order('created_at', { ascending: false })
     .limit(100);
   if (!fb.error && fb.data?.length) {
+    // Google Play のテスト端末が打つ「anonymous」は出さない（src/lib/screenLog.ts の TEST_DEVICE_UA と同じ）
+    fb.data = fb.data.filter((r) => !/OnePlus8Pro Build\/QKR1\.191246\.002/.test(String(r.user_agent ?? '')));
     const ids = [...new Set(fb.data.map((r) => r.user_id as string))];
     const { data: names } = await client.from('user_settings').select('user_id, display_name').in('user_id', ids);
     const nameOf = new Map((names ?? []).map((n) => [n.user_id as string, n.display_name as string | null]));
