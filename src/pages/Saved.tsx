@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { SlidersHorizontal, Crown, Palette, CalendarDays, CalendarRange, Calendar, List, Check, CalendarPlus } from 'lucide-react';
+import { SlidersHorizontal, Crown, Palette, CalendarDays, CalendarRange, Calendar, List, Check, CalendarPlus, GalleryVerticalEnd } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import Chip from '../components/ui/Chip';
@@ -11,6 +11,7 @@ import { loadSharedFilters, saveSharedFilters } from '../lib/sharedFilters';
 import ExpandingSearch, { SearchSideButtons } from '../components/ui/ExpandingSearch';
 import { useTyping } from '../hooks/useTyping';
 import SavedCalendar, { periodLabel, includesToday } from '../components/SavedCalendar';
+import SavedBoard, { useStickyTop } from '../components/board/SavedBoard';
 import FilterPanel, { type Facet } from '../components/item/FilterPanel';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveStatus, todayStr, STATUS, type ItemStatus } from '../design/tokens';
@@ -26,6 +27,7 @@ const THEME_PROMO_KEY = 'fan_cal_theme_promo_hidden';
 import { buildWorkColorMap, eventColorFrom } from '../lib/workColors';
 import { logSearch } from '../lib/dataLogs';
 import { addToCalendar } from '../lib/googleCalendar';
+import { syncNotifyWithLike } from '../lib/notifications';
 import { useAuth } from '../contexts/AuthContext';
 import { useHiddenContent } from '../hooks/useHiddenContent';
 import { useToast } from '../components/ui/Toast';
@@ -37,13 +39,15 @@ import { useBackToClose } from '../lib/backStack';
 
 // 「予約受付中」は状態の選択肢と重なるので外した（前に選んでいた人は「すべて」に戻る）
 type Tab = 'all' | 'mine' | 'notify';
-type View = 'list' | 'month' | 'week' | 'day';
+type View = 'list' | 'month' | 'week' | 'day' | 'board';
 
 const VIEWS: { key: View; label: string; icon: typeof Calendar }[] = [
   { key: 'month', label: '月', icon: CalendarDays },
   { key: 'week', label: '週', icon: CalendarRange },
   { key: 'day', label: '日', icon: Calendar },
   { key: 'list', label: 'リスト', icon: List },
+  // あと○日で並べる表示（2026-11-06 試しに足した。月表示などはそのまま）
+  { key: 'board', label: 'ボード', icon: GalleryVerticalEnd },
 ];
 
 const FOLLOWED_KEY = 'fan_followed_works_v1';
@@ -139,8 +143,10 @@ export default function Saved() {
   // 見出し（2026年12月）が「今日」ボタンに押されて切れないよう、入りきる大きさまで文字を小さくする。
   // 幅390pxで今月以外を見ると「2026年1…」になり、何月か読めなかった（2026-10-01）
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const titleText = view === 'list' ? '保存した予定' : periodLabel(view, anchor);
-  const showToday = view !== 'list' && !includesToday(view, anchor, today);
+  // ボードは上に月のカレンダーを出すので、見出しと「今日」は月表示と同じ
+  const calScope = view === 'board' ? 'month' : view;
+  const titleText = calScope === 'list' ? '保存した予定' : periodLabel(calScope, anchor);
+  const showToday = calScope !== 'list' && !includesToday(calScope, anchor, today);
   useLayoutEffect(() => {
     const el = titleRef.current;
     if (!el) return;
@@ -218,6 +224,34 @@ export default function Saved() {
     });
     setItems((prev) => (prev ? apply(prev) : prev));
     updateSaved(user.id, apply);
+  };
+
+  // ボードで左へスワイプして外したとき。いいねを外し、トーストの「元に戻す」で付け直してカレンダーに戻す
+  const onRemove = async (e: CalendarEvent) => {
+    if (!user) return;
+    const prevList = items;
+    setItems((prev) => (prev ? prev.filter((it) => it.id !== e.id) : prev));
+    try {
+      const r = await toggleLike(e.id, user.id);
+      if (r.liked) { setItems(prevList); return; }   // もともと外れていた（ほかの端末で外した等）
+      updateSaved(user.id, (list) => list.filter((it) => it.id !== e.id));
+      void syncNotifyWithLike(e, false);
+      toast('カレンダーから外しました', 'success', {
+        label: '元に戻す',
+        onClick: async () => {
+          const back = await toggleLike(e.id, user.id).catch(() => null);
+          if (!back?.liked) return;
+          const restored = { ...e, likedByMe: true, likes: back.count };
+          const add = (list: CalendarEvent[]) => (list.some((it) => it.id === e.id) ? list : [...list, restored]);
+          setItems((prev) => (prev ? add(prev) : prev));
+          updateSaved(user.id, add);
+          toast('カレンダーに戻しました');
+        },
+      });
+    } catch {
+      setItems(prevList);
+      toast('外せませんでした。通信を確かめてください', 'error');
+    }
   };
 
   // リスト表示のカードから色とアイコンを選ぶ。選んだらカードの色へすぐ映す
@@ -381,6 +415,7 @@ export default function Saved() {
 
   const emptyMsg = tab === 'mine' ? 'まだ投稿がありません' : '保存した予定がありません';
 
+  const headerH = useStickyTop(headerRef);
   const typing = useTyping();
   const screenH = useRef(window.innerHeight);
   if (!typing) screenH.current = window.innerHeight;
@@ -524,6 +559,9 @@ export default function Saved() {
 
       {items === null && !tourEvent ? (
         <SkeletonList count={4} />
+      ) : view === 'board' ? (
+        <SavedBoard events={shown} anchor={anchor} setAnchor={setAnchor} workImages={workImages} stickyTop={headerH}
+          onOpen={openItem} onRemove={onRemove} />
       ) : view !== 'list' ? (
         // カレンダー（月/週/日）は予定が0件でも枠を表示する
         <SavedCalendar events={shown} scope={view} anchor={anchor} setAnchor={setAnchor} focusDay={tourDay}
@@ -548,7 +586,7 @@ export default function Saved() {
       {/* 自分用の予定を作る入口（2026-09-29）。みんなに公開する情報は下の真ん中の「＋」から。
           日付は表示中の日（月表示なら今日か、見ている月の1日）を入れておく */}
       {(!tourStep || tourStep === 'personal') && (
-        <button data-tour="personal" onClick={() => { haptic.select(); navigate(`/personal/new?date=${view === 'list' || includesToday(view, anchor, today) ? today : anchor}`); }}
+        <button data-tour="personal" onClick={() => { haptic.select(); navigate(`/personal/new?date=${calScope === 'list' || includesToday(calScope, anchor, today) ? today : anchor}`); }}
           aria-label="自分の予定を追加"
           // 下の真ん中の「＋」（みんなに公開する情報）と見分けるため、塗りではなく白地にカレンダーの印
           className="pressable material-thick fixed right-[var(--fab-right)] z-30 w-12 h-12 rounded-full flex items-center justify-center shadow-float"

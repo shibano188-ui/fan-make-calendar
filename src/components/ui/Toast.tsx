@@ -6,18 +6,20 @@ import { Check, AlertCircle } from 'lucide-react';
 // BottomTab(56px) の上から出る。広告は上部固定のため下から出して被りを回避。
 
 type ToastType = 'success' | 'error';
-type ShowToastFn = (message: string, type?: ToastType) => void;
+/** トーストに添えるボタン（「元に戻す」など）。付けたときは少し長く出す */
+type ToastAction = { label: string; onClick: () => void };
+type ShowToastFn = (message: string, type?: ToastType, action?: ToastAction) => void;
 
 const ToastContext = createContext<ShowToastFn>(() => {});
 
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: ToastType; action?: ToastAction } | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const show = useCallback<ShowToastFn>((message, type = 'success') => {
+  const show = useCallback<ShowToastFn>((message, type = 'success', action) => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    setToast({ message, type });
-    timerRef.current = setTimeout(() => setToast(null), 2500);
+    setToast({ message, type, action });
+    timerRef.current = setTimeout(() => setToast(null), action ? 4500 : 2500);
   }, []);
 
   return (
@@ -33,6 +35,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               ? <Check size={15} style={{ color: 'var(--color-success)' }} />
               : <AlertCircle size={15} style={{ color: 'var(--color-destructive)' }} />}
             <span className="text-[13px] text-label-primary">{toast.message}</span>
+            {toast.action && (
+              <button className="pressable pointer-events-auto ml-1 text-[13px] font-bold" style={{ color: 'var(--accent-text)' }}
+                onClick={() => { const a = toast.action; if (timerRef.current) clearTimeout(timerRef.current); setToast(null); a?.onClick(); }}>
+                {toast.action.label}
+              </button>
+            )}
           </div>
         </div>,
         document.body,
