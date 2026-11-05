@@ -14,7 +14,8 @@ export function useWorkIcons(workImages: Record<string, string>): WorkIcons {
     let alive = true;
     Promise.all(Object.entries(workImages).map(async ([id, src]) => {
       const st = iconStyleOf(styles, id);
-      const url = await workIconUrl(src, st);
+      // 画像が読めない作品は色の丸のまま（1つ失敗しても、ほかの作品の点は出す）
+      const url = await workIconUrl(src, st).catch(() => null);
       return [id, url ? { src: url, pixel: st.mode !== 'photo' } : null] as const;
     })).then((list) => {
       if (!alive) return;

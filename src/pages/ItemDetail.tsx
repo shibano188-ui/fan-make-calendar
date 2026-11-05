@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Pin, Share2, X, Plus, BellRing } from 'lucide-react';
+import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Share2, X, Plus, BellRing } from 'lucide-react';
 import type { CalendarEvent, EventSchedule, EventVisit } from '../types';
 import EventEditForm from '../components/item/EventEditForm';
 import StaffEditPanel from '../components/item/StaffEditPanel';
-import { getEventById, getWorkById, getDisplayName, toggleLike, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, addEventVisit, removeEventVisit, listEventSchedules, addEventSchedules, removeEventSchedule, getMyStaffRole, getPersonalEvent, proposeEdit, listEditProposals, type EditProposal, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
+import { getEventById, getWorkById, getDisplayName, toggleLike, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, listEventSchedules, addEventSchedules, removeEventSchedule, getMyStaffRole, getPersonalEvent, proposeEdit, listEditProposals, type EditProposal, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME, isOfficialUser, FEATURE_PREMIUM, ONBOARDING_KEY } from '../lib/constants';
@@ -38,6 +38,7 @@ import { countdownLabel } from '../lib/relativeDay';
 import { useTourStep } from '../components/OnboardingTour';
 import GetAppSheet, { openAppHref } from '../components/item/GetAppSheet';
 import FanHiveMark from '../components/FanHiveMark';
+import { VisitPicker } from '../components/board/VisitSheet';
 
 // 外部カレンダー連携（Google/ics への追加）は一旦保留。再開時は true に戻す。
 const EXTERNAL_CALENDAR_ENABLED = false;
@@ -120,11 +121,8 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
   const [followCount, setFollowCount] = useState(0);
   const [visits, setVisits] = useState<EventVisit[]>([]);
   const [schedules, setSchedules] = useState<EventSchedule[]>([]);
-  const [visitOpen, setVisitOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false); // 「＋α」で開く情報追加パネル
   const [editing, setEditing] = useState(false); // 投稿者だけのその場編集（日付）
-  const [visitStart, setVisitStart] = useState('');
-  const [visitEnd, setVisitEnd] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
   const [getAppOpen, setGetAppOpen] = useState(false);
   const tourStep = useTourStep();
@@ -251,36 +249,6 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
       toast(r === 'google' ? 'Googleカレンダーに追加しました' : r === 'ics' ? 'カレンダーに追加しました' : '日付未定のため追加できません');
     }
     try { const r = await toggleCalendarAdd(event.id, user.id); setCalAdded(r.added); setCalCount(r.count); } catch { setCalAdded(prev); }
-  };
-  // 「この日にピン！」: 期間内の日/期間を登録（イベント・グッズ共通）。登録時に自動でいいねし保存カレンダーに出す。
-  const openVisitPicker = () => {
-    haptic.select();
-    setVisitStart(eff.date ?? '');
-    setVisitEnd(eff.date ?? '');
-    setVisitOpen(true);
-  };
-  // ピンは単日で足す人がほとんど。終了日が開始日と同じ＝単日のままなら一緒に動かす
-  // （投稿フォームと同じ扱い。期間で指定し直した人は終了日が違うので触らない）
-  const changeVisitStart = (next: string) => {
-    if (visitEnd === visitStart || !visitEnd) setVisitEnd(next);
-    setVisitStart(next);
-  };
-  const onAddVisit = async () => {
-    if (!user || !visitStart) return;
-    haptic.select();
-    const end = visitEnd && visitEnd >= visitStart ? visitEnd : visitStart;
-    const v = await addEventVisit(event.id, user.id, visitStart, end);
-    if (v) {
-      setVisits((vs) => [...vs, v].sort((a, b) => a.start.localeCompare(b.start)));
-      if (!liked) setLike(event.id, { liked: true, count: likeCount + 1 }); // 自動いいね
-      setVisitOpen(false);
-      toast('この日にピンしました');
-    }
-  };
-  const onRemoveVisit = async (visitId: string) => {
-    haptic.select();
-    setVisits((vs) => vs.filter((v) => v.id !== visitId));
-    await removeEventVisit(visitId).catch(() => {});
   };
   const onFollow = async () => {
     if (!user || !event.workId) return;
@@ -601,40 +569,16 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
             {/* カレンダーに入っている予定だけ、この予定の色とアイコンを選べる */}
             {!shared && liked && <EventStylePicker eventId={event.id} workId={event.workId} />}
 
-            {/* ピンした日（期間のある予定のみ・イベント/グッズ共通）。登録すると自分のカレンダーはその日だけ表示する */}
-            {!shared && !!eff.endDate && eff.endDate !== eff.date && (
-              <div className="mt-3">
-                {visits.length > 0 && (
-                  <div className="flex flex-col gap-1.5 mb-2">
-                    {visits.map((v) => (
-                      <div key={v.id} className="flex items-center justify-between rounded-[8px] px-3 py-1.5 text-[13px]" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-                        <span>{v.start.slice(5).replace('-', '/')}{v.end !== v.start ? `〜${v.end.slice(5).replace('-', '/')}` : ''} にピン</span>
-                        <button onClick={() => onRemoveVisit(v.id)} aria-label="削除" className="pressable tap-44 text-label-secondary"><X size={16} /></button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {!visitOpen ? (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <button onClick={openVisitPicker} className="pressable flex items-center gap-1.5 px-3 py-2 rounded-[10px] text-[13px] font-semibold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
-                      <Pin size={15} /> {visits.length > 0 ? '別の日にもピン！' : 'この日にピン！'}
-                    </button>
-                    {visits.length === 0 && <span className="text-[11px] text-label-tertiary">ピンした日だけカレンダーに表示</span>}
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2 text-[13px]">
-                      <input type="date" value={visitStart} min={eff.date ?? undefined} max={eff.endDate} onChange={(e) => changeVisitStart(e.target.value)} className="flex-1 rounded-[10px] px-3 py-2 outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
-                      <span className="text-label-secondary">〜</span>
-                      <input type="date" value={visitEnd} min={visitStart || eff.date || undefined} max={eff.endDate} onChange={(e) => setVisitEnd(e.target.value)} className="flex-1 rounded-[10px] px-3 py-2 outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={onAddVisit} disabled={!visitStart} className="pressable flex-1 py-2 rounded-[10px] text-[13px] font-semibold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>追加</button>
-                      <button onClick={() => setVisitOpen(false)} className="pressable px-4 py-2 rounded-[10px] text-[13px]" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>キャンセル</button>
-                    </div>
-                    <p className="text-[11px] text-label-tertiary">単日なら開始だけでOK（終了は同じ日にできます）</p>
-                  </div>
-                )}
+            {/* 行く日（期間のある予定のみ・イベント/グッズ共通）。選ぶと自分のカレンダーはその日だけ表示する。
+                2026-11-06 柴野: 日付の入力欄から、会期のカレンダーをタップして選ぶ形に（ボードの試作と同じ）。ふだんはたたんでおく */}
+            {!shared && user && !!eff.endDate && eff.endDate !== eff.date && (
+              <div className="mt-3 rounded-[12px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+                <VisitPicker eventId={event.id} date={eff.date} endDate={eff.endDate} visits={visits} userId={user.id} foldable
+                  onChange={(next) => {
+                    // 行く日を足す＝自分のカレンダーに出したいので、いいねも付く（addEventVisit が付ける）
+                    if (next.length > visits.length && !liked) setLike(event.id, { liked: true, count: likeCount + 1 });
+                    setVisits(next);
+                  }} />
               </div>
             )}
 

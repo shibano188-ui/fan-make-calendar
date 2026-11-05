@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
-import type { CalendarEvent } from '../../types';
+import type { CalendarEvent, EventVisit } from '../../types';
 import Sheet from '../ui/Sheet';
 import OptImg from '../ui/OptImg';
 import { todayStr, deriveItemType } from '../../design/tokens';
@@ -12,6 +12,7 @@ import { buildWorkColorMap } from '../../lib/workColors';
 import { MARKS, buildDays, longEvents, undatedEvents, type Mark, type Moment } from './boardModel';
 import WorkIconSheet, { type BoardWork } from './WorkIconSheet';
 import { useWorkIcons, WorkDot } from './WorkDot';
+import VisitSheet from './VisitSheet';
 
 // カレンダーの「ボード」表示（2026-11-06 柴野と試作 → 表示の切り替えに「ボード」として足した）。
 // 上に月のカレンダー（下へ進むと今の週だけにたたむ）、下に「あと○日」で並べた日ごとの予定。
@@ -38,11 +39,15 @@ type Props = {
   onOpen: (e: CalendarEvent) => void;
   /** 左へスワイプしたとき（いいねを外す＝カレンダーから外す。元に戻すは親がトーストで出す） */
   onRemove: (e: CalendarEvent) => void;
+  /** 行く日を選ぶシートで使う。ログイン前は出さない */
+  userId?: string;
+  /** 行く日を選び直したとき（親の予定の一覧に映す） */
+  onVisits: (e: CalendarEvent, visits: EventVisit[]) => void;
 };
 
-type SheetState = { kind: 'day'; day: string } | { kind: 'undated' } | { kind: 'icons' } | null;
+type SheetState = { kind: 'day'; day: string } | { kind: 'undated' } | { kind: 'icons' } | { kind: 'visit'; id: string } | null;
 
-export default function SavedBoard({ events, anchor, setAnchor, workImages, stickyTop, onOpen, onRemove }: Props) {
+export default function SavedBoard({ events, anchor, setAnchor, workImages, stickyTop, onOpen, onRemove, userId, onVisits }: Props) {
   const today = todayStr();
   const [onlyMarks, setOnlyMarks] = useState<Set<Mark>>(new Set());
   const [evOpen, setEvOpen] = useState(false);
@@ -75,13 +80,19 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
   const [folded, setFolded] = useState(false);
   const [active, setActive] = useState(today);
   const openedAt = useRef<number | null>(null);
+  // 下の一覧で今見ている日の月に、上のカレンダーを合わせる（12月の予定まで来たら12月を出す）
+  const anchorRef = useRef(anchor);
+  anchorRef.current = anchor;
+  const activeRef = useRef(today);
   useEffect(() => {
     let last = window.scrollY, raf = 0;
     const onScroll = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
         const y = window.scrollY;
-        if (y < 8) { setFolded(false); openedAt.current = null; }
+        // 開くのは上へ戻って一番上に来たときだけ。たたむとページが縮んで位置が押し戻されることがあり、
+        // それで開くと「たたむ→縮む→開く」を繰り返して、スクロールが跳ね返されていた（2026-11-06）
+        if (y < 8 && y < last) { setFolded(false); openedAt.current = null; }
         else if (y > last + 4 && y > 40 && (openedAt.current === null || y - openedAt.current > 160)) { setFolded(true); openedAt.current = null; }
         last = y;
         // 今見ている日（カレンダーの下端より上に来た最後の日）
@@ -89,11 +100,23 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
         let cur = today;
         document.querySelectorAll<HTMLElement>('[data-board-day]').forEach((el) => { if (el.getBoundingClientRect().top <= line) cur = el.dataset.boardDay!; });
         setActive(cur);
+        if (cur !== activeRef.current) {
+          activeRef.current = cur;
+          if (cur.slice(0, 7) !== anchorRef.current.slice(0, 7)) setAnchor(cur);
+        }
       });
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf); };
-  }, [stickyTop, today]);
+  }, [stickyTop, today, setAnchor]);
+  // カレンダーの高さが変わったとき、ブラウザ（Android の Chrome など）がスクロール位置を勝手に補正しないようにする。
+  // 補正されると、たたんだ瞬間に一番上まで押し戻されて、また開いてしまう
+  useEffect(() => {
+    const els = [document.documentElement, document.body];
+    const prev = els.map((el) => el.style.overflowAnchor);
+    els.forEach((el) => { el.style.overflowAnchor = 'none'; });
+    return () => els.forEach((el, i) => { el.style.overflowAnchor = prev[i]; });
+  }, []);
 
   const monthStart = `${anchor.slice(0, 7)}-01`;
   const weeks = useMemo(() => {
@@ -117,14 +140,19 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
       if (days.get(day)?.length) setSheet({ kind: 'day', day });
       return;
     }
-    // 下へ進むとたたむので、たたんだ後の高さで位置を決める
+    // 下へ進むとたたむので、たたんだ後の高さで位置を決める。
+    // たたむと下の一覧がその分だけ上に詰まるので、行の位置からも引く（前は詰まる分だけ行き過ぎていた）
     const cal = calRef.current;
-    const hidden = cal ? [...cal.querySelectorAll<HTMLElement>('[data-week]')].filter((w) => w.dataset.week !== weekOf(day, weeks)).reduce((s, w) => s + w.offsetHeight, 0) : 0;
-    const legend = cal?.querySelector<HTMLElement>('[data-legend]')?.offsetHeight ?? 0;
-    const calH = (cal?.offsetHeight ?? 0) - (folded ? 0 : hidden + legend);
+    const hidden = cal && !folded ? [...cal.querySelectorAll<HTMLElement>('[data-week]')].filter((w) => w.dataset.week !== weekOf(day, weeks)).reduce((s, w) => s + w.offsetHeight, 0) : 0;
+    const legend = !folded ? cal?.querySelector<HTMLElement>('[data-legend]')?.offsetHeight ?? 0 : 0;
+    const shrink = hidden + legend;
+    const calH = (cal?.offsetHeight ?? 0) - shrink;
+    // たたんだ週（今見ている日の週）を、押した日の週にする
+    activeRef.current = day;
+    setActive(day);
     setFolded(true);
     openedAt.current = null;
-    window.scrollTo({ top: Math.max(0, window.scrollY + row.getBoundingClientRect().top - stickyTop - calH - 6), behavior: 'smooth' });
+    window.scrollTo({ top: Math.max(8, window.scrollY + row.getBoundingClientRect().top - shrink - stickyTop - calH - 6), behavior: 'smooth' });
   };
 
   // カレンダーの上で: 横に払うと前後の月、上下に引くとたたむ・開く
@@ -151,12 +179,26 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
   const todayList = days.get(today) ?? [];
   const sheetList = sheet?.kind === 'day' ? days.get(sheet.day) ?? allDays.get(sheet.day) ?? [] : [];
   const goingEvents = ganttList.filter((e) => (e.visits ?? []).some((v) => v.end >= today));
+  // たたんでいるときに出すイベント。行く日を選んだものがあればそれ、無ければ近い順に3件（何があるかは見えるように）
+  const evPreview = goingEvents.length ? goingEvents : ganttList.slice(0, 3);
+  const evRest = ganttList.length - evPreview.length;
+  // イベントの行を押したら、行く日を選ぶシート（ログイン前は詳細へ）
+  const pickVisit = (e: CalendarEvent) => (userId ? setSheet({ kind: 'visit', id: e.id }) : onOpen(e));
+  const visitEvent = sheet?.kind === 'visit' ? events.find((e) => e.id === sheet.id) : undefined;
+  const deadlineDays = useMemo(() => {
+    const s = new Set<string>();
+    for (const [d, list] of allDays) if (list.some((m) => m.mark === '〆')) s.add(d);
+    return s;
+  }, [allDays]);
 
   return (
-    <div className="pb-6">
+    // 予定が少なくても、たたんだ後にまだ下へ進めるだけの高さを持たせる。
+    // 足りないと、たたんだ瞬間にページが縮んで一番上に戻り、また開いてしまう
+    <div className="pb-6" style={{ minHeight: '100dvh' }}>
       {/* ── 月のカレンダー ── */}
       <div ref={calRef} {...calTouch} className="sticky z-10 -mx-3 px-3 pb-1"
-        style={{ top: stickyTop, backgroundColor: 'var(--bg-primary)', borderBottom: '0.5px solid var(--separator)' }}>
+        // 上部バーは下端をぼかしているので、地の色を上へ伸ばして、後ろを通る一覧が透けないようにする
+        style={{ top: stickyTop, backgroundColor: 'var(--bg-primary)', borderBottom: '0.5px solid var(--separator)', boxShadow: '0 -24px 0 var(--bg-primary)' }}>
         <div className="grid grid-cols-7 pt-1">
           {WEEKDAYS.map((w, i) => (
             <div key={w} className="text-center text-[11px] font-semibold pb-1" style={{ color: dayColor(i) ?? 'var(--label-secondary)' }}>{w}</div>
@@ -237,23 +279,21 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
         {ganttList.length > 0 && (
           <section className="rounded-[14px] overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)', boxShadow: 'inset 0 0 0 0.5px var(--separator)' }}>
             <button className="pressable w-full flex items-baseline gap-2 px-3 pt-2.5 pb-1.5 text-left" aria-expanded={evOpen}
-              onClick={() => { haptic.select(); setEvOpen((v) => !v); }}>
+              onClick={() => { if (!evRest && !evOpen) return; haptic.select(); setEvOpen((v) => !v); }}>
               <span className="text-[13px] font-bold">イベント</span>
               <span className="text-[11px] text-label-secondary">{ganttList.length}件・行く日 {goingEvents.reduce((n, e) => n + (e.visits ?? []).filter((v) => v.end >= today).length, 0)}日</span>
-              <ChevronDown size={16} className="ml-auto self-center text-label-secondary" style={{ transform: evOpen ? 'rotate(180deg)' : undefined, transition: 'transform .25s' }} />
+              {(evRest > 0 || evOpen) && <ChevronDown size={16} className="ml-auto self-center text-label-secondary" style={{ transform: evOpen ? 'rotate(180deg)' : undefined, transition: 'transform .25s' }} />}
             </button>
             {evOpen ? (
               <>
-                <Gantt list={ganttList} today={today} colors={colors} dot={dot} onOpen={onOpen} />
+                <Gantt list={ganttList} today={today} colors={colors} dot={dot} onOpen={pickVisit} />
                 <FootButton onClick={() => setEvOpen(false)}>たたむ</FootButton>
               </>
             ) : (
               <>
-                {goingEvents.length > 0
-                  ? <Gantt list={goingEvents} today={today} colors={colors} dot={dot} onOpen={onOpen} />
-                  : <p className="px-3 pb-2.5 text-[12px] text-label-secondary">行く日はまだありません。会期を開いて、詳細の「この日にピン」で選べます。</p>}
-                {ganttList.length > goingEvents.length && (
-                  <FootButton onClick={() => setEvOpen(true)}>{goingEvents.length ? `ほかの会期 ${ganttList.length - goingEvents.length}件` : `会期 ${ganttList.length}件`}を見る</FootButton>
+                <Gantt list={evPreview} today={today} colors={colors} dot={dot} onOpen={pickVisit} />
+                {evRest > 0 && (
+                  <FootButton onClick={() => setEvOpen(true)}>{goingEvents.length ? `ほかのイベント ${evRest}件を見る` : `イベント ${ganttList.length}件をすべて見る`}</FootButton>
                 )}
               </>
             )}
@@ -300,6 +340,12 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
         </div>
       </Sheet>
       {sheet?.kind === 'icons' && <WorkIconSheet works={works} colors={colors} icons={icons} onClose={() => setSheet(null)} />}
+      {visitEvent && userId && (
+        <VisitSheet event={visitEvent} userId={userId} deadlineDays={deadlineDays}
+          onChange={(v) => onVisits(visitEvent, v)}
+          onOpenDetail={() => { setSheet(null); onOpen(visitEvent); }}
+          onClose={() => setSheet(null)} />
+      )}
     </div>
   );
 }

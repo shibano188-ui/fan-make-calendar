@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { SlidersHorizontal, Crown, Palette, CalendarDays, CalendarRange, Calendar, List, Check, CalendarPlus, GalleryVerticalEnd } from 'lucide-react';
-import type { CalendarEvent } from '../types';
+import type { CalendarEvent, EventVisit } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import Chip from '../components/ui/Chip';
 import WorkChipsRow from '../components/WorkChipsRow';
@@ -72,7 +72,8 @@ export default function Saved() {
   // 覚えている予定があれば最初の描画から出す（詳細から戻ったときに読み込み表示を挟まない）
   const [items, setItems] = useState<CalendarEvent[] | null>(() => (user ? peekSaved(user.id) : null));
   const [tab, setTab] = useState<Tab>(['all', 'mine', 'notify'].includes(_ss.tab) ? _ss.tab : 'all');
-  const [view, setView] = useState<View>(_ss.view ?? 'month');
+  // 最初に開く表示はボード（2026-11-06 柴野。試しのプレビューで）
+  const [view, setView] = useState<View>(_ss.view ?? 'board');
   // 表示切替のメニューの位置（開いているときだけ）。上部バーは下端をぼかす mask で
   // はみ出した部分が消えるので、メニューは body に出して画面の座標で置く
   const [viewMenuAt, setViewMenuAt] = useState<{ top: number; right: number } | null>(null);
@@ -252,6 +253,14 @@ export default function Saved() {
       setItems(prevList);
       toast('外せませんでした。通信を確かめてください', 'error');
     }
+  };
+
+  // ボードで行く日を選び直したとき。選んだ日がカレンダーにすぐ出るよう、覚えている予定にも映す
+  const onVisits = (e: CalendarEvent, visits: EventVisit[]) => {
+    if (!user) return;
+    const apply = (list: CalendarEvent[]) => list.map((it) => (it.id === e.id ? { ...it, visits } : it));
+    setItems((prev) => (prev ? apply(prev) : prev));
+    updateSaved(user.id, apply);
   };
 
   // リスト表示のカードから色とアイコンを選ぶ。選んだらカードの色へすぐ映す
@@ -561,7 +570,7 @@ export default function Saved() {
         <SkeletonList count={4} />
       ) : view === 'board' ? (
         <SavedBoard events={shown} anchor={anchor} setAnchor={setAnchor} workImages={workImages} stickyTop={headerH}
-          onOpen={openItem} onRemove={onRemove} />
+          onOpen={openItem} onRemove={onRemove} userId={user?.id} onVisits={onVisits} />
       ) : view !== 'list' ? (
         // カレンダー（月/週/日）は予定が0件でも枠を表示する
         <SavedCalendar events={shown} scope={view} anchor={anchor} setAnchor={setAnchor} focusDay={tourDay}
