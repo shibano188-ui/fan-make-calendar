@@ -1,5 +1,5 @@
 import type { CalendarEvent } from '../../types';
-import { deriveItemType } from '../../design/tokens';
+import { deriveItemType, todayStr } from '../../design/tokens';
 
 // カレンダーの「ボード」表示（2026-11-06 柴野）で使う、予定を「その日に何が起きるか」に分ける計算。
 // 月表示の rangesOf（SavedCalendar.tsx）と同じ材料（日付・受付・締切・日程・ピンした日）から作る。
@@ -61,7 +61,8 @@ export function momentsOf(e: CalendarEvent): Moment[] {
     push(e.preorderStart, '受');
     push(e.preorderEnd, '〆');
   }
-  if (e.date && !hasSession) {
+  // 「12月下旬」「春頃」など時期だけの日付は、仮の日（25日など）が入っているだけなので、その日には置かない（日付未定の欄へ）
+  if (e.date && !hasSession && !e.dateLabel) {
     if (goods) {
       // 受付開始と発売が同じ日なら「受付」だけにする（同じ日に2つ並ぶと紛らわしい）
       if (!(e.preorderStart && e.preorderStart === e.date && !hasPreorder)) push(e.date, '発');
@@ -95,7 +96,35 @@ export function longEvents(events: CalendarEvent[], today: string): CalendarEven
     .sort((a, b) => Number(upcomingVisit(b)) - Number(upcomingVisit(a)) || a.date!.localeCompare(b.date!) || a.endDate!.localeCompare(b.endDate!));
 }
 
-/** 日付が決まっていない予定（どの日にも乗らないもの） */
-export function undatedEvents(events: CalendarEvent[]): CalendarEvent[] {
-  return events.filter((e) => momentsOf(e).length === 0);
+const SEASONS = ['春頃', '夏頃', '秋頃', '冬頃'];
+
+/** 時期だけの日付を「12月下旬」「2027年春頃」の形に */
+export function vagueLabel(date: string | undefined, label: string, today = todayStr()): string {
+  const y = date && date.slice(0, 4) !== today.slice(0, 4) ? `${date.slice(0, 4)}年` : '';
+  if (SEASONS.includes(label)) return `${y}${label}`;
+  const m = date ? Number(date.slice(5, 7)) : 0;
+  if (label === '中') return m ? `${y}${m}月` : '時期未定';
+  return m ? `${y}${m}月${label}` : label;
+}
+
+/** 日付未定の欄に出す予定（2026-11-07）。日付が無いものと、時期だけ決まっているもの（下旬・春頃…）。
+ *  label に「12月下旬」などを入れる。時期がもう過ぎたものは出さない。時期の早い順、日付が無いものは最後 */
+export function undatedMoments(events: CalendarEvent[], today = todayStr()): Moment[] {
+  const out: (Moment & { sort: string })[] = [];
+  for (const e of events) {
+    if (e.personal) continue;
+    const goods = isGoods(e);
+    const hasSession = e.schedules?.some((s) => s.kind === 'session') ?? false;
+    const mark: Mark = goods ? '発' : 'イ';
+    if (e.date && e.dateLabel && !hasSession) {
+      // 時期の終わり（月の末・季節は代表の月から2か月後の末）が過ぎていたら出さない
+      const d = new Date(e.date + 'T00:00:00');
+      const end = new Date(d.getFullYear(), d.getMonth() + (SEASONS.includes(e.dateLabel) ? 3 : 1), 0);
+      if (todayStr(end) < today) continue;
+      out.push({ day: '', mark, e, label: `${goods ? '発売' : '開催'} ${vagueLabel(e.date, e.dateLabel, today)}`, sort: e.date });
+    } else if (momentsOf(e).length === 0) {
+      out.push({ day: '', mark, e, label: '日付未定', sort: '9999' });
+    }
+  }
+  return out.sort((a, b) => a.sort.localeCompare(b.sort)).map(({ sort: _s, ...m }) => m);
 }

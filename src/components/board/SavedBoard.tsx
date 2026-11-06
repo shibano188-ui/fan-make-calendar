@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import { ChevronDown } from 'lucide-react';
 import type { CalendarEvent, EventVisit } from '../../types';
 import Sheet from '../ui/Sheet';
@@ -10,15 +9,15 @@ import { haptic } from '../../lib/haptics';
 import { parseImageUrls } from '../../lib/constants';
 import { stripWorkName } from '../../lib/stripWorkName';
 import { buildWorkColorMap } from '../../lib/workColors';
-import { MARKS, buildDays, longEvents, undatedEvents, type Mark, type Moment } from './boardModel';
+import { MARKS, buildDays, longEvents, undatedMoments, type Mark, type Moment } from './boardModel';
 import WorkIconSheet, { type BoardWork } from './WorkIconSheet';
 import { useWorkIcons, WorkDot } from './WorkDot';
 import VisitSheet from './VisitSheet';
 import SwipeRow from '../ui/SwipeRow';
-import { useBackToClose } from '../../lib/backStack';
+import { useImportant, toggleImportant, IMPORTANT_SIDE } from '../../lib/important';
 
 // カレンダーの「ボード」表示（2026-11-06 柴野と試作 → 表示の切り替えに「ボード」として足した）。
-// 上に月のカレンダー（流れきったら今見ている週の帯）、下に「あと○日」で並べた日ごとの予定。
+// 上に月のカレンダー（下へスクロールすると今見ている週だけにたたむ）、下に「あと○日」で並べた日ごとの予定。
 // 作品は点で見せ、作品の画像を選んでいればドット絵の点にする。試作: claude.ai の「推し予定ボード」
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
@@ -69,7 +68,8 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
   }, [allDays, onlyMarks]);
   const future = useMemo(() => [...days.keys()].filter((d) => d > today).sort(), [days, today]);
   const ganttList = useMemo(() => (onlyMarks.size && !onlyMarks.has('イ') && !onlyMarks.has('行') ? [] : longEvents(events, today)), [events, today, onlyMarks]);
-  const undated = useMemo(() => (onlyMarks.size ? [] : undatedEvents(events)), [events, onlyMarks]);
+  // 日付未定・時期だけ（12月下旬・春頃…）の予定。「これから7日」で絞っているときは出さない
+  const undated = useMemo(() => (onlyMarks.size ? [] : undatedMoments(events, today)), [events, onlyMarks, today]);
 
   // 作品の色と、点に使う画像（ドット絵）
   const works: BoardWork[] = useMemo(() => {
@@ -81,43 +81,35 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
   const icons = useWorkIcons(workImages);
   const dot = (workId: string | undefined, size: number) => <WorkDot workId={workId} size={size} color={workId ? colors.get(workId) : undefined} icons={icons} />;
 
-  // ─ カレンダー ─
-  // 2026-11-07 作り直し。前は「下へ進むと今の週だけにたたみ、一番上へ戻ると開く」を自動でしていたが、
-  // 少し動かしただけでたたまれる・開くには一番上まで戻る必要がある、で使いにくかった（柴野）。
-  // 今は勝手に開け閉めしない:
-  //   1. 月のカレンダーは一覧のいちばん上にあり、ふつうにスクロールで流れていく
-  //   2. 流れきったら、上に「今見ている週」の帯が出る（帯の日を押すとその日へ、左右に払うと前後の週）
-  //   3. 帯の下のつまみを押す（下へ引く）と、月のカレンダーが一覧の上に重なって出る。日を押すか外を押すと閉じる
+  // ─ カレンダー（下へスクロールすると、すぐ今見ている週だけにたたむ） ─
+  // 2026-11-07 柴野: たたむのは残す。ただし
+  //   ・下へスクロールしたら、少しでもすぐたたむ
+  //   ・上へ戻っただけでは開かない（前は一番上近くまで戻るとすぐ開いて気になっていた）。
+  //     開くのは、つまみを押す・カレンダーを下へ引く・一番上でさらに下へ引く、のどれか
+  //   ・日付を押すと、その週だけにたたんでその日の予定へ飛ぶ。「これから7日」を押したときもたたむ
   const calRef = useRef<HTMLDivElement>(null);
+  const [folded, setFolded] = useState(false);
+  // 上に貼り付いているか（貼り付いている間だけ、上へ地の色を伸ばす。一番上では上の案内を隠さない）
+  const [stuck, setStuck] = useState(false);
+  const foldedRef = useRef(false);
+  foldedRef.current = folded;
   const [active, setActive] = useState(today);
   const activeRef = useRef(today);
   const anchorRef = useRef(anchor);
   anchorRef.current = anchor;
-  // 一番上の月のカレンダーが出している月。見えていない間は変えない
-  // （週の数が5→6に変わると高さが変わり、下の一覧が押されてずれるため）
-  const [gridMonth, setGridMonth] = useState(anchor.slice(0, 7));
-  const gridVisible = useRef(true);
-  const [stripOn, setStripOn] = useState(false);
-  const [drop, setDrop] = useState(false);
-  // 帯で前後の週を見ているとき、今見ている日の週からのずれ（スクロールすると0に戻る）
+  // たたんだ週を左右に払って前後の週を見ているときのずれ（スクロールで今見ている日が変わると0に戻る）
   const [weekShift, setWeekShift] = useState(0);
-  const STRIP_H = 76;
-  const pull = useRef<number | null>(null);
-  // Android の戻るで、重ねた月のカレンダーを閉じる
-  useBackToClose(drop, () => setDrop(false));
-
   useEffect(() => {
-    let raf = 0;
+    let last = window.scrollY, raf = 0;
     const onScroll = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        const cal = calRef.current;
-        const bottom = cal ? cal.getBoundingClientRect().bottom : 0;
-        gridVisible.current = bottom > stickyTop + 1;
-        setStripOn(!gridVisible.current);
-        if (gridVisible.current) setGridMonth(anchorRef.current.slice(0, 7));
-        // 今見ている日（帯の下端より上に来た最後の日）
-        const line = stickyTop + STRIP_H + 12;
+        const y = window.scrollY;
+        if (y > last + 1 && y > 2 && !foldedRef.current) setFolded(true);
+        last = y;
+        setStuck(y > 0);
+        // 今見ている日（カレンダーの下端より上に来た最後の日）
+        const line = stickyTop + (calRef.current?.offsetHeight ?? 0) + 12;
         let cur = today;
         document.querySelectorAll<HTMLElement>('[data-board-day]').forEach((el) => { if (el.getBoundingClientRect().top <= line) cur = el.dataset.boardDay!; });
         if (cur !== activeRef.current) {
@@ -128,18 +120,48 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
         }
       });
     };
-    onScroll();
+    // 一番上で、さらに下へ引いたら開く（スクロールで戻ってきただけでは開かない）
+    let pullY: number | null = null;
+    const onTouchStart = (e: TouchEvent) => { pullY = window.scrollY <= 0 ? e.touches[0].clientY : null; };
+    const onTouchMove = (e: TouchEvent) => {
+      if (pullY === null || window.scrollY > 0 || !foldedRef.current) return;
+      if (e.touches[0].clientY - pullY > 70) { pullY = null; haptic.select(); setFolded(false); }
+    };
     window.addEventListener('scroll', onScroll, { passive: true });
-    return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf); };
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      cancelAnimationFrame(raf);
+    };
   }, [stickyTop, today, setAnchor]);
-  // 一番上の月のカレンダーが見えている間は、月を切り替えたらそのまま映す
-  useEffect(() => { if (gridVisible.current) setGridMonth(anchor.slice(0, 7)); }, [anchor]);
-  // 見出しの「今日」を押したら、一番上（今日）へ戻る
+  // カレンダーの高さが変わったとき、ブラウザ（Android の Chrome など）がスクロール位置を勝手に補正しないようにする
+  useEffect(() => {
+    const els = [document.documentElement, document.body];
+    const prev = els.map((el) => el.style.overflowAnchor);
+    els.forEach((el) => { el.style.overflowAnchor = 'none'; });
+    return () => els.forEach((el, i) => { el.style.overflowAnchor = prev[i]; });
+  }, []);
+  // 見出しの「今日」を押したら、カレンダーを開いて一番上（今日）へ戻る
   useEffect(() => {
     if (!todayTick) return;
-    setDrop(false);
+    setFolded(false);
+    setWeekShift(0);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [todayTick]);
+
+  const monthStart = `${anchor.slice(0, 7)}-01`;
+  const weeks = useMemo(() => {
+    const first = parse(monthStart);
+    const start = addDays(monthStart, -first.getDay());
+    const dim = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+    return Array.from({ length: Math.ceil((first.getDay() + dim) / 7) }, (_, i) => addDays(start, i * 7));
+  }, [monthStart]);
+  // たたんだときに残す週: 今見ている日の週（左右に払っていればその分ずらす。この月に無ければ最初の週）
+  const focusDay = weekShift ? addDays(startOfWeek(active), weekShift * 7 + 3) : active;
+  const curWeek = weeks.find((w) => focusDay >= w && focusDay <= addDays(w, 6)) ?? weeks[0];
 
   const visitDays = useMemo(() => {
     const s = new Set<string>();
@@ -149,24 +171,45 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
 
   const jump = (day: string) => {
     haptic.select();
-    setDrop(false);
     const row = document.querySelector<HTMLElement>(`[data-board-day="${day}"]`);
     if (!row || day < today) {
       if (days.get(day)?.length) setSheet({ kind: 'day', day });
       return;
     }
+    // たたむと、押した日の週だけが残り、下の一覧がその分だけ上に詰まる。詰まった後の位置で飛ぶ先を決める
+    const cal = calRef.current;
+    const hidden = cal && !folded ? [...cal.querySelectorAll<HTMLElement>('[data-week]')].filter((w) => w.dataset.week !== weekOf(day, weeks)).reduce((n, w) => n + w.offsetHeight, 0) : 0;
+    const legend = !folded ? cal?.querySelector<HTMLElement>('[data-legend]')?.offsetHeight ?? 0 : 0;
+    const shrink = hidden + legend;
+    const calH = (cal?.offsetHeight ?? 0) - shrink;
     activeRef.current = day;
     setActive(day);
     setWeekShift(0);
-    // 行が、上に出る週の帯のすぐ下に来るように
-    window.scrollTo({ top: Math.max(0, window.scrollY + row.getBoundingClientRect().top - stickyTop - STRIP_H - 8), behavior: 'smooth' });
+    setFolded(true);
+    window.scrollTo({ top: Math.max(0, window.scrollY + row.getBoundingClientRect().top - shrink - stickyTop - calH - 6), behavior: 'smooth' });
   };
 
-  const cell = (d: string, i: number, month: string | null, big: boolean) => (
-    <DayCell key={d} d={d} dow={i} today={today} list={days.get(d) ?? []} active={d === active} visit={visitDays.has(d)}
-      outside={month !== null && d.slice(0, 7) !== month} big={big} dot={dot} onPick={jump} />
-  );
-  const stripWeek = addDays(startOfWeek(active), weekShift * 7);
+  // カレンダーの上で: 横に払うと前後の月（たたんでいるときは前後の週）、上下に引くとたたむ・開く
+  const touch = useRef<{ x: number; y: number } | null>(null);
+  const calTouch = {
+    onTouchStart: (e: React.TouchEvent) => { touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; },
+    onTouchEnd: (e: React.TouchEvent) => {
+      if (!touch.current) return;
+      const dx = e.changedTouches[0].clientX - touch.current.x, dy = e.changedTouches[0].clientY - touch.current.y;
+      touch.current = null;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+        haptic.select();
+        if (folded) {
+          const n = weekShift + (dx < 0 ? 1 : -1);
+          const mid = addDays(startOfWeek(active), n * 7 + 3);
+          setWeekShift(n);
+          if (mid.slice(0, 7) !== anchor.slice(0, 7)) setAnchor(mid);
+        } else setAnchor(addMonths(anchor, dx < 0 ? 1 : -1));
+        return;
+      }
+      if (Math.abs(dy) > 28 && Math.abs(dy) > Math.abs(dx)) { haptic.select(); setFolded(dy < 0); }
+    },
+  };
 
   // ─ これから7日 ─
   const week7 = useMemo(() => {
@@ -174,7 +217,8 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
     for (const [d, list] of allDays) if (d >= today && daysBetween(today, d) <= 6) for (const m of list) c[m.mark] = (c[m.mark] ?? 0) + 1;
     return c;
   }, [allDays, today]);
-  const toggleMark = (k: Mark) => { haptic.select(); setOnlyMarks((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n; }); };
+  // 押したらカレンダーをたたむ（絞った一覧を広く見られるように）
+  const toggleMark = (k: Mark) => { haptic.select(); setFolded(true); setOnlyMarks((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n; }); };
 
   const todayList = days.get(today) ?? [];
   const sheetList = sheet?.kind === 'day' ? days.get(sheet.day) ?? allDays.get(sheet.day) ?? [] : [];
@@ -193,11 +237,32 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
 
   return (
     <div className="pb-6">
-      {/* ── 月のカレンダー（一覧のいちばん上。スクロールで流れる） ── */}
-      <div ref={calRef} className="-mx-3 px-3 pb-2" style={{ borderBottom: '0.5px solid var(--separator)' }}>
-        <MonthGrid month={gridMonth} cell={cell}
-          onSwipe={(n) => { haptic.select(); setAnchor(addMonths(`${gridMonth}-01`, n)); }} />
-        <div className="flex items-center gap-x-3 gap-y-1 flex-wrap pt-1 text-[11px] text-label-secondary">
+      {/* ── 月のカレンダー（下へ進むと今の週だけにたたむ） ── */}
+      <div ref={calRef} {...calTouch} className="sticky z-10 -mx-3 px-3 pb-1"
+        // 上部バーは下端をぼかしているので、地の色を上へ伸ばして、後ろを通る一覧が透けないようにする
+        style={{ top: stickyTop, backgroundColor: 'var(--bg-primary)', borderBottom: '0.5px solid var(--separator)', boxShadow: stuck ? '0 -24px 0 var(--bg-primary)' : undefined }}>
+        <div className="grid grid-cols-7 pt-1">
+          {WEEKDAYS.map((w, i) => (
+            <div key={w} className="text-center text-[11px] font-semibold pb-1" style={{ color: dayColor(i) ?? 'var(--label-secondary)' }}>{w}</div>
+          ))}
+        </div>
+        {weeks.map((w) => {
+          const hide = folded && w !== curWeek;
+          return (
+            <div key={w} data-week={w} className="grid grid-cols-7 overflow-hidden"
+              style={{ maxHeight: hide ? 0 : 54, opacity: hide ? 0 : 1, transition: 'max-height .26s ease, opacity .2s ease' }}>
+              {Array.from({ length: 7 }, (_, i) => {
+                const d = addDays(w, i);
+                return (
+                  <DayCell key={d} d={d} dow={i} today={today} list={days.get(d) ?? []} active={d === active} visit={visitDays.has(d)}
+                    outside={d.slice(0, 7) !== anchor.slice(0, 7)} dot={dot} onPick={jump} />
+                );
+              })}
+            </div>
+          );
+        })}
+        <div data-legend className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[11px] text-label-secondary overflow-hidden"
+          style={{ maxHeight: folded ? 0 : 48, opacity: folded ? 0 : 1, paddingTop: folded ? 0 : 4, transition: 'max-height .26s ease, opacity .2s' }}>
           <span className="flex items-center gap-1">
             <span className="flex">{works.slice(0, 3).map((w, k) => <span key={w.id} style={{ marginLeft: k ? -3 : 0 }}>{dot(w.id, 14)}</span>)}</span>作品
           </span>
@@ -207,51 +272,11 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
             <button className="pressable ml-auto font-semibold text-label-primary" onClick={() => { haptic.select(); setSheet({ kind: 'icons' }); }}>画像を変える ›</button>
           )}
         </div>
+        <button type="button" aria-label={folded ? 'カレンダーを開く' : 'カレンダーをたたむ'} className="w-full h-5 flex items-center justify-center"
+          onClick={() => { haptic.select(); setFolded((f) => !f); }}>
+          <span className="w-9 h-1 rounded-full" style={{ backgroundColor: 'var(--fill-secondary)' }} />
+        </button>
       </div>
-
-      {/* ── 週の帯（月のカレンダーが流れきったら上に出る）。高さ0の箱に入れて、一覧を押し下げない ── */}
-      <div className="sticky z-10 -mx-3" style={{ top: stickyTop, height: 0 }}>
-        <div className="absolute inset-x-0 top-0 px-3"
-          style={{
-            backgroundColor: 'var(--bg-primary)', borderBottom: '0.5px solid var(--separator)', boxShadow: '0 -24px 0 var(--bg-primary)',
-            opacity: stripOn ? 1 : 0, transform: stripOn ? 'none' : 'translateY(-8px)', pointerEvents: stripOn ? 'auto' : 'none',
-            transition: 'opacity .15s ease, transform .15s ease',
-          }}
-          aria-hidden={!stripOn}>
-          <Swipeable onSwipe={(n) => { haptic.select(); setWeekShift((s) => s + n); }}>
-            <div className="grid grid-cols-7 pt-1">
-              {Array.from({ length: 7 }, (_, i) => cell(addDays(stripWeek, i), i, null, false))}
-            </div>
-          </Swipeable>
-          <button type="button" aria-label="月のカレンダーを出す" className="w-full h-4 flex items-center justify-center"
-            onClick={() => { haptic.select(); setDrop(true); }}
-            onTouchStart={(e) => { pull.current = e.touches[0].clientY; }}
-            onTouchEnd={(e) => { if (pull.current !== null && e.changedTouches[0].clientY - pull.current > 16) { haptic.select(); setDrop(true); } pull.current = null; }}>
-            <span className="w-9 h-1 rounded-full" style={{ backgroundColor: 'var(--fill-secondary)' }} />
-          </button>
-        </div>
-      </div>
-
-      {/* ── 一覧の上に重ねて出す月のカレンダー ── */}
-      {drop && createPortal(
-        <>
-          <div className="fixed inset-0" style={{ zIndex: 60, top: stickyTop, backgroundColor: 'rgba(0,0,0,0.18)' }}
-            onPointerDown={() => setDrop(false)} />
-          <div className="fixed inset-x-0 max-w-app mx-auto px-3 pb-1 rounded-b-[16px] shadow-float"
-            style={{ zIndex: 61, top: stickyTop, backgroundColor: 'var(--bg-primary)', animation: 'boardDrop .2s ease both' }}>
-            <MonthGrid month={anchor.slice(0, 7)} cell={cell}
-              onSwipe={(n) => { haptic.select(); setAnchor(addMonths(anchor, n)); }} />
-            <button type="button" aria-label="月のカレンダーをしまう" className="w-full h-5 flex items-center justify-center"
-              onClick={() => { haptic.select(); setDrop(false); }}
-              onTouchStart={(e) => { pull.current = e.touches[0].clientY; }}
-              onTouchEnd={(e) => { if (pull.current !== null && pull.current - e.changedTouches[0].clientY > 16) { haptic.select(); setDrop(false); } pull.current = null; }}>
-              <span className="w-9 h-1 rounded-full" style={{ backgroundColor: 'var(--fill-secondary)' }} />
-            </button>
-          </div>
-          <style>{'@keyframes boardDrop{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}'}</style>
-        </>,
-        document.body,
-      )}
 
       {/* ── これから7日 ── */}
       <div className="flex items-baseline gap-1.5 pt-3 pb-1.5 text-[12px] font-bold">
@@ -270,6 +295,25 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
           );
         })}
       </div>
+
+      {/* ── 日付未定・時期だけ（月の上の欄。日付が決まるとその日に入る） ── */}
+      {undated.length > 0 && (
+        <section className="mt-3 rounded-[14px] overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)', boxShadow: 'inset 0 0 0 0.5px var(--separator)' }}>
+          <button className="pressable w-full flex items-baseline gap-2 px-3 pt-2.5 pb-1 text-left" onClick={() => { haptic.select(); setSheet({ kind: 'undated' }); }}>
+            <span className="text-[13px] font-bold">日付未定</span>
+            <span className="text-[11px] text-label-secondary">下旬・春頃など、日がまだ決まっていない予定</span>
+            <span className="ml-auto text-[12px] font-semibold whitespace-nowrap">{undated.length}件 ›</span>
+          </button>
+          <div className="flex gap-2 overflow-x-auto no-scrollbar px-3 pt-1 pb-3">
+            {undated.map((m) => (
+              <button key={m.e.id} className="pressable flex-shrink-0 w-[72px] text-left" aria-label={m.e.title} onClick={() => { haptic.select(); onOpen(m.e); }}>
+                <span className="relative block"><Pic e={m.e} size={72} /><span className="absolute right-[2px] bottom-[2px]">{dot(m.e.workId, 14)}</span></span>
+                <span className="block mt-1 text-[10px] font-bold leading-tight truncate">{m.label}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ── 今日 ── */}
       <DayRow day={today} today={today}>
@@ -301,24 +345,10 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
 
       {/* ── これからの日 ── */}
       {future.map((d, i) => (
-        <DayRow key={d} day={d} today={today} last={i === future.length - 1 && undated.length === 0}>
+        <DayRow key={d} day={d} today={today} last={i === future.length - 1}>
           <Group list={days.get(d)!} today={today} dot={dot} onOpen={onOpen} onRemove={onRemove} onAll={() => setSheet({ kind: 'day', day: d })} />
         </DayRow>
       ))}
-
-      {/* ── 日付未定 ── */}
-      {undated.length > 0 && (
-        <DayRow day={null} today={today} last>
-          <section className="rounded-[14px] overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)', boxShadow: 'inset 0 0 0 0.5px var(--separator)' }}>
-            <div className="flex items-baseline gap-2 px-3 pt-2.5 pb-1">
-              <span className="text-[13px] font-bold">日付未定</span><span className="text-[11px] text-label-secondary">決まるとその日に入ります</span>
-              <span className="ml-auto text-[11px] text-label-secondary">{undated.length}件</span>
-            </div>
-            <Thumbs list={undated.map((e) => ({ e }))} dot={dot} onOpen={onOpen} more={() => setSheet({ kind: 'undated' })} />
-            <FootButton onClick={() => setSheet({ kind: 'undated' })}>一覧で見る</FootButton>
-          </section>
-        </DayRow>
-      )}
 
       {!future.length && !todayList.length && !ganttList.length && !undated.length && (
         <p className="text-center text-label-secondary text-[13px] py-14">
@@ -333,7 +363,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
           : <b className="text-[16px]">日付未定 {undated.length}件</b>}>
         <div className="pb-6">
           {sheet?.kind === 'day' && sheetList.map((m) => <ItemRow key={`${m.e.id}-${m.mark}-${m.label ?? ''}`} m={m} today={today} dot={dot} onOpen={onOpen} onRemove={onRemove} />)}
-          {sheet?.kind === 'undated' && undated.map((e) => <ItemRow key={e.id} m={{ day: '', mark: '発', e }} hideMark today={today} dot={dot} onOpen={onOpen} onRemove={onRemove} />)}
+          {sheet?.kind === 'undated' && undated.map((m) => <ItemRow key={m.e.id} m={m} hideMark today={today} dot={dot} onOpen={onOpen} onRemove={onRemove} />)}
         </div>
       </Sheet>
       {sheet?.kind === 'icons' && <WorkIconSheet works={works} colors={colors} icons={icons} onClose={() => setSheet(null)} />}
@@ -349,50 +379,13 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
 
 // ─ カレンダーの部品 ─
 
-/** 左右に払ったら n=+1（次）/ -1（前）。縦の動きはスクロールに任せる */
-function Swipeable({ onSwipe, children }: { onSwipe: (n: number) => void; children: ReactNode }) {
-  const t = useRef<{ x: number; y: number } | null>(null);
-  return (
-    <div
-      onTouchStart={(e) => { t.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
-      onTouchEnd={(e) => {
-        if (!t.current) return;
-        const dx = e.changedTouches[0].clientX - t.current.x, dy = e.changedTouches[0].clientY - t.current.y;
-        t.current = null;
-        if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) onSwipe(dx < 0 ? 1 : -1);
-      }}>
-      {children}
-    </div>
-  );
+function weekOf(day: string, weeks: string[]): string | undefined {
+  return weeks.find((w) => day >= w && day <= addDays(w, 6));
 }
 
-/** 月のカレンダー（曜日の見出し＋週の行）。month は 'YYYY-MM' */
-function MonthGrid({ month, cell, onSwipe }: {
-  month: string; cell: (d: string, i: number, month: string | null, big: boolean) => ReactNode; onSwipe: (n: number) => void;
-}) {
-  const first = parse(`${month}-01`);
-  const start = addDays(`${month}-01`, -first.getDay());
-  const dim = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
-  const weeks = Array.from({ length: Math.ceil((first.getDay() + dim) / 7) }, (_, i) => addDays(start, i * 7));
-  return (
-    <Swipeable onSwipe={onSwipe}>
-      <div className="grid grid-cols-7 pt-1">
-        {WEEKDAYS.map((w, i) => (
-          <div key={w} className="text-center text-[11px] font-semibold pb-1" style={{ color: dayColor(i) ?? 'var(--label-secondary)' }}>{w}</div>
-        ))}
-      </div>
-      {weeks.map((w) => (
-        <div key={w} className="grid grid-cols-7">
-          {Array.from({ length: 7 }, (_, i) => cell(addDays(w, i), i, month, true))}
-        </div>
-      ))}
-    </Swipeable>
-  );
-}
-
-/** カレンダーの1日。作品の点（最大3つ）・締切の〆・行く日の輪。big=false は週の帯（曜日を中に書く） */
-function DayCell({ d, dow, today, list: all, active, visit, outside, big, dot, onPick }: {
-  d: string; dow: number; today: string; list: Moment[]; active: boolean; visit: boolean; outside: boolean; big: boolean;
+/** カレンダーの1日。作品の点（最大3つ）・締切の〆・行く日の輪 */
+function DayCell({ d, dow, today, list: all, active, visit, outside, dot, onPick }: {
+  d: string; dow: number; today: string; list: Moment[]; active: boolean; visit: boolean; outside: boolean;
   dot: DotFn; onPick: (d: string) => void;
 }) {
   if (outside) return <span />;
@@ -402,10 +395,9 @@ function DayCell({ d, dow, today, list: all, active, visit, outside, big, dot, o
   const isToday = d === today, past = d < today;
   return (
     <button type="button" onClick={() => onPick(d)} aria-label={`${md(d)}${list.length ? `・予定${list.length}件` : ''}${deadline ? '・締切あり' : ''}`}
-      className={`pressable relative flex flex-col items-center gap-[3px] rounded-[10px] ${big ? 'h-[54px] pt-[3px]' : 'h-[58px] pt-[2px]'}`}
+      className="pressable relative flex flex-col items-center gap-[3px] rounded-[10px] h-[54px] pt-[3px]"
       style={{ backgroundColor: active && !isToday ? 'var(--fill-tertiary)' : undefined }}>
-      {!big && <span className="text-[10px] font-semibold leading-none" style={{ color: dayColor(dow) ?? 'var(--label-secondary)' }}>{WEEKDAYS[dow]}</span>}
-      <span className={`${big ? 'w-7 h-7 text-[14px]' : 'w-6 h-6 text-[13px]'} rounded-full flex items-center justify-center font-semibold tabular-nums`}
+      <span className="w-7 h-7 text-[14px] rounded-full flex items-center justify-center font-semibold tabular-nums"
         style={isToday ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)', fontWeight: 700 }
           : { color: past ? 'var(--label-tertiary)' : dayColor(dow) ?? 'var(--label-primary)', boxShadow: visit ? `inset 0 0 0 2px ${MARKS['行'].color}` : undefined }}>
         {parse(d).getDate()}
@@ -416,7 +408,7 @@ function DayCell({ d, dow, today, list: all, active, visit, outside, big, dot, o
       </span>
       {deadline && (
         <span className="absolute text-[11px] font-extrabold leading-none px-[2px] rounded-[4px]"
-          style={{ top: big ? 0 : 12, left: 'calc(50% + 9px)', color: MARKS['〆'].color, backgroundColor: 'var(--bg-primary)', opacity: past ? 0.35 : 1 }}>〆</span>
+          style={{ top: 0, left: 'calc(50% + 9px)', color: MARKS['〆'].color, backgroundColor: 'var(--bg-primary)', opacity: past ? 0.35 : 1 }}>〆</span>
       )}
     </button>
   );
@@ -477,6 +469,9 @@ type DotFn = (workId: string | undefined, size: number) => ReactNode;
 function Group({ list, today, dot, onOpen, onRemove, onAll }: {
   list: Moment[]; today: string; dot: DotFn; onOpen: (e: CalendarEvent) => void; onRemove: (e: CalendarEvent) => void; onAll: () => void;
 }) {
+  // 重要な予定（★）を先に
+  const important = useImportant();
+  list = [...list].sort((a, b) => Number(important.has(b.e.id)) - Number(important.has(a.e.id)));
   const few = list.length <= 3;
   const head = few ? list : list.slice(0, 2);
   const rest = few ? [] : list.slice(2);
@@ -552,12 +547,15 @@ function ItemRow({ m, today, dot, onOpen, onRemove, hideMark }: {
   m: Moment; today: string; dot: DotFn; onOpen: (e: CalendarEvent) => void; onRemove: (e: CalendarEvent) => void; hideMark?: boolean;
 }) {
   const e = m.e;
+  const star = useImportant().has(e.id);
   const sub = m.mark === '行' || (m.mark === 'イ' && m.end)
     ? `${m.mark === '行' ? (m.end ? `${md(m.day)}〜${md(m.end)}・` : '') : ''}会期 ${e.date ? mdy(e.date, today) : ''}${e.endDate ? `〜${mdy(e.endDate, today)}` : ''}`
     : null;
   return (
-    <SwipeRow label="外す" disabled={e.personal} onSwipe={() => onRemove(e)}>
-      <button className="relative w-full flex items-center gap-2.5 px-3 py-2.5 text-left select-none" style={{ backgroundColor: 'var(--bg-secondary)' }}
+    <SwipeRow label="外す" disabled={e.personal} onSwipe={() => onRemove(e)}
+      right={{ ...IMPORTANT_SIDE(star), onSwipe: () => toggleImportant(e.id) }}>
+      <button className="relative w-full flex items-center gap-2.5 px-3 py-2.5 text-left select-none"
+        style={{ backgroundColor: star ? 'color-mix(in srgb, #f59e0b 12%, var(--bg-secondary))' : 'var(--bg-secondary)' }}
         onClick={() => { haptic.select(); onOpen(e); }}>
         <Pic e={e} size={56} />
         <span className="min-w-0 flex-1 flex flex-col gap-[3px]">
@@ -566,7 +564,9 @@ function ItemRow({ m, today, dot, onOpen, onRemove, hideMark }: {
             {m.label && <span className="font-semibold text-label-primary truncate flex-shrink-0 max-w-[40%]">{m.label}</span>}
             <span className="flex items-center gap-1 min-w-0">{dot(e.workId, 15)}<span className="truncate">{e.workName}</span></span>
           </span>
-          <span className="text-[13px] font-semibold leading-snug line-clamp-2">{stripWorkName(e.title, e.workName)}</span>
+          <span className="text-[13px] font-semibold leading-snug line-clamp-2">
+            {star && <span aria-label="重要" className="mr-0.5" style={{ color: '#f59e0b' }}>★</span>}{stripWorkName(e.title, e.workName)}
+          </span>
           <span className="text-[12px] tabular-nums">
             {sub ? <span className="text-label-secondary">{sub}</span>
               : e.price ? <b>¥{e.price.toLocaleString('ja-JP')}</b>

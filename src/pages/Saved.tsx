@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useNavigationType } from 'react-router-dom';
 import { SlidersHorizontal, Crown, Palette, CalendarDays, CalendarRange, Calendar, List, Check, CalendarPlus, GalleryVerticalEnd } from 'lucide-react';
 import type { CalendarEvent, EventVisit } from '../types';
 import ItemCard from '../components/item/ItemCard';
@@ -13,6 +13,8 @@ import { useTyping } from '../hooks/useTyping';
 import SavedCalendar, { periodLabel, includesToday } from '../components/SavedCalendar';
 import SavedBoard, { useStickyTop } from '../components/board/SavedBoard';
 import SwipeRow from '../components/ui/SwipeRow';
+import ImportantFrame from '../components/item/ImportantFrame';
+import { useImportant, toggleImportant, IMPORTANT_SIDE } from '../lib/important';
 import StampShelf from '../components/board/StampShelf';
 import FilterPanel, { type Facet } from '../components/item/FilterPanel';
 import { SkeletonList } from '../components/ui/Skeleton';
@@ -74,16 +76,20 @@ export default function Saved() {
   // 覚えている予定があれば最初の描画から出す（詳細から戻ったときに読み込み表示を挟まない）
   const [items, setItems] = useState<CalendarEvent[] | null>(() => (user ? peekSaved(user.id) : null));
   const [tab, setTab] = useState<Tab>(['all', 'mine', 'notify'].includes(_ss.tab) ? _ss.tab : 'all');
-  // 最初に開く表示はボード（2026-11-06 柴野。2026-11-07 からボードを主にする）
-  const [view, setView] = useState<View>(_ss.view ?? 'board');
+  // 最初に開く表示はボード（2026-11-07 からボードを主にする）。
+  // 前に選んだ表示を戻すのは、詳細から戻ってきたとき（POP）だけ。タブから開いたときはいつもボード
+  // （前は同じ起動の間ずっと前の表示を覚えていて、一度月にするとボードで開かなくなっていた・柴野）
+  const navType = useNavigationType();
+  const [view, setView] = useState<View>(navType === 'POP' && _ss.view ? _ss.view : 'board');
   // 上の「予定｜スタンプ」。スタンプ＝♡ほどではないけど、とっておいた予定（2026-11-07 柴野）。
   // 表示の切り替え（月・週…）のメニューは見られていなかったので、目に入る所に置く
-  const [mode, setMode] = useState<'plan' | 'stamp'>(_ss.mode === 'stamp' ? 'stamp' : 'plan');
+  const [mode, setMode] = useState<'plan' | 'stamp'>(navType === 'POP' && _ss.mode === 'stamp' ? 'stamp' : 'plan');
   // 表示切替のメニューの位置（開いているときだけ）。上部バーは下端をぼかす mask で
   // はみ出した部分が消えるので、メニューは body に出して画面の座標で置く
   const [viewMenuAt, setViewMenuAt] = useState<{ top: number; right: number } | null>(null);
   // 表示中の月・週・日。見出しと「今日」ボタンのためにここで持つ
   const [anchor, setAnchor] = useState<string>(todayStr());
+  const important = useImportant();
   // ボードで見出しの「今日」を押した回数（押したらボードの一番上へ戻る）
   const [todayTick, setTodayTick] = useState(0);
   const premium = usePremium();
@@ -626,11 +632,15 @@ export default function Saved() {
       ) : (
         <div className="flex flex-col gap-2 pb-4">
           {listItems.map((e) => (
-            // 左へ払うとカレンダーから外す（ボードと同じ。自分用の予定は外せないので払えない）
-            <SwipeRow key={e.id} label="外す" radius={12} disabled={e.personal} onSwipe={() => onRemove(e)}>
-              <ItemCard event={e} layout="list" likedInit={e.likedByMe}
-                workColor={eventColorFrom(workColorMap, e)}
-                onOpen={() => openItem(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onStyle={() => setStyling(e)} />
+            // 左へ払うとカレンダーから外す（ボードと同じ。自分用の予定は外せないので払えない）。
+            // 右へ払うと重要な予定（★）にする・外す
+            <SwipeRow key={e.id} label="外す" radius={12} disabled={e.personal} onSwipe={() => onRemove(e)}
+              right={{ ...IMPORTANT_SIDE(important.has(e.id)), onSwipe: () => toggleImportant(e.id) }}>
+              <ImportantFrame id={e.id}>
+                <ItemCard event={e} layout="list" likedInit={e.likedByMe}
+                  workColor={eventColorFrom(workColorMap, e)}
+                  onOpen={() => openItem(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onStyle={() => setStyling(e)} />
+              </ImportantFrame>
             </SwipeRow>
           ))}
         </div>

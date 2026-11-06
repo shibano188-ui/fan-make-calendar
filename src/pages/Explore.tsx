@@ -30,6 +30,8 @@ import { useBackToClose } from '../lib/backStack';
 import SwipeRow from '../components/ui/SwipeRow';
 import Sheet from '../components/ui/Sheet';
 import { useDismissed, dismissEvent, restoreEvent } from '../lib/dismissed';
+import { getLike, setLike } from '../lib/likeStore';
+import { syncNotifyWithLike } from '../lib/notifications';
 
 const STATUS_ORDER: ItemStatus[] = ['preorder_soon', 'preorder', 'sale_soon', 'onsale', 'preorder_ended', 'ended', 'soldout'];
 
@@ -611,12 +613,34 @@ export default function Explore() {
   // 左へ払うと探すから隠す（興味なし）。トーストの「元に戻す」か、一覧の下の「非表示にした予定」から戻せる
   const onDismiss = (e: CalendarEvent) => {
     dismissEvent(e.id);
-    toast('探すから隠しました', 'success', { label: '元に戻す', onClick: () => restoreEvent(e.id) });
+    toast('探すから非表示にしました', 'success', { label: '元に戻す', onClick: () => restoreEvent(e.id) });
+  };
+  // 右へ払うと ♡（カレンダーに追加）。もう入っていれば何もしない（外すのはカレンダーの画面で）
+  const isLiked = (e: CalendarEvent) => getLike(e.id)?.liked ?? likedIds.has(e.id);
+  const onSwipeLike = async (e: CalendarEvent) => {
+    if (!user) return;
+    if (isLiked(e)) { toast('もうカレンダーに入っています'); return; }
+    const prev = getLike(e.id) ?? { liked: false, count: e.likes ?? 0 };
+    setLike(e.id, { liked: true, count: prev.count + 1 });
+    setLikedIds((s) => new Set(s).add(e.id));
+    const notify = syncNotifyWithLike(e, true);
+    try {
+      const r = await toggleLike(e.id, user.id, true);
+      setLike(e.id, { liked: r.liked, count: r.count });
+      toast('カレンダーに追加しました');
+    } catch {
+      setLike(e.id, prev);
+      setLikedIds((s) => { const n = new Set(s); n.delete(e.id); return n; });
+      toast('追加できませんでした。通信を確かめてください', 'error');
+    }
+    await notify;
   };
   const renderCard = (e: CalendarEvent) => (
     <div key={e.id} ref={observeSeen} data-event-id={e.id}
       style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 196px' }}>
-      <SwipeRow label="非表示" color="#8e8e93" radius={12} onSwipe={() => onDismiss(e)}>
+      {/* 左へ払うと非表示、右へ払うと ♡（カレンダーに追加） */}
+      <SwipeRow label="非表示" color="#8e8e93" radius={12} onSwipe={() => onDismiss(e)}
+        right={{ label: isLiked(e) ? '♥ 追加済み' : '♥ カレンダーに追加', color: 'var(--accent-color)', onSwipe: () => { void onSwipeLike(e); } }}>
         <ItemCard event={e} layout={mode === 'goods' ? 'wide' : 'list'} isNew={isNewItem(e.id, e.createdAt, seenSnapshot)} likedInit={likedIds.has(e.id)}
           workColor={e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)'}
           onOpen={() => { saveReturnPoint(e.id); navigate(`/item/${e.id}`); }} onLike={(want) => onLikeTile(e, want)} onCalendar={() => onCalendarTile(e)} />

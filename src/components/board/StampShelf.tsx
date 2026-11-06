@@ -81,9 +81,6 @@ export default function StampShelf({ userId, likedIds, excludedWorks, onOpen, on
       <div className="text-center py-14 px-6">
         <div className="flex justify-center gap-1 mb-3 opacity-80">{REACTIONS.map((r) => <img key={r.type} src={r.image} alt="" className="stamp w-9 h-9" />)}</div>
         <p className="text-[14px] font-semibold">スタンプを押した予定がここにたまります</p>
-        <p className="text-[12px] text-label-secondary mt-1.5 leading-relaxed">
-          カレンダーに入れるほどではないけど気になる予定に、<br />詳細やカードのスタンプのボタンから押してとっておけます
-        </p>
       </div>
     );
   }
