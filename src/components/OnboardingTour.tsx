@@ -403,9 +403,10 @@ function Bubble({ step, arrow, arrowX, onNext }: { step: TourStep; arrow?: 'up' 
       <div className="flex-1 min-w-0">
         <p className="text-[15px] font-bold leading-snug">{title}</p>
         {body && <p className="text-[12px] leading-snug mt-0.5" style={{ opacity: 0.75 }}>{body}</p>}
-        {step === 'post' && <ShareDemo />}
       </div>
       </div>
+      {/* Xの共有の流れ。文の列に入れると左の丸が全体の真ん中に寄って浮くので、文の下に横いっぱいで置く */}
+      {step === 'post' && <ShareDemo />}
       {/* 「次へ」は文の下に置く（横に並べると文が細切れに折り返す） */}
       {onNext && (
         <div className="flex justify-end mt-2.5">

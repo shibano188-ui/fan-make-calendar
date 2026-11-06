@@ -43,6 +43,8 @@ const HINTS: Hint[] = [
   { id: 'cal-view', path: '/saved', find: visible('button[aria-label="表示を切り替える"]'), text: '月・週・日・リストにも切り替えられます' },
   { id: 'cal-icons', path: '/saved', find: visible('[data-hint="cal-icons"]'), text: 'カレンダーの点を好きな画像にできます' },
   { id: 'cal-custom', path: '/saved', find: visible('button[aria-label="カスタマイズ"]'), text: 'テーマや背景、色を変えられます' },
+  // ホーム（前は ✕ で消す案内の帯だった）
+  { id: 'home-icon', path: '/', find: visible('button[aria-label="作品アイコンを選ぶ"]'), text: '押すと、推しの画像をアイコンにできます' },
   // 探す
   { id: 'ex-swipe', path: '/explore', find: visible('[data-event-id]'), text: '右へ払うと追加、左へ払うと非表示' },
   { id: 'ex-stamp', path: '/explore', find: visible('[data-hint="ex-stamp"]'), text: 'スタンプを押した予定はここに' },

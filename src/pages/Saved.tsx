@@ -24,7 +24,6 @@ import { peekSaved, loadSaved, updateSaved } from '../lib/savedStore';
 import { parseCategories, isNotifyOn, FEATURE_PREMIUM } from '../lib/constants';
 
 const SYNC_PROMO_KEY = 'fan_cal_sync_promo_hidden';
-const THEME_PROMO_KEY = 'fan_cal_theme_promo_hidden';
 import { buildWorkColorMap, eventColorFrom } from '../lib/workColors';
 import { logSearch } from '../lib/dataLogs';
 import { addToCalendar } from '../lib/googleCalendar';
@@ -89,10 +88,7 @@ export default function Saved() {
   // 機能の案内を消したか。端末に覚える
   const readHidden = (key: string) => { try { return localStorage.getItem(key) === '1'; } catch { return false; } };
   const [syncPromoHidden, setSyncPromoHidden] = useState(() => readHidden(SYNC_PROMO_KEY));
-  const [themePromoHidden, setThemePromoHidden] = useState(() => readHidden(THEME_PROMO_KEY));
   const hidePromo = (key: string, set: (v: boolean) => void) => { set(true); try { localStorage.setItem(key, '1'); } catch { /* noop */ } };
-  const { userThemes, userThemesLoaded } = useTheme();
-  const showThemePromo = !themePromoHidden && userThemesLoaded && userThemes.length === 0;
   // 月表示は1画面に収めて、下へスクロールできないようにする
   const monthFit = view === 'month';
   useEffect(() => {
@@ -549,15 +545,9 @@ export default function Saved() {
         )}
       </div>
 
-      {/* 機能の案内（1つだけ出す・2026-10-05）。カレンダーを見るための画面なので、どちらも✕で消せる（端末に覚える）。
-          上部バーの外に置き、スクロールで流れる。
-          1. テーマを作れること（まだ1つも作っていない人）。作れること自体が知られていない（柴野）
-          2. いつものカレンダーへの自動同期（プレミアム・無料の人だけ） */}
-      {/* 案内の間は出さない（案内の画面と重なる） */}
-      {tourStep ? null : showThemePromo ? (
-        <PromoLine className="mx-3 mt-2" icon={<Palette size={15} />} text="アプリのテーマを自由に生成できます"
-          onClick={() => navigate('/customize/theme')} onDismiss={() => hidePromo(THEME_PROMO_KEY, setThemePromoHidden)} />
-      ) : FEATURE_PREMIUM && !premium && !syncPromoHidden ? (
+      {/* いつものカレンダーへの自動同期の案内（プレミアム・無料の人だけ。✕で消せる・端末に覚える）。上部バーの外に置き、スクロールで流れる。
+          テーマを作れることの案内は、場面ごとのヒント（Hints.tsx の cal-custom）にしたので消した（2026-11-07 柴野）。案内の間は出さない */}
+      {tourStep ? null : FEATURE_PREMIUM && !premium && !syncPromoHidden ? (
         <PromoLine className="mx-3 mt-2" text="いつものカレンダーに自動同期" badge="プレミアム"
           onClick={() => navigate('/premium')} onDismiss={() => hidePromo(SYNC_PROMO_KEY, setSyncPromoHidden)} />
       ) : null}
