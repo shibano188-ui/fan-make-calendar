@@ -5,7 +5,11 @@ import { haptic } from '../../lib/haptics';
 //   左へ払う＝消す側（カレンダーから外す・探すから非表示）。払いきると高さを縮めてから onSwipe を呼ぶ
 //   右へ払う＝足す側（探すは ♡ でカレンダーに追加、カレンダーは重要な予定にする）。行は元の位置に戻る
 // iPhone のメールなどと同じく、右へ払うのが前向き・左へ払うのが消す、にそろえている。
-// 縦のスクロールは邪魔しない（横に動いたと分かってから指をつかむ）
+// 縦のスクロールは邪魔しない（横に動いたと分かってから指をつかむ）。
+// 2026-11-07 柴野「少し払っただけで反応して空回りする。Gmail のように半分くらいまで払わせて」:
+//   ・横に 16px 動いてから動き出す／・行の幅の半分まで払うと決まる（そこで軽く震える）
+//   ・半分に届かなくても、勢いよく払えば（速さ 0.6px/ms 以上・幅の 25% 以上）決まる
+//   ・半分を越えた先は、指より少し遅れてついてくる
 
 type Side = { label: ReactNode; color: string };
 
@@ -28,11 +32,12 @@ export default function SwipeRow({ children, onSwipe, label, color = 'var(--colo
   const [phase, setPhase] = useState<'idle' | 'drag' | 'out' | 'collapse'>('idle');
   const [h, setH] = useState<number | null>(null);
   const wrap = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ x: number; y: number; dir: -1 | 1 | 0; past: boolean } | null>(null);
+  const drag = useRef<{ x: number; y: number; dir: -1 | 1 | 0; past: boolean; vx: number; lx: number; lt: number } | null>(null);
   // 払った直後のクリック（指を離したときに出る）で詳細が開かないようにする
   const swiped = useRef(false);
 
-  const threshold = () => Math.min(110, (wrap.current?.offsetWidth ?? 300) * 0.32);
+  const width = () => wrap.current?.offsetWidth ?? 300;
+  const threshold = () => width() * 0.5;
 
   const finishLeft = () => {
     haptic.select();
@@ -48,7 +53,7 @@ export default function SwipeRow({ children, onSwipe, label, color = 'var(--colo
   const dir = dx < 0 ? -1 : dx > 0 ? 1 : (drag.current?.dir ?? 0);
   const side = dir > 0 ? right : { label, color };
   return (
-    <div ref={wrap} className="relative overflow-hidden"
+    <div ref={wrap} data-swipe-row className="relative overflow-hidden"
       style={{
         borderRadius: radius, touchAction: 'pan-y',
         height: phase === 'collapse' ? 0 : h ?? undefined,
@@ -59,24 +64,32 @@ export default function SwipeRow({ children, onSwipe, label, color = 'var(--colo
       onDragStart={(e) => e.preventDefault()}
       onPointerDown={(e) => {
         if (phase !== 'idle' || e.button !== 0) return;
-        drag.current = { x: e.clientX, y: e.clientY, dir: 0, past: false };
+        drag.current = { x: e.clientX, y: e.clientY, dir: 0, past: false, vx: 0, lx: e.clientX, lt: e.timeStamp };
       }}
       onPointerMove={(e) => {
         const d = drag.current;
         if (!d) return;
         const mx = e.clientX - d.x, my = e.clientY - d.y;
         if (!d.dir) {
-          // 横に 10px 動き、縦より十分大きければ横のスワイプとみなす。先に縦へ動いたらスクロールに任せる
-          const horiz = Math.abs(mx) > 10 && Math.abs(mx) > Math.abs(my) * 1.4;
+          // 横に 16px 動き、縦より十分大きければ横のスワイプとみなす。先に縦へ動いたらスクロールに任せる
+          const horiz = Math.abs(mx) > 16 && Math.abs(mx) > Math.abs(my) * 1.6;
           if (horiz && mx < 0 && onSwipe) d.dir = -1;
           else if (horiz && mx > 0 && right) d.dir = 1;
-          else if (Math.abs(my) > 10 || Math.abs(mx) > 10) { drag.current = null; return; }
+          else if (Math.abs(my) > 12 || Math.abs(mx) > 16) { drag.current = null; return; }
           else return;
           setPhase('drag');
           try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* noop */ }
         }
-        const x = d.dir < 0 ? Math.min(0, mx + 10) : Math.max(0, mx - 10);
-        const past = Math.abs(x) > threshold();
+        // 速さ（px/ms）。少しずつ均して、最後の動きの勢いを見る
+        const dt = Math.max(1, e.timeStamp - d.lt);
+        d.vx = d.vx * 0.6 + ((e.clientX - d.lx) / dt) * 0.4;
+        d.lx = e.clientX; d.lt = e.timeStamp;
+        const raw = d.dir < 0 ? Math.min(0, mx + 16) : Math.max(0, mx - 16);
+        const th = threshold();
+        // 半分を越えた先は、指より遅れてついてくる
+        const over = Math.abs(raw) - th;
+        const x = over > 0 ? Math.sign(raw) * (th + over * 0.45) : raw;
+        const past = Math.abs(raw) > th;
         // しきい値を越えた・戻ったときに軽く震わせる（離せば決まる、が指で分かるように）
         if (past !== d.past) { d.past = past; haptic.select(); }
         setDx(x);
@@ -87,8 +100,11 @@ export default function SwipeRow({ children, onSwipe, label, color = 'var(--colo
         if (!d?.dir) return;
         swiped.current = true;
         setTimeout(() => { swiped.current = false; }, 80);
-        if (d.past && d.dir < 0) { finishLeft(); return; }
-        if (d.past && d.dir > 0) right?.onSwipe();
+        // 勢いよく払ったときは、半分に届かなくても決める（向きが合っていて、幅の 25% 以上動いていれば）
+        const fling = d.dir * d.vx > 0.6 && Math.abs(dx) > width() * 0.25;
+        if (fling && !d.past) haptic.select();
+        if ((d.past || fling) && d.dir < 0) { finishLeft(); return; }
+        if ((d.past || fling) && d.dir > 0) right?.onSwipe();
         setDx(0); setPhase('idle');
       }}
       onPointerCancel={() => { drag.current = null; setDx(0); setPhase('idle'); }}>
@@ -103,7 +119,7 @@ export default function SwipeRow({ children, onSwipe, label, color = 'var(--colo
       <div className="relative"
         style={{
           transform: phase === 'out' || phase === 'collapse' ? 'translateX(-105%)' : `translateX(${dx}px)`,
-          transition: phase === 'drag' ? 'none' : 'transform .2s ease',
+          transition: phase === 'drag' ? 'none' : 'transform .32s cubic-bezier(0.22,1,0.36,1)',
         }}>
         {children}
       </div>

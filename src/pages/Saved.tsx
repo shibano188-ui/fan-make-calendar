@@ -389,7 +389,7 @@ export default function Saved() {
   // オンボーディングの案内（OnboardingTour）で、いいねした予定を見せているところ。
   // 絞り込み・タブに関係なく必ず出し、その日のパネルを開いたままにする
   const tourStep = useTourStep();
-  const tourId = tourStep === 'calendar' || tourStep === 'bell' || tourStep === 'done' ? tourEventId() : null;
+  const tourId = tourStep === 'calview' || tourStep === 'calendar' || tourStep === 'bell' || tourStep === 'done' ? tourEventId() : null;
   // いいねの保存が届く前に取り直すことがあるので、無ければ案内が持っている予定を使う
   const tourEvent = tourId ? (items?.find((e) => e.id === tourId) ?? (tourLikedEvent()?.id === tourId ? tourLikedEvent()! : undefined)) : undefined;
   const shown = useMemo(
@@ -397,27 +397,29 @@ export default function Saved() {
     [filtered, tourEvent],
   );
   const tourDay = tourEvent ? focusDayOf(tourEvent, today) : null;
+  // 案内（2026-11-07 実際のボードの画面で説明する）:
+  //   calview・personal … ボードの一番上へ戻し、カレンダーを開く（カレンダー・自分の予定のボタンを光らせる）
+  //   calendar・bell・done … カレンダーをたたんで、♡した予定の行を真ん中へ。ボードに行が無い予定（日付未定など）はリスト表示で
+  const [foldTick, setFoldTick] = useState(0);
   useEffect(() => {
-    if (!tourEvent) return;
-    // ボードで見せる（2026-11-07 からボードが主）。ボードに行として出ない予定（日付未定など）はリスト表示で見せる。
-    // 見つかったら真ん中へ送る（案内の吹き出しと、右へ払う段階で使う）
+    if (tourStep === 'calview' || tourStep === 'personal') {
+      setView('board'); setAnchor(today); setTodayTick((n) => n + 1);
+      return;
+    }
+    // 通知の段階・その次も（途中でアプリを開き直したときに、開いたカレンダーが行を隠さないように）
+    if ((tourStep !== 'calendar' && tourStep !== 'bell' && tourStep !== 'done') || !tourEvent) return;
     setView('board');
-    setAnchor(today);
-    let tries = 0, inList = false;
+    setFoldTick((n) => n + 1);
+    let tries = 0, inList = false, done = false;
     const t = setInterval(() => {
       const el = document.querySelector(`[data-card-id="${CSS.escape(tourEvent.id)}"]`);
-      if (el) {
-        clearInterval(t);
-        el.scrollIntoView({ block: 'center', behavior: 'auto' });
-        // スクロールするとボードのカレンダーが自動でたたまれ、一覧が上へずれる。たたみ終わってから真ん中へ送り直す
-        setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'auto' }), 450);
-        return;
-      }
+      // たたみ終わる（.28s）のを待ってから真ん中へ送る
+      if (el && !done) { done = true; clearInterval(t); setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'auto' }), 300); return; }
       if (++tries === 15 && !inList) { inList = true; setView('list'); }
       if (tries > 40) clearInterval(t);
-    }, 100);
+    }, 80);
     return () => clearInterval(t);
-  }, [tourEvent?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tourStep, tourEvent?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // リスト表示: 近い順（これから昇順 → 過去降順）
   const listItems = useMemo(() => {
@@ -599,6 +601,7 @@ export default function Saved() {
       ) : view === 'board' ? (
         <SavedBoard events={shown} anchor={anchor} setAnchor={setAnchor} workImages={workImages} stickyTop={headerH}
           onOpen={openItem} onRemove={onRemove} userId={user?.id} onVisits={onVisits} todayTick={todayTick}
+          autoFold={!tourStep} foldTick={foldTick}
           onAddPersonal={() => navigate(`/personal/new?date=${anchor.slice(0, 7) === today.slice(0, 7) ? today : `${anchor.slice(0, 7)}-01`}`)} />
       ) : view !== 'list' ? (
         // カレンダー（月/週/日）は予定が0件でも枠を表示する
@@ -627,8 +630,8 @@ export default function Saved() {
 
       {/* 自分用の予定を作る入口（2026-09-29）。みんなに公開する情報は下の真ん中の「＋」から。
           日付は表示中の日（月表示なら今日か、見ている月の1日）を入れておく */}
-      {/* ボードはカレンダーの右下（開いているとき）に出すので、ここでは出さない（案内でこのボタンを指すときだけ出す） */}
-      {(view !== 'board' ? !tourStep || tourStep === 'personal' : tourStep === 'personal') && (
+      {/* ボードはカレンダーの右下（開いているとき）に出すので、ここでは出さない（案内もボードのボタンを指す） */}
+      {view !== 'board' && (!tourStep || tourStep === 'personal') && (
         <button data-tour="personal" onClick={() => { haptic.select(); navigate(`/personal/new?date=${calScope === 'list' || includesToday(calScope, anchor, today) ? today : anchor}`); }}
           aria-label="自分の予定を追加"
           // 下の真ん中の「＋」（みんなに公開する情報）と見分けるため、塗りではなく白地にカレンダーの印

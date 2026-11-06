@@ -54,11 +54,15 @@ type Props = {
   todayTick?: number;
   /** 自分用の予定を足す（カレンダーが開いているときだけ、カレンダーの右下にボタンを出す） */
   onAddPersonal?: () => void;
+  /** スクロールで自動でたたむか（案内の間は止める。案内が行を真ん中へ送ったときにたたまれて、ずれないように） */
+  autoFold?: boolean;
+  /** 増えたらカレンダーをたたむ（案内が♡した予定を見せるとき） */
+  foldTick?: number;
 };
 
 type SheetState = { kind: 'day'; day: string } | { kind: 'undated' } | { kind: 'icons' } | { kind: 'visit'; id: string } | null;
 
-export default function SavedBoard({ events, anchor, setAnchor, workImages, stickyTop, onOpen, onRemove, userId, onVisits, todayTick = 0, onAddPersonal }: Props) {
+export default function SavedBoard({ events, anchor, setAnchor, workImages, stickyTop, onOpen, onRemove, userId, onVisits, todayTick = 0, onAddPersonal, autoFold = true, foldTick = 0 }: Props) {
   const today = todayStr();
   const toast = useToast();
   const [onlyMarks, setOnlyMarks] = useState<Set<Mark>>(new Set());
@@ -118,6 +122,9 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
   const [folded, setFolded] = useState(false);
   const foldedRef = useRef(false);
   foldedRef.current = folded;
+  const autoFoldRef = useRef(autoFold);
+  autoFoldRef.current = autoFold;
+  useEffect(() => { if (foldTick) setFolded(true); }, [foldTick]);
   const [scrolled, setScrolled] = useState(false);
   const [active, setActive] = useState(today);
   const activeRef = useRef(today);
@@ -136,7 +143,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
         const y = window.scrollY;
-        if (y > last + 2 && y > 0 && !foldedRef.current) setFolded(true);
+        if (y > last + 2 && y > 0 && !foldedRef.current && autoFoldRef.current) setFolded(true);
         last = y;
         setScrolled(y > 0);
         // 今見ている日（帯の下端より上に来た最後の日）
@@ -350,7 +357,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
   return (
     <div className="pb-6">
       {/* ── 月のカレンダー。高さは変えず、上部バーの下へ滑り込んで「週の帯」だけを残す ── */}
-      <div {...calTouch} className="sticky z-10"
+      <div {...calTouch} data-tour="calendar" className="sticky z-10"
         // 地の色は、見えている部分（開いているときは月、たたんだら帯）にだけ塗る。たたんで上へずらした月が、
         // 上の案内などを地の色で隠さないように。スクロール中は、上部バーのぼかしの下から一覧が透けないよう上へ伸ばす
         style={{ ...slide, top: stickyTop }}>
@@ -384,7 +391,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
           {/* 自分用の予定を足す。カレンダーが開いているときだけ、カレンダーの右下（下の線にかかる位置）に出す。
               前は画面の右下に浮かせていて、位置がずれることがあった（柴野） */}
           {onAddPersonal && (
-            <button aria-label="自分の予定を追加"
+            <button aria-label="自分の予定を追加" data-tour="personal"
               className="pressable material-thick absolute right-3 w-12 h-12 rounded-full flex items-center justify-center shadow-float"
               style={{ bottom: -24, color: 'var(--accent-text)', opacity: folded ? 0 : 1, transform: folded ? 'scale(.6)' : 'none', pointerEvents: folded ? 'none' : 'auto', transition: 'opacity .2s, transform .2s', zIndex: 2 }}
               onClick={() => { haptic.select(); onAddPersonal(); }}>

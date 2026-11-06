@@ -4,12 +4,15 @@ import { useLocation } from 'react-router-dom';
 import { useTourStep } from './OnboardingTour';
 import { haptic } from '../lib/haptics';
 import { ONBOARDING_KEY } from '../lib/constants';
+import { loadHintsSeen, markHintsSeen } from '../lib/hintsSeen';
 
 // 場面ごとのヒント（2026-11-07 柴野）。最初の案内（OnboardingTour）は短くし、増えた機能・前からあって分かりにくい機能は、
 // 初めてその画面でその部品が見えたときに、小さな吹き出しで1回だけ出す。
 //   ・案内の途中・シートが開いているときは出さない
-//   ・1つずつ。「OK」で閉じたら、少し間をあけて次。1回の訪問で2つまで（続けて出すと案内と変わらない）
-//   ・見たものは端末に覚える（fan_hints_seen）
+//   ・1つずつ。「OK」で閉じたら、同じ画面に見えている次のヒントをすぐ出す（上にあるものから順に。
+//     前は間をあけていたので、終わったと思ったら変な間で次が来ていた・柴野）
+//   ・見たものは端末に覚える（lib/hintsSeen.ts）。最初の案内で説明したものは、案内を終えたときに見たことにする
+//   ・今使っている人（前の案内しか見ていない人）にも出す
 
 type Hint = {
   id: string;
@@ -20,22 +23,26 @@ type Hint = {
   text: string;
 };
 
+/** 画面に実際に見えている（真ん中がほかの物に隠れていない・下のナビより上にある）最初の要素 */
 const visible = (sel: string) => () => {
   for (const el of document.querySelectorAll(sel)) {
     const r = el.getBoundingClientRect();
-    if (r.width > 0 && r.top >= 70 && r.bottom <= window.innerHeight - 110) return el;
+    if (r.width <= 0 || r.top < 0 || r.bottom > window.innerHeight - 100) continue;
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + Math.min(r.height / 2, 24));
+    if (hit && el.contains(hit)) return el;
   }
   return null;
 };
 
 const HINTS: Hint[] = [
-  // カレンダー（ボード）
+  // カレンダー（ボード）。cal-overview・cal-swipe は最初の案内でも説明する（案内を見た人には出ない）
+  { id: 'cal-overview', path: '/saved', find: visible('[data-tour="calendar"]'), text: 'どの日に何があるか、上のカレンダーで見渡せます。点は作品、〆は締切、紫の輪はイベント。日付を押すとその日の予定へ飛びます' },
   { id: 'cal-swipe', path: '/saved', find: visible('[data-board-day] [data-card-id]'), text: '右へ払うと通知のON／OFF、左へ払うとカレンダーから外せます' },
   { id: 'cal-fold', path: '/saved', find: visible('[aria-hidden="false"] > button[aria-label="カレンダーを開く"]'), text: '一番上でさらに下へ引くか、ここを押すとカレンダーが開きます' },
   { id: 'cal-undated', path: '/saved', find: visible('[data-undated-drop]'), text: '日付がまだ決まっていない予定はここ。長押しして、好きな場所へ仮置きできます' },
   { id: 'cal-view', path: '/saved', find: visible('button[aria-label="表示を切り替える"]'), text: '月・週・日・リストの表示にも切り替えられます' },
   { id: 'cal-icons', path: '/saved', find: visible('[data-hint="cal-icons"]'), text: 'カレンダーの点を、好きなキャラのドット絵や色にできます' },
-  { id: 'cal-custom', path: '/saved', find: visible('button[aria-label="カスタマイズ"]'), text: 'テーマを作ったり、作品の色を変えたりできます' },
+  { id: 'cal-custom', path: '/saved', find: visible('button[aria-label="カスタマイズ"]'), text: 'カレンダー全体の見た目を変えられます。テーマ（AIで作ることも）、背景の画像、文字の色、作品の色と画像など' },
   // 探す
   { id: 'ex-swipe', path: '/explore', find: visible('[data-event-id]'), text: '右へ払うとカレンダーに追加、左へ払うと非表示にできます' },
   { id: 'ex-stamp', path: '/explore', find: visible('[data-hint="ex-stamp"]'), text: '♡ほどではないけど気になる予定は、スタンプでとっておけます。押した予定はここにたまります' },
@@ -46,28 +53,19 @@ const HINTS: Hint[] = [
   { id: 'my-sync', path: '/mypage', find: visible('[data-hint="my-sync"]'), text: 'いつものカレンダー（Google・iPhone など）に、予定を自動で入れられます' },
 ];
 
-const SEEN_KEY = 'fan_hints_seen';
-function loadSeen(): Set<string> {
-  try { return new Set(JSON.parse(localStorage.getItem(SEEN_KEY) ?? '[]') as string[]); } catch { return new Set(); }
-}
-function markSeen(id: string): void {
-  const s = loadSeen();
-  s.add(id);
-  try { localStorage.setItem(SEEN_KEY, JSON.stringify([...s])); } catch { /* この起動の間だけ覚える */ }
-}
-
-const PER_VISIT = 2;
+const loadSeen = loadHintsSeen;
+const markSeen = (id: string) => markHintsSeen(id);
 
 export default function HintLayer() {
   const { pathname } = useLocation();
   const tour = useTourStep();
   const [hint, setHint] = useState<{ h: Hint; el: Element } | null>(null);
-  const shownThisVisit = useRef(0);
+  // 「OK」で閉じた直後か（続けて次を出す）
+  const chained = useRef(false);
 
-  // 画面が変わったら数え直す
-  useEffect(() => { shownThisVisit.current = 0; setHint(null); }, [pathname]);
+  useEffect(() => { setHint(null); chained.current = false; }, [pathname]);
 
-  // 出せるヒントを探す（画面に部品が見えるまで待つ）
+  // 出せるヒントを探す（画面に部品が見えるまで待つ）。見えているものが複数あれば、上にあるものから
   useEffect(() => {
     if (tour || hint) return;
     let onboarded = false;
@@ -75,24 +73,24 @@ export default function HintLayer() {
     if (!onboarded) return;
     let timer: ReturnType<typeof setTimeout>;
     const look = () => {
-      if (shownThisVisit.current >= PER_VISIT) return;
       // シート・ダイアログ・案内が開いているときは待つ
       if (document.querySelector('[role="dialog"]') || document.body.dataset.tourStep) { timer = setTimeout(look, 1000); return; }
       const seen = loadSeen();
-      for (const h of HINTS) {
-        if (h.path !== pathname || seen.has(h.id)) continue;
-        const el = h.find();
-        if (el) { shownThisVisit.current++; setHint({ h, el }); return; }
-      }
-      timer = setTimeout(look, 1200);
+      const found = HINTS.filter((h) => h.path === pathname && !seen.has(h.id))
+        .map((h) => ({ h, el: h.find() }))
+        .filter((x): x is { h: Hint; el: Element } => !!x.el)
+        .sort((a, b) => a.el.getBoundingClientRect().top - b.el.getBoundingClientRect().top)[0];
+      if (found) { setHint(found); return; }
+      chained.current = false;
+      timer = setTimeout(look, 1000);
     };
-    // 開いてすぐは出さない（画面を見る間をあける）。2つ目は少し間をあける
-    timer = setTimeout(look, shownThisVisit.current ? 1500 : 1200);
+    // 開いてすぐは少し待つ（画面を見る間）。「OK」の直後は、見えている次をすぐ出す
+    timer = setTimeout(look, chained.current ? 200 : 900);
     return () => clearTimeout(timer);
   }, [pathname, tour, hint]);
 
   if (!hint || tour) return null;
-  return <HintBubble key={hint.h.id} hint={hint.h} el={hint.el} onClose={() => { haptic.select(); markSeen(hint.h.id); setHint(null); }} />;
+  return <HintBubble key={hint.h.id} hint={hint.h} el={hint.el} onClose={() => { haptic.select(); markSeen(hint.h.id); chained.current = true; setHint(null); }} />;
 }
 
 function HintBubble({ hint, el, onClose }: { hint: Hint; el: Element; onClose: () => void }) {
@@ -111,7 +109,7 @@ function HintBubble({ hint, el, onClose }: { hint: Hint; el: Element; onClose: (
   const ref = useRef<HTMLDivElement>(null);
   const [h, setH] = useState(0);
   useLayoutEffect(() => { setH(ref.current?.offsetHeight ?? 0); }, [rect === null]);
-  if (!rect || rect.bottom < 60 || rect.top > window.innerHeight - 90) return null;
+  if (!rect || rect.bottom < 0 || rect.top > window.innerHeight - 90) return null;
 
   const vw = window.innerWidth;
   // 部品の上に余裕があれば上、無ければ下
