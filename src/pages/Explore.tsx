@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams, useNavigationType, useLocation } from 'react-router-dom';
-import { ArrowDownToLine, ArrowLeftRight, Plus, SlidersHorizontal, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowLeftRight, EyeOff, Heart, Plus, SlidersHorizontal, X } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import FilterPanel, { type Facet } from '../components/item/FilterPanel';
@@ -662,8 +662,8 @@ export default function Explore() {
     <div key={e.id} ref={observeSeen} data-event-id={e.id}
       style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 196px' }}>
       {/* 左へ払うと非表示、右へ払うと ♡（カレンダーに追加） */}
-      <SwipeRow label="非表示" color="#8e8e93" radius={12} onSwipe={() => onDismiss(e)}
-        right={{ label: isLiked(e) ? '♥ 追加済み' : '♥ カレンダーに追加', color: 'var(--accent-color)', onSwipe: () => { void onSwipeLike(e); } }}>
+      <SwipeRow label="非表示" icon={<EyeOff size={16} />} color="#8e8e93" radius={12} onSwipe={() => onDismiss(e)}
+        right={{ label: isLiked(e) ? '追加済み' : 'カレンダーに追加', icon: <Heart size={16} fill="currentColor" />, color: 'var(--accent-color)', onSwipe: () => { void onSwipeLike(e); } }}>
         <ItemCard event={e} layout={mode === 'goods' ? 'wide' : 'list'} isNew={isNewItem(e.id, e.createdAt, seenSnapshot)} likedInit={likedIds.has(e.id)}
           workColor={e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)'}
           onOpen={() => { saveReturnPoint(e.id); navigate(`/item/${e.id}`); }} onLike={(want) => onLikeTile(e, want)} onCalendar={() => onCalendarTile(e)} />

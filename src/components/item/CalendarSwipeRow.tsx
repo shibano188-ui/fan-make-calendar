@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Bell, BellOff } from 'lucide-react';
+import { Bell, BellOff, Trash2 } from 'lucide-react';
 import type { CalendarEvent } from '../../types';
 import SwipeRow from '../ui/SwipeRow';
 import { useEventNotify } from './NotifyBell';
@@ -16,8 +16,8 @@ export default function CalendarSwipeRow({ event, onRemove, radius, disabled, ch
   // 案内の途中（右へ払って通知をONにする段階など）は、左へ払って外せないようにする
   const touring = !!useTourStep();
   return (
-    <SwipeRow label="外す" radius={radius} disabled={disabled || event.personal} onSwipe={touring ? undefined : () => onRemove(event)}
-      right={{ label: on ? <><BellOff size={15} />通知OFF</> : <><Bell size={15} />通知ON</>, color: NOTIFY_SIDE_COLOR, onSwipe: toggle }}>
+    <SwipeRow label="外す" icon={<Trash2 size={16} />} radius={radius} disabled={disabled || event.personal} onSwipe={touring ? undefined : () => onRemove(event)}
+      right={{ label: on ? '通知OFF' : '通知ON', icon: on ? <BellOff size={16} /> : <Bell size={16} />, color: NOTIFY_SIDE_COLOR, onSwipe: toggle }}>
       {children}
     </SwipeRow>
   );

@@ -215,6 +215,12 @@
   34%  { opacity: 0; transform: translateY(-4px); }
   100% { opacity: 0; }
 }
+/* 横に払って決まったとき、真ん中にマークがポンと出る（SwipeRow） */
+@keyframes swipePop {
+  0%   { transform: scale(0.4); opacity: 0; }
+  60%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
 /* 案内の「右へ払って通知をON」: 行の左から右へ流れる矢印 */
 @keyframes tourSwipeHint {
   0%   { left: 8px; opacity: 0; }

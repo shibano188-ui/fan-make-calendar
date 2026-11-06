@@ -158,10 +158,11 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
         }
       });
     };
-    // 一番上まで戻ったうえで、さらに上へ（指を下へ）80px 引いたら開く。スクロールで戻ってきただけでは開かない。
+    // 一番上まで戻ったうえで、さらに上へ（指を下へ）50px 引いたら開く。スクロールで戻ってきただけでは開かない。
+    // （80px は反応しづらかった・柴野 2026-11-07）
     // 指を置いたときに一番上でなくても、指を動かしている途中で一番上に着いたら、そこから数える
     let pullY: number | null = null;
-    const PULL = 80;
+    const PULL = 50;
     const onTouchStart = () => { pullY = null; };
     const onTouchMove = (e: TouchEvent) => {
       if (!foldedRef.current) return;
