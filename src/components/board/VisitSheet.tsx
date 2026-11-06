@@ -190,9 +190,6 @@ export function VisitPicker({ eventId, date, endDate, visits, userId, deadlineDa
               {months.map((m, i) => <i key={m} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: i === page ? 'var(--label-primary)' : 'var(--separator)' }} />)}
             </div>
           )}
-          <p className="text-[11px] text-label-secondary leading-relaxed">
-            選んだ日は、カレンダーの日付にイベントの紫の輪が付き、その日の列に「行く日」として入ります。{deadlineDays ? '赤い点は、ほかの予定の締切がある日です。' : ''}
-          </p>
         </div>
       )}
     </div>

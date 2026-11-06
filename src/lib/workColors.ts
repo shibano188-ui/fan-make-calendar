@@ -77,3 +77,10 @@ export const loadEventMark = (id: string): string | null => loadOne(MARK_PREFIX 
 export const saveEventColor = (id: string, color: string | null): void => saveOne(EVENT_PREFIX + id, color);
 /** 帯の先頭のアイコンを選ぶ。null でアイコンなし */
 export const saveEventMark = (id: string, mark: string | null): void => saveOne(MARK_PREFIX + id, mark);
+
+/** 作品の色を変える（カスタマイズと同じ保存先。カレンダー・作品の並び・各タイルに共通で効く）。
+ *  変えたことは 'fan-work-colors' で知らせる（開いている画面が色を取り直す） */
+export function saveWorkColor(workId: string, color: string): void {
+  saveOne(workId, color);
+  window.dispatchEvent(new Event('fan-work-colors'));
+}

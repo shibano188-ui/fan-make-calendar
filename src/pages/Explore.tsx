@@ -698,6 +698,18 @@ export default function Explore() {
           </SearchSideButtons>
         </div>
 
+        {/* 探す｜スタンプ（上部バーの中に置き、いつでも切り替えられる） */}
+        <div className="flex p-0.5 mt-2.5 rounded-[10px]" role="tablist" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+          {([['list', '探す'], ['stamp', 'スタンプ']] as const).map(([k, label]) => (
+            <button key={k} role="tab" aria-selected={tab === k}
+              onClick={() => { if (tab === k) return; haptic.select(); setTab(k); window.scrollTo(0, 0); }}
+              className="pressable flex-1 h-8 rounded-[8px] text-[13px] font-semibold transition-colors"
+              style={tab === k ? { backgroundColor: 'var(--bg-primary)', color: 'var(--label-primary)', boxShadow: '0 1px 3px rgba(0,0,0,.12)' } : { color: 'var(--label-secondary)' }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
         {/* 下段: 作品の並び（カレンダーと同じ。押すとその作品を隠す）＋ 作品を足す */}
         <WorkChipsRow works={followedWorks} colors={workColorMap} images={workImages} excluded={excludedWorks}
           onToggle={(id) => toggleIn(setExcludedWorks, id)} onShowAll={() => setExcludedWorks(new Set())}
@@ -742,18 +754,6 @@ export default function Explore() {
             onClear={clearFilters} resultCount={visible.length}
           />
         )}
-      </div>
-
-      {/* 探す｜スタンプ */}
-      <div className="flex p-0.5 mx-3 mt-2 mb-1 rounded-[10px]" role="tablist" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-        {([['list', '探す'], ['stamp', 'スタンプ']] as const).map(([k, label]) => (
-          <button key={k} role="tab" aria-selected={tab === k}
-            onClick={() => { if (tab === k) return; haptic.select(); setTab(k); window.scrollTo(0, 0); }}
-            className="pressable flex-1 h-8 rounded-[8px] text-[13px] font-semibold transition-colors"
-            style={tab === k ? { backgroundColor: 'var(--bg-primary)', color: 'var(--label-primary)', boxShadow: '0 1px 3px rgba(0,0,0,.12)' } : { color: 'var(--label-secondary)' }}>
-            {label}
-          </button>
-        ))}
       </div>
 
       {tourFallbackWorkId && (

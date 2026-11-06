@@ -275,6 +275,12 @@ export default function Saved() {
   // リスト表示のカードから色とアイコンを選ぶ。選んだらカードの色へすぐ映す
   const [styling, setStyling] = useState<CalendarEvent | null>(null);
   const [styleTick, setStyleTick] = useState(0);
+  // ボードの「アイコンを変える」で作品の色を変えたら、作品の並び・カードの色にもすぐ映す
+  useEffect(() => {
+    const on = () => setStyleTick((t) => t + 1);
+    window.addEventListener('fan-work-colors', on);
+    return () => window.removeEventListener('fan-work-colors', on);
+  }, []);
 
   // 保存中の予定に出てくる作品の色マップ（未割当はパレットから付与して永続化）
   const workColorMap = useMemo(() => {
@@ -285,7 +291,7 @@ export default function Saved() {
   }, [items, styleTick]);
 
   // 作品の並びの四角の色。カレンダーの帯と同じ保存先なので、同じ作品は同じ色になる
-  const followedColor = useMemo(() => buildWorkColorMap(followedWorks), [followedWorks]);
+  const followedColor = useMemo(() => buildWorkColorMap(followedWorks), [followedWorks, styleTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // スコープ（すべて / いいね / 自分の投稿）→ 検索語 で絞った集合
   const scopeItems = useMemo(() => {

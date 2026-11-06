@@ -91,7 +91,14 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
     for (const e of events) if (e.workId && !m.has(e.workId)) m.set(e.workId, { id: e.workId, name: e.workName || '作品' });
     return [...m.values()];
   }, [events]);
-  const colors = useMemo(() => buildWorkColorMap(works), [works]);
+  // 作品の色。アイコンの設定で色を変えたら取り直す
+  const [colorTick, setColorTick] = useState(0);
+  useEffect(() => {
+    const on = () => setColorTick((n) => n + 1);
+    window.addEventListener('fan-work-colors', on);
+    return () => window.removeEventListener('fan-work-colors', on);
+  }, []);
+  const colors = useMemo(() => buildWorkColorMap(works), [works, colorTick]); // eslint-disable-line react-hooks/exhaustive-deps
   // カレンダーの点の画像（作品のアイコンと同じ／点だけ別の写真／色の点）
   const dotImages = useCalDotImages(workImages);
   const icons = useWorkIcons(dotImages.images);
@@ -144,13 +151,28 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
         }
       });
     };
-    // 一番上で、さらに下へ引いたら開く（スクロールで戻ってきただけでは開かない）
+    // 一番上まで戻ったうえで、さらに上へ（指を下へ）80px 引いたら開く。スクロールで戻ってきただけでは開かない。
+    // 指を置いたときに一番上でなくても、指を動かしている途中で一番上に着いたら、そこから数える
     let pullY: number | null = null;
-    const onTouchStart = (e: TouchEvent) => { pullY = window.scrollY <= 0 ? e.touches[0].clientY : null; };
+    const PULL = 80;
+    const onTouchStart = () => { pullY = null; };
     const onTouchMove = (e: TouchEvent) => {
-      if (pullY === null || window.scrollY > 0 || !foldedRef.current) return;
-      if (e.touches[0].clientY - pullY > 70) { pullY = null; haptic.select(); setFolded(false); }
+      if (!foldedRef.current) return;
+      const y0 = e.touches[0].clientY;
+      if (window.scrollY > 0) { pullY = null; return; }
+      if (pullY === null || y0 < pullY) pullY = y0; // 一番上に着いた位置（上へ戻したら、そこから数え直す）
+      if (y0 - pullY > PULL) { pullY = null; haptic.select(); setFolded(false); }
     };
+    // パソコンのホイール: 一番上でさらに上へ回したら開く
+    let wheelUp = 0, wheelTimer: ReturnType<typeof setTimeout> | null = null;
+    const onWheel = (e: WheelEvent) => {
+      if (!foldedRef.current || window.scrollY > 0 || e.deltaY >= 0) { wheelUp = 0; return; }
+      wheelUp += -e.deltaY;
+      if (wheelTimer) clearTimeout(wheelTimer);
+      wheelTimer = setTimeout(() => { wheelUp = 0; }, 400);
+      if (wheelUp > 200) { wheelUp = 0; haptic.select(); setFolded(false); }
+    };
+    window.addEventListener('wheel', onWheel, { passive: true });
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('touchstart', onTouchStart, { passive: true });
     window.addEventListener('touchmove', onTouchMove, { passive: true });
@@ -159,6 +181,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('touchstart', onTouchStart);
       window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('wheel', onWheel);
       cancelAnimationFrame(raf);
     };
   }, [stickyTop, today, setAnchor]);
@@ -242,14 +265,17 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
     if (!drag) return;
     let px = drag.x, py = drag.y, raf = 0;
     const target = () => {
-      const t = dropTargetAt(px, py, today);
+      const t = dropTargetAt(px, py, today, !!drag.m.tentative);
       const prev = hotRef.current;
       if (t?.day !== prev?.day || t?.kind !== prev?.kind) { hotRef.current = t; setHot(t); if (t) haptic.select(); }
     };
     // 画面の上下の端に近づいたら、自動でスクロールする
     const loop = () => {
-      const top = stickyTop + BAR + 40, bottom = window.innerHeight - 130;
-      if (py < top) window.scrollBy(0, -Math.min(14, (top - py) / 3));
+      // 上は帯の下から 70px、下はナビの上から。広めにして、上の日付未定の欄へも運びやすく
+      const top = stickyTop + BAR + 70, bottom = window.innerHeight - 140;
+      // 日付未定の欄の上にいるときは止める（戻す先が逃げないように）
+      if (hotRef.current?.kind === 'back') { /* 止める */ }
+      else if (py < top) window.scrollBy(0, -Math.min(14, (top - py) / 3));
       else if (py > bottom) window.scrollBy(0, Math.min(14, (py - bottom) / 3));
       target();
       raf = requestAnimationFrame(loop);
@@ -261,19 +287,20 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
       hotRef.current = null; setHot(null); setDrag(null);
       if (!t) return;
       const before = tentative[m.e.id] ?? null;
-      setTentative(m.e.id, t.day);
-      toast(`${t.label}に仮置きしました`, 'success', { label: '元に戻す', onClick: () => setTentative(m.e.id, before) });
+      setTentative(m.e.id, t.kind === 'back' ? null : t.day);
+      toast(t.kind === 'back' ? '日付未定に戻しました' : `${t.label}に仮置きしました`, 'success', { label: '元に戻す', onClick: () => setTentative(m.e.id, before) });
     };
     const cancel = () => { hotRef.current = null; setHot(null); setDrag(null); };
     // 運んでいる間は、指の動きでページがスクロールしないようにする
     const noScroll = (e: TouchEvent) => e.preventDefault();
-    window.addEventListener('pointermove', move);
+    // 捕捉の段階で受ける（運んでいる間は、行のスワイプへ指の動きを渡さないので）
+    window.addEventListener('pointermove', move, true);
     window.addEventListener('pointerup', end);
     window.addEventListener('pointercancel', cancel);
     window.addEventListener('touchmove', noScroll, { passive: false });
     return () => {
       cancelAnimationFrame(raf);
-      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointermove', move, true);
       window.removeEventListener('pointerup', end);
       window.removeEventListener('pointercancel', cancel);
       window.removeEventListener('touchmove', noScroll);
@@ -346,27 +373,24 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
           style={{ height: BAR, backgroundColor: 'var(--bg-primary)', borderBottom: '0.5px solid var(--separator)', boxShadow: scrolled && folded ? '0 -24px 0 var(--bg-primary)' : undefined }}>
           <div className="absolute inset-y-0 inset-x-3 flex flex-col justify-end" style={{ opacity: folded ? 0 : 1, pointerEvents: folded ? 'none' : 'auto', transition: 'opacity .2s ease' }}>
             <div className="flex-1 flex items-center gap-x-3 gap-y-1 flex-wrap content-center text-[11px] text-label-secondary">
-              <span className="flex items-center gap-1">
-                <span className="flex">{works.slice(0, 3).map((w, k) => <span key={w.id} style={{ marginLeft: k ? -3 : 0 }}>{dot(w.id, 14)}</span>)}</span>作品
-              </span>
-              <span className="flex items-center gap-1"><b style={{ color: MARKS['〆'].color }}>〆</b>締切がある日</span>
+              <span className="flex items-center gap-1"><b style={{ color: MARKS['〆'].color }}>〆</b>締切</span>
               <span className="flex items-center gap-1"><i className="w-[10px] h-[10px] rounded-full" style={{ boxShadow: `inset 0 0 0 2px ${MARKS['イ'].color}` }} />イベント</span>
-              <span className="ml-auto flex items-center gap-3">
-                {works.length > 0 && (
-                  <button className="pressable font-semibold text-label-primary" onClick={() => { haptic.select(); setSheet({ kind: 'icons' }); }}>アイコンを変える ›</button>
-                )}
-                {/* 自分用の予定を足す（前は画面の右下に浮かせていたが、位置がずれることがあった） */}
-                {onAddPersonal && (
-                  <button aria-label="自分の予定を追加" className="pressable w-8 h-8 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--accent-text)' }}
-                    onClick={() => { haptic.select(); onAddPersonal(); }}>
-                    <CalendarPlus size={17} />
-                  </button>
-                )}
-              </span>
+              {works.length > 0 && (
+                <button className="pressable ml-auto font-semibold text-label-primary" onClick={() => { haptic.select(); setSheet({ kind: 'icons' }); }}>アイコンを変える ›</button>
+              )}
             </div>
             {handle('カレンダーをたたむ', fold)}
           </div>
+          {/* 自分用の予定を足す。カレンダーが開いているときだけ、カレンダーの右下（下の線にかかる位置）に出す。
+              前は画面の右下に浮かせていて、位置がずれることがあった（柴野） */}
+          {onAddPersonal && (
+            <button aria-label="自分の予定を追加"
+              className="pressable material-thick absolute right-3 w-12 h-12 rounded-full flex items-center justify-center shadow-float"
+              style={{ bottom: -24, color: 'var(--accent-text)', opacity: folded ? 0 : 1, transform: folded ? 'scale(.6)' : 'none', pointerEvents: folded ? 'none' : 'auto', transition: 'opacity .2s, transform .2s', zIndex: 2 }}
+              onClick={() => { haptic.select(); onAddPersonal(); }}>
+              <CalendarPlus size={22} />
+            </button>
+          )}
           <div className="absolute inset-y-0 inset-x-3 flex flex-col" style={{ opacity: folded ? 1 : 0, pointerEvents: folded ? 'auto' : 'none', transition: 'opacity .2s ease' }} aria-hidden={!folded}>
             <div className="grid grid-cols-7 pt-0.5">{Array.from({ length: 7 }, (_, i) => cell(addDays(stripWeek, i), i, false, true))}</div>
             {handle('カレンダーを開く', () => setFolded(false))}
@@ -395,8 +419,10 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
       </div>
 
       {/* ── 日付未定（ふだんは1行。開くと画像が並び、長押しで好きな日へ運んで仮に置ける） ── */}
-      {undated.length > 0 && (
-        <section className="mt-3 rounded-[14px] overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)', boxShadow: 'inset 0 0 0 0.5px var(--separator)' }}>
+      {(undated.length > 0 || (!onlyMarks.size && placed.length > 0)) && (
+        // 仮置きした予定をここへ運ぶと、仮置きをやめて日付未定に戻る
+        <section data-undated-drop className="mt-3 rounded-[14px] overflow-hidden transition-colors"
+          style={{ backgroundColor: hot?.kind === 'back' ? 'color-mix(in srgb, var(--accent-color) 22%, var(--bg-secondary))' : 'var(--bg-secondary)', boxShadow: 'inset 0 0 0 0.5px var(--separator)' }}>
           <button className="pressable w-full flex items-center gap-2 px-3 py-2 text-left" aria-expanded={undatedOpen} onClick={toggleUndated}>
             <span className="text-[13px] font-bold whitespace-nowrap">日付未定</span>
             <span className="text-[12px] text-label-secondary tabular-nums">{undated.length}件</span>
@@ -419,7 +445,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
                   </LongPress>
                 ))}
               </div>
-              <FootButton onClick={() => setSheet({ kind: 'undated' })}>一覧で見る{placed.length ? `（仮置き ${placed.length}件）` : ''}</FootButton>
+              <FootButton onClick={() => setSheet({ kind: 'undated' })}>すべて見る</FootButton>
             </>
           )}
         </section>
@@ -438,7 +464,6 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
             {evOpen ? (
               <>
                 <Gantt list={ganttList} today={today} colors={colors} dot={dot} onDetail={onOpen} onVisit={pickVisit} />
-                <FootButton onClick={() => setEvOpen(false)}>たたむ</FootButton>
               </>
             ) : (
               <>
@@ -471,7 +496,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
       </div>
 
       {/* 運んでいる予定（指の下に出す） */}
-      {drag && hot && hot.kind !== 'on' && createPortal(
+      {drag && hot && (hot.kind === 'between' || hot.kind === 'after') && createPortal(
         // 日と日のあいだ・最後の日より後に置くときの線
         <div className="fixed pointer-events-none flex items-center" style={{ left: 60, right: 12, top: hot.y - 1, zIndex: 499 }}>
           <span className="w-2.5 h-2.5 -ml-1 rounded-full" style={{ backgroundColor: 'var(--accent-color)' }} />
@@ -484,7 +509,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
           <div className="rounded-[12px] shadow-float" style={{ transform: 'scale(1.05) rotate(-3deg)' }}><Pic e={drag.m.e} size={64} /></div>
           <div className="mt-1 -ml-8 w-[128px] text-center text-[11px] font-bold rounded-full px-1.5 py-0.5"
             style={{ backgroundColor: hot ? 'var(--label-primary)' : 'var(--fill-secondary)', color: hot ? 'var(--bg-primary)' : 'var(--label-secondary)' }}>
-            {hot ? `${hot.label}に置く` : '置きたい場所で離す'}
+            {hot ? (hot.kind === 'back' ? '日付未定に戻す' : `${hot.label}に置く`) : '置きたい場所で離す'}
           </div>
         </div>,
         document.body,
@@ -530,11 +555,13 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
 
 const UNDATED_OPEN_KEY = 'fan_board_undated_open';
 
-type DropTarget = { kind: 'on' | 'between' | 'after'; day: string; label: string; y: number };
+type DropTarget = { kind: 'on' | 'between' | 'after' | 'back'; day: string; label: string; y: number };
 
 /** 指の位置から置き先を決める。カレンダーの日の上＝その日。一覧の日の境目（上下12px）＝2つの日のあいだ（真ん中の日）。
  *  日の行の上＝その日。最後の日の下＝その1週間後 */
-function dropTargetAt(px: number, py: number, today: string): DropTarget | null {
+function dropTargetAt(px: number, py: number, today: string, placed: boolean): DropTarget | null {
+  // 仮置きしたものを日付未定の欄へ戻す
+  if (placed && document.elementFromPoint(px, py)?.closest('[data-undated-drop]')) return { kind: 'back', day: '', label: '日付未定', y: py };
   const cell = document.elementFromPoint(px, py)?.closest<HTMLElement>('[data-cal-day]');
   if (cell?.dataset.calDay && cell.dataset.calDay >= today) return { kind: 'on', day: cell.dataset.calDay, label: md(cell.dataset.calDay), y: py };
   const rows = [...document.querySelectorAll<HTMLElement>('[data-board-day]')];
@@ -571,7 +598,12 @@ function LongPress({ onLong, onTap, className, style, label, children }: {
         const x = e.clientX, y = e.clientY;
         t.current = { x, y, fired: false, timer: setTimeout(() => { if (t.current) { t.current.fired = true; onLong(x, y); } }, 380) };
       }}
-      onPointerMove={(e) => { const c = t.current; if (c && !c.fired && Math.hypot(e.clientX - c.x, e.clientY - c.y) > 8) { clear(); t.current = null; } }}
+      onPointerMove={(e) => {
+        const c = t.current;
+        // 運び始めたら、外側の行のスワイプに指の動きを渡さない
+        if (c?.fired) { e.stopPropagation(); return; }
+        if (c && Math.hypot(e.clientX - c.x, e.clientY - c.y) > 8) { clear(); t.current = null; }
+      }}
       onPointerUp={() => { clear(); }}
       onPointerCancel={() => { clear(); if (!t.current?.fired) t.current = null; }}
       onClick={() => { const fired = t.current?.fired; t.current = null; if (!fired) { haptic.select(); onTap(); } }}>
@@ -634,8 +666,8 @@ function DayRow({ day, today, last, hot, guess, children }: { day: string | null
         {day === null ? (
           <span className="text-[11px] font-semibold text-label-secondary pt-2 leading-tight">日付<br />未定</span>
         ) : guess && !isToday ? (
-          // 仮置きだけの日。日付は自分の見立てなので「あと○日」は出さない
-          <span className="pt-1.5 text-[12px] font-bold text-label-tertiary tabular-nums leading-tight">{md(day)}<br />ごろ</span>
+          // 仮置きだけの日。日付は自分の見立てなので、日付も「あと○日」も出さない
+          null
         ) : isToday ? (
           <>
             <span className="text-[20px] font-black leading-tight">今日</span>
@@ -658,7 +690,7 @@ function DayRow({ day, today, last, hot, guess, children }: { day: string | null
         {day !== null && (
           <span className="absolute left-1/2 rounded-full" style={{
             top: 22, width: isToday ? 12 : 10, height: isToday ? 12 : 10, marginLeft: isToday ? -6 : -5,
-            backgroundColor: isToday ? 'var(--accent-color)' : 'var(--bg-primary)', border: '2px solid var(--label-primary)',
+            backgroundColor: isToday ? 'var(--accent-color)' : 'var(--bg-primary)', border: guess ? '2px dashed var(--label-tertiary)' : '2px solid var(--label-primary)',
           }} />
         )}
       </div>
@@ -754,23 +786,28 @@ function ItemRow({ m, today, dot, onOpen, onRemove, hideMark, onDrag }: {
 }) {
   const e = m.e;
   const star = useImportant().has(e.id);
-  // 仮に置いた日付未定の予定。点線の枠で見分け、長押しで別の日へ運び直せる（スワイプはしない）
+  // 仮に置いた日付未定の予定。点線の枠で見分け、長押しで別の日へ・日付未定の欄へ運び直せる。スワイプはほかの行と同じ
   if (m.tentative) {
     return (
-      <LongPress onLong={(x, y) => onDrag?.(m, x, y)} onTap={() => onOpen(e)} label={e.title}
-        className="relative w-full flex items-center gap-2.5 px-3 py-2.5 text-left">
-        <span aria-hidden className="absolute inset-1 rounded-[10px] pointer-events-none" style={{ border: '1.5px dashed var(--label-tertiary)' }} />
-        <Pic e={e} size={56} />
-        <span className="min-w-0 flex-1 flex flex-col gap-[3px]">
-          <span className="flex items-center gap-1.5 min-w-0 text-[11px] text-label-secondary">
-            <b className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-[5px] text-[11px]" style={{ border: '1.5px dashed var(--label-secondary)', color: 'var(--label-primary)' }}>仮</b>
-            <MarkChip mark={m.mark} label={false} />
-            <span className="font-semibold text-label-primary truncate flex-shrink-0 max-w-[40%]">{m.label?.replace(/^(発売|開催) /, '')}</span>
-            <span className="flex items-center gap-1 min-w-0">{dot(e.workId, 15)}<span className="truncate">{e.workName}</span></span>
+      <SwipeRow label="外す" onSwipe={() => onRemove(e)} right={{ ...IMPORTANT_SIDE(star), onSwipe: () => toggleImportant(e.id) }}>
+        <LongPress onLong={(x, y) => onDrag?.(m, x, y)} onTap={() => onOpen(e)} label={e.title}
+          className="relative w-full flex items-center gap-2.5 px-3 py-2.5 text-left"
+          style={{ backgroundColor: star ? 'color-mix(in srgb, #f59e0b 12%, var(--bg-secondary))' : 'var(--bg-secondary)' }}>
+          <span aria-hidden className="absolute inset-1 rounded-[10px] pointer-events-none" style={{ border: '1.5px dashed var(--label-tertiary)' }} />
+          <Pic e={e} size={56} />
+          <span className="min-w-0 flex-1 flex flex-col gap-[3px]">
+            <span className="flex items-center gap-1.5 min-w-0 text-[11px] text-label-secondary">
+              <b className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-[5px] text-[11px]" style={{ border: '1.5px dashed var(--label-secondary)', color: 'var(--label-primary)' }}>仮</b>
+              <MarkChip mark={m.mark} label={false} />
+              <span className="font-semibold text-label-primary truncate flex-shrink-0 max-w-[40%]">{m.label?.replace(/^(発売|開催) /, '')}</span>
+              <span className="flex items-center gap-1 min-w-0">{dot(e.workId, 15)}<span className="truncate">{e.workName}</span></span>
+            </span>
+            <span className="text-[13px] font-semibold leading-snug line-clamp-2">
+              {star && <span aria-label="重要" className="mr-0.5" style={{ color: '#f59e0b' }}>★</span>}{stripWorkName(e.title, e.workName)}
+            </span>
           </span>
-          <span className="text-[13px] font-semibold leading-snug line-clamp-2">{stripWorkName(e.title, e.workName)}</span>
-        </span>
-      </LongPress>
+        </LongPress>
+      </SwipeRow>
     );
   }
   const sub = m.mark === '行' || (m.mark === 'イ' && m.end)
@@ -785,7 +822,7 @@ function ItemRow({ m, today, dot, onOpen, onRemove, hideMark, onDrag }: {
         <Pic e={e} size={56} />
         <span className="min-w-0 flex-1 flex flex-col gap-[3px]">
           <span className="flex items-center gap-1.5 min-w-0 text-[11px] text-label-secondary">
-            {!hideMark && <MarkChip mark={m.mark} />}
+            {!hideMark && <MarkChip mark={m.mark} label={false} />}
             {m.label && <span className="font-semibold text-label-primary truncate flex-shrink-0 max-w-[40%]">{m.label}</span>}
             <span className="flex items-center gap-1 min-w-0">{dot(e.workId, 15)}<span className="truncate">{e.workName}</span></span>
           </span>

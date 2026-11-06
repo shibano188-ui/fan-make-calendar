@@ -5,11 +5,12 @@ import { useWorkImagePicker } from '../story/useWorkImagePicker';
 import { loadIconStyles, onIconStylesChange, iconStyleOf, setIconStyle, ICON_GRIDS, type IconMode } from '../../lib/pixelIcon';
 import { WorkDot, type WorkIcons } from './WorkDot';
 import { setCalDotImage } from '../../lib/calDotImages';
+import { WORK_COLORS, saveWorkColor } from '../../lib/workColors';
 
 // ボード表示の「アイコンを変える」。カレンダーの点を、作品ごとに決める（ドット絵にして使う）。
 //   作品のアイコンと同じ … ホーム・カスタマイズの作品アイコン（workImages.ts）をそのまま使う（ここで写真を選ぶと作品のアイコンも変わる）
 //   別の写真           … 点だけ別の写真（calDotImages.ts）
-//   色の点             … 作品の色の丸
+//   色の点             … 作品の色の丸。色はここで変えられる（作品の色＝カスタマイズ・作品の並び・タイルと共通）
 
 export type BoardWork = { id: string; name: string };
 
@@ -65,6 +66,21 @@ export default function WorkIconSheet({ works, colors, icons, workImages, own, o
                   else if (own[w.id]) return;
                   else void dotPicker.pick(w.id);
                 }} />
+                {src === 'color' && (
+                  <>
+                    <span>色</span>
+                    <span className="flex flex-wrap gap-1.5">
+                      {WORK_COLORS.map((c) => {
+                        const on = colors.get(w.id)?.toLowerCase() === c.toLowerCase();
+                        return (
+                          <button key={c} aria-label={`色 ${c}`} aria-pressed={on} onClick={() => { haptic.select(); saveWorkColor(w.id, c); }}
+                            className="pressable w-7 h-7 rounded-full"
+                            style={{ backgroundColor: c, boxShadow: on ? '0 0 0 2px var(--bg-primary), 0 0 0 4px var(--label-primary)' : undefined }} />
+                        );
+                      })}
+                    </span>
+                  </>
+                )}
                 {has && (
                   <>
                     <span>見た目</span>
