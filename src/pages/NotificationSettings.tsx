@@ -120,7 +120,7 @@ export default function NotificationSettings() {
     haptic.select();
     const p = { ...bell, [key]: next };
     setBell(p);
-    saveBellPrefs(p);
+    saveBellPrefs(p, key === 'onLike');
   };
 
   const row = 'px-3 py-2.5 border-b border-subtle';
@@ -184,7 +184,7 @@ export default function NotificationSettings() {
           )}
 
 
-          {/* ♡で通知もONにするか（既定ON）。外すとベルを押した予定だけになる */}
+          {/* ♡で通知もONにするか（2026-11-07 から既定OFF。ふだんはベルか、カレンダーで右へ払って ON にする） */}
           <div className="rounded-[12px] overflow-hidden mb-4" style={{ backgroundColor: 'var(--bg-secondary)' }}>
             <div className="px-3 py-2.5">
               <div className="flex items-center gap-2">

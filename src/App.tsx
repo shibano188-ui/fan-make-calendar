@@ -8,6 +8,7 @@ import { ToastProvider } from './components/ui/Toast';
 import PhoneFrame from './components/PhoneFrame';
 import Onboarding from './components/Onboarding';
 import OnboardingTour, { useTourStep } from './components/OnboardingTour';
+import HintLayer from './components/Hints';
 import LaunchSplash, { markPageLoading } from './components/LaunchSplash';
 import { Capacitor } from '@capacitor/core';
 import { initAdMob, showBanner, hideBanner } from './lib/admob';
@@ -335,6 +336,8 @@ export default function App() {
                 <PhoneFrame>
                   {SHOW_ONBOARDING && <Onboarding />}
                   {SHOW_ONBOARDING && <OnboardingTour />}
+                  {/* 場面ごとのヒント（最初の案内が終わった人に、1回ずつ） */}
+                  {SHOW_ONBOARDING && <HintLayer />}
                   <Routes>
                     <Route element={<AppShell />}>
                       <Route path="/"        element={<Home />} />

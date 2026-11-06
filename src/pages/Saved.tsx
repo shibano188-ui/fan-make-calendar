@@ -12,9 +12,7 @@ import ExpandingSearch, { SearchSideButtons } from '../components/ui/ExpandingSe
 import { useTyping } from '../hooks/useTyping';
 import SavedCalendar, { periodLabel, includesToday } from '../components/SavedCalendar';
 import SavedBoard, { useStickyTop } from '../components/board/SavedBoard';
-import SwipeRow from '../components/ui/SwipeRow';
-import ImportantFrame from '../components/item/ImportantFrame';
-import { useImportant, toggleImportant, IMPORTANT_SIDE } from '../lib/important';
+import CalendarSwipeRow from '../components/item/CalendarSwipeRow';
 import FilterPanel, { type Facet } from '../components/item/FilterPanel';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveStatus, todayStr, STATUS, type ItemStatus } from '../design/tokens';
@@ -85,7 +83,6 @@ export default function Saved() {
   const [viewMenuAt, setViewMenuAt] = useState<{ top: number; right: number } | null>(null);
   // 表示中の月・週・日。見出しと「今日」ボタンのためにここで持つ
   const [anchor, setAnchor] = useState<string>(todayStr());
-  const important = useImportant();
   // ボードで見出しの「今日」を押した回数（押したらボードの一番上へ戻る）
   const [todayTick, setTodayTick] = useState(0);
   const premium = usePremium();
@@ -402,8 +399,24 @@ export default function Saved() {
   const tourDay = tourEvent ? focusDayOf(tourEvent, today) : null;
   useEffect(() => {
     if (!tourEvent) return;
-    // 日付の無い予定はカレンダーに乗らないので、リスト表示で見せる
-    if (tourDay) { setView('month'); setAnchor(tourDay); } else setView('list');
+    // ボードで見せる（2026-11-07 からボードが主）。ボードに行として出ない予定（日付未定など）はリスト表示で見せる。
+    // 見つかったら真ん中へ送る（案内の吹き出しと、右へ払う段階で使う）
+    setView('board');
+    setAnchor(today);
+    let tries = 0, inList = false;
+    const t = setInterval(() => {
+      const el = document.querySelector(`[data-card-id="${CSS.escape(tourEvent.id)}"]`);
+      if (el) {
+        clearInterval(t);
+        el.scrollIntoView({ block: 'center', behavior: 'auto' });
+        // スクロールするとボードのカレンダーが自動でたたまれ、一覧が上へずれる。たたみ終わってから真ん中へ送り直す
+        setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'auto' }), 450);
+        return;
+      }
+      if (++tries === 15 && !inList) { inList = true; setView('list'); }
+      if (tries > 40) clearInterval(t);
+    }, 100);
+    return () => clearInterval(t);
   }, [tourEvent?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // リスト表示: 近い順（これから昇順 → 過去降順）
@@ -601,15 +614,12 @@ export default function Saved() {
         <div className="flex flex-col gap-2 pb-4">
           {listItems.map((e) => (
             // 左へ払うとカレンダーから外す（ボードと同じ。自分用の予定は外せないので払えない）。
-            // 右へ払うと重要な予定（★）にする・外す
-            <SwipeRow key={e.id} label="外す" radius={12} disabled={e.personal} onSwipe={() => onRemove(e)}
-              right={{ ...IMPORTANT_SIDE(important.has(e.id)), onSwipe: () => toggleImportant(e.id) }}>
-              <ImportantFrame id={e.id}>
-                <ItemCard event={e} layout="list" likedInit={e.likedByMe}
-                  workColor={eventColorFrom(workColorMap, e)}
-                  onOpen={() => openItem(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onStyle={() => setStyling(e)} />
-              </ImportantFrame>
-            </SwipeRow>
+            // 右へ払うと、この予定の通知を ON／OFF
+            <CalendarSwipeRow key={e.id} event={e} radius={12} onRemove={onRemove}>
+              <ItemCard event={e} layout="list" likedInit={e.likedByMe}
+                workColor={eventColorFrom(workColorMap, e)}
+                onOpen={() => openItem(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onStyle={() => setStyling(e)} />
+            </CalendarSwipeRow>
           ))}
         </div>
       )}

@@ -13,10 +13,37 @@ import { todayStr } from '../../design/tokens';
  *   - 発売日・締切のリマインダー（ローカル通知をスケジュールする）
  *   - 値下げ・再入荷アラート（**プレミアム限定**・グッズのみ。配信側 api/_alerts.ts は「いいね済みかつミュートでない」を送る）
  *  保存していない予定でも押せて、押したら保存（いいね）も同時にする。
- *  ♡で ON・♡を外すと OFF は syncNotifyWithLike。ここで liked を見て消すと、♡の状態が届く前の一瞬で設定が消える。 */
+ *  ♡を外すと OFF（♡で ON は設定で選んだ人だけ）は syncNotifyWithLike。ここで liked を見て消すと、♡の状態が届く前の一瞬で設定が消える。 */
 export default function NotifyBell({ event, liked, onSave, size = 18, variant = 'icon' }: {
   event: CalendarEvent; liked: boolean; onSave?: () => unknown; size?: number; variant?: 'icon' | 'labeled';
 }) {
+  const { on, toggle } = useEventNotify(event, liked, onSave);
+  const onTap = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    haptic.light();
+    toggle();
+  };
+
+  const iconSize = variant === 'labeled' ? 22 : size;
+  const Icon = on
+    ? <BellRing size={iconSize} style={{ color: 'var(--accent-color)' }} />
+    : <Bell size={iconSize} className="text-label-secondary" />;
+
+  return variant === 'labeled' ? (
+    <button onClick={onTap} aria-label="通知" aria-pressed={on} data-tour="bell" className="pressable flex flex-col items-center gap-0.5">
+      {Icon}
+      <span className="text-[10px] text-label-tertiary leading-none">{on ? '通知ON' : '通知'}</span>
+    </button>
+  ) : (
+    <button onClick={onTap} aria-label="通知" aria-pressed={on} data-tour="bell" className="pressable tap-44 flex items-center">
+      {Icon}
+    </button>
+  );
+}
+
+/** 予定の通知の ON／OFF（ベルと、カレンダーで右へ払ったときで共通・2026-11-07）。
+ *  toggle は ON にしたとき、許可を聞き終えたら BELL_EVENT を出す（オンボーディングの案内が先へ進む） */
+export function useEventNotify(event: CalendarEvent, liked: boolean, onSave?: () => unknown) {
   const toast = useToast();
   const priceAlerts = useFeature('priceAlerts');
   const instantAlerts = useFeature('instantAlerts');
@@ -71,26 +98,7 @@ export default function NotifyBell({ event, liked, onSave, size = 18, variant = 
     toast('この予定の通知を止めました');
   };
 
-  const onTap = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    haptic.light();
-    // オンボーディングの案内は「ベルを押して、許可を聞き終えたら」終わる。許可されなくても先へ進める
-    void (on ? turnOff() : turnOn().finally(() => window.dispatchEvent(new Event(BELL_EVENT))));
-  };
-
-  const iconSize = variant === 'labeled' ? 22 : size;
-  const Icon = on
-    ? <BellRing size={iconSize} style={{ color: 'var(--accent-color)' }} />
-    : <Bell size={iconSize} className="text-label-secondary" />;
-
-  return variant === 'labeled' ? (
-    <button onClick={onTap} aria-label="通知" aria-pressed={on} data-tour="bell" className="pressable flex flex-col items-center gap-0.5">
-      {Icon}
-      <span className="text-[10px] text-label-tertiary leading-none">{on ? '通知ON' : '通知'}</span>
-    </button>
-  ) : (
-    <button onClick={onTap} aria-label="通知" aria-pressed={on} data-tour="bell" className="pressable tap-44 flex items-center">
-      {Icon}
-    </button>
-  );
+  // オンボーディングの案内は「ON にして、許可を聞き終えたら」次へ進む。許可されなくても先へ進める
+  const toggle = () => { void (on ? turnOff() : turnOn().finally(() => window.dispatchEvent(new Event(BELL_EVENT)))); };
+  return { on, toggle };
 }

@@ -89,8 +89,9 @@ export function startTour(noWork = false): void {
 // 段階ごとの吹き出し。本文は短く（長いと読まれない）
 const COPY: Record<TourStep, { icon: typeof Heart; title: string; body?: string }> = {
   like: { icon: Heart, title: '気になる予定に ♡ を押してみよう', body: '♡ を押した予定は、カレンダーに入ります。' },
-  calendar: { icon: CalendarCheck, title: 'カレンダーに登録されました！' },
-  bell: { icon: Bell, title: 'ベルを押して通知をONにしよう', body: '発売日や締切の前にお知らせします。' },
+  calendar: { icon: CalendarCheck, title: 'カレンダーに入りました！', body: '締切や発売まで、あと何日かで並びます。' },
+  // 2026-11-07 ボードになって行にベルが無くなったので、右へ払って通知をONにする（柴野）
+  bell: { icon: Bell, title: '右へ払って、通知をONにしよう', body: '発売日や締切の前にお知らせします。' },
   // 本文は通知の設定（何日前か）に合わせて Bubble で組み立てる
   done: { icon: BellRing, title: 'これで通知が届きます！' },
   post: { icon: Plus, title: '見つけた情報はここから', body: 'Xで見つけたら、ポストの共有ボタンから FanHive を選ぶだけ。AIが予定にします。' },
@@ -198,7 +199,7 @@ export default function OnboardingTour() {
 //
 //   like     … 上の見出しと下のタブを幕で覆い、予定の一覧だけ明るく残す（スクロールして選んでもらう）
 //   calendar … 同じく見出しとタブを覆い、カレンダー（その日に色が付いている）と日のパネルを見せる。「次へ」で進む
-//   bell     … そのカードのベルだけ丸く抜く（ここだけ押せる）
+//   bell     … その予定の行を抜く（ここだけ触れる）。右へ払うと通知がONになって次へ
 
 // 後ろの見出し・検索欄が透けて読めない濃さにする（薄いと「後ろが見えていてダサい」）
 const DIM = 'rgba(0,0,0,0.8)';
@@ -234,7 +235,6 @@ const findPersonalButton = () => document.querySelector('[data-tour="personal"]'
 
 function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean; onNext: () => void }) {
   const id = tourEventId();
-  const findBell = useCallback(() => (id ? document.querySelector(`[data-card-id="${CSS.escape(id)}"] [data-tour="bell"]`) : null), [id]);
   const framed = step === 'like' || step === 'calendar' || step === 'done';
   const header = useRect(framed ? findHeader : nothing);
   const nav = useRect(framed ? findNav : nothing);
@@ -243,7 +243,7 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
   const card = useRect(step === 'calendar' || step === 'done' ? findTourCard : nothing);
   // 日のパネルの見出し（日付）。吹き出しはこれより上に置く（どの日に入ったかを隠さない）
   const dayHeading = useRect(step === 'calendar' || step === 'done' ? findDayHeading : nothing);
-  const target = useRect(step === 'bell' ? findBell : step === 'account' ? findAccount
+  const target = useRect(step === 'bell' ? findTourCard : step === 'account' ? findAccount
     : step === 'post' ? findPostButton : step === 'personal' ? findPersonalButton : nothing);
 
   // 光らせる行が画面の外にあるとき（マイページのアカウントは下の方）は、真ん中まで一気に送ってから光らせる。
@@ -299,7 +299,7 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
 
   // bell: ベルだけを丸く抜く（ここだけ押せる）。account: アカウントの行を抜く（押させない。「次へ」で進む）。
   // 見つかるまで（シートが出てくる途中など）は全体を暗くして吹き出しだけ出す
-  const round = step === 'bell' || step === 'post' || step === 'personal';
+  const round = step === 'post' || step === 'personal';
   const pad = round ? 6 : 2;
   const hole = settled && target && {
     top: target.top - pad, left: target.left - pad,
@@ -323,6 +323,13 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
           <div className="absolute right-0 pointer-events-auto" style={{ top: hole.top, height: hole.height, left: hole.left + hole.width }} />
           {/* 押させない段階（見せるだけ。「次へ」で進む） */}
           {step !== 'bell' && <div className="absolute pointer-events-auto" style={hole} />}
+          {/* 右へ払う段階: 行の上に「→」を流して、払う向きを見せる */}
+          {step === 'bell' && (
+            <div className="absolute overflow-hidden pointer-events-none" style={{ ...hole, borderRadius: radius }}>
+              <span className="absolute top-1/2 -mt-5 w-10 h-10 rounded-full flex items-center justify-center text-[20px] font-bold"
+                style={{ backgroundColor: 'color-mix(in srgb, var(--label-primary) 70%, transparent)', color: 'var(--bg-primary)', animation: 'tourSwipeHint 1.6s ease-in-out infinite' }}>→</span>
+            </div>
+          )}
         </>
       ) : (
         <div className="absolute inset-0 pointer-events-auto" style={{ backgroundColor: DIM }} />

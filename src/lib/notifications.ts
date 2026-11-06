@@ -172,7 +172,8 @@ export async function scheduleForEvent(e: CalendarEvent): Promise<void> {
   if (notifications.length) await LocalNotifications.schedule({ notifications });
 }
 
-/** ♡に通知をそろえる（2026-10-31 柴野）。♡で ON にし、許可がまだならここで聞く。断られたら OFF のまま。♡を外したら OFF。
+/** ♡に通知をそろえる（2026-10-31 柴野）。♡を外したら OFF。♡で ON にするのは、通知の設定で「♡を押したら通知もONにする」を
+ *  選んだ人だけ（2026-11-07 から既定 OFF）。許可がまだならここで聞く。断られたら OFF のまま。
  *  案内の間はベルの段階で聞くので、♡では何もしない。 */
 export async function syncNotifyWithLike(e: CalendarEvent, liked: boolean): Promise<void> {
   if (!liked) {

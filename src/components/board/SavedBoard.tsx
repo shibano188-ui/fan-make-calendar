@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarPlus, ChevronDown } from 'lucide-react';
+import { BellRing, CalendarPlus, ChevronDown } from 'lucide-react';
 import type { CalendarEvent, EventVisit } from '../../types';
 import Sheet from '../ui/Sheet';
 import OptImg from '../ui/OptImg';
@@ -14,8 +14,8 @@ import { MARKS, buildDays, longEvents, undatedMoments, splitTentative, type Mark
 import WorkIconSheet, { type BoardWork } from './WorkIconSheet';
 import { useWorkIcons, WorkDot } from './WorkDot';
 import VisitSheet from './VisitSheet';
-import SwipeRow from '../ui/SwipeRow';
-import { useImportant, toggleImportant, IMPORTANT_SIDE } from '../../lib/important';
+import CalendarSwipeRow from '../item/CalendarSwipeRow';
+import { useEventNotify } from '../item/NotifyBell';
 import { useTentative, setTentative } from '../../lib/tentative';
 import { useToast } from '../ui/Toast';
 import { useCalDotImages } from '../../lib/calDotImages';
@@ -376,7 +376,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
               <span className="flex items-center gap-1"><b style={{ color: MARKS['〆'].color }}>〆</b>締切</span>
               <span className="flex items-center gap-1"><i className="w-[10px] h-[10px] rounded-full" style={{ boxShadow: `inset 0 0 0 2px ${MARKS['イ'].color}` }} />イベント</span>
               {works.length > 0 && (
-                <button className="pressable ml-auto font-semibold text-label-primary" onClick={() => { haptic.select(); setSheet({ kind: 'icons' }); }}>アイコンを変える ›</button>
+                <button data-hint="cal-icons" className="pressable ml-auto font-semibold text-label-primary" onClick={() => { haptic.select(); setSheet({ kind: 'icons' }); }}>アイコンを変える ›</button>
               )}
             </div>
             {handle('カレンダーをたたむ', fold)}
@@ -463,11 +463,11 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
             </button>
             {evOpen ? (
               <>
-                <Gantt list={ganttList} today={today} colors={colors} dot={dot} onDetail={onOpen} onVisit={pickVisit} />
+                <Gantt list={ganttList} today={today} colors={colors} dot={dot} onDetail={onOpen} onVisit={pickVisit} onRemove={onRemove} />
               </>
             ) : (
               <>
-                <Gantt list={evPreview} today={today} colors={colors} dot={dot} onDetail={onOpen} onVisit={pickVisit} />
+                <Gantt list={evPreview} today={today} colors={colors} dot={dot} onDetail={onOpen} onVisit={pickVisit} onRemove={onRemove} />
                 {evRest > 0 && (
                   <FootButton onClick={() => setEvOpen(true)}>{goingEvents.length ? `ほかのイベント ${evRest}件を見る` : `イベント ${ganttList.length}件をすべて見る`}</FootButton>
                 )}
@@ -706,9 +706,6 @@ function Group({ list, today, dot, onOpen, onRemove, onAll, onDrag }: {
   list: Moment[]; today: string; dot: DotFn; onOpen: (e: CalendarEvent) => void; onRemove: (e: CalendarEvent) => void; onAll: () => void;
   onDrag?: (m: Moment, x: number, y: number) => void;
 }) {
-  // 重要な予定（★）を先に
-  const important = useImportant();
-  list = [...list].sort((a, b) => Number(important.has(b.e.id)) - Number(important.has(a.e.id)));
   const few = list.length <= 3;
   const head = few ? list : list.slice(0, 2);
   const rest = few ? [] : list.slice(2);
@@ -785,14 +782,14 @@ function ItemRow({ m, today, dot, onOpen, onRemove, hideMark, onDrag }: {
   onDrag?: (m: Moment, x: number, y: number) => void;
 }) {
   const e = m.e;
-  const star = useImportant().has(e.id);
+  const notify = useEventNotify(e, true).on;
   // 仮に置いた日付未定の予定。点線の枠で見分け、長押しで別の日へ・日付未定の欄へ運び直せる。スワイプはほかの行と同じ
   if (m.tentative) {
     return (
-      <SwipeRow label="外す" onSwipe={() => onRemove(e)} right={{ ...IMPORTANT_SIDE(star), onSwipe: () => toggleImportant(e.id) }}>
+      <CalendarSwipeRow event={e} onRemove={onRemove}>
         <LongPress onLong={(x, y) => onDrag?.(m, x, y)} onTap={() => onOpen(e)} label={e.title}
           className="relative w-full flex items-center gap-2.5 px-3 py-2.5 text-left"
-          style={{ backgroundColor: star ? 'color-mix(in srgb, #f59e0b 12%, var(--bg-secondary))' : 'var(--bg-secondary)' }}>
+          style={{ backgroundColor: 'var(--bg-secondary)' }}>
           <span aria-hidden className="absolute inset-1 rounded-[10px] pointer-events-none" style={{ border: '1.5px dashed var(--label-tertiary)' }} />
           <Pic e={e} size={56} />
           <span className="min-w-0 flex-1 flex flex-col gap-[3px]">
@@ -803,21 +800,20 @@ function ItemRow({ m, today, dot, onOpen, onRemove, hideMark, onDrag }: {
               <span className="flex items-center gap-1 min-w-0">{dot(e.workId, 15)}<span className="truncate">{e.workName}</span></span>
             </span>
             <span className="text-[13px] font-semibold leading-snug line-clamp-2">
-              {star && <span aria-label="重要" className="mr-0.5" style={{ color: '#f59e0b' }}>★</span>}{stripWorkName(e.title, e.workName)}
+              {notify && <BellRing aria-label="通知ON" size={13} className="inline -mt-0.5 mr-1" style={{ color: 'var(--accent-color)' }} />}{stripWorkName(e.title, e.workName)}
             </span>
           </span>
         </LongPress>
-      </SwipeRow>
+      </CalendarSwipeRow>
     );
   }
   const sub = m.mark === '行' || (m.mark === 'イ' && m.end)
     ? `${m.mark === '行' ? (m.end ? `${md(m.day)}〜${md(m.end)}・` : '') : ''}会期 ${e.date ? mdy(e.date, today) : ''}${e.endDate ? `〜${mdy(e.endDate, today)}` : ''}`
     : null;
   return (
-    <SwipeRow label="外す" disabled={e.personal} onSwipe={() => onRemove(e)}
-      right={{ ...IMPORTANT_SIDE(star), onSwipe: () => toggleImportant(e.id) }}>
-      <button className="relative w-full flex items-center gap-2.5 px-3 py-2.5 text-left select-none"
-        style={{ backgroundColor: star ? 'color-mix(in srgb, #f59e0b 12%, var(--bg-secondary))' : 'var(--bg-secondary)' }}
+    <CalendarSwipeRow event={e} onRemove={onRemove}>
+      <button data-card-id={e.id} className="relative w-full flex items-center gap-2.5 px-3 py-2.5 text-left select-none"
+        style={{ backgroundColor: 'var(--bg-secondary)' }}
         onClick={() => { haptic.select(); onOpen(e); }}>
         <Pic e={e} size={56} />
         <span className="min-w-0 flex-1 flex flex-col gap-[3px]">
@@ -827,7 +823,7 @@ function ItemRow({ m, today, dot, onOpen, onRemove, hideMark, onDrag }: {
             <span className="flex items-center gap-1 min-w-0">{dot(e.workId, 15)}<span className="truncate">{e.workName}</span></span>
           </span>
           <span className="text-[13px] font-semibold leading-snug line-clamp-2">
-            {star && <span aria-label="重要" className="mr-0.5" style={{ color: '#f59e0b' }}>★</span>}{stripWorkName(e.title, e.workName)}
+            {notify && <BellRing aria-label="通知ON" size={13} className="inline -mt-0.5 mr-1" style={{ color: 'var(--accent-color)' }} />}{stripWorkName(e.title, e.workName)}
           </span>
           <span className="text-[12px] tabular-nums">
             {sub ? <span className="text-label-secondary">{sub}</span>
@@ -836,7 +832,7 @@ function ItemRow({ m, today, dot, onOpen, onRemove, hideMark, onDrag }: {
           </span>
         </span>
       </button>
-    </SwipeRow>
+    </CalendarSwipeRow>
   );
 }
 
@@ -844,8 +840,9 @@ const deriveIsGoods = (e: CalendarEvent) => deriveItemType(e) === 'goods';
 
 /** 会期の帯。全部のイベントを同じ目盛りで並べ、今日の線と行く日の点を重ねる。
  *  画像とイベント名を押すと詳細、帯と「行く日を選ぶ」を押すと行く日のカレンダー（2026-11-07 柴野） */
-function Gantt({ list, today, colors, dot, onDetail, onVisit }: {
+function Gantt({ list, today, colors, dot, onDetail, onVisit, onRemove }: {
   list: CalendarEvent[]; today: string; colors: Map<string, string>; dot: DotFn; onDetail: (e: CalendarEvent) => void; onVisit: (e: CalendarEvent) => void;
+  onRemove: (e: CalendarEvent) => void;
 }) {
   const g0 = addDays(today, -7), g1 = addDays(today, 75);
   const span = daysBetween(g0, g1);
@@ -863,7 +860,10 @@ function Gantt({ list, today, colors, dot, onDetail, onVisit }: {
         const rest = e.date! > today ? <><b className="text-label-primary">{daysBetween(today, e.date!)}日後</b>から</> : e.endDate === today ? <b className="text-label-primary">今日まで</b> : <>あと<b className="text-label-primary">{daysBetween(today, e.endDate!)}日</b></>;
         const color = (e.workId && colors.get(e.workId)) || 'var(--accent-color)';
         return (
-          <div key={e.id} className="flex gap-2 py-2" style={{ borderTop: '0.5px solid var(--separator)' }}>
+          // 左へ払うと外す・右へ払うと通知（ほかの行と同じ）
+          <div key={e.id} style={{ borderTop: '0.5px solid var(--separator)' }}>
+          <CalendarSwipeRow event={e} onRemove={onRemove}>
+          <div data-card-id={e.id} className="flex gap-2 py-2" style={{ backgroundColor: 'var(--bg-secondary)' }}>
             <button className="pressable flex-shrink-0 self-start" aria-label={`${e.title}の詳細`} onClick={() => { haptic.select(); onDetail(e); }}>
               <Pic e={e} size={44} />
             </button>
@@ -891,6 +891,8 @@ function Gantt({ list, today, colors, dot, onDetail, onVisit }: {
                 </span>
               </button>
             </div>
+          </div>
+          </CalendarSwipeRow>
           </div>
         );
       })}

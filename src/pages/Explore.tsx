@@ -701,7 +701,7 @@ export default function Explore() {
         {/* 探す｜スタンプ（上部バーの中に置き、いつでも切り替えられる） */}
         <div className="flex p-0.5 mt-2.5 rounded-[10px]" role="tablist" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
           {([['list', '探す'], ['stamp', 'スタンプ']] as const).map(([k, label]) => (
-            <button key={k} role="tab" aria-selected={tab === k}
+            <button key={k} role="tab" aria-selected={tab === k} data-hint={k === 'stamp' ? 'ex-stamp' : undefined}
               onClick={() => { if (tab === k) return; haptic.select(); setTab(k); window.scrollTo(0, 0); }}
               className="pressable flex-1 h-8 rounded-[8px] text-[13px] font-semibold transition-colors"
               style={tab === k ? { backgroundColor: 'var(--bg-primary)', color: 'var(--label-primary)', boxShadow: '0 1px 3px rgba(0,0,0,.12)' } : { color: 'var(--label-secondary)' }}>
@@ -714,7 +714,7 @@ export default function Explore() {
         <WorkChipsRow works={followedWorks} colors={workColorMap} images={workImages} excluded={excludedWorks}
           onToggle={(id) => toggleIn(setExcludedWorks, id)} onShowAll={() => setExcludedWorks(new Set())}
           trailing={
-            <button onClick={() => { haptic.select(); setFollowSheetOpen(true); }}
+            <button data-hint="ex-follow" onClick={() => { haptic.select(); setFollowSheetOpen(true); }}
               className="pressable flex-shrink-0 flex items-center gap-0.5 h-7 px-2.5 rounded-full text-[12px] font-medium whitespace-nowrap border border-dashed"
               style={{ borderColor: 'var(--accent-color)', color: 'var(--accent-text)' }}>
               <Plus size={13} /> 作品

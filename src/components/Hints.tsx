@@ -1,0 +1,137 @@
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useLocation } from 'react-router-dom';
+import { useTourStep } from './OnboardingTour';
+import { haptic } from '../lib/haptics';
+import { ONBOARDING_KEY } from '../lib/constants';
+
+// 場面ごとのヒント（2026-11-07 柴野）。最初の案内（OnboardingTour）は短くし、増えた機能・前からあって分かりにくい機能は、
+// 初めてその画面でその部品が見えたときに、小さな吹き出しで1回だけ出す。
+//   ・案内の途中・シートが開いているときは出さない
+//   ・1つずつ。「OK」で閉じたら、少し間をあけて次。1回の訪問で2つまで（続けて出すと案内と変わらない）
+//   ・見たものは端末に覚える（fan_hints_seen）
+
+type Hint = {
+  id: string;
+  /** その画面のパス（前方一致ではなく一致） */
+  path: string;
+  /** 指す部品。画面に見えていないときは出さない */
+  find: () => Element | null;
+  text: string;
+};
+
+const visible = (sel: string) => () => {
+  for (const el of document.querySelectorAll(sel)) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.top >= 70 && r.bottom <= window.innerHeight - 110) return el;
+  }
+  return null;
+};
+
+const HINTS: Hint[] = [
+  // カレンダー（ボード）
+  { id: 'cal-swipe', path: '/saved', find: visible('[data-board-day] [data-card-id]'), text: '右へ払うと通知のON／OFF、左へ払うとカレンダーから外せます' },
+  { id: 'cal-fold', path: '/saved', find: visible('[aria-hidden="false"] > button[aria-label="カレンダーを開く"]'), text: '一番上でさらに下へ引くか、ここを押すとカレンダーが開きます' },
+  { id: 'cal-undated', path: '/saved', find: visible('[data-undated-drop]'), text: '日付がまだ決まっていない予定はここ。長押しして、好きな場所へ仮置きできます' },
+  { id: 'cal-view', path: '/saved', find: visible('button[aria-label="表示を切り替える"]'), text: '月・週・日・リストの表示にも切り替えられます' },
+  { id: 'cal-icons', path: '/saved', find: visible('[data-hint="cal-icons"]'), text: 'カレンダーの点を、好きなキャラのドット絵や色にできます' },
+  { id: 'cal-custom', path: '/saved', find: visible('button[aria-label="カスタマイズ"]'), text: 'テーマを作ったり、作品の色を変えたりできます' },
+  // 探す
+  { id: 'ex-swipe', path: '/explore', find: visible('[data-event-id]'), text: '右へ払うとカレンダーに追加、左へ払うと非表示にできます' },
+  { id: 'ex-stamp', path: '/explore', find: visible('[data-hint="ex-stamp"]'), text: '♡ほどではないけど気になる予定は、スタンプでとっておけます。押した予定はここにたまります' },
+  { id: 'ex-follow', path: '/explore', find: visible('[data-hint="ex-follow"]'), text: 'フォローする作品を探して、追加できます' },
+  // マイページ
+  { id: 'my-fanstar', path: '/mypage', find: visible('[data-hint="my-fanstar"]'), text: '投稿・いいね・スタンプなどが増えると、ファンスターが大きく育ちます' },
+  { id: 'my-ranking', path: '/mypage', find: visible('[data-hint="my-ranking"]'), text: '予定の投稿や情報の追加で点が入り、毎月の順位が決まります' },
+  { id: 'my-sync', path: '/mypage', find: visible('[data-hint="my-sync"]'), text: 'いつものカレンダー（Google・iPhone など）に、予定を自動で入れられます' },
+];
+
+const SEEN_KEY = 'fan_hints_seen';
+function loadSeen(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(SEEN_KEY) ?? '[]') as string[]); } catch { return new Set(); }
+}
+function markSeen(id: string): void {
+  const s = loadSeen();
+  s.add(id);
+  try { localStorage.setItem(SEEN_KEY, JSON.stringify([...s])); } catch { /* この起動の間だけ覚える */ }
+}
+
+const PER_VISIT = 2;
+
+export default function HintLayer() {
+  const { pathname } = useLocation();
+  const tour = useTourStep();
+  const [hint, setHint] = useState<{ h: Hint; el: Element } | null>(null);
+  const shownThisVisit = useRef(0);
+
+  // 画面が変わったら数え直す
+  useEffect(() => { shownThisVisit.current = 0; setHint(null); }, [pathname]);
+
+  // 出せるヒントを探す（画面に部品が見えるまで待つ）
+  useEffect(() => {
+    if (tour || hint) return;
+    let onboarded = false;
+    try { onboarded = localStorage.getItem(ONBOARDING_KEY) === '1'; } catch { /* 出さない */ }
+    if (!onboarded) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const look = () => {
+      if (shownThisVisit.current >= PER_VISIT) return;
+      // シート・ダイアログ・案内が開いているときは待つ
+      if (document.querySelector('[role="dialog"]') || document.body.dataset.tourStep) { timer = setTimeout(look, 1000); return; }
+      const seen = loadSeen();
+      for (const h of HINTS) {
+        if (h.path !== pathname || seen.has(h.id)) continue;
+        const el = h.find();
+        if (el) { shownThisVisit.current++; setHint({ h, el }); return; }
+      }
+      timer = setTimeout(look, 1200);
+    };
+    // 開いてすぐは出さない（画面を見る間をあける）。2つ目は少し間をあける
+    timer = setTimeout(look, shownThisVisit.current ? 1500 : 1200);
+    return () => clearTimeout(timer);
+  }, [pathname, tour, hint]);
+
+  if (!hint || tour) return null;
+  return <HintBubble key={hint.h.id} hint={hint.h} el={hint.el} onClose={() => { haptic.select(); markSeen(hint.h.id); setHint(null); }} />;
+}
+
+function HintBubble({ hint, el, onClose }: { hint: Hint; el: Element; onClose: () => void }) {
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  // 部品の位置を追う。スクロールで見えなくなったら閉じる（覚えないので、次に見えたときにまた出る）
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      const r = el.isConnected ? el.getBoundingClientRect() : null;
+      setRect((prev) => (r && prev && Math.abs(prev.top - r.top) < 0.5 && Math.abs(prev.left - r.left) < 0.5 ? prev : r));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [el]);
+  const ref = useRef<HTMLDivElement>(null);
+  const [h, setH] = useState(0);
+  useLayoutEffect(() => { setH(ref.current?.offsetHeight ?? 0); }, [rect === null]);
+  if (!rect || rect.bottom < 60 || rect.top > window.innerHeight - 90) return null;
+
+  const vw = window.innerWidth;
+  // 部品の上に余裕があれば上、無ければ下
+  const above = rect.top - h - 14 > 70;
+  const top = above ? rect.top - h - 12 : rect.bottom + 12;
+  const arrowX = Math.min(Math.max(rect.left + rect.width / 2, 28), vw - 28);
+  return createPortal(
+    <>
+      {/* 指している部品の縁取り（押すのは邪魔しない） */}
+      <div className="fixed pointer-events-none rounded-[12px]"
+        style={{ zIndex: 240, top: rect.top - 3, left: rect.left - 3, width: rect.width + 6, height: rect.height + 6, boxShadow: '0 0 0 2px var(--accent-color)', animation: 'tourPulse 1.4s ease-out infinite' }} />
+      <div ref={ref} className="fixed left-4 right-4 max-w-[360px] mx-auto rounded-[14px] pl-3.5 pr-2 py-2.5 shadow-float flex items-center gap-2"
+        style={{ zIndex: 241, top, backgroundColor: 'var(--label-primary)', color: 'var(--bg-primary)', animation: 'tourBubbleIn 0.3s cubic-bezier(0.32,0.72,0,1) both' }}>
+        <span className="absolute w-3 h-3 rotate-45"
+          style={{ backgroundColor: 'var(--label-primary)', left: `calc(${arrowX}px - 6px - ${ref.current?.getBoundingClientRect().left ?? 16}px)`, ...(above ? { bottom: -5 } : { top: -5 }) }} />
+        <p className="flex-1 text-[13px] font-semibold leading-snug">{hint.text}</p>
+        <button className="pressable flex-shrink-0 px-3 h-8 rounded-full text-[13px] font-bold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
+          onClick={onClose}>OK</button>
+      </div>
+    </>,
+    document.body,
+  );
+}

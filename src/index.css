@@ -215,13 +215,19 @@
   34%  { opacity: 0; transform: translateY(-4px); }
   100% { opacity: 0; }
 }
+/* 案内の「右へ払って通知をON」: 行の左から右へ流れる矢印 */
+@keyframes tourSwipeHint {
+  0%   { left: 8px; opacity: 0; }
+  20%  { opacity: 1; }
+  80%  { opacity: 1; }
+  100% { left: calc(100% - 52px); opacity: 0; }
+}
 @keyframes tourPulse {
   0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-color) 70%, transparent); }
   70%  { box-shadow: 0 0 0 10px transparent; }
   100% { box-shadow: 0 0 0 0 transparent; }
 }
-body[data-tour-step="like"] [data-tour="like"],
-body[data-tour-step="bell"] [data-tour="bell"] {
+body[data-tour-step="like"] [data-tour="like"] {
   border-radius: 9999px;
   animation: tourPulse 1.4s ease-out infinite;
 }

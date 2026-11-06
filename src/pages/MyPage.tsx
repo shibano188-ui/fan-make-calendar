@@ -291,7 +291,7 @@ export default function MyPage() {
       )}
 
       {/* ファンスター（星形チャート: 実績が育つと星が大きくなる） */}
-      <div className="mt-4 rounded-[14px] border border-subtle px-2 py-1.5 mx-auto" style={{ backgroundColor: 'var(--bg-secondary)', maxWidth: 240 }}>
+      <div data-hint="my-fanstar" className="mt-4 rounded-[14px] border border-subtle px-2 py-1.5 mx-auto" style={{ backgroundColor: 'var(--bg-secondary)', maxWidth: 240 }}>
         <div className="text-[11px] text-label-secondary px-1">ファンスター</div>
         {radar.length > 0
           ? <FanStarChart data={radar} size={190} />
@@ -351,7 +351,7 @@ export default function MyPage() {
       {/* ランキングの入口。ボタンだけだと押す理由がないので、**今の順位をここに出す**。
           順位が見えて初めて「あと少しで上がる」が働く。まだ誰も投稿していない月は
           順位ではなく「席が空いている」を出す（空欄を見せない）。 */}
-      <button onClick={() => { haptic.select(); navigate('/ranking'); }}
+      <button data-hint="my-ranking" onClick={() => { haptic.select(); navigate('/ranking'); }}
         className="pressable w-full flex items-center gap-3 mt-5 px-3 py-3 rounded-[12px] border border-subtle text-left"
         style={{ backgroundColor: 'var(--bg-secondary)' }}>
         <Crown size={18} style={{ color: 'var(--accent-color)' }} />
@@ -472,7 +472,7 @@ export default function MyPage() {
         {/* 外部カレンダー連携（プレミアム）。購読URLだけで Apple / Google / Outlook に入れる */}
         {calendarSync && user && (
           <div className="px-3 py-2.5">
-            <button onClick={() => { haptic.select(); setIcsOpen((v) => !v); }} className="pressable w-full flex items-center gap-2 text-left">
+            <button data-hint="my-sync" onClick={() => { haptic.select(); setIcsOpen((v) => !v); }} className="pressable w-full flex items-center gap-2 text-left">
               <CalendarSync size={16} className="text-label-secondary" />
               <span className="text-[14px] flex-1">カレンダー連携</span>
               <ChevronRight size={16} className="text-label-tertiary" style={{ transform: icsOpen ? 'rotate(90deg)' : undefined }} />

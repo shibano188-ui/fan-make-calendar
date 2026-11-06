@@ -3,9 +3,7 @@ import { CalendarDays, Plus } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from './item/ItemCard';
 import DaySheet from './DaySheet';
-import SwipeRow from './ui/SwipeRow';
-import ImportantFrame from './item/ImportantFrame';
-import { useImportant, toggleImportant, IMPORTANT_SIDE } from '../lib/important';
+import CalendarSwipeRow from './item/CalendarSwipeRow';
 import { todayStr, deriveStatus } from '../design/tokens';
 import { relativeDayLabel } from '../lib/relativeDay';
 import { haptic } from '../lib/haptics';
@@ -492,9 +490,8 @@ function RelativeBadge({ day, today }: { day: string; today: string }) {
   );
 }
 
-// 週・日の表示は左右に払うと前後へ動くので、左へ払って外すのは日付のパネル（onRemove を渡したとき）だけ
+// 週・日の表示は左右に払うと前後へ動くので、横のスワイプ（左＝外す・右＝通知）は日付のパネル（onRemove を渡したとき）だけ
 function DayList({ events, day, colorOf, onOpen, onLike, onCalendar, onStyle, onRemove }: { events: CalendarEvent[]; day: string; onRemove?: (e: CalendarEvent) => void } & Pick<ViewProps, 'colorOf' | 'onOpen' | 'onLike' | 'onCalendar' | 'onStyle'>) {
-  const important = useImportant();
   if (events.length === 0) {
     return (
       <div className="flex items-center gap-2 text-[12px] text-label-tertiary py-3 px-1">
@@ -510,13 +507,10 @@ function DayList({ events, day, colorOf, onOpen, onLike, onCalendar, onStyle, on
         return (
           <div key={e.id}>
             {labels.length > 0 && <div className="px-1 pb-1 text-[12px] font-bold" style={{ color: 'var(--accent-text)' }}>{labels.join('・')}</div>}
-            <SwipeRow label="外す" radius={12} disabled={!onRemove || e.personal} onSwipe={() => onRemove?.(e)}
-              right={{ ...IMPORTANT_SIDE(important.has(e.id)), onSwipe: () => toggleImportant(e.id) }}>
-              <ImportantFrame id={e.id}>
-                <ItemCard event={e} layout="list" likedInit={e.likedByMe} workColor={colorOf(e)}
-                  onOpen={() => onOpen(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onStyle={() => onStyle(e)} />
-              </ImportantFrame>
-            </SwipeRow>
+            <CalendarSwipeRow event={e} radius={12} disabled={!onRemove} onRemove={(x) => onRemove?.(x)}>
+              <ItemCard event={e} layout="list" likedInit={e.likedByMe} workColor={colorOf(e)}
+                onOpen={() => onOpen(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onStyle={() => onStyle(e)} />
+            </CalendarSwipeRow>
           </div>
         );
       })}
