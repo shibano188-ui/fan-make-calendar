@@ -32,13 +32,16 @@ const KEYS = {
   seen_event_ids:      'fan_seen_event_ids',
   streak:              'fan_streak',
   story_since:         'fan_story_since',
+  dismissed_event_ids: 'fan_dismissed_event_ids',
 } as const;
 
 export type AppStateColumn = keyof typeof KEYS;
 
 /** まだ本番にSQLを流していない列。ここに入れておくと、列が無い環境でも同期が止まらない。
  *  流したら空にする（work_settings / work_order は 2026-09-21 に流し済み）。 */
-const PENDING_COLS: AppStateColumn[] = []; // sql/2026-10-04-home-story.sql は 2026-10-04 に柴野が本番に流した
+// sql/2026-10-04-home-story.sql は 2026-10-04 に柴野が本番に流した。
+// dismissed_event_ids（探すで隠した予定）は sql/2026-11-07-dismissed-events.sql。本番に流したら外す
+const PENDING_COLS: AppStateColumn[] = ['dismissed_event_ids'];
 
 // 配列で持つもの（それ以外＝work_colors / work_images はオブジェクト）
 const IS_ARRAY: Record<AppStateColumn, boolean> = {
@@ -55,6 +58,7 @@ const IS_ARRAY: Record<AppStateColumn, boolean> = {
   seen_event_ids:      true,
   streak:              false,
   story_since:         false,
+  dismissed_event_ids: true,
 };
 
 function readLocal(col: AppStateColumn): unknown {
@@ -177,6 +181,8 @@ export async function syncAppState(userId: string): Promise<void> {
     }
     if (localWins) { try { localStorage.setItem(LOCAL_WINS_KEY, userId); } catch { /* noop */ } }
     synced = true;
+    // サーバーの値で手元を書き換えたので、覚えている値を読み直してもらう（dismissed.ts）
+    window.dispatchEvent(new Event('fan-app-state-synced'));
   } catch {
     // オフライン・テーブル未作成でもアプリは通常どおり動く（ローカルが正のまま）
   }

@@ -27,6 +27,9 @@ import { storySince, freeCutoff } from '../lib/story';
 import { useAdBanner } from '../lib/useAdBanner';
 import { useTourStep, finishTourNow } from '../components/OnboardingTour';
 import { useBackToClose } from '../lib/backStack';
+import SwipeRow from '../components/ui/SwipeRow';
+import Sheet from '../components/ui/Sheet';
+import { useDismissed, dismissEvent, restoreEvent } from '../lib/dismissed';
 
 const STATUS_ORDER: ItemStatus[] = ['preorder_soon', 'preorder', 'sale_soon', 'onsale', 'preorder_ended', 'ended', 'soldout'];
 
@@ -419,8 +422,12 @@ export default function Explore() {
   }, [today]);
   const endedCount = useMemo(() => (selectedStatuses.size ? 0 : queryItems.filter(isOver).length), [queryItems, selectedStatuses, isOver]);
 
+  // 左へ払って隠した予定（興味なし）。探すにだけ効く
+  const dismissed = useDismissed();
+  const [dismissedOpen, setDismissedOpen] = useState(false);
   const visible = useMemo(() => {
     return queryItems.filter((e) => {
+      if (dismissed.has(e.id)) return false;
       // 新着だけのときは、ホームの新着の数と同じものを全部出す。状態・カテゴリ・地域の絞り込みと「過去」を隠すのは効かせない
       // （前は残った1件がこれらで隠れて、押しても何も出ず、新着1件のまま減らなかった。2026-10-04）
       if (newOnly) {
@@ -436,7 +443,12 @@ export default function Explore() {
       if (allowedPrefs.size && (!e.prefecture || !allowedPrefs.has(e.prefecture))) return false;
       return true;
     });
-  }, [queryItems, selectedStatuses, excludedWorks, onlyWork, newOnly, seenSnapshot, newSince, newCutoff, selectedCategories, allowedPrefs, showEnded, isOver]);
+  }, [queryItems, dismissed, selectedStatuses, excludedWorks, onlyWork, newOnly, seenSnapshot, newSince, newCutoff, selectedCategories, allowedPrefs, showEnded, isOver]);
+  // 今の種類（グッズ/イベント）で隠したもの。新しく隠したものが上
+  const dismissedHere = useMemo(() => {
+    const byId = new Map((items ?? []).map((e) => [e.id, e]));
+    return [...dismissed].reverse().map((id) => byId.get(id)).filter((e): e is CalendarEvent => !!e);
+  }, [items, dismissed]);
 
   // 未読の円: 今の絞り込み（未読のみ 以外）をかけた一覧のうち、まだ見ていないものの割合
   const unread = useMemo(() => {
@@ -596,12 +608,19 @@ export default function Explore() {
     const el = document.querySelector<HTMLElement>(`[data-event-id="${id}"]`);
     if (el) sessionStorage.setItem('explore_anchor', JSON.stringify({ id, top: el.getBoundingClientRect().top }));
   };
+  // 左へ払うと探すから隠す（興味なし）。トーストの「元に戻す」か、一覧の下の「非表示にした予定」から戻せる
+  const onDismiss = (e: CalendarEvent) => {
+    dismissEvent(e.id);
+    toast('探すから隠しました', 'success', { label: '元に戻す', onClick: () => restoreEvent(e.id) });
+  };
   const renderCard = (e: CalendarEvent) => (
     <div key={e.id} ref={observeSeen} data-event-id={e.id}
       style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 196px' }}>
-      <ItemCard event={e} layout={mode === 'goods' ? 'wide' : 'list'} isNew={isNewItem(e.id, e.createdAt, seenSnapshot)} likedInit={likedIds.has(e.id)}
-        workColor={e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)'}
-        onOpen={() => { saveReturnPoint(e.id); navigate(`/item/${e.id}`); }} onLike={(want) => onLikeTile(e, want)} onCalendar={() => onCalendarTile(e)} />
+      <SwipeRow label="非表示" color="#8e8e93" radius={12} onSwipe={() => onDismiss(e)}>
+        <ItemCard event={e} layout={mode === 'goods' ? 'wide' : 'list'} isNew={isNewItem(e.id, e.createdAt, seenSnapshot)} likedInit={likedIds.has(e.id)}
+          workColor={e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)'}
+          onOpen={() => { saveReturnPoint(e.id); navigate(`/item/${e.id}`); }} onLike={(want) => onLikeTile(e, want)} onCalendar={() => onCalendarTile(e)} />
+      </SwipeRow>
     </div>
   );
 
@@ -730,6 +749,12 @@ export default function Explore() {
               : <p className="text-center text-label-tertiary text-[12px] py-6">これからの{mode === 'goods' ? 'グッズ' : 'イベント'}はありません</p>}
           </>
         )}
+        {dismissedHere.length > 0 && (
+          <button onClick={() => { haptic.select(); setDismissedOpen(true); }}
+            className="pressable block mx-auto mt-4 mb-2 px-3 py-1.5 text-[12px] text-label-secondary">
+            非表示にした予定 {dismissedHere.length}件 ›
+          </button>
+        )}
       </div>
 
       {items && items.length > 0 && (
@@ -744,6 +769,24 @@ export default function Explore() {
       )}
 
       <WorkFollowSheet open={followSheetOpen} onClose={() => setFollowSheetOpen(false)} onChanged={reloadFollows} />
+
+      {/* 隠した予定。「戻す」で探すにまた出す */}
+      <Sheet open={dismissedOpen && dismissedHere.length > 0} onClose={() => setDismissedOpen(false)}
+        title={<b className="text-[16px]">非表示にした予定 {dismissedHere.length}件</b>}>
+        <div className="flex flex-col pb-6">
+          {dismissedHere.map((e) => (
+            <div key={e.id} className="flex items-center gap-3 py-2.5" style={{ borderBottom: '0.5px solid var(--separator)' }}>
+              <button className="pressable flex-1 min-w-0 text-left" onClick={() => { setDismissedOpen(false); navigate(`/item/${e.id}`); }}>
+                {e.workName && <div className="text-[11px] text-label-secondary truncate">{e.workName}</div>}
+                <div className="text-[14px] font-semibold leading-snug line-clamp-2">{e.title}</div>
+              </button>
+              <button onClick={() => { haptic.select(); restoreEvent(e.id); }}
+                className="pressable flex-shrink-0 px-3 py-1.5 rounded-full text-[13px] font-semibold"
+                style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>戻す</button>
+            </div>
+          ))}
+        </div>
+      </Sheet>
     </div>
   );
 }

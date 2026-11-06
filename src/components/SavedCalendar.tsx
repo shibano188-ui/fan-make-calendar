@@ -3,6 +3,7 @@ import { CalendarDays, Plus } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from './item/ItemCard';
 import DaySheet from './DaySheet';
+import SwipeRow from './ui/SwipeRow';
 import { todayStr, deriveStatus } from '../design/tokens';
 import { relativeDayLabel } from '../lib/relativeDay';
 import { haptic } from '../lib/haptics';
@@ -103,9 +104,11 @@ type Props = {
   onAdd: (day: string) => void;
   /** この日のパネルを開いたままにする（オンボーディングの案内で、いいねした予定を見せるとき）。閉じるのも止める */
   focusDay?: string | null;
+  /** 日付のパネルの予定を左へ払ったとき（カレンダーから外す。元に戻すは親がトーストで出す） */
+  onRemove?: (e: CalendarEvent) => void;
 };
 
-export default function SavedCalendar({ events, scope, anchor, setAnchor, onOpen, onLike, onCalendar, onAdd, focusDay }: Props) {
+export default function SavedCalendar({ events, scope, anchor, setAnchor, onOpen, onLike, onCalendar, onAdd, focusDay, onRemove }: Props) {
   const today = todayStr();
   // 月表示で選んでいる日（色が付く）と、パネルで開いている日（null なら閉じている）。
   // パネルが閉じているときは「1回目で選ぶ → 同じ日をもう1回で開く」。
@@ -199,7 +202,8 @@ export default function SavedCalendar({ events, scope, anchor, setAnchor, onOpen
             </button>
           </div>
         )}>
-        {picked && <DayList events={pickedEvents} day={picked} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} onStyle={setStyling} />}
+        {picked && <DayList events={pickedEvents} day={picked} colorOf={colorOf} onOpen={onOpen} onLike={onLike} onCalendar={onCalendar} onStyle={setStyling}
+          onRemove={focusDay ? undefined : onRemove} />}
       </DaySheet>
       {styling && <EventStyleSheet eventId={styling.id} workId={styling.workId} onClose={() => setStyling(null)} onChange={() => setStyleTick((t) => t + 1)} />}
     </div>
@@ -486,7 +490,8 @@ function RelativeBadge({ day, today }: { day: string; today: string }) {
   );
 }
 
-function DayList({ events, day, colorOf, onOpen, onLike, onCalendar, onStyle }: { events: CalendarEvent[]; day: string } & Pick<ViewProps, 'colorOf' | 'onOpen' | 'onLike' | 'onCalendar' | 'onStyle'>) {
+// 週・日の表示は左右に払うと前後へ動くので、左へ払って外すのは日付のパネル（onRemove を渡したとき）だけ
+function DayList({ events, day, colorOf, onOpen, onLike, onCalendar, onStyle, onRemove }: { events: CalendarEvent[]; day: string; onRemove?: (e: CalendarEvent) => void } & Pick<ViewProps, 'colorOf' | 'onOpen' | 'onLike' | 'onCalendar' | 'onStyle'>) {
   if (events.length === 0) {
     return (
       <div className="flex items-center gap-2 text-[12px] text-label-tertiary py-3 px-1">
@@ -502,8 +507,10 @@ function DayList({ events, day, colorOf, onOpen, onLike, onCalendar, onStyle }: 
         return (
           <div key={e.id}>
             {labels.length > 0 && <div className="px-1 pb-1 text-[12px] font-bold" style={{ color: 'var(--accent-text)' }}>{labels.join('・')}</div>}
-            <ItemCard event={e} layout="list" likedInit={e.likedByMe} workColor={colorOf(e)}
-              onOpen={() => onOpen(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onStyle={() => onStyle(e)} />
+            <SwipeRow label="外す" radius={12} disabled={!onRemove || e.personal} onSwipe={() => onRemove?.(e)}>
+              <ItemCard event={e} layout="list" likedInit={e.likedByMe} workColor={colorOf(e)}
+                onOpen={() => onOpen(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onStyle={() => onStyle(e)} />
+            </SwipeRow>
           </div>
         );
       })}

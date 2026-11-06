@@ -2048,6 +2048,29 @@ export async function countUserReactionsGiven(userId: string): Promise<number> {
   return count ?? 0;
 }
 
+/** 自分がスタンプを押した予定（カレンダーの「スタンプ」・2026-11-07）。予定ごとに押した種類をまとめ、最後に押した順 */
+export type StampedEvent = { event: CalendarEvent; stamps: string[]; at: string };
+export async function listMyStampedEvents(userId: string): Promise<StampedEvent[]> {
+  const [, res] = await Promise.all([
+    ensureEventEdits(),
+    supabase.from('event_stamps').select('event_id, stamp, created_at, events(*, works(name))')
+      .eq('user_id', userId).order('created_at', { ascending: false }).limit(2000),
+  ]);
+  if (res.error) throw res.error;
+  const map = new Map<string, StampedEvent>();
+  for (const r of (res.data ?? []) as Record<string, unknown>[]) {
+    const row = r.events as Record<string, unknown> | null;
+    // 消された・運営が隠した予定は出さない
+    if (!row || row.pool !== 0) continue;
+    const id = r.event_id as string;
+    const cur = map.get(id);
+    if (cur) { cur.stamps.push(r.stamp as string); continue; }
+    const works = row.works as { name: string } | null;
+    map.set(id, { event: { ...rowToEvent(row), workName: works?.name ?? '' }, stamps: [r.stamp as string], at: r.created_at as string });
+  }
+  return [...map.values()];
+}
+
 export async function countUserEventsByCategory(userId: string, category: string): Promise<number> {
   // category は単一文字列 or JSON配列文字列で保存されるため、取得してJS側で判定する
   const { data } = await supabase

@@ -32,7 +32,7 @@ export type Moment = {
 const isGoods = (e: CalendarEvent) => deriveItemType(e) === 'goods';
 
 /** 予定1件を、起きることごとに分ける */
-function momentsOf(e: CalendarEvent): Moment[] {
+export function momentsOf(e: CalendarEvent): Moment[] {
   const out: Moment[] = [];
   const push = (day: string | null | undefined, mark: Mark, extra: Partial<Moment> = {}) => {
     if (day) out.push({ day, mark, e, ...extra });

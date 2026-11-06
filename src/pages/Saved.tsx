@@ -12,10 +12,12 @@ import ExpandingSearch, { SearchSideButtons } from '../components/ui/ExpandingSe
 import { useTyping } from '../hooks/useTyping';
 import SavedCalendar, { periodLabel, includesToday } from '../components/SavedCalendar';
 import SavedBoard, { useStickyTop } from '../components/board/SavedBoard';
+import SwipeRow from '../components/ui/SwipeRow';
+import StampShelf from '../components/board/StampShelf';
 import FilterPanel, { type Facet } from '../components/item/FilterPanel';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveStatus, todayStr, STATUS, type ItemStatus } from '../design/tokens';
-import { getHomePrefecture, toggleLike, toggleCalendarAdd, listAllParticipatedWorks, type Work } from '../lib/api';
+import { getHomePrefecture, toggleLike, toggleCalendarAdd, listAllParticipatedWorks, listEventSchedules, type Work } from '../lib/api';
 import { loadWorkImages } from '../lib/workImages';
 import { useTheme } from '../contexts/ThemeContext';
 import { EventStyleSheet } from '../components/item/EventStylePicker';
@@ -72,13 +74,18 @@ export default function Saved() {
   // 覚えている予定があれば最初の描画から出す（詳細から戻ったときに読み込み表示を挟まない）
   const [items, setItems] = useState<CalendarEvent[] | null>(() => (user ? peekSaved(user.id) : null));
   const [tab, setTab] = useState<Tab>(['all', 'mine', 'notify'].includes(_ss.tab) ? _ss.tab : 'all');
-  // 最初に開く表示はボード（2026-11-06 柴野。試しのプレビューで）
+  // 最初に開く表示はボード（2026-11-06 柴野。2026-11-07 からボードを主にする）
   const [view, setView] = useState<View>(_ss.view ?? 'board');
+  // 上の「予定｜スタンプ」。スタンプ＝♡ほどではないけど、とっておいた予定（2026-11-07 柴野）。
+  // 表示の切り替え（月・週…）のメニューは見られていなかったので、目に入る所に置く
+  const [mode, setMode] = useState<'plan' | 'stamp'>(_ss.mode === 'stamp' ? 'stamp' : 'plan');
   // 表示切替のメニューの位置（開いているときだけ）。上部バーは下端をぼかす mask で
   // はみ出した部分が消えるので、メニューは body に出して画面の座標で置く
   const [viewMenuAt, setViewMenuAt] = useState<{ top: number; right: number } | null>(null);
   // 表示中の月・週・日。見出しと「今日」ボタンのためにここで持つ
   const [anchor, setAnchor] = useState<string>(todayStr());
+  // ボードで見出しの「今日」を押した回数（押したらボードの一番上へ戻る）
+  const [todayTick, setTodayTick] = useState(0);
   const premium = usePremium();
   // 機能の案内を消したか。端末に覚える
   const readHidden = (key: string) => { try { return localStorage.getItem(key) === '1'; } catch { return false; } };
@@ -88,7 +95,7 @@ export default function Saved() {
   const { userThemes, userThemesLoaded } = useTheme();
   const showThemePromo = !themePromoHidden && userThemesLoaded && userThemes.length === 0;
   // 月表示は1画面に収めて、下へスクロールできないようにする
-  const monthFit = view === 'month';
+  const monthFit = view === 'month' && mode === 'plan';
   useEffect(() => {
     if (!monthFit) return;
     const html = document.documentElement, body = document.body;
@@ -146,8 +153,8 @@ export default function Saved() {
   const titleRef = useRef<HTMLHeadingElement>(null);
   // ボードは上に月のカレンダーを出すので、見出しと「今日」は月表示と同じ
   const calScope = view === 'board' ? 'month' : view;
-  const titleText = calScope === 'list' ? '保存した予定' : periodLabel(calScope, anchor);
-  const showToday = calScope !== 'list' && !includesToday(calScope, anchor, today);
+  const titleText = mode === 'stamp' ? 'スタンプ' : calScope === 'list' ? '保存した予定' : periodLabel(calScope, anchor);
+  const showToday = mode === 'plan' && calScope !== 'list' && !includesToday(calScope, anchor, today);
   useLayoutEffect(() => {
     const el = titleRef.current;
     if (!el) return;
@@ -171,7 +178,7 @@ export default function Saved() {
   // フィルター状態を sessionStorage に同期（詳細から戻っても維持）
   useEffect(() => {
     sessionStorage.setItem('saved_filters', JSON.stringify({
-      tab, view, query, filterOpen,
+      tab, view, mode, query, filterOpen,
       statuses: [...selectedStatuses], excludedWorks: [...excludedWorks], categories: [...selectedCategories],
       prefs: [...selectedPrefs], regions: [...selectedRegions], neighborActive,
     }));
@@ -179,7 +186,7 @@ export default function Saved() {
       statuses: [...selectedStatuses], excludedWorks: [...excludedWorks], categories: [...selectedCategories],
       prefs: [...selectedPrefs], regions: [...selectedRegions], neighborActive,
     });
-  }, [tab, view, query, filterOpen, selectedStatuses, excludedWorks, selectedCategories, selectedPrefs, selectedRegions, neighborActive]);
+  }, [tab, view, mode, query, filterOpen, selectedStatuses, excludedWorks, selectedCategories, selectedPrefs, selectedRegions, neighborActive]);
 
   // 開いたら最上部から表示
   useEffect(() => {
@@ -227,7 +234,7 @@ export default function Saved() {
     updateSaved(user.id, apply);
   };
 
-  // ボードで左へスワイプして外したとき。いいねを外し、トーストの「元に戻す」で付け直してカレンダーに戻す
+  // 左へスワイプして外したとき（ボード・リスト・月の日付のパネル）。いいねを外し、トーストの「元に戻す」で付け直してカレンダーに戻す
   const onRemove = async (e: CalendarEvent) => {
     if (!user) return;
     const prevList = items;
@@ -252,6 +259,27 @@ export default function Saved() {
     } catch {
       setItems(prevList);
       toast('外せませんでした。通信を確かめてください', 'error');
+    }
+  };
+
+  // スタンプの一覧で ♡ を押したとき。入っていなければカレンダーに入れ、入っていれば外す（元に戻す付き）
+  const likedIds = useMemo(() => new Set((items ?? []).filter((e) => !e.personal).map((e) => e.id)), [items]);
+  const onStampLike = async (e: CalendarEvent) => {
+    if (!user) return;
+    if (likedIds.has(e.id)) { void onRemove(e); return; }
+    try {
+      const r = await toggleLike(e.id, user.id, true);
+      if (!r.liked) return;
+      // 日程（複数部・二次受付）はボードの並びに使うので、足すときに一緒に取る
+      const schedules = await listEventSchedules([e.id]).catch(() => []);
+      const added: CalendarEvent = { ...e, likedByMe: true, likes: r.count, ...(schedules.length ? { schedules } : {}) };
+      const add = (list: CalendarEvent[]) => (list.some((it) => it.id === e.id) ? list : [...list, added]);
+      setItems((prev) => (prev ? add(prev) : prev));
+      updateSaved(user.id, add);
+      void syncNotifyWithLike(added, true);
+      toast('カレンダーに入れました');
+    } catch {
+      toast('入れられませんでした。通信を確かめてください', 'error');
     }
   };
 
@@ -454,7 +482,7 @@ export default function Saved() {
                 </h1>
                 {/* 今日を含まない期間を見ているときだけ出す */}
                 {showToday && (
-                  <button onClick={() => { haptic.select(); setAnchor(today); }}
+                  <button onClick={() => { haptic.select(); setAnchor(today); setTodayTick((n) => n + 1); }}
                     className="pressable flex-shrink-0 text-[12px] font-semibold px-2 py-1 rounded-full"
                     style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
                     今日
@@ -470,13 +498,13 @@ export default function Saved() {
             </IconButton>
           )}
 
-          <IconButton label="表示を切り替える" pressed={!!viewMenuAt}
+          {mode === 'plan' && <IconButton label="表示を切り替える" pressed={!!viewMenuAt}
             onClick={(el) => {
               const r = el.getBoundingClientRect();
               setViewMenuAt((cur) => (cur ? null : { top: r.bottom + 6, right: window.innerWidth - r.right }));
             }}>
             {(() => { const I = VIEWS.find((v) => v.key === view)?.icon ?? CalendarDays; return <I size={18} />; })()}
-          </IconButton>
+          </IconButton>}
           {viewMenuAt && createPortal(
             <>
               <div className="fixed inset-0" style={{ zIndex: 200 }} onClick={() => setViewMenuAt(null)} />
@@ -516,6 +544,18 @@ export default function Saved() {
           <WorkChipsRow works={followedWorks} colors={followedColor} images={workImages} excluded={excludedWorks}
             onToggle={(id) => toggleIn(setExcludedWorks, id)} onShowAll={() => setExcludedWorks(new Set())} />
         )}
+      </div>
+
+      {/* 予定｜スタンプ */}
+      <div className="flex p-0.5 mt-2 rounded-[10px]" role="tablist" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+        {([['plan', '予定'], ['stamp', 'スタンプ']] as const).map(([k, label]) => (
+          <button key={k} role="tab" aria-selected={mode === k}
+            onClick={() => { if (mode === k) return; haptic.select(); setMode(k); window.scrollTo(0, 0); }}
+            className="pressable flex-1 h-8 rounded-[8px] text-[13px] font-semibold transition-colors"
+            style={mode === k ? { backgroundColor: 'var(--bg-primary)', color: 'var(--label-primary)', boxShadow: '0 1px 3px rgba(0,0,0,.12)' } : { color: 'var(--label-secondary)' }}>
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* 機能の案内（1つだけ出す・2026-10-05）。カレンダーを見るための画面なので、どちらも✕で消せる（端末に覚える）。
@@ -566,15 +606,17 @@ export default function Saved() {
         document.body,
       )}
 
-      {items === null && !tourEvent ? (
+      {mode === 'stamp' ? (
+        user ? <StampShelf userId={user.id} likedIds={likedIds} excludedWorks={excludedWorks} onOpen={openItem} onLike={onStampLike} /> : null
+      ) : items === null && !tourEvent ? (
         <SkeletonList count={4} />
       ) : view === 'board' ? (
         <SavedBoard events={shown} anchor={anchor} setAnchor={setAnchor} workImages={workImages} stickyTop={headerH}
-          onOpen={openItem} onRemove={onRemove} userId={user?.id} onVisits={onVisits} />
+          onOpen={openItem} onRemove={onRemove} userId={user?.id} onVisits={onVisits} todayTick={todayTick} />
       ) : view !== 'list' ? (
         // カレンダー（月/週/日）は予定が0件でも枠を表示する
         <SavedCalendar events={shown} scope={view} anchor={anchor} setAnchor={setAnchor} focusDay={tourDay}
-          onOpen={openItem} onLike={onLike} onCalendar={onCalendar}
+          onOpen={openItem} onLike={onLike} onCalendar={onCalendar} onRemove={onRemove}
           onAdd={(day) => navigate(`/personal/new?date=${day}`)} />
       ) : listItems.length === 0 ? (
         <p className="text-center text-label-secondary text-[13px] py-20">
@@ -584,9 +626,12 @@ export default function Saved() {
       ) : (
         <div className="flex flex-col gap-2 pb-4">
           {listItems.map((e) => (
-            <ItemCard key={e.id} event={e} layout="list" likedInit={e.likedByMe}
-              workColor={eventColorFrom(workColorMap, e)}
-              onOpen={() => openItem(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onStyle={() => setStyling(e)} />
+            // 左へ払うとカレンダーから外す（ボードと同じ。自分用の予定は外せないので払えない）
+            <SwipeRow key={e.id} label="外す" radius={12} disabled={e.personal} onSwipe={() => onRemove(e)}>
+              <ItemCard event={e} layout="list" likedInit={e.likedByMe}
+                workColor={eventColorFrom(workColorMap, e)}
+                onOpen={() => openItem(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onStyle={() => setStyling(e)} />
+            </SwipeRow>
           ))}
         </div>
       )}
@@ -594,7 +639,7 @@ export default function Saved() {
 
       {/* 自分用の予定を作る入口（2026-09-29）。みんなに公開する情報は下の真ん中の「＋」から。
           日付は表示中の日（月表示なら今日か、見ている月の1日）を入れておく */}
-      {(!tourStep || tourStep === 'personal') && (
+      {mode === 'plan' && (!tourStep || tourStep === 'personal') && (
         <button data-tour="personal" onClick={() => { haptic.select(); navigate(`/personal/new?date=${calScope === 'list' || includesToday(calScope, anchor, today) ? today : anchor}`); }}
           aria-label="自分の予定を追加"
           // 下の真ん中の「＋」（みんなに公開する情報）と見分けるため、塗りではなく白地にカレンダーの印
