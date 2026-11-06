@@ -2048,7 +2048,7 @@ export async function countUserReactionsGiven(userId: string): Promise<number> {
   return count ?? 0;
 }
 
-/** 自分がスタンプを押した予定（カレンダーの「スタンプ」・2026-11-07）。予定ごとに押した種類をまとめ、最後に押した順 */
+/** 自分がスタンプを押した予定（探すの「スタンプ」・2026-11-07）。予定ごとに押した種類をまとめ、最後に押した順 */
 export type StampedEvent = { event: CalendarEvent; stamps: string[]; at: string };
 export async function listMyStampedEvents(userId: string): Promise<StampedEvent[]> {
   const [, res] = await Promise.all([

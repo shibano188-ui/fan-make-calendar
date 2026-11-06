@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown } from 'lucide-react';
+import { CalendarPlus, ChevronDown } from 'lucide-react';
 import type { CalendarEvent, EventVisit } from '../../types';
 import Sheet from '../ui/Sheet';
 import OptImg from '../ui/OptImg';
@@ -17,8 +17,8 @@ import VisitSheet from './VisitSheet';
 import SwipeRow from '../ui/SwipeRow';
 import { useImportant, toggleImportant, IMPORTANT_SIDE } from '../../lib/important';
 import { useTentative, setTentative } from '../../lib/tentative';
-import { useBackToClose } from '../../lib/backStack';
 import { useToast } from '../ui/Toast';
+import { useCalDotImages } from '../../lib/calDotImages';
 
 // カレンダーの「ボード」表示（2026-11-06 柴野と試作 → 表示の切り替えに「ボード」として足した）。
 // 上に月のカレンダー（下へスクロールすると上部バーの下へ滑り込み、今見ている週の帯だけが残る）、下に「あと○日」で並べた日ごとの予定。
@@ -52,11 +52,13 @@ type Props = {
   onVisits: (e: CalendarEvent, visits: EventVisit[]) => void;
   /** 見出しの「今日」を押した回数（押したら一番上へ戻る） */
   todayTick?: number;
+  /** 自分用の予定を足す（カレンダーが開いているときだけ、カレンダーの右下にボタンを出す） */
+  onAddPersonal?: () => void;
 };
 
 type SheetState = { kind: 'day'; day: string } | { kind: 'undated' } | { kind: 'icons' } | { kind: 'visit'; id: string } | null;
 
-export default function SavedBoard({ events, anchor, setAnchor, workImages, stickyTop, onOpen, onRemove, userId, onVisits, todayTick = 0 }: Props) {
+export default function SavedBoard({ events, anchor, setAnchor, workImages, stickyTop, onOpen, onRemove, userId, onVisits, todayTick = 0, onAddPersonal }: Props) {
   const today = todayStr();
   const toast = useToast();
   const [onlyMarks, setOnlyMarks] = useState<Set<Mark>>(new Set());
@@ -90,49 +92,46 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
     return [...m.values()];
   }, [events]);
   const colors = useMemo(() => buildWorkColorMap(works), [works]);
-  const icons = useWorkIcons(workImages);
+  // カレンダーの点の画像（作品のアイコンと同じ／点だけ別の写真／色の点）
+  const dotImages = useCalDotImages(workImages);
+  const icons = useWorkIcons(dotImages.images);
   const dot = (workId: string | undefined, size: number) => <WorkDot workId={workId} size={size} color={workId ? colors.get(workId) : undefined} icons={icons} />;
 
-  // ─ カレンダー ─
-  // 2026-11-07 柴野と3回目。前の作り（たたむとカレンダーの高さが縮む）は、縮んだぶん下の一覧が指の下で跳び、
-  // スマホではスクロールと重なって「ついてきておかしくなる」・日付を押しても予定まで届かない、が起きていた。
-  // 今は、カレンダーの高さを変えない:
-  //   ・月のカレンダーは、スクロールに合わせて上部バーの下へ滑り込み、最後に「今見ている週」の帯だけが残る（指と1:1で動く）
-  //   ・下へスクロールして途中で止めたら、たたみ切る（上へ戻る途中では開ききらない＝少し戻っただけでは開かない）
-  //   ・帯のつまみを押す（帯を下へ引く）と、月が一覧の上に重なって出る。日を押すかスクロールすると閉じる
-  //   ・日付を押すと、その日の予定が帯のすぐ下に来るところまで飛ぶ。「これから7日」を押してもたたむ
+  // ─ カレンダー（下へスクロールすると、すぐ今見ている週の帯だけにたたむ） ─
+  // 2026-11-07 柴野と4回目。決めごと:
+  //   ・下へスクロールしたら、すぐ自動でたたむ（今見ている週の帯だけ残す）
+  //   ・上へ戻っただけでは開かない。開くのは、帯のつまみを押す・帯を下へ引く・一番上でさらに下へ引く
+  //   ・日付を押すと、たたんでその日の予定まで飛ぶ。「これから7日」を押してもたたむ
+  // 作り: たたんでもページの高さは変えない（前は高さを縮めていて、一覧が指の下で跳ぶ・飛び先がずれる、が起きた）。
+  //   カレンダーと下の一覧を、月の部分の高さだけ transform で上へずらして見せる。スクロール位置も高さも変わらないので、
+  //   指のスクロールとぶつからない
   const BAR = 76; // たたんだときに残る帯（週の7日＋つまみ）の高さ
-  const startRef = useRef<HTMLDivElement>(null);
   const monthRef = useRef<HTMLDivElement>(null);
   const [monthH, setMonthH] = useState(0);
-  const [stuck, setStuck] = useState(false);
-  const [overlay, setOverlay] = useState(false);
-  const overlayAt = useRef(0);
+  const [folded, setFolded] = useState(false);
+  const foldedRef = useRef(false);
+  foldedRef.current = folded;
+  const [scrolled, setScrolled] = useState(false);
   const [active, setActive] = useState(today);
   const activeRef = useRef(today);
   const anchorRef = useRef(anchor);
   anchorRef.current = anchor;
-  const stuckRef = useRef(false);
-  const overlayRef = useRef(false);
-  overlayRef.current = overlay;
   // 帯で前後の週を見ているときのずれ（スクロールで今見ている日が変わると0に戻る）
   const [weekShift, setWeekShift] = useState(0);
-  // たたみ切る位置（ここより下へスクロールすると、帯だけが残る）
-  const foldY = () => (startRef.current ? startRef.current.getBoundingClientRect().top + window.scrollY : 0) - stickyTop + (monthRef.current?.offsetHeight ?? 0);
+  useLayoutEffect(() => {
+    const h = monthRef.current?.offsetHeight ?? 0;
+    if (h !== monthH) setMonthH(h);
+  });
 
   useEffect(() => {
-    let last = window.scrollY, dir = 0, raf = 0, touching = false;
-    let settle: ReturnType<typeof setTimeout> | null = null;
+    let last = window.scrollY, raf = 0;
     const onScroll = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
         const y = window.scrollY;
-        if (y !== last) dir = y > last ? 1 : -1;
+        if (y > last + 2 && y > 0 && !foldedRef.current) setFolded(true);
         last = y;
-        const fy = foldY();
-        stuckRef.current = y >= fy - 2;
-        setStuck(stuckRef.current);
-        if (overlayRef.current && Math.abs(y - overlayAt.current) > 6) setOverlay(false);
+        setScrolled(y > 0);
         // 今見ている日（帯の下端より上に来た最後の日）
         const line = stickyTop + BAR + 12;
         let cur = today;
@@ -143,36 +142,26 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
           setWeekShift(0);
           if (cur.slice(0, 7) !== anchorRef.current.slice(0, 7)) setAnchor(cur);
         }
-        // 下へ動かして途中で止めたら、たたみ切る（指を離して動きが止まってから）
-        if (settle) clearTimeout(settle);
-        settle = setTimeout(() => {
-          const yy = window.scrollY, f = foldY();
-          if (!touching && dir > 0 && yy > 0 && yy < f - 2) window.scrollTo({ top: f, behavior: 'smooth' });
-        }, 160);
       });
     };
-    const onTouchStart = () => { touching = true; };
-    const onTouchEnd = () => { touching = false; onScroll(); };
+    // 一番上で、さらに下へ引いたら開く（スクロールで戻ってきただけでは開かない）
+    let pullY: number | null = null;
+    const onTouchStart = (e: TouchEvent) => { pullY = window.scrollY <= 0 ? e.touches[0].clientY : null; };
+    const onTouchMove = (e: TouchEvent) => {
+      if (pullY === null || window.scrollY > 0 || !foldedRef.current) return;
+      if (e.touches[0].clientY - pullY > 70) { pullY = null; haptic.select(); setFolded(false); }
+    };
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('touchstart', onTouchStart, { passive: true });
-    window.addEventListener('touchend', onTouchEnd, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
     onScroll();
     return () => {
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('touchstart', onTouchStart);
-      window.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('touchmove', onTouchMove);
       cancelAnimationFrame(raf);
-      if (settle) clearTimeout(settle);
     };
-  }, [stickyTop, today, setAnchor]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // 月が変わって週の数（5↔6）が変わると、カレンダーの高さが変わる。たたんでいる間は、その分だけ
-  // スクロールを足し引きして、下の一覧が動かないようにする
-  useLayoutEffect(() => {
-    const h = monthRef.current?.offsetHeight ?? 0;
-    if (monthH && h !== monthH && stuckRef.current) window.scrollBy(0, h - monthH);
-    if (h !== monthH) setMonthH(h);
-  });
+  }, [stickyTop, today, setAnchor]);
   // Android の Chrome が、上の要素の変化に合わせてスクロール位置を勝手に補正しないようにする
   useEffect(() => {
     const els = [document.documentElement, document.body];
@@ -180,17 +169,18 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
     els.forEach((el) => { el.style.overflowAnchor = 'none'; });
     return () => els.forEach((el, i) => { el.style.overflowAnchor = prev[i]; });
   }, []);
-  // 見出しの「今日」を押したら、一番上（今日・月のカレンダーが見える）へ戻る
+  // 見出しの「今日」を押したら、カレンダーを開いて一番上（今日）へ戻る
   useEffect(() => {
     if (!todayTick) return;
-    setOverlay(false);
+    setFolded(false);
     setWeekShift(0);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [todayTick]);
-  useBackToClose(overlay, () => setOverlay(false));
 
-  const fold = () => { if (window.scrollY < foldY() - 2) window.scrollTo({ top: foldY(), behavior: 'smooth' }); };
-  const openOverlay = () => { overlayAt.current = window.scrollY; setOverlay(true); };
+  const fold = () => setFolded(true);
+  // たたんだときに、カレンダーと一覧を上へずらす量
+  const shift = folded ? monthH : 0;
+  const slide = { transform: shift ? `translateY(${-shift}px)` : 'none', transition: 'transform .28s cubic-bezier(0.32,0.72,0,1)' };
 
   const monthStart = `${anchor.slice(0, 7)}-01`;
   const weeks = useMemo(() => {
@@ -210,7 +200,6 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
 
   const jump = (day: string) => {
     haptic.select();
-    setOverlay(false);
     const row = document.querySelector<HTMLElement>(`[data-board-day="${day}"]`);
     if (!row || day < today) {
       if (days.get(day)?.length) setSheet({ kind: 'day', day });
@@ -219,11 +208,13 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
     activeRef.current = day;
     setActive(day);
     setWeekShift(0);
-    // カレンダーの高さは変わらないので、今の位置からそのまま計算できる（行が帯のすぐ下に来る）
-    window.scrollTo({ top: Math.max(0, window.scrollY + row.getBoundingClientRect().top - stickyTop - BAR - 6), behavior: 'smooth' });
+    // ページの高さは変わらない。今開いていれば、たたむと一覧が月の高さだけ上へずれるので、その分を引く
+    const up = folded ? 0 : monthH;
+    setFolded(true);
+    window.scrollTo({ top: Math.max(0, window.scrollY + row.getBoundingClientRect().top - up - stickyTop - BAR - 6), behavior: 'smooth' });
   };
 
-  // カレンダーの上で: 横に払うと前後の月（帯だけのときは前後の週）、上下に引くと 開く・閉じる・たたむ
+  // カレンダーの上で: 横に払うと前後の月（たたんでいるときは前後の週）、上下に引くと 開く・たたむ
   const touch = useRef<{ x: number; y: number } | null>(null);
   const calTouch = {
     onTouchStart: (e: React.TouchEvent) => { touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; },
@@ -231,33 +222,29 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
       if (!touch.current || drag) return;
       const dx = e.changedTouches[0].clientX - touch.current.x, dy = e.changedTouches[0].clientY - touch.current.y;
       touch.current = null;
-      const stripOnly = stuck && !overlay;
       if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
         haptic.select();
-        if (stripOnly) setWeekShift((n) => n + (dx < 0 ? 1 : -1));
+        if (folded) setWeekShift((n) => n + (dx < 0 ? 1 : -1));
         else setAnchor(addMonths(anchor, dx < 0 ? 1 : -1));
         return;
       }
-      if (Math.abs(dy) > 28 && Math.abs(dy) > Math.abs(dx)) {
-        if (stripOnly && dy > 0) { haptic.select(); openOverlay(); }
-        else if (overlay && dy < 0) { haptic.select(); setOverlay(false); }
-      }
+      if (Math.abs(dy) > 28 && Math.abs(dy) > Math.abs(dx)) { haptic.select(); setFolded(dy < 0); }
     },
   };
 
   // ─ 日付未定の予定を、長押しして好きな日へ運ぶ（仮置き） ─
   const [drag, setDrag] = useState<{ m: Moment; x: number; y: number } | null>(null);
-  const [hot, setHot] = useState<string | null>(null);
-  const hotRef = useRef<string | null>(null);
-  const startDrag = (m: Moment, x: number, y: number) => { haptic.select(); setOverlay(false); setDrag({ m, x, y }); };
+  // 置き先。on＝その日に、between＝2つの日のあいだ（真ん中の日にする）、after＝最後の日より後（1週間後にする）
+  const [hot, setHot] = useState<DropTarget | null>(null);
+  const hotRef = useRef<DropTarget | null>(null);
+  const startDrag = (m: Moment, x: number, y: number) => { haptic.select(); setDrag({ m, x, y }); };
   useEffect(() => {
     if (!drag) return;
     let px = drag.x, py = drag.y, raf = 0;
     const target = () => {
-      const el = document.elementFromPoint(px, py)?.closest<HTMLElement>('[data-board-day],[data-cal-day]');
-      const d = el?.dataset.boardDay ?? el?.dataset.calDay ?? null;
-      const ok = d && d >= today ? d : null;
-      if (ok !== hotRef.current) { hotRef.current = ok; setHot(ok); if (ok) haptic.select(); }
+      const t = dropTargetAt(px, py, today);
+      const prev = hotRef.current;
+      if (t?.day !== prev?.day || t?.kind !== prev?.kind) { hotRef.current = t; setHot(t); if (t) haptic.select(); }
     };
     // 画面の上下の端に近づいたら、自動でスクロールする
     const loop = () => {
@@ -270,11 +257,12 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
     raf = requestAnimationFrame(loop);
     const move = (e: PointerEvent) => { px = e.clientX; py = e.clientY; setDrag((d) => (d ? { ...d, x: px, y: py } : d)); };
     const end = () => {
-      const d = hotRef.current, m = drag.m;
+      const t = hotRef.current, m = drag.m;
       hotRef.current = null; setHot(null); setDrag(null);
-      if (!d) return;
-      setTentative(m.e.id, d);
-      toast(`${md(d)} に仮置きしました`, 'success', { label: '元に戻す', onClick: () => setTentative(m.e.id, tentative[m.e.id] ?? null) });
+      if (!t) return;
+      const before = tentative[m.e.id] ?? null;
+      setTentative(m.e.id, t.day);
+      toast(`${t.label}に仮置きしました`, 'success', { label: '元に戻す', onClick: () => setTentative(m.e.id, before) });
     };
     const cancel = () => { hotRef.current = null; setHot(null); setDrag(null); };
     // 運んでいる間は、指の動きでページがスクロールしないようにする
@@ -324,9 +312,8 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
 
   const cell = (d: string, i: number, outside: boolean, compact?: boolean) => (
     <DayCell key={d} d={d} dow={i} today={today} list={days.get(d) ?? []} active={d === active} event={eventDays.has(d)}
-      outside={outside} compact={compact} hot={hot === d} dot={dot} onPick={jump} />
+      outside={outside} compact={compact} hot={hot?.kind === 'on' && hot.day === d} dot={dot} onPick={jump} />
   );
-  const stripOnly = stuck && !overlay;
   const handle = (label: string, onClick: () => void) => (
     <button type="button" aria-label={label} className="w-full h-4 flex items-center justify-center flex-shrink-0" onClick={() => { haptic.select(); onClick(); }}>
       <span className="w-9 h-1 rounded-full" style={{ backgroundColor: 'var(--fill-secondary)' }} />
@@ -336,15 +323,15 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
   return (
     <div className="pb-6">
       {/* ── 月のカレンダー。高さは変えず、上部バーの下へ滑り込んで「週の帯」だけを残す ── */}
-      <div ref={startRef} />
-      <div {...calTouch} className="sticky z-10 -mx-3 px-3"
-        style={{
-          top: stickyTop - monthH, backgroundColor: 'var(--bg-primary)', borderBottom: '0.5px solid var(--separator)',
-          transform: overlay ? `translateY(${monthH}px)` : 'none', transition: 'transform .24s cubic-bezier(0.32,0.72,0,1)',
-          // 重ねて出しているときは、上部バーのぼかしの下から一覧が透けないよう、地の色を上へ伸ばす
-          boxShadow: overlay ? '0 -24px 0 var(--bg-primary), 0 10px 24px rgba(0,0,0,.14)' : undefined, borderRadius: overlay ? '0 0 16px 16px' : undefined,
-        }}>
-        <div ref={monthRef} style={{ opacity: stripOnly ? 0 : 1 }}>
+      <div {...calTouch} className="sticky z-10"
+        // 地の色は、見えている部分（開いているときは月、たたんだら帯）にだけ塗る。たたんで上へずらした月が、
+        // 上の案内などを地の色で隠さないように。スクロール中は、上部バーのぼかしの下から一覧が透けないよう上へ伸ばす
+        style={{ ...slide, top: stickyTop }}>
+        <div ref={monthRef} className="-mx-3 px-3"
+          style={{
+            opacity: folded ? 0 : 1, pointerEvents: folded ? 'none' : 'auto', transition: 'opacity .2s ease',
+            backgroundColor: 'var(--bg-primary)', boxShadow: scrolled && !folded ? '0 -24px 0 var(--bg-primary)' : undefined,
+          }}>
           <div className="grid grid-cols-7 pt-1">
             {WEEKDAYS.map((w, i) => (
               <div key={w} className="text-center text-[11px] font-semibold pb-1" style={{ color: dayColor(i) ?? 'var(--label-secondary)' }}>{w}</div>
@@ -354,28 +341,41 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
             <div key={w} className="grid grid-cols-7">{Array.from({ length: 7 }, (_, i) => cell(addDays(w, i), i, addDays(w, i).slice(0, 7) !== anchor.slice(0, 7)))}</div>
           ))}
         </div>
-        {/* 下の段（高さ一定）: 開いているときは凡例、たたんだときは今見ている週 */}
-        <div className="relative" style={{ height: BAR }}>
-          <div className="absolute inset-0 flex flex-col justify-end transition-opacity duration-150" style={{ opacity: stripOnly ? 0 : 1, pointerEvents: stripOnly ? 'none' : 'auto' }}>
+        {/* 下の段（高さ一定）: 開いているときは凡例、たたんだら今見ている週 */}
+        <div className="relative -mx-3 px-3"
+          style={{ height: BAR, backgroundColor: 'var(--bg-primary)', borderBottom: '0.5px solid var(--separator)', boxShadow: scrolled && folded ? '0 -24px 0 var(--bg-primary)' : undefined }}>
+          <div className="absolute inset-y-0 inset-x-3 flex flex-col justify-end" style={{ opacity: folded ? 0 : 1, pointerEvents: folded ? 'none' : 'auto', transition: 'opacity .2s ease' }}>
             <div className="flex-1 flex items-center gap-x-3 gap-y-1 flex-wrap content-center text-[11px] text-label-secondary">
               <span className="flex items-center gap-1">
                 <span className="flex">{works.slice(0, 3).map((w, k) => <span key={w.id} style={{ marginLeft: k ? -3 : 0 }}>{dot(w.id, 14)}</span>)}</span>作品
               </span>
               <span className="flex items-center gap-1"><b style={{ color: MARKS['〆'].color }}>〆</b>締切がある日</span>
               <span className="flex items-center gap-1"><i className="w-[10px] h-[10px] rounded-full" style={{ boxShadow: `inset 0 0 0 2px ${MARKS['イ'].color}` }} />イベント</span>
-              {works.length > 0 && (
-                <button className="pressable ml-auto font-semibold text-label-primary" onClick={() => { haptic.select(); setSheet({ kind: 'icons' }); }}>アイコンを変える ›</button>
-              )}
+              <span className="ml-auto flex items-center gap-3">
+                {works.length > 0 && (
+                  <button className="pressable font-semibold text-label-primary" onClick={() => { haptic.select(); setSheet({ kind: 'icons' }); }}>アイコンを変える ›</button>
+                )}
+                {/* 自分用の予定を足す（前は画面の右下に浮かせていたが、位置がずれることがあった） */}
+                {onAddPersonal && (
+                  <button aria-label="自分の予定を追加" className="pressable w-8 h-8 rounded-full flex items-center justify-center"
+                    style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--accent-text)' }}
+                    onClick={() => { haptic.select(); onAddPersonal(); }}>
+                    <CalendarPlus size={17} />
+                  </button>
+                )}
+              </span>
             </div>
-            {overlay ? handle('月のカレンダーをしまう', () => setOverlay(false)) : handle('カレンダーをたたむ', fold)}
+            {handle('カレンダーをたたむ', fold)}
           </div>
-          <div className="absolute inset-0 flex flex-col transition-opacity duration-150" style={{ opacity: stripOnly ? 1 : 0, pointerEvents: stripOnly ? 'auto' : 'none' }} aria-hidden={!stripOnly}>
+          <div className="absolute inset-y-0 inset-x-3 flex flex-col" style={{ opacity: folded ? 1 : 0, pointerEvents: folded ? 'auto' : 'none', transition: 'opacity .2s ease' }} aria-hidden={!folded}>
             <div className="grid grid-cols-7 pt-0.5">{Array.from({ length: 7 }, (_, i) => cell(addDays(stripWeek, i), i, false, true))}</div>
-            {handle('月のカレンダーを出す', openOverlay)}
+            {handle('カレンダーを開く', () => setFolded(false))}
           </div>
         </div>
       </div>
 
+      {/* カレンダーより下は、たたんだときにカレンダーと一緒に上へずらす */}
+      <div style={slide}>
       {/* ── これから7日 ── */}
       <div className="flex items-baseline gap-1.5 pt-3 pb-1.5 text-[12px] font-bold">
         これから7日<span className="text-[11px] font-normal text-label-secondary">{md(today)}〜{md(addDays(today, 6))}</span>
@@ -409,7 +409,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
           </button>
           {undatedOpen && (
             <>
-              <p className="px-3 -mt-0.5 text-[11px] text-label-secondary">長押しして、下の好きな日（またはカレンダーの日）へ運ぶと仮に置けます。日付が決まれば、その日へ移ります</p>
+              <p className="px-3 -mt-0.5 text-[11px] text-label-secondary">長押しして、好きな場所へ仮置きできます</p>
               <div className="flex gap-2 overflow-x-auto no-scrollbar px-3 pt-2 pb-2">
                 {undated.map((m) => (
                   <LongPress key={m.e.id} onLong={(x, y) => startDrag(m, x, y)} onTap={() => onOpen(m.e)}
@@ -426,7 +426,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
       )}
 
       {/* ── 今日 ── */}
-      <DayRow day={today} today={today} hot={hot === today}>
+      <DayRow day={today} today={today} hot={hot?.kind === 'on' && hot.day === today}>
         {ganttList.length > 0 && (
           <section className="rounded-[14px] overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)', boxShadow: 'inset 0 0 0 0.5px var(--separator)' }}>
             <button className="pressable w-full flex items-baseline gap-2 px-3 pt-2.5 pb-1.5 text-left" aria-expanded={evOpen}
@@ -437,12 +437,12 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
             </button>
             {evOpen ? (
               <>
-                <Gantt list={ganttList} today={today} colors={colors} dot={dot} onOpen={pickVisit} />
+                <Gantt list={ganttList} today={today} colors={colors} dot={dot} onDetail={onOpen} onVisit={pickVisit} />
                 <FootButton onClick={() => setEvOpen(false)}>たたむ</FootButton>
               </>
             ) : (
               <>
-                <Gantt list={evPreview} today={today} colors={colors} dot={dot} onOpen={pickVisit} />
+                <Gantt list={evPreview} today={today} colors={colors} dot={dot} onDetail={onOpen} onVisit={pickVisit} />
                 {evRest > 0 && (
                   <FootButton onClick={() => setEvOpen(true)}>{goingEvents.length ? `ほかのイベント ${evRest}件を見る` : `イベント ${ganttList.length}件をすべて見る`}</FootButton>
                 )}
@@ -455,7 +455,8 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
 
       {/* ── これからの日 ── */}
       {future.map((d, i) => (
-        <DayRow key={d} day={d} today={today} hot={hot === d} last={i === future.length - 1}>
+        <DayRow key={d} day={d} today={today} hot={hot?.kind === 'on' && hot.day === d} last={i === future.length - 1}
+          guess={days.get(d)!.every((m) => m.tentative)}>
           <Group list={days.get(d)!} today={today} dot={dot} onOpen={onOpen} onRemove={onRemove} onDrag={startDrag} onAll={() => setSheet({ kind: 'day', day: d })} />
         </DayRow>
       ))}
@@ -467,14 +468,23 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
       )}
       {/* 最後の日まで、帯のすぐ下へ飛べるように下に余白を足す */}
       <div aria-hidden style={{ height: `max(0px, calc(100dvh - ${stickyTop + BAR + 260}px))` }} />
+      </div>
 
       {/* 運んでいる予定（指の下に出す） */}
+      {drag && hot && hot.kind !== 'on' && createPortal(
+        // 日と日のあいだ・最後の日より後に置くときの線
+        <div className="fixed pointer-events-none flex items-center" style={{ left: 60, right: 12, top: hot.y - 1, zIndex: 499 }}>
+          <span className="w-2.5 h-2.5 -ml-1 rounded-full" style={{ backgroundColor: 'var(--accent-color)' }} />
+          <span className="flex-1 h-[3px] rounded-full" style={{ backgroundColor: 'var(--accent-color)' }} />
+        </div>,
+        document.body,
+      )}
       {drag && createPortal(
         <div className="fixed pointer-events-none" style={{ left: drag.x - 32, top: drag.y - 40, zIndex: 500 }}>
           <div className="rounded-[12px] shadow-float" style={{ transform: 'scale(1.05) rotate(-3deg)' }}><Pic e={drag.m.e} size={64} /></div>
-          <div className="mt-1 -ml-4 w-[96px] text-center text-[11px] font-bold rounded-full px-1.5 py-0.5"
+          <div className="mt-1 -ml-8 w-[128px] text-center text-[11px] font-bold rounded-full px-1.5 py-0.5"
             style={{ backgroundColor: hot ? 'var(--label-primary)' : 'var(--fill-secondary)', color: hot ? 'var(--bg-primary)' : 'var(--label-secondary)' }}>
-            {hot ? `${md(hot)} に置く` : '日の上で離す'}
+            {hot ? `${hot.label}に置く` : '置きたい場所で離す'}
           </div>
         </div>,
         document.body,
@@ -507,7 +517,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
           })}
         </div>
       </Sheet>
-      {sheet?.kind === 'icons' && <WorkIconSheet works={works} colors={colors} icons={icons} onClose={() => setSheet(null)} />}
+      {sheet?.kind === 'icons' && <WorkIconSheet works={works} colors={colors} icons={icons} workImages={workImages} own={dotImages.own} onClose={() => setSheet(null)} />}
       {visitEvent && userId && (
         <VisitSheet event={visitEvent} userId={userId} deadlineDays={deadlineDays}
           onChange={(v) => onVisits(visitEvent, v)}
@@ -519,6 +529,32 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
 }
 
 const UNDATED_OPEN_KEY = 'fan_board_undated_open';
+
+type DropTarget = { kind: 'on' | 'between' | 'after'; day: string; label: string; y: number };
+
+/** 指の位置から置き先を決める。カレンダーの日の上＝その日。一覧の日の境目（上下12px）＝2つの日のあいだ（真ん中の日）。
+ *  日の行の上＝その日。最後の日の下＝その1週間後 */
+function dropTargetAt(px: number, py: number, today: string): DropTarget | null {
+  const cell = document.elementFromPoint(px, py)?.closest<HTMLElement>('[data-cal-day]');
+  if (cell?.dataset.calDay && cell.dataset.calDay >= today) return { kind: 'on', day: cell.dataset.calDay, label: md(cell.dataset.calDay), y: py };
+  const rows = [...document.querySelectorAll<HTMLElement>('[data-board-day]')];
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i].getBoundingClientRect(), d = rows[i].dataset.boardDay!;
+    if (i > 0 && Math.abs(py - r.top) <= 12) {
+      const prev = rows[i - 1].dataset.boardDay!;
+      const gap = daysBetween(prev, d);
+      const mid = gap > 1 ? addDays(prev, Math.floor(gap / 2)) : prev;
+      return { kind: 'between', day: mid, label: `${md(prev)}と${md(d)}のあいだ`, y: r.top };
+    }
+    if (py > r.top && py < r.bottom) return { kind: 'on', day: d, label: md(d), y: py };
+  }
+  const last = rows[rows.length - 1];
+  if (last) {
+    const r = last.getBoundingClientRect();
+    if (py >= r.bottom && py <= r.bottom + 90) return { kind: 'after', day: addDays(last.dataset.boardDay!, 7), label: `${md(last.dataset.boardDay!)}より後`, y: r.bottom };
+  }
+  return null;
+}
 
 /** 長押しで運び始める（指を 8px 以上動かすと、ふつうのスクロール・横の並びのスクロールに任せる）。短く押すと onTap */
 function LongPress({ onLong, onTap, className, style, label, children }: {
@@ -586,7 +622,7 @@ function relLabel(day: string, today: string): string {
 // ─ 日ごとの行 ─
 
 /** 左に「あと○日」（大きく）と日付、縦の線でつなぎ、右に中身 */
-function DayRow({ day, today, last, hot, children }: { day: string | null; today: string; last?: boolean; hot?: boolean; children: ReactNode }) {
+function DayRow({ day, today, last, hot, guess, children }: { day: string | null; today: string; last?: boolean; hot?: boolean; guess?: boolean; children: ReactNode }) {
   const isToday = day === today;
   const n = day ? daysBetween(today, day) : 0;
   const soon = day && !isToday && n <= 3;
@@ -597,6 +633,9 @@ function DayRow({ day, today, last, hot, children }: { day: string | null; today
       <div className="flex flex-col items-center pt-2 text-center">
         {day === null ? (
           <span className="text-[11px] font-semibold text-label-secondary pt-2 leading-tight">日付<br />未定</span>
+        ) : guess && !isToday ? (
+          // 仮置きだけの日。日付は自分の見立てなので「あと○日」は出さない
+          <span className="pt-1.5 text-[12px] font-bold text-label-tertiary tabular-nums leading-tight">{md(day)}<br />ごろ</span>
         ) : isToday ? (
           <>
             <span className="text-[20px] font-black leading-tight">今日</span>
@@ -724,12 +763,12 @@ function ItemRow({ m, today, dot, onOpen, onRemove, hideMark, onDrag }: {
         <Pic e={e} size={56} />
         <span className="min-w-0 flex-1 flex flex-col gap-[3px]">
           <span className="flex items-center gap-1.5 min-w-0 text-[11px] text-label-secondary">
-            <span className="font-bold px-1.5 rounded-[5px]" style={{ backgroundColor: 'var(--fill-secondary)', color: 'var(--label-primary)' }}>仮置き</span>
-            <span className="font-semibold text-label-primary truncate flex-shrink-0 max-w-[40%]">{m.label}</span>
+            <b className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-[5px] text-[11px]" style={{ border: '1.5px dashed var(--label-secondary)', color: 'var(--label-primary)' }}>仮</b>
+            <MarkChip mark={m.mark} label={false} />
+            <span className="font-semibold text-label-primary truncate flex-shrink-0 max-w-[40%]">{m.label?.replace(/^(発売|開催) /, '')}</span>
             <span className="flex items-center gap-1 min-w-0">{dot(e.workId, 15)}<span className="truncate">{e.workName}</span></span>
           </span>
           <span className="text-[13px] font-semibold leading-snug line-clamp-2">{stripWorkName(e.title, e.workName)}</span>
-          <span className="text-[11px] text-label-tertiary">長押しで別の日へ動かせます</span>
         </span>
       </LongPress>
     );
@@ -766,9 +805,10 @@ function ItemRow({ m, today, dot, onOpen, onRemove, hideMark, onDrag }: {
 
 const deriveIsGoods = (e: CalendarEvent) => deriveItemType(e) === 'goods';
 
-/** 会期の帯。全部のイベントを同じ目盛りで並べ、今日の線と行く日の点を重ねる */
-function Gantt({ list, today, colors, dot, onOpen }: {
-  list: CalendarEvent[]; today: string; colors: Map<string, string>; dot: DotFn; onOpen: (e: CalendarEvent) => void;
+/** 会期の帯。全部のイベントを同じ目盛りで並べ、今日の線と行く日の点を重ねる。
+ *  画像とイベント名を押すと詳細、帯と「行く日を選ぶ」を押すと行く日のカレンダー（2026-11-07 柴野） */
+function Gantt({ list, today, colors, dot, onDetail, onVisit }: {
+  list: CalendarEvent[]; today: string; colors: Map<string, string>; dot: DotFn; onDetail: (e: CalendarEvent) => void; onVisit: (e: CalendarEvent) => void;
 }) {
   const g0 = addDays(today, -7), g1 = addDays(today, 75);
   const span = daysBetween(g0, g1);
@@ -777,7 +817,7 @@ function Gantt({ list, today, colors, dot, onOpen }: {
   for (let m = addMonths(g0, 1); m <= g1; m = addMonths(m, 1)) months.push(m);
   return (
     <div className="px-3 pb-2">
-      <div className="relative h-4 text-[10px] text-label-tertiary">
+      <div className="relative h-4 text-[10px] text-label-tertiary" style={{ marginLeft: 52 }}>
         {months.map((m) => <span key={m} className="absolute top-0" style={{ left: `${x(m)}%` }}>{Number(m.slice(5, 7))}月</span>)}
       </div>
       {list.map((e) => {
@@ -786,28 +826,35 @@ function Gantt({ list, today, colors, dot, onOpen }: {
         const rest = e.date! > today ? <><b className="text-label-primary">{daysBetween(today, e.date!)}日後</b>から</> : e.endDate === today ? <b className="text-label-primary">今日まで</b> : <>あと<b className="text-label-primary">{daysBetween(today, e.endDate!)}日</b></>;
         const color = (e.workId && colors.get(e.workId)) || 'var(--accent-color)';
         return (
-          <button key={e.id} className="pressable block w-full text-left py-2" style={{ borderTop: '0.5px solid var(--separator)' }} onClick={() => { haptic.select(); onOpen(e); }}>
-            <span className="flex items-center gap-1.5">
-              {dot(e.workId, 15)}
-              <span className="flex-1 min-w-0 truncate text-[12px] font-semibold">{stripWorkName(e.title, e.workName)}</span>
-              <span className="text-[11px] text-label-secondary whitespace-nowrap tabular-nums">{rest}</span>
-            </span>
-            <span className="relative block h-3.5 mt-1.5">
-              <span className="absolute inset-x-0 top-[6px] h-[2px]" style={{ backgroundColor: 'var(--fill-tertiary)' }} />
-              {months.map((m) => <span key={m} className="absolute inset-y-0 w-px" style={{ left: `${x(m)}%`, backgroundColor: 'var(--separator)' }} />)}
-              <span className="absolute top-1 h-1.5 rounded-full" style={{ left: `${a}%`, width: `${Math.max(1.5, b - a)}%`, backgroundColor: color }} />
-              <span className="absolute -top-0.5 -bottom-0.5 w-[2px] -ml-px" style={{ left: `${x(today)}%`, backgroundColor: 'var(--label-primary)' }} />
-              {visits.map((v) => (
-                <span key={v.id} className="absolute top-px w-3 h-3 -ml-1.5 rounded-full"
-                  style={{ left: `${x(v.start)}%`, backgroundColor: MARKS['行'].color, border: '2px solid var(--bg-secondary)' }} />
-              ))}
-            </span>
-            <span className="block mt-1 text-[11px]" style={{ color: visits.length ? '#a07800' : 'var(--label-secondary)', fontWeight: visits.length ? 600 : 400 }}>
-              {visits.length
-                ? `行く日 ${visits.map((v) => `${md(v.start)}（${WEEKDAYS[dowOf(v.start)]}）`).join('・')}`
-                : `会期 ${mdy(e.date!, today)}〜${mdy(e.endDate!, today)}・行く日を選ぶ ›`}
-            </span>
-          </button>
+          <div key={e.id} className="flex gap-2 py-2" style={{ borderTop: '0.5px solid var(--separator)' }}>
+            <button className="pressable flex-shrink-0 self-start" aria-label={`${e.title}の詳細`} onClick={() => { haptic.select(); onDetail(e); }}>
+              <Pic e={e} size={44} />
+            </button>
+            <div className="flex-1 min-w-0">
+              <button className="pressable w-full flex items-center gap-1.5 text-left" onClick={() => { haptic.select(); onDetail(e); }}>
+                {dot(e.workId, 15)}
+                <span className="flex-1 min-w-0 truncate text-[12px] font-semibold">{stripWorkName(e.title, e.workName)}</span>
+                <span className="text-[11px] text-label-secondary whitespace-nowrap tabular-nums">{rest}</span>
+              </button>
+              <button className="pressable block w-full text-left" onClick={() => { haptic.select(); onVisit(e); }}>
+                <span className="relative block h-3.5 mt-1.5">
+                  <span className="absolute inset-x-0 top-[6px] h-[2px]" style={{ backgroundColor: 'var(--fill-tertiary)' }} />
+                  {months.map((m) => <span key={m} className="absolute inset-y-0 w-px" style={{ left: `${x(m)}%`, backgroundColor: 'var(--separator)' }} />)}
+                  <span className="absolute top-1 h-1.5 rounded-full" style={{ left: `${a}%`, width: `${Math.max(1.5, b - a)}%`, backgroundColor: color }} />
+                  <span className="absolute -top-0.5 -bottom-0.5 w-[2px] -ml-px" style={{ left: `${x(today)}%`, backgroundColor: 'var(--label-primary)' }} />
+                  {visits.map((v) => (
+                    <span key={v.id} className="absolute top-px w-3 h-3 -ml-1.5 rounded-full"
+                      style={{ left: `${x(v.start)}%`, backgroundColor: MARKS['行'].color, border: '2px solid var(--bg-secondary)' }} />
+                  ))}
+                </span>
+                <span className="block mt-1 text-[11px]" style={{ color: visits.length ? '#a07800' : 'var(--label-secondary)', fontWeight: visits.length ? 600 : 400 }}>
+                  {visits.length
+                    ? `行く日 ${visits.map((v) => `${md(v.start)}（${WEEKDAYS[dowOf(v.start)]}）`).join('・')} ›`
+                    : `会期 ${mdy(e.date!, today)}〜${mdy(e.endDate!, today)}・行く日を選ぶ ›`}
+                </span>
+              </button>
+            </div>
+          </div>
         );
       })}
     </div>

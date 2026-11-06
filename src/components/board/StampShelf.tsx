@@ -9,9 +9,9 @@ import { parseImageUrls } from '../../lib/constants';
 import { stripWorkName } from '../../lib/stripWorkName';
 import { REACTIONS, stampInfo } from '../../lib/reactions';
 import { listMyStampedEvents, type StampedEvent } from '../../lib/api';
-import { MARKS, momentsOf, type Moment } from './boardModel';
+import { MARKS, momentsOf, undatedMoments, type Moment } from './boardModel';
 
-// カレンダーの「スタンプ」（2026-11-07 柴野）。♡（カレンダーに入れる）ほどではないけど、とっておきたい予定。
+// 探すの「スタンプ」（2026-11-07 柴野。はじめカレンダーに置いたが、探しているときに使うので探すへ移した）。♡（カレンダーに入れる）ほどではないけど、とっておきたい予定。
 // 押したスタンプの種類で絞って、画像を並べて眺める。近い節目（締切・発売…）があるものから並べ、過ぎたものは下に薄く。
 // ♡ を押すとカレンダー（ボード）にも入る
 
@@ -33,7 +33,11 @@ const md = (s: string) => `${Number(s.slice(5, 7))}/${Number(s.slice(8, 10))}`;
 
 /** 次の節目（今日以降で一番近いもの）。無ければ null */
 function nextMoment(e: CalendarEvent, today: string): Moment | null {
-  return momentsOf(e).filter((m) => m.mark !== '行' && (m.end ?? m.day) >= today).sort((a, b) => a.day.localeCompare(b.day))[0] ?? null;
+  const m = momentsOf(e).filter((x) => x.mark !== '行' && (x.end ?? x.day) >= today).sort((a, b) => a.day.localeCompare(b.day))[0];
+  if (m) return m;
+  // 「11月中旬」など時期だけの予定（まだその時期が過ぎていないもの）。並びは仮の日、表示は時期（label）
+  const v = undatedMoments([e], today)[0];
+  return v && e.date && e.dateLabel ? { ...v, day: e.date } : null;
 }
 
 export default function StampShelf({ userId, likedIds, excludedWorks, onOpen, onLike }: Props) {
@@ -132,7 +136,7 @@ function StampCard({ s, next, today, liked, onOpen, onLike }: {
   // 判子は押した種類のうち、並びが先のもの（前の種類しか無ければそれ）
   const seal = REACTIONS.find((r) => s.stamps.includes(r.type)) ?? stampInfo(s.stamps[0]);
   const n = next ? daysBetween(today, next.day) : 0;
-  const soon = next && n >= 0 && n <= 3;
+  const soon = next && !next.label && n >= 0 && n <= 3;
   return (
     <div className="relative min-w-0">
       <button className="pressable block w-full text-left" onClick={() => { haptic.select(); onOpen(e); }}>
@@ -147,7 +151,8 @@ function StampCard({ s, next, today, liked, onOpen, onLike }: {
           <span className="flex items-center gap-1 mt-1.5 text-[11px] font-bold whitespace-nowrap" style={{ color: soon ? MARKS['〆'].color : 'var(--label-secondary)' }}>
             <b className="inline-flex items-center justify-center w-4 h-4 rounded-[4px] text-[10px]" style={{ backgroundColor: MARKS[next.mark].color, color: MARKS[next.mark].ink }}>{next.mark}</b>
             {/* 何日か続くイベントの途中なら「開催中」と最終日 */}
-            {n < 0 ? <>開催中<span className="font-semibold text-label-tertiary">〜{md(next.end ?? next.day)}</span></>
+            {next.label ? <span className="font-semibold">{next.label.replace(/^(発売|開催) /, '')}</span>
+              : n < 0 ? <>開催中<span className="font-semibold text-label-tertiary">〜{md(next.end ?? next.day)}</span></>
               : <>{n === 0 ? '今日' : `あと${n}日`}<span className="font-semibold text-label-tertiary">{md(next.day)}</span></>}
           </span>
         ) : (

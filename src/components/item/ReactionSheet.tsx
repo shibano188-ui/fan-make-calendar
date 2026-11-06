@@ -5,7 +5,7 @@ import { useStamps, toggleStamp } from '../../lib/stampStore';
 import { haptic } from '../../lib/haptics';
 import { useBackToClose } from '../../lib/backStack';
 
-// スタンプを選ぶ、下から出るパネル（2026-11-07 から「とっておく」印。押した予定はカレンダーの「スタンプ」で見返せる）。カレンダーの日付を押したときのパネル（DaySheet）と同じく
+// スタンプを選ぶ、下から出るパネル（2026-11-07 から「とっておく」印。押した予定は探すの「スタンプ」で見返せる）。カレンダーの日付を押したときのパネル（DaySheet）と同じく
 // 後ろを暗くしない。外を押すか、下に引くと閉じる。1つ押したら閉じる（別のを足すときはもう一度開く）。
 
 /** 選んだものは Slack と同じく、枠ではなく地の色で示す */
@@ -67,7 +67,7 @@ export default function ReactionSheet({ eventId, onClose }: { eventId: string; o
           </div>
           <div className="px-4 pt-1 pb-3 flex items-baseline gap-2">
             <span className="text-[15px] font-bold">スタンプ</span>
-            <span className="text-[12px] text-label-secondary">押した予定はカレンダーの「スタンプ」にたまります</span>
+            <span className="text-[12px] text-label-secondary">押した予定は探すの「スタンプ」にたまります</span>
           </div>
         </div>
         {/* 4つを横いっぱいに並べる（押しやすいように大きめ） */}

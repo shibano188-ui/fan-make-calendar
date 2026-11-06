@@ -30,6 +30,7 @@ import { useBackToClose } from '../lib/backStack';
 import SwipeRow from '../components/ui/SwipeRow';
 import Sheet from '../components/ui/Sheet';
 import { useDismissed, dismissEvent, restoreEvent } from '../lib/dismissed';
+import StampShelf from '../components/board/StampShelf';
 import { getLike, setLike } from '../lib/likeStore';
 import { syncNotifyWithLike } from '../lib/notifications';
 
@@ -424,6 +425,10 @@ export default function Explore() {
   }, [today]);
   const endedCount = useMemo(() => (selectedStatuses.size ? 0 : queryItems.filter(isOver).length), [queryItems, selectedStatuses, isOver]);
 
+  // 上の「探す｜スタンプ」。スタンプ＝♡ほどではないけど、とっておいた予定（2026-11-07 柴野。探しているときに使うので探すに置く）。
+  // 前の切り替えを戻すのは、詳細から戻ってきたとき（POP）だけ
+  const [tab, setTab] = useState<'list' | 'stamp'>(() => (navType === 'POP' && sessionStorage.getItem('explore_tab') === 'stamp' ? 'stamp' : 'list'));
+  useEffect(() => { try { sessionStorage.setItem('explore_tab', tab); } catch { /* noop */ } }, [tab]);
   // 左へ払って隠した予定（興味なし）。探すにだけ効く
   const dismissed = useDismissed();
   const [dismissedOpen, setDismissedOpen] = useState(false);
@@ -615,6 +620,24 @@ export default function Explore() {
     dismissEvent(e.id);
     toast('探すから非表示にしました', 'success', { label: '元に戻す', onClick: () => restoreEvent(e.id) });
   };
+  // スタンプの一覧で ♡ を押したとき（入っていなければ追加、入っていれば外す）
+  const onStampLike = async (e: CalendarEvent) => {
+    if (!user) return;
+    const want = !isLiked(e);
+    const prev = getLike(e.id) ?? { liked: !want, count: e.likes ?? 0 };
+    setLike(e.id, { liked: want, count: prev.count + (want ? 1 : -1) });
+    setLikedIds((s) => { const n = new Set(s); if (want) n.add(e.id); else n.delete(e.id); return n; });
+    const notify = syncNotifyWithLike(e, want);
+    try {
+      const r = await toggleLike(e.id, user.id, want);
+      setLike(e.id, { liked: r.liked, count: r.count });
+      toast(want ? 'カレンダーに追加しました' : 'カレンダーから外しました');
+    } catch {
+      setLike(e.id, prev);
+      toast('うまくいきませんでした。通信を確かめてください', 'error');
+    }
+    await notify;
+  };
   // 右へ払うと ♡（カレンダーに追加）。もう入っていれば何もしない（外すのはカレンダーの画面で）
   const isLiked = (e: CalendarEvent) => getLike(e.id)?.liked ?? likedIds.has(e.id);
   const onSwipeLike = async (e: CalendarEvent) => {
@@ -721,6 +744,18 @@ export default function Explore() {
         )}
       </div>
 
+      {/* 探す｜スタンプ */}
+      <div className="flex p-0.5 mx-3 mt-2 mb-1 rounded-[10px]" role="tablist" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
+        {([['list', '探す'], ['stamp', 'スタンプ']] as const).map(([k, label]) => (
+          <button key={k} role="tab" aria-selected={tab === k}
+            onClick={() => { if (tab === k) return; haptic.select(); setTab(k); window.scrollTo(0, 0); }}
+            className="pressable flex-1 h-8 rounded-[8px] text-[13px] font-semibold transition-colors"
+            style={tab === k ? { backgroundColor: 'var(--bg-primary)', color: 'var(--label-primary)', boxShadow: '0 1px 3px rgba(0,0,0,.12)' } : { color: 'var(--label-secondary)' }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
       {tourFallbackWorkId && (
         <p className="px-4 pt-2 text-[12px] text-label-secondary leading-relaxed">
           選んだ作品の予定はまだありません。予定の多い作品で試してみましょう。
@@ -734,7 +769,9 @@ export default function Explore() {
           if (filterOpen) { e.stopPropagation(); haptic.select(); setFilterOpen(false); }
         }}
       >
-        {items === null || (!followsReady && (authLoading || !!user)) ? (
+        {tab === 'stamp' ? (
+          user ? <StampShelf userId={user.id} likedIds={likedIds} excludedWorks={excludedWorks} onOpen={(e) => navigate(`/item/${e.id}`)} onLike={onStampLike} /> : null
+        ) : items === null || (!followsReady && (authLoading || !!user)) ? (
           <SkeletonList count={4} />
         ) : visible.length === 0 ? (
           followed.size === 0 ? (
@@ -773,7 +810,7 @@ export default function Explore() {
               : <p className="text-center text-label-tertiary text-[12px] py-6">これからの{mode === 'goods' ? 'グッズ' : 'イベント'}はありません</p>}
           </>
         )}
-        {dismissedHere.length > 0 && (
+        {tab === 'list' && dismissedHere.length > 0 && (
           <button onClick={() => { haptic.select(); setDismissedOpen(true); }}
             className="pressable block mx-auto mt-4 mb-2 px-3 py-1.5 text-[12px] text-label-secondary">
             非表示にした予定 {dismissedHere.length}件 ›
@@ -781,7 +818,7 @@ export default function Explore() {
         )}
       </div>
 
-      {items && items.length > 0 && (
+      {tab === 'list' && items && items.length > 0 && (
         <button
           onClick={() => { haptic.select(); scrollToToday(true); }}
           aria-label="今日へ"

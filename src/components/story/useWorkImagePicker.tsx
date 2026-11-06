@@ -5,14 +5,14 @@ import { useConfirm } from '../ui/ConfirmDialog';
 
 /** 作品アイコンを選ぶ（ホームの作品カードから）。中身はカスタマイズ画面の選び方と同じ。
  *  アプリは端末の写真選び、Web はファイル選び。選んだ画像はカレンダーの作品の並びにも出る（同じ保存先） */
-export function useWorkImagePicker() {
+export function useWorkImagePicker(save: (workId: string, img: string | null) => void = setWorkImage) {
   const confirmDialog = useConfirm();
   const inputRef = useRef<HTMLInputElement>(null);
   const target = useRef<string | null>(null);
   const apply = async (workId: string, dataUrl: string | null) => {
     const img = dataUrl ? await toWorkImage(dataUrl) : null;
     if (dataUrl && !img) return;
-    setWorkImage(workId, img);
+    save(workId, img);
   };
   const pick = async (workId: string) => {
     if (!hasNativePhotoPicker()) { target.current = workId; inputRef.current?.click(); return; }
@@ -27,7 +27,7 @@ export function useWorkImagePicker() {
     }
     if (res.status === 'picked') await apply(workId, res.dataUrl);
   };
-  const remove = (workId: string) => { setWorkImage(workId, null); };
+  const remove = (workId: string) => { save(workId, null); };
   const input = hasNativePhotoPicker() ? null : (
     <input ref={inputRef} type="file" accept="image/*" className="hidden"
       onChange={async (e) => {
