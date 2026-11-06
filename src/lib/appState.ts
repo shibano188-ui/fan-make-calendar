@@ -33,6 +33,7 @@ const KEYS = {
   streak:              'fan_streak',
   story_since:         'fan_story_since',
   dismissed_event_ids: 'fan_dismissed_event_ids',
+  tentative_dates:     'fan_tentative_dates',
 } as const;
 
 export type AppStateColumn = keyof typeof KEYS;
@@ -40,8 +41,9 @@ export type AppStateColumn = keyof typeof KEYS;
 /** まだ本番にSQLを流していない列。ここに入れておくと、列が無い環境でも同期が止まらない。
  *  流したら空にする（work_settings / work_order は 2026-09-21 に流し済み）。 */
 // sql/2026-10-04-home-story.sql は 2026-10-04 に柴野が本番に流した。
-// dismissed_event_ids（探すで隠した予定）は sql/2026-11-07-dismissed-events.sql。本番に流したら外す
-const PENDING_COLS: AppStateColumn[] = ['dismissed_event_ids'];
+// dismissed_event_ids（探すで隠した予定）・tentative_dates（日付未定の予定の仮置き）は
+// sql/2026-11-07-dismissed-events.sql。本番に流したら外す
+const PENDING_COLS: AppStateColumn[] = ['dismissed_event_ids', 'tentative_dates'];
 
 // 配列で持つもの（それ以外＝work_colors / work_images はオブジェクト）
 const IS_ARRAY: Record<AppStateColumn, boolean> = {
@@ -59,6 +61,7 @@ const IS_ARRAY: Record<AppStateColumn, boolean> = {
   streak:              false,
   story_since:         false,
   dismissed_event_ids: true,
+  tentative_dates:     false,
 };
 
 function readLocal(col: AppStateColumn): unknown {

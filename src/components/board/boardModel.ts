@@ -27,6 +27,8 @@ export type Moment = {
   label?: string;
   /** 行く日・イベントが何日か続くときの最終日 */
   end?: string;
+  /** 日付未定の予定を、自分で仮に置いた日（tentative.ts）。label に「発売 11月下旬」などが入る */
+  tentative?: boolean;
 };
 
 const isGoods = (e: CalendarEvent) => deriveItemType(e) === 'goods';
@@ -127,4 +129,15 @@ export function undatedMoments(events: CalendarEvent[], today = todayStr()): Mom
     }
   }
   return out.sort((a, b) => a.sort.localeCompare(b.sort)).map(({ sort: _s, ...m }) => m);
+}
+
+/** 日付未定の予定を、仮に置いた日（tentative）と置いていないものに分ける。過ぎた日に置いたものは置いていない扱い */
+export function splitTentative(undated: Moment[], tentative: Record<string, string>, today = todayStr()): { placed: Moment[]; rest: Moment[] } {
+  const placed: Moment[] = [], rest: Moment[] = [];
+  for (const m of undated) {
+    const d = tentative[m.e.id];
+    if (d && d >= today) placed.push({ ...m, day: d, tentative: true });
+    else rest.push(m);
+  }
+  return { placed, rest };
 }

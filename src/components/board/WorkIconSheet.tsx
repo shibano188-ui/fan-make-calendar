@@ -5,7 +5,7 @@ import { useWorkImagePicker } from '../story/useWorkImagePicker';
 import { loadIconStyles, onIconStylesChange, iconStyleOf, setIconStyle, ICON_GRIDS, type IconMode } from '../../lib/pixelIcon';
 import { WorkDot, type WorkIcons } from './WorkDot';
 
-// ボード表示の「画像を変える」。作品ごとに好きなキャラの写真を選ぶと、ドット絵にしてカレンダーの点に使う。
+// ボード表示の「アイコンを変える」。作品ごとに好きなキャラの写真を選ぶと、ドット絵にしてカレンダーの点に使う。
 // 写真の保存先はホーム・カスタマイズの作品アイコンと同じ（workImages.ts）なので、ここで選んでも同じ画像が出る。
 
 export type BoardWork = { id: string; name: string };
@@ -24,7 +24,7 @@ export default function WorkIconSheet({ works, colors, icons, onClose }: {
   useEffect(() => onIconStylesChange(() => setStyles(loadIconStyles())), []);
 
   return (
-    <Sheet onClose={onClose} title={<b className="text-[16px]">作品の画像</b>}>
+    <Sheet onClose={onClose} title={<b className="text-[16px]">作品のアイコン</b>}>
       <div className="pb-8">
         <p className="px-4 pt-1 pb-2 text-[12px] text-label-secondary leading-relaxed">
           好きなキャラの写真を選ぶと、ドット絵にしてカレンダーの点に使います。選ばない作品は色の点のままです。白い背景や単色の背景の画像だと、きれいにできます。

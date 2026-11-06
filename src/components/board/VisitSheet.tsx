@@ -191,7 +191,7 @@ export function VisitPicker({ eventId, date, endDate, visits, userId, deadlineDa
             </div>
           )}
           <p className="text-[11px] text-label-secondary leading-relaxed">
-            選んだ日は、カレンダーの日付に黄色の輪が付き、その日の列に「行く日」として入ります。{deadlineDays ? '赤い点は、ほかの予定の締切がある日です。' : ''}
+            選んだ日は、カレンダーの日付にイベントの紫の輪が付き、その日の列に「行く日」として入ります。{deadlineDays ? '赤い点は、ほかの予定の締切がある日です。' : ''}
           </p>
         </div>
       )}
