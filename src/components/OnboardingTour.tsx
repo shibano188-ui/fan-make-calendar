@@ -88,18 +88,17 @@ export function startTour(noWork = false): void {
 }
 
 // 段階ごとの吹き出し。本文は短く（長いと読まれない）
+// 2026-11-07 柴野「文章が長くてAIくさい」→ 見出しだけで分かるように短く。本文は無くてよいものは無し
 const COPY: Record<TourStep, { icon: typeof Heart; title: string; body?: string }> = {
-  like: { icon: Heart, title: '気になる予定に ♡ を押してみよう', body: '♡ を押した予定は、カレンダーに入ります。' },
-  // 2026-11-07 実際のボードの画面で説明する（柴野）。まず上のカレンダー、次に♡した予定の行
-  calview: { icon: CalendarDays, title: 'どの日に何があるか、ここで見渡せます', body: '点は作品、〆は締切、紫の輪はイベント。日付を押すとその日の予定へ飛びます。' },
-  calendar: { icon: CalendarCheck, title: '♡した予定が入りました！', body: '締切や発売まで、あと何日かで並びます。' },
-  // 2026-11-07 ボードになって行にベルが無くなったので、右へ払って通知をONにする（柴野）
-  bell: { icon: Bell, title: '右へ払って、通知をONにしよう', body: '発売日や締切の前にお知らせします。' },
+  like: { icon: Heart, title: '気になる予定に ♡', body: 'カレンダーに入ります' },
+  calview: { icon: CalendarDays, title: 'いつ何があるか、ここで見られます', body: '日付を押すと、その日の予定へ' },
+  calendar: { icon: CalendarCheck, title: '♡した予定が入りました', body: 'あと何日かで並びます' },
+  bell: { icon: Bell, title: '右へ払って、通知をON' },
   // 本文は通知の設定（何日前か）に合わせて Bubble で組み立てる
-  done: { icon: BellRing, title: 'これで通知が届きます！' },
-  post: { icon: Plus, title: '見つけた情報はここから', body: 'Xで見つけたら、ポストの共有ボタンから FanHive を選ぶだけ。AIが予定にします。' },
-  personal: { icon: CalendarPlus, title: '自分だけの予定はここから', body: 'ほかの人には見えない、自分用の予定を作れます。' },
-  account: { icon: UserRound, title: 'メールを登録しておくと安心です', body: '機種変更やアプリの入れ直しのときも、フォローやカレンダーをそのまま引き継げます。登録はあとからいつでもできます。' },
+  done: { icon: BellRing, title: '通知がONになりました' },
+  post: { icon: Plus, title: '見つけた情報はここから', body: 'Xの共有ボタンからも送れます' },
+  personal: { icon: CalendarPlus, title: '自分だけの予定はここから' },
+  account: { icon: UserRound, title: 'メールを登録しておくと安心', body: '機種変更しても引き継げます。あとからでも登録できます' },
 };
 
 // ベルを押したあと、通知が許可されなかったか（「これで通知が届きます」と言わないため）
@@ -109,7 +108,7 @@ let notifyDenied = false;
 function doneBody(): string {
   const lead = loadNotifyLeadDays();
   const when = lead > 0 ? `${lead}日前と当日の朝` : '当日の朝';
-  return `発売日や締切の${when}にお知らせします。マイページの「通知の設定」で細かく設定できます。`;
+  return `${when}にお知らせします`;
 }
 
 export default function OnboardingTour() {
@@ -157,7 +156,9 @@ export default function OnboardingTour() {
     if (step !== 'calendar' && step !== 'bell') return;
     const onBell = () => {
       // 許可されなかった（または端末で切られている）ときは「届きます」と言わない
-      notificationPermission().then((p) => { notifyDenied = p === 'denied' || p === 'prompt'; }).catch(() => {})
+      // 行が右へ飛んで戻ってくる（約1.1秒）のを待ってから次へ。途中で進むと、吹き出しが動いている行に合わせて出てしまう
+      const wait = new Promise((r) => setTimeout(r, 1100));
+      Promise.all([notificationPermission().then((p) => { notifyDenied = p === 'denied' || p === 'prompt'; }).catch(() => {}), wait])
         .finally(() => writeStep('done'));
     };
     window.addEventListener(BELL_EVENT, onBell);
@@ -248,7 +249,8 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
   const nav = useRect(framed ? findNav : nothing);
   // カレンダーに登録されました・これで通知が届きます: 吹き出しを日のパネルの予定のすぐ上に置く（上の見出しの位置だと、見てほしい予定から遠い）
   const findTourCard = useCallback(() => (id ? document.querySelector(`[data-card-id="${CSS.escape(id)}"]`) : null), [id]);
-  const card = useRect(step === 'calendar' || step === 'done' ? findTourCard : nothing);
+  const findCardBox = useCallback(() => { const el = findTourCard(); return el?.closest('[data-swipe-row]') ?? el; }, [findTourCard]);
+  const card = useRect(step === 'calendar' || step === 'done' ? findCardBox : nothing);
   // 日のパネルの見出し（日付）。吹き出しはこれより上に置く（どの日に入ったかを隠さない）
   const dayHeading = useRect(step === 'calendar' || step === 'done' ? findDayHeading : nothing);
   // 右へ払う段階は、払っても動かない外側の箱（SwipeRow）を抜く（行と一緒に枠が動くと、下から出る「通知ON」が暗いままになる）
@@ -366,9 +368,11 @@ const nothing = () => null;
 function Bubble({ step, arrow, arrowX, onNext }: { step: TourStep; arrow?: 'up' | 'down'; arrowX?: number; onNext?: () => void }) {
   const denied = step === 'done' && notifyDenied;
   const { icon: Icon, title } = denied ? { icon: BellOff, title: '通知はあとからONにできます' } : COPY[step];
-  const body = denied ? '端末の設定でFanHiveの通知を許可すると届くようになります。'
+  const body = denied ? '端末の設定で通知を許可すると届きます'
     : step === 'done' ? doneBody()
     : step === 'like' && noWorkPicked ? '依頼した作品が入るまで、予定の多い作品で試してみましょう。'
+    // 日付未定（下旬・春頃など）の予定は「日付未定」の欄に入る
+    : step === 'calendar' && likedEvent && (!likedEvent.date || likedEvent.dateLabel) ? '日付が決まると、その日に並びます'
     : COPY[step].body;
   const ref = useRef<HTMLDivElement>(null);
   // 矢印は目印の真上（真下）に。吹き出しの端からはみ出さないように寄せる

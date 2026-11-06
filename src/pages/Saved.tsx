@@ -415,8 +415,9 @@ export default function Saved() {
       const el = document.querySelector(`[data-card-id="${CSS.escape(tourEvent.id)}"]`);
       // たたみ終わる（.28s）のを待ってから真ん中へ送る
       if (el && !done) { done = true; clearInterval(t); setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'auto' }), 300); return; }
-      if (++tries === 15 && !inList) { inList = true; setView('list'); }
-      if (tries > 40) clearInterval(t);
+      // ボードに出ない予定は無いはずだが（日付未定は欄の中に出す）、見つからなければ最後にリスト表示で見せる
+      if (++tries === 40 && !inList) { inList = true; setView('list'); }
+      if (tries > 70) clearInterval(t);
     }, 80);
     return () => clearInterval(t);
   }, [tourStep, tourEvent?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -552,7 +553,8 @@ export default function Saved() {
           上部バーの外に置き、スクロールで流れる。
           1. テーマを作れること（まだ1つも作っていない人）。作れること自体が知られていない（柴野）
           2. いつものカレンダーへの自動同期（プレミアム・無料の人だけ） */}
-      {showThemePromo ? (
+      {/* 案内の間は出さない（案内の画面と重なる） */}
+      {tourStep ? null : showThemePromo ? (
         <PromoLine className="mx-3 mt-2" icon={<Palette size={15} />} text="アプリのテーマを自由に生成できます"
           onClick={() => navigate('/customize/theme')} onDismiss={() => hidePromo(THEME_PROMO_KEY, setThemePromoHidden)} />
       ) : FEATURE_PREMIUM && !premium && !syncPromoHidden ? (
@@ -602,6 +604,8 @@ export default function Saved() {
         <SavedBoard events={shown} anchor={anchor} setAnchor={setAnchor} workImages={workImages} stickyTop={headerH}
           onOpen={openItem} onRemove={onRemove} userId={user?.id} onVisits={onVisits} todayTick={todayTick}
           autoFold={!tourStep} foldTick={foldTick}
+          lockFold={tourStep === 'calendar' || tourStep === 'bell' || tourStep === 'done'}
+          tourId={tourStep === 'calendar' || tourStep === 'bell' || tourStep === 'done' ? tourEvent?.id ?? null : null}
           onAddPersonal={() => navigate(`/personal/new?date=${anchor.slice(0, 7) === today.slice(0, 7) ? today : `${anchor.slice(0, 7)}-01`}`)} />
       ) : view !== 'list' ? (
         // カレンダー（月/週/日）は予定が0件でも枠を表示する

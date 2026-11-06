@@ -36,21 +36,21 @@ const visible = (sel: string) => () => {
 
 const HINTS: Hint[] = [
   // カレンダー（ボード）。cal-overview・cal-swipe は最初の案内でも説明する（案内を見た人には出ない）
-  { id: 'cal-overview', path: '/saved', find: visible('[data-tour="calendar"]'), text: 'どの日に何があるか、上のカレンダーで見渡せます。点は作品、〆は締切、紫の輪はイベント。日付を押すとその日の予定へ飛びます' },
-  { id: 'cal-swipe', path: '/saved', find: visible('[data-board-day] [data-card-id]'), text: '右へ払うと通知のON／OFF、左へ払うとカレンダーから外せます' },
-  { id: 'cal-fold', path: '/saved', find: visible('[aria-hidden="false"] > button[aria-label="カレンダーを開く"]'), text: '一番上でさらに下へ引くか、ここを押すとカレンダーが開きます' },
-  { id: 'cal-undated', path: '/saved', find: visible('[data-undated-drop]'), text: '日付がまだ決まっていない予定はここ。長押しして、好きな場所へ仮置きできます' },
-  { id: 'cal-view', path: '/saved', find: visible('button[aria-label="表示を切り替える"]'), text: '月・週・日・リストの表示にも切り替えられます' },
-  { id: 'cal-icons', path: '/saved', find: visible('[data-hint="cal-icons"]'), text: 'カレンダーの点を、好きなキャラのドット絵や色にできます' },
-  { id: 'cal-custom', path: '/saved', find: visible('button[aria-label="カスタマイズ"]'), text: 'カレンダー全体の見た目を変えられます。テーマ（AIで作ることも）、背景の画像、文字の色、作品の色と画像など' },
+  { id: 'cal-overview', path: '/saved', find: visible('[data-tour="calendar"]'), text: 'いつ何があるか、ここで見られます' },
+  { id: 'cal-swipe', path: '/saved', find: visible('[data-board-day] [data-card-id]'), text: '右へ払うと通知、左へ払うと外せます' },
+  { id: 'cal-fold', path: '/saved', find: visible('[aria-hidden="false"] > button[aria-label="カレンダーを開く"]'), text: '押すとカレンダーが開きます' },
+  { id: 'cal-undated', path: '/saved', find: visible('[data-undated-drop]'), text: '長押しで、好きな場所へ仮置きできます' },
+  { id: 'cal-view', path: '/saved', find: visible('button[aria-label="表示を切り替える"]'), text: '月・週・日・リストにも切り替えられます' },
+  { id: 'cal-icons', path: '/saved', find: visible('[data-hint="cal-icons"]'), text: 'カレンダーの点を好きな画像にできます' },
+  { id: 'cal-custom', path: '/saved', find: visible('button[aria-label="カスタマイズ"]'), text: 'テーマや背景、色を変えられます' },
   // 探す
-  { id: 'ex-swipe', path: '/explore', find: visible('[data-event-id]'), text: '右へ払うとカレンダーに追加、左へ払うと非表示にできます' },
-  { id: 'ex-stamp', path: '/explore', find: visible('[data-hint="ex-stamp"]'), text: '♡ほどではないけど気になる予定は、スタンプでとっておけます。押した予定はここにたまります' },
-  { id: 'ex-follow', path: '/explore', find: visible('[data-hint="ex-follow"]'), text: 'フォローする作品を探して、追加できます' },
+  { id: 'ex-swipe', path: '/explore', find: visible('[data-event-id]'), text: '右へ払うと追加、左へ払うと非表示' },
+  { id: 'ex-stamp', path: '/explore', find: visible('[data-hint="ex-stamp"]'), text: 'スタンプを押した予定はここに' },
+  { id: 'ex-follow', path: '/explore', find: visible('[data-hint="ex-follow"]'), text: '作品をフォローできます' },
   // マイページ
-  { id: 'my-fanstar', path: '/mypage', find: visible('[data-hint="my-fanstar"]'), text: '投稿・いいね・スタンプなどが増えると、ファンスターが大きく育ちます' },
-  { id: 'my-ranking', path: '/mypage', find: visible('[data-hint="my-ranking"]'), text: '予定の投稿や情報の追加で点が入り、毎月の順位が決まります' },
-  { id: 'my-sync', path: '/mypage', find: visible('[data-hint="my-sync"]'), text: 'いつものカレンダー（Google・iPhone など）に、予定を自動で入れられます' },
+  { id: 'my-fanstar', path: '/mypage', find: visible('[data-hint="my-fanstar"]'), text: '投稿やいいねで星が育ちます' },
+  { id: 'my-ranking', path: '/mypage', find: visible('[data-hint="my-ranking"]'), text: '投稿で点が入り、毎月の順位が決まります' },
+  { id: 'my-sync', path: '/mypage', find: visible('[data-hint="my-sync"]'), text: 'いつものカレンダーに予定を入れられます' },
 ];
 
 const loadSeen = loadHintsSeen;

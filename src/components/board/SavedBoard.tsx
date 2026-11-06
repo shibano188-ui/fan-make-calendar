@@ -58,11 +58,15 @@ type Props = {
   autoFold?: boolean;
   /** 増えたらカレンダーをたたむ（案内が♡した予定を見せるとき） */
   foldTick?: number;
+  /** たたんだまま開かないようにする（案内が♡した予定の行を見せている間。ボードを広く使う） */
+  lockFold?: boolean;
+  /** 案内で見せている予定。日付未定なら、日付未定の欄を開いてその予定を払える行で出す */
+  tourId?: string | null;
 };
 
 type SheetState = { kind: 'day'; day: string } | { kind: 'undated' } | { kind: 'icons' } | { kind: 'visit'; id: string } | null;
 
-export default function SavedBoard({ events, anchor, setAnchor, workImages, stickyTop, onOpen, onRemove, userId, onVisits, todayTick = 0, onAddPersonal, autoFold = true, foldTick = 0 }: Props) {
+export default function SavedBoard({ events, anchor, setAnchor, workImages, stickyTop, onOpen, onRemove, userId, onVisits, todayTick = 0, onAddPersonal, autoFold = true, foldTick = 0, lockFold = false, tourId = null }: Props) {
   const today = todayStr();
   const toast = useToast();
   const [onlyMarks, setOnlyMarks] = useState<Set<Mark>>(new Set());
@@ -125,6 +129,10 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
   const autoFoldRef = useRef(autoFold);
   autoFoldRef.current = autoFold;
   useEffect(() => { if (foldTick) setFolded(true); }, [foldTick]);
+  // 開く操作（つまみ・下へ引く・一番上で引く）は、固定している間は効かない
+  const lockRef = useRef(lockFold);
+  lockRef.current = lockFold;
+  const open = () => { if (!lockRef.current) setFolded(false); };
   const [scrolled, setScrolled] = useState(false);
   const [active, setActive] = useState(today);
   const activeRef = useRef(today);
@@ -169,7 +177,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
       const y0 = e.touches[0].clientY;
       if (window.scrollY > 0) { pullY = null; return; }
       if (pullY === null || y0 < pullY) pullY = y0; // 一番上に着いた位置（上へ戻したら、そこから数え直す）
-      if (y0 - pullY > PULL) { pullY = null; haptic.select(); setFolded(false); }
+      if (y0 - pullY > PULL && !lockRef.current) { pullY = null; haptic.select(); setFolded(false); }
     };
     // パソコンのホイール: 一番上でさらに上へ回したら開く
     let wheelUp = 0, wheelTimer: ReturnType<typeof setTimeout> | null = null;
@@ -178,7 +186,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
       wheelUp += -e.deltaY;
       if (wheelTimer) clearTimeout(wheelTimer);
       wheelTimer = setTimeout(() => { wheelUp = 0; }, 400);
-      if (wheelUp > 200) { wheelUp = 0; haptic.select(); setFolded(false); }
+      if (wheelUp > 200 && !lockRef.current) { wheelUp = 0; haptic.select(); setFolded(false); }
     };
     window.addEventListener('wheel', onWheel, { passive: true });
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -259,7 +267,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
         else setAnchor(addMonths(anchor, dx < 0 ? 1 : -1));
         return;
       }
-      if (Math.abs(dy) > 28 && Math.abs(dy) > Math.abs(dx)) { haptic.select(); setFolded(dy < 0); }
+      if (Math.abs(dy) > 28 && Math.abs(dy) > Math.abs(dx)) { haptic.select(); if (dy < 0) setFolded(true); else open(); }
     },
   };
 
@@ -315,7 +323,10 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
     };
   }, [drag?.m.e.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [undatedOpen, setUndatedOpen] = useState(() => { try { return localStorage.getItem(UNDATED_OPEN_KEY) === '1'; } catch { return false; } });
+  const [undatedOpenPref, setUndatedOpen] = useState(() => { try { return localStorage.getItem(UNDATED_OPEN_KEY) === '1'; } catch { return false; } });
+  // 案内で見せている予定が日付未定なら、欄を開いてその予定を払える行で出す（ボードに行が無いため）
+  const tourUndated = tourId ? undated.find((m) => m.e.id === tourId) : undefined;
+  const undatedOpen = undatedOpenPref || !!tourUndated;
   const toggleUndated = () => {
     haptic.select();
     setUndatedOpen((v) => { try { localStorage.setItem(UNDATED_OPEN_KEY, v ? '0' : '1'); } catch { /* noop */ } return !v; });
@@ -401,7 +412,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
           )}
           <div className="absolute inset-y-0 inset-x-3 flex flex-col" style={{ opacity: folded ? 1 : 0, pointerEvents: folded ? 'auto' : 'none', transition: 'opacity .2s ease' }} aria-hidden={!folded}>
             <div className="grid grid-cols-7 pt-0.5">{Array.from({ length: 7 }, (_, i) => cell(addDays(stripWeek, i), i, false, true))}</div>
-            {handle('カレンダーを開く', () => setFolded(false))}
+            {handle('カレンダーを開く', open)}
           </div>
         </div>
       </div>
@@ -443,7 +454,8 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
           </button>
           {undatedOpen && (
             <>
-              <p className="px-3 -mt-0.5 text-[11px] text-label-secondary">長押しして、好きな場所へ仮置きできます</p>
+              {tourUndated && <div style={{ borderTop: '0.5px solid var(--separator)', borderBottom: '0.5px solid var(--separator)' }}><ItemRow m={tourUndated} hideMark today={today} dot={dot} onOpen={onOpen} onRemove={onRemove} /></div>}
+              <p className="px-3 pt-1 text-[11px] text-label-secondary">長押しして、好きな場所へ仮置きできます</p>
               <div className="flex gap-2 overflow-x-auto no-scrollbar px-3 pt-2 pb-2">
                 {undated.map((m) => (
                   <LongPress key={m.e.id} onLong={(x, y) => startDrag(m, x, y)} onTap={() => onOpen(m.e)}
