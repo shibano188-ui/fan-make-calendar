@@ -1,11 +1,12 @@
 import type { CalendarEvent } from '../../types';
 import { deriveItemType, todayStr } from '../../design/tokens';
+import { parseCategories } from '../../lib/constants';
 
 // カレンダーの「ボード」表示（2026-11-06 柴野）で使う、予定を「その日に何が起きるか」に分ける計算。
 // 月表示の rangesOf（SavedCalendar.tsx）と同じ材料（日付・受付・締切・日程・ピンした日）から作る。
 
 /** その日に起きること。頭の1文字で見分ける */
-export type Mark = '〆' | '受' | '発' | 'イ' | '行' | '自';
+export type Mark = '〆' | '受' | '発' | 'イ' | '行' | '自' | '終';
 
 export const MARKS: Record<Mark, { color: string; ink: string; short: string; long: string }> = {
   '〆': { color: '#e0483e', ink: '#ffffff', short: '締切', long: '予約締切' },
@@ -14,10 +15,12 @@ export const MARKS: Record<Mark, { color: string; ink: string; short: string; lo
   'イ': { color: '#9b4fd0', ink: '#ffffff', short: 'イベント', long: 'イベント' },
   '行': { color: '#f5b800', ink: '#1c1d21', short: '行く日', long: '行く日' },
   '自': { color: '#8e8e93', ink: '#ffffff', short: '自分', long: '自分の予定' },
+  // 期間のある予定の終わり（グッズは販売終了、イベントは最終日）。2026-11-07
+  '終': { color: '#5f6368', ink: '#ffffff', short: '終了', long: '終了' },
 };
 
 /** 同じ日に並べる順。行く日・締切を先に */
-const ORDER: Mark[] = ['行', '〆', '受', 'イ', '自', '発'];
+const ORDER: Mark[] = ['行', '〆', '終', '受', 'イ', '自', '発'];
 
 export type Moment = {
   day: string;
@@ -32,6 +35,8 @@ export type Moment = {
 };
 
 const isGoods = (e: CalendarEvent) => deriveItemType(e) === 'goods';
+/** 期間の終わりの呼び方。グッズは販売終了、グルメ（コラボカフェなど）は終了、イベントは最終日 */
+const endLabel = (e: CalendarEvent) => (!isGoods(e) ? '最終日' : parseCategories(e.category).includes('グルメ') ? '終了' : '販売終了');
 
 /** 予定1件を、起きることごとに分ける */
 export function momentsOf(e: CalendarEvent): Moment[] {
@@ -54,6 +59,8 @@ export function momentsOf(e: CalendarEvent): Moment[] {
       // ピンした日があるイベントは、ピンした日だけを出す（月表示と同じ「行く日だけ見たい」）
       if (!goods && visits.length) continue;
       push(s.start, goods ? '発' : 'イ', { label: s.label, end: s.end && s.end !== s.start ? s.end : undefined });
+      // 何日か続く日程は、終わりの日にも出す
+      if (s.end && s.end > s.start) push(s.end, '終', { label: `${s.label ? `${s.label} ` : ''}${endLabel(e)}` });
     } else {
       push(s.start, '受', { label: s.label });
       push(s.end, '〆', { label: s.label });
@@ -70,10 +77,11 @@ export function momentsOf(e: CalendarEvent): Moment[] {
       if (!(e.preorderStart && e.preorderStart === e.date && !hasPreorder)) push(e.date, '発');
     } else if (!visits.length) {
       push(e.date, 'イ', { end: e.endDate && e.endDate !== e.date ? e.endDate : undefined });
-      // 何日か続くイベントは、最終日にも出す（2026-11-07 柴野「始まっているイベントがカレンダーに出ない」。
-      // 始まる日が前の月だと、今月のカレンダーにもボードの日ごとの並びにも出なかった）
-      if (e.endDate && e.endDate > e.date) push(e.endDate, 'イ', { label: '最終日' });
     }
+    // 期間のある予定は、終わりの日にも出す（グッズ・グルメ・キャンペーンの販売期間、イベントの会期）。
+    // 2026-11-07 柴野「始まっているものがカレンダーに出ない」。始まる日しか出していなかったので、始まる日が過ぎると
+    // 今月のカレンダーにもボードの日ごとの並びにも出なかった。行く日を選んだイベントは行く日だけ（今までどおり）
+    if (e.endDate && e.endDate > e.date && (goods || !visits.length)) push(e.endDate, '終', { label: endLabel(e) });
   }
   return out;
 }

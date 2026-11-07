@@ -341,7 +341,19 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
   // 押したらカレンダーをたたむ（絞った一覧を広く見られるように）
   const toggleMark = (k: Mark) => { haptic.select(); fold(); setOnlyMarks((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n; }); };
 
-  const todayList = days.get(today) ?? [];
+  // 案内で見せている予定が、ボードのどこにも出ていないとき（終わった・日付の無いものなど）は、今日の行に出す。
+  // イベントの欄に入っていれば、欄を開いておく（ふだんは3件までしか見せないため）
+  const tourShown = useMemo(() => {
+    if (!tourId) return true;
+    for (const [d, list] of days) if (d >= today && list.some((m) => m.e.id === tourId)) return true;
+    return ganttList.some((e) => e.id === tourId) || undated.some((m) => m.e.id === tourId);
+  }, [tourId, days, today, ganttList, undated]);
+  useEffect(() => { if (tourId && ganttList.slice(3).some((e) => e.id === tourId)) setEvOpen(true); }, [tourId, ganttList]);
+  const tourExtra = !tourShown ? events.find((e) => e.id === tourId) : undefined;
+  const todayList = [
+    ...(days.get(today) ?? []),
+    ...(tourExtra ? [{ day: today, mark: (deriveIsGoods(tourExtra) ? '発' : 'イ') as Mark, e: tourExtra }] : []),
+  ];
   const sheetList = sheet?.kind === 'day' ? days.get(sheet.day) ?? allDays.get(sheet.day) ?? [] : [];
   const goingEvents = ganttList.filter((e) => (e.visits ?? []).some((v) => v.end >= today));
   // たたんでいるときに出すイベント。行く日を選んだものがあればそれ、無ければ近い順に3件（何があるかは見えるように）
