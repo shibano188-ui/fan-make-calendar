@@ -132,7 +132,9 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
   // 開く操作（つまみ・下へ引く・一番上で引く）は、固定している間は効かない
   const lockRef = useRef(lockFold);
   lockRef.current = lockFold;
-  const open = () => { if (!lockRef.current) setFolded(false); };
+  // 日付未定の予定を運んでいる間（下の「仮置き」）。その間はカレンダーを開かない
+  const draggingRef = useRef(false);
+  const open = () => { if (!lockRef.current && !draggingRef.current) setFolded(false); };
   const [scrolled, setScrolled] = useState(false);
   const [active, setActive] = useState(today);
   const activeRef = useRef(today);
@@ -173,7 +175,8 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
     const PULL = 50;
     const onTouchStart = () => { pullY = null; };
     const onTouchMove = (e: TouchEvent) => {
-      if (!foldedRef.current) return;
+      // 日付未定の予定を運んでいる間は開かない（上の端まで運んで自動でスクロールしたとき、指を戻すと開いてしまっていた）
+      if (!foldedRef.current || draggingRef.current) return;
       const y0 = e.touches[0].clientY;
       if (window.scrollY > 0) { pullY = null; return; }
       if (pullY === null || y0 < pullY) pullY = y0; // 一番上に着いた位置（上へ戻したら、そこから数え直す）
@@ -182,7 +185,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
     // パソコンのホイール: 一番上でさらに上へ回したら開く
     let wheelUp = 0, wheelTimer: ReturnType<typeof setTimeout> | null = null;
     const onWheel = (e: WheelEvent) => {
-      if (!foldedRef.current || window.scrollY > 0 || e.deltaY >= 0) { wheelUp = 0; return; }
+      if (!foldedRef.current || draggingRef.current || window.scrollY > 0 || e.deltaY >= 0) { wheelUp = 0; return; }
       wheelUp += -e.deltaY;
       if (wheelTimer) clearTimeout(wheelTimer);
       wheelTimer = setTimeout(() => { wheelUp = 0; }, 400);
@@ -272,16 +275,30 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
   };
 
   // ─ 日付未定の予定を、長押しして好きな日へ運ぶ（仮置き） ─
-  const [drag, setDrag] = useState<{ m: Moment; x: number; y: number } | null>(null);
+  // 2026-11-07 柴野: 置けるのはボード（下の日ごとの行）だけ。カレンダーの日には置かない。
+  //   運び始めたらカレンダーをたたみ、運んでいる間は開かない（カレンダーに反応して開いてしまい、運びにくかった）。
+  //   最初に押した指だけを追う（2本目の指が触れても、運んでいる予定が飛んだり、そこで離したことになったりしない）
+  const [drag, setDrag] = useState<{ m: Moment; x: number; y: number; pid: number } | null>(null);
+  draggingRef.current = !!drag;
   // 置き先。on＝その日に、between＝2つの日のあいだ（真ん中の日にする）、after＝最後の日より後（1週間後にする）
   const [hot, setHot] = useState<DropTarget | null>(null);
   const hotRef = useRef<DropTarget | null>(null);
-  const startDrag = (m: Moment, x: number, y: number) => { haptic.select(); setDrag({ m, x, y }); };
+  const startDrag = (m: Moment, x: number, y: number, pid: number) => {
+    if (draggingRef.current) return;
+    draggingRef.current = true;
+    haptic.select();
+    setFolded(true);
+    setDrag({ m, x, y, pid });
+  };
   useEffect(() => {
     if (!drag) return;
+    const pid = drag.pid;
     let px = drag.x, py = drag.y, raf = 0;
+    // 運び始めにカレンダーをたたむと、指の下へ別の日の行が滑り込んでくる。指を動かすまでは置き先にしない
+    // （長押ししただけで離したら、何もしない）
+    let moved = false;
     const target = () => {
-      const t = dropTargetAt(px, py, today, !!drag.m.tentative);
+      const t = moved ? dropTargetAt(px, py, !!drag.m.tentative) : null;
       const prev = hotRef.current;
       if (t?.day !== prev?.day || t?.kind !== prev?.kind) { hotRef.current = t; setHot(t); if (t) haptic.select(); }
     };
@@ -297,8 +314,13 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
-    const move = (e: PointerEvent) => { px = e.clientX; py = e.clientY; setDrag((d) => (d ? { ...d, x: px, y: py } : d)); };
-    const end = () => {
+    const move = (e: PointerEvent) => {
+      if (e.pointerId !== pid) return;
+      px = e.clientX; py = e.clientY; setDrag((d) => (d ? { ...d, x: px, y: py } : d));
+      if (!moved && Math.hypot(px - drag.x, py - drag.y) > 12) moved = true;
+    };
+    const end = (e: PointerEvent) => {
+      if (e.pointerId !== pid) return;
       const t = hotRef.current, m = drag.m;
       hotRef.current = null; setHot(null); setDrag(null);
       if (!t) return;
@@ -306,7 +328,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
       setTentative(m.e.id, t.kind === 'back' ? null : t.day);
       toast(t.kind === 'back' ? '日付未定に戻しました' : `${t.label}に仮置きしました`, 'success', { label: '元に戻す', onClick: () => setTentative(m.e.id, before) });
     };
-    const cancel = () => { hotRef.current = null; setHot(null); setDrag(null); };
+    const cancel = (e: PointerEvent) => { if (e.pointerId !== pid) return; hotRef.current = null; setHot(null); setDrag(null); };
     // 運んでいる間は、指の動きでページがスクロールしないようにする
     const noScroll = (e: TouchEvent) => e.preventDefault();
     // 捕捉の段階で受ける（運んでいる間は、行のスワイプへ指の動きを渡さないので）
@@ -370,7 +392,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
 
   const cell = (d: string, i: number, outside: boolean, compact?: boolean) => (
     <DayCell key={d} d={d} dow={i} today={today} list={days.get(d) ?? []} active={d === active} event={eventDays.has(d)}
-      outside={outside} compact={compact} hot={hot?.kind === 'on' && hot.day === d} dot={dot} onPick={jump} />
+      outside={outside} compact={compact} dot={dot} onPick={jump} />
   );
   const handle = (label: string, onClick: () => void) => (
     <button type="button" aria-label={label} className="w-full h-4 flex items-center justify-center flex-shrink-0" onClick={() => { haptic.select(); onClick(); }}>
@@ -471,7 +493,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
               <p className="px-3 pt-1 text-[11px] text-label-secondary">長押しして、好きな場所へ仮置きできます</p>
               <div className="flex gap-2 overflow-x-auto no-scrollbar px-3 pt-2 pb-2">
                 {undated.map((m) => (
-                  <LongPress key={m.e.id} onLong={(x, y) => startDrag(m, x, y)} onTap={() => onOpen(m.e)}
+                  <LongPress key={m.e.id} onLong={(x, y, pid) => startDrag(m, x, y, pid)} onTap={() => onOpen(m.e)}
                     className="flex-shrink-0 w-[64px] text-left" style={{ opacity: drag?.m.e.id === m.e.id ? 0.3 : 1 }} label={m.e.title}>
                     <span className="relative block"><Pic e={m.e} size={64} /><span className="absolute right-[2px] bottom-[2px]">{dot(m.e.workId, 13)}</span></span>
                     <span className="block mt-1 text-[10px] font-bold leading-tight truncate">{m.label?.replace(/^(発売|開催) /, '')}</span>
@@ -595,13 +617,14 @@ const UNDATED_OPEN_KEY = 'fan_board_undated_open';
 
 type DropTarget = { kind: 'on' | 'between' | 'after' | 'back'; day: string; label: string; y: number };
 
-/** 指の位置から置き先を決める。カレンダーの日の上＝その日。一覧の日の境目（上下12px）＝2つの日のあいだ（真ん中の日）。
- *  日の行の上＝その日。最後の日の下＝その1週間後 */
-function dropTargetAt(px: number, py: number, today: string, placed: boolean): DropTarget | null {
+/** 指の位置から置き先を決める。置けるのはボードの行だけ（上のカレンダー・週の帯の日には置かない・2026-11-07 柴野）。
+ *  一覧の日の境目（上下12px）＝2つの日のあいだ（真ん中の日）。日の行の上＝その日。最後の日の下＝その1週間後 */
+function dropTargetAt(px: number, py: number, placed: boolean): DropTarget | null {
+  const at = document.elementFromPoint(px, py);
   // 仮置きしたものを日付未定の欄へ戻す
-  if (placed && document.elementFromPoint(px, py)?.closest('[data-undated-drop]')) return { kind: 'back', day: '', label: '日付未定', y: py };
-  const cell = document.elementFromPoint(px, py)?.closest<HTMLElement>('[data-cal-day]');
-  if (cell?.dataset.calDay && cell.dataset.calDay >= today) return { kind: 'on', day: cell.dataset.calDay, label: md(cell.dataset.calDay), y: py };
+  if (placed && at?.closest('[data-undated-drop]')) return { kind: 'back', day: '', label: '日付未定', y: py };
+  // カレンダー（たたんだ週の帯）の上では置かない
+  if (at?.closest('[data-tour="calendar"]')) return null;
   const rows = [...document.querySelectorAll<HTMLElement>('[data-board-day]')];
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i].getBoundingClientRect(), d = rows[i].dataset.boardDay!;
@@ -623,7 +646,7 @@ function dropTargetAt(px: number, py: number, today: string, placed: boolean): D
 
 /** 長押しで運び始める（指を 8px 以上動かすと、ふつうのスクロール・横の並びのスクロールに任せる）。短く押すと onTap */
 function LongPress({ onLong, onTap, className, style, label, children }: {
-  onLong: (x: number, y: number) => void; onTap: () => void; className?: string; style?: React.CSSProperties; label?: string; children: ReactNode;
+  onLong: (x: number, y: number, pid: number) => void; onTap: () => void; className?: string; style?: React.CSSProperties; label?: string; children: ReactNode;
 }) {
   const t = useRef<{ x: number; y: number; timer: ReturnType<typeof setTimeout> | null; fired: boolean } | null>(null);
   const clear = () => { if (t.current?.timer) clearTimeout(t.current.timer); };
@@ -633,8 +656,10 @@ function LongPress({ onLong, onTap, className, style, label, children }: {
       onContextMenu={(e) => e.preventDefault()}
       onDragStart={(e) => e.preventDefault()}
       onPointerDown={(e) => {
-        const x = e.clientX, y = e.clientY;
-        t.current = { x, y, fired: false, timer: setTimeout(() => { if (t.current) { t.current.fired = true; onLong(x, y); } }, 380) };
+        // 2本目の指では運び始めない
+        if (!e.isPrimary) return;
+        const x = e.clientX, y = e.clientY, pid = e.pointerId;
+        t.current = { x, y, fired: false, timer: setTimeout(() => { if (t.current) { t.current.fired = true; onLong(x, y, pid); } }, 380) };
       }}
       onPointerMove={(e) => {
         const c = t.current;
@@ -653,8 +678,8 @@ function LongPress({ onLong, onTap, className, style, label, children }: {
 // ─ カレンダーの部品 ─
 
 /** カレンダーの1日。作品の点（最大3つ）・締切の〆・イベントの紫の輪。compact は週の帯（曜日を中に書く） */
-function DayCell({ d, dow, today, list: all, active, event, outside, compact, hot, dot, onPick }: {
-  d: string; dow: number; today: string; list: Moment[]; active: boolean; event: boolean; outside: boolean; compact?: boolean; hot?: boolean;
+function DayCell({ d, dow, today, list: all, active, event, outside, compact, dot, onPick }: {
+  d: string; dow: number; today: string; list: Moment[]; active: boolean; event: boolean; outside: boolean; compact?: boolean;
   dot: DotFn; onPick: (d: string) => void;
 }) {
   if (outside) return <span className="h-[54px]" />;
@@ -665,7 +690,7 @@ function DayCell({ d, dow, today, list: all, active, event, outside, compact, ho
   return (
     <button type="button" data-cal-day={d} onClick={() => onPick(d)} aria-label={`${md(d)}${list.length ? `・予定${list.length}件` : ''}${deadline ? '・締切あり' : ''}`}
       className={`pressable relative flex flex-col items-center gap-[3px] rounded-[10px] ${compact ? 'h-[56px] pt-[2px] gap-[2px]' : 'h-[54px] pt-[3px]'}`}
-      style={{ backgroundColor: hot ? 'color-mix(in srgb, var(--accent-color) 30%, transparent)' : active && !isToday ? 'var(--fill-tertiary)' : undefined }}>
+      style={{ backgroundColor: active && !isToday ? 'var(--fill-tertiary)' : undefined }}>
       {compact && <span className="text-[10px] font-semibold leading-none" style={{ color: dayColor(dow) ?? 'var(--label-secondary)' }}>{WEEKDAYS[dow]}</span>}
       <span className={`num ${compact ? 'w-7 h-7 text-[14px]' : 'w-8 h-8 text-[16px]'} rounded-full flex items-center justify-center font-bold`}
         style={isToday ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)', fontWeight: 700 }
@@ -744,7 +769,7 @@ type DotFn = (workId: string | undefined, size: number) => ReactNode;
 /** その日の予定。3件までは全部、4件目からは小さい画像で並べる */
 function Group({ list, today, dot, onOpen, onRemove, onAll, onDrag }: {
   list: Moment[]; today: string; dot: DotFn; onOpen: (e: CalendarEvent) => void; onRemove: (e: CalendarEvent) => void; onAll: () => void;
-  onDrag?: (m: Moment, x: number, y: number) => void;
+  onDrag?: (m: Moment, x: number, y: number, pid: number) => void;
 }) {
   const few = list.length <= 3;
   const head = few ? list : list.slice(0, 2);
@@ -819,7 +844,7 @@ function Thumbs({ list, dot, onOpen, more }: { list: { e: CalendarEvent; mark?: 
 /** 予定1件の行。押すと詳細、左へスワイプでカレンダーから外す */
 function ItemRow({ m, today, dot, onOpen, onRemove, hideMark, onDrag }: {
   m: Moment; today: string; dot: DotFn; onOpen: (e: CalendarEvent) => void; onRemove: (e: CalendarEvent) => void; hideMark?: boolean;
-  onDrag?: (m: Moment, x: number, y: number) => void;
+  onDrag?: (m: Moment, x: number, y: number, pid: number) => void;
 }) {
   const e = m.e;
   const notify = useEventNotify(e, true).on;
@@ -827,7 +852,7 @@ function ItemRow({ m, today, dot, onOpen, onRemove, hideMark, onDrag }: {
   if (m.tentative) {
     return (
       <CalendarSwipeRow event={e} onRemove={onRemove}>
-        <LongPress onLong={(x, y) => onDrag?.(m, x, y)} onTap={() => onOpen(e)} label={e.title}
+        <LongPress onLong={(x, y, pid) => onDrag?.(m, x, y, pid)} onTap={() => onOpen(e)} label={e.title}
           className="relative w-full flex items-center gap-3 px-1 py-2.5 text-left"
           style={{ backgroundColor: 'var(--bg-primary)' }}>
           <span aria-hidden className="absolute inset-1 rounded-[10px] pointer-events-none" style={{ border: '1.5px dashed var(--label-tertiary)' }} />

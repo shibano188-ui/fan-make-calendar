@@ -84,9 +84,9 @@ export default function EventStylePicker({ eventId, workId }: { eventId: string;
   const mark = loadEventMark(eventId);
   const workColor = workId ? buildWorkColorMap([{ id: workId }]).get(workId) : undefined;
   return (
-    <div className="mt-3">
+    <div className="mt-2">
       <button onClick={() => { haptic.select(); setOpen(true); }}
-        className="pressable w-full flex items-center gap-2 py-1 text-[13px] text-label-secondary">
+        className="pressable w-full flex items-center gap-2 min-h-[44px] text-[13px] font-semibold text-label-secondary">
         <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] text-[#141414]" style={{ backgroundColor: color ?? workColor ?? 'var(--accent-color)' }}>{mark}</span>
         予定の色とアイコン
         <ChevronRight size={15} className="ml-auto" />

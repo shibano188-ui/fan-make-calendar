@@ -55,10 +55,10 @@ export default function PendingProposals({ event, proposals, userId, onAgree }: 
   if (!groups.length && !myRejected.length) return null;
 
   return (
-    <div className="mt-4 rounded-[12px] px-3 py-2.5" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+    <div className="mt-4 rounded-[16px] px-3 py-3" style={{ backgroundColor: 'var(--bg-secondary)', boxShadow: 'inset 0 0 0 0.5px var(--separator)' }}>
       {groups.length > 0 && (
         <>
-          <div className="flex items-center gap-1.5 text-[12px] font-semibold text-label-secondary">
+          <div className="flex items-center gap-1.5 text-[13px] font-extrabold">
             <Hourglass size={13} /> 確認中の情報
           </div>
           {groups.map(({ head, count, mine }) => (
@@ -71,7 +71,7 @@ export default function PendingProposals({ event, proposals, userId, onAgree }: 
                 <span className="text-[11px] text-label-tertiary flex-shrink-0">あなたの提案</span>
               ) : userId && (
                 <button onClick={() => { haptic.select(); onAgree(head); }}
-                  className="pressable flex-shrink-0 flex items-center gap-1 text-[12px] font-semibold px-2.5 py-1 rounded-full"
+                  className="pressable flex-shrink-0 flex items-center gap-1 text-[12px] font-bold h-7 px-3 rounded-full"
                   style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
                   <Check size={13} /> 合っている
                 </button>

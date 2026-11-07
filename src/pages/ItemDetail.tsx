@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, CalendarDays, Package, MapPin, Share2, X, Plus, BellRing } from 'lucide-react';
+import { ArrowLeft, Heart, CalendarPlus, ShoppingCart, ExternalLink, Package, MapPin, Share2, X, Plus, BellRing } from 'lucide-react';
 import type { CalendarEvent, EventSchedule, EventVisit } from '../types';
 import EventEditForm from '../components/item/EventEditForm';
 import StaffEditPanel from '../components/item/StaffEditPanel';
@@ -39,6 +39,8 @@ import GetAppSheet, { openAppHref } from '../components/item/GetAppSheet';
 import FanHiveMark from '../components/FanHiveMark';
 import { VisitPicker } from '../components/board/VisitSheet';
 import { splitCountdown } from '../components/item/ItemCard';
+import { MARKS, type Mark } from '../components/board/boardModel';
+import { stripWorkName } from '../lib/stripWorkName';
 
 // 外部カレンダー連携（Google/ics への追加）は一旦保留。再開時は true に戻す。
 const EXTERNAL_CALENDAR_ENABLED = false;
@@ -124,6 +126,14 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [getAppOpen, setGetAppOpen] = useState(false);
   const shareEvent = useShareEvent();
+  // スクロールしたら、上のバーに細い線と予定の名前を出す
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const on = () => setScrolled(window.scrollY > 120);
+    on();
+    window.addEventListener('scroll', on, { passive: true });
+    return () => window.removeEventListener('scroll', on);
+  }, []);
 
   // 開いたら最上部から表示（前ページのスクロール位置を引き継がない）。
   // ロード中は中身が短く効かないので、データ表示後(ev)にも実行＋全スクロール親を0に。
@@ -200,7 +210,6 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
   let cats = parseCategories(event.category);
   if (cats.length > 1) cats = cats.filter((c) => c !== 'グッズ');
   const catColor = getPrimaryCategoryColor(event.category);
-  const dateLines = itemDateLines(eff);
   // 同じ商品を複数の店で売っているとき、一番安いリンクに「最安」を付ける
   const cheapest = cheapestOfferUrl(getOffers(eff));
   const buy = resolveBuy(event);
@@ -384,11 +393,30 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
     return [...n.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id);
   })();
 
+  // ─ 2026-11-07 デザインの一新（時刻表の考え）: 白地・細い線・余白。あと○日と値段は数字の書体で大きく、
+  //   日付は〆受発の印を付けた行で並べる（カレンダーのボードと同じ印）。箱で囲むのは、行く日を選ぶなど操作のまとまりだけ ─
+  const countdown = splitCountdown(countdownLabel({ ...eff, visits }, type === 'goods', todayStr()));
+  // 代表は実効値(eff)から選ぶ。取り消されたリンクの価格・セット・取得日を出し続けると、
+  // 「リンクが違うから取り消した」のに誤った価格が残ってしまう。
+  // 代表販路に値段が無いときの控えは eff.price（元の event.price ではない）。
+  // リンクが取り消されていれば applyEdits が残った販路の値段に直している（無ければ値段なし）。
+  const prim = primaryOffer(getOffers(eff));
+  const priceNow = eff.priceEdited ? eff.price : (prim?.price ?? eff.price);
+  // 種類違いが並ぶ予定は「¥330〜¥1,980」と幅で出す（人が値段を直していればそちら）
+  const range = eff.priceEdited ? null : priceRange(getOffers(eff));
+  const priceText = range ? `¥${range.min.toLocaleString()}〜¥${range.max.toLocaleString()}` : priceNow != null ? `¥${priceNow.toLocaleString()}` : null;
+  const timetable = dateRows(eff, type === 'goods', todayStr());
+  // 日付が未定・曖昧（9月下旬・春頃など）なら、まだ確かでないことを添える（終わった予定には出さない）
+  const uncertain = isDateUncertain(eff) && (() => { const f = stageFlow(eff); return f.current < f.steps.length - 1; })();
+  const place = [event.prefecture, event.locationDetail].filter(Boolean).join(' ');
+  const line = '0.5px solid var(--separator)';
+
   return (
     <div ref={rootRef} className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--bg-primary)' }}>
       <div className="mx-auto w-full max-w-app flex-1 flex flex-col">
-        {/* ヘッダー */}
-        <div className="sticky top-0 z-20 flex items-center px-2 py-2 material-bar scroll-edge" style={{ paddingTop: 'calc(var(--sat) + 8px)' }}>
+        {/* ヘッダー。白い平らなバーで、スクロールしたら下に細い線 */}
+        <div className="sticky top-0 z-20 flex items-center px-2 pb-1.5"
+          style={{ paddingTop: 'calc(var(--sat) + 6px)', backgroundColor: 'var(--bg-primary)', borderBottom: scrolled ? line : '0.5px solid transparent' }}>
           {shared ? (
             <div className="flex-1 flex items-center justify-between px-2">
               <a href="/lp" className="flex items-center gap-2">
@@ -396,131 +424,121 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
                 <span className="text-[16px] font-bold">FanHive</span>
               </a>
               {/* 入っている人はアプリのこの予定へ、無い人はストアへ（openAppHref） */}
-              <a href={openAppHref(event.id)} onClick={() => haptic.select()} className="pressable px-3 py-1.5 rounded-full text-[13px] font-semibold"
+              <a href={openAppHref(event.id)} onClick={() => haptic.select()} className="pressable px-3 py-1.5 rounded-full text-[13px] font-bold"
                 style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>アプリで開く</a>
             </div>
           ) : (
-            <button onClick={goBack} aria-label="戻る" className="pressable tap-44 p-2"><ArrowLeft size={22} /></button>
+            <>
+              <button onClick={goBack} aria-label="戻る" className="pressable tap-44 p-2"><ArrowLeft size={22} /></button>
+              {/* スクロールしたら、何の予定かを上に小さく出す */}
+              <span className="flex-1 min-w-0 truncate text-[14px] font-bold pr-10 text-center transition-opacity" style={{ opacity: scrolled ? 1 : 0 }} aria-hidden>
+                {stripWorkName(event.title, workName)}
+              </span>
+            </>
           )}
         </div>
 
         <div className={`flex-1 ${shared || buyMode !== 'none' ? 'pb-28' : 'pb-10'}`}>
           {/* 作品・カテゴリ・フォロー → タイトル を画像より上に（開いた瞬間に何のページか分かるように） */}
-          <div className="px-4 pt-1 pb-3">
-            {/* 作品・カテゴリ＋フォロー */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-1.5 text-[12px] text-label-secondary">
-                {workName && <span>{workName}</span>}
-                {catColor && <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: catColor }} />}
-                {cats.length > 0 && <span>{cats.join(' ・ ')}</span>}
+          <div className="px-4 pt-1 pb-4">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="flex-1 min-w-0 flex items-center gap-1.5 text-[12px] font-semibold text-label-secondary">
+                {workName && <span className="truncate">{workName}</span>}
+                {catColor && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: catColor }} />}
+                {cats.length > 0 && <span className="flex-shrink-0">{cats.join('・')}</span>}
               </div>
               {event.workId && !shared && (
-                <button onClick={onFollow} className="pressable text-[11px] px-2.5 py-0.5 rounded-full font-medium"
-                  style={following ? { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-secondary)' } : { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
-                  {following ? 'フォロー中' : '＋フォロー'}
+                <button onClick={onFollow} className="pressable flex-shrink-0 h-7 px-3 rounded-full text-[12px] font-bold"
+                  style={following
+                    ? { color: 'var(--label-secondary)', boxShadow: 'inset 0 0 0 0.5px var(--border-default)' }
+                    : { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+                  {following ? 'フォロー中' : '＋ フォロー'}
                 </button>
               )}
             </div>
 
             {/* タイトル */}
-            <h1 className="text-[19px] font-bold leading-snug mt-1">{event.title}</h1>
+            <h1 className="text-[21px] font-extrabold leading-[1.4] mt-1.5">{event.title}</h1>
             {canFix && !staffEditing && (
-              <button onClick={() => { haptic.select(); setStaffEditing(true); }} className="pressable mt-1 text-[12px]" style={{ color: 'var(--accent-text)' }}>タイトル・説明・画像を直す</button>
+              <button onClick={() => { haptic.select(); setStaffEditing(true); }} className="pressable mt-1 text-[12px] font-semibold" style={{ color: 'var(--accent-text)' }}>タイトル・説明・画像を直す</button>
             )}
             {canFix && staffEditing && (
               <StaffEditPanel event={event} onClose={() => setStaffEditing(false)}
                 onSaved={(patch) => { setEv((prev) => (prev ? { ...prev, ...patch } : prev)); setStaffEditing(false); }}
                 onDeleted={goBack} />
             )}
-
           </div>
 
-          <div className="relative">
-            <ImageCarousel images={images} alt={event.title} />
-            {EXTERNAL_CALENDAR_ENABLED && calCount > 0 && (
-              <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium"
-                style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff' }}>
-                <CalendarPlus size={12} />
-                {calCount}人が追加
-              </div>
-            )}
-          </div>
-
-          <div className="px-4 pt-3">
-            {/* 状態 */}
-            {/* 状態＋「あと◯日」（カレンダーの日付の行と同じ考え方。一番気になる日までを1つだけ） */}
-            {(() => {
-              const countdown = countdownLabel({ ...eff, visits }, type === 'goods', todayStr());
-              return (
-                <div className="mt-1">
-                  {/* 段階の流れ（今いる段階に色）。その下に、一番気になる日までの日数 */}
-                  <StageStepper event={eff} />
-                  {/* 2026-11-07 デザインの一新: 「あと○日」を数字の書体で大きく（カレンダーのボードと同じ見せ方） */}
-                  {countdown && (() => {
-                    const c = splitCountdown(countdown)!;
-                    return (
-                      <div className="mt-3 flex items-baseline gap-2">
-                        {c.label && <span className="text-[13px] font-bold text-label-secondary">{c.label}</span>}
-                        <span className="num text-[34px] font-extrabold leading-none">{c.value}</span>
-                      </div>
-                    );
-                  })()}
-                  {/* 受付開始の即時通知の案内（無料の人・予約受付がこれから始まるグッズだけ・2026-10-05）。
-                      一番ほしくなるのは「予約開始前」を見ているときなので、段階の表示のすぐ下に置く */}
-                  {!shared && FEATURE_PREMIUM && !instantAlerts && isPreorderSoon({ type: deriveItemType(eff), preorderStart: eff.preorderStart }, todayStr()) && (
-                    <PromoLine className="mt-2" icon={<BellRing size={15} />} text="予約受付が始まった瞬間に通知" badge="プレミアム"
-                      onClick={() => navigate('/premium')} />
-                  )}
+          <div className="px-4">
+            <div className="relative rounded-[18px] overflow-hidden">
+              <ImageCarousel images={images} alt={event.title} />
+              {EXTERNAL_CALENDAR_ENABLED && calCount > 0 && (
+                <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium"
+                  style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff' }}>
+                  <CalendarPlus size={12} />
+                  {calCount}人が追加
                 </div>
-              );
-            })()}
+              )}
+            </div>
+          </div>
 
-            {/* 日付と場所は同じ行に。
-                日付は「開催 12/31〜12/31 23:59」が最長で 153px にしかならない定型なので、
-                日程側は中身のぶんだけ（flex-shrink-0）にして、余りを全部場所に渡す。
-                以前は場所を max-w-[45%] に閉じ込めていて、文字が入る幅が 137px（全角で約9.8文字）しかなく、
-                店舗一覧のような長い場所が「らら / ぽーと湘南平塚」のように割れていた。 */}
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0">
-            {/* 日程 */}
-            <div className="mt-3 flex items-start gap-2">
-              <CalendarDays size={16} className="text-label-secondary mt-1 flex-shrink-0" />
-              <div>
-                {/* 日付はこのページで一番大事な情報なので大きく太く。「発売」「予約・受注」の見出しは小さく添える（本人要望・2026-09-27） */}
-                {dateLines.map((l, i) => {
-                  const sp = l.indexOf(' ');
-                  const head = sp > 0 ? l.slice(0, sp) : '';
-                  return (
-                    <div key={i} className="flex items-baseline gap-1.5 leading-snug">
-                      {head && <span className="text-[12px] text-label-secondary flex-shrink-0">{head}</span>}
-                      <span className="text-[17px] font-bold tabular-nums">{sp > 0 ? l.slice(sp + 1) : l}</span>
-                    </div>
-                  );
-                })}
-                {/* 日付が未定・曖昧（9月下旬・春頃など）なら、まだ確かでないことを添える（終わった予定には出さない） */}
-                {isDateUncertain(eff) && (() => { const f = stageFlow(eff); return f.current < f.steps.length - 1; })() && (
-                  <span className="inline-block mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded"
-                    style={{ color: 'var(--status-info)', backgroundColor: 'color-mix(in srgb, var(--status-info) 14%, transparent)' }}>未確定</span>
+          <div className="px-4 pt-5">
+            {/* あと○日（一番気になる日まで・カレンダーと同じ考え方）と値段。どちらも数字の書体で大きく */}
+            {(countdown || priceText) && (
+              <div className="flex items-end justify-between gap-3 flex-wrap">
+                {countdown ? <BigCountdown label={countdown.label} value={countdown.value} /> : <span />}
+                {priceText && (
+                  <div className="text-right ml-auto">
+                    <div className={`num font-extrabold leading-none ${range ? 'text-[22px]' : 'text-[28px]'}`}>{priceText}</div>
+                    {(prim?.isSet || prim?.fetchedAt) && (
+                      <div className="mt-1 flex items-center justify-end gap-1.5 text-[11px] text-label-tertiary">
+                        {prim?.isSet && <span className="font-bold text-label-secondary px-1.5 py-px rounded" style={{ background: 'var(--fill-tertiary)' }}>セット</span>}
+                        {prim?.fetchedAt && <span>{new Date(prim.fetchedAt).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}時点</span>}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
-            </div>
-
-              </div>
-              <div className="flex-1 min-w-0">
-            {/* 会場・地域 */}
-            {(event.prefecture || event.locationDetail) && (
-              <div className="mt-3 flex items-start gap-2">
-                <MapPin size={16} className="text-label-secondary mt-0.5 flex-shrink-0" />
-                <div className="text-[14px]">{[event.prefecture, event.locationDetail].filter(Boolean).join(' ')}</div>
-              </div>
             )}
 
-              </div>
+            {/* 段階の流れ（今いる段階に色） */}
+            <div className={countdown || priceText ? 'mt-5' : ''}><StageStepper event={eff} /></div>
+            {/* 受付開始の即時通知の案内（無料の人・予約受付がこれから始まるグッズだけ・2026-10-05）。
+                一番ほしくなるのは「予約開始前」を見ているときなので、段階の表示のすぐ下に置く */}
+            {!shared && FEATURE_PREMIUM && !instantAlerts && isPreorderSoon({ type: deriveItemType(eff), preorderStart: eff.preorderStart }, todayStr()) && (
+              <PromoLine className="mt-3" icon={<BellRing size={15} />} text="予約受付が始まった瞬間に通知" badge="プレミアム"
+                onClick={() => navigate('/premium')} />
+            )}
+
+            {/* 日付と場所の表（〆受発の印・名前・日付）。過ぎた日は薄く */}
+            <div className="mt-5" style={{ borderTop: line, borderBottom: line }}>
+              {timetable.map((r, i) => (
+                <div key={r.label} className="flex items-center gap-2.5 min-h-[46px] py-1.5" style={{ borderTop: i ? line : undefined, opacity: r.past ? 0.45 : 1 }}>
+                  <MarkBox mark={r.mark} />
+                  <span className="w-[60px] flex-shrink-0 text-[12px] font-bold text-label-secondary">{r.label}</span>
+                  <span className="flex-1 min-w-0 flex items-baseline flex-wrap gap-x-1.5">
+                    <span className={r.num ? 'num text-[17px] font-extrabold' : 'text-[15px] font-extrabold'}>{r.value}</span>
+                    {r.time && <span className="num text-[14px] font-bold text-label-secondary">{r.time}</span>}
+                  </span>
+                  {r.main && uncertain && (
+                    <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded"
+                      style={{ color: 'var(--status-info)', backgroundColor: 'color-mix(in srgb, var(--status-info) 14%, transparent)' }}>未確定</span>
+                  )}
+                </div>
+              ))}
+              {/* 会場・地域。長い場所（店舗一覧など）も折り返して全部見せる */}
+              {place && (
+                <div className="flex items-start gap-2.5 py-3" style={{ borderTop: timetable.length ? line : undefined }}>
+                  <span className="w-[18px] h-[18px] flex items-center justify-center flex-shrink-0"><MapPin size={16} className="text-label-secondary" /></span>
+                  <span className="w-[60px] flex-shrink-0 text-[12px] font-bold text-label-secondary leading-[18px]">場所</span>
+                  <span className="flex-1 min-w-0 text-[14px] font-semibold leading-snug">{place}</span>
+                </div>
+              )}
             </div>
 
             {/* ほかの人の追加・修正は「＋α」のパネルから。投稿者だけはここで直せる */}
             {canFix && (!editing ? (
-              <button onClick={() => { haptic.select(); setEditing(true); }} className="pressable mt-2 text-[12px]" style={{ color: 'var(--accent-text)' }}>日付を修正</button>
+              <button onClick={() => { haptic.select(); setEditing(true); }} className="pressable mt-2 text-[12px] font-semibold" style={{ color: 'var(--accent-text)' }}>日付を修正</button>
             ) : (
               <EventEditForm event={eff} onClose={() => setEditing(false)} onSave={onSaveEdit} />
             ))}
@@ -555,57 +573,19 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
                 removeEventSchedule(sid).catch(() => toast('消せませんでした', 'error'));
               }} />
 
-            {/* カレンダーに入っている予定だけ、この予定の色とアイコンを選べる */}
-            {!shared && liked && <EventStylePicker eventId={event.id} workId={event.workId} />}
-
-            {/* 行く日（期間のある予定のみ・イベント/グッズ共通）。選ぶと自分のカレンダーはその日だけ表示する。
-                2026-11-06 柴野: 日付の入力欄から、会期のカレンダーをタップして選ぶ形に（ボードの試作と同じ）。ふだんはたたんでおく */}
-            {!shared && user && !!eff.endDate && eff.endDate !== eff.date && (
-              <div className="mt-3 rounded-[12px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-                <VisitPicker eventId={event.id} date={eff.date} endDate={eff.endDate} visits={visits} userId={user.id} foldable
-                  onChange={(next) => {
-                    // 行く日を足す＝自分のカレンダーに出したいので、いいねも付く（addEventVisit が付ける）
-                    if (next.length > visits.length && !liked) setLike(event.id, { liked: true, count: likeCount + 1 });
-                    setVisits(next);
-                  }} />
-              </div>
-            )}
-
-            {/* 価格（セット品バッジ＋取得日「M/D時点」で価格の誤解を防ぐ）
-                代表は実効値(eff)から選ぶ。取り消されたリンクの価格・セット・取得日を出し続けると、
-                「リンクが違うから取り消した」のに誤った価格が残ってしまう。 */}
-            {(() => {
-              // 代表販路に値段が無いときの控えは eff.price（元の event.price ではない）。
-              // リンクが取り消されていれば applyEdits が残った販路の値段に直している（無ければ値段なし）。
-              const prim = primaryOffer(getOffers(eff));
-              const price = eff.priceEdited ? eff.price : (prim?.price ?? eff.price);
-              // 種類違いが並ぶ予定は「¥330〜¥1,980」と幅で出す（人が値段を直していればそちら）
-              const range = eff.priceEdited ? null : priceRange(getOffers(eff));
-              if (price == null && !range) return null;
-              return (
-                <div className="mt-2 flex items-baseline flex-wrap gap-2">
-                  <span className="num text-[28px] font-extrabold">
-                    {range ? `¥${range.min.toLocaleString()}〜¥${range.max.toLocaleString()}` : `¥${price!.toLocaleString()}`}
-                  </span>
-                  {prim?.isSet && <span className="text-[11px] font-bold text-label-secondary px-1.5 py-0.5 rounded" style={{ background: 'var(--fill-tertiary, rgba(120,120,128,0.12))' }}>セット</span>}
-                  {prim?.fetchedAt && <span className="text-[11px] text-label-tertiary">{new Date(prim.fetchedAt).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}時点</span>}
-                </div>
-              );
-            })()}
-
             {/* 共有ページ: 押せるのは共有だけ。いいねの数は文字で出す。購入リンクは中身の中に（X から来た人に一番役に立つ） */}
             {shared && (
               <div className="mt-5 flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-1.5 text-[13px] text-label-secondary">
-                    {likeCount > 0 && <><Heart size={15} fill="var(--accent-color)" style={{ color: 'var(--accent-color)' }} />{likeCount}人がカレンダーに追加</>}
+                    {likeCount > 0 && <><Heart size={15} fill="var(--accent-color)" style={{ color: 'var(--accent-color)' }} /><span className="num font-bold text-label-primary">{likeCount}</span>人がカレンダーに追加</>}
                   </span>
                   <button onClick={onShare} className="pressable flex items-center gap-1 text-[13px] text-label-secondary" aria-label="共有">
                     <Share2 size={16} /> 共有
                   </button>
                 </div>
                 {buyMode !== 'none' && (
-                  <button onClick={openBuy} className="pressable w-full py-3 rounded-[10px] font-semibold flex items-center justify-center gap-2"
+                  <button onClick={openBuy} className="pressable w-full h-12 rounded-[14px] font-bold flex items-center justify-center gap-2"
                     style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
                     {buyMode === 'cart' ? <ShoppingCart size={18} /> : <ExternalLink size={18} />}
                     {buyMode === 'cart' || (retailer && !retailer.includes('.')) ? `購入する${retailer ? `（${retailer}）` : ''}` : '販売ページを開く'}
@@ -614,10 +594,9 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
               </div>
             )}
 
-            {/* アクション: いいね・リアクション・カレンダー・共有 */}
+            {/* アクション: いいね・スタンプ・通知・共有。囲まずに、細い線のあいだに並べる */}
             {!shared && (
-            <div className="relative mt-5">
-              <div className="flex items-center justify-around py-2 rounded-[12px] border border-subtle" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+              <div className="mt-5 flex items-center justify-around py-2.5" style={{ borderTop: line, borderBottom: line }}>
                 <button onClick={(e) => { if (!liked) likeEffect(e.currentTarget); onLike(); }} className="pressable flex flex-col items-center gap-0.5" aria-label="いいね">
                   <Heart size={22} fill={liked ? 'var(--accent-color)' : 'none'} style={{ color: liked ? 'var(--accent-color)' : 'var(--label-secondary)' }} />
                   <span className="text-[10px] text-label-tertiary leading-none">{likeCount > 0 ? likeCount : 'いいね'}</span>
@@ -630,17 +609,30 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
                   </button>
                 )}
                 <NotifyBell event={eff} liked={liked} onSave={onLike} variant="labeled" />
-                <span className="relative">
-                  {/* 「X で共有もできます」は、場面ごとのヒント（Hints.tsx の item-share）で、このボタンが画面に見えたときに出す。
-                      前はいいねした予定を開いた瞬間に出ていて、ボタンが画面の下に隠れていても出ていた（2026-11-07 柴野） */}
-                  <button data-hint="item-share" onClick={onShare} className="pressable flex flex-col items-center gap-0.5" aria-label="共有">
-                    <Share2 size={22} className="text-label-secondary" />
-                    <span className="text-[10px] text-label-tertiary leading-none">共有</span>
-                  </button>
-                </span>
+                {/* 「X で共有もできます」は、場面ごとのヒント（Hints.tsx の item-share）で、このボタンが画面に見えたときに出す。
+                    前はいいねした予定を開いた瞬間に出ていて、ボタンが画面の下に隠れていても出ていた（2026-11-07 柴野） */}
+                <button data-hint="item-share" onClick={onShare} className="pressable flex flex-col items-center gap-0.5" aria-label="共有">
+                  <Share2 size={22} className="text-label-secondary" />
+                  <span className="text-[10px] text-label-tertiary leading-none">共有</span>
+                </button>
               </div>
-            </div>
             )}
+
+            {/* 行く日（期間のある予定のみ・イベント/グッズ共通）。選ぶと自分のカレンダーはその日だけ表示する。
+                2026-11-06 柴野: 日付の入力欄から、会期のカレンダーをタップして選ぶ形に（ボードの試作と同じ）。ふだんはたたんでおく */}
+            {!shared && user && !!eff.endDate && eff.endDate !== eff.date && (
+              <div className="mt-4 rounded-[16px] px-3 py-3" style={{ backgroundColor: 'var(--bg-secondary)', boxShadow: 'inset 0 0 0 0.5px var(--separator)' }}>
+                <VisitPicker eventId={event.id} date={eff.date} endDate={eff.endDate} visits={visits} userId={user.id} foldable
+                  onChange={(next) => {
+                    // 行く日を足す＝自分のカレンダーに出したいので、いいねも付く（addEventVisit が付ける）
+                    if (next.length > visits.length && !liked) setLike(event.id, { liked: true, count: likeCount + 1 });
+                    setVisits(next);
+                  }} />
+              </div>
+            )}
+
+            {/* カレンダーに入っている予定だけ、この予定の色とアイコンを選べる */}
+            {!shared && liked && <EventStylePicker eventId={event.id} workId={event.workId} />}
 
             <PendingProposals event={eff} proposals={proposals} userId={user?.id ?? null}
               onAgree={(p) => { void submitProposal(p.patch, p.evidenceUrls); }} />
@@ -649,133 +641,135 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
             <DetailTabs tab={tab} onChange={(t) => { haptic.select(); setTab(t); }} />
             {tab === 'detail' && (
               <div>
-            {/* メモ */}
-            {event.memo && <p className="text-[14px] text-label-secondary whitespace-pre-wrap mt-3">{event.memo}</p>}
-
-                {!event.memo && <p className="text-[13px] text-label-tertiary mt-3">メモはまだありません</p>}
+                {/* メモ */}
+                {event.memo && <p className="text-[14px] leading-relaxed whitespace-pre-wrap mt-4">{event.memo}</p>}
+                {!event.memo && <p className="text-[13px] text-label-tertiary mt-4">メモはまだありません</p>}
               </div>
             )}
             {tab === 'links' && (
               <div>
-            {/* 購入リンク（共同編集で追記可・発売に向けて増える） */}
-            <div className="mt-4">
-              <div className="text-[12px] text-label-secondary mb-1.5">購入リンク（広告を含みます）</div>
-              {getOffers(eff).length === 0 && contribs.length === 0 && <p className="text-[13px] text-label-tertiary">購入リンクはまだありません</p>}
-              <div className="flex flex-col gap-1.5">
-                {getOffers(eff).map((o, i) => (
-                  <div key={`b${i}`} className="flex flex-col gap-1.5">
-                  <div className="flex items-center gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-                    <a href={offerUrl(o)} target="_blank" rel="noopener nofollow" onClick={() => haptic.select()}
-                      className="pressable flex-1 min-w-0 flex items-center justify-between gap-2">
-                      {/* 検索ページは商品ページと区別する（商品が特定できず価格も在庫も出ないため） */}
-                      <span className="text-[13px] truncate" style={o.inStock === false && !isStockStale(eff, o) ? { opacity: 0.55 } : undefined}>
-                        {/* 種類違いのリンクが並ぶときは名前（キャラ名など）を先に出す */}
-                        {o.label && <span className="font-semibold">{o.label}<span className="text-label-tertiary font-normal"> ・ </span></span>}
-                        {o.retailer || 'リンク'}{o.shop ? `（${o.shop}）` : ''}{isSearchPageUrl(o.url) && o.label !== '検索結果' ? '（検索）' : ''}
-                      </span>
-                      <span className="flex items-center gap-1.5 flex-shrink-0">
-                        {/* 在庫は決まった4つの札だけ出す（stockBadge）。未取得のときは何も出さない＝Cronが更新するまで無表示 */}
-                        {/* 節目（予約開始・終了・発売）より前に取ったきりの在庫は出さない（isStockStale） */}
-                        {(() => {
-                          const b = !isStockStale(eff, o) && stockBadge(o);
-                          if (!b) return null;
-                          const color = b.tone === 'ok' ? 'var(--color-success)' : b.tone === 'out' ? 'var(--color-destructive)' : 'var(--status-info)';
-                          return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ color, background: 'var(--fill-secondary, rgba(120,120,128,0.16))' }}>{b.text}</span>;
-                        })()}
-                        {o.isSet && <span className="text-[10px] font-bold text-label-secondary px-1.5 py-0.5 rounded" style={{ background: 'var(--fill-secondary, rgba(120,120,128,0.16))' }}>セット</span>}
-                        {o.url === cheapest && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ color: 'var(--accent-on)', background: 'var(--accent-color)' }}>最安</span>}
-                        <span className="text-[13px] font-bold" style={{ color: 'var(--accent-text)' }}>{o.price ? `¥${o.price.toLocaleString()}` : '開く ↗'}</span>
-                      </span>
-                    </a>
-                    {/* 入口は「修正」ひとつだけ。アイコンを2つ並べると tap-44 の44px判定が重なって
-                        手前のボタンに食われるうえ、Xでは何が起きるか字で説明できない。
-                        この機能の動機は「リンクがおかしいから消したい」なので、パネルの先頭は取り消し。 */}
-                    {canFix && (
-                      <button onClick={() => { haptic.select(); setReplaceUrl(''); setFixingUrl((prev) => (prev === o.url ? null : o.url)); }}
-                        className="pressable flex-shrink-0 text-[11px] px-2 py-1.5 text-label-tertiary">{fixingUrl === o.url ? '閉じる' : '修正'}</button>
-                    )}
+                {/* 購入リンク（共同編集で追記可・発売に向けて増える） */}
+                <div className="mt-4">
+                  <div className="flex items-baseline gap-2 pb-1">
+                    <span className="text-[13px] font-extrabold">購入リンク</span>
+                    <span className="text-[11px] text-label-tertiary">広告を含みます</span>
                   </div>
-                  {fixingUrl === o.url && (
-                    <div className="flex flex-col gap-2 rounded-[10px] border border-subtle px-3 py-2.5" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                      <button onClick={() => onRemoveOffer(o.url)} className="pressable text-left text-[13px] font-semibold" style={{ color: 'var(--color-destructive)' }}>このリンクを取り消す</button>
-                      <div className="border-t border-subtle" />
-                      <div className="flex gap-2">
-                        <input value={replaceUrl} onChange={(e) => setReplaceUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onReplaceOffer(o.url)}
-                          placeholder="正しいリンク（URL）" inputMode="url"
-                          className="flex-1 rounded-[10px] px-3 py-2 text-[13px] outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
-                        <button onClick={() => onReplaceOffer(o.url)} disabled={!replaceUrl.trim() || replacing}
-                          className="pressable px-3 rounded-[10px] text-[13px] font-semibold flex-shrink-0" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>差し替え</button>
+                  {getOffers(eff).length === 0 && contribs.length === 0 && <p className="text-[13px] text-label-tertiary py-2">購入リンクはまだありません</p>}
+                  <div className="flex flex-col">
+                    {getOffers(eff).map((o, i) => (
+                      <div key={`b${i}`} style={{ borderBottom: line }}>
+                        <div className="flex items-center gap-2 min-h-[52px] py-2">
+                          <a href={offerUrl(o)} target="_blank" rel="noopener nofollow" onClick={() => haptic.select()}
+                            className="pressable flex-1 min-w-0 flex items-center justify-between gap-2">
+                            {/* 検索ページは商品ページと区別する（商品が特定できず価格も在庫も出ないため） */}
+                            <span className="text-[14px] font-semibold truncate" style={o.inStock === false && !isStockStale(eff, o) ? { opacity: 0.55 } : undefined}>
+                              {/* 種類違いのリンクが並ぶときは名前（キャラ名など）を先に出す */}
+                              {o.label && <span className="font-bold">{o.label}<span className="text-label-tertiary font-normal"> ・ </span></span>}
+                              {o.retailer || 'リンク'}{o.shop ? `（${o.shop}）` : ''}{isSearchPageUrl(o.url) && o.label !== '検索結果' ? '（検索）' : ''}
+                            </span>
+                            <span className="flex items-center gap-1.5 flex-shrink-0">
+                              {/* 在庫は決まった4つの札だけ出す（stockBadge）。未取得のときは何も出さない＝Cronが更新するまで無表示 */}
+                              {/* 節目（予約開始・終了・発売）より前に取ったきりの在庫は出さない（isStockStale） */}
+                              {(() => {
+                                const b = !isStockStale(eff, o) && stockBadge(o);
+                                if (!b) return null;
+                                const color = b.tone === 'ok' ? 'var(--color-success)' : b.tone === 'out' ? 'var(--color-destructive)' : 'var(--status-info)';
+                                return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ color, background: 'var(--fill-tertiary)' }}>{b.text}</span>;
+                              })()}
+                              {o.isSet && <span className="text-[10px] font-bold text-label-secondary px-1.5 py-0.5 rounded" style={{ background: 'var(--fill-tertiary)' }}>セット</span>}
+                              {o.url === cheapest && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ color: 'var(--accent-on)', background: 'var(--accent-color)' }}>最安</span>}
+                              {o.price
+                                ? <span className="num text-[16px] font-extrabold">¥{o.price.toLocaleString()}</span>
+                                : <span className="text-[13px] font-bold" style={{ color: 'var(--accent-text)' }}>開く ↗</span>}
+                            </span>
+                          </a>
+                          {/* 入口は「修正」ひとつだけ。アイコンを2つ並べると tap-44 の44px判定が重なって
+                              手前のボタンに食われるうえ、Xでは何が起きるか字で説明できない。
+                              この機能の動機は「リンクがおかしいから消したい」なので、パネルの先頭は取り消し。 */}
+                          {canFix && (
+                            <button onClick={() => { haptic.select(); setReplaceUrl(''); setFixingUrl((prev) => (prev === o.url ? null : o.url)); }}
+                              className="pressable flex-shrink-0 text-[11px] font-semibold px-2 py-1.5 text-label-tertiary">{fixingUrl === o.url ? '閉じる' : '修正'}</button>
+                          )}
+                        </div>
+                        {fixingUrl === o.url && (
+                          <div className="flex flex-col gap-2 rounded-[14px] px-3 py-2.5 mb-2.5" style={{ backgroundColor: 'var(--bg-secondary)', boxShadow: 'inset 0 0 0 0.5px var(--separator)' }}>
+                            <button onClick={() => onRemoveOffer(o.url)} className="pressable text-left text-[13px] font-semibold" style={{ color: 'var(--color-destructive)' }}>このリンクを取り消す</button>
+                            <div style={{ borderTop: line }} />
+                            <div className="flex gap-2">
+                              <input value={replaceUrl} onChange={(e) => setReplaceUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onReplaceOffer(o.url)}
+                                placeholder="正しいリンク（URL）" inputMode="url"
+                                className="flex-1 min-w-0 h-10 rounded-[10px] px-3 text-[13px] outline-none" style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' }} />
+                              <button onClick={() => onReplaceOffer(o.url)} disabled={!replaceUrl.trim() || replacing}
+                                className="pressable px-3 rounded-[10px] text-[13px] font-bold flex-shrink-0" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>差し替え</button>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
+                    ))}
+                    {contribs.map((c) => (
+                      <div key={c.id} className="flex items-center gap-2 min-h-[52px] py-2" style={{ borderBottom: line }}>
+                        <a href={offerUrl(c.offer)} target="_blank" rel="noopener nofollow" onClick={() => haptic.select()} className="pressable flex-1 min-w-0 flex items-center justify-between gap-2">
+                          <span className="text-[14px] font-semibold truncate">{c.offer.label && <span className="font-bold">{c.offer.label} ・ </span>}{c.offer.retailer || 'リンク'}{c.offer.shop ? `（${c.offer.shop}）` : ''}{isSearchPageUrl(c.offer.url) ? '（検索）' : ''}<span className="text-[10px] font-normal text-label-tertiary"> ・ユーザー追加</span></span>
+                          {c.offer.price
+                            ? <span className="num text-[16px] font-extrabold flex-shrink-0">¥{c.offer.price.toLocaleString()}</span>
+                            : <span className="text-[13px] font-bold flex-shrink-0" style={{ color: 'var(--accent-text)' }}>開く ↗</span>}
+                        </a>
+                        {user && c.createdBy === user.id && (
+                          <button onClick={() => onRemoveContrib(c.id)} aria-label="削除" className="pressable tap-44 text-label-tertiary flex-shrink-0"><X size={15} /></button>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                ))}
-                {contribs.map((c) => (
-                  <div key={c.id} className="flex items-center gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-                    <a href={offerUrl(c.offer)} target="_blank" rel="noopener nofollow" onClick={() => haptic.select()} className="pressable flex-1 min-w-0 flex items-center justify-between gap-2">
-                      <span className="text-[13px] truncate">{c.offer.label && <span className="font-semibold">{c.offer.label} ・ </span>}{c.offer.retailer || 'リンク'}{c.offer.shop ? `（${c.offer.shop}）` : ''}{isSearchPageUrl(c.offer.url) ? '（検索）' : ''}<span className="text-[10px] text-label-tertiary"> ・ユーザー追加</span></span>
-                      <span className="text-[13px] font-bold flex-shrink-0" style={{ color: 'var(--accent-text)' }}>{c.offer.price ? `¥${c.offer.price.toLocaleString()}` : '開く ↗'}</span>
-                    </a>
-                    {user && c.createdBy === user.id && (
-                      <button onClick={() => onRemoveContrib(c.id)} aria-label="削除" className="pressable tap-44 text-label-tertiary flex-shrink-0"><X size={15} /></button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* ソース（どこで知ったか）。買えるページではないので購入リンクとは分けて並べる */}
-            {sources.length > 0 && (
-              <div className="mt-4">
-                <div className="text-[12px] text-label-secondary mb-1.5">ソース</div>
-                <div className="flex flex-col gap-1.5">
-                  {sources.map((sc) => (
-                    <div key={sc.editId + sc.url} className="flex items-center gap-2 rounded-[10px] px-3 py-2.5" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-                      <a href={sc.url} target="_blank" rel="noopener nofollow" onClick={() => haptic.select()}
-                        className="pressable flex-1 min-w-0 flex items-center justify-between gap-2">
-                        <span className="text-[13px] truncate">{sourceLabel(sc.url)}</span>
-                        <span className="text-[13px] font-bold flex-shrink-0" style={{ color: 'var(--accent-text)' }}>開く ↗</span>
-                      </a>
-                      {user && sc.by === user.id && (
-                        <button onClick={() => onRevertEdit(sc.editId)} aria-label="削除" className="pressable tap-44 text-label-tertiary flex-shrink-0"><X size={15} /></button>
-                      )}
-                    </div>
-                  ))}
                 </div>
-              </div>
-            )}
 
+                {/* ソース（どこで知ったか）。買えるページではないので購入リンクとは分けて並べる */}
+                {sources.length > 0 && (
+                  <div className="mt-5">
+                    <div className="text-[13px] font-extrabold pb-1">ソース</div>
+                    <div className="flex flex-col">
+                      {sources.map((sc) => (
+                        <div key={sc.editId + sc.url} className="flex items-center gap-2 min-h-[48px] py-2" style={{ borderBottom: line }}>
+                          <a href={sc.url} target="_blank" rel="noopener nofollow" onClick={() => haptic.select()}
+                            className="pressable flex-1 min-w-0 flex items-center justify-between gap-2">
+                            <span className="text-[14px] font-semibold truncate">{sourceLabel(sc.url)}</span>
+                            <span className="text-[13px] font-bold flex-shrink-0" style={{ color: 'var(--accent-text)' }}>開く ↗</span>
+                          </a>
+                          {user && sc.by === user.id && (
+                            <button onClick={() => onRevertEdit(sc.editId)} aria-label="削除" className="pressable tap-44 text-label-tertiary flex-shrink-0"><X size={15} /></button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             {tab === 'stock' && (
               <div>
-            {/* 在庫 */}
-            {event.stockNote && (
-              <div className="mt-2 flex items-start gap-2">
-                <Package size={16} className="text-label-secondary mt-0.5 flex-shrink-0" />
-                <div className="text-[14px]">{event.stockNote}</div>
-              </div>
-            )}
+                {/* 在庫 */}
+                {event.stockNote && (
+                  <div className="mt-4 flex items-start gap-2">
+                    <Package size={16} className="text-label-secondary mt-0.5 flex-shrink-0" />
+                    <div className="text-[14px]">{event.stockNote}</div>
+                  </div>
+                )}
 
-            {/* 在庫情報（共同編集・追記ログ） */}
-            <div className="mt-4">
-              <div className="text-[12px] text-label-secondary mb-1.5">在庫情報</div>
-              {stockReports.length === 0 && <p className="text-[13px] text-label-tertiary">在庫の報告はまだありません</p>}
-              {stockReports.length > 0 && (
-                <div className="flex flex-col gap-1.5 mb-2">
-                  {stockReports.map((r) => (
-                    <div key={r.id} className="flex items-start gap-2 rounded-[10px] px-3 py-2" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[13px]">{r.note}</div>
-                        <div className="text-[10px] text-label-tertiary">{r.createdAt.slice(5, 10).replace('-', '/')}</div>
-                      </div>
-                      {user && r.createdBy === user.id && <button onClick={() => onRemoveStock(r.id)} aria-label="削除" className="pressable tap-44 text-label-tertiary flex-shrink-0"><X size={15} /></button>}
+                {/* 在庫情報（共同編集・追記ログ） */}
+                <div className="mt-4">
+                  <div className="text-[13px] font-extrabold pb-1">在庫情報</div>
+                  {stockReports.length === 0 && <p className="text-[13px] text-label-tertiary py-2">在庫の報告はまだありません</p>}
+                  {stockReports.length > 0 && (
+                    <div className="flex flex-col">
+                      {stockReports.map((r) => (
+                        <div key={r.id} className="flex items-start gap-2 py-2.5" style={{ borderBottom: line }}>
+                          <span className="num w-[38px] flex-shrink-0 text-[12px] font-bold text-label-secondary pt-px">{r.createdAt.slice(5, 10).replace('-', '/').replace(/^0/, '')}</span>
+                          <div className="flex-1 min-w-0 text-[14px]">{r.note}</div>
+                          {user && r.createdBy === user.id && <button onClick={() => onRemoveStock(r.id)} aria-label="削除" className="pressable tap-44 text-label-tertiary flex-shrink-0"><X size={15} /></button>}
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
-              )}
-            </div>
-
               </div>
             )}
             {tab === 'contributors' && (
@@ -784,7 +778,7 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
             )}
 
             {/* 通報（確認ダイアログあり）。共有ページでは出さない */}
-            <div className={shared ? 'hidden' : 'mt-3'}>
+            <div className={shared ? 'hidden' : 'mt-6'}>
               <button onClick={onReport} disabled={reported} className="pressable text-[12px] text-label-tertiary">
                 {reported ? '通報しました' : '通報する'}
               </button>
@@ -794,20 +788,20 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
 
         {/* 共有ページの固定バー: アプリへの案内は1本だけ */}
         {shared && (
-          <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-app border-t border-separator px-4 py-3"
-            style={{ backgroundColor: 'color-mix(in srgb, var(--bg-primary) 92%, transparent)', backdropFilter: 'blur(20px)', paddingBottom: 'calc(var(--sab) + 12px)' }}>
-            <button onClick={() => { haptic.select(); setGetAppOpen(true); }} className="pressable w-full py-3 rounded-[10px] font-semibold flex items-center justify-center gap-1.5 text-[14px]"
+          <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-app px-4 pt-2.5"
+            style={{ backgroundColor: 'var(--bg-primary)', borderTop: line, paddingBottom: 'calc(var(--sab) + 10px)' }}>
+            <button onClick={() => { haptic.select(); setGetAppOpen(true); }} className="pressable w-full h-12 rounded-[14px] font-bold flex items-center justify-center gap-1.5 text-[14px]"
               style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
               <BellRing size={18} /> アプリでカレンダーに追加・締切前に通知
             </button>
           </div>
         )}
 
-        {/* 固定バー: 購入/公式リンク */}
+        {/* 固定バー: 購入/公式リンク。下のナビと同じ、細い線1本の平らなバー */}
         {!shared && buyMode !== 'none' && (
-          <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-app border-t border-separator px-4 py-3"
-            style={{ backgroundColor: 'color-mix(in srgb, var(--bg-primary) 92%, transparent)', backdropFilter: 'blur(20px)', paddingBottom: 'calc(var(--sab) + 12px)' }}>
-            <button onClick={openBuy} className="pressable w-full py-3 rounded-[10px] font-semibold flex items-center justify-center gap-2"
+          <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-app px-4 pt-2.5"
+            style={{ backgroundColor: 'var(--bg-primary)', borderTop: line, paddingBottom: 'calc(var(--sab) + 10px)' }}>
+            <button onClick={openBuy} className="pressable w-full h-12 rounded-[14px] font-bold flex items-center justify-center gap-2"
               style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
               {buyMode === 'cart' ? <ShoppingCart size={18} /> : <ExternalLink size={18} />}
               {/* 店名が分かる販路（アフィ未提携のアニメイト等も）は「購入する」。前は一律「公式サイトを開く」で、
@@ -818,16 +812,16 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
         )}
 
         {/* ＋α: 情報を足す入口。購入バーがあるときはその上に重ねる。
-            色は購入バー（アクセント）と分ける＝主役は購入のままにする */}
+            色は購入バー（アクセント）と分ける＝主役は購入のままにする。2026-11-07: 白い丸に、＋（アクセント）とα */}
         {user && (
           <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-app z-30 pointer-events-none"
-            style={{ paddingBottom: `calc(var(--sab) + ${buyMode !== 'none' ? 108 : 36}px)` }}>
+            style={{ paddingBottom: `calc(var(--sab) + ${buyMode !== 'none' ? 88 : 28}px)` }}>
             <div className="flex justify-end px-4">
               <button onClick={() => { haptic.select(); setAddOpen(true); }} aria-label="情報を追加・修正"
-                className="pressable shadow-float pointer-events-auto w-14 h-14 rounded-full relative flex items-center justify-center"
-                style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', color: 'var(--accent-text)' }}>
-                <Plus size={15} strokeWidth={3.5} className="absolute left-3 top-3" />
-                <span className="text-[26px] font-black leading-none" style={{ transform: 'translate(3px, 3px)' }}>α</span>
+                className="pressable shadow-float pointer-events-auto w-[52px] h-[52px] rounded-full flex items-center justify-center gap-px"
+                style={{ backgroundColor: 'var(--bg-primary)', boxShadow: 'inset 0 0 0 0.5px var(--separator)' }}>
+                <Plus size={16} strokeWidth={3.2} style={{ color: 'var(--accent-color)' }} className="-mt-2" />
+                <span className="text-[24px] font-extrabold leading-none -mt-0.5">α</span>
               </button>
             </div>
           </div>
@@ -860,6 +854,65 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
   );
 }
 
+/** 「締切まで」「あと3日」→ 小さい見出しと、大きな数字（カレンダーのボードと同じ見せ方）。3日以内は締切の赤 */
+function BigCountdown({ label, value }: { label: string; value: string }) {
+  const m = value.match(/^あと(約)?(\d+)(.*)$/);
+  const soon = m ? !m[1] && Number(m[2]) <= 3 && m[3] === '日' : /^本日/.test(value);
+  const ink = soon ? MARKS['〆'].color : 'var(--label-primary)';
+  return (
+    <div className="min-w-0" style={{ color: ink }}>
+      {label && <div className="text-[12px] font-bold" style={{ color: soon ? ink : 'var(--label-secondary)' }}>{label}</div>}
+      {m ? (
+        <div className="flex items-baseline mt-0.5">
+          <span className="text-[13px] font-extrabold mr-0.5">あと{m[1] ?? ''}</span>
+          <span className="num text-[46px] font-extrabold leading-[0.9]">{m[2]}</span>
+          <span className="text-[15px] font-extrabold ml-0.5">{m[3]}</span>
+        </div>
+      ) : <div className="text-[26px] font-extrabold leading-tight">{value}</div>}
+    </div>
+  );
+}
+
+/** 表の頭の印（〆受発・イベント）。日付が無い行は空けておく */
+function MarkBox({ mark }: { mark: Mark | null }) {
+  if (!mark) return <span className="w-[18px] flex-shrink-0" />;
+  const k = MARKS[mark];
+  return (
+    <b className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-[5px] text-[11px] flex-shrink-0"
+      style={{ backgroundColor: k.color, color: k.ink }}>{mark}</b>
+  );
+}
+
+const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
+/** 「11/20（金）」。今年でなければ年を頭に付ける */
+function mdw(s: string, today: string): string {
+  const y = s.slice(0, 4) !== today.slice(0, 4) ? `${s.slice(0, 4)}/` : '';
+  return `${y}${Number(s.slice(5, 7))}/${Number(s.slice(8, 10))}（${WEEKDAYS[new Date(s + 'T00:00:00').getDay()]}）`;
+}
+
+type DateRow = { mark: Mark | null; label: string; value: string; time?: string; num: boolean; past: boolean; main?: boolean };
+
+/** 詳細の日付の表。予約の始まり（受）・締切（〆）・発売（発）／開催（イ）を1行ずつ */
+function dateRows(e: CalendarEvent, goods: boolean, today: string): DateRow[] {
+  const rows: DateRow[] = [];
+  if (e.preorderStart) rows.push({ mark: '受', label: goods ? '予約開始' : '受付開始', value: mdw(e.preorderStart, today), time: e.preorderStartTime ?? undefined, num: true, past: e.preorderStart < today });
+  if (e.preorderEnd) rows.push({ mark: '〆', label: goods ? '予約締切' : '受付締切', value: mdw(e.preorderEnd, today), time: e.preorderEndTime ?? undefined, num: true, past: e.preorderEnd < today });
+  const mark: Mark = goods ? '発' : 'イ';
+  const label = goods ? '発売' : '開催';
+  if (e.dateLabel) {
+    // 曖昧日付（11月下旬・春頃など）は詳細の一覧と同じ書き方（itemDateLines）
+    const l = itemDateLines(e).find((x) => x.startsWith(`${label} `));
+    rows.push({ mark, label, value: l ? l.slice(label.length + 1) : '未定', num: false, past: false, main: true });
+  } else if (e.date) {
+    const end = e.endDate && e.endDate !== e.date ? e.endDate : null;
+    const time = e.time ? `${e.time}${e.endTime ? `〜${e.endTime}` : ''}` : undefined;
+    rows.push({ mark, label, value: `${mdw(e.date, today)}${end ? `〜${mdw(end, today)}` : ''}`, time, num: true, past: (end ?? e.date) < today, main: true });
+  } else {
+    rows.push({ mark: null, label: goods ? '発売日' : '日付', value: '未定', num: false, past: false, main: true });
+  }
+  return rows;
+}
+
 /** ソースの見出し。Xのポストは「Xのポスト」、それ以外はドメインで出す */
 function sourceLabel(url: string): string {
   try {
@@ -877,17 +930,16 @@ const TABS: { key: DetailTab; label: string }[] = [
   { key: 'contributors', label: 'Contributors' },
 ];
 
-/** 詳細の下半分の切り替え。選んでいるものの下に線を引く */
+/** 詳細の下半分の切り替え。探すの上部と同じ（太い字・選んでいるものだけ黒い下線） */
 function DetailTabs({ tab, onChange }: { tab: DetailTab; onChange: (t: DetailTab) => void }) {
   return (
-    <div className="mt-5 flex border-b border-subtle" role="tablist">
+    <div className="mt-7 flex items-end gap-5" role="tablist" style={{ borderBottom: '0.5px solid var(--separator)' }}>
       {TABS.map((t) => (
         <button key={t.key} role="tab" aria-selected={tab === t.key} onClick={() => onChange(t.key)}
-          className="pressable flex-1 py-2.5 text-[13px] font-semibold relative"
+          className="pressable relative pb-2 pt-1 text-[15px] font-extrabold whitespace-nowrap"
           style={{ color: tab === t.key ? 'var(--label-primary)' : 'var(--label-tertiary)' }}>
           {t.label}
-          <span className="absolute left-3 right-3 -bottom-px h-[2px] rounded-full"
-            style={{ backgroundColor: 'var(--accent-color)', opacity: tab === t.key ? 1 : 0, transition: 'opacity 0.2s' }} />
+          {tab === t.key && <span className="absolute inset-x-0 -bottom-px h-[2.5px] rounded-full" style={{ backgroundColor: 'var(--label-primary)' }} />}
         </button>
       ))}
     </div>
@@ -908,8 +960,8 @@ function Contributors({ authorId, authorName, others, onOpen }: {
   }, [others.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
   const row = (id: string | null, name: string, role: string) => (
     <button key={id ?? 'author'} disabled={!id} onClick={() => id && onOpen(id)}
-      className="pressable w-full flex items-center gap-2 py-2.5 border-b border-subtle text-left">
-      <span className="text-[14px] font-medium flex-1 min-w-0 flex items-center gap-1"><span className="truncate">{name}</span>{isOfficialUser(id) && <OfficialBadge />}</span>
+      className="pressable w-full flex items-center gap-2 min-h-[48px] py-2 text-left" style={{ borderBottom: '0.5px solid var(--separator)' }}>
+      <span className="text-[14px] font-semibold flex-1 min-w-0 flex items-center gap-1"><span className="truncate">{name}</span>{isOfficialUser(id) && <OfficialBadge />}</span>
       <span className="text-[11px] text-label-tertiary flex-shrink-0">{role}</span>
     </button>
   );
