@@ -43,7 +43,8 @@ function claimsOf(p: Patch): string[] {
   if ('preorderEnd' in p) out.push(`予約・受付の締切が ${p.preorderEnd ?? 'なし'}`);
   if ('isOrderMade' in p) out.push(p.isOrderMade ? '予約・受注販売がある' : '予約・受注販売ではない');
   if (typeof p.saleStatus === 'string') out.push(`今の状態が「${STATUS_WORD[p.saleStatus] ?? p.saleStatus}」`);
-  if (typeof p.price === 'number') out.push(`値段が ${p.price}円（税込）`);
+  // 幅（priceMax）は、種類で値段が分かれる予定（2026-11-07）。古いアプリからは来ない
+  if (typeof p.price === 'number') out.push(typeof p.priceMax === 'number' ? `値段が ${p.price}〜${p.priceMax}円（税込・種類によって違う）` : `値段が ${p.price}円（税込）`);
   if (p.addedOfferUrl) out.push(`${p.addedOfferUrl} はこの予定の商品の販売ページ`);
   return out;
 }

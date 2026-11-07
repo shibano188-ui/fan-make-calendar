@@ -32,6 +32,7 @@ import { haptic } from '../lib/haptics';
 import { usePremium } from '../lib/premium';
 import { useTourStep, tourEventId, tourLikedEvent } from '../components/OnboardingTour';
 import { useBackToClose } from '../lib/backStack';
+import { useSearchSuggest, SuggestList, normalizeSearch, namesByReading, matchesSearch } from '../components/ui/SearchSuggest';
 
 // 「予約受付中」は状態の選択肢と重なるので外した（前に選んでいた人は「すべて」に戻る）
 type Tab = 'all' | 'mine' | 'notify';
@@ -225,8 +226,9 @@ export default function Saved() {
     let list = (items ?? []).filter((e) => !isHidden(e));
     if (tab === 'mine') list = list.filter((e) => e.authorId === user?.id);
     if (tab === 'notify') list = list.filter((e) => isNotifyOn(e.id));
-    const q = query.trim().toLowerCase();
-    if (q) list = list.filter((e) => `${e.title} ${e.workName ?? ''} ${e.category ?? ''}`.toLowerCase().includes(q));
+    // かなのまま（変換の前）でも当たるように、ひらがな・カタカナをそろえ、作品の読みも見る（2026-11-07）
+    const q = normalizeSearch(query);
+    if (q) { const byReading = namesByReading(q); list = list.filter((e) => matchesSearch(e, q, byReading)); }
     return list;
   }, [items, tab, user?.id, query, isHidden]);
 
@@ -315,6 +317,8 @@ export default function Saved() {
 
   // 自分用の予定は詳細ページが無いので、押したら編集を開く
   const openItem = (e: CalendarEvent) => navigate(e.personal ? `/personal/${e.id}` : `/item/${e.id}`);
+  // 検索の候補（打っている途中から出す・2026-11-07）。カレンダーに入っている予定から
+  const suggest = useSearchSuggest(query, items);
 
   // オンボーディングの案内（OnboardingTour）で、いいねした予定を見せているところ。
   // 絞り込み・タブに関係なく必ず出し、その日のパネルを開いたままにする
@@ -383,6 +387,10 @@ export default function Saved() {
         <div className="flex items-center gap-1 h-11">
           {/* 見出し。右の虫眼鏡を押すと、見出しと入れ替わって検索欄に広がる */}
           <ExpandingSearch value={query} onChange={setQuery} placeholder="カレンダーの予定を検索" sideRef={sideRef}
+            suggest={<SuggestList query={query} works={suggest.works} events={suggest.events}
+              onWork={(w) => { setQuery(w.name); (document.activeElement as HTMLElement | null)?.blur(); }}
+              onEvent={(e) => openItem(e)}
+              onAll={() => (document.activeElement as HTMLElement | null)?.blur()} allLabel="カレンダーで見る" />}
             title={
               <div className="flex items-center gap-2 min-w-0">
                 <h1 className="flex items-baseline gap-0.5 whitespace-nowrap">

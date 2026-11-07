@@ -42,6 +42,7 @@ export type CalendarEvent = {
   type?: 'event' | 'goods'; // 既定は event（DBは default 'event'）
   price?: number;           // グッズ価格（円）
   priceEdited?: boolean;    // ＋αで値段が直された（実効値だけに付く。販路の値段より優先して出す）
+  priceMax?: number | null; // ＋αで値段を幅で入れたときの上限（price が下限）。種類で値段が分かれるもの（2026-11-07）。DB の列は無く、修正の記録（event_edits）にだけある
   stockNote?: string;       // 在庫コメント（最新の追記ログ要約など）
   retailer?: string;        // 販路名（animate / あみあみ / プレバン 等）※offers[0]の要約
   affiliateUrl?: string;    // アフィリンク化後のURL ※offers[0]の要約

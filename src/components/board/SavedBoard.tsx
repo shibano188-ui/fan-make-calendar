@@ -8,6 +8,7 @@ import { todayStr, deriveItemType } from '../../design/tokens';
 import { daysBetween } from '../../lib/relativeDay';
 import { haptic } from '../../lib/haptics';
 import { parseImageUrls } from '../../lib/constants';
+import { priceSpan } from '../../lib/affiliate';
 import { stripWorkName } from '../../lib/stripWorkName';
 import { buildWorkColorMap } from '../../lib/workColors';
 import { MARKS, buildDays, longEvents, undatedMoments, splitTentative, type Mark, type Moment } from './boardModel';
@@ -872,6 +873,8 @@ function ItemRow({ m, today, dot, onOpen, onRemove, hideMark, onDrag }: {
       </CalendarSwipeRow>
     );
   }
+  // ＋αで直した値段（幅も）・種類違いのリンクの幅を出す（「¥330〜」）
+  const span = priceSpan(e);
   const sub = m.mark === '行' || (m.mark === 'イ' && m.end)
     ? `${m.mark === '行' ? (m.end ? `${md(m.day)}〜${md(m.end)}・` : '') : ''}会期 ${e.date ? mdy(e.date, today) : ''}${e.endDate ? `〜${mdy(e.endDate, today)}` : ''}`
     : null;
@@ -892,7 +895,7 @@ function ItemRow({ m, today, dot, onOpen, onRemove, hideMark, onDrag }: {
           </span>
           <span className="text-[12px] tabular-nums">
             {sub ? <span className="text-label-secondary">{sub}</span>
-              : e.price ? <b className="num text-[15px] font-extrabold">¥{e.price.toLocaleString('ja-JP')}</b>
+              : span ? <b className="num text-[15px] font-extrabold">¥{span.min.toLocaleString('ja-JP')}{span.max > span.min ? '〜' : ''}</b>
               : deriveIsGoods(e) ? <span className="text-label-tertiary text-[11px]">価格未定</span> : null}
           </span>
         </span>

@@ -1206,7 +1206,7 @@ export async function updateEventOffers(eventId: string, offers: Offer[]): Promi
 }
 
 // ── 共同編集: 日時/状態の編集パッチ ──
-export type EventPatch = Partial<Pick<CalendarEvent, 'date' | 'dateLabel' | 'endDate' | 'time' | 'isOrderMade' | 'preorderStart' | 'preorderEnd' | 'price' | 'saleStatus'>> & {
+export type EventPatch = Partial<Pick<CalendarEvent, 'date' | 'dateLabel' | 'endDate' | 'time' | 'isOrderMade' | 'preorderStart' | 'preorderEnd' | 'price' | 'priceMax' | 'saleStatus'>> & {
   /** 取り消された購入リンクのURL。events.offers は書き換えず、実効値の計算時に除外する。
    * 日付編集と同じく履歴に残り「戻す」で復活できる（誰でも取り消せる＝共同編集）。 */
   removedOfferUrls?: string[];

@@ -20,7 +20,7 @@ export function describePatch(p: EditProposal['patch'], type: CalendarEvent['typ
   if ('preorderEnd' in p) out.push(`予約締切を ${md(p.preorderEnd)} に`);
   if ('isOrderMade' in p) out.push(p.isOrderMade ? '予約・受注ありに' : '予約・受注なしに');
   if (p.saleStatus) out.push(`${type === 'goods' ? '発売状況' : '開催状況'}を「${type === 'goods' && p.saleStatus === 'ended' ? '売り切れ' : STATUS[p.saleStatus][type === 'goods' ? 'goodsLabel' : 'eventLabel']}」に`);
-  if (typeof p.price === 'number') out.push(`値段を ¥${p.price.toLocaleString()} に`);
+  if (typeof p.price === 'number') out.push(`値段を ¥${p.price.toLocaleString()}${typeof p.priceMax === 'number' ? `〜¥${p.priceMax.toLocaleString()}` : ''} に`);
   if (p.addedOfferUrl) {
     let host = p.addedOfferUrl;
     try { host = new URL(p.addedOfferUrl).host.replace(/^www\./, ''); } catch { /* そのまま */ }

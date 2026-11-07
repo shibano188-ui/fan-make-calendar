@@ -27,6 +27,7 @@ import { storySince, freeCutoff } from '../lib/story';
 import { useAdBanner } from '../lib/useAdBanner';
 import { useTourStep, finishTourNow } from '../components/OnboardingTour';
 import { useBackToClose } from '../lib/backStack';
+import { useSearchSuggest, SuggestList, normalizeSearch, namesByReading, matchesSearch } from '../components/ui/SearchSuggest';
 import SwipeRow from '../components/ui/SwipeRow';
 import Sheet from '../components/ui/Sheet';
 import { useDismissed, dismissEvent, restoreEvent } from '../lib/dismissed';
@@ -326,12 +327,17 @@ export default function Explore() {
     if (other) setMode((m) => (m === 'goods' ? 'event' : 'goods'));
   }, [touring, items, modeItems]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 検索の候補（打っている途中から出す・2026-11-07）。かなのままでも当たる
+  const suggest = useSearchSuggest(query, modeItems);
+
   const queryItems = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    // かなのまま（変換の前）でも当たるように、ひらがな・カタカナをそろえ、作品の読みも見る（2026-11-07）
+    const q = normalizeSearch(query);
     if (!q) return modeItems;
     // 略称（プロセカなど）は商品名に入っていないので、検索語に当たった作品の予定も出す
     const matchedWorks = new Set(workMatches.map((w) => w.id));
-    return modeItems.filter((e) => (e.workId && matchedWorks.has(e.workId)) || `${e.title} ${e.workName ?? ''} ${e.category ?? ''}`.toLowerCase().includes(q));
+    const byReading = namesByReading(q);
+    return modeItems.filter((e) => (e.workId && matchedWorks.has(e.workId)) || matchesSearch(e, q, byReading));
   }, [modeItems, query, workMatches]);
 
   // 検索クエリログ（データ資産化②の素材）: 入力が1秒落ち着いたらヒット件数つきで記録
@@ -680,7 +686,11 @@ export default function Explore() {
         {/* 上段: 見出し・検索（虫眼鏡から広がる）・絞り込み。2026-11-07 デザインの一新でボタンを2つに絞った */}
         <div className="flex items-center gap-1 h-11">
           <ExpandingSearch value={query} onChange={setQuery} placeholder={mode === 'goods' ? 'グッズを検索' : 'イベントを検索'}
-            title={<h1 className="text-[24px] font-extrabold">探す</h1>} sideRef={sideRef} />
+            title={<h1 className="text-[24px] font-extrabold">探す</h1>} sideRef={sideRef}
+            suggest={<SuggestList query={query} works={suggest.works} events={suggest.events}
+              onWork={(w) => { setQuery(w.name); (document.activeElement as HTMLElement | null)?.blur(); }}
+              onEvent={(e) => { saveReturnPoint(e.id); navigate(`/item/${e.id}`); }}
+              onAll={() => (document.activeElement as HTMLElement | null)?.blur()} />} />
           <SearchSideButtons ref={sideRef} gap={2}>
           <button onClick={() => { haptic.select(); setFilterOpen((v) => !v); }}
             aria-label="絞り込み" aria-pressed={filterOpen}

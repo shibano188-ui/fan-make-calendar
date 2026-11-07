@@ -79,7 +79,8 @@ export default function HintLayer() {
     let timer: ReturnType<typeof setTimeout>;
     const look = () => {
       // シート・ダイアログ・案内が開いているときは待つ
-      if (document.querySelector('[role="dialog"]') || document.body.dataset.tourStep) { timer = setTimeout(look, 1000); return; }
+      // シート・検索の候補が開いている間は出さない
+      if (document.querySelector('[role="dialog"], [data-search-suggest]') || document.body.dataset.tourStep) { timer = setTimeout(look, 1000); return; }
       const seen = loadSeen();
       const onPath = (h: Hint) => (h.path.length > 1 && h.path.endsWith('/') ? pathname.startsWith(h.path) : h.path === pathname);
       const found = HINTS.filter((h) => onPath(h) && !seen.has(h.id))

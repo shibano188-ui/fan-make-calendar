@@ -238,6 +238,18 @@ export function priceRange(offers: Offer[]): { min: number; max: number } | null
   return min === max ? null : { min, max };
 }
 
+/** 予定の値段（幅があれば min〜max）。＋αで人が直した値段（幅で入れたものも）を一番に、
+ *  次に種類違いのリンクの幅、無ければ fallback（ふつうは代表の値段）。値段が無ければ null */
+export function priceSpan(e: BuyFields & Pick<CalendarEvent, 'priceEdited' | 'priceMax'>, fallback = e.price): { min: number; max: number } | null {
+  if (e.priceEdited && typeof e.price === 'number') {
+    const max = typeof e.priceMax === 'number' && e.priceMax > e.price ? e.priceMax : e.price;
+    return { min: e.price, max };
+  }
+  const r = priceRange(getOffers(e));
+  if (r) return r;
+  return typeof fallback === 'number' ? { min: fallback, max: fallback } : null;
+}
+
 export function isSearchPageUrl(url: string): boolean {
   return !!url && SEARCH_PAGE_PATTERNS.some((re) => re.test(url));
 }

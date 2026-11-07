@@ -10,7 +10,7 @@ import { useToast } from '../components/ui/Toast';
 import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME, isOfficialUser, FEATURE_PREMIUM } from '../lib/constants';
 import OfficialBadge from '../components/ui/OfficialBadge';
 import { deriveItemType, itemDateLines, todayStr, isDateUncertain, stageFlow } from '../design/tokens';
-import { resolveBuy, getOffers, offerUrl, primaryOffer, isSearchPageUrl, isSourceOnlyLink, priceRange, isStockStale, stockBadge, cheapestOfferUrl } from '../lib/affiliate';
+import { resolveBuy, getOffers, offerUrl, primaryOffer, isSearchPageUrl, isSourceOnlyLink, priceSpan, isStockStale, stockBadge, cheapestOfferUrl } from '../lib/affiliate';
 import { buildPinnedOffer } from '../lib/searchProduct';
 import { openBuyLink } from '../lib/dataLogs';
 import { useShareEvent } from '../hooks/useShareEvent';
@@ -50,7 +50,7 @@ function summarizePatch(p: EventPatch): string {
   if (p.removedOfferUrls?.length) parts.push(`購入リンクを取り消し（${p.removedOfferUrls.length}件）`);
   if (p.addedSourceUrls?.length) parts.push(`ソースを追加（${p.addedSourceUrls.length}件）`);
   if (p.addedNote) parts.push('詳しい情報を追加');
-  if (typeof p.price === 'number') parts.push(`値段 ¥${p.price.toLocaleString()}`);
+  if (typeof p.price === 'number') parts.push(`値段 ¥${p.price.toLocaleString()}${typeof p.priceMax === 'number' ? `〜¥${p.priceMax.toLocaleString()}` : ''}`);
   if ('date' in p) parts.push(`日付 ${p.date ? p.date.slice(5).replace('-', '/') : '未定'}`);
   if (p.endDate) parts.push(`〜${p.endDate.slice(5).replace('-', '/')}`);
   if (p.time) parts.push(p.time);
@@ -401,10 +401,10 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
   // 代表販路に値段が無いときの控えは eff.price（元の event.price ではない）。
   // リンクが取り消されていれば applyEdits が残った販路の値段に直している（無ければ値段なし）。
   const prim = primaryOffer(getOffers(eff));
-  const priceNow = eff.priceEdited ? eff.price : (prim?.price ?? eff.price);
-  // 種類違いが並ぶ予定は「¥330〜¥1,980」と幅で出す（人が値段を直していればそちら）
-  const range = eff.priceEdited ? null : priceRange(getOffers(eff));
-  const priceText = range ? `¥${range.min.toLocaleString()}〜¥${range.max.toLocaleString()}` : priceNow != null ? `¥${priceNow.toLocaleString()}` : null;
+  // 種類違いが並ぶ予定は「¥330〜¥1,980」と幅で出す。人が値段を直していればそちら（＋αで幅でも入れられる・2026-11-07）
+  const span = priceSpan(eff, prim?.price ?? eff.price);
+  const range = span && span.max > span.min ? span : null;
+  const priceText = range ? `¥${range.min.toLocaleString()}〜¥${range.max.toLocaleString()}` : span ? `¥${span.min.toLocaleString()}` : null;
   const timetable = dateRows(eff, type === 'goods', todayStr());
   // 日付が未定・曖昧（9月下旬・春頃など）なら、まだ確かでないことを添える（終わった予定には出さない）
   const uncertain = isDateUncertain(eff) && (() => { const f = stageFlow(eff); return f.current < f.steps.length - 1; })();

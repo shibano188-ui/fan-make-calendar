@@ -25,6 +25,7 @@ import {
 import StoryViewer, { type StoryPosition } from '../components/story/StoryViewer';
 import { WorkStoryCard, WeekStoryCard, AddWorkCard } from '../components/story/WorkStoryCard';
 import { useWorkImagePicker } from '../components/story/useWorkImagePicker';
+import { useSearchSuggest, SuggestList } from '../components/ui/SearchSuggest';
 
 // ホーム（2026-10-04 作り直し・柴野）。仕様 → Obsidian: Decisions/2026-10-04-fanhive-home-story-premium.md
 //   上: プロフィール（アイコン・名前・称号・ヌシ・連続記録・追加した予定）
@@ -158,6 +159,9 @@ export default function Home() {
     seen, since, cutoff, colors: workColorMap, images: workImages, isHidden,
   }), [items, follows, seen, since, cutoff, workColorMap, workImages, isHidden]);
   const weekGroup = useMemo(() => buildWeekGroup(items ?? [], followIds, seen, isHidden), [items, followIds, seen, isHidden]);
+  // 検索の候補（打っている途中から出す）。探すと同じく、フォロー中の作品の予定から
+  const followedItems = useMemo(() => (items ?? []).filter((e) => e.workId && followIds.has(e.workId) && !isHidden(e)), [items, followIds, isHidden]);
+  const suggest = useSearchSuggest(query, followedItems);
   const allGroups = useMemo(() => [weekGroup, ...workGroups], [weekGroup, workGroups]);
   const weekCounts = useMemo(() => ({
     deadline: weekGroup.pages.filter((p) => p.badge?.includes('締切')).length,
@@ -258,7 +262,11 @@ export default function Home() {
         <div className="flex items-center h-11">
           <ExpandingSearch value={query} onChange={setQuery} placeholder="グッズ・イベントを検索"
             onSubmit={(q) => navigate(`/explore?q=${encodeURIComponent(q)}`)}
-            title={<h1 className="text-[24px] font-extrabold">ホーム</h1>} />
+            title={<h1 className="text-[24px] font-extrabold">ホーム</h1>}
+            suggest={<SuggestList query={query} works={suggest.works} events={suggest.events}
+              onWork={(w) => navigate(`/explore?q=${encodeURIComponent(w.name)}`)}
+              onEvent={(e) => navigate(`/item/${e.id}`)}
+              onAll={() => navigate(`/explore?q=${encodeURIComponent(query.trim())}`)} />} />
         </div>
       </div>
       <WorkFollowSheet open={followSheetOpen} onClose={() => setFollowSheetOpen(false)} onChanged={reloadFollows} />

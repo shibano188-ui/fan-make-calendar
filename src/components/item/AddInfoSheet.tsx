@@ -6,6 +6,7 @@ import Sheet from '../ui/Sheet';
 import EventEditForm from './EventEditForm';
 import { haptic } from '../../lib/haptics';
 import { STATUS, deriveStatus, deriveItemType, type ItemStatus } from '../../design/tokens';
+import { priceSpan } from '../../lib/affiliate';
 
 // 予定詳細の「＋α」から開く、情報を足す・直すためのパネル。
 // 画面いっぱいには広げない（元の予定を見ながら足せるように半分くらい）。
@@ -45,8 +46,14 @@ export default function AddInfoSheet({ event, onClose, onSaveEdit, onAddLink, on
   const [stocks, setStocks] = useState<string[]>(['']);
   const [note, setNote] = useState('');
   // 値段の修正（グッズのみ）。販路から取れた値段が違うとき・取れないときに直す。日時と同じ共同編集
+  // 種類で値段が分かれるもの（1,000〜2,000円など）は、〜のあとにも入れて幅にする（2026-11-07 柴野）
   const [price, setPrice] = useState('');
-  const priceNum = /^\d+$/.test(price.trim().replace(/[,，円¥￥]/g, '')) ? Number(price.trim().replace(/[,，円¥￥]/g, '')) : null;
+  const [priceTo, setPriceTo] = useState('');
+  const toNum = (v: string) => { const t = v.trim().replace(/[,，円¥￥\s]/g, '').replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0)); return /^\d+$/.test(t) && Number(t) > 0 ? Number(t) : null; };
+  const priceNums = [toNum(price), toNum(priceTo)].filter((n): n is number => n != null).sort((a, b) => a - b);
+  const priceNum = priceNums[0] ?? null;
+  const priceMaxNum = priceNums.length === 2 && priceNums[1] > priceNums[0] ? priceNums[1] : null;
+  const now = priceSpan(event);
   // 種別は詳細ページと同じ決め方（カテゴリ優先）。DB の type が event のままのグッズがある
   const isGoods = deriveItemType(event) === 'goods';
   const [busy, setBusy] = useState(false);
@@ -67,9 +74,11 @@ export default function AddInfoSheet({ event, onClose, onSaveEdit, onAddLink, on
     if (datePatch || saleStatus || priceNum != null) {
       // 売り切れは ended として保存する（soldout は画面だけの状態。tokens.ts）
       const stored = saleStatus === 'soldout' ? 'ended' : saleStatus;
-      const patch: EventPatch = { ...(datePatch ?? {}), ...(stored ? { saleStatus: stored } : {}), ...(priceNum != null ? { price: priceNum } : {}) };
+      // 1つの値段にしたときは、前に幅で入っていた上限を消す（修正の記録は古い順に重なるため）
+      const pricePatch: EventPatch = priceNum == null ? {} : priceMaxNum != null ? { price: priceNum, priceMax: priceMaxNum } : { price: priceNum, ...(event.priceMax ? { priceMax: null } : {}) };
+      const patch: EventPatch = { ...(datePatch ?? {}), ...(stored ? { saleStatus: stored } : {}), ...pricePatch };
       if ((await onSaveEdit(patch, written(urls))) === false) ok = false;
-      else { setDatePatch(null); setSaleStatus(null); setPrice(''); }
+      else { setDatePatch(null); setSaleStatus(null); setPrice(''); setPriceTo(''); }
     }
     const leftUrls: string[] = [];
     for (const u of written(urls)) if ((await onAddLink(u)) === false) { leftUrls.push(u); ok = false; }
@@ -168,11 +177,15 @@ export default function AddInfoSheet({ event, onClose, onSaveEdit, onAddLink, on
             {rowsField(urls, setUrls, 'リンク（URL）', true)}
             {isGoods && (
               <>
-                <p className="text-[12px] text-label-secondary mt-5">値段が違う・出ていないとき（税込）</p>
+                <p className="text-[12px] text-label-secondary mt-5">
+                  値段が違う・出ていないとき（税込）{now && <span className="ml-1.5">今は <span className="num font-bold text-label-primary">¥{now.min.toLocaleString()}{now.max > now.min ? `〜¥${now.max.toLocaleString()}` : ''}</span></span>}
+                </p>
                 <div className="flex items-center gap-2 mt-2">
-                  <input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="numeric"
-                    placeholder={event.price != null ? `今は ¥${event.price.toLocaleString()}` : '例: 1650'}
-                    className={`num font-bold ${inputCls}`} style={inputStyle} />
+                  <input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="numeric" aria-label="値段"
+                    placeholder="例: 1650" className={`num font-bold ${inputCls}`} style={inputStyle} />
+                  <span className="text-[14px] text-label-tertiary flex-shrink-0">〜</span>
+                  <input value={priceTo} onChange={(e) => setPriceTo(e.target.value)} inputMode="numeric" aria-label="値段の上限（種類で違うとき）"
+                    placeholder="種類で違えば" className={`num font-bold ${inputCls}`} style={inputStyle} />
                   <span className="text-[14px] text-label-secondary flex-shrink-0">円</span>
                 </div>
               </>

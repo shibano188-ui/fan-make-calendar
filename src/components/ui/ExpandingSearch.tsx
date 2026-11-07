@@ -26,12 +26,14 @@ export const SearchSideButtons = forwardRef<HTMLDivElement, { gap: number; child
   <div ref={ref} data-gap={gap} className="flex items-center flex-shrink-0" style={{ gap }}>{children}</div>
 ));
 
-export default function ExpandingSearch({ value, onChange, placeholder, title, onSubmit, sideRef }: {
+export default function ExpandingSearch({ value, onChange, placeholder, title, onSubmit, sideRef, suggest }: {
   value: string; onChange: (v: string) => void; placeholder: string; title: ReactNode;
   /** Enter を押したとき（ホームは探すへ移る）。無ければキーボードを閉じるだけ */
   onSubmit?: (v: string) => void;
   /** 入力中（開いていて、キーボードが出ているか、まだ何も入れていない）に畳む横のボタン（SearchSideButtons） */
   sideRef?: RefObject<HTMLDivElement>;
+  /** 打っている途中に検索欄の下へ出す候補（SearchSuggest の SuggestList）。キーボードが出ていて、何か入っているときだけ */
+  suggest?: ReactNode;
 }) {
   const areaRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
@@ -44,6 +46,27 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
   const [open, setOpen] = useState(!!value);
   const [focused, setFocused] = useState(false);
   const [shield, setShield] = useState(false);
+  // 候補の一覧。キーボードを閉じたら少し待ってから消す（候補を押した瞬間に入力欄が外れて、押す前に消えないように）
+  const [suggestOn, setSuggestOn] = useState(false);
+  useEffect(() => {
+    if (focused) { setSuggestOn(true); return; }
+    const t = setTimeout(() => setSuggestOn(false), 250);
+    return () => clearTimeout(t);
+  }, [focused]);
+  const [suggestTop, setSuggestTop] = useState(0);
+  const [viewH, setViewH] = useState(() => window.visualViewport?.height ?? window.innerHeight);
+  useLayoutEffect(() => {
+    if (!suggestOn) return;
+    const place = () => {
+      setSuggestTop((areaRef.current?.getBoundingClientRect().bottom ?? 0) + 8);
+      setViewH(window.visualViewport?.height ?? window.innerHeight);
+    };
+    place();
+    const vv = window.visualViewport;
+    vv?.addEventListener('resize', place);
+    window.addEventListener('resize', place);
+    return () => { vv?.removeEventListener('resize', place); window.removeEventListener('resize', place); };
+  }, [suggestOn]);
 
   // 横のボタンは一瞬で畳む（幅を動かしながら欄を広げると、広がる先が動き続けて重く長く見える）。戻すときだけふわっと出す。
   // 下の開閉の動きより先に走らせる（畳んだあとの幅で動きを決めるため。同じ描画の中で上から順に走る）
@@ -154,6 +177,18 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
           )}
         </div>
       </div>
+      {/* 打っている途中の候補。上部バー（z-20）・透明な板・場面ごとのヒント（z-240）より上に重ねる */}
+      {suggest && suggestOn && open && value.trim() && createPortal(
+        <div data-search-suggest className="fixed inset-x-0 mx-auto max-w-app px-3" style={{ top: suggestTop, zIndex: 250 }}>
+          <div className="rounded-[18px] overflow-y-auto overscroll-contain"
+            style={{ backgroundColor: 'var(--bg-primary)', boxShadow: '0 10px 30px rgba(0,0,0,0.16), 0 0 0 0.5px var(--separator)', maxHeight: Math.max(160, viewH - suggestTop - 12) }}
+            // マウスで押したときに入力欄が外れないように（スマホは上の「少し待ってから消す」で受ける）
+            onPointerDown={(e) => { if (e.pointerType === 'mouse') e.preventDefault(); }}>
+            {suggest}
+          </div>
+        </div>,
+        document.body,
+      )}
       {/* キーボードが出ている間の透明な板。上部バー（z-20）より下、中身より上 */}
       {shield && createPortal(
         <div className="fixed inset-0" style={{ zIndex: 15, touchAction: 'none' }}

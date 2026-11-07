@@ -11,7 +11,7 @@ import type { StoryGroup } from '../../lib/story';
 import { deriveStatus, deriveItemType, itemDateLines } from '../../design/tokens';
 import { parseImageUrls } from '../../lib/constants';
 import { optimizedImage } from '../../lib/image';
-import { getOffers, priceRange, isStockStale, stockBadge, offerUrl, isSearchPageUrl, isAffiliateUrl, isOfficialOffer } from '../../lib/affiliate';
+import { getOffers, priceSpan, isStockStale, stockBadge, offerUrl, isSearchPageUrl, isAffiliateUrl, isOfficialOffer } from '../../lib/affiliate';
 import type { Offer } from '../../types';
 import { useLike, setLike } from '../../lib/likeStore';
 import { syncNotifyWithLike } from '../../lib/notifications';
@@ -166,8 +166,8 @@ export default function StoryViewer({ groups, initial, onClose, onSeen, onOpenDe
   const e = page.event;
   const type = deriveItemType(e);
   const img = parseImageUrls(e.imageUrl)[0];
-  const range = priceRange(getOffers(e));
-  const price = range ? `¥${range.min.toLocaleString()}〜` : e.price != null ? `¥${e.price.toLocaleString()}` : null;
+  const span = priceSpan(e);
+  const price = span ? `¥${span.min.toLocaleString()}${span.max > span.min ? '〜' : ''}` : null;
   const shops = storyShops(e);
 
   // 下のタブ（z-[100]）より上に出す。親の重なり順に左右されないよう body の直下に描く
