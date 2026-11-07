@@ -310,10 +310,12 @@ export default function Explore() {
       if (isHidden(e)) return false;
       // 新着だけのときはグッズもイベントも出す（ホームの新着の数と揃える。片方だけだと、もう片方が残り続けた）
       if (newOnly) return true;
-      if (mode === 'goods') return deriveItemType(e) === 'goods' || parseCategories(e.category).includes(GOODS_TAG);
+      // 案内の間はグッズだけ（「グッズあり」のイベントは出さない）。イベントは会期・行く日の考えがあり、最初の案内には向かない
+      // ので、イベントの欄が見えたときのヒント（cal-visit）で説明する（2026-11-07 柴野）
+      if (mode === 'goods') return deriveItemType(e) === 'goods' || (!touring && parseCategories(e.category).includes(GOODS_TAG));
       return deriveItemType(e) === 'event';
     }),
-    [items, mode, followed, isHidden, tourFallbackWorkId, newOnly],
+    [items, mode, followed, isHidden, tourFallbackWorkId, newOnly, touring],
   );
 
   // 案内の間、今の表示（グッズ／イベント）にこれからの予定が無くて、もう片方にはあるなら切り替える
@@ -679,7 +681,8 @@ export default function Explore() {
           <ExpandingSearch value={query} onChange={setQuery} placeholder={mode === 'goods' ? 'グッズを検索' : 'イベントを検索'}
             title={<span className="text-[22px] font-bold tracking-tight">探す</span>} sideRef={sideRef} />
           <SearchSideButtons ref={sideRef} gap={8}>
-          <ModeToggle mode={mode} onToggle={() => { haptic.select(); setMode((m) => (m === 'goods' ? 'event' : 'goods')); }} />
+          {/* 案内の間は切り替えさせない（グッズで案内する） */}
+          {!touring && <ModeToggle mode={mode} onToggle={() => { haptic.select(); setMode((m) => (m === 'goods' ? 'event' : 'goods')); }} />}
           <UnreadButton unread={unread.n} total={unread.total} active={showUnseenOnly}
             onClick={() => { haptic.select(); setShowUnseenOnly((v) => !v); }} />
           <EndedButton active={showEnded} count={endedCount} onClick={toggleEnded} />

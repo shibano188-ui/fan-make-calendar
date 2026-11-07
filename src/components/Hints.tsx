@@ -16,7 +16,7 @@ import { loadHintsSeen, markHintsSeen } from '../lib/hintsSeen';
 
 type Hint = {
   id: string;
-  /** その画面のパス（前方一致ではなく一致） */
+  /** その画面のパス。'/' で終わるものは前方一致（'/item/' は予定の詳細すべて）、それ以外は一致 */
   path: string;
   /** 指す部品。画面に見えていないときは出さない */
   find: () => Element | null;
@@ -38,6 +38,7 @@ const HINTS: Hint[] = [
   // カレンダー（ボード）。cal-overview・cal-swipe は最初の案内でも説明する（案内を見た人には出ない）
   { id: 'cal-overview', path: '/saved', find: visible('[data-tour="calendar"]'), text: 'いつ何があるか、ここで見られます' },
   { id: 'cal-swipe', path: '/saved', find: visible('[data-board-day] [data-card-id]'), text: '右へ払うと通知、左へ払うと外せます' },
+  { id: 'cal-visit', path: '/saved', find: visible('[data-hint="cal-visit"]'), text: '押すと、行く日を選べます' },
   { id: 'cal-fold', path: '/saved', find: visible('[aria-hidden="false"] > button[aria-label="カレンダーを開く"]'), text: '押すとカレンダーが開きます' },
   { id: 'cal-undated', path: '/saved', find: visible('[data-undated-drop]'), text: '長押しで、好きな場所へ仮置きできます' },
   { id: 'cal-view', path: '/saved', find: visible('button[aria-label="表示を切り替える"]'), text: '月・週・日・リストにも切り替えられます' },
@@ -49,6 +50,8 @@ const HINTS: Hint[] = [
   { id: 'ex-swipe', path: '/explore', find: visible('[data-event-id]'), text: '右へ払うと追加、左へ払うと非表示' },
   { id: 'ex-stamp', path: '/explore', find: visible('[data-hint="ex-stamp"]'), text: 'スタンプを押した予定はここに' },
   { id: 'ex-follow', path: '/explore', find: visible('[data-hint="ex-follow"]'), text: '作品をフォローできます' },
+  // 予定の詳細（前は詳細を開いた瞬間に吹き出しが出ていた）
+  { id: 'item-share', path: '/item/', find: visible('[data-hint="item-share"]'), text: '気になる予定は X で共有もできます' },
   // マイページ
   { id: 'my-fanstar', path: '/mypage', find: visible('[data-hint="my-fanstar"]'), text: '投稿やいいねで星が育ちます' },
   { id: 'my-ranking', path: '/mypage', find: visible('[data-hint="my-ranking"]'), text: '投稿で点が入り、毎月の順位が決まります' },
@@ -78,7 +81,8 @@ export default function HintLayer() {
       // シート・ダイアログ・案内が開いているときは待つ
       if (document.querySelector('[role="dialog"]') || document.body.dataset.tourStep) { timer = setTimeout(look, 1000); return; }
       const seen = loadSeen();
-      const found = HINTS.filter((h) => h.path === pathname && !seen.has(h.id))
+      const onPath = (h: Hint) => (h.path.length > 1 && h.path.endsWith('/') ? pathname.startsWith(h.path) : h.path === pathname);
+      const found = HINTS.filter((h) => onPath(h) && !seen.has(h.id))
         .map((h) => ({ h, el: h.find() }))
         .filter((x): x is { h: Hint; el: Element } => !!x.el)
         .sort((a, b) => a.el.getBoundingClientRect().top - b.el.getBoundingClientRect().top)[0];

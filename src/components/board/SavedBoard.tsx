@@ -893,7 +893,7 @@ function Gantt({ list, today, colors, dot, onDetail, onVisit, onRemove }: {
                 <span className="flex-1 min-w-0 truncate text-[12px] font-semibold">{stripWorkName(e.title, e.workName)}</span>
                 <span className="text-[11px] text-label-secondary whitespace-nowrap tabular-nums">{rest}</span>
               </button>
-              <button className="pressable block w-full text-left" onClick={() => { haptic.select(); onVisit(e); }}>
+              <button data-hint="cal-visit" className="pressable block w-full text-left" onClick={() => { haptic.select(); onVisit(e); }}>
                 <span className="relative block h-3.5 mt-1.5">
                   <span className="absolute inset-x-0 top-[6px] h-[2px]" style={{ backgroundColor: 'var(--fill-tertiary)' }} />
                   {months.map((m) => <span key={m} className="absolute inset-y-0 w-px" style={{ left: `${x(m)}%`, backgroundColor: 'var(--separator)' }} />)}

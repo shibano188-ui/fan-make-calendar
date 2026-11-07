@@ -70,6 +70,9 @@ export function momentsOf(e: CalendarEvent): Moment[] {
       if (!(e.preorderStart && e.preorderStart === e.date && !hasPreorder)) push(e.date, '発');
     } else if (!visits.length) {
       push(e.date, 'イ', { end: e.endDate && e.endDate !== e.date ? e.endDate : undefined });
+      // 何日か続くイベントは、最終日にも出す（2026-11-07 柴野「始まっているイベントがカレンダーに出ない」。
+      // 始まる日が前の月だと、今月のカレンダーにもボードの日ごとの並びにも出なかった）
+      if (e.endDate && e.endDate > e.date) push(e.endDate, 'イ', { label: '最終日' });
     }
   }
   return out;

@@ -7,7 +7,7 @@ import StaffEditPanel from '../components/item/StaffEditPanel';
 import { getEventById, getWorkById, getDisplayName, toggleLike, getCalendarAddData, toggleCalendarAdd, listOfferContribs, addOfferContrib, removeOfferContrib, listStockReports, addStockReport, removeStockReport, reportEvent, listEventEdits, addEventEdit, removeEventEdit, applyEdits, listAllParticipatedWorks, upsertParticipation, leaveCalendar, listEventVisits, listEventSchedules, addEventSchedules, removeEventSchedule, getMyStaffRole, getPersonalEvent, proposeEdit, listEditProposals, type EditProposal, type OfferContrib, type StockReport, type EventEdit, type EventPatch } from '../lib/api';
 import { addToCalendar } from '../lib/googleCalendar';
 import { useToast } from '../components/ui/Toast';
-import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME, isOfficialUser, FEATURE_PREMIUM, ONBOARDING_KEY } from '../lib/constants';
+import { parseImageUrls, parseCategories, getPrimaryCategoryColor, addSeenEventId, ANON_NAME, isOfficialUser, FEATURE_PREMIUM } from '../lib/constants';
 import OfficialBadge from '../components/ui/OfficialBadge';
 import { deriveItemType, itemDateLines, todayStr, isDateUncertain, stageFlow } from '../design/tokens';
 import { resolveBuy, getOffers, offerUrl, primaryOffer, isSearchPageUrl, isSourceOnlyLink, priceRange, isStockStale, stockBadge, cheapestOfferUrl } from '../lib/affiliate';
@@ -35,7 +35,6 @@ import { useConfirm } from '../components/ui/ConfirmDialog';
 import { usePremium, canFollowMore, FREE_FOLLOW_LIMIT, useFeature, isPreorderSoon } from '../lib/premium';
 import PromoLine from '../components/ui/PromoLine';
 import { countdownLabel } from '../lib/relativeDay';
-import { useTourStep } from '../components/OnboardingTour';
 import GetAppSheet, { openAppHref } from '../components/item/GetAppSheet';
 import FanHiveMark from '../components/FanHiveMark';
 import { VisitPicker } from '../components/board/VisitSheet';
@@ -56,8 +55,6 @@ function summarizePatch(p: EventPatch): string {
   return parts.join(' ') || '変更';
 }
 
-// 初めていいねしたあと、共有ボタンに1回だけ出す吹き出し（2026-10-09 柴野）
-const SHARE_HINT_KEY = 'fan_share_hint_shown_v1';
 
 // shared … X などで共有された予定のページ（/e/:id・SharedItem）。ログインせずに見せる。
 //          ♡・リアクション・ベル・フォロー・ピンなどアプリでしかできないボタンは出さない（どれを押しても案内が出てうるさかった・2026-10-09 柴野）。
@@ -125,8 +122,6 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
   const [editing, setEditing] = useState(false); // 投稿者だけのその場編集（日付）
   const rootRef = useRef<HTMLDivElement>(null);
   const [getAppOpen, setGetAppOpen] = useState(false);
-  const tourStep = useTourStep();
-  const [shareHint, setShareHint] = useState(false);
   const shareEvent = useShareEvent();
 
   // 開いたら最上部から表示（前ページのスクロール位置を引き継がない）。
@@ -178,22 +173,6 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
     return () => { alive = false; };
   }, [id, user?.id]);
 
-  // 案内（オンボーディング）が終わってから、いいねした予定を見たときに1回だけ
-  useEffect(() => {
-    if (shared || !liked || tourStep) return;
-    try {
-      if (!localStorage.getItem(ONBOARDING_KEY) || localStorage.getItem(SHARE_HINT_KEY)) return;
-      localStorage.setItem(SHARE_HINT_KEY, '1');
-    } catch { return; }
-    setShareHint(true);
-  }, [shared, liked, tourStep]);
-  useEffect(() => {
-    if (!shareHint) return;
-    const hide = () => setShareHint(false);
-    const t = setTimeout(hide, 6000);
-    document.addEventListener('pointerdown', hide);
-    return () => { clearTimeout(t); document.removeEventListener('pointerdown', hide); };
-  }, [shareHint]);
 
   if (ev === undefined) {
     return <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg-primary)' }}>
@@ -642,18 +621,12 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
                 )}
                 <NotifyBell event={eff} liked={liked} onSave={onLike} variant="labeled" />
                 <span className="relative">
-                  <button onClick={onShare} className="pressable flex flex-col items-center gap-0.5" aria-label="共有">
+                  {/* 「X で共有もできます」は、場面ごとのヒント（Hints.tsx の item-share）で、このボタンが画面に見えたときに出す。
+                      前はいいねした予定を開いた瞬間に出ていて、ボタンが画面の下に隠れていても出ていた（2026-11-07 柴野） */}
+                  <button data-hint="item-share" onClick={onShare} className="pressable flex flex-col items-center gap-0.5" aria-label="共有">
                     <Share2 size={22} className="text-label-secondary" />
                     <span className="text-[10px] text-label-tertiary leading-none">共有</span>
                   </button>
-                  {shareHint && (
-                    <span className="absolute bottom-full right-[-8px] mb-2 z-10 whitespace-nowrap px-3 py-2 rounded-[10px] text-[12px] font-semibold shadow-float"
-                      style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
-                      気になる予定は X で共有もできます！
-                      <span className="absolute top-full right-[18px] w-0 h-0"
-                        style={{ borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderTop: '6px solid var(--accent-color)' }} />
-                    </span>
-                  )}
                 </span>
               </div>
             </div>
