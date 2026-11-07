@@ -237,6 +237,19 @@ body[data-tour-step="like"] [data-tour="like"] {
   border-radius: 9999px;
   animation: tourPulse 1.4s ease-out infinite;
 }
+/* 案内の途中は、案内している操作だけできるようにする（2026-11-07 柴野「途中で予定を押せてバグの温床になりそう」）
+   ・♡ の段階: 予定のカードは ♡ だけ押せる（カードを開く・払うはできない。スクロールはできる）
+   ・右へ払う段階: 行は払うことだけ（行の中のボタンを押して詳細を開く、はできない。払う動きは外側の箱が受ける） */
+body[data-tour-step="like"] [data-event-id] * {
+  pointer-events: none !important;
+}
+body[data-tour-step="like"] [data-event-id] [data-tour="like"],
+body[data-tour-step="like"] [data-event-id] [data-tour="like"] * {
+  pointer-events: auto !important;
+}
+body[data-tour-step="bell"] [data-swipe-row] * {
+  pointer-events: none !important;
+}
 body[data-tour-step] [data-bottom-nav] {
   pointer-events: none !important;
 }

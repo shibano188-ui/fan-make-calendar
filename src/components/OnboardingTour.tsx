@@ -295,6 +295,9 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
     const nearCard = step !== 'like' && card && card.top > top + 120;
     return (
       <div className="fixed inset-0 z-[250] pointer-events-none" style={fade}>
+        {/* 見せるだけの段階（♡した予定・通知がONに）は、真ん中も触れないようにする（予定を押して詳細へ行く・払う、などで案内が崩れる）。
+            ♡ の段階はスクロールして選ぶので塞がない（カードは ♡ だけ押せる・index.css） */}
+        {step !== 'like' && <div className="absolute inset-x-0 pointer-events-auto" style={{ top, bottom: vh - bottom, touchAction: 'none' }} />}
         {/* 上の幕。見出し・検索欄・作品の並びを覆う。探すの段は、その上に案内を載せる */}
         <div className="absolute inset-x-0 top-0 pointer-events-auto flex flex-col justify-end px-4 pb-3"
           // 高さは見出しの下端まで。吹き出しの方が高ければ伸ばす（上にはみ出して見出しが切れないように）
