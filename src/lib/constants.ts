@@ -417,12 +417,20 @@ export function setNotifyOn(id: string, on: boolean): Set<string> {
 // ─── ベルを押したときにONにするもの（通知の設定ページで選ぶ・既定はどちらもON）──────
 const BELL_PREFS_KEY = 'fan_bell_prefs';
 export interface BellPrefs { reminder: boolean; price: boolean; onLike: boolean; }
+// ♡で通知もONにする（onLike）は、2026-11-07 から既定を OFF にした（柴野「いいねで勝手に通知ONにするのはやめた方がいい」。
+// カレンダーで右へ払うと通知ON にしたため）。前の既定のまま ON だった人も OFF に戻す: 自分で選び直した印（onLikeChosen）が
+// 無ければ OFF として読む。通知の設定で ON にした人は、その印が付くので ON のまま
+type StoredBellPrefs = Partial<BellPrefs> & { onLikeChosen?: boolean };
 export function loadBellPrefs(): BellPrefs {
-  try { return { reminder: true, price: true, onLike: true, ...JSON.parse(localStorage.getItem(BELL_PREFS_KEY) ?? '{}') as Partial<BellPrefs> }; }
-  catch { return { reminder: true, price: true, onLike: true }; }
+  try {
+    const st = JSON.parse(localStorage.getItem(BELL_PREFS_KEY) ?? '{}') as StoredBellPrefs;
+    return { reminder: st.reminder ?? true, price: st.price ?? true, onLike: st.onLikeChosen ? st.onLike ?? false : false };
+  } catch { return { reminder: true, price: true, onLike: false }; }
 }
-export function saveBellPrefs(p: BellPrefs): void {
-  try { localStorage.setItem(BELL_PREFS_KEY, JSON.stringify(p)); } catch { /* noop */ }
+export function saveBellPrefs(p: BellPrefs, choseOnLike = false): void {
+  let chosen = choseOnLike;
+  try { chosen ||= !!(JSON.parse(localStorage.getItem(BELL_PREFS_KEY) ?? '{}') as StoredBellPrefs).onLikeChosen; } catch { /* noop */ }
+  try { localStorage.setItem(BELL_PREFS_KEY, JSON.stringify({ ...p, ...(chosen ? { onLikeChosen: true } : {}) })); } catch { /* noop */ }
 }
 
 // 無料の人が受付前のグッズのベルを押したときの「受付開始の瞬間の通知はプレミアムで」も週1回まで（2026-10-05）

@@ -40,13 +40,14 @@ export default function SchedulePanel({ schedules, canEdit, onAdd, onRemove }: {
   const inputStyle = { backgroundColor: 'var(--fill-tertiary)', color: 'var(--input-text)' };
 
   return (
-    <div className="mt-3">
-      {schedules.length > 0 && <div className="text-[12px] text-label-secondary mb-1.5">日程</div>}
-      <div className="flex flex-col gap-1.5">
+    <div className="mt-4">
+      {/* 2026-11-07 デザインの一新: 日付の表と同じく、細い線で区切った行に。日付は数字の書体 */}
+      {schedules.length > 0 && <div className="text-[13px] font-extrabold pb-1">日程</div>}
+      <div className="flex flex-col">
         {schedules.map((s) => (
-          <div key={s.id} className="flex items-center gap-2 text-[14px]">
-            <span className="font-semibold min-w-0 truncate">{s.label}</span>
-            <span className="text-label-secondary flex-shrink-0">{s.kind === 'preorder' ? (s.end ? `〜${md(s.end)} 締切` : `${md(s.start)}〜`) : scheduleWhen(s)}</span>
+          <div key={s.id} className="flex items-center gap-2 min-h-[44px] text-[14px]" style={{ borderBottom: '0.5px solid var(--separator)' }}>
+            <span className="font-bold min-w-0 truncate">{s.label}</span>
+            <span className="num font-bold text-label-secondary flex-shrink-0">{s.kind === 'preorder' ? (s.end ? `〜${md(s.end)} 締切` : `${md(s.start)}〜`) : scheduleWhen(s)}</span>
             {canEdit && (
               <button onClick={() => { haptic.select(); onRemove(s.id); }} aria-label={`${s.label}を消す`} className="pressable tap-44 ml-auto text-label-tertiary"><Trash2 size={15} /></button>
             )}
@@ -54,9 +55,9 @@ export default function SchedulePanel({ schedules, canEdit, onAdd, onRemove }: {
         ))}
       </div>
       {canEdit && (!open ? (
-        <button onClick={() => { haptic.select(); setOpen(true); }} className="pressable mt-1.5 text-[12px]" style={{ color: 'var(--accent-text)' }}>日程を足す（複数部・二次受付など）</button>
+        <button onClick={() => { haptic.select(); setOpen(true); }} className="pressable mt-2 text-[12px] font-semibold" style={{ color: 'var(--accent-text)' }}>日程を足す（複数部・二次受付など）</button>
       ) : (
-        <div className="mt-2 flex flex-col gap-2 rounded-[10px] p-2.5" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+        <div className="mt-2 flex flex-col gap-2 rounded-[16px] p-3" style={{ backgroundColor: 'var(--bg-secondary)', boxShadow: 'inset 0 0 0 0.5px var(--separator)' }}>
           <div className="grid grid-cols-2 gap-2">
             {(['session', 'preorder'] as const).map((k) => (
               <button key={k} onClick={() => { haptic.select(); setKind(k); }} aria-pressed={kind === k}

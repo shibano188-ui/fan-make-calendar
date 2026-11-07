@@ -2,6 +2,9 @@
 // 画像なしは 1080x810 の横長にして、引用されたときに縦に長くなりすぎないようにする（柴野 2026-10-06）。
 // 商品名は見切れさせない。長くて入らないときだけ縦に伸ばす。
 // 商品画像のある予定は、画像ありの版（1080x1350・前からの形）も「…_画像あり.png」として一緒に作る（柴野 2026-10-06。投稿するときに選べるように）
+// リンク先（公式サイト）の今の画像（og:image）が登録の画像と違えば、「…_公式サイトの画像.png」も作る（柴野 2026-11-07）。
+// イベントは開催に向けて公式の画像が新しくなるのに、登録の画像は最初の告知のままになるため。
+// 公式サイトの画像はサイト共通の絵のこともあるので、DB は書き換えず、投稿する人が見て選ぶ
 //
 //   node scripts/sns-schedule/spot.mjs                     きょう（日本時間）に節目がある予定を sns-out/直前/<日付>/ に書き出す
 //   node scripts/sns-schedule/spot.mjs 2026-10-09          日付を指定
@@ -99,10 +102,32 @@ const firstImage = (v) => {
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const KIND_COLOR = { '予約開始': '#1f7a4d', '受注開始': '#1f7a4d', '申込開始': '#1f7a4d', '予約締切': '#c0392b', '受注締切': '#c0392b', '申込締切': '#c0392b', '発売': '#1d1d1f', '開催': '#2456a6' };
 
-function cardHtml(work, e, date, withImage) {
+/** リンク先のページの og:image（無ければ null）。X などの SNS のリンクは見ない */
+const firstLink = (v) => {
+  if (!v) return null;
+  try { const a = JSON.parse(v); if (Array.isArray(a)) return a.find((s) => /^https?:/.test(s)) ?? null; } catch { /* 1つだけの文字列 */ }
+  return /^https?:/.test(v) ? v : null;
+};
+// ボットを断るサイト（haikyu.jp など）は読めないので、その予定は公式サイトの版を作らない（回避はしない）
+async function officialImage(e) {
+  const link = firstLink(e.link_url);
+  if (!link) return null;
+  try {
+    // 形の崩れたリンク（https: だけ等）で new URL が投げても、ほかの予定の書き出しは続ける
+    if (/(^|\.)(x|twitter|instagram|tiktok|youtube)\.com$|(^|\.)youtu\.be$/.test(new URL(link).hostname)) return null;
+    const r = await fetch(link, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FanHiveSnsImage/1.0; +https://fanhive.jp)' }, signal: AbortSignal.timeout(10_000) });
+    if (!r.ok) return null;
+    const html = (await r.text()).slice(0, 400_000);
+    const tag = html.match(/<meta[^>]+(?:property|name)=["'](?:og:image|twitter:image)["'][^>]*>/i)?.[0];
+    const src = tag?.match(/content=["']([^"']+)["']/i)?.[1];
+    return src ? new URL(src.replace(/&amp;/g, '&'), r.url || link).href : null;
+  } catch { return null; }
+}
+
+/** img: 載せる画像の URL（null なら画像なしの版）。credit: 画像の出どころの書き方 */
+function cardHtml(work, e, date, img, credit = '販売元のページ') {
   const all = milestones(e);
   const today = all.filter((m) => m.date === date);
-  const img = withImage ? firstImage(e.image_url) : null;
   const price = priceText(e);
   const shops = e.type === 'goods' ? shopsText(e) : '';
   const steps = all.map((m) => `<div class="step${m.date === date ? ' now' : m.date < date ? ' past' : ''}">
@@ -173,7 +198,7 @@ function cardHtml(work, e, date, withImage) {
       </div>
       <div class="qr">${QR}<div>ダウンロードはこちら</div></div>
     </div>
-    <div class="note">発売日・価格は変わることがあります。購入前に公式の情報をご確認ください${img ? '　画像：販売元のページより' : ''}</div>
+    <div class="note">発売日・価格は変わることがあります。購入前に公式の情報をご確認ください${img ? `　画像：${credit}より` : ''}</div>
   </body></html>`;
 }
 
@@ -238,7 +263,7 @@ const byDate = new Map(DATES.map((d) => [d, {}]));
 for (const work of targets) {
   const [w] = await get(`works?select=id,name&name=eq.${encodeURIComponent(work.name)}`);
   if (!w) throw new Error(`作品が見つからない: ${work.name}`);
-  const events = await get(`events?select=id,title,type,event_date,date_label,end_date,preorder_start_date,preorder_start_time,preorder_end_date,preorder_end_time,is_order_made,price,offers,image_url&work_id=eq.${w.id}&pool=eq.0&or=(${inRange('event_date')},${inRange('preorder_start_date')},${inRange('preorder_end_date')})&order=id&limit=1000`);
+  const events = await get(`events?select=id,title,type,event_date,date_label,end_date,preorder_start_date,preorder_start_time,preorder_end_date,preorder_end_time,is_order_made,price,offers,image_url,link_url&work_id=eq.${w.id}&pool=eq.0&or=(${inRange('event_date')},${inRange('preorder_start_date')},${inRange('preorder_end_date')})&order=id&limit=1000`);
   for (const e of events) {
     for (const d of new Set(milestones(e).map((m) => m.date))) if (byDate.has(d)) (byDate.get(d)[work.name] ??= []).push(e);
   }
@@ -255,17 +280,22 @@ for (const [date, perWork] of byDate) {
   for (const work of targets) {
     for (const e of (perWork[work.name] ?? []).sort((a, b) => a.title.localeCompare(b.title))) {
       const file = fileName(work.name, e, date);
-      await tab.setContent(cardHtml(work, e, date, false), { waitUntil: 'networkidle' });
+      await tab.setContent(cardHtml(work, e, date, null), { waitUntil: 'networkidle' });
       await tab.evaluate(() => document.fonts.ready);
       files[file] = await tab.screenshot({ fullPage: true });
       const shot = [file];
       // 画像ありの版。商品画像が無い・読めなかった予定は作らない（画像なしと同じになる・壊れた画像の枠を出さない）
-      if (firstImage(e.image_url)) {
-        await tab.setContent(cardHtml(work, e, date, true), { waitUntil: 'networkidle' });
+      const withImage = async (img, credit, suffix) => {
+        await tab.setContent(cardHtml(work, e, date, img, credit), { waitUntil: 'networkidle' });
         await tab.evaluate(() => document.fonts.ready);
         const ok = await tab.evaluate(() => { const i = document.querySelector('.pic img'); return !!i && i.complete && i.naturalWidth > 0; });
-        if (ok) { const f = file.replace(/\.png$/, '_画像あり.png'); files[f] = await tab.screenshot({ fullPage: true }); shot.push(f); }
-      }
+        if (ok) { const f = file.replace(/\.png$/, `_${suffix}.png`); files[f] = await tab.screenshot({ fullPage: true }); shot.push(f); }
+      };
+      const own = firstImage(e.image_url);
+      if (own) await withImage(own, '販売元のページ', '画像あり');
+      // 公式サイトの今の画像。登録の画像と同じなら作らない
+      const site = await officialImage(e);
+      if (site && site !== own) await withImage(site, '公式サイト', '公式サイトの画像');
       listed.push({ file: shot.join('／'), work: work.name, e });
     }
   }

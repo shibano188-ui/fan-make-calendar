@@ -24,7 +24,7 @@ import AccountSheet from '../components/AccountSheet';
 import { accountState, accountEmail, signOutAccount, deleteAccount } from '../lib/account';
 import FanStarChart from '../components/FanStarChart';
 import { calcTitle, calcRadarData, calcGrade, type AchievementStats } from '../lib/achievements';
-import { listMyNushi, getMyTotalRank, shortWorkName, NUSHI_BADGE_LIMIT, type WorkNushi } from '../lib/ranking';
+import { listMyNushi, shortWorkName, NUSHI_BADGE_LIMIT, type WorkNushi } from '../lib/ranking';
 import { REGIONS } from '../lib/prefectures';
 import { clearAccountScopedCache, FEATURE_GOOGLE_CALENDAR, FEATURE_PREMIUM, ANON_NAME, DEFAULT_AVATAR } from '../lib/constants';
 import { isGoogleConfigured, isGoogleLinked, linkGoogle, unlinkGoogle } from '../lib/googleCalendar';
@@ -57,7 +57,6 @@ export default function MyPage() {
   const navigate = useNavigate();
   const [stats, setStats] = useState<AchievementStats | null>(null);
   const [nushi, setNushi] = useState<WorkNushi[]>([]);
-  const [myRank, setMyRank] = useState<{ rank: number; score: number; total: number } | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [homePref, setHomePref] = useState('');
@@ -120,7 +119,6 @@ export default function MyPage() {
     getProfileExtras(user.id).then((x) => { if (!alive) return; setBio(x.bio ?? ''); setOshi(x.oshi ?? ''); setFavWorks(x.favWorks ?? ''); }).catch(() => {});
     // ランキングとヌシ。落ちてもプロフィールは出す（順位が出ないだけ）
     listMyNushi(user.id).then((ns) => alive && setNushi(ns)).catch(() => {});
-    getMyTotalRank(user.id).then((r) => alive && setMyRank(r)).catch(() => {});
     return () => { alive = false; };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -291,8 +289,8 @@ export default function MyPage() {
       )}
 
       {/* ファンスター（星形チャート: 実績が育つと星が大きくなる） */}
-      <div className="mt-4 rounded-[14px] border border-subtle px-2 py-1.5 mx-auto" style={{ backgroundColor: 'var(--bg-secondary)', maxWidth: 240 }}>
-        <div className="text-[11px] text-label-secondary px-1">ファンスター</div>
+      <div data-hint="my-fanstar" className="mt-4 px-2 py-1.5 mx-auto" style={{ maxWidth: 240 }}>
+        <div className="text-[12px] font-bold text-label-secondary text-center">ファンスター</div>
         {radar.length > 0
           ? <FanStarChart data={radar} size={190} />
           : <div className="h-[150px]" />}
@@ -300,11 +298,12 @@ export default function MyPage() {
 
       {/* 統計 */}
       {stats && (
-        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+        // 2026-11-07 デザインの一新: 箱をやめ、数字だけを大きく並べる
+        <div className="mt-4 grid grid-cols-3 py-3" style={{ borderTop: '0.5px solid var(--separator)', borderBottom: '0.5px solid var(--separator)' }}>
           {[['投稿', stats.posted], ['もらったいいね', stats.received], ['フォロー作品', stats.works]].map(([label, v]) => (
-            <div key={label} className="rounded-[10px] py-2" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-              <div className="text-[18px] font-bold">{v}</div>
-              <div className="text-[11px] text-label-secondary">{label}</div>
+            <div key={label} className="text-center">
+              <div className="num text-[28px] font-extrabold leading-none">{v}</div>
+              <div className="mt-1 text-[11px] font-semibold text-label-secondary">{label}</div>
             </div>
           ))}
         </div>
@@ -348,34 +347,10 @@ export default function MyPage() {
         )
       )}
 
-      {/* ランキングの入口。ボタンだけだと押す理由がないので、**今の順位をここに出す**。
-          順位が見えて初めて「あと少しで上がる」が働く。まだ誰も投稿していない月は
-          順位ではなく「席が空いている」を出す（空欄を見せない）。 */}
-      <button onClick={() => { haptic.select(); navigate('/ranking'); }}
-        className="pressable w-full flex items-center gap-3 mt-5 px-3 py-3 rounded-[12px] border border-subtle text-left"
-        style={{ backgroundColor: 'var(--bg-secondary)' }}>
-        <Crown size={18} style={{ color: 'var(--accent-color)' }} />
-        <div className="flex-1 min-w-0">
-          <div className="text-[14px] font-semibold">ランキング</div>
-          <div className="text-[11px] text-label-secondary">
-            {myRank === null
-              ? '今月はまだ誰も投稿していません'
-              : myRank.rank === 0
-                ? `今月はまだ0点（${myRank.total}人が参加中）`
-                : `今月 ${myRank.rank}位 / ${myRank.total}人・${myRank.score}点`}
-          </div>
-        </div>
-        {myRank !== null && myRank.rank > 0 && (
-          <span className="text-[20px] font-bold tabular-nums" style={{ color: 'var(--accent-color)' }}>
-            {myRank.rank}<span className="text-[12px] font-semibold">位</span>
-          </span>
-        )}
-        <ChevronRight size={16} className="text-label-tertiary" />
-      </button>
 
       {/* 設定 */}
       <div className="mt-5 text-[12px] text-label-secondary mb-1">設定</div>
-      <div className="rounded-[12px] border border-subtle divide-y" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-subtle)' }}>
+      <div className="rounded-[14px] overflow-hidden divide-y" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--separator)' }}>
         {/* バグ・改善の報告（2026-09-30）。何でも自由に書いてもらい、運営だけが読む。
             今は声を集めたい時期なので設定の一番上に置く（柴野） */}
         <button onClick={() => { haptic.select(); navigate('/feedback'); }}
@@ -472,7 +447,7 @@ export default function MyPage() {
         {/* 外部カレンダー連携（プレミアム）。購読URLだけで Apple / Google / Outlook に入れる */}
         {calendarSync && user && (
           <div className="px-3 py-2.5">
-            <button onClick={() => { haptic.select(); setIcsOpen((v) => !v); }} className="pressable w-full flex items-center gap-2 text-left">
+            <button data-hint="my-sync" onClick={() => { haptic.select(); setIcsOpen((v) => !v); }} className="pressable w-full flex items-center gap-2 text-left">
               <CalendarSync size={16} className="text-label-secondary" />
               <span className="text-[14px] flex-1">カレンダー連携</span>
               <ChevronRight size={16} className="text-label-tertiary" style={{ transform: icsOpen ? 'rotate(90deg)' : undefined }} />

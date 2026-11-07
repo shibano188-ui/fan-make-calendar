@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Heart, Bell, BellRing, BellOff, CalendarCheck, CalendarPlus, UserRound, Plus, Check, MessageCircle, Repeat2, BarChart2, Bookmark } from 'lucide-react';
+import { Heart, Bell, BellRing, BellOff, CalendarCheck, CalendarDays, CalendarPlus, UserRound, Plus, Check, MessageCircle, Repeat2, BarChart2, Bookmark } from 'lucide-react';
 import { notificationPermission } from '../lib/notifications';
 import type { CalendarEvent } from '../types';
 import { setAdsSuppressed } from '../lib/adSuppress';
 import { requestTracking } from '../lib/att';
 import { haptic } from '../lib/haptics';
 import { logScreen } from '../lib/screenLog';
+import { markHintsSeen } from '../lib/hintsSeen';
 import { ONBOARDING_KEY, TOUR_STEP_KEY, TOUR_EVENT_KEY, TOUR_EVENT, LIKED_EVENT, BELL_EVENT, FEATURE_PREMIUM, loadNotifyLeadDays } from '../lib/constants';
 
 // オンボーディングの続き: **本物の画面**で、これから使う操作を1回ずつやってもらう（2026-09-29 柴野）。
@@ -24,12 +25,12 @@ import { ONBOARDING_KEY, TOUR_STEP_KEY, TOUR_EVENT_KEY, TOUR_EVENT, LIKED_EVENT,
 //
 // 段階は端末に残す（途中でアプリを閉じても、次の起動で続きから）。
 
-export type TourStep = 'like' | 'calendar' | 'bell' | 'done' | 'post' | 'personal' | 'account';
+export type TourStep = 'like' | 'calview' | 'calendar' | 'bell' | 'done' | 'post' | 'personal' | 'account';
 
 function readStep(): TourStep | null {
   try {
     const v = localStorage.getItem(TOUR_STEP_KEY);
-    return v === 'like' || v === 'calendar' || v === 'bell' || v === 'done' || v === 'post' || v === 'personal' || v === 'account' ? v : null;
+    return v === 'like' || v === 'calview' || v === 'calendar' || v === 'bell' || v === 'done' || v === 'post' || v === 'personal' || v === 'account' ? v : null;
   } catch { return null; }
 }
 
@@ -87,15 +88,17 @@ export function startTour(noWork = false): void {
 }
 
 // 段階ごとの吹き出し。本文は短く（長いと読まれない）
+// 2026-11-07 柴野「文章が長くてAIくさい」→ 見出しだけで分かるように短く。本文は無くてよいものは無し
 const COPY: Record<TourStep, { icon: typeof Heart; title: string; body?: string }> = {
-  like: { icon: Heart, title: '気になる予定に ♡ を押してみよう', body: '♡ を押した予定は、カレンダーに入ります。' },
-  calendar: { icon: CalendarCheck, title: 'カレンダーに登録されました！' },
-  bell: { icon: Bell, title: 'ベルを押して通知をONにしよう', body: '発売日や締切の前にお知らせします。' },
+  like: { icon: Heart, title: '気になる予定に ♡', body: 'カレンダーに入ります' },
+  calview: { icon: CalendarDays, title: 'いつ何があるか、ここで見られます', body: '日付を押すと、その日の予定へ' },
+  calendar: { icon: CalendarCheck, title: '♡した予定が入りました', body: 'あと何日かで並びます' },
+  bell: { icon: Bell, title: '右へ払って、通知をON' },
   // 本文は通知の設定（何日前か）に合わせて Bubble で組み立てる
-  done: { icon: BellRing, title: 'これで通知が届きます！' },
-  post: { icon: Plus, title: '見つけた情報はここから', body: 'Xで見つけたら、ポストの共有ボタンから FanHive を選ぶだけ。AIが予定にします。' },
-  personal: { icon: CalendarPlus, title: '自分だけの予定はここから', body: 'カレンダーのこのボタンから、ほかの人には見えない自分用の予定を作れます。' },
-  account: { icon: UserRound, title: 'メールを登録しておくと安心です', body: '機種変更やアプリの入れ直しのときも、フォローやカレンダーをそのまま引き継げます。登録はあとからいつでもできます。' },
+  done: { icon: BellRing, title: '通知がONになりました' },
+  post: { icon: Plus, title: '見つけた情報はここから', body: 'Xの共有ボタンからも送れます' },
+  personal: { icon: CalendarPlus, title: '自分だけの予定はここから' },
+  account: { icon: UserRound, title: 'メールを登録しておくと安心', body: '機種変更しても引き継げます。あとからでも登録できます' },
 };
 
 // ベルを押したあと、通知が許可されなかったか（「これで通知が届きます」と言わないため）
@@ -105,7 +108,7 @@ let notifyDenied = false;
 function doneBody(): string {
   const lead = loadNotifyLeadDays();
   const when = lead > 0 ? `${lead}日前と当日の朝` : '当日の朝';
-  return `発売日や締切の${when}にお知らせします。マイページの「通知の設定」で細かく設定できます。`;
+  return `${when}にお知らせします`;
 }
 
 export default function OnboardingTour() {
@@ -141,7 +144,8 @@ export default function OnboardingTour() {
       if (event) likedEvent = { ...event, likedByMe: true };
       // ♡ の動きが見える分だけ待つ。カード（ItemCard）は保存の通信を待たずに知らせてくるので、ここが待ち時間のすべて
       setLeaving(true);
-      setTimeout(() => { setLeaving(false); writeStep('calendar'); navigate('/saved'); }, 400);
+      // 前は 400ms 待っていて、♡からカレンダーが出るまでが重く感じた（柴野）
+      setTimeout(() => { setLeaving(false); writeStep('calview'); navigate('/saved'); }, 220);
     };
     window.addEventListener(LIKED_EVENT, onLiked);
     return () => window.removeEventListener(LIKED_EVENT, onLiked);
@@ -152,7 +156,9 @@ export default function OnboardingTour() {
     if (step !== 'calendar' && step !== 'bell') return;
     const onBell = () => {
       // 許可されなかった（または端末で切られている）ときは「届きます」と言わない
-      notificationPermission().then((p) => { notifyDenied = p === 'denied' || p === 'prompt'; }).catch(() => {})
+      // 行が右へ飛んで戻ってくる（約1.1秒）のを待ってから次へ。途中で進むと、吹き出しが動いている行に合わせて出てしまう
+      const wait = new Promise((r) => setTimeout(r, 1100));
+      Promise.all([notificationPermission().then((p) => { notifyDenied = p === 'denied' || p === 'prompt'; }).catch(() => {}), wait])
         .finally(() => writeStep('done'));
     };
     window.addEventListener(BELL_EVENT, onBell);
@@ -168,6 +174,8 @@ export default function OnboardingTour() {
 
   const finish = async () => {
     try { localStorage.setItem(ONBOARDING_KEY, '1'); } catch { /* ignore */ }
+    // 案内で説明したことは、場面ごとのヒントでは出さない
+    markHintsSeen('cal-overview', 'cal-swipe');
     writeStep(null);
     setAdsSuppressed(false);
     // トラッキングの許可は案内が終わってから（通知の許可のダイアログは閉じ終わっている）
@@ -181,7 +189,8 @@ export default function OnboardingTour() {
   return <TourLayer step={step} leaving={leaving}
     onNext={() => {
       haptic.select();
-      if (step === 'calendar') writeStep('bell');
+      if (step === 'calview') writeStep('calendar');
+      else if (step === 'calendar') writeStep('bell');
       else if (step === 'done') writeStep('post');
       else if (step === 'post') writeStep('personal');
       else if (step === 'personal') { writeStep('account'); navigate('/mypage'); }
@@ -198,7 +207,7 @@ export default function OnboardingTour() {
 //
 //   like     … 上の見出しと下のタブを幕で覆い、予定の一覧だけ明るく残す（スクロールして選んでもらう）
 //   calendar … 同じく見出しとタブを覆い、カレンダー（その日に色が付いている）と日のパネルを見せる。「次へ」で進む
-//   bell     … そのカードのベルだけ丸く抜く（ここだけ押せる）
+//   bell     … その予定の行を抜く（ここだけ触れる）。右へ払うと通知がONになって次へ
 
 // 後ろの見出し・検索欄が透けて読めない濃さにする（薄いと「後ろが見えていてダサい」）
 const DIM = 'rgba(0,0,0,0.8)';
@@ -231,25 +240,34 @@ const findAccount = () => document.querySelector('[data-tour="account"]');
 const findPostButton = () => document.querySelector('[data-tour="post"]');
 const findDayHeading = () => document.querySelector('[data-tour="day-heading"]');
 const findPersonalButton = () => document.querySelector('[data-tour="personal"]');
+const findCalendar = () => document.querySelector('[data-tour="calendar"]');
 
 function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean; onNext: () => void }) {
   const id = tourEventId();
-  const findBell = useCallback(() => (id ? document.querySelector(`[data-card-id="${CSS.escape(id)}"] [data-tour="bell"]`) : null), [id]);
   const framed = step === 'like' || step === 'calendar' || step === 'done';
   const header = useRect(framed ? findHeader : nothing);
   const nav = useRect(framed ? findNav : nothing);
   // カレンダーに登録されました・これで通知が届きます: 吹き出しを日のパネルの予定のすぐ上に置く（上の見出しの位置だと、見てほしい予定から遠い）
   const findTourCard = useCallback(() => (id ? document.querySelector(`[data-card-id="${CSS.escape(id)}"]`) : null), [id]);
-  const card = useRect(step === 'calendar' || step === 'done' ? findTourCard : nothing);
+  const findCardBox = useCallback(() => { const el = findTourCard(); return el?.closest('[data-swipe-row]') ?? el; }, [findTourCard]);
+  const card = useRect(step === 'calendar' || step === 'done' ? findCardBox : nothing);
   // 日のパネルの見出し（日付）。吹き出しはこれより上に置く（どの日に入ったかを隠さない）
   const dayHeading = useRect(step === 'calendar' || step === 'done' ? findDayHeading : nothing);
-  const target = useRect(step === 'bell' ? findBell : step === 'account' ? findAccount
+  // 右へ払う段階は、払っても動かない外側の箱（SwipeRow）を抜く（行と一緒に枠が動くと、下から出る「通知ON」が暗いままになる）
+  const findSwipeBox = useCallback(() => { const el = findTourCard(); return el?.closest('[data-swipe-row]') ?? el; }, [findTourCard]);
+  const target = useRect(step === 'bell' ? findSwipeBox : step === 'calview' ? findCalendar : step === 'account' ? findAccount
     : step === 'post' ? findPostButton : step === 'personal' ? findPersonalButton : nothing);
 
   // 光らせる行が画面の外にあるとき（マイページのアカウントは下の方）は、真ん中まで一気に送ってから光らせる。
   // なめらかに送ると、動いている途中の位置に穴と吹き出しが出て、追いかけるような変な動きになる
-  const [settled, setSettled] = useState(step !== 'account');
+  // カレンダー・自分の予定のボタンは、画面が一番上へ戻ってから光らせる（少し待つ）
+  const [settled, setSettled] = useState(step !== 'account' && step !== 'calview' && step !== 'personal');
   useEffect(() => {
+    if (step === 'calview' || step === 'personal') {
+      setSettled(false);
+      const t = setTimeout(() => setSettled(true), 380);
+      return () => clearTimeout(t);
+    }
     if (step !== 'account') { setSettled(true); return; }
     setSettled(false);
     let tries = 0;
@@ -277,6 +295,9 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
     const nearCard = step !== 'like' && card && card.top > top + 120;
     return (
       <div className="fixed inset-0 z-[250] pointer-events-none" style={fade}>
+        {/* 見せるだけの段階（♡した予定・通知がONに）は、真ん中も触れないようにする（予定を押して詳細へ行く・払う、などで案内が崩れる）。
+            ♡ の段階はスクロールして選ぶので塞がない（カードは ♡ だけ押せる・index.css） */}
+        {step !== 'like' && <div className="absolute inset-x-0 pointer-events-auto" style={{ top, bottom: vh - bottom, touchAction: 'none' }} />}
         {/* 上の幕。見出し・検索欄・作品の並びを覆う。探すの段は、その上に案内を載せる */}
         <div className="absolute inset-x-0 top-0 pointer-events-auto flex flex-col justify-end px-4 pb-3"
           // 高さは見出しの下端まで。吹き出しの方が高ければ伸ばす（上にはみ出して見出しが切れないように）
@@ -299,7 +320,7 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
 
   // bell: ベルだけを丸く抜く（ここだけ押せる）。account: アカウントの行を抜く（押させない。「次へ」で進む）。
   // 見つかるまで（シートが出てくる途中など）は全体を暗くして吹き出しだけ出す
-  const round = step === 'bell' || step === 'post' || step === 'personal';
+  const round = step === 'post' || step === 'personal';
   const pad = round ? 6 : 2;
   const hole = settled && target && {
     top: target.top - pad, left: target.left - pad,
@@ -323,6 +344,13 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
           <div className="absolute right-0 pointer-events-auto" style={{ top: hole.top, height: hole.height, left: hole.left + hole.width }} />
           {/* 押させない段階（見せるだけ。「次へ」で進む） */}
           {step !== 'bell' && <div className="absolute pointer-events-auto" style={hole} />}
+          {/* 右へ払う段階: 行の上に「→」を流して、払う向きを見せる */}
+          {step === 'bell' && (
+            <div className="absolute overflow-hidden pointer-events-none" style={{ ...hole, borderRadius: radius }}>
+              <span className="absolute top-1/2 -mt-5 w-10 h-10 rounded-full flex items-center justify-center text-[20px] font-bold"
+                style={{ backgroundColor: 'color-mix(in srgb, var(--label-primary) 70%, transparent)', color: 'var(--bg-primary)', animation: 'tourSwipeHint 1.6s ease-in-out infinite' }}>→</span>
+            </div>
+          )}
         </>
       ) : (
         <div className="absolute inset-0 pointer-events-auto" style={{ backgroundColor: DIM }} />
@@ -343,9 +371,11 @@ const nothing = () => null;
 function Bubble({ step, arrow, arrowX, onNext }: { step: TourStep; arrow?: 'up' | 'down'; arrowX?: number; onNext?: () => void }) {
   const denied = step === 'done' && notifyDenied;
   const { icon: Icon, title } = denied ? { icon: BellOff, title: '通知はあとからONにできます' } : COPY[step];
-  const body = denied ? '端末の設定でFanHiveの通知を許可すると届くようになります。'
+  const body = denied ? '端末の設定で通知を許可すると届きます'
     : step === 'done' ? doneBody()
     : step === 'like' && noWorkPicked ? '依頼した作品が入るまで、予定の多い作品で試してみましょう。'
+    // 日付未定（下旬・春頃など）の予定は「日付未定」の欄に入る
+    : step === 'calendar' && likedEvent && (!likedEvent.date || likedEvent.dateLabel) ? '日付が決まると、その日に並びます'
     : COPY[step].body;
   const ref = useRef<HTMLDivElement>(null);
   // 矢印は目印の真上（真下）に。吹き出しの端からはみ出さないように寄せる
@@ -376,9 +406,10 @@ function Bubble({ step, arrow, arrowX, onNext }: { step: TourStep; arrow?: 'up' 
       <div className="flex-1 min-w-0">
         <p className="text-[15px] font-bold leading-snug">{title}</p>
         {body && <p className="text-[12px] leading-snug mt-0.5" style={{ opacity: 0.75 }}>{body}</p>}
-        {step === 'post' && <ShareDemo />}
       </div>
       </div>
+      {/* Xの共有の流れ。文の列に入れると左の丸が全体の真ん中に寄って浮くので、文の下に横いっぱいで置く */}
+      {step === 'post' && <ShareDemo />}
       {/* 「次へ」は文の下に置く（横に並べると文が細切れに折り返す） */}
       {onNext && (
         <div className="flex justify-end mt-2.5">

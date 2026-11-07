@@ -7,7 +7,7 @@ import { deriveStatus, deriveItemType, itemDateLines, todayStr } from '../../des
 import { countdownLabel } from '../../lib/relativeDay';
 import { parseCategories, getPrimaryCategoryColor, parseImageUrls, LIKED_EVENT } from '../../lib/constants';
 import { likeEffect } from '../../lib/likeEffect';
-import { primaryOffer, getOffers, priceRange, isStockStale } from '../../lib/affiliate';
+import { primaryOffer, getOffers, priceSpan, isStockStale } from '../../lib/affiliate';
 import StatusBadge from '../ui/StatusBadge';
 import OptImg from '../ui/OptImg';
 import ReactionButton from './ReactionButton';
@@ -83,7 +83,7 @@ function DateBadge({ event }: { event: CalendarEvent }) {
 
 /** 「締切まであと16日」→ 上段「締切まで」下段「あと16日」。画像の下の細い幅に収めるため2段に分ける。
  *  「本日開催」「本日まで」のように分けられないものは1段で出す。 */
-function splitCountdown(text: string | null): { label: string; value: string } | null {
+export function splitCountdown(text: string | null): { label: string; value: string } | null {
   if (!text) return null;
   // 「発売まで」／「あと12日」「あと約3か月」の2行に分ける
   const m = text.match(/^(.+?まで)(あと.+)$/);
@@ -107,9 +107,9 @@ function CategoryLine({ event }: { event: CalendarEvent }) {
 export default function ItemCard({ event, layout = 'grid', isNew, viewed, likedInit, workColor, onOpen, onLike, onStyle }: Props) {
   const type = deriveItemType(event);
   const status = deriveStatus(event);
-  // 種類違いが並ぶ予定は「¥330〜」（カードは狭いので下限だけ。幅は詳細ページで出す）
-  const range = priceRange(getOffers(event));
-  const price = range ? `${yen(range.min)}〜` : yen(event.price);
+  // 種類違いが並ぶ予定は「¥330〜」（カードは狭いので下限だけ。幅は詳細ページで出す）。＋αで直した値段（幅も）を優先
+  const span = priceSpan(event);
+  const price = span ? `${yen(span.min)}${span.max > span.min ? '〜' : ''}` : '';
   const isSet = !!primaryOffer(getOffers(event))?.isSet;
   const setTag = <span className="text-[9px] font-bold text-label-secondary px-1 py-px rounded flex-shrink-0" style={{ background: 'var(--fill-secondary, rgba(120,120,128,0.16))' }}>セット</span>;
   // 購入導線はカードに出さず詳細ページに一本化（PR表記＝「広告を含みます」を購入リンク直近に置くため）。
@@ -132,8 +132,10 @@ export default function ItemCard({ event, layout = 'grid', isNew, viewed, likedI
   const firstImg = parseImageUrls(event.imageUrl)[0];
   const showImg = !!firstImg && !imgError;
 
+  // 予定パネル（list など）は商品画像を切らずに全体を見せる（2026-11-06 柴野「見切れは気になる」）
+  const contain = layout !== 'grid';
   const Thumb = (
-    <div className="relative w-full h-full bg-fill-3 flex items-center justify-center overflow-hidden">
+    <div className="relative w-full h-full flex items-center justify-center overflow-hidden" style={{ backgroundColor: 'var(--fill-quaternary)' }}>
       {showImg ? (
         <OptImg
           src={firstImg}
@@ -141,7 +143,7 @@ export default function ItemCard({ event, layout = 'grid', isNew, viewed, likedI
           alt={event.title}
           loading="lazy"
           onError={() => setImgError(true)}
-          className="w-full h-full object-cover"
+          className={`w-full h-full ${contain ? 'object-contain' : 'object-cover'}`}
         />
       ) : (
         <div className="flex flex-col items-center gap-1 px-2 text-center">
@@ -168,37 +170,42 @@ export default function ItemCard({ event, layout = 'grid', isNew, viewed, likedI
   // 購入リンクは出さない（PR表記が要るので詳細ページに一本化したまま）。
   // compact＝ホーム用に少し低くしたもの（画像を小さく・タイトルは2行まで）
   if (layout === 'list' || layout === 'wide' || layout === 'compact') {
-    const img = layout === 'compact' ? 'w-[108px] h-[108px]' : 'w-[144px] h-[144px]';
-    const countdown = splitCountdown(countdownLabel(event, type === 'goods', todayStr()));
+      const countdown = splitCountdown(countdownLabel(event, type === 'goods', todayStr()));
     const offer = primaryOffer(getOffers(event));
     // 節目（予約開始・終了・発売）より前に取ったきりの在庫は出さない（isStockStale）
     const stock = offer && !isStockStale(event, offer) && (offer.inStock === false ? '売り切れ' : offer.stockLabel || (offer.inStock ? '在庫あり' : ''));
+    // 2026-11-07 デザインの一新: 箱（枠線・薄い地・左の作品の色の線）をやめ、白地に下の細い線で区切る。
+    // 作品の色は作品名の前の点に。あと○日と値段は数字の書体で大きく
     return (
       <div data-skin-part="card" data-card-id={event.id} data-status={status} data-layout="list"
-        className="rounded-[12px] border border-subtle overflow-hidden bg-bg-secondary p-2.5 flex gap-3"
-        style={workColor ? { borderLeft: `3px solid ${workColor}` } : undefined}>
-        <button onClick={onOpen} className={`pressable flex-shrink-0 ${layout === 'compact' ? 'w-[108px]' : 'w-[144px]'} flex flex-col items-stretch`}>
-          <div data-skin-part="card-media" className={`${img} rounded-[8px] overflow-hidden`}>{Thumb}</div>
+        className="py-3 flex gap-3.5" style={{ backgroundColor: 'var(--bg-primary)', borderBottom: '0.5px solid var(--separator)' }}>
+        <button onClick={onOpen} className={`pressable flex-shrink-0 ${layout === 'compact' ? 'w-[108px]' : 'w-[136px]'} flex flex-col items-stretch`}>
+          <div data-skin-part="card-media" className={`${layout === 'compact' ? 'w-[108px] h-[108px]' : 'w-[136px] h-[136px]'} rounded-[14px] overflow-hidden`}>{Thumb}</div>
           {countdown && (
-            <div data-skin-part="card-countdown" className="mt-1 text-center leading-tight" style={{ color: 'var(--accent-text)' }}>
-              {countdown.label && <div className="text-[10px] font-medium">{countdown.label}</div>}
-              <div className="text-[13px] font-bold">{countdown.value}</div>
+            <div data-skin-part="card-countdown" className="mt-1.5 flex items-baseline justify-center gap-1 leading-none">
+              {countdown.label && <span className="text-[10px] font-bold text-label-secondary">{countdown.label}</span>}
+              <span className="num text-[17px] font-extrabold" style={{ color: 'var(--label-primary)' }}>{countdown.value}</span>
             </div>
           )}
         </button>
         <div className="flex-1 min-w-0 flex flex-col">
           <button onClick={onOpen} className="pressable text-left">
-            {event.workName && <div data-skin-part="card-work" className="text-[11px] text-label-secondary truncate">{event.workName}</div>}
+            {event.workName && (
+              <div data-skin-part="card-work" className="flex items-center gap-1.5 text-[11px] font-semibold text-label-secondary min-w-0">
+                {workColor && <span aria-hidden className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: workColor }} />}
+                <span className="truncate">{event.workName}</span>
+              </div>
+            )}
             {/* 自分用の予定の印。「自分にしか見えない」が一目で分かるよう鍵を添える */}
             {event.personal && (
-              <span className="inline-flex items-center gap-0.5 self-start mt-0.5 px-1.5 py-[1px] rounded-full text-[10px] font-bold tracking-wide"
+              <span className="inline-flex items-center gap-0.5 self-start mt-0.5 px-1.5 py-[1px] rounded-full text-[10px] font-bold"
                 style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-secondary)' }}>
-                <Lock size={9} strokeWidth={2.6} /> PRIVATE
+                <Lock size={9} strokeWidth={2.6} aria-hidden /> 自分だけ
               </span>
             )}
-            <div data-skin-part="card-title" className={`text-[15px] font-semibold leading-snug ${layout === 'compact' ? 'line-clamp-2' : 'line-clamp-3'}`}>{event.title}</div>
+            <div data-skin-part="card-title" className={`mt-0.5 text-[15px] font-semibold leading-snug ${layout === 'compact' ? 'line-clamp-2' : 'line-clamp-3'}`}>{event.title}</div>
             <CategoryLine event={event} />
-            {price && <div data-skin-part="card-price" className="text-[17px] font-bold mt-0.5 flex items-center gap-1" style={{ color: 'var(--accent-text)' }}>{price}{isSet && setTag}</div>}
+            {price && <div data-skin-part="card-price" className="num text-[19px] font-extrabold mt-1 flex items-center gap-1">{price}{isSet && setTag}</div>}
             <div data-skin-part="card-date" className="text-[12px] text-label-secondary mt-0.5">{itemDateLines(event).join(' / ')}</div>
             {offer?.retailer && (
               <div className="text-[12px] text-label-secondary mt-0.5 truncate">

@@ -8,14 +8,14 @@ export default function ImageCarousel({ images, alt }: { images: string[]; alt: 
 
   if (images.length === 0) {
     return (
-      <div className="w-full aspect-square bg-fill-3 flex items-center justify-center">
+      <div className="w-full aspect-square flex items-center justify-center" style={{ backgroundColor: 'var(--fill-quaternary)' }}>
         <ImageOff size={36} className="text-label-tertiary" />
       </div>
     );
   }
 
   return (
-    <div className="relative w-full aspect-square bg-fill-3">
+    <div className="relative w-full aspect-square" style={{ backgroundColor: 'var(--fill-quaternary)' }}>
       <div
         className="w-full h-full flex overflow-x-auto no-scrollbar snap-x snap-mandatory"
         onScroll={(e) => {
@@ -28,12 +28,13 @@ export default function ImageCarousel({ images, alt }: { images: string[]; alt: 
         ))}
       </div>
       {images.length > 1 && (
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+        // 何枚目か。地が白に近いので、黒い点（いまの1枚は長く）
+        <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1 px-1.5 py-1 rounded-full" style={{ backgroundColor: 'color-mix(in srgb, var(--bg-primary) 70%, transparent)' }}>
           {images.map((_, i) => (
             <span
               key={i}
-              className="w-1.5 h-1.5 rounded-full"
-              style={{ backgroundColor: i === idx ? 'var(--accent-color)' : 'rgba(255,255,255,0.5)' }}
+              className="h-1.5 rounded-full transition-all"
+              style={{ width: i === idx ? 14 : 6, backgroundColor: i === idx ? 'var(--label-primary)' : 'var(--label-tertiary)' }}
             />
           ))}
         </div>

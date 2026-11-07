@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useNavigationType, useSearchParams } from 'react-router-dom';
-import { TrendingDown, ChevronRight, Crown, Pencil } from 'lucide-react';
+import { TrendingDown, ChevronRight } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import { deriveItemType, todayStr } from '../design/tokens';
-import { loadSeenEventIds, addSeenEventId, FEATURE_PREMIUM, FOLLOWS_EVENT, DEFAULT_AVATAR } from '../lib/constants';
-import { listExploreEvents, listAllParticipatedWorks, listFollowDates, toggleLike, listLikedEventIds, listMyPriceChanges, getUserPublicProfile, type Work } from '../lib/api';
+import { loadSeenEventIds, addSeenEventId, FOLLOWS_EVENT } from '../lib/constants';
+import { listExploreEvents, listAllParticipatedWorks, listFollowDates, toggleLike, listLikedEventIds, listMyPriceChanges, type Work } from '../lib/api';
 import { useFeature, usePremium } from '../lib/premium';
 import { unseenChanges } from '../lib/priceAlerts';
 import { getCached, setCached, loadCachedLarge, setCachedLarge, EXPLORE_EVENTS_KEY } from '../lib/swrCache';
@@ -18,8 +18,6 @@ import { SkeletonList } from '../components/ui/Skeleton';
 import WorkFollowSheet from '../components/WorkFollowSheet';
 import ExpandingSearch from '../components/ui/ExpandingSearch';
 import { loadWorkImages } from '../lib/workImages';
-import { calcTitle } from '../lib/achievements';
-import { listMyNushi, shortWorkName, type WorkNushi } from '../lib/ranking';
 import {
   storySince, freeCutoff, buildWorkGroups, buildWeekGroup, workNext, daysBetween,
   loadStreak, currentStreak, markStreakToday, WEEK_KEY, type StoryGroup,
@@ -27,8 +25,7 @@ import {
 import StoryViewer, { type StoryPosition } from '../components/story/StoryViewer';
 import { WorkStoryCard, WeekStoryCard, AddWorkCard } from '../components/story/WorkStoryCard';
 import { useWorkImagePicker } from '../components/story/useWorkImagePicker';
-import ProfileTicket from '../components/home/ProfileTicket';
-import PromoLine from '../components/ui/PromoLine';
+import { useSearchSuggest, SuggestList } from '../components/ui/SearchSuggest';
 
 // ホーム（2026-10-04 作り直し・柴野）。仕様 → Obsidian: Decisions/2026-10-04-fanhive-home-story-premium.md
 //   上: プロフィール（アイコン・名前・称号・ヌシ・連続記録・追加した予定）
@@ -41,12 +38,10 @@ function shiftMonths(base: string, n: number): string {
   return todayStr(d);
 }
 
-const ICON_TIP_KEY = 'fan_home_icon_tip_hidden';
 
 // 詳細を開いて「戻る」で帰ってきたら、ストーリーの続きから開き直す
 let storyResume: { key: string; eventId: string } | null = null;
 
-type Profile = { name: string; avatar: string | null; title: string; nushi: WorkNushi[] };
 
 export default function Home() {
   const navigate = useNavigate();
@@ -73,9 +68,8 @@ export default function Home() {
     return () => window.removeEventListener('fan-work-images', onChange);
   }, []);
   const iconPicker = useWorkImagePicker();
-  const [iconTipHidden, setIconTipHidden] = useState(() => { try { return localStorage.getItem(ICON_TIP_KEY) === '1'; } catch { return false; } });
   const [seen, setSeen] = useState<Set<string>>(loadSeenEventIds);
-  const [streak, setStreak] = useState(() => currentStreak(loadStreak()));
+  const [, setStreak] = useState(() => currentStreak(loadStreak()));
   const today = todayStr();
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -132,26 +126,6 @@ export default function Home() {
     return () => window.removeEventListener(FOLLOWS_EVENT, onFollows);
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // プロフィール（マイページと同じもの）。前回の分を先に出す
-  const [profile, setProfile] = useState<Profile | null>(null);
-  useEffect(() => {
-    if (!user) return;
-    const pkey = `home-profile:${user.id}`;
-    const cachedP = getCached<Profile>(pkey);
-    if (cachedP) setProfile(cachedP);
-    let alive = true;
-    Promise.all([getUserPublicProfile(user.id), listMyNushi(user.id).catch(() => [] as WorkNushi[])])
-      .then(([p, nushi]) => {
-        if (!alive) return;
-        const next: Profile = {
-          name: p.displayName ?? '', avatar: p.avatarEmoji, nushi,
-          title: calcTitle({ posted: p.postedCount, received: p.receivedLikes, likesGiven: p.likesGiven, reactionsGiven: p.reactionsGiven, works: p.works, birthdayPosts: p.birthdayPosts }),
-        };
-        setProfile(next); setCached(pkey, next);
-      })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [user?.id]);
 
   // 値下がり・再入荷（プレミアム）。1件ずつ知らせると煩わしいので、ここでは**件数だけ**出して
   // 中身は専用ページ(/price-drops)に集める。未読は端末ローカルの既読時刻で判定する。
@@ -185,17 +159,15 @@ export default function Home() {
     seen, since, cutoff, colors: workColorMap, images: workImages, isHidden,
   }), [items, follows, seen, since, cutoff, workColorMap, workImages, isHidden]);
   const weekGroup = useMemo(() => buildWeekGroup(items ?? [], followIds, seen, isHidden), [items, followIds, seen, isHidden]);
+  // 検索の候補（打っている途中から出す）。探すと同じく、フォロー中の作品の予定から
+  const followedItems = useMemo(() => (items ?? []).filter((e) => e.workId && followIds.has(e.workId) && !isHidden(e)), [items, followIds, isHidden]);
+  const suggest = useSearchSuggest(query, followedItems);
   const allGroups = useMemo(() => [weekGroup, ...workGroups], [weekGroup, workGroups]);
   const weekCounts = useMemo(() => ({
     deadline: weekGroup.pages.filter((p) => p.badge?.includes('締切')).length,
     release: weekGroup.pages.filter((p) => p.badge?.includes('発売')).length,
     popular: weekGroup.pages.filter((p) => p.badge === '人気').length,
   }), [weekGroup]);
-  // 無料の人に、9時を待っている新着の件数を知らせる（課金の案内につなげる）
-  const waiting = useMemo(() => {
-    if (!cutoff || !items) return 0;
-    return items.filter((e) => e.workId && followIds.has(e.workId) && (e.createdAt ?? '') > cutoff && !isHidden(e)).length;
-  }, [items, followIds, cutoff, isHidden]);
   // まだ見ていない新着の合計（見るたびに減る）
   const unseenTotal = useMemo(() => workGroups.reduce((n, g) => n + g.unseen, 0), [workGroups]);
   // 作品ごとの「次の予定」
@@ -264,96 +236,62 @@ export default function Home() {
     measure();
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
-  }, [profile, followsReady, items === null, waiting > 0, unseenTotal > 0]);
+  }, [followsReady, items === null, unseenTotal > 0, alertTotal > 0]);
 
-  // 一番上の行。値下がり・再入荷があればその件数（中身は専用ページ）。
-  // 無料の人には受け取れることの案内（決済が繋がるまでは出さない＝FEATURE_PREMIUM）。どちらも無ければ見出しだけ
-  const topBar = alertTotal > 0 ? (
+  // 値下がり・再入荷があればその件数（中身は専用ページ）。2026-11-07 デザインの一新: 見出しの下に1行で出す。
+  // 受け取れることの案内（プレミアム）はマイページへ移した
+  const alertRow = alertTotal > 0 ? (
     <button onClick={() => { haptic.select(); navigate('/price-drops'); }}
-      className="pressable w-full h-9 flex items-center gap-2 px-3 rounded-full border"
-      style={{ borderColor: 'var(--color-success)', backgroundColor: 'var(--bg-secondary)' }}>
-      <TrendingDown size={16} style={{ color: 'var(--color-success)' }} className="flex-shrink-0" />
-      <span className="flex-1 min-w-0 truncate text-left text-[13px] font-semibold">{alertLabel}（{alertTotal}件）</span>
-      <ChevronRight size={16} className="text-label-tertiary flex-shrink-0" />
+      className="pressable mx-4 mt-3 w-[calc(100%-32px)] flex items-center gap-2 py-2.5 text-left"
+      style={{ borderTop: '0.5px solid var(--separator)', borderBottom: '0.5px solid var(--separator)' }}>
+      <TrendingDown size={18} aria-hidden style={{ color: 'var(--color-success)' }} className="flex-shrink-0" />
+      <span className="flex-1 min-w-0 truncate text-[14px] font-semibold">{alertLabel}</span>
+      <span className="num text-[15px] font-extrabold" style={{ color: 'var(--color-success)' }}>{alertTotal}</span>
+      <ChevronRight size={16} aria-hidden className="text-label-tertiary flex-shrink-0" />
     </button>
-  ) : FEATURE_PREMIUM && !priceAlerts ? (
-    <button onClick={() => { haptic.select(); navigate('/premium'); }}
-      className="pressable w-full h-9 flex items-center gap-2 px-3 rounded-full"
-      style={{ backgroundColor: 'var(--bg-secondary)' }}>
-      {/* 前の「いいねしたグッズの値下がり・再入荷を受け取る」は長くて見切れ、何が届くのか・有料なのかが伝わらなかった。
-          何が届くかを短く書き、有料であることは札で示す。狭い iPhone SE でも見切れないよう、左のアイコンは付けない */}
-      <span className="flex-1 min-w-0 truncate text-left text-[12px] font-semibold">値下げ・再入荷を通知</span>
-      <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-        style={{ backgroundColor: 'color-mix(in srgb, var(--accent-color) 20%, transparent)', color: 'var(--accent-text)' }}>プレミアム</span>
-      <ChevronRight size={16} className="text-label-tertiary flex-shrink-0" />
-    </button>
-  ) : (
-    <span className="text-[22px] font-bold tracking-tight">ホーム</span>
-  );
+  ) : null;
 
   // 広告バナー: ステータスバー直下に表示し、ヘッダー余白をバナー高さ分広げて被りを防ぐ。
   const adPad = useAdBanner();
   const loading = items === null || (!followsReady && (authLoading || !!user));
-  // 使い始めた月（会員証の「2026.06〜」）
-  const memberSince = user?.created_at ? user.created_at.slice(0, 7).replace('-', '.') : null;
   // 無料の人の次の9時が今日か明日か（9時より前に開いたら今日）
 
   return (
     <div ref={rootRef}>
-      <div className="px-3 pt-3 pb-2 sticky top-0 z-20 material-bar" data-skin-bar="main" style={{ paddingTop: adPad }}>
-        <div className="flex items-center">
+      <div className="px-4 pb-1 sticky top-0 z-20" data-skin-bar="main" style={{ paddingTop: adPad, backgroundColor: 'var(--bg-primary)' }}>
+        <div className="flex items-center h-11">
           <ExpandingSearch value={query} onChange={setQuery} placeholder="グッズ・イベントを検索"
             onSubmit={(q) => navigate(`/explore?q=${encodeURIComponent(q)}`)}
-            title={topBar} />
+            title={<h1 className="text-[24px] font-extrabold">ホーム</h1>}
+            suggest={<SuggestList query={query} works={suggest.works} events={suggest.events}
+              onWork={(w) => navigate(`/explore?q=${encodeURIComponent(w.name)}`)}
+              onEvent={(e) => navigate(`/item/${e.id}`)}
+              onAll={() => navigate(`/explore?q=${encodeURIComponent(query.trim())}`)} />} />
         </div>
       </div>
       <WorkFollowSheet open={followSheetOpen} onClose={() => setFollowSheetOpen(false)} onChanged={reloadFollows} />
       {iconPicker.input}
 
-      {/* プロフィール（会員証・チケットの見た目）。押すとマイページ */}
-      <div className="px-3 pt-2">
-        <ProfileTicket avatar={profile?.avatar ?? DEFAULT_AVATAR} name={profile?.name || '名無しのファン'}
-          title={profile?.title} nushi={profile?.nushi[0] ? shortWorkName(profile.nushi[0].workName) : undefined}
-          added={likedIds.size} since={memberSince} streak={streak} onOpen={() => navigate('/mypage')} />
-      </div>
-
-      {/* まだ見ていない新着の数。見るたびに減る。押すと新着のある最初の作品から見られる */}
+      {/* まだ見ていない新着の数を大きな数字で。見るたびに減る。押すと新着のある最初の作品から見られる。
+          2026-11-07 デザインの一新: プロフィールの券と課金の入口はマイページへ移し、ここは新着だけにした */}
       {!loading && unseenTotal > 0 && (
         <button onClick={() => { haptic.select(); const g = workGroups.find((x) => x.unseen > 0); if (g) openStory(g.key); }}
-          className="pressable mx-3 mt-1 w-[calc(100%-24px)] flex items-center gap-2 px-3 py-2.5 rounded-[10px] text-left" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-          <span className="flex-1 min-w-0">
-            <span className="block text-[14px] font-bold">新しい予定が<span style={{ color: 'var(--color-destructive)' }}>{unseenTotal}件</span>届いています！</span>
+          className="pressable mx-4 mt-1 w-[calc(100%-32px)] flex items-end gap-3 text-left">
+          <span className="num text-[60px] font-extrabold leading-[0.82]" style={{ color: 'var(--color-destructive)' }}>{unseenTotal}</span>
+          <span className="flex-1 min-w-0 pb-0.5">
+            <span className="block text-[17px] font-extrabold leading-tight">件の新着</span>
             {/* 「ストーリー」は Instagram の呼び名なので出さず、何ができるかで書く（2026-10-04 柴野） */}
-            <span className="block text-[11px] text-label-secondary mt-0.5">作品のアイコンを押すとチェックできます</span>
+            <span className="block text-[12px] text-label-secondary">作品を押してチェック</span>
           </span>
-          <ChevronRight size={16} className="text-label-tertiary flex-shrink-0" />
+          <ChevronRight size={20} aria-hidden className="text-label-tertiary flex-shrink-0 mb-1" />
         </button>
       )}
-      {/* 課金の入口（無料の人だけ）。新着とは別の枠にする（2026-10-04 柴野「課金に誘導する入り口を増やす」） */}
-      {!premium && FEATURE_PREMIUM && waiting > 0 && (
-        <button onClick={() => { haptic.select(); navigate('/premium'); }}
-          className="pressable mx-3 mt-1.5 w-[calc(100%-24px)] flex items-center gap-2 px-3 py-1.5 rounded-[10px] text-left border"
-          style={{ borderColor: 'color-mix(in srgb, var(--accent-color) 45%, transparent)' }}>
-          <Crown size={15} className="flex-shrink-0" style={{ color: 'var(--accent-text)' }} />
-          {/* 1行に収める（カードの高さを削らないように）。件数は出さない（「◯件」が何のことか分かりにくかった）。
-              出すのは、まだ届いていない新着があるときだけ */}
-          <span className="flex-1 min-w-0 truncate text-[12px] font-semibold" style={{ color: 'var(--accent-text)' }}>
-            プレミアムなら新着をすぐ確認できます
-          </span>
-          <ChevronRight size={16} className="text-label-tertiary flex-shrink-0" />
-        </button>
-      )}
-      {/* 作品のアイコンに推しの画像を入れられることの案内（2026-10-05 柴野）。知らないと、頭文字のアイコンのままだと思われる。
-          フォロー中の作品に1つも画像を入れていない人だけ・✕で消せる（端末に覚える）。押すと最初の作品の画像を選ぶ */}
-      {!loading && follows.length > 0 && !iconTipHidden && follows.every((w) => !workImages[w.id]) && (
-        <PromoLine className="mx-3 mt-1.5" icon={<Pencil size={14} />} text="推しの画像を作品のアイコンにできます"
-          onClick={() => void iconPicker.pick(workGroups[0]?.key ?? follows[0].id)}
-          onDismiss={() => { setIconTipHidden(true); try { localStorage.setItem(ICON_TIP_KEY, '1'); } catch { /* noop */ } }} />
-      )}
+      {alertRow}
+      {/* 作品のアイコンに推しの画像を入れられることの案内は、場面ごとのヒント（Hints.tsx の home-icon）にした（2026-11-07 柴野） */}
       {loading ? (
         <div className="px-3 pt-3"><SkeletonList count={2} /></div>
       ) : (
-        <div ref={cardsRef} className="flex gap-3 overflow-x-auto snap-x snap-mandatory px-3 pt-3 pb-2 scroll-px-3" style={{ scrollbarWidth: 'none' }}>
+        <div ref={cardsRef} className="flex gap-3 overflow-x-auto snap-x snap-mandatory px-4 pt-4 pb-2 scroll-px-4" style={{ scrollbarWidth: 'none' }}>
           {follows.length > 0 && (
             <WeekStoryCard group={weekGroup} height={cardH} counts={weekCounts} onStory={() => openStory(WEEK_KEY)} />
           )}

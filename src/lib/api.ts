@@ -1206,7 +1206,7 @@ export async function updateEventOffers(eventId: string, offers: Offer[]): Promi
 }
 
 // ── 共同編集: 日時/状態の編集パッチ ──
-export type EventPatch = Partial<Pick<CalendarEvent, 'date' | 'dateLabel' | 'endDate' | 'time' | 'isOrderMade' | 'preorderStart' | 'preorderEnd' | 'price' | 'saleStatus'>> & {
+export type EventPatch = Partial<Pick<CalendarEvent, 'date' | 'dateLabel' | 'endDate' | 'time' | 'isOrderMade' | 'preorderStart' | 'preorderEnd' | 'price' | 'priceMax' | 'saleStatus'>> & {
   /** 取り消された購入リンクのURL。events.offers は書き換えず、実効値の計算時に除外する。
    * 日付編集と同じく履歴に残り「戻す」で復活できる（誰でも取り消せる＝共同編集）。 */
   removedOfferUrls?: string[];
@@ -2046,6 +2046,29 @@ export async function countUserReactionsGiven(userId: string): Promise<number> {
     .select('*', { count: 'exact', head: true })
     .eq('user_id', userId);
   return count ?? 0;
+}
+
+/** 自分がスタンプを押した予定（探すの「スタンプ」・2026-11-07）。予定ごとに押した種類をまとめ、最後に押した順 */
+export type StampedEvent = { event: CalendarEvent; stamps: string[]; at: string };
+export async function listMyStampedEvents(userId: string): Promise<StampedEvent[]> {
+  const [, res] = await Promise.all([
+    ensureEventEdits(),
+    supabase.from('event_stamps').select('event_id, stamp, created_at, events(*, works(name))')
+      .eq('user_id', userId).order('created_at', { ascending: false }).limit(2000),
+  ]);
+  if (res.error) throw res.error;
+  const map = new Map<string, StampedEvent>();
+  for (const r of (res.data ?? []) as Record<string, unknown>[]) {
+    const row = r.events as Record<string, unknown> | null;
+    // 消された・運営が隠した予定は出さない
+    if (!row || row.pool !== 0) continue;
+    const id = r.event_id as string;
+    const cur = map.get(id);
+    if (cur) { cur.stamps.push(r.stamp as string); continue; }
+    const works = row.works as { name: string } | null;
+    map.set(id, { event: { ...rowToEvent(row), workName: works?.name ?? '' }, stamps: [r.stamp as string], at: r.created_at as string });
+  }
+  return [...map.values()];
 }
 
 export async function countUserEventsByCategory(userId: string, category: string): Promise<number> {

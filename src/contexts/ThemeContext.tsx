@@ -233,10 +233,11 @@ export const THEME_VARS: Record<'simple' | 'dark', Record<string, string>> = {
     '--color-success':     '#30d158',
     '--color-warning':     '#ffd60a',
   },
+  // 2026-11-07 デザインの一新: 地は白、まとまり（入力欄・一覧のかたまり）はごく薄い灰色にする（前は灰色の地に白いカード）
   simple: {
-    '--bg-primary':        '#f2f2f7',
-    '--bg-secondary':      '#ffffff',
-    '--bg-tertiary':       '#e5e5ea',
+    '--bg-primary':        '#ffffff',
+    '--bg-secondary':      '#f4f4f6',
+    '--bg-tertiary':       '#e8e8ed',
     '--label-primary':     '#000000',
     '--label-secondary':   'rgba(60,60,67,0.6)',
     '--label-tertiary':    'rgba(60,60,67,0.3)',
@@ -245,7 +246,7 @@ export const THEME_VARS: Record<'simple' | 'dark', Record<string, string>> = {
     '--border-default':    'rgba(0,0,0,0.15)',
     '--border-strong':     'rgba(0,0,0,0.30)',
     '--border-selected':   'rgba(0,0,0,0.60)',
-    '--separator':         'rgba(60,60,67,0.29)',
+    '--separator':         'rgba(60,60,67,0.17)',
     '--fill-primary':      'rgba(120,120,128,0.2)',
     '--fill-secondary':    'rgba(120,120,128,0.16)',
     '--fill-tertiary':     'rgba(118,118,128,0.12)',

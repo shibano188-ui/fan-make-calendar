@@ -63,6 +63,11 @@
     font-weight: 800;
     letter-spacing: -0.02em;
   }
+  /* 数字（あと○日・日付・値段）。丸みのある太い書体で、数字だけを主役にする（2026-11-07 デザインの一新） */
+  .num {
+    font-family: 'Outfit', ui-rounded, -apple-system, 'Hiragino Sans', sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
   /* 横スクロールのスクロールバーを隠す（チップ行など） */
   .no-scrollbar {
     scrollbar-width: none;
@@ -215,15 +220,40 @@
   34%  { opacity: 0; transform: translateY(-4px); }
   100% { opacity: 0; }
 }
+/* 横に払って決まったとき、真ん中にマークがポンと出る（SwipeRow） */
+@keyframes swipePop {
+  0%   { transform: scale(0.4); opacity: 0; }
+  60%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+/* 案内の「右へ払って通知をON」: 行の左から右へ流れる矢印 */
+@keyframes tourSwipeHint {
+  0%   { left: 8px; opacity: 0; }
+  20%  { opacity: 1; }
+  80%  { opacity: 1; }
+  100% { left: calc(100% - 52px); opacity: 0; }
+}
 @keyframes tourPulse {
   0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-color) 70%, transparent); }
   70%  { box-shadow: 0 0 0 10px transparent; }
   100% { box-shadow: 0 0 0 0 transparent; }
 }
-body[data-tour-step="like"] [data-tour="like"],
-body[data-tour-step="bell"] [data-tour="bell"] {
+body[data-tour-step="like"] [data-tour="like"] {
   border-radius: 9999px;
   animation: tourPulse 1.4s ease-out infinite;
+}
+/* 案内の途中は、案内している操作だけできるようにする（2026-11-07 柴野「途中で予定を押せてバグの温床になりそう」）
+   ・♡ の段階: 予定のカードは ♡ だけ押せる（カードを開く・払うはできない。スクロールはできる）
+   ・右へ払う段階: 行は払うことだけ（行の中のボタンを押して詳細を開く、はできない。払う動きは外側の箱が受ける） */
+body[data-tour-step="like"] [data-event-id] * {
+  pointer-events: none !important;
+}
+body[data-tour-step="like"] [data-event-id] [data-tour="like"],
+body[data-tour-step="like"] [data-event-id] [data-tour="like"] * {
+  pointer-events: auto !important;
+}
+body[data-tour-step="bell"] [data-swipe-row] * {
+  pointer-events: none !important;
 }
 body[data-tour-step] [data-bottom-nav] {
   pointer-events: none !important;

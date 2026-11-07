@@ -2,6 +2,9 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Capacitor } from '@capacitor/core';
 import { Analytics } from '@vercel/analytics/react';
+// 数字の書体（あと○日・日付・値段）。英数字だけなので軽い（2026-11-07 デザインの一新）
+import '@fontsource/outfit/latin-700.css';
+import '@fontsource/outfit/latin-800.css';
 import './index.css';
 import './design/skins.css';
 import App from './App';
