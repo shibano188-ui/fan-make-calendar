@@ -56,11 +56,11 @@ export function momentsOf(e: CalendarEvent): Moment[] {
   const hasPreorder = e.schedules?.some((s) => s.kind === 'preorder') ?? false;
   for (const s of e.schedules ?? []) {
     if (s.kind === 'session') {
-      // ピンした日があるイベントは、ピンした日だけを出す（月表示と同じ「行く日だけ見たい」）
+      // 何日か続く日程は、終わりの日にも出す（行く日を選んでいても出す。2026-11-07 柴野「行く日を選ぶと終了が消える」）
+      if (s.end && s.end > s.start) push(s.end, '終', { label: `${s.label ? `${s.label} ` : ''}${endLabel(e)}` });
+      // ピンした日があるイベントは、始まりの日は出さず行く日を出す（月表示と同じ「行く日だけ見たい」）
       if (!goods && visits.length) continue;
       push(s.start, goods ? '発' : 'イ', { label: s.label, end: s.end && s.end !== s.start ? s.end : undefined });
-      // 何日か続く日程は、終わりの日にも出す
-      if (s.end && s.end > s.start) push(s.end, '終', { label: `${s.label ? `${s.label} ` : ''}${endLabel(e)}` });
     } else {
       push(s.start, '受', { label: s.label });
       push(s.end, '〆', { label: s.label });
@@ -80,8 +80,8 @@ export function momentsOf(e: CalendarEvent): Moment[] {
     }
     // 期間のある予定は、終わりの日にも出す（グッズ・グルメ・キャンペーンの販売期間、イベントの会期）。
     // 2026-11-07 柴野「始まっているものがカレンダーに出ない」。始まる日しか出していなかったので、始まる日が過ぎると
-    // 今月のカレンダーにもボードの日ごとの並びにも出なかった。行く日を選んだイベントは行く日だけ（今までどおり）
-    if (e.endDate && e.endDate > e.date && (goods || !visits.length)) push(e.endDate, '終', { label: endLabel(e) });
+    // 今月のカレンダーにもボードの日ごとの並びにも出なかった。行く日を選んでいても出す（選ぶと消えていた）
+    if (e.endDate && e.endDate > e.date) push(e.endDate, '終', { label: endLabel(e) });
   }
   return out;
 }

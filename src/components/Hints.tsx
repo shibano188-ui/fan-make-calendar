@@ -9,6 +9,8 @@ import { loadHintsSeen, markHintsSeen } from '../lib/hintsSeen';
 // 場面ごとのヒント（2026-11-07 柴野）。最初の案内（OnboardingTour）は短くし、増えた機能・前からあって分かりにくい機能は、
 // 初めてその画面でその部品が見えたときに、小さな吹き出しで1回だけ出す。
 //   ・案内の途中・シートが開いているときは出さない
+//   ・指している部品やそのまわり（32px）・吹き出しに触れたら、「OK」を押さなくても閉じて次へ（教えた操作をそのまま
+//     やってもらえばよい。触れた操作はそのまま部品に届く・2026-11-07 柴野）
 //   ・1つずつ。「OK」で閉じたら、同じ画面に見えている次のヒントをすぐ出す（上にあるものから順に。
 //     前は間をあけていたので、終わったと思ったら変な間で次が来ていた・柴野）
 //   ・見たものは端末に覚える（lib/hintsSeen.ts）。最初の案内で説明したものは、案内を終えたときに見たことにする
@@ -113,6 +115,20 @@ function HintBubble({ hint, el, onClose }: { hint: Hint; el: Element; onClose: (
     return () => cancelAnimationFrame(raf);
   }, [el]);
   const ref = useRef<HTMLDivElement>(null);
+  // 部品のまわり・吹き出しに触れたら閉じる（教えた操作をやってもらえば、OK を押さなくてよい）。
+  // 触れた操作は止めない（スワイプ・長押し・タップはそのまま部品に届く）
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const PAD = 32;
+    const onDown = (ev: PointerEvent) => {
+      if (ref.current?.contains(ev.target as Node)) return; // 吹き出しの中は OK ボタンと同じに扱う（下で）
+      const r = el.isConnected ? el.getBoundingClientRect() : null;
+      if (r && ev.clientX >= r.left - PAD && ev.clientX <= r.right + PAD && ev.clientY >= r.top - PAD && ev.clientY <= r.bottom + PAD) closeRef.current();
+    };
+    document.addEventListener('pointerdown', onDown, { capture: true, passive: true });
+    return () => document.removeEventListener('pointerdown', onDown, { capture: true });
+  }, [el]);
   const [h, setH] = useState(0);
   useLayoutEffect(() => { setH(ref.current?.offsetHeight ?? 0); }, [rect === null]);
   if (!rect || rect.bottom < 0 || rect.top > window.innerHeight - 90) return null;
@@ -127,13 +143,13 @@ function HintBubble({ hint, el, onClose }: { hint: Hint; el: Element; onClose: (
       {/* 指している部品の縁取り（押すのは邪魔しない） */}
       <div className="fixed pointer-events-none rounded-[12px]"
         style={{ zIndex: 240, top: rect.top - 3, left: rect.left - 3, width: rect.width + 6, height: rect.height + 6, boxShadow: '0 0 0 2px var(--accent-color)', animation: 'tourPulse 1.4s ease-out infinite' }} />
-      <div ref={ref} className="fixed left-4 right-4 max-w-[360px] mx-auto rounded-[14px] pl-3.5 pr-2 py-2.5 shadow-float flex items-center gap-2"
+      <div ref={ref} onClick={onClose} className="fixed left-4 right-4 max-w-[360px] mx-auto rounded-[14px] pl-3.5 pr-2 py-2.5 shadow-float flex items-center gap-2"
         style={{ zIndex: 241, top, backgroundColor: 'var(--label-primary)', color: 'var(--bg-primary)', animation: 'tourBubbleIn 0.3s cubic-bezier(0.32,0.72,0,1) both' }}>
         <span className="absolute w-3 h-3 rotate-45"
           style={{ backgroundColor: 'var(--label-primary)', left: `calc(${arrowX}px - 6px - ${ref.current?.getBoundingClientRect().left ?? 16}px)`, ...(above ? { bottom: -5 } : { top: -5 }) }} />
         <p className="flex-1 text-[13px] font-semibold leading-snug">{hint.text}</p>
         <button className="pressable flex-shrink-0 px-3 h-8 rounded-full text-[13px] font-bold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
-          onClick={onClose}>OK</button>
+          onClick={(ev) => { ev.stopPropagation(); onClose(); }}>OK</button>
       </div>
     </>,
     document.body,
