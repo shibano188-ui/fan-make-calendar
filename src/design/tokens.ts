@@ -11,10 +11,13 @@ const GOODS_PARENT = ['グッズ', 'グルメ', '書籍'];
 const EVENT_PARENT = ['イベント', 'アニメ・映画', '誕生日', 'キャンペーン'];
 
 /** グッズ/イベントの判定。既存データは type 列が無い/既定なのでカテゴリから導出。
- *  イベント系カテゴリを優先（POP UP等はグッズ種別が付いていてもイベント扱いで混ざりを防ぐ）。 */
-export function deriveItemType(e: Pick<CalendarEvent, 'type' | 'category'>): ItemType {
+ *  イベント系カテゴリを優先（POP UP等はグッズ種別が付いていてもイベント扱いで混ざりを防ぐ）。
+ *  グルメで期間がある（〇日〜〇日）ものは、コラボカフェなど「行く」ものなのでイベント（2026-11-07 柴野）。
+ *  期間の無いグルメ（食べ物のグッズ）はグッズのまま。日付を渡さない呼び出し（投稿画面の読み取りなど）は今までどおり */
+export function deriveItemType(e: Pick<CalendarEvent, 'type' | 'category'> & Partial<Pick<CalendarEvent, 'date' | 'endDate'>>): ItemType {
   const cats = parseCategories(e.category);
   if (cats.some((c) => EVENT_PARENT.includes(c))) return 'event';
+  if (cats.includes('グルメ') && e.date && e.endDate && e.endDate > e.date) return 'event';
   if (cats.some((c) => GOODS_PARENT.includes(c) || isGoodsSubcategory(c))) return 'goods';
   return e.type === 'goods' ? 'goods' : 'event';
 }
