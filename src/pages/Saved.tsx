@@ -330,6 +330,16 @@ export default function Saved() {
     () => (tourEvent && !filtered.some((e) => e.id === tourEvent.id) ? [...filtered, tourEvent] : filtered),
     [filtered, tourEvent],
   );
+  // 案内で♡した予定が、取り直した一覧にまだ無い（♡の保存が届く前に取り直した）ときは、一覧に足しておく。
+  // 足さないと、案内が先へ進んで（Xの共有・自分の予定の説明）その予定を見せなくなったとたん、カレンダーから消えて
+  // 「まだ予定がありません」と出ていた（2026-11-07 通しで確認）
+  useEffect(() => {
+    const liked = tourLikedEvent();
+    if (!user || !tourStep || !liked || !items || items.some((e) => e.id === liked.id)) return;
+    const add = (list: CalendarEvent[]) => (list.some((it) => it.id === liked.id) ? list : [...list, { ...liked, likedByMe: true }]);
+    setItems((prev) => (prev ? add(prev) : prev));
+    updateSaved(user.id, add);
+  }, [tourStep, items, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // 案内（2026-11-07 実際のボードの画面で説明する）:
   //   calview・personal … ボードの一番上へ戻し、カレンダーを開く（カレンダー・自分の予定のボタンを光らせる）
   //   calendar・bell・done … カレンダーをたたんで、♡した予定の行を真ん中へ。ボードに行が無い予定（日付未定など）はリスト表示で
