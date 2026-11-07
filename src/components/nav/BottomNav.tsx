@@ -1,8 +1,7 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Home, Search, CalendarDays, User, Plus, type LucideIcon } from 'lucide-react';
 import { haptic } from '../../lib/haptics';
-import { spring, prefersReducedMotion, type SpringHandle } from '../../lib/fluid';
 import { useTyping } from '../../hooks/useTyping';
 import PostChooser from '../PostChooser';
 
@@ -18,9 +17,9 @@ function isActive(path: string, pathname: string): boolean {
 }
 
 /**
- * ピボット後の新IA：ホーム / 探す / ＋(投稿) / カレンダー / マイページ。
- * 画面下に浮かぶガラスの丸バー。コンテンツはバーの下を流れ、
- * アクティブ表示はスプリングでタブ間を滑る（X/幅は独立ばね・中断可能）。
+ * ホーム / 探す / ＋(投稿) / カレンダー / マイページ。
+ * 2026-11-07 デザインの一新（時刻表）: 浮いたガラスの丸バーをやめ、画面の下に貼り付いた平らなバーにした。
+ * 上に細い線を1本引くだけ。今いるタブは文字色を濃くするだけで、色は＋（アクセント）にしか使わない。
  */
 export default function BottomNav() {
   const location = useLocation();
@@ -30,81 +29,40 @@ export default function BottomNav() {
   const [chooser, setChooser] = useState(false);
   // 入力中は隠す（Android はキーボードの分だけ画面が縮み、バーがキーボードの上に乗ってしまう）
   const typing = useTyping();
-
-  const rowRef = useRef<HTMLDivElement>(null);
-  const indRef = useRef<HTMLDivElement>(null);
-  const pos = useRef({ x: 0, w: 0, sx: null as SpringHandle | null, sw: null as SpringHandle | null, init: false });
-
   const activeIdx = tabs.findIndex((t) => isActive(t.path, location.pathname));
-
-  useLayoutEffect(() => {
-    const row = rowRef.current, ind = indRef.current;
-    if (!row || !ind) return;
-    const apply = () => {
-      ind.style.transform = `translateX(${pos.current.x}px)`;
-      ind.style.width = `${pos.current.w}px`;
-    };
-    const btn = row.querySelector<HTMLElement>(`[data-tab-idx="${activeIdx}"]`);
-    if (!btn) { ind.style.opacity = '0'; return; }
-    ind.style.opacity = '1';
-    const tx = btn.offsetLeft, tw = btn.offsetWidth;
-    if (!pos.current.init || prefersReducedMotion()) {
-      pos.current.init = true;
-      pos.current.x = tx; pos.current.w = tw;
-      apply();
-      return;
-    }
-    // 進行中でも現在値・速度から連続的に目標を差し替える
-    const vx = pos.current.sx?.running ? pos.current.sx.velocity : 0;
-    pos.current.sx?.stop(); pos.current.sw?.stop();
-    pos.current.sx = spring({ from: pos.current.x, to: tx, velocity: vx, damping: 1, response: 0.32,
-      onUpdate: (v) => { pos.current.x = v; apply(); } });
-    pos.current.sw = spring({ from: pos.current.w, to: tw, damping: 1, response: 0.32,
-      onUpdate: (v) => { pos.current.w = v; apply(); } });
-  }, [activeIdx]);
 
   return (
     <nav
       data-bottom-nav
-      className="fixed inset-x-0 z-[100] flex justify-center pointer-events-none"
+      className="fixed inset-x-0 bottom-0 z-[100] flex justify-center"
       style={{
-        bottom: 'calc(var(--sab) + 10px)',
-        transform: typing ? 'translateY(calc(100% + 40px))' : 'none',
-        opacity: typing ? 0 : 1,
+        transform: typing ? 'translateY(100%)' : 'none',
         visibility: typing ? 'hidden' : 'visible',
-        transition: typing
-          ? 'transform 0.18s ease-in, opacity 0.12s ease-in, visibility 0s 0.18s'
-          : 'transform 0.36s cubic-bezier(0.32,0.72,0,1), opacity 0.2s ease-out',
+        transition: typing ? 'transform 0.18s ease-in, visibility 0s 0.18s' : 'transform 0.24s ease-out',
       }}
     >
       <div
-        ref={rowRef}
         data-skin-part="nav"
-        className="pointer-events-auto relative flex items-center rounded-full material-bar border border-subtle shadow-float px-1.5 py-1.5"
+        className="w-full max-w-app flex items-stretch"
+        style={{ backgroundColor: 'var(--bg-primary)', borderTop: '0.5px solid var(--separator)', paddingBottom: 'var(--sab)' }}
       >
-        {/* アクティブタブの背景ピル（スプリングで追従） */}
-        <div
-          ref={indRef}
-          aria-hidden
-          data-skin-part="nav-ind"
-          className="absolute top-1.5 bottom-1.5 left-0 rounded-full"
-          style={{ backgroundColor: 'var(--fill-tertiary)', width: 0, opacity: 0, willChange: 'transform, width' }}
-        />
         {tabs.slice(0, 2).map((t, i) => (
           <TabButton key={t.path} {...t} idx={i} active={i === activeIdx} onClick={() => go(t.path)} />
         ))}
 
         {/* 中央＋（投稿） */}
-        <button
-          onClick={() => { haptic.select(); setChooser(true); }}
-          aria-label="情報を追加"
-          data-tour="post"
-          data-skin-part="nav-add"
-          className="pressable relative w-11 h-11 mx-1 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)', boxShadow: '0 2px 10px rgba(0,0,0,0.25)' }}
-        >
-          <Plus size={24} strokeWidth={2.4} />
-        </button>
+        <div className="flex-1 flex items-center justify-center">
+          <button
+            onClick={() => { haptic.select(); setChooser(true); }}
+            aria-label="情報を追加"
+            data-tour="post"
+            data-skin-part="nav-add"
+            className="pressable w-12 h-9 rounded-full flex items-center justify-center"
+            style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
+          >
+            <Plus size={22} strokeWidth={2.6} aria-hidden />
+          </button>
+        </div>
 
         {tabs.slice(2).map((t, i) => (
           <TabButton key={t.path} {...t} idx={i + 2} active={i + 2 === activeIdx} onClick={() => go(t.path)} />
@@ -125,20 +83,14 @@ function TabButton({ label, icon: Icon, active, onClick, path, idx }: {
       data-skin-part="nav-item"
       data-tab-idx={idx}
       data-nav-cal={path === '/saved' ? '' : undefined}
-      className="pressable relative flex flex-col items-center justify-center gap-[2px] w-[62px] py-1.5 rounded-full"
+      className="pressable flex-1 flex flex-col items-center justify-center gap-[3px] h-[52px]"
       aria-label={label}
       aria-current={active ? 'page' : undefined}
     >
-      <Icon
-        size={21}
-        className={active ? '' : 'text-label-tertiary'}
-        style={active ? { color: 'var(--accent-color)' } : {}}
-        strokeWidth={active ? 2.5 : 1.8}
-      />
-      <span
-        className={`text-[10px] leading-none whitespace-nowrap ${active ? 'font-semibold' : 'text-label-tertiary'}`}
-        style={active ? { color: 'var(--accent-color)' } : {}}
-      >
+      <Icon size={22} aria-hidden strokeWidth={active ? 2.4 : 1.7}
+        style={{ color: active ? 'var(--label-primary)' : 'var(--label-tertiary)' }} />
+      <span className="text-[10px] leading-none whitespace-nowrap"
+        style={{ color: active ? 'var(--label-primary)' : 'var(--label-tertiary)', fontWeight: active ? 700 : 500 }}>
         {label}
       </span>
     </button>

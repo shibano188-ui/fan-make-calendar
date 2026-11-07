@@ -385,7 +385,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
         // 地の色は、見えている部分（開いているときは月、たたんだら帯）にだけ塗る。たたんで上へずらした月が、
         // 上の案内などを地の色で隠さないように。スクロール中は、上部バーのぼかしの下から一覧が透けないよう上へ伸ばす
         style={{ ...slide, top: stickyTop }}>
-        <div ref={monthRef} className="-mx-3 px-3"
+        <div ref={monthRef} className="-mx-4 px-4"
           style={{
             opacity: folded ? 0 : 1, pointerEvents: folded ? 'none' : 'auto', transition: 'opacity .2s ease',
             backgroundColor: 'var(--bg-primary)', boxShadow: scrolled && !folded ? '0 -24px 0 var(--bg-primary)' : undefined,
@@ -400,29 +400,28 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
           ))}
         </div>
         {/* 下の段（高さ一定）: 開いているときは凡例、たたんだら今見ている週 */}
-        <div className="relative -mx-3 px-3"
+        <div className="relative -mx-4 px-4"
           style={{ height: BAR, backgroundColor: 'var(--bg-primary)', borderBottom: '0.5px solid var(--separator)', boxShadow: scrolled && folded ? '0 -24px 0 var(--bg-primary)' : undefined }}>
-          <div className="absolute inset-y-0 inset-x-3 flex flex-col justify-end" style={{ opacity: folded ? 0 : 1, pointerEvents: folded ? 'none' : 'auto', transition: 'opacity .2s ease' }}>
+          <div className="absolute inset-y-0 inset-x-4 flex flex-col justify-end" style={{ opacity: folded ? 0 : 1, pointerEvents: folded ? 'none' : 'auto', transition: 'opacity .2s ease' }}>
             <div className="flex-1 flex items-center gap-x-3 gap-y-1 flex-wrap content-center text-[11px] text-label-secondary">
               <span className="flex items-center gap-1"><b style={{ color: MARKS['〆'].color }}>〆</b>締切</span>
               <span className="flex items-center gap-1"><i className="w-[10px] h-[10px] rounded-full" style={{ boxShadow: `inset 0 0 0 2px ${MARKS['イ'].color}` }} />イベント</span>
               {works.length > 0 && (
-                <button data-hint="cal-icons" className="pressable ml-auto font-semibold text-label-primary" onClick={() => { haptic.select(); setSheet({ kind: 'icons' }); }}>アイコンを変える ›</button>
+                <button data-hint="cal-icons" className="pressable ml-auto font-semibold text-label-primary" onClick={() => { haptic.select(); setSheet({ kind: 'icons' }); }}>アイコン</button>
+              )}
+              {/* 自分用の予定を足す。2026-11-07 デザインの一新: 右下に浮かせず、凡例の行の右端に置く */}
+              {onAddPersonal && (
+                <button aria-label="自分の予定を追加" data-tour="personal"
+                  className={`pressable ${works.length > 0 ? '' : 'ml-auto'} flex items-center gap-1 h-7 pl-2 pr-2.5 rounded-full text-[12px] font-bold`}
+                  style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}
+                  onClick={() => { haptic.select(); onAddPersonal(); }}>
+                  <CalendarPlus size={14} aria-hidden />自分の予定
+                </button>
               )}
             </div>
             {handle('カレンダーをたたむ', fold)}
           </div>
-          {/* 自分用の予定を足す。カレンダーが開いているときだけ、カレンダーの右下（下の線にかかる位置）に出す。
-              前は画面の右下に浮かせていて、位置がずれることがあった（柴野） */}
-          {onAddPersonal && (
-            <button aria-label="自分の予定を追加" data-tour="personal"
-              className="pressable material-thick absolute right-3 w-12 h-12 rounded-full flex items-center justify-center shadow-float"
-              style={{ bottom: -24, color: 'var(--accent-text)', opacity: folded ? 0 : 1, transform: folded ? 'scale(.6)' : 'none', pointerEvents: folded ? 'none' : 'auto', transition: 'opacity .2s, transform .2s', zIndex: 2 }}
-              onClick={() => { haptic.select(); onAddPersonal(); }}>
-              <CalendarPlus size={22} />
-            </button>
-          )}
-          <div className="absolute inset-y-0 inset-x-3 flex flex-col" style={{ opacity: folded ? 1 : 0, pointerEvents: folded ? 'auto' : 'none', transition: 'opacity .2s ease' }} aria-hidden={!folded}>
+          <div className="absolute inset-y-0 inset-x-4 flex flex-col" style={{ opacity: folded ? 1 : 0, pointerEvents: folded ? 'auto' : 'none', transition: 'opacity .2s ease' }} aria-hidden={!folded}>
             <div className="grid grid-cols-7 pt-0.5">{Array.from({ length: 7 }, (_, i) => cell(addDays(stripWeek, i), i, false, true))}</div>
             {handle('カレンダーを開く', open)}
           </div>
@@ -432,18 +431,20 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
       {/* カレンダーより下は、たたんだときにカレンダーと一緒に上へずらす */}
       <div style={slide}>
       {/* ── これから7日 ── */}
-      <div className="flex items-baseline gap-1.5 pt-3 pb-1.5 text-[12px] font-bold">
-        これから7日<span className="text-[11px] font-normal text-label-secondary">{md(today)}〜{md(addDays(today, 6))}</span>
+      {/* 2026-11-07 デザインの一新: 箱をやめ、色の付いた大きな数字だけを並べる。押すとその種類だけに絞る */}
+      <div className="flex items-baseline gap-1.5 pt-4 pb-1 text-[13px] font-extrabold">
+        これから7日<span className="num text-[12px] font-bold text-label-tertiary">{md(today)}–{md(addDays(today, 6))}</span>
       </div>
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="grid grid-cols-4 -mx-1">
         {(['〆', '発', '受', '行'] as Mark[]).map((k) => {
           const on = onlyMarks.has(k);
+          const n = week7[k] ?? 0;
           return (
             <button key={k} onClick={() => toggleMark(k)} aria-pressed={on}
-              className="pressable rounded-[12px] py-2 flex flex-col items-center gap-0.5 transition-opacity"
-              style={{ backgroundColor: 'var(--bg-secondary)', boxShadow: on ? 'inset 0 0 0 2px var(--label-primary)' : 'inset 0 0 0 0.5px var(--separator)', opacity: onlyMarks.size && !on ? 0.5 : 1 }}>
-              <b className="text-[24px] leading-none tabular-nums" style={{ color: k === '行' ? '#a07800' : MARKS[k].color }}>{week7[k] ?? 0}</b>
-              <span className="text-[11px] text-label-secondary">{MARKS[k].long}</span>
+              className="pressable mx-1 rounded-[14px] pt-1.5 pb-2 flex flex-col items-start pl-2.5 transition-opacity"
+              style={{ backgroundColor: on ? 'var(--fill-tertiary)' : undefined, opacity: onlyMarks.size && !on ? 0.4 : 1 }}>
+              <b className="num text-[34px] font-extrabold leading-none" style={{ color: n ? (k === '行' ? '#c89400' : MARKS[k].color) : 'var(--label-tertiary)' }}>{n}</b>
+              <span className="mt-1 text-[11px] font-bold text-label-secondary">{MARKS[k].long}</span>
             </button>
           );
         })}
@@ -519,9 +520,14 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
       ))}
 
       {!future.length && !todayList.length && !ganttList.length && !undated.length && (
-        <p className="text-center text-label-secondary text-[13px] py-14">
-          {onlyMarks.size ? 'この種類の予定はありません' : <>これからの予定はありません<br />気になるグッズ・イベントに ♡ を押すとここに並びます</>}
-        </p>
+        <div className="text-center py-14">
+          {onlyMarks.size ? <p className="text-label-secondary text-[13px]">この種類の予定はありません</p> : (
+            <>
+              <p className="text-[17px] font-extrabold">まだ予定がありません</p>
+              <p className="mt-1.5 text-[13px] text-label-secondary">探すで気になる予定に ♡ を押すと、ここに並びます</p>
+            </>
+          )}
+        </div>
       )}
       {/* 最後の日まで、帯のすぐ下へ飛べるように下に余白を足す */}
       <div aria-hidden style={{ height: `max(0px, calc(100dvh - ${stickyTop + BAR + 260}px))` }} />
@@ -661,7 +667,7 @@ function DayCell({ d, dow, today, list: all, active, event, outside, compact, ho
       className={`pressable relative flex flex-col items-center gap-[3px] rounded-[10px] ${compact ? 'h-[56px] pt-[2px] gap-[2px]' : 'h-[54px] pt-[3px]'}`}
       style={{ backgroundColor: hot ? 'color-mix(in srgb, var(--accent-color) 30%, transparent)' : active && !isToday ? 'var(--fill-tertiary)' : undefined }}>
       {compact && <span className="text-[10px] font-semibold leading-none" style={{ color: dayColor(dow) ?? 'var(--label-secondary)' }}>{WEEKDAYS[dow]}</span>}
-      <span className={`${compact ? 'w-6 h-6 text-[13px]' : 'w-7 h-7 text-[14px]'} rounded-full flex items-center justify-center font-semibold tabular-nums`}
+      <span className={`num ${compact ? 'w-7 h-7 text-[14px]' : 'w-8 h-8 text-[16px]'} rounded-full flex items-center justify-center font-bold`}
         style={isToday ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)', fontWeight: 700 }
           : { color: past ? 'var(--label-tertiary)' : dayColor(dow) ?? 'var(--label-primary)', boxShadow: event ? `inset 0 0 0 2px ${MARKS['イ'].color}` : undefined }}>
         {parse(d).getDate()}
@@ -685,16 +691,17 @@ function relLabel(day: string, today: string): string {
 
 // ─ 日ごとの行 ─
 
-/** 左に「あと○日」（大きく）と日付、縦の線でつなぎ、右に中身 */
+/** 左に「あと○日」（大きな数字）と日付、縦の線でつなぎ、右に中身。2026-11-07 デザインの一新: 数字を主役にした */
 function DayRow({ day, today, last, hot, guess, children }: { day: string | null; today: string; last?: boolean; hot?: boolean; guess?: boolean; children: ReactNode }) {
   const isToday = day === today;
   const n = day ? daysBetween(today, day) : 0;
   const soon = day && !isToday && n <= 3;
   const dow = day ? dowOf(day) : 0;
+  const ink = soon ? MARKS['〆'].color : 'var(--label-primary)';
   return (
     // hot＝日付未定の予定を運んでいて、この日の上にいる
-    <div data-board-day={day ?? undefined} className="grid rounded-[14px] transition-colors" style={{ gridTemplateColumns: '60px 16px minmax(0,1fr)', backgroundColor: hot ? 'color-mix(in srgb, var(--accent-color) 22%, transparent)' : undefined }}>
-      <div className="flex flex-col items-center pt-2 text-center">
+    <div data-board-day={day ?? undefined} className="grid rounded-[16px] transition-colors" style={{ gridTemplateColumns: '66px 14px minmax(0,1fr)', backgroundColor: hot ? 'color-mix(in srgb, var(--accent-color) 22%, transparent)' : undefined }}>
+      <div className="flex flex-col items-center pt-3 text-center">
         {day === null ? (
           <span className="text-[11px] font-semibold text-label-secondary pt-2 leading-tight">日付<br />未定</span>
         ) : guess && !isToday ? (
@@ -702,31 +709,32 @@ function DayRow({ day, today, last, hot, guess, children }: { day: string | null
           null
         ) : isToday ? (
           <>
-            <span className="text-[20px] font-black leading-tight">今日</span>
-            <span className="mt-1 text-[11px] font-semibold text-label-secondary tabular-nums">{md(day)}（{WEEKDAYS[dow]}）</span>
+            <span className="text-[22px] font-black leading-none">今日</span>
+            <span className="num mt-1.5 text-[12px] font-bold text-label-secondary whitespace-nowrap">{md(day)}<span style={{ color: dayColor(dow) }}>（{WEEKDAYS[dow]}）</span></span>
           </>
         ) : (
           <>
-            <span className="text-[11px] font-bold leading-tight" style={{ color: soon ? MARKS['〆'].color : 'var(--label-secondary)' }}>あと</span>
-            <span className="text-[30px] font-black leading-none tabular-nums tracking-tight whitespace-nowrap" style={{ color: soon ? MARKS['〆'].color : 'var(--label-primary)' }}>
-              {n}<small className="text-[13px] font-bold ml-px">日</small>
+            <span className="text-[10px] font-extrabold leading-none" style={{ color: soon ? ink : 'var(--label-secondary)' }}>あと</span>
+            <span className="num text-[38px] font-extrabold leading-[0.95] whitespace-nowrap" style={{ color: ink }}>
+              {n}<small className="text-[13px] font-extrabold ml-px">日</small>
             </span>
-            <span className="mt-1 text-[11px] font-semibold text-label-secondary tabular-nums whitespace-nowrap">
+            <span className="num mt-1 text-[12px] font-bold text-label-secondary whitespace-nowrap">
               {md(day)}<span style={{ color: dayColor(dow) }}>（{WEEKDAYS[dow]}）</span>
             </span>
           </>
         )}
       </div>
       <div className="relative">
-        <span className="absolute left-1/2 -ml-px w-[2px]" style={{ top: isToday ? 26 : 0, bottom: last ? 'auto' : 0, height: last ? 26 : undefined, backgroundColor: 'var(--separator)' }} />
+        <span className="absolute left-1/2 -ml-px w-[2px]" style={{ top: isToday ? 30 : 0, bottom: last ? 'auto' : 0, height: last ? 30 : undefined, backgroundColor: 'var(--fill-tertiary)' }} />
         {day !== null && (
           <span className="absolute left-1/2 rounded-full" style={{
-            top: 22, width: isToday ? 12 : 10, height: isToday ? 12 : 10, marginLeft: isToday ? -6 : -5,
-            backgroundColor: isToday ? 'var(--accent-color)' : 'var(--bg-primary)', border: guess ? '2px dashed var(--label-tertiary)' : '2px solid var(--label-primary)',
+            top: 24, width: isToday ? 12 : 10, height: isToday ? 12 : 10, marginLeft: isToday ? -6 : -5,
+            backgroundColor: isToday ? 'var(--accent-color)' : soon ? ink : 'var(--bg-primary)',
+            border: guess ? '2px dashed var(--label-tertiary)' : isToday || soon ? 'none' : '2px solid var(--label-tertiary)',
           }} />
         )}
       </div>
-      <div className="min-w-0 pt-2 pb-3 flex flex-col gap-2.5">{children}</div>
+      <div className="min-w-0 pt-1 pb-4 flex flex-col gap-3">{children}</div>
     </div>
   );
 }
@@ -742,7 +750,7 @@ function Group({ list, today, dot, onOpen, onRemove, onAll, onDrag }: {
   const head = few ? list : list.slice(0, 2);
   const rest = few ? [] : list.slice(2);
   return (
-    <section className="rounded-[14px] overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)', boxShadow: 'inset 0 0 0 0.5px var(--separator)' }}>
+    <section>
       {head.map((m, i) => (
         <div key={`${m.e.id}-${m.mark}-${m.label ?? ''}`} style={{ borderTop: i ? '0.5px solid var(--separator)' : undefined }}>
           <ItemRow m={m} today={today} dot={dot} onOpen={onOpen} onRemove={onRemove} onDrag={onDrag} />
@@ -771,7 +779,7 @@ function Pic({ e, size }: { e: CalendarEvent; size?: number }) {
   const src = parseImageUrls(e.imageUrl)[0];
   const [err, setErr] = useState(false);
   return (
-    <span className="block overflow-hidden rounded-[10px] flex-shrink-0" style={{ width: size, height: size, aspectRatio: size ? undefined : '1', backgroundColor: 'var(--fill-tertiary)' }}>
+    <span className="block overflow-hidden rounded-[12px] flex-shrink-0" style={{ width: size, height: size, aspectRatio: size ? undefined : '1', backgroundColor: 'var(--fill-quaternary)' }}>
       {src && !err && <OptImg src={src} w={192} alt="" loading="lazy" className="w-full h-full object-contain" onError={() => setErr(true)} />}
     </span>
   );
@@ -820,10 +828,10 @@ function ItemRow({ m, today, dot, onOpen, onRemove, hideMark, onDrag }: {
     return (
       <CalendarSwipeRow event={e} onRemove={onRemove}>
         <LongPress onLong={(x, y) => onDrag?.(m, x, y)} onTap={() => onOpen(e)} label={e.title}
-          className="relative w-full flex items-center gap-2.5 px-3 py-2.5 text-left"
-          style={{ backgroundColor: 'var(--bg-secondary)' }}>
+          className="relative w-full flex items-center gap-3 px-1 py-2.5 text-left"
+          style={{ backgroundColor: 'var(--bg-primary)' }}>
           <span aria-hidden className="absolute inset-1 rounded-[10px] pointer-events-none" style={{ border: '1.5px dashed var(--label-tertiary)' }} />
-          <Pic e={e} size={56} />
+          <Pic e={e} size={64} />
           <span className="min-w-0 flex-1 flex flex-col gap-[3px]">
             <span className="flex items-center gap-1.5 min-w-0 text-[11px] text-label-secondary">
               <b className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-[5px] text-[11px]" style={{ border: '1.5px dashed var(--label-secondary)', color: 'var(--label-primary)' }}>仮</b>
@@ -844,22 +852,22 @@ function ItemRow({ m, today, dot, onOpen, onRemove, hideMark, onDrag }: {
     : null;
   return (
     <CalendarSwipeRow event={e} onRemove={onRemove}>
-      <button data-card-id={e.id} className="relative w-full flex items-center gap-2.5 px-3 py-2.5 text-left select-none"
-        style={{ backgroundColor: 'var(--bg-secondary)' }}
+      <button data-card-id={e.id} className="relative w-full flex items-center gap-3 px-1 py-2.5 text-left select-none"
+        style={{ backgroundColor: 'var(--bg-primary)' }}
         onClick={() => { haptic.select(); onOpen(e); }}>
-        <Pic e={e} size={56} />
-        <span className="min-w-0 flex-1 flex flex-col gap-[3px]">
+        <Pic e={e} size={64} />
+        <span className="min-w-0 flex-1 flex flex-col gap-1">
           <span className="flex items-center gap-1.5 min-w-0 text-[11px] text-label-secondary">
-            {!hideMark && <MarkChip mark={m.mark} label={false} />}
+            {!hideMark && <MarkChip mark={m.mark} label={!m.label} />}
             {m.label && <span className="font-semibold text-label-primary truncate flex-shrink-0 max-w-[40%]">{m.label}</span>}
             <span className="flex items-center gap-1 min-w-0">{dot(e.workId, 15)}<span className="truncate">{e.workName}</span></span>
           </span>
-          <span className="text-[13px] font-semibold leading-snug line-clamp-2">
+          <span className="text-[14px] font-semibold leading-snug line-clamp-2">
             {notify && <BellRing aria-label="通知ON" size={13} className="inline -mt-0.5 mr-1" style={{ color: 'var(--accent-color)' }} />}{stripWorkName(e.title, e.workName)}
           </span>
           <span className="text-[12px] tabular-nums">
             {sub ? <span className="text-label-secondary">{sub}</span>
-              : e.price ? <b>¥{e.price.toLocaleString('ja-JP')}</b>
+              : e.price ? <b className="num text-[15px] font-extrabold">¥{e.price.toLocaleString('ja-JP')}</b>
               : deriveIsGoods(e) ? <span className="text-label-tertiary text-[11px]">価格未定</span> : null}
           </span>
         </span>

@@ -83,12 +83,13 @@ function WorkChip({ work, color, image, hidden, onClick }: {
 }) {
   return (
     <button onClick={onClick} aria-pressed={!hidden} title={work.name}
-      className="pressable flex-shrink-0 flex items-center gap-1.5 h-7 pl-1 pr-2.5 rounded-full max-w-[11rem]"
-      style={{ backgroundColor: 'var(--fill-tertiary)', opacity: hidden ? 0.4 : 1 }}>
+      // 2026-11-07 デザインの一新: 地の塗りをやめて細い線の輪に。作品の色は小さな丸（画像があれば丸い画像）で
+      className="pressable flex-shrink-0 flex items-center gap-1.5 h-7 pl-1.5 pr-2.5 rounded-full max-w-[11rem]"
+      style={{ boxShadow: 'inset 0 0 0 1px var(--separator)', opacity: hidden ? 0.4 : 1 }}>
       {image
-        ? <img src={image} alt="" className="w-5 h-5 rounded-[5px] object-cover flex-shrink-0" />
-        : <span className="w-5 h-5 rounded-[5px] flex-shrink-0" style={{ backgroundColor: color ?? 'var(--accent-color)' }} />}
-      <span className={`text-[12px] font-medium truncate ${hidden ? 'line-through' : ''}`}>{work.name}</span>
+        ? <img src={image} alt="" className="w-[18px] h-[18px] rounded-full object-cover flex-shrink-0" />
+        : <span aria-hidden className="w-2.5 h-2.5 mx-1 rounded-full flex-shrink-0" style={{ backgroundColor: color ?? 'var(--accent-color)' }} />}
+      <span className={`text-[12px] font-semibold truncate ${hidden ? 'line-through' : ''}`}>{work.name}</span>
     </button>
   );
 }

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { ConfirmProvider } from './components/ui/ConfirmDialog';
@@ -38,7 +38,6 @@ const PriceDrops      = lazy(() => import('./pages/PriceDrops'));
 const Follows         = lazy(() => import('./pages/Follows'));
 const NotificationSettings = lazy(() => import('./pages/NotificationSettings'));
 const Notices         = lazy(() => import('./pages/Notices'));
-const Ranking         = lazy(() => import('./pages/Ranking'));
 const Premium         = lazy(() => import('./pages/Premium'));
 const PremiumWelcome  = lazy(() => import('./pages/PremiumWelcome'));
 const WidgetCountdown = lazy(() => import('./pages/WidgetCountdown'));
@@ -356,7 +355,8 @@ export default function App() {
                     <Route path="/customize/theme" element={<ThemeCreate />} />
                     <Route path="/price-drops" element={<PriceDrops />} />
                     <Route path="/follows" element={<Follows />} />
-                    <Route path="/ranking" element={<Ranking />} />
+                    {/* ランキングの画面は 2026-11-07 になくした（柴野）。ヌシの通知（api/metrics.ts）が /ranking?work= を開くので、マイページへ送る */}
+                    <Route path="/ranking" element={<Navigate to="/mypage" replace />} />
                     <Route path="/notifications" element={<NotificationSettings />} />
                     <Route path="/notices" element={<Notices />} />
                     <Route path="/premium" element={<Premium />} />

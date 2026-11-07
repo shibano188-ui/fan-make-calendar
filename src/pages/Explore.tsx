@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams, useNavigationType, useLocation } from 'react-router-dom';
-import { ArrowDownToLine, ArrowLeftRight, EyeOff, Heart, Plus, SlidersHorizontal, X } from 'lucide-react';
+import { ArrowDownToLine, EyeOff, Heart, Plus, SlidersHorizontal, X } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import ItemCard from '../components/item/ItemCard';
 import FilterPanel, { type Facet } from '../components/item/FilterPanel';
@@ -425,7 +425,6 @@ export default function Explore() {
     const st = deriveStatus(e);
     return st === 'ended' || st === 'soldout' || (st === 'preorder_ended' && !(e.date && e.date > today));
   }, [today]);
-  const endedCount = useMemo(() => (selectedStatuses.size ? 0 : queryItems.filter(isOver).length), [queryItems, selectedStatuses, isOver]);
 
   // 上の「探す｜スタンプ」。スタンプ＝♡ほどではないけど、とっておいた予定（2026-11-07 柴野。探しているときに使うので探すに置く）。
   // 前の切り替えを戻すのは、詳細から戻ってきたとき（POP）だけ
@@ -605,7 +604,7 @@ export default function Explore() {
     toast(r === 'google' ? 'Googleカレンダーに追加しました' : r === 'ics' ? 'カレンダーに追加しました' : '日付未定のため追加できません');
   };
 
-  const gridClass = 'flex flex-col gap-2';
+  const gridClass = 'flex flex-col';
   const workColorMap = useMemo(() => buildWorkColorMap([...followed].map((id) => ({ id }))), [followed]);
 
   // content-visibility: 画面外カードの描画・レイアウト計算をスキップして長いリストを軽くする。
@@ -666,7 +665,7 @@ export default function Explore() {
     <div key={e.id} ref={observeSeen} data-event-id={e.id}
       style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 196px' }}>
       {/* 左へ払うと非表示、右へ払うと ♡（カレンダーに追加） */}
-      <SwipeRow label="非表示" icon={<EyeOff size={16} />} color="#8e8e93" radius={12} onSwipe={() => onDismiss(e)}
+      <SwipeRow label="非表示" icon={<EyeOff size={16} />} color="#8e8e93" onSwipe={() => onDismiss(e)}
         right={{ label: isLiked(e) ? '追加済み' : 'カレンダーに追加', icon: <Heart size={16} fill="currentColor" />, color: 'var(--accent-color)', onSwipe: () => { void onSwipeLike(e); } }}>
         <ItemCard event={e} layout={mode === 'goods' ? 'wide' : 'list'} isNew={isNewItem(e.id, e.createdAt, seenSnapshot)} likedInit={likedIds.has(e.id)}
           workColor={e.workId ? (workColorMap.get(e.workId) ?? 'var(--accent-color)') : 'var(--accent-color)'}
@@ -677,42 +676,56 @@ export default function Explore() {
 
   return (
     <div ref={pageRef} className="relative">
-      <div ref={headerRef} className="px-3 pt-3 pb-3 sticky top-0 z-20 material-bar scroll-edge" data-skin-bar="main" style={{ paddingTop: adPad }}>
-        {/* 上段: 見出し・検索（虫眼鏡から広がる）・グッズ⇄イベント・未読・絞り込み */}
-        <div className="flex items-center gap-2">
+      <div ref={headerRef} className="px-4 pb-2 sticky top-0 z-20" data-skin-bar="main" style={{ paddingTop: adPad, backgroundColor: 'var(--bg-primary)' }}>
+        {/* 上段: 見出し・検索（虫眼鏡から広がる）・絞り込み。2026-11-07 デザインの一新でボタンを2つに絞った */}
+        <div className="flex items-center gap-1 h-11">
           <ExpandingSearch value={query} onChange={setQuery} placeholder={mode === 'goods' ? 'グッズを検索' : 'イベントを検索'}
-            title={<span className="text-[22px] font-bold tracking-tight">探す</span>} sideRef={sideRef} />
-          <SearchSideButtons ref={sideRef} gap={8}>
-          {/* 案内の間は切り替えさせない（グッズで案内する） */}
-          {!touring && <ModeToggle mode={mode} onToggle={() => { haptic.select(); setMode((m) => (m === 'goods' ? 'event' : 'goods')); }} />}
-          <UnreadButton unread={unread.n} total={unread.total} active={showUnseenOnly}
-            onClick={() => { haptic.select(); setShowUnseenOnly((v) => !v); }} />
-          <EndedButton active={showEnded} count={endedCount} onClick={toggleEnded} />
+            title={<h1 className="text-[24px] font-extrabold">探す</h1>} sideRef={sideRef} />
+          <SearchSideButtons ref={sideRef} gap={2}>
           <button onClick={() => { haptic.select(); setFilterOpen((v) => !v); }}
             aria-label="絞り込み" aria-pressed={filterOpen}
-            className="pressable relative w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-            style={filterOpen || activeCount > 0
+            className="pressable relative w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+            style={activeCount > 0
               ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }
-              : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
-            <SlidersHorizontal size={17} />
+              : { color: 'var(--label-primary)', backgroundColor: filterOpen ? 'var(--fill-tertiary)' : undefined }}>
+            <SlidersHorizontal size={20} aria-hidden />
             {activeCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold leading-4 text-center"
+              <span className="num absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold leading-4 text-center"
                 style={{ backgroundColor: 'var(--label-primary)', color: 'var(--bg-primary)' }}>{activeCount}</span>
             )}
           </button>
           </SearchSideButtons>
         </div>
 
-        {/* 探す｜スタンプ（上部バーの中に置き、いつでも切り替えられる） */}
-        <div className="flex p-0.5 mt-2.5 rounded-[10px]" role="tablist" style={{ backgroundColor: 'var(--fill-tertiary)' }}>
-          {([['list', '探す'], ['stamp', 'スタンプ']] as const).map(([k, label]) => (
-            <button key={k} role="tab" aria-selected={tab === k} data-hint={k === 'stamp' ? 'ex-stamp' : undefined}
-              onClick={() => { if (tab === k) return; haptic.select(); setTab(k); window.scrollTo(0, 0); }}
-              className="pressable flex-1 h-8 rounded-[8px] text-[13px] font-semibold transition-colors"
-              style={tab === k ? { backgroundColor: 'var(--bg-primary)', color: 'var(--label-primary)', boxShadow: '0 1px 3px rgba(0,0,0,.12)' } : { color: 'var(--label-secondary)' }}>
-              {label}
-            </button>
-          ))}
+        {/* グッズ｜イベント｜スタンプ（前はグッズ⇄イベントの切り替えと、探す｜スタンプが別々だった）。右に未読・過去 */}
+        <div className="flex items-end gap-4 mt-1" role="tablist" style={{ borderBottom: '0.5px solid var(--separator)' }}>
+          {([['goods', 'グッズ'], ['event', 'イベント'], ['stamp', 'スタンプ']] as const).map(([k, label]) => {
+            const on = k === 'stamp' ? tab === 'stamp' : tab === 'list' && mode === k;
+            // 案内の間はグッズで案内するので、ほかへは切り替えさせない
+            const locked = touring && !on;
+            return (
+              <button key={k} role="tab" aria-selected={on} disabled={locked} data-hint={k === 'stamp' ? 'ex-stamp' : undefined}
+                onClick={() => {
+                  if (on) return;
+                  haptic.select();
+                  if (k === 'stamp') { setTab('stamp'); window.scrollTo(0, 0); return; }
+                  if (tab !== 'list') { setTab('list'); window.scrollTo(0, 0); }
+                  if (mode !== k) setMode(k);
+                }}
+                className="pressable relative pb-2 pt-1 text-[15px] font-extrabold disabled:opacity-30"
+                style={{ color: on ? 'var(--label-primary)' : 'var(--label-tertiary)' }}>
+                {label}
+                {on && <span className="absolute inset-x-0 -bottom-px h-[2.5px] rounded-full" style={{ backgroundColor: 'var(--label-primary)' }} />}
+              </button>
+            );
+          })}
+          {tab === 'list' && (
+            <span className="ml-auto flex items-center gap-1.5 pb-2">
+              <TextToggle active={showUnseenOnly} label="未読" count={unread.n}
+                onClick={() => { haptic.select(); setShowUnseenOnly((v) => !v); }} />
+              <TextToggle active={showEnded} label="過去" onClick={toggleEnded} />
+            </span>
+          )}
         </div>
 
         {/* 下段: 作品の並び（カレンダーと同じ。押すとその作品を隠す）＋ 作品を足す */}
@@ -768,7 +781,7 @@ export default function Explore() {
       )}
 
       <div
-        className="px-3 pb-4"
+        className="px-4 pb-4"
         onClickCapture={(e) => {
           // 絞り込みパネルを開いたまま下の予定をタップしたら、まずパネルを畳む（タップは詳細に伝播させない）
           if (filterOpen) { e.stopPropagation(); haptic.select(); setFilterOpen(false); }
@@ -857,58 +870,13 @@ export default function Explore() {
   );
 }
 
-/** 「グッズ ⇄」。今見ている方だけを書き、押すともう片方に切り替わる。
- *  文字は下からふわっと入れ替え、⇄ は半回転させて「切り替わった」を見せる */
-function ModeToggle({ mode, onToggle }: { mode: ItemType; onToggle: () => void }) {
-  const [turns, setTurns] = useState(0);
-  return (
-    <button onClick={() => { setTurns((t) => t + 1); onToggle(); }} aria-label={`${mode === 'goods' ? 'グッズ' : 'イベント'}を表示中。押すと切り替え`}
-      className="pressable flex-shrink-0 h-9 w-[92px] rounded-full flex items-center justify-center gap-1 overflow-hidden"
-      style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
-      <span key={mode} className="text-[13px] font-semibold"
-        style={{ animation: turns ? 'labelSwap 0.34s cubic-bezier(0.32,0.72,0,1) both' : undefined }}>
-        {mode === 'goods' ? 'グッズ' : 'イベント'}
-      </span>
-      <ArrowLeftRight size={13} className="text-label-secondary"
-        style={{ transform: `rotate(${turns * 180}deg)`, transition: 'transform 0.45s cubic-bezier(0.34,1.3,0.64,1)' }} />
-    </button>
-  );
-}
-
-/** 「未読」を囲む円。円の埋まり具合＝まだ見ていない予定の割合。読み終わると円は消える。
- *  押すと未読のみ表示（ON の間は地の色を付ける） */
-/** 「過去」。押すと、終わった予定（発売済み・売り切れ・終了）も一覧に出す。未読と同じ形にそろえる。
- *  「終了」だと物騒に見えるので「過去」にした（柴野・2026-10-02） */
-function EndedButton({ active, count, onClick }: { active: boolean; count: number; onClick: () => void }) {
+/** 未読・過去の切り替え（2026-11-07 デザインの一新: 丸いボタンから、タブの右の小さな文字にした）。ON の間は塗る */
+function TextToggle({ active, label, count, onClick }: { active: boolean; label: string; count?: number; onClick: () => void }) {
   return (
     <button onClick={onClick} aria-pressed={active}
-      aria-label={active ? '過去の予定を隠す' : `過去の予定も表示（${count}件）`}
-      className="pressable relative flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center"
-      style={{ backgroundColor: active ? 'color-mix(in srgb, var(--accent-color) 24%, transparent)' : 'var(--fill-tertiary)' }}>
-      <span className="text-[10px] font-bold"
-        style={{ color: active ? 'var(--accent-text)' : count > 0 ? 'var(--label-primary)' : 'var(--label-tertiary)' }}>過去</span>
-    </button>
-  );
-}
-
-function UnreadButton({ unread, total, active, onClick }: { unread: number; total: number; active: boolean; onClick: () => void }) {
-  const R = 15.5;
-  const C = 2 * Math.PI * R;
-  const ratio = total > 0 ? unread / total : 0;
-  return (
-    <button onClick={onClick} aria-pressed={active}
-      aria-label={unread > 0 ? `未読のみ表示（未読${unread}件）` : '未読のみ表示'}
-      className="pressable relative flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center"
-      style={{ backgroundColor: active ? 'color-mix(in srgb, var(--accent-color) 24%, transparent)' : 'var(--fill-tertiary)' }}>
-      <svg className="absolute inset-0" viewBox="0 0 36 36" aria-hidden
-        style={{ opacity: unread > 0 ? 1 : 0, transition: 'opacity 0.4s ease' }}>
-        <circle cx="18" cy="18" r={R} fill="none" stroke="var(--fill-secondary, rgba(120,120,128,0.2))" strokeWidth="2.5" />
-        <circle cx="18" cy="18" r={R} fill="none" stroke="var(--accent-color)" strokeWidth="2.5" strokeLinecap="round"
-          strokeDasharray={C} strokeDashoffset={C * (1 - ratio)} transform="rotate(-90 18 18)"
-          style={{ transition: 'stroke-dashoffset 0.6s cubic-bezier(0.32,0.72,0,1)' }} />
-      </svg>
-      <span className="relative text-[10px] font-bold"
-        style={{ color: active ? 'var(--accent-text)' : unread > 0 ? 'var(--label-primary)' : 'var(--label-tertiary)' }}>未読</span>
+      className="pressable h-7 px-2.5 rounded-full flex items-center gap-1 text-[12px] font-bold"
+      style={active ? { backgroundColor: 'var(--label-primary)', color: 'var(--bg-primary)' } : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-secondary)' }}>
+      {label}{!!count && <span className="num">{count}</span>}
     </button>
   );
 }

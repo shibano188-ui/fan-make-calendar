@@ -29,7 +29,7 @@ export default function AppShell() {
     <div className="min-h-[100dvh]" style={{ backgroundColor: 'var(--bg-primary)' }}>
       <div className="mx-auto w-full max-w-app min-h-[100dvh] flex flex-col">
         {/* 下端は浮遊バーの下をコンテンツが流れる。バー高さ+余白ぶんの逃げを確保 */}
-        <main className="flex-1 pb-28">
+        <main className="flex-1 pb-24">
           <Outlet />
         </main>
         {/* 作りかけのテーマがあるときだけ出る。他の画面で見た目を確かめて戻ってこられる */}

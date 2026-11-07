@@ -131,11 +131,12 @@ export default function ExpandingSearch({ value, onChange, placeholder, title, o
       {/* 欄は常に横いっぱい。閉じているときは右端の丸だけ見せる（見えない部分は押せない） */}
       <div ref={pillRef} onClick={expand} onScroll={noScroll}
         className={`absolute inset-0 h-9 rounded-full flex items-center overflow-hidden ${open ? '' : 'pressable cursor-pointer'}`}
-        style={{ backgroundColor: 'var(--fill-tertiary)', clipPath: open ? 'none' : `inset(0px 0px 0px calc(100% - ${D}px) round ${D / 2}px)` }}
+        // 閉じているときは塗らず、ほかのアイコンのボタンと同じ見た目にする（2026-11-07 デザインの一新）
+        style={{ backgroundColor: open ? 'var(--fill-tertiary)' : 'transparent', clipPath: open ? 'none' : `inset(0px 0px 0px calc(100% - ${D}px) round ${D / 2}px)` }}
         role={open ? undefined : 'button'} aria-label={open ? undefined : '検索'}>
         <span ref={iconRef} className="flex-shrink-0 w-9 h-9 flex items-center justify-center"
           style={{ marginLeft: open ? 0 : `calc(100% - ${D}px)` }}>
-          <Search size={17} className="text-label-secondary" />
+          <Search size={open ? 17 : 20} aria-hidden style={{ color: open ? 'var(--label-secondary)' : 'var(--label-primary)' }} />
         </span>
         <div ref={fieldRef} className="flex-1 min-w-0 flex items-center pr-2" style={{ opacity: open ? 1 : 0 }} onScroll={noScroll}>
           <input ref={inputRef} value={value} onChange={(e) => onChange(e.target.value)}

@@ -43,9 +43,8 @@ const HINTS: Hint[] = [
   { id: 'cal-visit', path: '/saved', find: visible('[data-hint="cal-visit"]'), text: '押すと、行く日を選べます' },
   { id: 'cal-fold', path: '/saved', find: visible('[aria-hidden="false"] > button[aria-label="カレンダーを開く"]'), text: '押すとカレンダーが開きます' },
   { id: 'cal-undated', path: '/saved', find: visible('[data-undated-drop]'), text: '長押しで、好きな場所へ仮置きできます' },
-  { id: 'cal-view', path: '/saved', find: visible('button[aria-label="表示を切り替える"]'), text: '月・週・日・リストにも切り替えられます' },
   { id: 'cal-icons', path: '/saved', find: visible('[data-hint="cal-icons"]'), text: 'カレンダーの点を好きな画像にできます' },
-  { id: 'cal-custom', path: '/saved', find: visible('button[aria-label="カスタマイズ"]'), text: 'テーマや背景、色を変えられます' },
+  { id: 'cal-custom', path: '/saved', find: visible('button[aria-label="その他"]'), text: 'テーマや背景、色を変えられます' },
   // ホーム（前は ✕ で消す案内の帯だった）
   { id: 'home-icon', path: '/', find: visible('button[aria-label="作品アイコンを選ぶ"]'), text: '押すと、推しの画像をアイコンにできます' },
   // 探す
@@ -56,7 +55,6 @@ const HINTS: Hint[] = [
   { id: 'item-share', path: '/item/', find: visible('[data-hint="item-share"]'), text: '気になる予定は X で共有もできます' },
   // マイページ
   { id: 'my-fanstar', path: '/mypage', find: visible('[data-hint="my-fanstar"]'), text: '投稿やいいねで星が育ちます' },
-  { id: 'my-ranking', path: '/mypage', find: visible('[data-hint="my-ranking"]'), text: '投稿で点が入り、毎月の順位が決まります' },
   { id: 'my-sync', path: '/mypage', find: visible('[data-hint="my-sync"]'), text: 'いつものカレンダーに予定を入れられます' },
 ];
 

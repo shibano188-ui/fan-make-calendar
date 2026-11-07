@@ -38,6 +38,7 @@ import { countdownLabel } from '../lib/relativeDay';
 import GetAppSheet, { openAppHref } from '../components/item/GetAppSheet';
 import FanHiveMark from '../components/FanHiveMark';
 import { VisitPicker } from '../components/board/VisitSheet';
+import { splitCountdown } from '../components/item/ItemCard';
 
 // 外部カレンダー連携（Google/ics への追加）は一旦保留。再開時は true に戻す。
 const EXTERNAL_CALENDAR_ENABLED = false;
@@ -454,7 +455,16 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
                 <div className="mt-1">
                   {/* 段階の流れ（今いる段階に色）。その下に、一番気になる日までの日数 */}
                   <StageStepper event={eff} />
-                  {countdown && <div className="mt-2 text-[13px] font-bold" style={{ color: 'var(--accent-text)' }}>{countdown}</div>}
+                  {/* 2026-11-07 デザインの一新: 「あと○日」を数字の書体で大きく（カレンダーのボードと同じ見せ方） */}
+                  {countdown && (() => {
+                    const c = splitCountdown(countdown)!;
+                    return (
+                      <div className="mt-3 flex items-baseline gap-2">
+                        {c.label && <span className="text-[13px] font-bold text-label-secondary">{c.label}</span>}
+                        <span className="num text-[34px] font-extrabold leading-none">{c.value}</span>
+                      </div>
+                    );
+                  })()}
                   {/* 受付開始の即時通知の案内（無料の人・予約受付がこれから始まるグッズだけ・2026-10-05）。
                       一番ほしくなるのは「予約開始前」を見ているときなので、段階の表示のすぐ下に置く */}
                   {!shared && FEATURE_PREMIUM && !instantAlerts && isPreorderSoon({ type: deriveItemType(eff), preorderStart: eff.preorderStart }, todayStr()) && (
@@ -574,7 +584,7 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
               if (price == null && !range) return null;
               return (
                 <div className="mt-2 flex items-baseline flex-wrap gap-2">
-                  <span className="text-[22px] font-bold" style={{ color: 'var(--accent-text)' }}>
+                  <span className="num text-[28px] font-extrabold">
                     {range ? `¥${range.min.toLocaleString()}〜¥${range.max.toLocaleString()}` : `¥${price!.toLocaleString()}`}
                   </span>
                   {prim?.isSet && <span className="text-[11px] font-bold text-label-secondary px-1.5 py-0.5 rounded" style={{ background: 'var(--fill-tertiary, rgba(120,120,128,0.12))' }}>セット</span>}

@@ -1,32 +1,27 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, useNavigationType } from 'react-router-dom';
-import { SlidersHorizontal, Crown, Palette, CalendarDays, CalendarRange, Calendar, List, Check, CalendarPlus, GalleryVerticalEnd } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { SlidersHorizontal, Crown, Palette, MoreHorizontal } from 'lucide-react';
 import type { CalendarEvent, EventVisit } from '../types';
-import ItemCard from '../components/item/ItemCard';
 import Chip from '../components/ui/Chip';
 import WorkChipsRow from '../components/WorkChipsRow';
-import PromoLine from '../components/ui/PromoLine';
 import { loadSharedFilters, saveSharedFilters } from '../lib/sharedFilters';
 import ExpandingSearch, { SearchSideButtons } from '../components/ui/ExpandingSearch';
 import { useTyping } from '../hooks/useTyping';
-import SavedCalendar, { periodLabel, includesToday } from '../components/SavedCalendar';
+import { includesToday } from '../components/SavedCalendar';
 import SavedBoard, { useStickyTop } from '../components/board/SavedBoard';
-import CalendarSwipeRow from '../components/item/CalendarSwipeRow';
 import FilterPanel, { type Facet } from '../components/item/FilterPanel';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveStatus, todayStr, STATUS, type ItemStatus } from '../design/tokens';
-import { getHomePrefecture, toggleLike, toggleCalendarAdd, listAllParticipatedWorks, type Work } from '../lib/api';
+import { getHomePrefecture, toggleLike, listAllParticipatedWorks, type Work } from '../lib/api';
 import { loadWorkImages } from '../lib/workImages';
 import { useTheme } from '../contexts/ThemeContext';
 import { EventStyleSheet } from '../components/item/EventStylePicker';
 import { peekSaved, loadSaved, updateSaved } from '../lib/savedStore';
 import { parseCategories, isNotifyOn, setNotifyOn, FEATURE_PREMIUM } from '../lib/constants';
 
-const SYNC_PROMO_KEY = 'fan_cal_sync_promo_hidden';
-import { buildWorkColorMap, eventColorFrom } from '../lib/workColors';
+import { buildWorkColorMap } from '../lib/workColors';
 import { logSearch } from '../lib/dataLogs';
-import { addToCalendar } from '../lib/googleCalendar';
 import { syncNotifyWithLike, scheduleForEvent } from '../lib/notifications';
 import { setLike } from '../lib/likeStore';
 import { useAuth } from '../contexts/AuthContext';
@@ -40,16 +35,6 @@ import { useBackToClose } from '../lib/backStack';
 
 // 「予約受付中」は状態の選択肢と重なるので外した（前に選んでいた人は「すべて」に戻る）
 type Tab = 'all' | 'mine' | 'notify';
-type View = 'list' | 'month' | 'week' | 'day' | 'board';
-
-const VIEWS: { key: View; label: string; icon: typeof Calendar }[] = [
-  { key: 'month', label: '月', icon: CalendarDays },
-  { key: 'week', label: '週', icon: CalendarRange },
-  { key: 'day', label: '日', icon: Calendar },
-  { key: 'list', label: 'リスト', icon: List },
-  // あと○日で並べる表示（2026-11-06 試しに足した。月表示などはそのまま）
-  { key: 'board', label: 'ボード', icon: GalleryVerticalEnd },
-];
 
 const FOLLOWED_KEY = 'fan_followed_works_v1';
 
@@ -76,31 +61,14 @@ export default function Saved() {
   // 最初に開く表示はボード（2026-11-07 からボードを主にする）。
   // 前に選んだ表示を戻すのは、詳細から戻ってきたとき（POP）だけ。タブから開いたときはいつもボード
   // （前は同じ起動の間ずっと前の表示を覚えていて、一度月にするとボードで開かなくなっていた・柴野）
-  const navType = useNavigationType();
-  const [view, setView] = useState<View>(navType === 'POP' && _ss.view ? _ss.view : 'board');
-  // 表示切替のメニューの位置（開いているときだけ）。上部バーは下端をぼかす mask で
-  // はみ出した部分が消えるので、メニューは body に出して画面の座標で置く
-  const [viewMenuAt, setViewMenuAt] = useState<{ top: number; right: number } | null>(null);
+  // 2026-11-07 デザインの一新: 表示はボードだけにした（月・週・日・リストの切り替えをなくした・柴野）。
+  // 「その他」のメニュー（カスタマイズ・プレミアム）の位置。上部バーの外（body）に出して画面の座標で置く
+  const [menuAt, setMenuAt] = useState<{ top: number; right: number } | null>(null);
   // 表示中の月・週・日。見出しと「今日」ボタンのためにここで持つ
   const [anchor, setAnchor] = useState<string>(todayStr());
   // ボードで見出しの「今日」を押した回数（押したらボードの一番上へ戻る）
   const [todayTick, setTodayTick] = useState(0);
   const premium = usePremium();
-  // 機能の案内を消したか。端末に覚える
-  const readHidden = (key: string) => { try { return localStorage.getItem(key) === '1'; } catch { return false; } };
-  const [syncPromoHidden, setSyncPromoHidden] = useState(() => readHidden(SYNC_PROMO_KEY));
-  const hidePromo = (key: string, set: (v: boolean) => void) => { set(true); try { localStorage.setItem(key, '1'); } catch { /* noop */ } };
-  // 月表示は1画面に収めて、下へスクロールできないようにする
-  const monthFit = view === 'month';
-  useEffect(() => {
-    if (!monthFit) return;
-    const html = document.documentElement, body = document.body;
-    const prev = [html.style.overflow, body.style.overflow];
-    html.style.overflow = 'hidden';
-    body.style.overflow = 'hidden';
-    window.scrollTo(0, 0);
-    return () => { html.style.overflow = prev[0]; body.style.overflow = prev[1]; };
-  }, [monthFit]);
 
   // 探すと同じ絞り込み
   const [query, setQuery] = useState<string>(_ss.query ?? '');
@@ -145,36 +113,14 @@ export default function Saved() {
   const today = todayStr();
 
   // 見出し（2026年12月）が「今日」ボタンに押されて切れないよう、入りきる大きさまで文字を小さくする。
-  // 幅390pxで今月以外を見ると「2026年1…」になり、何月か読めなかった（2026-10-01）
-  const titleRef = useRef<HTMLHeadingElement>(null);
-  // ボードは上に月のカレンダーを出すので、見出しと「今日」は月表示と同じ
-  const calScope = view === 'board' ? 'month' : view;
-  const titleText = calScope === 'list' ? '保存した予定' : periodLabel(calScope, anchor);
-  const showToday = calScope !== 'list' && !includesToday(calScope, anchor, today);
-  useLayoutEffect(() => {
-    const el = titleRef.current;
-    if (!el) return;
-    // scrollWidth は整数に丸まるので、1px 未満のはみ出し（それでも「…」になる）を見逃す。文字そのものの幅で比べる
-    const range = document.createRange();
-    const overflows = () => {
-      range.selectNodeContents(el);
-      return range.getBoundingClientRect().width > el.getBoundingClientRect().width + 0.1;
-    };
-    const fit = () => {
-      let size = 20;
-      el.style.fontSize = '';
-      while (overflows() && size > 13) { size -= 1; el.style.fontSize = `${size}px`; }
-    };
-    fit();
-    window.addEventListener('resize', fit);
-    return () => window.removeEventListener('resize', fit);
-  }, [titleText, showToday, premium]);
+  // 見出しは「11月」。今年でない月だけ年を小さく添える。今月を見ていないときだけ「今日」を出す
+  const showToday = !includesToday('month', anchor, today);
   const rootRef = useRef<HTMLDivElement>(null);
 
   // フィルター状態を sessionStorage に同期（詳細から戻っても維持）
   useEffect(() => {
     sessionStorage.setItem('saved_filters', JSON.stringify({
-      tab, view, query, filterOpen,
+      tab, query, filterOpen,
       statuses: [...selectedStatuses], excludedWorks: [...excludedWorks], categories: [...selectedCategories],
       prefs: [...selectedPrefs], regions: [...selectedRegions], neighborActive,
     }));
@@ -182,7 +128,7 @@ export default function Saved() {
       statuses: [...selectedStatuses], excludedWorks: [...excludedWorks], categories: [...selectedCategories],
       prefs: [...selectedPrefs], regions: [...selectedRegions], neighborActive,
     });
-  }, [tab, view, query, filterOpen, selectedStatuses, excludedWorks, selectedCategories, selectedPrefs, selectedRegions, neighborActive]);
+  }, [tab, query, filterOpen, selectedStatuses, excludedWorks, selectedCategories, selectedPrefs, selectedRegions, neighborActive]);
 
   // 開いたら最上部から表示
   useEffect(() => {
@@ -216,52 +162,40 @@ export default function Saved() {
     return () => { alive = false; };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // いいねトグル: 解除＝カレンダーから外す（自分の投稿も同じ）
-  const onLike = async (e: CalendarEvent) => {
-    haptic.select();
-    if (!user) return;
-    const r = await toggleLike(e.id, user.id);
-    const apply = (list: CalendarEvent[]) => list.flatMap((it) => {
-      if (it.id !== e.id) return [it];
-      if (!r.liked) return [];
-      return [{ ...it, likedByMe: r.liked, likes: r.count }];
-    });
-    setItems((prev) => (prev ? apply(prev) : prev));
-    updateSaved(user.id, apply);
-  };
 
-  // 左へスワイプして外したとき（ボード・リスト・月の日付のパネル）。いいねを外し、トーストの「元に戻す」で付け直してカレンダーに戻す
-  const onRemove = async (e: CalendarEvent) => {
+  // 左へスワイプして外したとき（ボード）。いいねを外し、トーストの「元に戻す」で付け直してカレンダーに戻す。
+  // 外した瞬間にトーストを出す（前は通信を待ってから出していて、行が消えてから1秒ほど何も出なかった）。通信は裏で行い、
+  // 失敗したら行を戻す
+  const onRemove = (e: CalendarEvent) => {
     if (!user) return;
-    const prevList = items;
     // 元に戻したとき、通知も外す前の状態に戻す（♡で通知ONは既定OFFなので、付け直すだけでは戻らない）
     const notifyWas = isNotifyOn(e.id);
+    const putBack = (likes?: number) => {
+      const restored = { ...e, likedByMe: true, ...(likes != null ? { likes } : {}) };
+      const add = (list: CalendarEvent[]) => (list.some((it) => it.id === e.id) ? list : [...list, restored]);
+      setItems((prev) => (prev ? add(prev) : prev));
+      updateSaved(user.id, add);
+      if (notifyWas) { setNotifyOn(e.id, true); void scheduleForEvent(e).catch(() => {}); }
+    };
     setItems((prev) => (prev ? prev.filter((it) => it.id !== e.id) : prev));
-    try {
-      // 「外す」と決めて送る（切り替えにすると、ほかの端末で外してあった予定に ♡ が付き直す）
-      const r = await toggleLike(e.id, user.id, false);
-      // 探す・詳細の ♡ にも映す（共有のいいねの状態を書き換えないと、探すに戻ったとき ♡ が付いたまま見える）
-      setLike(e.id, { liked: false, count: r.count });
-      updateSaved(user.id, (list) => list.filter((it) => it.id !== e.id));
-      void syncNotifyWithLike(e, false);
-      toast('カレンダーから外しました', 'success', {
-        label: '元に戻す',
-        onClick: async () => {
-          const back = await toggleLike(e.id, user.id, true).catch(() => null);
-          if (!back?.liked) return;
-          setLike(e.id, { liked: true, count: back.count });
-          if (notifyWas) { setNotifyOn(e.id, true); void scheduleForEvent(e).catch(() => {}); }
-          const restored = { ...e, likedByMe: true, likes: back.count };
-          const add = (list: CalendarEvent[]) => (list.some((it) => it.id === e.id) ? list : [...list, restored]);
-          setItems((prev) => (prev ? add(prev) : prev));
-          updateSaved(user.id, add);
-          toast('カレンダーに戻しました');
-        },
-      });
-    } catch {
-      setItems(prevList);
-      toast('外せませんでした。通信を確かめてください', 'error');
-    }
+    updateSaved(user.id, (list) => list.filter((it) => it.id !== e.id));
+    void syncNotifyWithLike(e, false);
+    // 「外す」と決めて送る（切り替えにすると、ほかの端末で外してあった予定に ♡ が付き直す）。
+    // 探す・詳細の ♡ にも映す（共有のいいねの状態を書き換えないと、探すに戻ったとき ♡ が付いたまま見える）
+    const removing = toggleLike(e.id, user.id, false)
+      .then((r) => { setLike(e.id, { liked: false, count: r.count }); return true; })
+      .catch(() => { putBack(); toast('外せませんでした。通信を確かめてください', 'error'); return false; });
+    toast('カレンダーから外しました', 'success', {
+      label: '元に戻す',
+      onClick: async () => {
+        if (!(await removing)) return;
+        const back = await toggleLike(e.id, user.id, true).catch(() => null);
+        if (!back?.liked) { toast('戻せませんでした。通信を確かめてください', 'error'); return; }
+        setLike(e.id, { liked: true, count: back.count });
+        putBack(back.count);
+        toast('カレンダーに戻しました');
+      },
+    });
   };
 
   // ボードで行く日を選び直したとき。選んだ日がカレンダーにすぐ出るよう、覚えている予定にも映す
@@ -282,13 +216,6 @@ export default function Saved() {
     return () => window.removeEventListener('fan-work-colors', on);
   }, []);
 
-  // 保存中の予定に出てくる作品の色マップ（未割当はパレットから付与して永続化）
-  const workColorMap = useMemo(() => {
-    const works = Array.from(
-      new Map((items ?? []).filter((e) => e.workId).map((e) => [e.workId!, { id: e.workId! }])).values(),
-    );
-    return buildWorkColorMap(works);
-  }, [items, styleTick]);
 
   // 作品の並びの四角の色。カレンダーの帯と同じ保存先なので、同じ作品は同じ色になる
   const followedColor = useMemo(() => buildWorkColorMap(followedWorks), [followedWorks, styleTick]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -399,39 +326,28 @@ export default function Saved() {
     () => (tourEvent && !filtered.some((e) => e.id === tourEvent.id) ? [...filtered, tourEvent] : filtered),
     [filtered, tourEvent],
   );
-  const tourDay = tourEvent ? focusDayOf(tourEvent, today) : null;
   // 案内（2026-11-07 実際のボードの画面で説明する）:
   //   calview・personal … ボードの一番上へ戻し、カレンダーを開く（カレンダー・自分の予定のボタンを光らせる）
   //   calendar・bell・done … カレンダーをたたんで、♡した予定の行を真ん中へ。ボードに行が無い予定（日付未定など）はリスト表示で
   const [foldTick, setFoldTick] = useState(0);
   useEffect(() => {
     if (tourStep === 'calview' || tourStep === 'personal') {
-      setView('board'); setAnchor(today); setTodayTick((n) => n + 1);
+      setAnchor(today); setTodayTick((n) => n + 1);
       return;
     }
     // 通知の段階・その次も（途中でアプリを開き直したときに、開いたカレンダーが行を隠さないように）
     if ((tourStep !== 'calendar' && tourStep !== 'bell' && tourStep !== 'done') || !tourEvent) return;
-    setView('board');
     setFoldTick((n) => n + 1);
-    let tries = 0, inList = false, done = false;
+    let tries = 0, done = false;
     const t = setInterval(() => {
       const el = document.querySelector(`[data-card-id="${CSS.escape(tourEvent.id)}"]`);
       // たたみ終わる（.28s）のを待ってから真ん中へ送る
       if (el && !done) { done = true; clearInterval(t); setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'auto' }), 300); return; }
-      // ボードに出ない予定は無いはずだが（日付未定は欄の中に出す）、見つからなければ最後にリスト表示で見せる
-      if (++tries === 40 && !inList) { inList = true; setView('list'); }
-      if (tries > 70) clearInterval(t);
+      // ボードに出ない予定（終わった・日付の無いもの）は、ボードが今日の行に出す
+      if (++tries > 70) clearInterval(t);
     }, 80);
     return () => clearInterval(t);
   }, [tourStep, tourEvent?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // リスト表示: 近い順（これから昇順 → 過去降順）
-  const listItems = useMemo(() => {
-    const ref = (e: CalendarEvent) => e.endDate || e.date || '';
-    const up = shown.filter((e) => !ref(e) || ref(e) >= today).sort((a, b) => (a.date ?? '9999').localeCompare(b.date ?? '9999'));
-    const past = shown.filter((e) => ref(e) && ref(e) < today).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
-    return [...up, ...past];
-  }, [shown, today]);
 
   const toggleIn = <T,>(setter: React.Dispatch<React.SetStateAction<Set<T>>>, v: T) => {
     haptic.select();
@@ -445,103 +361,78 @@ export default function Saved() {
   // 作品は上の並びで切り替えるので、絞り込みの件数には数えない
   const facetCount = selectedStatuses.size + selectedCategories.size + selectedPrefs.size + selectedRegions.size + (neighborActive ? 1 : 0);
 
-  const onCalendar = async (e: CalendarEvent) => {
-    haptic.select();
-    const r = await addToCalendar(e);
-    if (r !== 'fail' && user) toggleCalendarAdd(e.id, user.id).catch(() => {});
-    toast(r === 'google' ? 'Googleカレンダーに追加しました' : r === 'ics' ? 'カレンダーに追加しました' : '日付未定のため追加できません');
-  };
 
   // 絞り込みボタンに出す件数。すべて/自分の投稿… も数える（検索は上の検索欄に文字が見えているので数えない）
   const activeCount = facetCount + (tab !== 'all' ? 1 : 0);
   const clearAll = () => { clearFilters(); setTab('all'); };
 
-  const emptyMsg = tab === 'mine' ? 'まだ投稿がありません' : '保存した予定がありません';
 
   const headerH = useStickyTop(headerRef);
   const typing = useTyping();
   const screenH = useRef(window.innerHeight);
   if (!typing) screenH.current = window.innerHeight;
 
+  const year = anchor.slice(0, 4), month = Number(anchor.slice(5, 7));
   return (
     // ⚠️ ルートに上の余白を付けないこと。上部バーは自分で var(--sat) を持っているので、
     // ここに余白を足すと**帯の外側に地の色の帯**ができる（外皮で帯の色が変わると目立つ）
-    // 月表示は画面ぴったり（下の浮遊ナビの上端まで）にして、ページごとスクロールさせない。
-    // 76px = ナビの下の余白10px + ナビの高さ約56px + 隙間
-    <div ref={rootRef} className={monthFit ? 'px-3 flex flex-col overflow-hidden' : 'px-3'}
-      // 外枠（AppShell の main）が下に 7rem の逃げを持っているので、そのぶん下の余白を打ち消して
-      // ページ全体の高さを画面ぴったりにする（はみ出すと、少しだけ下にスクロールできてしまう）
-      style={monthFit ? {
-        // 入力中は Android で画面がキーボードの分だけ縮むので、縮む前の高さのまま止める（カレンダーはキーボードに隠れてよい）
-        height: typing ? `calc(${screenH.current}px - var(--sab) - 76px)` : 'calc(100dvh - var(--sab) - 76px)',
-        marginBottom: 'calc(var(--sab) + 76px - 7rem)',
-      } : undefined}>
-      <div ref={headerRef} className="sticky top-0 z-20 flex-shrink-0 -mx-3 px-3 pt-1 pb-2 material-bar scroll-edge" data-skin-bar="main" style={{ paddingTop: 'calc(var(--sat) + 4px)' }}>
-        {/* 1行だけ: 見出し（＋今日）／プレミアム／表示切替／カスタマイズ／絞り込み。文字は見出しだけで、ボタンはアイコンのみ */}
-        <div className="flex items-center gap-1.5 h-10">
-          {/* 見出し（＋今日）。右端の虫眼鏡を押すと、見出しと入れ替わって検索欄に広がる */}
-          <ExpandingSearch value={query} onChange={setQuery} placeholder="保存した予定を検索" sideRef={sideRef}
+    <div ref={rootRef} className="px-4">
+      <div ref={headerRef} className="sticky top-0 z-20 flex-shrink-0 -mx-4 px-4 pb-2" data-skin-bar="main"
+        style={{ paddingTop: 'calc(var(--sat) + 6px)', backgroundColor: 'var(--bg-primary)' }}>
+        {/* 1行だけ: 見出し（11月＋今日）／検索／絞り込み／その他。2026-11-07 デザインの一新でボタンを3つに絞った */}
+        <div className="flex items-center gap-1 h-11">
+          {/* 見出し。右の虫眼鏡を押すと、見出しと入れ替わって検索欄に広がる */}
+          <ExpandingSearch value={query} onChange={setQuery} placeholder="カレンダーの予定を検索" sideRef={sideRef}
             title={
-              <div className="flex items-center gap-1.5 min-w-0">
-                <h1 ref={titleRef} className="text-[20px] font-bold tracking-tight truncate">
-                  {titleText}
+              <div className="flex items-center gap-2 min-w-0">
+                <h1 className="flex items-baseline gap-0.5 whitespace-nowrap">
+                  <span className="num text-[32px] font-extrabold leading-none">{month}</span>
+                  <span className="text-[18px] font-extrabold">月</span>
+                  {year !== today.slice(0, 4) && <span className="num ml-1 text-[14px] font-bold text-label-secondary">{year}</span>}
                 </h1>
-                {/* 今日を含まない期間を見ているときだけ出す */}
+                {/* 今月を見ていないときだけ出す */}
                 {showToday && (
                   <button onClick={() => { haptic.select(); setAnchor(today); setTodayTick((n) => n + 1); }}
-                    className="pressable flex-shrink-0 text-[12px] font-semibold px-2 py-1 rounded-full"
-                    style={{ backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
+                    className="pressable flex-shrink-0 text-[12px] font-bold px-2.5 h-7 rounded-full"
+                    style={{ backgroundColor: 'var(--label-primary)', color: 'var(--bg-primary)' }}>
                     今日
                   </button>
                 )}
               </div>
             } />
 
-          <SearchSideButtons ref={sideRef} gap={6}>
-          {!premium && (
-            <IconButton label="プレミアム" onClick={() => navigate('/premium')}>
-              <Crown size={18} />
-            </IconButton>
-          )}
-
-          <IconButton label="表示を切り替える" pressed={!!viewMenuAt}
+          <SearchSideButtons ref={sideRef} gap={2}>
+          <IconButton label="絞り込み" pressed={filterOpen} active={activeCount > 0}
+            onClick={() => setFilterOpen((v) => !v)}>
+            <SlidersHorizontal size={20} aria-hidden />
+            {activeCount > 0 && (
+              <span className="num absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold leading-4 text-center"
+                style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>{activeCount}</span>
+            )}
+          </IconButton>
+          {/* その他: カスタマイズ（テーマ・背景・色）と、無料の人にはプレミアム（いつものカレンダーへの自動同期） */}
+          <IconButton label="その他" pressed={!!menuAt}
             onClick={(el) => {
               const r = el.getBoundingClientRect();
-              setViewMenuAt((cur) => (cur ? null : { top: r.bottom + 6, right: window.innerWidth - r.right }));
+              setMenuAt((cur) => (cur ? null : { top: r.bottom + 6, right: window.innerWidth - r.right }));
             }}>
-            {(() => { const I = VIEWS.find((v) => v.key === view)?.icon ?? CalendarDays; return <I size={18} />; })()}
+            <MoreHorizontal size={20} aria-hidden />
           </IconButton>
-          {viewMenuAt && createPortal(
+          {menuAt && createPortal(
             <>
-              <div className="fixed inset-0" style={{ zIndex: 200 }} onClick={() => setViewMenuAt(null)} />
-              <div className="fixed min-w-[132px] rounded-[12px] py-1 shadow-float border border-subtle" role="menu"
-                style={{ zIndex: 201, top: viewMenuAt.top, right: viewMenuAt.right, backgroundColor: 'var(--bg-primary)' }}>
-                {VIEWS.map((v) => (
-                  <button key={v.key} role="menuitemradio" aria-checked={view === v.key}
-                    onClick={() => { haptic.select(); setView(v.key); setViewMenuAt(null); }}
-                    className="pressable w-full flex items-center gap-2.5 px-3 py-2 text-[14px] text-left">
-                    <v.icon size={16} className="text-label-secondary" />
-                    <span className="flex-1">{v.label}</span>
-                    {view === v.key && <Check size={16} style={{ color: 'var(--accent-color)' }} />}
-                  </button>
-                ))}
+              <div className="fixed inset-0" style={{ zIndex: 200 }} onClick={() => setMenuAt(null)} />
+              <div className="fixed min-w-[220px] rounded-[14px] py-1.5 shadow-float" role="menu"
+                style={{ zIndex: 201, top: menuAt.top, right: menuAt.right, backgroundColor: 'var(--bg-primary)', border: '0.5px solid var(--separator)' }}>
+                <MenuItem icon={<Palette size={18} aria-hidden />} label="カスタマイズ" sub="テーマ・背景・作品の色"
+                  onClick={() => { setMenuAt(null); navigate('/customize'); }} />
+                {FEATURE_PREMIUM && !premium && (
+                  <MenuItem icon={<Crown size={18} aria-hidden />} label="プレミアム" sub="いつものカレンダーに自動同期"
+                    onClick={() => { setMenuAt(null); navigate('/premium'); }} />
+                )}
               </div>
             </>,
             document.body,
           )}
-
-          <IconButton label="カスタマイズ" onClick={() => navigate('/customize')}>
-            <Palette size={18} />
-          </IconButton>
-
-          <IconButton label="絞り込み" pressed={filterOpen} active={activeCount > 0}
-            onClick={() => setFilterOpen((v) => !v)}>
-            <SlidersHorizontal size={18} />
-            {activeCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold leading-4 text-center"
-                style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>{activeCount}</span>
-            )}
-          </IconButton>
           </SearchSideButtons>
         </div>
 
@@ -551,13 +442,6 @@ export default function Saved() {
             onToggle={(id) => toggleIn(setExcludedWorks, id)} onShowAll={() => setExcludedWorks(new Set())} />
         )}
       </div>
-
-      {/* いつものカレンダーへの自動同期の案内（プレミアム・無料の人だけ。✕で消せる・端末に覚える）。上部バーの外に置き、スクロールで流れる。
-          テーマを作れることの案内は、場面ごとのヒント（Hints.tsx の cal-custom）にしたので消した（2026-11-07 柴野）。案内の間は出さない */}
-      {tourStep ? null : FEATURE_PREMIUM && !premium && !syncPromoHidden ? (
-        <PromoLine className="mx-3 mt-2" text="いつものカレンダーに自動同期" badge="プレミアム"
-          onClick={() => navigate('/premium')} onDismiss={() => hidePromo(SYNC_PROMO_KEY, setSyncPromoHidden)} />
-      ) : null}
 
       {/* 絞り込み: 対象（すべて/自分の投稿/通知ON）・細かい条件をここにまとめる */}
       {filterOpen && createPortal(
@@ -597,74 +481,45 @@ export default function Saved() {
 
       {items === null && !tourEvent ? (
         <SkeletonList count={4} />
-      ) : view === 'board' ? (
+      ) : (
         <SavedBoard events={shown} anchor={anchor} setAnchor={setAnchor} workImages={workImages} stickyTop={headerH}
           onOpen={openItem} onRemove={onRemove} userId={user?.id} onVisits={onVisits} todayTick={todayTick}
           autoFold={!tourStep} foldTick={foldTick}
           lockFold={tourStep === 'calendar' || tourStep === 'bell' || tourStep === 'done'}
           tourId={tourStep === 'calendar' || tourStep === 'bell' || tourStep === 'done' ? tourEvent?.id ?? null : null}
           onAddPersonal={() => navigate(`/personal/new?date=${anchor.slice(0, 7) === today.slice(0, 7) ? today : `${anchor.slice(0, 7)}-01`}`)} />
-      ) : view !== 'list' ? (
-        // カレンダー（月/週/日）は予定が0件でも枠を表示する
-        <SavedCalendar events={shown} scope={view} anchor={anchor} setAnchor={setAnchor} focusDay={tourDay}
-          onOpen={openItem} onLike={onLike} onCalendar={onCalendar} onRemove={onRemove}
-          onAdd={(day) => navigate(`/personal/new?date=${day}`)} />
-      ) : listItems.length === 0 ? (
-        <p className="text-center text-label-secondary text-[13px] py-20">
-          {emptyMsg}<br />
-          気になるグッズ・イベントに ♡ を押すとここに溜まります
-        </p>
-      ) : (
-        <div className="flex flex-col gap-2 pb-4">
-          {listItems.map((e) => (
-            // 左へ払うとカレンダーから外す（ボードと同じ。自分用の予定は外せないので払えない）。
-            // 右へ払うと、この予定の通知を ON／OFF
-            <CalendarSwipeRow key={e.id} event={e} radius={12} onRemove={onRemove}>
-              <ItemCard event={e} layout="list" likedInit={e.likedByMe}
-                workColor={eventColorFrom(workColorMap, e)}
-                onOpen={() => openItem(e)} onLike={() => onLike(e)} onCalendar={() => onCalendar(e)} onStyle={() => setStyling(e)} />
-            </CalendarSwipeRow>
-          ))}
-        </div>
       )}
       {styling && <EventStyleSheet eventId={styling.id} workId={styling.workId} onClose={() => setStyling(null)} onChange={() => setStyleTick((t) => t + 1)} />}
-
-      {/* 自分用の予定を作る入口（2026-09-29）。みんなに公開する情報は下の真ん中の「＋」から。
-          日付は表示中の日（月表示なら今日か、見ている月の1日）を入れておく */}
-      {/* ボードはカレンダーの右下（開いているとき）に出すので、ここでは出さない（案内もボードのボタンを指す） */}
-      {view !== 'board' && (!tourStep || tourStep === 'personal') && (
-        <button data-tour="personal" onClick={() => { haptic.select(); navigate(`/personal/new?date=${calScope === 'list' || includesToday(calScope, anchor, today) ? today : anchor}`); }}
-          aria-label="自分の予定を追加"
-          // 下の真ん中の「＋」（みんなに公開する情報）と見分けるため、塗りではなく白地にカレンダーの印
-          className="pressable material-thick fixed right-[var(--fab-right)] z-30 w-12 h-12 rounded-full flex items-center justify-center shadow-float"
-          style={{ color: 'var(--accent-text)', bottom: 'calc(var(--sab) + 92px)' }}>
-          <CalendarPlus size={22} />
-        </button>
-      )}
     </div>
   );
 }
 
-/** 案内でカレンダーのどの日を開くか。ピンした日があればその日、期間の途中なら今日、ほかは始まりの日。日付未定なら null */
-function focusDayOf(e: CalendarEvent, today: string): string | null {
-  if (e.visits && e.visits.length > 0) return e.visits[0].start;
-  if (!e.date) return null;
-  const end = e.endDate || e.date;
-  return e.date < today && today <= end ? today : e.date;
-}
 
-/** 上の行のアイコンだけのボタン。色は白黒（塗りは薄いグレー）で、絞り込み中だけアクセント色 */
+/** 上の行のアイコンだけのボタン。塗りは無く、絞り込み中だけアクセント色の丸 */
 function IconButton({ label, onClick, pressed, active, children }: {
   label: string; onClick: (el: HTMLButtonElement) => void; pressed?: boolean; active?: boolean; children: React.ReactNode;
 }) {
   return (
     <button onClick={(e) => { haptic.select(); onClick(e.currentTarget); }} aria-label={label} title={label}
       aria-pressed={pressed}
-      className="pressable relative w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+      className="pressable relative w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
       style={active
         ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }
-        : { backgroundColor: 'var(--fill-tertiary)', color: 'var(--label-primary)' }}>
+        : { color: 'var(--label-primary)', backgroundColor: pressed ? 'var(--fill-tertiary)' : undefined }}>
       {children}
+    </button>
+  );
+}
+
+function MenuItem({ icon, label, sub, onClick }: { icon: React.ReactNode; label: string; sub?: string; onClick: () => void }) {
+  return (
+    <button role="menuitem" onClick={() => { haptic.select(); onClick(); }}
+      className="pressable w-full flex items-center gap-3 px-3.5 py-2.5 text-left">
+      <span className="text-label-secondary">{icon}</span>
+      <span className="flex-1 min-w-0">
+        <span className="block text-[15px] font-semibold">{label}</span>
+        {sub && <span className="block text-[12px] text-label-secondary">{sub}</span>}
+      </span>
     </button>
   );
 }

@@ -91,7 +91,7 @@ export function WorkStoryCard({ group, followDays, next, height, onStory, onPick
               <span className="min-w-0 text-[11px] text-label-secondary leading-tight">{next.main.label}まで（{md(next.main.date)}）</span>
             </span>
             {/* 画像の横は狭く「あと135日」が2行に折れていたので、下にカードの幅いっぱいで1行に出す */}
-            <span className={`block font-bold leading-tight whitespace-nowrap mt-1 ${next.main.days >= 100 ? 'text-[17px]' : 'text-[20px]'}`} style={{ color: 'var(--accent-text)' }}>
+            <span className={`num block font-extrabold leading-tight whitespace-nowrap mt-1 ${next.main.days >= 100 ? 'text-[20px]' : 'text-[24px]'}`} style={{ color: 'var(--label-primary)' }}>
               {daysText(next.main.days)}
             </span>
             <span className="block text-[12px] leading-snug line-clamp-2 mt-0.5">{next.main.event.title}</span>
@@ -111,7 +111,7 @@ export function WorkStoryCard({ group, followDays, next, height, onStory, onPick
                 <span className="min-w-0 flex-1">
                   {/* 「発売 10/9」の後で改行し、「あと5日」は1行で少し目立たせる（前は「・あと5日」が変な所で折れていた） */}
                   <span className="block text-[10px] text-label-secondary leading-tight truncate">{n.label} {md(n.date)}</span>
-                  <span className="block text-[12px] font-bold leading-tight whitespace-nowrap" style={{ color: 'var(--accent-text)' }}>{daysText(n.days)}</span>
+                  <span className="num block text-[13px] font-extrabold leading-tight whitespace-nowrap" style={{ color: 'var(--label-primary)' }}>{daysText(n.days)}</span>
                   <span className="block text-[11px] leading-snug truncate">{n.event.title}</span>
                 </span>
               </button>
@@ -175,7 +175,7 @@ export function WeekStoryCard({ group, height, counts, onStory }: {
         {rows.map(([label, n]) => (
           <div key={label} className="flex items-baseline justify-between">
             <span className="text-[13px] text-label-secondary">{label}</span>
-            <span className="text-[20px] font-bold tabular-nums" style={{ color: n ? 'var(--accent-text)' : 'var(--label-tertiary)' }}>{n}</span>
+            <span className="num text-[24px] font-extrabold" style={{ color: n ? 'var(--label-primary)' : 'var(--label-tertiary)' }}>{n}</span>
           </div>
         ))}
         </div>

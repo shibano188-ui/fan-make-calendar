@@ -63,6 +63,11 @@
     font-weight: 800;
     letter-spacing: -0.02em;
   }
+  /* 数字（あと○日・日付・値段）。丸みのある太い書体で、数字だけを主役にする（2026-11-07 デザインの一新） */
+  .num {
+    font-family: 'Outfit', ui-rounded, -apple-system, 'Hiragino Sans', sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
   /* 横スクロールのスクロールバーを隠す（チップ行など） */
   .no-scrollbar {
     scrollbar-width: none;
