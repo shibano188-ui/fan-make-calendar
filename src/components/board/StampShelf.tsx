@@ -55,19 +55,14 @@ export default function StampShelf({ userId, likedIds, excludedWorks, onOpen, on
   }, [userId]);
 
   const shown = useMemo(() => (list ?? []).filter((s) => !(s.event.workId && excludedWorks.has(s.event.workId))), [list, excludedWorks]);
-  // 種類ごとの数。前の種類（楽しみ・おめでとう…）はまとめて「前のスタンプ」
+  // 種類ごとの数。前の種類（楽しみ・おめでとう…）の札は出さない（2026-11-07 柴野。押した予定は「すべて」に並ぶ）
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
-    for (const s of shown) {
-      const keys = new Set(s.stamps.map((t) => (REACTIONS.some((r) => r.type === t) ? t : 'legacy')));
-      for (const k of keys) c[k] = (c[k] ?? 0) + 1;
-    }
+    for (const s of shown) for (const k of new Set(s.stamps)) c[k] = (c[k] ?? 0) + 1;
     return c;
   }, [shown]);
   const filtered = useMemo(() => {
-    const l = only === null ? shown
-      : only === 'legacy' ? shown.filter((s) => s.stamps.some((t) => !REACTIONS.some((r) => r.type === t)))
-      : shown.filter((s) => s.stamps.includes(only));
+    const l = only === null ? shown : shown.filter((s) => s.stamps.includes(only));
     const withNext = l.map((s) => ({ ...s, next: nextMoment(s.event, today) }));
     // これからの節目がある予定は近い順、ないもの（過ぎた・日付未定）は押した新しい順で下に
     const up = withNext.filter((s) => s.next).sort((a, b) => a.next!.day.localeCompare(b.next!.day));
@@ -92,7 +87,6 @@ export default function StampShelf({ userId, likedIds, excludedWorks, onOpen, on
   const chips: { key: string | null; label: string; image?: string; n: number }[] = [
     { key: null, label: 'すべて', n: shown.length },
     ...REACTIONS.filter((r) => counts[r.type]).map((r) => ({ key: r.type, label: r.label, image: r.image, n: counts[r.type] })),
-    ...(counts.legacy ? [{ key: 'legacy', label: '前のスタンプ', n: counts.legacy }] : []),
   ];
 
   return (
