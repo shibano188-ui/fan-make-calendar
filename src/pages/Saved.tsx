@@ -21,13 +21,14 @@ import { loadWorkImages } from '../lib/workImages';
 import { useTheme } from '../contexts/ThemeContext';
 import { EventStyleSheet } from '../components/item/EventStylePicker';
 import { peekSaved, loadSaved, updateSaved } from '../lib/savedStore';
-import { parseCategories, isNotifyOn, FEATURE_PREMIUM } from '../lib/constants';
+import { parseCategories, isNotifyOn, setNotifyOn, FEATURE_PREMIUM } from '../lib/constants';
 
 const SYNC_PROMO_KEY = 'fan_cal_sync_promo_hidden';
 import { buildWorkColorMap, eventColorFrom } from '../lib/workColors';
 import { logSearch } from '../lib/dataLogs';
 import { addToCalendar } from '../lib/googleCalendar';
-import { syncNotifyWithLike } from '../lib/notifications';
+import { syncNotifyWithLike, scheduleForEvent } from '../lib/notifications';
+import { setLike } from '../lib/likeStore';
 import { useAuth } from '../contexts/AuthContext';
 import { useHiddenContent } from '../hooks/useHiddenContent';
 import { useToast } from '../components/ui/Toast';
@@ -233,17 +234,23 @@ export default function Saved() {
   const onRemove = async (e: CalendarEvent) => {
     if (!user) return;
     const prevList = items;
+    // 元に戻したとき、通知も外す前の状態に戻す（♡で通知ONは既定OFFなので、付け直すだけでは戻らない）
+    const notifyWas = isNotifyOn(e.id);
     setItems((prev) => (prev ? prev.filter((it) => it.id !== e.id) : prev));
     try {
-      const r = await toggleLike(e.id, user.id);
-      if (r.liked) { setItems(prevList); return; }   // もともと外れていた（ほかの端末で外した等）
+      // 「外す」と決めて送る（切り替えにすると、ほかの端末で外してあった予定に ♡ が付き直す）
+      const r = await toggleLike(e.id, user.id, false);
+      // 探す・詳細の ♡ にも映す（共有のいいねの状態を書き換えないと、探すに戻ったとき ♡ が付いたまま見える）
+      setLike(e.id, { liked: false, count: r.count });
       updateSaved(user.id, (list) => list.filter((it) => it.id !== e.id));
       void syncNotifyWithLike(e, false);
       toast('カレンダーから外しました', 'success', {
         label: '元に戻す',
         onClick: async () => {
-          const back = await toggleLike(e.id, user.id).catch(() => null);
+          const back = await toggleLike(e.id, user.id, true).catch(() => null);
           if (!back?.liked) return;
+          setLike(e.id, { liked: true, count: back.count });
+          if (notifyWas) { setNotifyOn(e.id, true); void scheduleForEvent(e).catch(() => {}); }
           const restored = { ...e, likedByMe: true, likes: back.count };
           const add = (list: CalendarEvent[]) => (list.some((it) => it.id === e.id) ? list : [...list, restored]);
           setItems((prev) => (prev ? add(prev) : prev));

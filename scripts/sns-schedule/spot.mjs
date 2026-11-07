@@ -111,8 +111,10 @@ const firstLink = (v) => {
 // ボットを断るサイト（haikyu.jp など）は読めないので、その予定は公式サイトの版を作らない（回避はしない）
 async function officialImage(e) {
   const link = firstLink(e.link_url);
-  if (!link || /(^|\.)(x|twitter|instagram|tiktok|youtube)\.com$|(^|\.)youtu\.be$/.test(new URL(link).hostname)) return null;
+  if (!link) return null;
   try {
+    // 形の崩れたリンク（https: だけ等）で new URL が投げても、ほかの予定の書き出しは続ける
+    if (/(^|\.)(x|twitter|instagram|tiktok|youtube)\.com$|(^|\.)youtu\.be$/.test(new URL(link).hostname)) return null;
     const r = await fetch(link, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FanHiveSnsImage/1.0; +https://fanhive.jp)' }, signal: AbortSignal.timeout(10_000) });
     if (!r.ok) return null;
     const html = (await r.text()).slice(0, 400_000);

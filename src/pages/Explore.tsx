@@ -619,6 +619,8 @@ export default function Explore() {
   };
   // 左へ払うと探すから隠す（興味なし）。トーストの「元に戻す」か、一覧の下の「非表示にした予定」から戻せる
   const onDismiss = (e: CalendarEvent) => {
+    // 隠した予定は見たことにする（新着の数に残ると、探すでは隠れているのにホームの新着が減らない）
+    if (!seenIdsRef.current.has(e.id)) { seenIdsRef.current.add(e.id); saveSeenEventIds(seenIdsRef.current); setSeenTick((t) => t + 1); }
     dismissEvent(e.id);
     toast('探すから非表示にしました', 'success', { label: '元に戻す', onClick: () => restoreEvent(e.id) });
   };
