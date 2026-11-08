@@ -63,15 +63,19 @@ type Props = {
   lockFold?: boolean;
   /** 案内で見せている予定。日付未定なら、日付未定の欄を開いてその予定を払える行で出す */
   tourId?: string | null;
+  /** 詳細から戻ってきたとき（POP）。見ていた位置・カレンダーのたたみ具合を戻す */
+  restore?: boolean;
 };
 
 type SheetState = { kind: 'day'; day: string } | { kind: 'undated' } | { kind: 'icons' } | { kind: 'visit'; id: string } | null;
 
-export default function SavedBoard({ events, anchor, setAnchor, workImages, stickyTop, onOpen, onRemove, userId, onVisits, todayTick = 0, onAddPersonal, autoFold = true, foldTick = 0, lockFold = false, tourId = null }: Props) {
+export default function SavedBoard({ events, anchor, setAnchor, workImages, stickyTop, onOpen: openDetail, onRemove, userId, onVisits, todayTick = 0, onAddPersonal, autoFold = true, foldTick = 0, lockFold = false, tourId = null, restore = false }: Props) {
   const today = todayStr();
   const toast = useToast();
-  const [onlyMarks, setOnlyMarks] = useState<Set<Mark>>(new Set());
-  const [evOpen, setEvOpen] = useState(false);
+  // 詳細から戻ったときの位置（詳細へ行く直前に覚える）。2026-11-08 柴野: 戻るとカレンダーが開いて一番上に戻っていた
+  const back = useRef<ReturnPoint | null>(restore ? readReturn() : null).current;
+  const [onlyMarks, setOnlyMarks] = useState<Set<Mark>>(() => new Set(back?.marks ?? []));
+  const [evOpen, setEvOpen] = useState(back?.evOpen ?? false);
   const [sheet, setSheet] = useState<SheetState>(null);
 
   // 日付未定（下旬・春頃・日付なし）と、そのうち自分で仮に置いたもの
@@ -124,8 +128,8 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
   const BAR = 76; // たたんだときに残る帯（週の7日＋つまみ）の高さ
   const monthRef = useRef<HTMLDivElement>(null);
   const [monthH, setMonthH] = useState(0);
-  const [folded, setFolded] = useState(false);
-  const foldedRef = useRef(false);
+  const [folded, setFolded] = useState(back?.folded ?? false);
+  const foldedRef = useRef(folded);
   foldedRef.current = folded;
   const autoFoldRef = useRef(autoFold);
   autoFoldRef.current = autoFold;
@@ -148,13 +152,58 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
     if (h !== monthH) setMonthH(h);
   });
 
+  // ─ 一番下の余白。最後の日の行が、たたんだカレンダーの帯のすぐ下まで上がれるぶんだけ足す ─
+  // 2026-11-08 柴野「やたら下までスクロールできてしまう」: 前は 100dvh から決め打ちで引いていて、
+  // たたんだときに一覧を月の高さだけ上へずらす（ページの高さは変えない）ぶんを数えていなかった。
+  // 一番下まで行くと最後の日も帯の裏へ隠れ、画面が空になっていた
+  const rootRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const padRef = useRef<HTMLDivElement>(null);
+  const [padH, setPadH] = useState(0);
+  const measurePad = () => {
+    const pad = padRef.current;
+    if (!pad) return;
+    const rows = listRef.current?.querySelectorAll<HTMLElement>('[data-board-day]');
+    const last = rows?.[rows.length - 1];
+    const top = docTop(pad);
+    const lastH = last ? top - docTop(last) : 0; // 最後の日の行の頭から余白まで
+    // 余白より下（ボードの下の余白と、ナビのぶんの main の下の余白）。画面より短いページは min-height で伸びるので、
+    // ページの高さからは測らない
+    const root = rootRef.current!;
+    const main = root.closest('main');
+    const below = docTop(root) + root.offsetHeight - (top + pad.offsetHeight) + (main ? parseFloat(getComputedStyle(main).paddingBottom) || 0 : 0);
+    const h = Math.max(0, Math.round(window.innerHeight - monthRef.current!.offsetHeight - stickyTop - BAR - 6 - lastH - below));
+    setPadH((p) => (Math.abs(p - h) > 1 ? h : p));
+  };
+  useLayoutEffect(measurePad);
+  useEffect(() => {
+    const ro = new ResizeObserver(() => measurePad());
+    if (listRef.current) ro.observe(listRef.current);
+    window.addEventListener('resize', measurePad);
+    return () => { ro.disconnect(); window.removeEventListener('resize', measurePad); };
+  }, [stickyTop]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 詳細から戻ったら、見ていた位置へ。下の余白が測り終わるまでは届かないことがあるので、届くまで数回やり直す
+  const restoringRef = useRef(!!back);
+  useLayoutEffect(() => {
+    if (!back) return;
+    let n = 0, raf = 0;
+    const go = () => {
+      window.scrollTo(0, back.y);
+      if (Math.abs(window.scrollY - back.y) > 2 && ++n < 40) raf = requestAnimationFrame(go);
+      else restoringRef.current = false;
+    };
+    go();
+    return () => cancelAnimationFrame(raf);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     let last = window.scrollY, raf = 0;
     const onScroll = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
         const y = window.scrollY;
-        if (y > last + 2 && y > 0 && !foldedRef.current && autoFoldRef.current) setFolded(true);
+        if (y > last + 2 && y > 0 && !foldedRef.current && autoFoldRef.current && !restoringRef.current) setFolded(true);
         last = y;
         setScrolled(y > 0);
         // 今見ている日（帯の下端より上に来た最後の日）
@@ -221,6 +270,11 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
   }, [todayTick]);
 
   const fold = () => setFolded(true);
+  // 詳細を開く。戻ってきたときのために、今の位置とたたみ具合・絞り込みを覚えておく
+  const onOpen = (e: CalendarEvent) => {
+    try { sessionStorage.setItem(RETURN_KEY, JSON.stringify({ y: window.scrollY, folded, evOpen, marks: [...onlyMarks] } satisfies ReturnPoint)); } catch { /* noop */ }
+    openDetail(e);
+  };
   // たたんだときに、カレンダーと一覧を上へずらす量
   const shift = folded ? monthH : 0;
   const slide = { transform: shift ? `translateY(${-shift}px)` : 'none', transition: 'transform .28s cubic-bezier(0.32,0.72,0,1)' };
@@ -382,6 +436,17 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
   // たたんでいるときに出すイベント。行く日を選んだものがあればそれ、無ければ近い順に3件（何があるかは見えるように）
   const evPreview = goingEvents.length ? goingEvents : ganttList.slice(0, 3);
   const evRest = ganttList.length - evPreview.length;
+  // イベントの欄を見出しだけにたたむ（2026-11-08 柴野: 行く日を全部選ぶと全部出て、イベントが多い人は長くなる）。
+  // たたんだかは覚えておく。案内でイベントを見せている間は開く
+  const [evFoldPref, setEvFold] = useState(() => { try { return localStorage.getItem(EVENTS_FOLD_KEY) === '1'; } catch { return false; } });
+  const evFolded = evFoldPref && !(tourId && ganttList.some((e) => e.id === tourId));
+  const toggleEvents = () => {
+    haptic.select();
+    const next = !evFolded;
+    setEvFold(next);
+    setEvOpen(false);
+    try { localStorage.setItem(EVENTS_FOLD_KEY, next ? '1' : '0'); } catch { /* noop */ }
+  };
   // イベントの行を押したら、行く日を選ぶシート（ログイン前は詳細へ）
   const pickVisit = (e: CalendarEvent) => (userId ? setSheet({ kind: 'visit', id: e.id }) : onOpen(e));
   const visitEvent = sheet?.kind === 'visit' ? events.find((e) => e.id === sheet.id) : undefined;
@@ -402,7 +467,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
   );
 
   return (
-    <div className="pb-6">
+    <div ref={rootRef} className="pb-6">
       {/* ── 月のカレンダー。高さは変えず、上部バーの下へ滑り込んで「週の帯」だけを残す ── */}
       <div {...calTouch} data-tour="calendar" className="sticky z-10"
         // 地の色は、見えている部分（開いているときは月、たたんだら帯）にだけ塗る。たたんで上へずらした月が、
@@ -452,7 +517,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
       </div>
 
       {/* カレンダーより下は、たたんだときにカレンダーと一緒に上へずらす */}
-      <div style={slide}>
+      <div ref={listRef} style={slide}>
       {/* ── これから7日 ── */}
       {/* 2026-11-07 デザインの一新: 箱をやめ、色の付いた大きな数字だけを並べる。押すとその種類だけに絞る */}
       <div className="flex items-baseline gap-1.5 pt-4 pb-1 text-[13px] font-extrabold">
@@ -511,13 +576,18 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
       <DayRow day={today} today={today} hot={hot?.kind === 'on' && hot.day === today}>
         {ganttList.length > 0 && (
           <section className="rounded-[14px] overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)', boxShadow: 'inset 0 0 0 0.5px var(--separator)' }}>
-            <button className="pressable w-full flex items-baseline gap-2 px-3 pt-2.5 pb-1.5 text-left" aria-expanded={evOpen}
-              onClick={() => { if (!evRest && !evOpen) return; haptic.select(); setEvOpen((v) => !v); }}>
-              <span className="text-[13px] font-bold">イベント</span>
-              <span className="text-[11px] text-label-secondary">{ganttList.length}件・行く日 {goingEvents.reduce((n, e) => n + (e.visits ?? []).filter((v) => v.end >= today).length, 0)}日</span>
-              {(evRest > 0 || evOpen) && <ChevronDown size={16} className="ml-auto self-center text-label-secondary" style={{ transform: evOpen ? 'rotate(180deg)' : undefined, transition: 'transform .25s' }} />}
+            <button className={`pressable w-full flex items-center gap-2 px-3 text-left ${evFolded ? 'py-2' : 'pt-2.5 pb-1.5'}`} aria-expanded={!evFolded}
+              onClick={toggleEvents}>
+              <span className="text-[13px] font-bold whitespace-nowrap">イベント</span>
+              <span className="text-[11px] text-label-secondary whitespace-nowrap">{ganttList.length}件・行く日 {goingEvents.reduce((n, e) => n + (e.visits ?? []).filter((v) => v.end >= today).length, 0)}日</span>
+              {evFolded && (
+                <span className="flex ml-1 min-w-0 overflow-hidden">
+                  {ganttList.slice(0, 6).map((e, k) => <span key={e.id} className="rounded-[7px] overflow-hidden flex-shrink-0" style={{ marginLeft: k ? -6 : 0, boxShadow: '0 0 0 1.5px var(--bg-secondary)' }}><Pic e={e} size={26} /></span>)}
+                </span>
+              )}
+              <ChevronDown size={16} className="ml-auto flex-shrink-0 text-label-secondary" style={{ transform: evFolded ? undefined : 'rotate(180deg)', transition: 'transform .25s' }} />
             </button>
-            {evOpen ? (
+            {evFolded ? null : evOpen ? (
               <>
                 <Gantt list={ganttList} today={today} colors={colors} dot={dot} onDetail={onOpen} onVisit={pickVisit} onRemove={onRemove} />
               </>
@@ -552,8 +622,8 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
           )}
         </div>
       )}
-      {/* 最後の日まで、帯のすぐ下へ飛べるように下に余白を足す */}
-      <div aria-hidden style={{ height: `max(0px, calc(100dvh - ${stickyTop + BAR + 260}px))` }} />
+      {/* 最後の日まで、帯のすぐ下へ飛べるように下に余白を足す（高さは上で測る） */}
+      <div ref={padRef} aria-hidden style={{ height: padH }} />
       </div>
 
       {/* 運んでいる予定（指の下に出す） */}
@@ -615,6 +685,23 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
 }
 
 const UNDATED_OPEN_KEY = 'fan_board_undated_open';
+const EVENTS_FOLD_KEY = 'fan_board_events_folded';
+const RETURN_KEY = 'fan_board_return';
+
+type ReturnPoint = { y: number; folded: boolean; evOpen: boolean; marks: Mark[] };
+function readReturn(): ReturnPoint | null {
+  try {
+    const v = JSON.parse(sessionStorage.getItem(RETURN_KEY) ?? 'null');
+    return v && typeof v.y === 'number' ? { y: v.y, folded: !!v.folded, evOpen: !!v.evOpen, marks: Array.isArray(v.marks) ? v.marks : [] } : null;
+  } catch { return null; }
+}
+
+/** 文書の頭からの位置（transform のずれを含めない） */
+function docTop(el: HTMLElement): number {
+  let y = 0;
+  for (let n: HTMLElement | null = el; n; n = n.offsetParent as HTMLElement | null) y += n.offsetTop;
+  return y;
+}
 
 type DropTarget = { kind: 'on' | 'between' | 'after' | 'back'; day: string; label: string; y: number };
 

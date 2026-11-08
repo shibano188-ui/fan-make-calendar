@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useNavigationType } from 'react-router-dom';
 import { SlidersHorizontal, Crown, Palette, MoreHorizontal } from 'lucide-react';
 import type { CalendarEvent, EventVisit } from '../types';
 import Chip from '../components/ui/Chip';
@@ -131,8 +131,13 @@ export default function Saved() {
     });
   }, [tab, query, filterOpen, selectedStatuses, excludedWorks, selectedCategories, selectedPrefs, selectedRegions, neighborActive]);
 
-  // 開いたら最上部から表示
+  // 詳細から戻ってきたとき（POP）は、ボードが見ていた位置へ戻す（2026-11-08 柴野）。タブから開いたときは一番上から
+  const navType = useNavigationType();
+  const restoreBoard = useRef(navType === 'POP').current;
+
+  // 開いたら最上部から表示（戻ってきたときはボードが位置を戻すので、ここでは動かさない）
   useEffect(() => {
+    if (restoreBoard) return;
     let el = rootRef.current?.parentElement as HTMLElement | null;
     while (el) {
       const oy = getComputedStyle(el).overflowY;
@@ -505,6 +510,7 @@ export default function Saved() {
           autoFold={!tourStep} foldTick={foldTick}
           lockFold={tourStep === 'calendar' || tourStep === 'bell' || tourStep === 'done'}
           tourId={tourStep === 'calendar' || tourStep === 'bell' || tourStep === 'done' ? tourEvent?.id ?? null : null}
+          restore={restoreBoard && !tourStep}
           onAddPersonal={() => navigate(`/personal/new?date=${anchor.slice(0, 7) === today.slice(0, 7) ? today : `${anchor.slice(0, 7)}-01`}`)} />
       )}
       {styling && <EventStyleSheet eventId={styling.id} workId={styling.workId} onClose={() => setStyling(null)} onChange={() => setStyleTick((t) => t + 1)} />}
