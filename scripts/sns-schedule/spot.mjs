@@ -210,27 +210,78 @@ const footHtml = (credit) => `<div class="foot">
 
 // ── まとめの画像（同じ日に同じ作品のグッズがたくさんあるとき・柴野 2026-11-10）────────
 // 1つずつの画像に加えて、その日のぶんを1枚に並べた画像も作る（ちいかわは同じ日に十数点出ることがある）。
-// 画像なし（名前と値段の一覧）と、商品画像のある予定がそろっていれば画像あり（並べた形）の2つ
+// 画像なし（名前と値段の一覧）と、商品画像のある予定がそろっていれば画像あり（並べた形）の2つ。
+// キャラ違いの商品は1行（1マス）に「◯種」でまとめ、それでも長いときは2枚以上に分ける（柴野 2026-11-10）
 const SUMMARY_MIN = 3;
+const PAGE_ROWS = 15;  // 一覧の1枚の行数
+const PAGE_TILES = 16; // 画像ありの1枚のマス数（4列×4段）
 const KIND_ORDER = Object.keys(KIND_COLOR);
 const todayKinds = (e, date) => milestones(e).filter((m) => m.date === date);
-function summaryHtml(work, list, date, withImage) {
-  const kinds = KIND_ORDER.filter((k) => list.some((e) => todayKinds(e, date).some((m) => m.kind === k)));
+const tidy = (t) => t.replace(/\s+/g, ' ').trim();
+
+/** 名前を「共通の部分」と「種類の名前」に分ける。最後の括弧（「(糸師 凛)」）か、最後の短い言葉（「… 凪誠士郎」） */
+function variantSplit(title) {
+  const t = tidy(title);
+  const m = t.match(/^(.*\S)\s*[(（]([^()（）]+)[)）]$/);
+  if (m) return [m[1], m[2]];
+  const i = t.lastIndexOf(' ');
+  if (i > 0 && t.length - i - 1 <= 10) return [t.slice(0, i), t.slice(i + 1)];
+  return [t, ''];
+}
+/** 同じ節目で、種類の名前だけが違う商品を1つにまとめる。共通の部分が作品名＋「アニメ」程度しかないもの
+ *  （「ちいかわ アニメ『ちいかわ』 定規」「… 下敷き」）は別の商品なのでまとめない */
+function groupVariants(work, list, date) {
+  const sig = (e) => todayKinds(e, date).map((m) => `${m.kind}${m.time ?? ''}`).join('・');
+  const core = (k) => k.split(work.name).join('').replace(/[\s『』「」【】()（）・!！?？]/g, '');
+  // 名前そのものが、ほかの商品の共通の部分になっているもの（「アクリルキーホルダー」と「アクリルキーホルダー (糸師 凛)」）も同じまとまり
+  const split = new Map(list.map((e) => [e, variantSplit(e.title)]));
+  const heads = new Set([...split.values()].filter(([, l]) => l).map(([h]) => h));
+  const groups = new Map();
+  for (const e of list) {
+    const [head, label] = heads.has(tidy(e.title)) ? [tidy(e.title), ''] : split.get(e);
+    const key = core(head).length >= 6 ? `${sig(e)}|${head}` : `${sig(e)}|${e.id}`;
+    const g = groups.get(key) ?? { head, items: [], labels: [] };
+    g.items.push(e);
+    g.labels.push(label);
+    groups.set(key, g);
+  }
+  return [...groups.values()].map((g) => {
+    const items = g.items;
+    if (items.length === 1) return { items, name: tidy(items[0].title), sub: '', price: priceText(items[0]) };
+    // 名前の無いもの（「アクリルキーホルダー」だけ＝中に何種類かある）が混ざっていたら数は出さない
+    const named = g.labels.filter(Boolean);
+    const sub = named.slice(0, 5).join('・') + (named.length > 5 || named.length < items.length ? ' ほか' : '');
+    const prices = items.flatMap((e) => (e.offers ?? []).map((o) => o.price).concat(e.price)).filter((p) => typeof p === 'number' && p > 0);
+    const lo = prices.length ? Math.min(...prices) : null;
+    return { items, name: named.length === items.length ? `${g.head} ${items.length}種` : g.head, sub, price: lo ? `${lo.toLocaleString()}円${prices.some((p) => p !== lo) ? '〜' : ''}` : '' };
+  });
+}
+/** n 個を1枚 per 個までで、なるべく同じ数ずつに分ける */
+function pages(arr, per) {
+  const k = Math.ceil(arr.length / per);
+  const size = Math.ceil(arr.length / k);
+  return Array.from({ length: k }, (_, i) => arr.slice(i * size, (i + 1) * size));
+}
+
+/** groups: groupVariants の1枚ぶん。count: その日の全部の点数。page: 「1/2」（1枚なら空） */
+function summaryHtml(work, groups, date, withImage, count, page) {
+  const all = groups.flatMap((g) => g.items);
+  const kinds = KIND_ORDER.filter((k) => all.some((e) => todayKinds(e, date).some((m) => m.kind === k)));
   // 節目と時刻がみんな同じなら見出しにだけ出す。混ざっていたら行ごとに出す
   const sig = (e) => todayKinds(e, date).map((m) => `${m.kind}${m.time ?? ''}`).join('・');
-  const same = new Set(list.map(sig)).size === 1;
+  const same = new Set(all.map(sig)).size === 1;
   const head = same
-    ? todayKinds(list[0], date).map((m) => `<span style="color:${KIND_COLOR[m.kind]}">${m.kind}${m.time ? `<small>${m.time}</small>` : ''}</span>`).join('<span style="color:#b5ae9c">・</span>')
+    ? todayKinds(all[0], date).map((m) => `<span style="color:${KIND_COLOR[m.kind]}">${m.kind}${m.time ? `<small>${m.time}</small>` : ''}</span>`).join('<span style="color:#b5ae9c">・</span>')
     : kinds.map((k) => `<span style="color:${KIND_COLOR[k]}">${k}</span>`).join('<span style="color:#b5ae9c">・</span>');
-  const kindTag = (e) => same ? '' : `<div class="rk">${todayKinds(e, date).map((m) => `<span style="color:${KIND_COLOR[m.kind]}">${m.kind}${m.time ? ` ${m.time}` : ''}</span>`).join(' ')}</div>`;
-  const name = (e) => esc(e.title.replace(/\s+/g, ' ').trim());
-  const cols = list.length <= 4 ? 2 : list.length <= 9 ? 3 : 4;
+  const kindTag = (g) => same ? '' : `<div class="rk">${todayKinds(g.items[0], date).map((m) => `<span style="color:${KIND_COLOR[m.kind]}">${m.kind}${m.time ? ` ${m.time}` : ''}</span>`).join(' ')}</div>`;
+  const sub = (g) => g.sub ? `<div class="sub">${esc(g.sub)}</div>` : '';
+  const cols = groups.length <= 4 ? 2 : groups.length <= 9 ? 3 : 4;
   const body = withImage
-    ? `<div class="grid" style="grid-template-columns:repeat(${cols},1fr)">${list.map((e) => {
-        const img = firstImage(e.image_url);
-        return `<div class="tile"><div class="ti">${img ? `<img src="${esc(img)}" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</div>${kindTag(e)}<div class="tn">${name(e)}</div>${priceText(e) ? `<div class="tp">${esc(priceText(e))}</div>` : ''}</div>`;
+    ? `<div class="grid" style="grid-template-columns:repeat(${cols},1fr)">${groups.map((g) => {
+        const img = g.items.map((e) => firstImage(e.image_url)).find(Boolean);
+        return `<div class="tile"><div class="ti">${img ? `<img src="${esc(img)}" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</div>${kindTag(g)}<div class="tn">${esc(g.name)}</div>${sub(g)}${g.price ? `<div class="tp">${esc(g.price)}</div>` : ''}</div>`;
       }).join('')}</div>`
-    : `<div class="rows">${list.map((e) => `<div class="row">${kindTag(e)}<div class="rn">${name(e)}</div><div class="rp">${esc(priceText(e))}</div></div>`).join('')}</div>`;
+    : `<div class="rows">${groups.map((g) => `<div class="row">${kindTag(g)}<div class="rn">${esc(g.name)}${sub(g)}</div><div class="rp">${esc(g.price)}</div></div>`).join('')}</div>`;
   return `<!doctype html><html><head><meta charset="utf-8">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700;800;900&display=block">
   <style>
@@ -250,6 +301,9 @@ function summaryHtml(work, list, date, withImage) {
     .row .rk { grid-column: 1 / -1; font-size: 22px; font-weight: 800; margin-bottom: 2px; }
     .row .rn { font-size: 32px; font-weight: 800; line-height: 1.35; }
     .row .rp { font-size: 30px; font-weight: 800; color: #3a3a3c; white-space: nowrap; }
+    .sub { font-size: 22px; font-weight: 700; color: #6b6b70; line-height: 1.4; margin-top: 2px; }
+    .tile .sub { font-size: ${cols === 4 ? 16 : cols === 3 ? 18 : 22}px; }
+    .when .count small { font-size: 28px; margin-left: 10px; color: #8e8e93; }
     .grid { margin-top: 26px; display: grid; gap: 22px 18px; }
     .tile { min-width: 0; }
     .ti { aspect-ratio: 1; border-radius: 18px; background: #fff; border: 2px solid #ece7da; display: flex; align-items: center; justify-content: center; overflow: hidden; }
@@ -264,7 +318,7 @@ function summaryHtml(work, list, date, withImage) {
     <div class="when">
       <div class="date">${md(date)}<small>(${WD[new Date(date + 'T00:00:00Z').getUTCDay()]})</small></div>
       <div class="kinds">${head}</div>
-      <div class="count">${list.length}点</div>
+      <div class="count">${count}点${page ? `<small>${page}</small>` : ''}</div>
     </div>
     ${body}
     <div class="gap"></div>
@@ -360,19 +414,24 @@ for (const [date, perWork] of byDate) {
     if (list.length >= SUMMARY_MIN) {
       // まとめの画像。並びは節目ごと（予約開始→締切→発売…）、その中は名前順
       const ordered = [...list].sort((a, b) => KIND_ORDER.indexOf(todayKinds(a, date)[0].kind) - KIND_ORDER.indexOf(todayKinds(b, date)[0].kind));
+      const groups = groupVariants(work, ordered, date);
       const kinds = KIND_ORDER.filter((k) => list.some((e) => todayKinds(e, date).some((m) => m.kind === k)));
-      const file = `${work.name}_まとめ_${kinds.join('・')}_${list.length}点.png`;
-      await tab.setContent(summaryHtml(work, ordered, date, false), { waitUntil: 'networkidle' });
-      await tab.evaluate(() => document.fonts.ready);
-      files[file] = await tab.screenshot({ fullPage: true });
-      const shot = [file];
-      // 画像ありは、半分以上の商品に画像が出せるときだけ（空の枠ばかりにならないように）
-      if (list.filter((e) => firstImage(e.image_url)).length * 2 >= list.length) {
-        await tab.setContent(summaryHtml(work, ordered, date, true), { waitUntil: 'networkidle' });
-        await tab.evaluate(() => document.fonts.ready);
-        const shown = await tab.evaluate(() => [...document.querySelectorAll('.ti img')].filter((i) => i.complete && i.naturalWidth > 0).length);
-        if (shown * 2 >= list.length) { const f = file.replace(/\.png$/, '_画像あり.png'); files[f] = await tab.screenshot({ fullPage: true }); shot.push(f); }
-      }
+      const base = `${work.name}_まとめ_${kinds.join('・')}_${list.length}点`;
+      const shot = [];
+      const render = async (withImage, per, suffix) => {
+        const ps = pages(groups, per);
+        const out = [];
+        for (const [i, g] of ps.entries()) {
+          await tab.setContent(summaryHtml(work, g, date, withImage, list.length, ps.length > 1 ? `${i + 1}/${ps.length}` : ''), { waitUntil: 'networkidle' });
+          await tab.evaluate(() => document.fonts.ready);
+          // 画像ありは、半分以上のマスに画像が出せるときだけ（空の枠ばかりにならないように）
+          if (withImage && (await tab.evaluate(() => [...document.querySelectorAll('.ti img')].filter((x) => x.complete && x.naturalWidth > 0).length)) * 2 < g.length) return;
+          out.push([`${base}${ps.length > 1 ? `_${i + 1}枚目` : ''}${suffix}.png`, await tab.screenshot({ fullPage: true })]);
+        }
+        for (const [f, buf] of out) { files[f] = buf; shot.push(f); }
+      };
+      await render(false, PAGE_ROWS, '');
+      if (groups.filter((g) => g.items.some((e) => firstImage(e.image_url))).length * 2 >= groups.length) await render(true, PAGE_TILES, '_画像あり');
       summaries.push({ file: shot.join('／'), work: work.name, count: list.length });
     }
     for (const e of list) {
