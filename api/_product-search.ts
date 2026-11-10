@@ -526,6 +526,50 @@ export function variantMismatch(entered: string, candidate: string): boolean {
   return !a.every((k) => b.has(k));
 }
 
+// ── 「◯◯ver.」の食い違い（src/lib/searchProduct.ts と同期を保つこと）──
+// 同じキャラの同じ種類のグッズは、版（ドキ★バグver.・幼少期ver.・袴ver.）違いが何度も出る。
+// 2文字組の一致度では見分けられず、「ブルーロック アクリルキーホルダー (糸師 凛)」に
+// 2期・幼少期ver・モジの別商品が付いていた（2026-11-10 柴野指摘）。数字だけの ver.2 は variantKey が見る
+const verNorm = (s: string) => s.normalize('NFKC').toLowerCase().replace(PUNCT_RE, '');
+/** タイトルの「◯◯ver.」（元の表記のまま）。silver・version は拾わない */
+export function verTagsRaw(title: string): string[] {
+  const out: string[] = [];
+  for (const m of title.normalize('NFKC').matchAll(/([^\s《》〈〉<>【】[\]()（）「」『』_/|]+?)\s*(?<![a-z])ver(?![a-z])(?!\.?\s*\d)\.?/gi)) {
+    if (!/^\d+$/.test(verNorm(m[1])) && verNorm(m[1])) out.push(`${m[1]}ver.`);
+  }
+  return out;
+}
+const verTags = (title: string) => verTagsRaw(title).map((t) => verNorm(t).replace(/ver$/, ''));
+
+/** 基準の名前と候補で「◯◯ver.」が食い違うか。基準に無い版の候補（基準が無印なら版付き全部）も食い違いにする */
+export function verMismatch(base: string, candidate: string): boolean {
+  const b = verTags(base);
+  const bn = verNorm(base);
+  const cn = verNorm(candidate);
+  if (b.some((t) => !cn.includes(t))) return true;
+  return verTags(candidate).some((t) => !bn.includes(t) && !b.some((x) => t.endsWith(x)));
+}
+
+/** 照合の基準にする名前。予定の名前は店の正式名から版（《ドキ★バグver.》）が抜けていることがあるので、
+ *  アニメイトの商品ページのリンクがあれば、URL に入っている正式名を使う（読みに行かない＝アクセス間隔を気にしなくてよい）。
+ *  商品ページが複数（キャラ違い）なら、予定の名前に全部に共通する版を足す */
+export function matchBaseTitle(title: string, offers: { url: string }[]): string {
+  const names = offers
+    .map((o) => o.url.match(/animate-onlineshop\.jp\/pn\/([^/]+)\/pd\/\d+/)?.[1])
+    .filter((p): p is string => !!p)
+    .map((p) => { try { return decodeURIComponent(p).replace(/\+/g, ' '); } catch { return ''; } })
+    .map((t) => t.replace(/^【[^】]*】\s*/, '').trim())
+    .filter(Boolean);
+  if (!names.length) return title;
+  if (names.length === 1) return names[0];
+  const common = verTagsRaw(names[0]).filter((t) => names.every((n) => verNorm(n).includes(verNorm(t).replace(/ver$/, ''))));
+  const missing = common.filter((t) => !verNorm(title).includes(verNorm(t).replace(/ver$/, '')));
+  return missing.length ? `${title} ${missing.join(' ')}` : title;
+}
+
+/** 基準の名前を検索語向けに（《》（）を外す。アニメイトの検索は記号で0件になることがある） */
+export const searchableTitle = (t: string) => t.replace(/[《》〈〉（）()]/g, ' ').replace(/\s+/g, ' ').trim();
+
 // 種類だけを表す語（src/lib/searchProduct.ts と api/_product-search.ts で同期を保つこと）。
 // 「ぬいぐるみ」「缶バッジ」のようにタイトルがこれと作品名だけだと、その語を含む商品が全部
 // 一致度1.00になり、別々の商品のリンクが付いてしまう（2026-09-16 本人指摘）。
@@ -633,7 +677,8 @@ export function highConfidence(enteredTitle: string, items: Candidate[], workNam
     .map((c) => ({ c, score: scoreTitle(enteredTitle, c.title) }))
     .filter(({ c, score }) => (c.official ? score >= 0.55 : score >= 0.8))
     .filter(({ c }) => c.inStock !== false)
-    .filter(({ c }) => !variantMismatch(enteredTitle, c.title));
+    .filter(({ c }) => !variantMismatch(enteredTitle, c.title))
+    .filter(({ c }) => !verMismatch(enteredTitle, c.title));
   // 種類違いがそろって見つかったら、全部に名前を付けて返す（src/lib/searchProduct.ts と同じ）。
   // 入力に種類の名前が入っているときは、その種類だけ。
   const labels = labelVariants(scored.map(({ c }) => c));

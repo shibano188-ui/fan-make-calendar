@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { searchCandidates, highConfidence, scoreTitle, isSetTitle, searchKeyword, variantMismatch, lookupByUrl, type Candidate } from './_product-search.js';
+import { searchCandidates, highConfidence, scoreTitle, isSetTitle, searchKeyword, variantMismatch, verMismatch, matchBaseTitle, searchableTitle, lookupByUrl, type Candidate } from './_product-search.js';
 import { pushAlerts, type Alert } from './_alerts.js';
 import { isSearchPage, isAff, representativePrice, type OfferRow } from './_offers.js';
 import { runBotPaced } from './_pace.js';
@@ -227,7 +227,9 @@ async function run(req: VercelRequest, res: VercelResponse) {
     scanned++;
     // works は多対一なので単一オブジェクト
     const workName = ((row.works as { name?: string } | null)?.name) || '';
-    const kw = searchKeyword(workName, title);
+    // 照合・検索はアニメイトの正式名（版の《ドキ★バグver.》入り）を基準にする（matchBaseTitle）
+    const base = matchBaseTitle(title, active);
+    const kw = searchKeyword(workName, searchableTitle(base));
 
     // 検索が空振りでも、人が貼ったリンク(pinned)はURLで価格を引けるので先へ進む
     const hasPinned = active.some((o) => o.pinned);
@@ -273,11 +275,11 @@ async function run(req: VercelRequest, res: VercelResponse) {
       const sameRetailer = cands.filter((c) => rk.includes(c.retailer) || c.retailer.includes(rk));
       // 同じ販路でタイトルが近い候補（種類マーカーは見ない）。「その店にまだ在るか」の判定に使う。
       const loose = sameRetailer
-        .map((c) => ({ c, s: scoreTitle(title, c.title) + (o.shop && c.shop === o.shop ? 0.5 : 0) }))
+        .map((c) => ({ c, s: scoreTitle(base, c.title) + (o.shop && c.shop === o.shop ? 0.5 : 0) }))
         .filter((x) => x.s >= 0.5)
         .sort((a, b) => b.s - a.s);
       // 種類違い(vol.2↔vol.3・①↔②)へURLを張り替えてしまわないよう投稿時と同じ照合をかける
-      const match = loose.find((x) => !variantMismatch(title, x.c.title))?.c;
+      const match = loose.find((x) => !variantMismatch(base, x.c.title) && !verMismatch(base, x.c.title))?.c;
       if (match) {
         o.url = match.url;
         o.affiliateUrl = match.url;
@@ -307,7 +309,7 @@ async function run(req: VercelRequest, res: VercelResponse) {
     if (!hasAff) {
       // 取り消し済みのURLも existing に含める（取り消したリンクをバックフィルで復活させない）
       const existing = new Set(offers.map((o) => o.url));
-      for (const c of highConfidence(title, cands, workName)) {
+      for (const c of highConfidence(base, cands, workName)) {
         if (existing.has(c.url)) continue;
         offers.push({ retailer: c.retailer || '楽天', shop: c.shop || undefined, url: c.url, affiliateUrl: c.url, hasAffiliate: c.hasAffiliate, price: c.price, fetchedAt: now, official: c.official, isSet: isSetTitle(c.title), inStock: c.inStock, stockLabel: c.stockLabel, ...(c.label ? { label: c.label, pinned: true } : {}) });
         changed = true; backfilled++;
