@@ -9,7 +9,7 @@
 // 管理画面（/api/metrics?enrich=1）で人が選んだものだけ applyEnrich で書く。
 // 下見から書き込みまでの間に予定が変わっていたら（hash が違えば）書かずに飛ばす。
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { lookupByUrl, unwrapProductUrl, searchCandidatesWithMeta, highConfidence, searchKeyword, isSetTitle, labelVariants, type Candidate, type UrlLookup } from './_product-search.js';
+import { lookupByUrl, unwrapProductUrl, searchCandidatesWithMeta, highConfidence, searchKeyword, matchBaseTitle, searchableTitle, isSetTitle, labelVariants, type Candidate, type UrlLookup } from './_product-search.js';
 import { isSearchPage, isAff, representativePrice, type OfferRow } from './_offers.js';
 import { isPlaceholderImage, firstImage } from './_image.js';
 
@@ -116,9 +116,11 @@ async function planOne(row: any, removed: Set<string>, dateEdited: boolean): Pro
   //    すでにリンクのある店は足さない（同じ店の別の出品で埋まらないように）
   const noPriced = !hits.size;
   if (title && (noPriced || !live().some(isAff))) {
-    const kw = searchKeyword(workName, title);
+    // 照合・検索はアニメイトの正式名（版の《ドキ★バグver.》入り）を基準にする（matchBaseTitle）
+    const base = matchBaseTitle(title, live());
+    const kw = searchKeyword(workName, searchableTitle(base));
     const { items, animateTotal } = await searchCandidatesWithMeta(kw).catch(() => ({ items: [] as Candidate[], animateTotal: null }));
-    const picks = highConfidence(title, items, workName);
+    const picks = highConfidence(base, items, workName);
     const existing = new Set(offers.map((o) => o.url)); // 取り消し済みも含める（取り消したリンクを復活させない）
     const shops = new Set(live().map((o) => o.retailer ?? ''));
     const added: string[] = [];

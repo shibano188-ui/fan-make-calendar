@@ -166,6 +166,24 @@ function cardHtml(work, e, date, img, credit = '販売元のページ') {
     .step.now { border: 4px solid var(--work); padding: 8px 16px; }
     .step.past { opacity: 0.5; }
     .arrow { font-size: 40px; color: #b5ae9c; }
+    ${FOOT_CSS}
+  </style></head><body class="${img ? '' : 'noimg'}">
+    <div class="work">${esc(work.name)}</div>
+    <div class="when">
+      <div class="date">${md(date)}<small>(${WD[new Date(date + 'T00:00:00Z').getUTCDay()]})</small></div>
+      <div class="kinds">${today.map((m) => `<span style="color:${KIND_COLOR[m.kind]}">${m.kind}${m.time ? `<small>${m.time}</small>` : ''}${m.until ? `<small>〜${mdw(m.until)}</small>` : ''}</span>`).join('<span style="color:#b5ae9c">・</span>')}</div>
+    </div>
+    ${img ? `<div class="pic"><img src="${esc(img)}" referrerpolicy="no-referrer"></div>` : ''}
+    <div class="name">${esc(e.title.replace(/\s+/g, ' ').trim())}</div>
+    ${price || shops ? `<div class="info">${price ? `<div class="price">${esc(price)}</div>` : ''}${shops ? `<div class="shops">${esc(shops)}</div>` : ''}</div>` : ''}
+    ${all.length > 1 ? `<div class="steps">${steps}</div>` : ''}
+    <div class="gap"></div>
+    ${footHtml(img ? credit : null)}
+  </body></html>`;
+}
+
+// 下のアプリ案内（1予定の画像とまとめの画像で同じもの）
+const FOOT_CSS = `
     .foot { margin-top: 26px; border-top: 2px solid #1d1d1f; padding-top: 14px; display: grid; grid-template-columns: 1fr auto; column-gap: 28px; align-items: center; }
     .brand { display: flex; align-items: center; gap: 12px; }
     .brand img { width: 52px; height: 52px; border-radius: 12px; }
@@ -178,19 +196,9 @@ function cardHtml(work, e, date, img, credit = '販売元のページ') {
     .qr { width: 120px; text-align: center; }
     .qr svg { width: 100px; height: 100px; }
     .qr div { font-size: 13px; color: #6b6b70; margin-top: 4px; white-space: nowrap; }
-    .note { font-size: 14px; color: #8e8e93; margin-top: 6px; }
-  </style></head><body class="${img ? '' : 'noimg'}">
-    <div class="work">${esc(work.name)}</div>
-    <div class="when">
-      <div class="date">${md(date)}<small>(${WD[new Date(date + 'T00:00:00Z').getUTCDay()]})</small></div>
-      <div class="kinds">${today.map((m) => `<span style="color:${KIND_COLOR[m.kind]}">${m.kind}${m.time ? `<small>${m.time}</small>` : ''}${m.until ? `<small>〜${mdw(m.until)}</small>` : ''}</span>`).join('<span style="color:#b5ae9c">・</span>')}</div>
-    </div>
-    ${img ? `<div class="pic"><img src="${esc(img)}" referrerpolicy="no-referrer"></div>` : ''}
-    <div class="name">${esc(e.title.replace(/\s+/g, ' ').trim())}</div>
-    ${price || shops ? `<div class="info">${price ? `<div class="price">${esc(price)}</div>` : ''}${shops ? `<div class="shops">${esc(shops)}</div>` : ''}</div>` : ''}
-    ${all.length > 1 ? `<div class="steps">${steps}</div>` : ''}
-    <div class="gap"></div>
-    <div class="foot">
+    .note { font-size: 14px; color: #8e8e93; margin-top: 6px; }`;
+/** credit: 画像の出どころ（画像なしの版は null） */
+const footHtml = (credit) => `<div class="foot">
       <div>
         <div class="brand"><img src="${ICON}"><div><div class="bn">FanHive</div><div class="tag">推しのグッズとイベントをまとめるアプリ</div></div></div>
         <div class="points"><span>●</span>締切・発売の前に通知　<span>●</span>各通販サイトの購入リンクも　<span>●</span>ワンタップでカレンダーに</div>
@@ -198,7 +206,69 @@ function cardHtml(work, e, date, img, credit = '販売元のページ') {
       </div>
       <div class="qr">${QR}<div>ダウンロードはこちら</div></div>
     </div>
-    <div class="note">発売日・価格は変わることがあります。購入前に公式の情報をご確認ください${img ? `　画像：${credit}より` : ''}</div>
+    <div class="note">発売日・価格は変わることがあります。購入前に公式の情報をご確認ください${credit ? `　画像：${credit}より` : ''}</div>`;
+
+// ── まとめの画像（同じ日に同じ作品のグッズがたくさんあるとき・柴野 2026-11-10）────────
+// 1つずつの画像に加えて、その日のぶんを1枚に並べた画像も作る（ちいかわは同じ日に十数点出ることがある）。
+// 画像なし（名前と値段の一覧）と、商品画像のある予定がそろっていれば画像あり（並べた形）の2つ
+const SUMMARY_MIN = 3;
+const KIND_ORDER = Object.keys(KIND_COLOR);
+const todayKinds = (e, date) => milestones(e).filter((m) => m.date === date);
+function summaryHtml(work, list, date, withImage) {
+  const kinds = KIND_ORDER.filter((k) => list.some((e) => todayKinds(e, date).some((m) => m.kind === k)));
+  // 節目と時刻がみんな同じなら見出しにだけ出す。混ざっていたら行ごとに出す
+  const sig = (e) => todayKinds(e, date).map((m) => `${m.kind}${m.time ?? ''}`).join('・');
+  const same = new Set(list.map(sig)).size === 1;
+  const head = same
+    ? todayKinds(list[0], date).map((m) => `<span style="color:${KIND_COLOR[m.kind]}">${m.kind}${m.time ? `<small>${m.time}</small>` : ''}</span>`).join('<span style="color:#b5ae9c">・</span>')
+    : kinds.map((k) => `<span style="color:${KIND_COLOR[k]}">${k}</span>`).join('<span style="color:#b5ae9c">・</span>');
+  const kindTag = (e) => same ? '' : `<div class="rk">${todayKinds(e, date).map((m) => `<span style="color:${KIND_COLOR[m.kind]}">${m.kind}${m.time ? ` ${m.time}` : ''}</span>`).join(' ')}</div>`;
+  const name = (e) => esc(e.title.replace(/\s+/g, ' ').trim());
+  const cols = list.length <= 4 ? 2 : list.length <= 9 ? 3 : 4;
+  const body = withImage
+    ? `<div class="grid" style="grid-template-columns:repeat(${cols},1fr)">${list.map((e) => {
+        const img = firstImage(e.image_url);
+        return `<div class="tile"><div class="ti">${img ? `<img src="${esc(img)}" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</div>${kindTag(e)}<div class="tn">${name(e)}</div>${priceText(e) ? `<div class="tp">${esc(priceText(e))}</div>` : ''}</div>`;
+      }).join('')}</div>`
+    : `<div class="rows">${list.map((e) => `<div class="row">${kindTag(e)}<div class="rn">${name(e)}</div><div class="rp">${esc(priceText(e))}</div></div>`).join('')}</div>`;
+  return `<!doctype html><html><head><meta charset="utf-8">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700;800;900&display=block">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --work: ${work.color}; }
+    body { width: 1080px; min-height: 1080px; background: #fffdf7; color: #1d1d1f; border-top: 18px solid var(--work);
+      font-family: "Noto Sans JP", sans-serif; padding: 40px 64px 36px; display: flex; flex-direction: column; }
+    .work { font-size: 58px; font-weight: 900; line-height: 1.2; display: inline-block; padding: 2px 6px 2px 0; ${work.title} }
+    .when { margin-top: 10px; display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 22px; border-bottom: 5px solid var(--work); padding-bottom: 18px; }
+    .when .date { font-size: 92px; font-weight: 900; line-height: 1; color: var(--work); letter-spacing: -1px; }
+    .when .date small { font-size: 46px; font-weight: 800; margin-left: 2px; }
+    .when .kinds { font-size: 64px; font-weight: 900; line-height: 1; }
+    .when .kinds small { font-size: 34px; font-weight: 800; margin-left: 8px; }
+    .when .count { font-size: 40px; font-weight: 800; color: #3a3a3c; margin-left: auto; }
+    .rows { margin-top: 10px; }
+    .row { display: grid; grid-template-columns: 1fr auto; column-gap: 24px; align-items: baseline; padding: 16px 0; border-bottom: 2px solid #ece7da; }
+    .row .rk { grid-column: 1 / -1; font-size: 22px; font-weight: 800; margin-bottom: 2px; }
+    .row .rn { font-size: 32px; font-weight: 800; line-height: 1.35; }
+    .row .rp { font-size: 30px; font-weight: 800; color: #3a3a3c; white-space: nowrap; }
+    .grid { margin-top: 26px; display: grid; gap: 22px 18px; }
+    .tile { min-width: 0; }
+    .ti { aspect-ratio: 1; border-radius: 18px; background: #fff; border: 2px solid #ece7da; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .ti img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .tile .rk { margin-top: 8px; font-size: 18px; font-weight: 800; }
+    .tn { margin-top: 8px; font-size: ${cols === 4 ? 19 : cols === 3 ? 22 : 26}px; font-weight: 800; line-height: 1.35; }
+    .tp { margin-top: 2px; font-size: ${cols === 4 ? 19 : cols === 3 ? 22 : 26}px; font-weight: 700; color: #3a3a3c; }
+    .gap { flex: 1 0 26px; }
+    ${FOOT_CSS}
+  </style></head><body>
+    <div class="work">${esc(work.name)}</div>
+    <div class="when">
+      <div class="date">${md(date)}<small>(${WD[new Date(date + 'T00:00:00Z').getUTCDay()]})</small></div>
+      <div class="kinds">${head}</div>
+      <div class="count">${list.length}点</div>
+    </div>
+    ${body}
+    <div class="gap"></div>
+    ${footHtml(withImage ? '販売元のページ' : null)}
   </body></html>`;
 }
 
@@ -214,7 +284,7 @@ function plainUrl(url) {
   } catch { /* そのまま */ }
   return url;
 }
-function linksText(date, items) {
+function linksText(date, items, summaries = []) {
   const now = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 16).replace('T', ' ');
   const out = [
     `FanHive 直前ポスト ${mdw(date)} の購入リンク`,
@@ -224,6 +294,13 @@ function linksText(date, items) {
   // X に載せるリンクはアフィリエイトを通さない元の URL にする（2026-10-24）。
   // A8 のリンク（px.a8.net）は X が投稿・リプで弾くため、アニメイトのリンクが載せられなくなっていた。
   // X から直接買ってもらうより、アプリに来てもらって買ってもらうのが目的なので、アフィは全部外す
+  // まとめの画像は、下の1つずつのリンクをそのまま使う
+  for (const { file, work, count } of summaries) {
+    out.push('━━━━━━━━━━━━━━━━━━━━');
+    out.push(`[まとめ画像] ${file}`);
+    out.push(`${work}｜${mdw(date)} の ${count}点（購入リンクは下の各商品のところ）`);
+    out.push('');
+  }
   for (const { file, work, e } of items) {
     const kinds = milestones(e).filter((m) => m.date === date).map((m) => `${m.kind}${m.time ? ` ${m.time}` : ''}`).join('・');
     const price = priceText(e);
@@ -277,8 +354,28 @@ let total = 0;
 for (const [date, perWork] of byDate) {
   const files = {};
   const listed = [];
+  const summaries = [];
   for (const work of targets) {
-    for (const e of (perWork[work.name] ?? []).sort((a, b) => a.title.localeCompare(b.title))) {
+    const list = (perWork[work.name] ?? []).sort((a, b) => a.title.localeCompare(b.title));
+    if (list.length >= SUMMARY_MIN) {
+      // まとめの画像。並びは節目ごと（予約開始→締切→発売…）、その中は名前順
+      const ordered = [...list].sort((a, b) => KIND_ORDER.indexOf(todayKinds(a, date)[0].kind) - KIND_ORDER.indexOf(todayKinds(b, date)[0].kind));
+      const kinds = KIND_ORDER.filter((k) => list.some((e) => todayKinds(e, date).some((m) => m.kind === k)));
+      const file = `${work.name}_まとめ_${kinds.join('・')}_${list.length}点.png`;
+      await tab.setContent(summaryHtml(work, ordered, date, false), { waitUntil: 'networkidle' });
+      await tab.evaluate(() => document.fonts.ready);
+      files[file] = await tab.screenshot({ fullPage: true });
+      const shot = [file];
+      // 画像ありは、半分以上の商品に画像が出せるときだけ（空の枠ばかりにならないように）
+      if (list.filter((e) => firstImage(e.image_url)).length * 2 >= list.length) {
+        await tab.setContent(summaryHtml(work, ordered, date, true), { waitUntil: 'networkidle' });
+        await tab.evaluate(() => document.fonts.ready);
+        const shown = await tab.evaluate(() => [...document.querySelectorAll('.ti img')].filter((i) => i.complete && i.naturalWidth > 0).length);
+        if (shown * 2 >= list.length) { const f = file.replace(/\.png$/, '_画像あり.png'); files[f] = await tab.screenshot({ fullPage: true }); shot.push(f); }
+      }
+      summaries.push({ file: shot.join('／'), work: work.name, count: list.length });
+    }
+    for (const e of list) {
       const file = fileName(work.name, e, date);
       await tab.setContent(cardHtml(work, e, date, null), { waitUntil: 'networkidle' });
       await tab.evaluate(() => document.fonts.ready);
@@ -301,7 +398,7 @@ for (const [date, perWork] of byDate) {
   }
   const n = listed.length;
   total += n;
-  if (n) files['00_購入リンク.txt'] = linksText(date, listed);
+  if (n) files['00_購入リンク.txt'] = linksText(date, listed, summaries);
   if (drive) {
     if (n) await drive.syncWork(`直前 ${date}`, files);
   } else {

@@ -95,6 +95,26 @@ export function variantMismatch(entered: string, candidate: string): boolean {
   return !a.every((k) => b.has(k));
 }
 
+// 「◯◯ver.」の食い違い（api/_product-search.ts と同期を保つこと）。
+// 版（ドキ★バグver.・幼少期ver.）違いは2文字組の一致度で見分けられない（2026-11-10 柴野指摘）
+const verNorm = (s: string) => s.normalize('NFKC').toLowerCase().replace(PUNCT_RE, '');
+function verTags(title: string): string[] {
+  const out: string[] = [];
+  for (const m of title.normalize('NFKC').matchAll(/([^\s《》〈〉<>【】[\]()（）「」『』_/|]+?)\s*(?<![a-z])ver(?![a-z])(?!\.?\s*\d)\.?/gi)) {
+    const k = verNorm(m[1]);
+    if (k && !/^\d+$/.test(k)) out.push(k);
+  }
+  return out;
+}
+/** 基準の名前と候補で「◯◯ver.」が食い違うか。基準に無い版の候補（基準が無印なら版付き全部）も食い違いにする */
+export function verMismatch(base: string, candidate: string): boolean {
+  const b = verTags(base);
+  const bn = verNorm(base);
+  const cn = verNorm(candidate);
+  if (b.some((t) => !cn.includes(t))) return true;
+  return verTags(candidate).some((t) => !bn.includes(t) && !b.some((x) => t.endsWith(x)));
+}
+
 // 種類だけを表す語（src/lib/searchProduct.ts と api/_product-search.ts で同期を保つこと）。
 // 「ぬいぐるみ」「缶バッジ」のようにタイトルがこれと作品名だけだと、その語を含む商品が全部
 // 一致度1.00になり、別々の商品のリンクが付いてしまう（2026-09-16 本人指摘）。
@@ -216,7 +236,8 @@ export function highConfidenceCandidates(enteredTitle: string, items: ProductCan
     .map((c) => ({ c, score: titleMatchScore(enteredTitle, c.title) }))
     .filter(({ c, score }) => (c.official ? score >= 0.55 : score >= 0.8))
     .filter(({ c }) => c.inStock !== false)
-    .filter(({ c }) => !variantMismatch(enteredTitle, c.title));
+    .filter(({ c }) => !variantMismatch(enteredTitle, c.title))
+    .filter(({ c }) => !verMismatch(enteredTitle, c.title));
   // 種類違い（キャラ・番号違い）がそろって見つかったら、全部に名前を付けて付ける（本人要望・2026-09-26）。
   // 前は「1種類だけ付くのはおかしい」として1件も付けていなかった。
   // 入力に種類の名前が入っている（「…（ハチワレ）」）ときは、その種類だけを付ける。
