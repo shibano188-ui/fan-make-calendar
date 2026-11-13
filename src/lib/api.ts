@@ -9,7 +9,7 @@ import { requestDeviceCalendarSync } from './deviceCalendar';
 import { requestGoogleSync } from './googleLink';
 import { noteLikeForReview } from './review';
 import { todayStr } from '../design/tokens';
-import { loadCachedLarge, EXPLORE_EVENTS_KEY } from './swrCache';
+import { loadCachedLarge, setCachedLarge, EXPLORE_EVENTS_KEY } from './swrCache';
 
 /** 2つのカテゴリ値（単一文字列 or JSON配列文字列）が完全に重ならない場合 true。
  *  どちらかが空なら false（＝別イベントとは判定しない）。複数カテゴリの重複検知に使う。 */
@@ -1642,6 +1642,8 @@ function toProposal(r: Record<string, unknown>): EditProposal {
 // 前は「1年前〜1年半後」を全部（約1万件・転送約5MB）、起動のたびに取っていた。
 //   - 終わった予定は取らない。「過去」を押したときだけ listPastExploreEvents で取る（同日のミーティングで決定）
 //   - 端末に残した一覧が30分以内のものなら、取り直さずにそれを使う
+//   - 30分を過ぎても同じ日なら、前回から変わった予定（events.updated_at）と消えた予定（deleted_events）だけ取って重ねる。
+//     列が無い DB（sql/2026-11-13-events-updated-at.sql を流す前）では、今まで通り全部取る
 const EXPLORE_FRESH_MS = 2 * 60 * 1000;
 const EXPLORE_REUSE_MS = 30 * 60 * 1000;
 const EXPLORE_AT_LS = 'fanhive_explore_at';
@@ -1658,10 +1660,19 @@ export function listExploreEvents(from: string, to: string): Promise<CalendarEve
   const hit = exploreLoads.get(key);
   if (hit && Date.now() - hit.at < EXPLORE_FRESH_MS) return hit.load;
   const load = (async () => {
-    const reused = await reuseStoredExplore(key);
-    if (reused) return reused;
-    const events = await fetchExploreEvents(from, to);
-    try { localStorage.setItem(EXPLORE_AT_LS, JSON.stringify({ key, at: Date.now() })); } catch { /* noop */ }
+    const stamp = readExploreStamp();
+    const stored = stamp?.key === key ? await loadStoredExplore() : null;
+    if (stamp && stored && Date.now() - stamp.at < EXPLORE_REUSE_MS) return stored;
+    if (stamp?.cursor && stored) {
+      try {
+        const r = await fetchExploreDiff(from, to, stored, stamp.cursor);
+        saveExplore(key, r.events, r.cursor);
+        return r.events;
+      } catch { /* 差分が取れなければ全部取り直す */ }
+    }
+    // 「最後に変わった時刻」も一緒に取る。取っている間に変わった予定は、時刻を2分戻してあるので次の差分で拾う
+    const [cursor, events] = await Promise.all([latestEventsCursor(), fetchExploreEvents(from, to)]);
+    saveExplore(key, events, cursor);
     return events;
   })();
   exploreLoads.set(key, { at: Date.now(), load });
@@ -1670,31 +1681,103 @@ export function listExploreEvents(from: string, to: string): Promise<CalendarEve
   return load;
 }
 
-/** 同じ期間を30分以内に取っていれば、端末（IndexedDB）に残した一覧を返す。画面側が setCachedLarge で書いたもの */
-async function reuseStoredExplore(key: string): Promise<CalendarEvent[] | null> {
+/** 端末に残した一覧の期間・取った時刻・差分の起点（DB の updated_at） */
+type ExploreStamp = { key: string; at: number; cursor: string | null };
+function readExploreStamp(): ExploreStamp | null {
   try {
-    const s = JSON.parse(localStorage.getItem(EXPLORE_AT_LS) ?? 'null') as { key?: string; at?: number } | null;
-    if (!s || s.key !== key || !s.at || Date.now() - s.at > EXPLORE_REUSE_MS) return null;
+    const s = JSON.parse(localStorage.getItem(EXPLORE_AT_LS) ?? 'null') as Partial<ExploreStamp> | null;
+    return s?.key && s.at ? { key: s.key, at: s.at, cursor: s.cursor ?? null } : null;
   } catch { return null; }
+}
+async function loadStoredExplore(): Promise<CalendarEvent[] | null> {
   const v = await loadCachedLarge<CalendarEvent[]>(EXPLORE_EVENTS_KEY);
   return Array.isArray(v) && v.length ? v : null;
+}
+/** 一覧を端末に残す（画面側も同じものを setCachedLarge するが、同じ配列なら書き直さない） */
+function saveExplore(key: string, events: CalendarEvent[], cursor: string | null): void {
+  setCachedLarge(EXPLORE_EVENTS_KEY, events);
+  try { localStorage.setItem(EXPLORE_AT_LS, JSON.stringify({ key, at: Date.now(), cursor })); } catch { /* noop */ }
+}
+
+/** いま DB で最後に変わった予定の時刻（から少し戻したもの）。列が無い DB では null（差分を使わない）。
+ *  updated_at は書き込みの始まりの時刻なので、長い書き込みがあとから確定しても漏らさないよう2分戻す */
+async function latestEventsCursor(): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.from('events').select('updated_at').order('updated_at', { ascending: false }).limit(1);
+    const at = data?.[0]?.updated_at as string | undefined;
+    if (error || !at) return null;
+    return new Date(new Date(at).getTime() - 2 * 60 * 1000).toISOString();
+  } catch { return null; }
+}
+
+/** 最近足された予定とみなす期間。発売日が過ぎていても「新着」に出る */
+const EXPLORE_RECENT_MS = 14 * 24 * 60 * 60 * 1000;
+/** 共同編集で日付・発売状況を直した予定（元の行の日付では漏れることがある） */
+const hasDatePatch = (id: string) => (editsByEvent.get(id) ?? [])
+  .some((x) => 'date' in x.patch || 'endDate' in x.patch || 'saleStatus' in x.patch || 'preorderEnd' in x.patch);
+
+/** fetchExploreEvents が取る行かどうか（差分で来た行を、一覧に入れるか外すか決める）。条件は fetchExploreEvents と揃えること */
+function isExploreRow(r: Record<string, unknown>, from: string, to: string, start: string): boolean {
+  if (r.pool !== 0) return false;
+  if (hasDatePatch(r.id as string)) return true;
+  const d = r.event_date as string | null;
+  const ed = r.end_date as string | null;
+  if (!d) return false;
+  if (d <= to && (ed ? ed >= start : d >= start)) return true;
+  if (d >= start || start <= from) return false;
+  if (d >= from && Array.isArray(r.offers) && r.offers.some((o) => (o as Offer | null)?.inStock === true)) return true;
+  if (typeof r.retailer === 'string' && r.retailer.startsWith('ブラックスター')) return true;
+  if (typeof r.preorder_end_date === 'string' && r.preorder_end_date >= start) return true;
+  if (r.date_label && d >= shiftMonthsStr(start, -4)) return true;
+  return (r.created_at as string) >= new Date(Date.now() - EXPLORE_RECENT_MS).toISOString();
+}
+
+/** 前回の一覧に、cursor より後に変わった・消えた予定だけを重ねる。修正（event_edits）が足された予定も取り直す */
+async function fetchExploreDiff(from: string, to: string, stored: CalendarEvent[], cursor: string): Promise<{ events: CalendarEvent[]; cursor: string | null }> {
+  const editsReady = ensureEventEdits();
+  const today = todayStr();
+  const start = from > today ? from : today;
+  const [next, changed, deleted, edits] = await Promise.all([
+    latestEventsCursor(),
+    // pool を外した予定も「外す」ために拾う（pool では絞らない）
+    fetchAllPages((q) => q.gt('updated_at', cursor), undefined, false),
+    supabase.from('deleted_events').select('id').gt('deleted_at', cursor),
+    supabase.from('event_edits').select('event_id').gt('created_at', cursor),
+  ]);
+  if (!next || deleted.error || edits.error) throw new Error('差分を取れませんでした');
+  const have = new Set(changed.map((r) => r.id as string));
+  const editedIds = [...new Set((edits.data ?? []).map((r) => r.event_id as string))].filter((id) => !have.has(id));
+  for (let i = 0; i < editedIds.length; i += 200) {
+    const { data, error } = await eventsQuery().in('id', editedIds.slice(i, i + 200));
+    if (error) throw error;
+    changed.push(...((data ?? []) as Record<string, unknown>[]));
+  }
+  await editsReady;
+  const gone = new Set((deleted.data ?? []).map((r) => r.id as string));
+  for (const r of changed) gone.add(r.id as string);
+  const fresh = await rowsToExploreEvents([changed.filter((r) => isExploreRow(r, from, to, start))]);
+  if (!gone.size) return { events: stored, cursor: next };
+  const d = (e: CalendarEvent) => e.date ?? '9999';
+  const events = [...stored.filter((e) => !gone.has(e.id)), ...fresh]
+    .sort((a, b) => d(a).localeCompare(d(b)) || a.id.localeCompare(b.id));
+  return { events, cursor: next };
 }
 
 // 前回のページ数。1回目で総数を数えてから残りを取ると往復が2回になるので、前回と同じ数だけ最初から並べて取る
 const EXPLORE_PAGES_LS = 'fanhive_explore_pages';
 
 type EventsQuery = ReturnType<typeof eventsQuery>;
-const eventsQuery = (count = false) => supabase
-  .from('events')
-  .select('*, works(name)', count ? { count: 'exact' } : undefined)
-  .eq('pool', 0);
+const eventsQuery = (count = false, poolOnly = true) => {
+  const q = supabase.from('events').select('*, works(name)', count ? { count: 'exact' } : undefined);
+  return poolOnly ? q.eq('pool', 0) : q;
+};
 
 // ⚠️ Supabase は1回に1000件までしか返さず、超えた分は黙って切る。
 // 古い順に取っていると、切れたとき「これからの予定」がまるごと消える（2026-09 に実際に起きた）。
 // 1回目で総数を数え、残りは1000件ずつ並列で取る。id でも並べて、区切りの前後で重複・欠落させない。
-async function fetchAllPages(filter: (q: EventsQuery) => EventsQuery, pagesLs?: string): Promise<Record<string, unknown>[]> {
+async function fetchAllPages(filter: (q: EventsQuery) => EventsQuery, pagesLs?: string, poolOnly = true): Promise<Record<string, unknown>[]> {
   const PAGE = 1000;
-  const page = (i: number, count = false) => filter(eventsQuery(count))
+  const page = (i: number, count = false) => filter(eventsQuery(count, poolOnly))
     .order('event_date', { ascending: true })
     .order('id', { ascending: true })
     .range(i * PAGE, i * PAGE + PAGE - 1);
@@ -1753,16 +1836,14 @@ async function fetchExploreEvents(from: string, to: string): Promise<CalendarEve
     // 「上旬」「春頃」など幅のある日付。行の日付（時期の始まり）が過ぎても、時期の終わりまでは発売中・開催中
     fetchAllPages((q) => q.gte('event_date', shiftMonthsStr(start, -4)).lt('event_date', start).not('date_label', 'is', null)),
     // 最近足された予定。発売日が過ぎていても「新着」には出る
-    eventsQuery().lt('event_date', start).gte('created_at', new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString())
+    eventsQuery().lt('event_date', start).gte('created_at', new Date(Date.now() - EXPLORE_RECENT_MS).toISOString())
       .limit(1000).then((r) => (r.data ?? []) as Record<string, unknown>[]),
   ] : [none];
   const groups = await Promise.all([upcoming, ...pastAlive]);
   // 共同編集で日付・発売状況を直した予定は、元の行の日付では漏れることがあるので id で取り足す
   await editsReady;
   const have = new Set(groups.flat().map((r) => r.id as string));
-  const edited = [...editsByEvent.entries()]
-    .filter(([id, list]) => !have.has(id) && list.some((x) => 'date' in x.patch || 'endDate' in x.patch || 'saleStatus' in x.patch || 'preorderEnd' in x.patch))
-    .map(([id]) => id);
+  const edited = [...editsByEvent.keys()].filter((id) => !have.has(id) && hasDatePatch(id));
   for (let i = 0; i < edited.length; i += 200) {
     const { data } = await eventsQuery().in('id', edited.slice(i, i + 200));
     groups.push((data ?? []) as Record<string, unknown>[]);
