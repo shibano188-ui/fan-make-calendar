@@ -1,9 +1,13 @@
 -- 2026-11-13 ホーム・探すの一覧を「前回から変わった予定だけ」取れるようにする（Supabase の転送量を減らすため）。
 -- 足すだけ。流すまではアプリが列なしでも動く（列が無いと全件の取り直しに戻る）。
 
--- 予定を最後に書き換えた時刻。今ある行は流した時刻になる
+-- 予定を最後に書き換えた時刻。
+-- 今ある行は 2000-01-01 にする（流した時刻にすると、全行が「流した直後に変わった」ことになり、差分で全部取ってしまう）。
+-- 列を足すときの既定値は表を書き直さずに入る（全行の書き換えにはならない）。そのあと、新しい行の既定値を now() にする
 alter table public.events
-  add column if not exists updated_at timestamptz not null default now();
+  add column if not exists updated_at timestamptz not null default '2000-01-01T00:00:00Z';
+alter table public.events
+  alter column updated_at set default now();
 
 create or replace function public.events_touch_updated_at() returns trigger
 language plpgsql as $$
