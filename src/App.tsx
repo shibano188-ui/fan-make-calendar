@@ -19,6 +19,7 @@ import { SHOW_ONBOARDING, ONBOARDING_KEY } from './lib/constants';
 import { requestTracking } from './lib/att';
 import { closeTopOverlay } from './lib/backStack';
 import { entryReferrer, logScreen, screenName } from './lib/screenLog';
+import { recordAcquisition } from './lib/acquisition';
 import { eventIdFromUrl, setPendingEvent, takePendingEvent, hasPendingEvent, readInstallReferrer } from './lib/deepLink';
 
 // ピボット後IA（feat/pivot-rebuild）。旧 Calendar 中心の画面は順次置換。
@@ -283,10 +284,22 @@ function BackButtonHandler() {
 
 // 見た画面の記録（src/lib/screenLog.ts）。起動と、30分以上たって戻ってきたときは '/open' として数える
 const RESUME_GAP_MS = 30 * 60_000;
+// Web で最初に開いたときの来た元を送ったか（lib/acquisition.ts）。2回目の起動からは送らない
+const WEB_ACQ_KEY = 'fan_acquisition_web_v1';
 function ScreenLogger() {
   const { pathname } = useLocation();
   useEffect(() => {
-    logScreen('/open', entryReferrer());
+    const ref = entryReferrer();
+    logScreen('/open', ref);
+    // 印が無くても 'direct' で残す（あとで ?src= 付きで来ても上書きしない＝最初に来たときの値）
+    if (!Capacitor.isNativePlatform()) {
+      try {
+        if (!localStorage.getItem(WEB_ACQ_KEY)) {
+          localStorage.setItem(WEB_ACQ_KEY, '1');
+          recordAcquisition('web', ref ?? 'direct');
+        }
+      } catch { /* 覚えられない端末では送らない（毎回送ってしまう） */ }
+    }
     let hiddenAt = 0;
     const onVisible = () => {
       if (document.visibilityState === 'hidden') hiddenAt = Date.now();

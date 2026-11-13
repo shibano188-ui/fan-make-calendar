@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Heart, Bell, BellRing, BellOff, CalendarCheck, CalendarDays, CalendarPlus, UserRound, Plus, Check, MessageCircle, Repeat2, BarChart2, Bookmark } from 'lucide-react';
+import { Heart, Bell, BellRing, BellOff, CalendarCheck, CalendarDays, CalendarPlus, UserRound, Plus, Check, MessageCircle, Repeat2, BarChart2, Bookmark, Megaphone } from 'lucide-react';
+import { recordAcquisition } from '../lib/acquisition';
 import { notificationPermission } from '../lib/notifications';
 import type { CalendarEvent } from '../types';
 import { setAdsSuppressed } from '../lib/adSuppress';
@@ -18,19 +19,21 @@ import { ONBOARDING_KEY, TOUR_STEP_KEY, TOUR_EVENT_KEY, TOUR_EVENT, LIKED_EVENT,
 //   post     … 真ん中の「＋」を光らせ、Xのアプリから共有するだけで予定になることを小さなデモで見せる（押させない）
 //   personal … カレンダーの右下の印を光らせ、自分だけの予定を作れることを伝える（押させない）
 //   account  … マイページへ移り、アカウント（データ引き継ぎ）の行を光らせて、メールを登録すると引き継げると伝える。
-//              登録はさせない（iOS 5.1.1(v)。登録しなくても全部使える）。「次へ」で課金の案内へ
+//              登録はさせない（iOS 5.1.1(v)。登録しなくても全部使える）
+//   source   … 「FanHiveをどこで知りましたか？」の1問（2026-11-13）。1回押せば終わる。ここだけ「スキップ」がある。
+//              答えは user_acquisition に残す（lib/acquisition.ts）。良さを感じる前に聞くと離れる人が増えるので最後に置く
 // **スキップは無い**。下のタブは押せなくしてある（index.css の body[data-tour-step]）。
 // 押してほしいボタン（data-tour="like" / "bell"）は同じ CSS で光らせる。
 // 終わったら ONBOARDING_KEY を立て、トラッキングの許可(ATT)を聞く（通知の許可と重ならないよう、そのあと）。
 //
 // 段階は端末に残す（途中でアプリを閉じても、次の起動で続きから）。
 
-export type TourStep = 'like' | 'calview' | 'calendar' | 'bell' | 'done' | 'post' | 'personal' | 'account';
+export type TourStep = 'like' | 'calview' | 'calendar' | 'bell' | 'done' | 'post' | 'personal' | 'account' | 'source';
 
 function readStep(): TourStep | null {
   try {
     const v = localStorage.getItem(TOUR_STEP_KEY);
-    return v === 'like' || v === 'calview' || v === 'calendar' || v === 'bell' || v === 'done' || v === 'post' || v === 'personal' || v === 'account' ? v : null;
+    return v === 'like' || v === 'calview' || v === 'calendar' || v === 'bell' || v === 'done' || v === 'post' || v === 'personal' || v === 'account' || v === 'source' ? v : null;
   } catch { return null; }
 }
 
@@ -99,7 +102,19 @@ const COPY: Record<TourStep, { icon: typeof Heart; title: string; body?: string 
   post: { icon: Plus, title: '見つけた情報はここから', body: 'Xの共有ボタンからも送れます' },
   personal: { icon: CalendarPlus, title: '自分だけの予定はここから' },
   account: { icon: UserRound, title: 'メールを登録しておくと安心', body: '機種変更しても引き継げます。あとからでも登録できます' },
+  source: { icon: Megaphone, title: 'FanHiveをどこで知りましたか？' },
 };
+
+// 知ったきっかけの選択肢と、残す値（user_acquisition の answer）。スキップは 'skipped'
+const SOURCES: { label: string; value: string }[] = [
+  { label: 'X', value: 'x' },
+  { label: '友だちの共有・リンク', value: 'friend' },
+  { label: 'TikTok', value: 'tiktok' },
+  { label: 'Instagram', value: 'instagram' },
+  { label: '検索', value: 'search' },
+  { label: 'LLP・イベント', value: 'event' },
+  { label: 'その他', value: 'other' },
+];
 
 // ベルを押したあと、通知が許可されなかったか（「これで通知が届きます」と言わないため）
 let notifyDenied = false;
@@ -131,7 +146,7 @@ export default function OnboardingTour() {
   // 段階に合った画面へ連れていく。予定詳細（/item/…）は開いてよい（詳細の ♡・ベルでも進める）
   useEffect(() => {
     if (!step || pathname.startsWith('/item/')) return;
-    const want = step === 'like' ? '/explore' : step === 'account' ? '/mypage' : '/saved';  // post・personal もカレンダーの上で
+    const want = step === 'like' ? '/explore' : step === 'account' || step === 'source' ? '/mypage' : '/saved';  // post・personal もカレンダーの上で
     if (pathname !== want) navigate(want, { replace: true });
   }, [step, pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -186,6 +201,13 @@ export default function OnboardingTour() {
 
   // 予定詳細では出さない（上の「戻る」に重なる）。詳細の ♡・ベルでも先へ進む
   if (!step || pathname.startsWith('/item/')) return null;
+  if (step === 'source') {
+    return <SourceQuestion onAnswer={(value) => {
+      haptic.select();
+      recordAcquisition('answer', value);
+      void finish();
+    }} />;
+  }
   return <TourLayer step={step} leaving={leaving}
     onNext={() => {
       haptic.select();
@@ -194,7 +216,7 @@ export default function OnboardingTour() {
       else if (step === 'done') writeStep('post');
       else if (step === 'post') writeStep('personal');
       else if (step === 'personal') { writeStep('account'); navigate('/mypage'); }
-      else if (step === 'account') void finish();
+      else if (step === 'account') writeStep('source');
     }} />;
 }
 
@@ -366,6 +388,46 @@ function TourLayer({ step, leaving, onNext }: { step: TourStep; leaving: boolean
 }
 
 const nothing = () => null;
+
+/** 案内の最後の1問「FanHiveをどこで知りましたか？」。暗い幕の上に、吹き出しと同じ見た目のカードで出す。
+ *  選ぶかスキップを1回押せば終わる（押したら二度押しできないようにする） */
+function SourceQuestion({ onAnswer }: { onAnswer: (value: string) => void }) {
+  const [done, setDone] = useState(false);
+  const pick = (value: string) => {
+    if (done) return;
+    setDone(true);
+    onAnswer(value);
+  };
+  const { icon: Icon, title } = COPY.source;
+  return (
+    <div className="fixed inset-0 z-[250] flex items-center px-4" style={{ backgroundColor: DIM }}>
+      <div className="w-full max-w-app mx-auto rounded-[16px] px-4 py-4 shadow-float"
+        style={{ backgroundColor: 'var(--label-primary)', color: 'var(--bg-primary)', animation: 'tourBubbleIn 0.35s cubic-bezier(0.32,0.72,0,1) both' }}>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'var(--accent-color)' }}>
+            <Icon size={20} style={{ color: 'var(--accent-on)' }} />
+          </div>
+          <p className="flex-1 min-w-0 text-[15px] font-bold leading-snug">{title}</p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 mt-3.5">
+          {SOURCES.map((s) => (
+            <button key={s.value} onClick={() => pick(s.value)} disabled={done}
+              className="pressable min-h-[44px] px-2 py-2 rounded-[12px] text-[13px] font-semibold leading-snug"
+              style={{ backgroundColor: 'color-mix(in srgb, var(--bg-primary) 14%, transparent)', color: 'var(--bg-primary)' }}>
+              {s.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex justify-center mt-2">
+          <button onClick={() => pick('skipped')} disabled={done}
+            className="pressable tap-44 px-4 py-2 text-[13px] font-semibold" style={{ opacity: 0.7 }}>
+            スキップ
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /** 案内の吹き出し。アプリの部品と見間違えないよう、暗い地に白い文字で出す */
 function Bubble({ step, arrow, arrowX, onNext }: { step: TourStep; arrow?: 'up' | 'down'; arrowX?: number; onNext?: () => void }) {
