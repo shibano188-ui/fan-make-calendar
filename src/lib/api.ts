@@ -1712,6 +1712,12 @@ async function fetchAllPages(filter: (q: EventsQuery) => EventsQuery, pagesLs?: 
   return [first.data ?? [], ...rest.map((r) => r.data ?? [])].flat() as Record<string, unknown>[];
 }
 
+function shiftMonthsStr(base: string, n: number): string {
+  const d = new Date(base + 'T00:00:00');
+  d.setMonth(d.getMonth() + n);
+  return todayStr(d);
+}
+
 /** 取った行を id で1つにし、日付順（同じ日は id 順）に並べて、修正・投稿者名を重ねた予定にする */
 async function rowsToExploreEvents(groups: Record<string, unknown>[][]): Promise<CalendarEvent[]> {
   // 取っている間にボットが予定を足すと区切りがずれて同じ行が2回来るので、id で1つにする
@@ -1742,6 +1748,10 @@ async function fetchExploreEvents(from: string, to: string): Promise<CalendarEve
     fetchAllPages((q) => q.gte('event_date', from).lt('event_date', start).filter('offers', 'cs', JSON.stringify([{ inStock: true }]))),
     // 公式ストアの在庫品は発売日が古くても今買える（期間より前のものも）
     eventsQuery().like('retailer', 'ブラックスター%').lt('event_date', start).limit(1000).then((r) => (r.data ?? []) as Record<string, unknown>[]),
+    // 予約・受注の受付がまだ続いているもの
+    fetchAllPages((q) => q.lt('event_date', start).gte('preorder_end_date', start)),
+    // 「上旬」「春頃」など幅のある日付。行の日付（時期の始まり）が過ぎても、時期の終わりまでは発売中・開催中
+    fetchAllPages((q) => q.gte('event_date', shiftMonthsStr(start, -4)).lt('event_date', start).not('date_label', 'is', null)),
     // 最近足された予定。発売日が過ぎていても「新着」には出る
     eventsQuery().lt('event_date', start).gte('created_at', new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString())
       .limit(1000).then((r) => (r.data ?? []) as Record<string, unknown>[]),
