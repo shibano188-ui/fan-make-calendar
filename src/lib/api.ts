@@ -1699,14 +1699,16 @@ function saveExplore(key: string, events: CalendarEvent[], cursor: string | null
   try { localStorage.setItem(EXPLORE_AT_LS, JSON.stringify({ key, at: Date.now(), cursor })); } catch { /* noop */ }
 }
 
-/** いま DB で最後に変わった予定の時刻（から少し戻したもの）。列が無い DB では null（差分を使わない）。
- *  updated_at は書き込みの始まりの時刻なので、長い書き込みがあとから確定しても漏らさないよう2分戻す */
+/** いま DB で最後に変わった予定の時刻。列が無い DB では null（差分を使わない）。
+ *  updated_at は書き込みの始まりの時刻なので、直前に書き込みがあったときは、長い書き込みがあとから確定しても漏らさないよう2分戻す。
+ *  しばらく書き込みが無いときは戻さない（戻すと、まとめて同じ時刻の行を毎回取り直してしまう） */
 async function latestEventsCursor(): Promise<string | null> {
   try {
     const { data, error } = await supabase.from('events').select('updated_at').order('updated_at', { ascending: false }).limit(1);
     const at = data?.[0]?.updated_at as string | undefined;
     if (error || !at) return null;
-    return new Date(new Date(at).getTime() - 2 * 60 * 1000).toISOString();
+    const t = new Date(at).getTime();
+    return Date.now() - t < 5 * 60 * 1000 ? new Date(t - 2 * 60 * 1000).toISOString() : at;
   } catch { return null; }
 }
 
