@@ -11,7 +11,7 @@ import { loadSharedFilters, saveSharedFilters } from '../lib/sharedFilters';
 import { loadWorkImages } from '../lib/workImages';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { deriveItemType, deriveStatus, todayStr, STATUS, type ItemStatus, type ItemType } from '../design/tokens';
-import { listExploreEvents, getHomePrefecture, searchWorks, listAllParticipatedWorks, upsertParticipation, leaveCalendar, toggleLike, toggleCalendarAdd, listLikedEventIds, type Work } from '../lib/api';
+import { listExploreEvents, listPastExploreEvents, getHomePrefecture, searchWorks, listAllParticipatedWorks, upsertParticipation, leaveCalendar, toggleLike, toggleCalendarAdd, listLikedEventIds, type Work } from '../lib/api';
 import { parseCategories, loadSeenEventIds, saveSeenEventIds, isNewItem, GOODS_TAG } from '../lib/constants';
 import { getCached, setCached, loadCachedLarge, setCachedLarge, EXPLORE_EVENTS_KEY } from '../lib/swrCache';
 import { buildWorkColorMap } from '../lib/workColors';
@@ -69,7 +69,18 @@ export default function Explore() {
   const [newOnly, setNewOnly] = useState(searchParams.get('new') === '1' && !!searchParams.get('work'));
   const paramMode = searchParams.get('mode');
   const [mode, setMode] = useState<ItemType>(paramMode === 'goods' || paramMode === 'event' ? paramMode : (_ss.mode ?? 'goods'));
-  const [items, setItems] = useState<CalendarEvent[] | null>(null);
+  const [baseItems, setItems] = useState<CalendarEvent[] | null>(null);
+  // 終わった予定。「過去」を押したときだけ取って、これからの一覧に足す（2026-11-13 転送量を減らすため）
+  const [pastItems, setPastItems] = useState<CalendarEvent[] | null>(null);
+  const items = useMemo(() => {
+    if (!baseItems || !pastItems?.length) return baseItems;
+    const have = new Set(baseItems.map((e) => e.id));
+    const extra = pastItems.filter((e) => !have.has(e.id));
+    if (!extra.length) return baseItems;
+    // 並びは取得順＝日付昇順を保つ（日付なしは末尾）
+    const d = (e: CalendarEvent) => e.date ?? '9999';
+    return [...extra, ...baseItems].sort((a, b) => d(a).localeCompare(d(b)) || a.id.localeCompare(b.id));
+  }, [baseItems, pastItems]);
   const [query, setQuery] = useState(searchParams.get('q') ?? _ss.query ?? '');
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set(_sf.statuses));
   const [excludedWorks, setExcludedWorks] = useState<Set<string>>(new Set(_sf.excludedWorks));
@@ -431,6 +442,16 @@ export default function Explore() {
     const st = deriveStatus(e);
     return st === 'ended' || st === 'soldout' || (st === 'preorder_ended' && !(e.date && e.date > today));
   }, [today]);
+  // 終わった予定が要るとき（「過去」を押した・状態で絞った）だけ取る
+  const needPast = showEnded || selectedStatuses.size > 0;
+  useEffect(() => {
+    if (!needPast) return;
+    let alive = true;
+    listPastExploreEvents(shiftMonths(today, -12))
+      .then((d) => { if (alive) setPastItems(d); })
+      .catch(() => { if (alive) toast('過去の予定を読み込めませんでした'); });
+    return () => { alive = false; };
+  }, [needPast, today]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 上の「探す｜スタンプ」。スタンプ＝♡ほどではないけど、とっておいた予定（2026-11-07 柴野。探しているときに使うので探すに置く）。
   // 前の切り替えを戻すのは、詳細から戻ってきたとき（POP）だけ

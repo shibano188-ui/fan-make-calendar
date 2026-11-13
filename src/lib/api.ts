@@ -8,6 +8,8 @@ import { unstretchImage } from './image';
 import { requestDeviceCalendarSync } from './deviceCalendar';
 import { requestGoogleSync } from './googleLink';
 import { noteLikeForReview } from './review';
+import { todayStr } from '../design/tokens';
+import { loadCachedLarge, EXPLORE_EVENTS_KEY } from './swrCache';
 
 /** 2つのカテゴリ値（単一文字列 or JSON配列文字列）が完全に重ならない場合 true。
  *  どちらかが空なら false（＝別イベントとは判定しない）。複数カテゴリの重複検知に使う。 */
@@ -1632,51 +1634,72 @@ function toProposal(r: Record<string, unknown>): EditProposal {
   };
 }
 
-// 探す（横断フィード）: 全作品の予定を期間ウィンドウで取得。works名を結合。
-// 過去も含めて取得し、UI側で「今日起点」に並べる。type はUI側で category から導出して振り分ける。
-// ホーム・探すはタブを開くたびにこれを呼ぶが、1回で約4MB・数秒かかる。
-// 2分以内に取ったばかりなら、同じ結果（同じ配列）をそのまま返して取り直さない。
+// 探す（横断フィード）: 全作品の予定を取得。works名を結合。type はUI側で category から導出して振り分ける。
+// ホーム・探すはタブを開くたびにこれを呼ぶ。2分以内に取ったばかりなら、同じ結果（同じ配列）をそのまま返す。
 // 投稿・編集・削除のあとは invalidateExploreEvents() で捨て、自分の変更がすぐ出るようにする。
+//
+// Supabase の転送量（egress）が無料枠を超えたので、取る量と回数を減らした（2026-11-13）。
+// 前は「1年前〜1年半後」を全部（約1万件・転送約5MB）、起動のたびに取っていた。
+//   - 終わった予定は取らない。「過去」を押したときだけ listPastExploreEvents で取る（同日のミーティングで決定）
+//   - 端末に残した一覧が30分以内のものなら、取り直さずにそれを使う
 const EXPLORE_FRESH_MS = 2 * 60 * 1000;
+const EXPLORE_REUSE_MS = 30 * 60 * 1000;
+const EXPLORE_AT_LS = 'fanhive_explore_at';
 const exploreLoads = new Map<string, { at: number; load: Promise<CalendarEvent[]> }>();
-function invalidateExploreEvents(): void { exploreLoads.clear(); }
+const pastLoads = new Map<string, Promise<CalendarEvent[]>>();
+function invalidateExploreEvents(): void {
+  exploreLoads.clear();
+  pastLoads.clear();
+  try { localStorage.removeItem(EXPLORE_AT_LS); } catch { /* noop */ }
+}
 
 export function listExploreEvents(from: string, to: string): Promise<CalendarEvent[]> {
   const key = `${from}_${to}`;
   const hit = exploreLoads.get(key);
   if (hit && Date.now() - hit.at < EXPLORE_FRESH_MS) return hit.load;
-  const load = fetchExploreEvents(from, to);
+  const load = (async () => {
+    const reused = await reuseStoredExplore(key);
+    if (reused) return reused;
+    const events = await fetchExploreEvents(from, to);
+    try { localStorage.setItem(EXPLORE_AT_LS, JSON.stringify({ key, at: Date.now() })); } catch { /* noop */ }
+    return events;
+  })();
   exploreLoads.set(key, { at: Date.now(), load });
   // 失敗した回は覚えない（次に開いたときに取り直す）
   load.catch(() => { if (exploreLoads.get(key)?.load === load) exploreLoads.delete(key); });
   return load;
 }
 
+/** 同じ期間を30分以内に取っていれば、端末（IndexedDB）に残した一覧を返す。画面側が setCachedLarge で書いたもの */
+async function reuseStoredExplore(key: string): Promise<CalendarEvent[] | null> {
+  try {
+    const s = JSON.parse(localStorage.getItem(EXPLORE_AT_LS) ?? 'null') as { key?: string; at?: number } | null;
+    if (!s || s.key !== key || !s.at || Date.now() - s.at > EXPLORE_REUSE_MS) return null;
+  } catch { return null; }
+  const v = await loadCachedLarge<CalendarEvent[]>(EXPLORE_EVENTS_KEY);
+  return Array.isArray(v) && v.length ? v : null;
+}
+
 // 前回のページ数。1回目で総数を数えてから残りを取ると往復が2回になるので、前回と同じ数だけ最初から並べて取る
 const EXPLORE_PAGES_LS = 'fanhive_explore_pages';
 
-async function fetchExploreEvents(from: string, to: string): Promise<CalendarEvent[]> {
-  // 共同編集の修正を重ねた実効値で返す。重ねるのは受け取ったあとなので、予定の取得と同時に走らせる
-  const editsReady = ensureEventEdits();
-  // ⚠️ Supabase は1回に1000件までしか返さず、超えた分は黙って切る。
-  // 古い順に取っているので、切れると「これからの予定」がまるごと消える（2026-09 に実際に起きた）。
-  // 1回目で総数を数え、残りは1000件ずつ並列で取る。id でも並べて、区切りの前後で重複・欠落させない。
+type EventsQuery = ReturnType<typeof eventsQuery>;
+const eventsQuery = (count = false) => supabase
+  .from('events')
+  .select('*, works(name)', count ? { count: 'exact' } : undefined)
+  .eq('pool', 0);
+
+// ⚠️ Supabase は1回に1000件までしか返さず、超えた分は黙って切る。
+// 古い順に取っていると、切れたとき「これからの予定」がまるごと消える（2026-09 に実際に起きた）。
+// 1回目で総数を数え、残りは1000件ずつ並列で取る。id でも並べて、区切りの前後で重複・欠落させない。
+async function fetchAllPages(filter: (q: EventsQuery) => EventsQuery, pagesLs?: string): Promise<Record<string, unknown>[]> {
   const PAGE = 1000;
-  const page = (i: number, count = false) => supabase
-    .from('events')
-    .select('*, works(name)', count ? { count: 'exact' } : undefined)
-    .eq('pool', 0)
-    .lte('event_date', to)
-    .or(`end_date.gte.${from},and(end_date.is.null,event_date.gte.${from})`)
+  const page = (i: number, count = false) => filter(eventsQuery(count))
     .order('event_date', { ascending: true })
     .order('id', { ascending: true })
     .range(i * PAGE, i * PAGE + PAGE - 1);
   let guess = 1;
-  try { guess = Math.min(10, Math.max(1, Number(localStorage.getItem(EXPLORE_PAGES_LS)) || 1)); } catch { /* noop */ }
-  // 公式ストアの在庫品は発売日が古くても今買えるので、期間より前のものも取る。一覧の先頭に足して日付順を保つ
-  const oldStock = from < new Date().toISOString().slice(0, 10)
-    ? supabase.from('events').select('*, works(name)').eq('pool', 0).like('retailer', 'ブラックスター%').lt('event_date', from).order('event_date', { ascending: true }).limit(1000)
-    : Promise.resolve({ data: [] as Record<string, unknown>[], error: null });
+  if (pagesLs) try { guess = Math.min(10, Math.max(1, Number(localStorage.getItem(pagesLs)) || 1)); } catch { /* noop */ }
   const firstBatch = await Promise.all(Array.from({ length: guess }, (_, i) => page(i, i === 0)));
   const first = firstBatch[0];
   if (first.error) throw first.error;
@@ -1685,17 +1708,86 @@ async function fetchExploreEvents(from: string, to: string): Promise<CalendarEve
   // 総数より先のページ（予定が減ったとき）は空かエラーで返るので、数えた範囲だけを見る
   const rest = [...firstBatch.slice(1), ...more].slice(0, pages - 1);
   for (const r of rest) if (r.error) throw r.error;
-  try { localStorage.setItem(EXPLORE_PAGES_LS, String(pages)); } catch { /* noop */ }
-  await editsReady;
+  if (pagesLs) try { localStorage.setItem(pagesLs, String(pages)); } catch { /* noop */ }
+  return [first.data ?? [], ...rest.map((r) => r.data ?? [])].flat() as Record<string, unknown>[];
+}
+
+function shiftMonthsStr(base: string, n: number): string {
+  const d = new Date(base + 'T00:00:00');
+  d.setMonth(d.getMonth() + n);
+  return todayStr(d);
+}
+
+/** 取った行を id で1つにし、日付順（同じ日は id 順）に並べて、修正・投稿者名を重ねた予定にする */
+async function rowsToExploreEvents(groups: Record<string, unknown>[][]): Promise<CalendarEvent[]> {
   // 取っている間にボットが予定を足すと区切りがずれて同じ行が2回来るので、id で1つにする
   const seen = new Set<string>();
-  const data = [(await oldStock).data ?? [], first.data ?? [], ...rest.map((r) => r.data ?? [])].flat()
-    .filter((e) => !seen.has(e.id as string) && !!seen.add(e.id as string));
-  const events = data.map((e) => {
-    const works = (e as Record<string, unknown>).works as { name: string } | null;
-    return { ...rowToEvent(e as Record<string, unknown>), workName: works?.name ?? '' };
+  const rows = groups.flat().filter((e) => !seen.has(e.id as string) && !!seen.add(e.id as string));
+  const date = (r: Record<string, unknown>) => (r.event_date as string | null) ?? '9999';
+  rows.sort((a, b) => date(a).localeCompare(date(b)) || (a.id as string).localeCompare(b.id as string));
+  const events = rows.map((e) => {
+    const works = e.works as { name: string } | null;
+    return { ...rowToEvent(e), workName: works?.name ?? '' };
   });
   return resolveAuthorNames(events);
+}
+
+async function fetchExploreEvents(from: string, to: string): Promise<CalendarEvent[]> {
+  // 共同編集の修正を重ねた実効値で返す。重ねるのは受け取ったあとなので、予定の取得と同時に走らせる
+  const editsReady = ensureEventEdits();
+  const today = todayStr();
+  const start = from > today ? from : today;
+  // これからの予定（終わりが今日以降）
+  const upcoming = fetchAllPages((q) => q
+    .lte('event_date', to)
+    .or(`end_date.gte.${start},and(end_date.is.null,event_date.gte.${start})`), EXPLORE_PAGES_LS);
+  // 日付は過ぎたが終わっていないもの。探すは状態（deriveStatus）で「過去」を分けるので、ここで漏らすと消えてしまう
+  const none = Promise.resolve([] as Record<string, unknown>[]);
+  const pastAlive = start > from ? [
+    // 在庫ありの店があるもの（発売中）。在庫表記が古いものは画面側で発売済みに回る
+    fetchAllPages((q) => q.gte('event_date', from).lt('event_date', start).filter('offers', 'cs', JSON.stringify([{ inStock: true }]))),
+    // 公式ストアの在庫品は発売日が古くても今買える（期間より前のものも）
+    eventsQuery().like('retailer', 'ブラックスター%').lt('event_date', start).limit(1000).then((r) => (r.data ?? []) as Record<string, unknown>[]),
+    // 予約・受注の受付がまだ続いているもの
+    fetchAllPages((q) => q.lt('event_date', start).gte('preorder_end_date', start)),
+    // 「上旬」「春頃」など幅のある日付。行の日付（時期の始まり）が過ぎても、時期の終わりまでは発売中・開催中
+    fetchAllPages((q) => q.gte('event_date', shiftMonthsStr(start, -4)).lt('event_date', start).not('date_label', 'is', null)),
+    // 最近足された予定。発売日が過ぎていても「新着」には出る
+    eventsQuery().lt('event_date', start).gte('created_at', new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString())
+      .limit(1000).then((r) => (r.data ?? []) as Record<string, unknown>[]),
+  ] : [none];
+  const groups = await Promise.all([upcoming, ...pastAlive]);
+  // 共同編集で日付・発売状況を直した予定は、元の行の日付では漏れることがあるので id で取り足す
+  await editsReady;
+  const have = new Set(groups.flat().map((r) => r.id as string));
+  const edited = [...editsByEvent.entries()]
+    .filter(([id, list]) => !have.has(id) && list.some((x) => 'date' in x.patch || 'endDate' in x.patch || 'saleStatus' in x.patch || 'preorderEnd' in x.patch))
+    .map(([id]) => id);
+  for (let i = 0; i < edited.length; i += 200) {
+    const { data } = await eventsQuery().in('id', edited.slice(i, i + 200));
+    groups.push((data ?? []) as Record<string, unknown>[]);
+  }
+  return rowsToExploreEvents(groups);
+}
+
+/** 探すで「過去」を押したときだけ取る、終わった予定（from 〜 昨日）。同じ起動の間は覚えておく */
+export function listPastExploreEvents(from: string): Promise<CalendarEvent[]> {
+  const today = todayStr();
+  const key = `${from}_${today}`;
+  const hit = pastLoads.get(key);
+  if (hit) return hit;
+  const load = (async () => {
+    const editsReady = ensureEventEdits();
+    const rows = await fetchAllPages((q) => q
+      .gte('event_date', from)
+      .lt('event_date', today)
+      .or(`end_date.is.null,end_date.lt.${today}`));
+    await editsReady;
+    return rowsToExploreEvents([rows]);
+  })();
+  pastLoads.set(key, load);
+  load.catch(() => { if (pastLoads.get(key) === load) pastLoads.delete(key); });
+  return load;
 }
 
 // ─── イベント編集 ─────────────────────────────────────────────────
