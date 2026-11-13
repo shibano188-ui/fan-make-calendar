@@ -9,7 +9,7 @@
 --   where w.name in ('TRIGUN', 'とんがり帽子のアトリエ') group by 1;
 --
 -- 適用：
---   本番……
+--   本番……2026-11-14 Claude（柴野の指示。TRIGUN 53件・とんがり 20件で送った。7d8b638c・f851c32e に1件ずつ）
 
 insert into notifications (user_id, kind, title, body, path)
 select u.user_id, 'support', 'ご依頼の作品を追加しました', v.body, v.path
