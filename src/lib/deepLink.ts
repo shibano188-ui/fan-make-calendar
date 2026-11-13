@@ -1,4 +1,5 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { recordAcquisition } from './acquisition';
 
 // 共有ページ（https://fanhive.jp/e/<id>）からアプリに来た人を、その予定の詳細へ連れて行く（2026-10-09）。
 //   ・アプリが入っている人 … リンクを押すとアプリが開く（Android App Links／iOS Universal Links）。
@@ -40,9 +41,23 @@ export function hasPendingEvent(): boolean {
 
 const InstallReferrer = registerPlugin<{ get(): Promise<{ referrer: string }> }>('InstallReferrer');
 
+/** 来た元として残す値（user_acquisition の play）。utm の3つを並べ直す（gclid などで長くても utm が切れないように）。
+ *  utm が無ければ生の文字列、空なら '(empty)' */
+function referrerToSave(referrer: string): string {
+  const p = new URLSearchParams(referrer);
+  const utm = new URLSearchParams();
+  for (const k of ['utm_source', 'utm_medium', 'utm_content']) {
+    const v = p.get(k);
+    if (v) utm.set(k, v);
+  }
+  const s = utm.toString() || referrer.trim();
+  return (s || '(empty)').slice(0, 200);
+}
+
 /**
  * Android でストアから入れたときの来た元（utm_content=<予定の id>）を1回だけ読む。
- * 古い版のアプリ（プラグインが無い）では失敗するので、そのときは読んだことにしない（更新後に読む）
+ * 古い版のアプリ（プラグインが無い）では失敗するので、そのときは読んだことにしない（更新後に読む）。
+ * 読めたら、予定を開くかに関係なく来た元として残す（lib/acquisition.ts）
  */
 export async function readInstallReferrer(): Promise<string | null> {
   if (Capacitor.getPlatform() !== 'android') return null;
@@ -50,6 +65,7 @@ export async function readInstallReferrer(): Promise<string | null> {
   try {
     const { referrer } = await InstallReferrer.get();
     try { localStorage.setItem(REFERRER_CHECKED_KEY, '1'); } catch { /* noop */ }
+    recordAcquisition('play', referrerToSave(referrer || ''));
     const p = new URLSearchParams(referrer || '');
     if (p.get('utm_source') !== 'share') return null;
     return p.get('utm_content')?.match(UUID)?.[0]?.toLowerCase() ?? null;
