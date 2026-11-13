@@ -1708,7 +1708,7 @@ async function latestEventsCursor(): Promise<string | null> {
     const at = data?.[0]?.updated_at as string | undefined;
     if (error || !at) return null;
     const t = new Date(at).getTime();
-    return Date.now() - t < 5 * 60 * 1000 ? new Date(t - 2 * 60 * 1000).toISOString() : at;
+    return Date.now() - t < 5 * 60 * 1000 ? new Date(t - 2 * 60 * 1000).toISOString() : new Date(t).toISOString();
   } catch { return null; }
 }
 
