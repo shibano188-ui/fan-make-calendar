@@ -82,7 +82,9 @@ export default function Explore() {
     return [...extra, ...baseItems].sort((a, b) => d(a).localeCompare(d(b)) || a.id.localeCompare(b.id));
   }, [baseItems, pastItems]);
   const [query, setQuery] = useState(searchParams.get('q') ?? _ss.query ?? '');
-  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set(_sf.statuses));
+  // ホームの作品カードの「受付中」から来たとき（?work=…&st=preorder・2026-11-19）は、その状態だけで開く（保存はしない）
+  const paramStatus = searchParams.get('work') ? searchParams.get('st') : null;
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(paramStatus ? new Set([paramStatus]) : new Set(_sf.statuses));
   const [excludedWorks, setExcludedWorks] = useState<Set<string>>(new Set(_sf.excludedWorks));
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set(_sf.categories));
   const [selectedPrefs, setSelectedPrefs] = useState<Set<string>>(new Set(_sf.prefs));

@@ -5,6 +5,8 @@ import { Analytics } from '@vercel/analytics/react';
 // 数字の書体（あと○日・日付・値段）。英数字だけなので軽い（2026-11-07 デザインの一新）
 import '@fontsource/outfit/latin-700.css';
 import '@fontsource/outfit/latin-800.css';
+// 記録の1枚の小さな札（日付・No.・FANHIVE）の等幅の字（2026-11-19）。英数字だけ
+import '@fontsource/dm-mono/latin-500.css';
 import './index.css';
 import './design/skins.css';
 import App from './App';

@@ -42,7 +42,15 @@ function daysText(days: number): string {
   return days === 0 ? '今日' : days === 1 ? '明日' : `あと${days}日`;
 }
 
-export function WorkStoryCard({ group, followDays, next, height, onStory, onPickIcon, onNew, onSearch, onOpenEvent }: {
+/** beta の人だけのカードの中身（2026-11-19 柴野「新着に何があるか、ここからすぐ探せるかが大事」）。
+ *  探す入口（件数つき）と、新着の一覧（押すとストーリーのその1件から） */
+export type CardBeta = {
+  finds: { key: string; label: string; n: number }[];
+  onFind: (key: string) => void;
+  onStoryAt: (eventId: string) => void;
+};
+
+export function WorkStoryCard({ group, followDays, next, height, onStory, onPickIcon, onNew, onSearch, onOpenEvent, beta }: {
   group: StoryGroup;
   followDays: number | null;
   next: { mine: boolean; main: NextDate | null; after: NextDate[] };
@@ -52,7 +60,9 @@ export function WorkStoryCard({ group, followDays, next, height, onStory, onPick
   onNew: () => void;
   onSearch: () => void;
   onOpenEvent: (e: CalendarEvent) => void;
+  beta?: CardBeta;
 }) {
+  if (beta) return <BetaWorkCard group={group} followDays={followDays} next={next} height={height} onStory={onStory} onPickIcon={onPickIcon} onOpenEvent={onOpenEvent} beta={beta} />;
   // その次の予定は、カードの中ほどに実際に空いた高さのぶんだけ並べる（1件 58px・3行）
   const fit = useFitRows(58, 4, [height, next.main?.event.id, next.after.length, group.title]);
   return (
@@ -139,6 +149,78 @@ export function WorkStoryCard({ group, followDays, next, height, onStory, onPick
           style={{ backgroundColor: 'var(--fill-tertiary)' }}>
           この作品を探す
         </button>
+      </div>
+    </CardFrame>
+  );
+}
+
+/** beta: いま（一番近い節目）→ 探す入口 → 新着。下の大きな2つのボタンは探す入口にまとめた */
+function BetaWorkCard({ group, followDays, next, height, onStory, onPickIcon, onOpenEvent, beta }: {
+  group: StoryGroup; followDays: number | null; next: { mine: boolean; main: NextDate | null; after: NextDate[] }; height: number;
+  onStory: () => void; onPickIcon: () => void; onOpenEvent: (e: CalendarEvent) => void; beta: CardBeta;
+}) {
+  const fresh = group.pages.filter((p) => p.badge === '新着').map((p) => p.event).reverse();
+  const fit = useFitRows(44, 6, [height, next.main?.event.id, fresh.length, group.title]);
+  return (
+    <CardFrame height={height} badge={
+      <BadgeSlot>
+        <button onClick={() => { haptic.select(); onStory(); }} aria-label={`${group.title}の新着を1件ずつ見る`} className="pressable rounded-full">
+          <WorkBadge title={group.title} color={group.color} image={group.image} size={BADGE} ring={group.pages.length ? (group.unseen > 0 ? 'unseen' : 'seen') : undefined} />
+        </button>
+        <button onClick={() => { haptic.select(); onPickIcon(); }} aria-label="作品アイコンを選ぶ"
+          className="pressable absolute -right-1 bottom-0 w-6 h-6 rounded-full flex items-center justify-center border border-subtle"
+          style={{ backgroundColor: 'var(--bg-secondary)' }}>
+          <Pencil size={12} className="text-label-secondary" />
+        </button>
+      </BadgeSlot>
+    }>
+      <div className="px-3 pt-1 text-center">
+        <FitTitle text={group.title} />
+        {followDays != null && <div className="text-[11px] text-label-tertiary mt-0.5">{followDays}日フォロー中</div>}
+      </div>
+      {/* いま: 一番近い締切・発売（画像・あと◯日・名前を1つのかたまりに） */}
+      <div className="mx-3 mt-2.5 pt-2 border-t border-subtle">
+        {next.main ? (
+          <button onClick={() => { haptic.select(); onOpenEvent(next.main!.event); }} className="pressable w-full flex items-center gap-2 text-left">
+            <span className="w-10 h-10 rounded-[8px] overflow-hidden bg-fill-3 flex-shrink-0 flex items-center justify-center">
+              <Thumb src={parseImageUrls(next.main.event.imageUrl)[0]} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[10px] text-label-secondary leading-tight truncate">{next.main.label} {md(next.main.date)}{next.mine ? ' ♡' : ''}</span>
+              <span className="num block text-[18px] font-extrabold leading-tight whitespace-nowrap">{daysText(next.main.days)}</span>
+              <span className="block text-[11px] leading-snug truncate">{next.main.event.title}</span>
+            </span>
+          </button>
+        ) : (
+          <div className="text-[11px] text-label-tertiary">これからの締切・発売はまだありません</div>
+        )}
+      </div>
+      {/* 探す入口。件数が0のものは押せない */}
+      <div className="mx-3 mt-2 grid grid-cols-2 gap-1">
+        {beta.finds.map((f) => (
+          <button key={f.key} disabled={f.key !== 'all' && f.n === 0} onClick={() => { haptic.select(); beta.onFind(f.key); }}
+            className="pressable h-7 px-2 rounded-full flex items-center justify-between gap-1 text-[11px] font-semibold border border-subtle disabled:opacity-40"
+            style={f.key === 'new' && f.n > 0 ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)', borderColor: 'transparent' } : undefined}>
+            <span className="truncate">{f.label}</span>
+            {f.key !== 'all' && <span className="num text-[12px] font-extrabold">{f.n > 99 ? '99+' : f.n}</span>}
+          </button>
+        ))}
+      </div>
+      {/* 新着。押すとストーリーのその1件から */}
+      <div ref={fit.boxRef} className="mx-3 mt-2 pt-2 border-t border-subtle flex-1 min-h-0 flex flex-col overflow-hidden pb-2">
+        <div ref={fit.usedRef} className="text-[10px] text-label-secondary">新着{fresh.length ? ` ${fresh.length}` : ''}</div>
+        {fresh.length === 0 ? (
+          <div className="text-[11px] text-label-tertiary mt-1">新しく入った予定はまだありません</div>
+        ) : (
+          <div className="flex flex-col gap-1 mt-1">
+            {fresh.slice(0, Math.max(1, fit.rows)).map((e) => (
+              <button key={e.id} onClick={() => { haptic.select(); beta.onStoryAt(e.id); }} className="pressable flex items-center gap-2 text-left h-10">
+                <span className="w-9 h-9 rounded-[6px] overflow-hidden bg-fill-3 flex-shrink-0 flex items-center justify-center"><Thumb src={parseImageUrls(e.imageUrl)[0]} /></span>
+                <span className="min-w-0 flex-1 text-[11px] leading-snug line-clamp-2">{e.title}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </CardFrame>
   );

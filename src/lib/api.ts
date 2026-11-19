@@ -186,6 +186,11 @@ function rowToEvent(e: Record<string, unknown>): CalendarEvent {
   return withCachedEdits(buildEvent(e));
 }
 
+/** 記録（src/lib/records.ts）が、予定の行を同じ形にするのに使う */
+export function eventFromRow(e: Record<string, unknown>): CalendarEvent {
+  return rowToEvent(e);
+}
+
 /** DBの行をそのまま CalendarEvent にする（パッチは重ねない）。
  *  詳細ページは自分で listEventEdits + applyEdits を重ねるので、こちらを使う
  *  （重ねたものを渡すと、「戻す」で履歴を消しても画面が元に戻らない）。 */

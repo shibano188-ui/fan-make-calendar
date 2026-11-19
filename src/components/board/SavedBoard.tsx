@@ -20,6 +20,9 @@ import { useEventNotify } from '../item/NotifyBell';
 import { useTentative, setTentative } from '../../lib/tentative';
 import { useToast } from '../ui/Toast';
 import { useCalDotImages } from '../../lib/calDotImages';
+import { useBeta } from '../../lib/beta';
+import { useMyRecords, type MyRecord } from '../../lib/records';
+import { RecordStack, RecordMonthSheet } from '../record/RecordCell';
 
 // カレンダーの「ボード」表示（2026-11-06 柴野と試作 → 表示の切り替えに「ボード」として足した）。
 // 上に月のカレンダー（下へスクロールすると上部バーの下へ滑り込み、今見ている週の帯だけが残る）、下に「あと○日」で並べた日ごとの予定。
@@ -72,6 +75,15 @@ type SheetState = { kind: 'day'; day: string } | { kind: 'undated' } | { kind: '
 export default function SavedBoard({ events, anchor, setAnchor, workImages, stickyTop, onOpen: openDetail, onRemove, userId, onVisits, todayTick = 0, onAddPersonal, autoFold = true, foldTick = 0, lockFold = false, tourId = null, restore = false }: Props) {
   const today = todayStr();
   const toast = useToast();
+  // beta の人だけ（2026-11-19）: 過ぎた日で記録がある日は、マスがその日の1枚になる。押すとその月の記録をめくれる
+  const beta = useBeta(userId);
+  const records = useMyRecords(userId, beta);
+  const recByDay = useMemo(() => {
+    const m = new Map<string, MyRecord[]>();
+    for (const r of records) if (r.day <= today) (m.get(r.day) ?? m.set(r.day, []).get(r.day)!).push(r);
+    return m;
+  }, [records, today]);
+  const [recDay, setRecDay] = useState<string | null>(null);
   // 詳細から戻ったときの位置（詳細へ行く直前に覚える）。2026-11-08 柴野: 戻るとカレンダーが開いて一番上に戻っていた
   const back = useRef<ReturnPoint | null>(restore ? readReturn() : null).current;
   const [onlyMarks, setOnlyMarks] = useState<Set<Mark>>(() => new Set(back?.marks ?? []));
@@ -458,7 +470,8 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
 
   const cell = (d: string, i: number, outside: boolean, compact?: boolean) => (
     <DayCell key={d} d={d} dow={i} today={today} list={days.get(d) ?? []} active={d === active} event={eventDays.has(d)}
-      outside={outside} compact={compact} dot={dot} onPick={jump} />
+      outside={outside} compact={compact} dot={dot} onPick={jump}
+      recs={outside ? undefined : recByDay.get(d)} onRecords={(x) => { haptic.select(); setRecDay(x); }} />
   );
   const handle = (label: string, onClick: () => void) => (
     <button type="button" aria-label={label} className="w-full h-4 flex items-center justify-center flex-shrink-0" onClick={() => { haptic.select(); onClick(); }}>
@@ -468,6 +481,7 @@ export default function SavedBoard({ events, anchor, setAnchor, workImages, stic
 
   return (
     <div ref={rootRef} className="pb-6">
+      {recDay && <RecordMonthSheet day={recDay} recs={records} onClose={() => setRecDay(null)} onOpenEvent={(id) => { setRecDay(null); const e = events.find((x) => x.id === id) ?? records.find((r) => r.eventId === id)?.event; if (e) openDetail(e); }} />}
       {/* ── 月のカレンダー。高さは変えず、上部バーの下へ滑り込んで「週の帯」だけを残す ── */}
       <div {...calTouch} data-tour="calendar" className="sticky z-10"
         // 地の色は、見えている部分（開いているときは月、たたんだら帯）にだけ塗る。たたんで上へずらした月が、
@@ -766,11 +780,26 @@ function LongPress({ onLong, onTap, className, style, label, children }: {
 // ─ カレンダーの部品 ─
 
 /** カレンダーの1日。作品の点（最大3つ）・締切の〆・イベントの紫の輪。compact は週の帯（曜日を中に書く） */
-function DayCell({ d, dow, today, list: all, active, event, outside, compact, dot, onPick }: {
+function DayCell({ d, dow, today, list: all, active, event, outside, compact, dot, onPick, recs, onRecords }: {
   d: string; dow: number; today: string; list: Moment[]; active: boolean; event: boolean; outside: boolean; compact?: boolean;
-  dot: DotFn; onPick: (d: string) => void;
+  dot: DotFn; onPick: (d: string) => void; recs?: MyRecord[]; onRecords?: (d: string) => void;
 }) {
   if (outside) return <span className="h-[54px]" />;
+  // 記録がある日（beta）: マスがその日の1枚になる。日付はマスの左上の小さな札。月を開くたびに日付の順に貼られる
+  if (recs?.length && onRecords) {
+    const isToday = d === today;
+    return (
+      <button type="button" data-cal-day={d} onClick={() => onRecords(d)} aria-label={`${md(d)}・記録`}
+        className={`pressable relative flex items-center justify-center rounded-[10px] ${compact ? 'h-[56px] pt-[8px]' : 'h-[54px] pt-[2px]'}`}
+        style={{ backgroundColor: active && !isToday ? 'var(--fill-tertiary)' : undefined }}>
+        <RecordStack recs={recs} delay={+d.slice(8) * 28} h={compact ? 44 : 48} />
+        <span className="num absolute left-[2px] top-[1px] z-[2] min-w-[18px] h-[15px] px-[3px] rounded-[4px] text-[10.5px] font-extrabold leading-[15px] text-center"
+          style={isToday ? { backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' } : { backgroundColor: 'var(--bg-primary)', color: dayColor(dow) ?? 'var(--label-primary)', boxShadow: '0 0 0 .5px var(--separator)' }}>
+          {parse(d).getDate()}
+        </span>
+      </button>
+    );
+  }
   const list = all.filter((m) => m.mark !== '行');
   const ws = [...new Set(list.map((m) => m.e.workId ?? ''))];
   const deadline = list.some((m) => m.mark === '〆');

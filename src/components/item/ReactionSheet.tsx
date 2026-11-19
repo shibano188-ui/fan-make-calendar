@@ -11,7 +11,8 @@ import { useBackToClose } from '../../lib/backStack';
 /** 選んだものは Slack と同じく、枠ではなく地の色で示す */
 export const STAMP_ON_BG = 'color-mix(in srgb, var(--accent-color) 24%, transparent)';
 
-export default function ReactionSheet({ eventId, onClose }: { eventId: string; onClose: () => void }) {
+/** onPicked: 押したあと（beta の人で、買った・行ったなら「記録にする」を開くため） */
+export default function ReactionSheet({ eventId, onClose, onPicked }: { eventId: string; onClose: () => void; onPicked?: (type: string, on: boolean) => void }) {
   // Android の戻るで閉じる（前は、ホーム・探す・カレンダー・マイページの上で開いているとアプリごと終わっていた）
   useBackToClose(true, onClose);
   const { counts, mine } = useStamps(eventId);
@@ -77,7 +78,7 @@ export default function ReactionSheet({ eventId, onClose }: { eventId: string; o
             const n = counts[r.type] ?? 0;
             return (
               <button key={r.type} aria-pressed={on} aria-label={r.label}
-                onClick={() => { haptic.select(); toggleStamp(eventId, r.type); close(); }}
+                onClick={() => { haptic.select(); toggleStamp(eventId, r.type); close(); if (onPicked) setTimeout(() => onPicked(r.type, !on), 240); }}
                 className="pressable rounded-[14px] h-[68px] flex flex-col items-center justify-center gap-0.5"
                 style={{ backgroundColor: on ? STAMP_ON_BG : 'var(--fill-tertiary)' }}>
                 {/* スタンプの絵に文字が入っているので、名前は出さず数だけ */}
