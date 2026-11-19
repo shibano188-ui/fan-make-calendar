@@ -2,6 +2,7 @@
 -- 足すだけ。既定は false なので、ほかの人には何も変わらない。
 alter table public.user_app_state add column if not exists beta boolean not null default false;
 
--- 自分を beta にする（SQL Editor で、自分の user_id を入れて流す。user_id はコミットしない）
--- insert into public.user_app_state (user_id, beta) values ('<自分の user_id>', true)
---   on conflict (user_id) do update set beta = true;
+-- 自分を beta にする（SQL Editor で、自分のメールを入れて流す。メールはコミットしない）。
+-- user_app_state の行はアプリを開くと作られるので、1回アプリを開いてから流す。「1 row」と出れば済み
+-- update public.user_app_state set beta = true
+--   where user_id = (select id from auth.users where email = '<自分のメール>');
