@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useNavigationType, useSearchParams } from 'react-router-dom';
 import { TrendingDown, ChevronRight } from 'lucide-react';
 import type { CalendarEvent } from '../types';
-import { deriveItemType, todayStr } from '../design/tokens';
+import { deriveItemType, deriveStatus, todayStr } from '../design/tokens';
 import { loadSeenEventIds, addSeenEventId, FOLLOWS_EVENT } from '../lib/constants';
 import { listExploreEvents, listAllParticipatedWorks, listFollowDates, toggleLike, listLikedEventIds, listMyPriceChanges, type Work } from '../lib/api';
 import { useFeature, usePremium } from '../lib/premium';
@@ -23,7 +23,8 @@ import {
   loadStreak, currentStreak, markStreakToday, WEEK_KEY, type StoryGroup,
 } from '../lib/story';
 import StoryViewer, { type StoryPosition } from '../components/story/StoryViewer';
-import { WorkStoryCard, WeekStoryCard, AddWorkCard } from '../components/story/WorkStoryCard';
+import { WorkStoryCard, WeekStoryCard, AddWorkCard, type CardBeta } from '../components/story/WorkStoryCard';
+import { useBeta } from '../lib/beta';
 import { useWorkImagePicker } from '../components/story/useWorkImagePicker';
 import { useSearchSuggest, SuggestList } from '../components/ui/SearchSuggest';
 
@@ -209,6 +210,41 @@ export default function Home() {
     if (workGroups.every((g) => g.unseen === 0)) setStreak(currentStreak(markStreakToday()));
   }, [items, followsReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // beta の人だけ、作品カードに探す入口（件数つき）と新着の一覧を出す（2026-11-19）
+  const beta = useBeta(user?.id);
+  const findCounts = useMemo(() => {
+    const m = new Map<string, { preorder: number; goods: number; event: number }>();
+    if (!beta) return m;
+    for (const e of items ?? []) {
+      if (!e.workId || isHidden(e)) continue;
+      const st = deriveStatus(e, today);
+      if (st === 'ended' || st === 'soldout') continue;
+      const c = m.get(e.workId) ?? m.set(e.workId, { preorder: 0, goods: 0, event: 0 }).get(e.workId)!;
+      if (st === 'preorder') c.preorder++;
+      if (deriveItemType(e) === 'goods') c.goods++; else c.event++;
+    }
+    return m;
+  }, [beta, items, isHidden, today]);
+  const cardBeta = (g: StoryGroup): CardBeta | undefined => {
+    if (!beta || !g.workId) return undefined;
+    const c = findCounts.get(g.workId) ?? { preorder: 0, goods: 0, event: 0 };
+    const w = g.workId;
+    return {
+      finds: [
+        { key: 'new', label: '新着', n: g.unseen },
+        { key: 'preorder', label: '受付中', n: c.preorder },
+        { key: 'goods', label: 'グッズ', n: c.goods },
+        { key: 'event', label: 'イベント', n: c.event },
+      ],
+      onFind: (key) => {
+        if (key === 'new') goExplore(w, true);
+        else if (key === 'preorder') navigate(`/explore?work=${w}&st=preorder&mode=goods`);
+        else navigate(`/explore?work=${w}&mode=${key}`);
+      },
+      onStoryAt: (id) => openStory(g.key, id),
+    };
+  };
+
   const openEvent = (e: CalendarEvent) => navigate(`/item/${e.id}`);
   const onLike = async (e: CalendarEvent, want: boolean) => (user ? toggleLike(e.id, user.id, want) : undefined);
   // 新着を見る＝その作品の新着だけ（?new=1。ホームの作品の丸と同じ範囲）。この作品を探す＝その作品の予定すべて。
@@ -305,7 +341,7 @@ export default function Home() {
                 onPickIcon={() => void iconPicker.pick(g.key)}
                 onNew={() => goExplore(g.key, true)}
                 onSearch={() => goExplore(g.key, false)}
-                onOpenEvent={openEvent} />
+                onOpenEvent={openEvent} beta={cardBeta(g)} />
             );
           })}
           <AddWorkCard height={cardH} onAdd={() => setFollowSheetOpen(true)} />
