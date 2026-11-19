@@ -7,6 +7,9 @@ import { supabase } from './supabase';
 // 呼ぶので、問い合わせは1人1回にまとめる。
 
 const KEY = 'fan_beta';
+/** 止めるときは false（2026-11-20 柴野「私のアカウントでもまだ出さない。時間をかけて調整する」）。
+ *  false の間は、beta の人にも出さず、問い合わせもしない。表（records）や beta の列はそのまま残す */
+const ENABLED = false;
 let value = (() => { try { return localStorage.getItem(KEY) === '1'; } catch { return false; } })();
 let askedFor: string | null = null;
 const listeners = new Set<() => void>();
@@ -30,7 +33,7 @@ function subscribe(cb: () => void): () => void {
 
 /** beta の人か。ログインしていなければ false */
 export function useBeta(userId: string | undefined | null): boolean {
-  useEffect(() => { if (userId) ask(userId); }, [userId]);
+  useEffect(() => { if (ENABLED && userId) ask(userId); }, [userId]);
   const v = useSyncExternalStore(subscribe, () => value, () => value);
-  return !!userId && v;
+  return ENABLED && !!userId && v;
 }
