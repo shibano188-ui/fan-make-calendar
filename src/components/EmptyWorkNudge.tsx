@@ -37,7 +37,7 @@ export default function EmptyWorkNudge({ works }: { works: { id: string; name: s
   return (
     <div className="mt-2 relative rounded-[12px] border border-subtle px-3 py-2.5" style={{ backgroundColor: 'var(--bg-secondary)' }}>
       <button onClick={close} aria-label="閉じる" className="pressable absolute top-1.5 right-1.5 p-1 text-label-tertiary"><X size={14} /></button>
-      <p className="text-[13px] font-semibold pr-6 truncate">「{w.name}」の予定はまだありません</p>
+      <p className="text-[13px] font-semibold pr-6 truncate">「{w.name}」のこれからの予定はまだありません</p>
       <p className="mt-1 text-[12px] text-label-secondary leading-relaxed">
         Xで告知を見つけたら、共有から FanHive を選ぶだけで AI が予定にします。みんなで増やしましょう
       </p>
