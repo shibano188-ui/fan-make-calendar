@@ -15,5 +15,10 @@ if (!url || !key) {
   console.error('VITE_SUPABASE_URL と SUPABASE_SERVICE_ROLE_KEY が要る');
   process.exit(1);
 }
+// 値の形が違うときは、中身を出さずに形だけ出す（Secrets の入れ間違いを見つけるため）
+if (!/^https:\/\//.test(url)) {
+  console.error('VITE_SUPABASE_URL の形が違う', { length: url.length, head: [...url.slice(0, 3)].map((c) => c.charCodeAt(0)) });
+  process.exit(1);
+}
 const client = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 await runBot(client);
