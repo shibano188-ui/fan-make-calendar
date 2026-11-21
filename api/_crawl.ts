@@ -181,10 +181,14 @@ export async function crawlNext(db: Db): Promise<{ sources: string[]; added: num
   const { data: st } = await db.from('bot_state').select('value').eq('key', 'crawl').maybeSingle();
   const seen = { ...(((st?.value ?? {}) as { seen?: Record<string, string> }).seen ?? {}) };
   const sources = listSources();
+  // フォロワーが0の作品は検索しない（店の全商品を読む公式ストアなどは作品を問わないので残す。2026-11-21）
+  const { data: followed } = await db.from('works').select('name').in('name', FIXED_WORKS).gte('participant_count', 1);
+  const followedNames = new Set((followed ?? []).map((w) => String(w.name)));
   // まだ見ていないもの（新しくフォローされた作品）→ 前回見たのが古いもの の順に2か所
   // 同じ場所は1日1回まで（相手のサイトに負担をかけない。柴野の判断・2026-09-28）。全部見終わったら次の日まで何もしない
   const dayAgo = new Date(Date.now() - 24 * 3600_000).toISOString();
   const picks = [...sources].filter((x) => (seen[x.key] ?? '') < dayAgo)
+    .filter((x) => !FIXED_WORKS.includes(x.work) || followedNames.has(x.work))
     .filter((x) => !x.key.startsWith('animate:') || botCanFetch('www.animate-onlineshop.jp', 40 * 60_000))
     .sort((a, b) => (seen[a.key] ?? '').localeCompare(seen[b.key] ?? '')).slice(0, 2);
   if (!picks.length) return { sources: [], added: 0, merged: 0, read: 0, skipped: '今日の巡回は済んでいる' };
@@ -455,6 +459,18 @@ async function findWorkId(db: Db, name: string): Promise<string | null> {
   if (hit) return hit.id as string;
   const { data: al } = await db.from('work_aliases').select('work_id').eq('alias_norm', k).limit(1).maybeSingle();
   return (al?.work_id as string | undefined) ?? null;
+}
+
+/** フォロワーが1人以上いる作品のIDを返す。作品が無い・フォロワーが0なら null（作らない）。
+ *  巡回はフォローされている作品だけにする（Vercel の無料枠の CPU を使い切ったため。柴野・2026-11-21） */
+export async function followedWorkId(db: Db, rawName: string): Promise<string | null> {
+  for (const n of workNameCandidates(rawName).tries) {
+    const id = await findWorkId(db, n);
+    if (!id) continue;
+    const { data } = await db.from('works').select('participant_count').eq('id', id).maybeSingle();
+    return Number(data?.participant_count ?? 0) >= 1 ? id : null;
+  }
+  return null;
 }
 
 /** 作品のIDを返す。名前か別名が同じ作品があればそれ、無ければ作る */

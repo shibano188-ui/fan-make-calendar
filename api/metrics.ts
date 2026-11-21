@@ -387,6 +387,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // テーブルがまだ無い環境（SQL未適用）では空振りするだけ
         const proposals = await processProposals(client, 20_000).catch((e) => ({ error: String(e) }));
         const submissions = await processSubmissions(client, 20_000).catch((e) => ({ error: String(e) }));
+        // 巡回・手直しは20分に1回（pg_cron は10分おきのまま、毎時0・20・40分台の回だけ進める）。
+        // Vercel の無料枠の CPU（月4時間）を使い切ったため（柴野・2026-11-21）。提案・投稿の確認は10分おきのまま
+        if (new Date().getUTCMinutes() % 20 >= 10) {
+          const skipped = { skipped: '20分に1回' };
+          return { proposals, submissions, crawl: skipped, catalog: skipped, enrich: skipped };
+        }
         const crawl = await crawlNext(client).catch((e) => ({ error: String(e) }));
         const catalog = await crawlCatalogs(client, Math.min(40_000, Math.max(0, 85_000 - (Date.now() - started)))).catch((e) => ({ error: String(e) }));
         const enrich = await autoEnrich(client, Math.max(0, 95_000 - (Date.now() - started)));
