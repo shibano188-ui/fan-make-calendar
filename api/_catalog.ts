@@ -12,7 +12,7 @@ import { excludeRegistered, fetchProductList, type ListProduct, type ProductList
 import { botCanFetch } from './_pace.js';
 import { listEvents, detectWork, type ListEvent } from './_listgroup.js';
 import { parseMovicList, lookupByUrl, parseReleaseText } from './_product-search.js';
-import { registerEvents, resolveWork, workKey } from './_crawl.js';
+import { registerEvents, resolveWork, followedWorkId, workKey } from './_crawl.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any>;
@@ -48,6 +48,7 @@ const backdate = (e: ListEvent) => (!e.date ? new Date(Date.now() - 60 * 86400_0
 // ── 作品名の辞書（作品の分類が無い店・新着で、商品名から作品を見分ける） ──
 // 登録済みの作品名と別名。1回の実行で1度だけ作る（detectWork は呼ぶたびに全作品を読むので、商品ごとには使わない）。
 // 3文字未満の名前は外す（「A3!」などが関係ない商品名に当たらないように）。一番長く一致したものにする
+// フォロワーが0の作品は入れない＝その作品の商品は商品ページを読まず、登録もしない（Vercel の無料枠の CPU を使い切ったため・2026-11-21）
 type WorkDict = { key: string; name: string }[];
 // 検索には使うが、商品名の見分けには使わない別名。長音を落として比べるので「ブラスタ」は「ブラスター」にも当たる
 const LOOSE_ALIASES = new Set([workKey('ブラスタ')]);
@@ -56,13 +57,14 @@ async function workDict(db: Db): Promise<WorkDict> {
   if (dictCache && Date.now() - dictCache.at < 5 * 60_000) return dictCache.dict;
   const out: WorkDict = [];
   for (let from = 0; from < 20000; from += 1000) {
-    const { data } = await db.from('works').select('name').range(from, from + 999);
+    const { data } = await db.from('works').select('name').gte('participant_count', 1).range(from, from + 999);
     for (const w of data ?? []) out.push({ key: workKey(String(w.name)), name: String(w.name) });
     if ((data ?? []).length < 1000) break;
   }
-  const { data: al } = await db.from('work_aliases').select('alias_norm, works(name)').limit(10000);
+  const { data: al } = await db.from('work_aliases').select('alias_norm, works(name, participant_count)').limit(10000);
   for (const a of al ?? []) {
-    const name = (a.works as { name?: string } | null)?.name;
+    const w = a.works as { name?: string; participant_count?: number } | null;
+    const name = Number(w?.participant_count ?? 0) >= 1 ? w?.name : undefined;
     if (name && !LOOSE_ALIASES.has(workKey(String(a.alias_norm)))) out.push({ key: workKey(String(a.alias_norm)), name });
   }
   const dict = out.filter((d) => d.key.length >= 3).sort((a, b) => b.key.length - a.key.length);
@@ -165,7 +167,9 @@ async function crawlMovic(db: Db, authorId: string, budgetMs: number): Promise<{
     const html = await getHtml(`${MOVIC}/shop/e/enew_snd/`);
     // 読めないとき（混雑の 503 など）は見たことにしない。次の回にもう一度見る
     if (!html) return { added, merged, read, note: '新着が読めない' };
-    const items = toList(parseMovicList(html)).filter((p) => p.inStock !== false);
+    // フォローされている作品の商品だけ商品ページを読む（読むのが一番重い）
+    const dict = await workDict(db);
+    const items = toList(parseMovicList(html)).filter((p) => p.inStock !== false && matchWork(p.title, dict));
     read = items.length;
     const { list } = await excludeRegistered({ title: 'ムービック 新着', shop: 'ムービック', retailer: 'ムービック', products: items, nextPage: null });
     const { done, left } = await lookupMovicItems(list.products, until);
@@ -209,8 +213,10 @@ async function crawlMovic(db: Db, authorId: string, budgetMs: number): Promise<{
     if (!s.wid) {
       // 作品名: 登録済みの作品名が商品名に入っていればそれ、無ければ作品ページの見出しの名前で作る
       const name = (await detectWork(items.map((p) => p.title), '').catch(() => null)) ?? movicWorkName(html, w.name);
-      s.wid = await resolveWork(db, name);
+      s.wid = await followedWorkId(db, name);
       s.workName = name;
+      // フォロワーが0（まだ無い作品も）なら読まずに次の作品へ（2026-11-21）
+      if (!s.wid) { s.i = (s.i ?? 0) + 1; s.page = 1; s.workName = undefined; continue; }
     }
     const workName = s.workName ?? w.name;
     const { list } = await excludeRegistered({ title: workName, shop: 'ムービック', retailer: 'ムービック', products: items, nextPage: null });
