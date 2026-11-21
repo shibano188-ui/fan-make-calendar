@@ -1,0 +1,39 @@
+# 運営のボット（提案・投稿の確認・店の巡回・グッズの手直し）を10分おきに回す。中身は api/_bot.ts。
+# 前は Supabase の pg_cron → Vercel（/api/metrics?task=bot）で回していたが、Vercel の無料枠の CPU（月4時間）を
+# ほぼこれで使い切ったので、公開リポジトリなら無料の GitHub Actions に移した（柴野・2026-11-21）。
+# GitHub の定期実行は混むと数分〜十数分遅れることがある。巡回なので気にしない。通知（5分おき）は pg_cron のまま。
+# Secrets: VITE_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / ANTHROPIC_API_KEY / RAKUTEN_* / YAHOO_*（Vercel の本番と同じ値）
+name: ボット
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+# 前の回が終わるまで次の回は待つ（重ねて回さない。店へのアクセスを二重にしない）
+concurrency:
+  group: bot
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx tsx scripts/bot/run.ts
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RAKUTEN_APP_ID: ${{ secrets.RAKUTEN_APP_ID }}
+          RAKUTEN_ACCESS_KEY: ${{ secrets.RAKUTEN_ACCESS_KEY }}
+          RAKUTEN_AFFILIATE_ID: ${{ secrets.RAKUTEN_AFFILIATE_ID }}
+          RAKUTEN_REFERER: ${{ secrets.RAKUTEN_REFERER }}
+          YAHOO_APP_ID: ${{ secrets.YAHOO_APP_ID }}
+          YAHOO_VC_AFFILIATE_ID: ${{ secrets.YAHOO_VC_AFFILIATE_ID }}

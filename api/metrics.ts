@@ -1,11 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { loginPage, dashboardPage, enrichPage } from './_dashboard-html.js';
-import { planEnrich, applyEnrich, autoEnrich } from './_enrich.js';
-import { crawlNext } from './_crawl.js';
-import { crawlCatalogs } from './_catalog.js';
-import { processProposals, processSubmissions } from './_submissions.js';
-import { runBotPaced } from './_pace.js';
+import { planEnrich, applyEnrich } from './_enrich.js';
+import { runBot } from './_bot.js';
 import { sendPushes, fcmConfigured, type PushMessage } from './_fcm.js';
 import { collectAppStore, collectAppStoreAnalytics, collectPlay, type StoreResult } from './_stores.js';
 
@@ -379,28 +376,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.query.task === 'bot') {
       const client = db();
       if (!client) return res.status(500).json({ error: 'Server config error' });
-      const started = Date.now();
-      // 店への機械的なアクセスの間隔を守る（アニメイトは約20分に1回。_pace.ts）
-      // 巡回（決まった作品・ジャンプショップ）→ 店の全作品の巡回（_catalog.ts）→ 残りの時間で手直し。全部で100秒ほどまで
-      const { proposals, submissions, crawl, catalog, enrich } = await runBotPaced(client, async () => {
-        // 最優先: ＋αの提案の確認と、送られた情報の登録（2026-09-29。_submissions.ts）。
-        // テーブルがまだ無い環境（SQL未適用）では空振りするだけ
-        const proposals = await processProposals(client, 20_000).catch((e) => ({ error: String(e) }));
-        const submissions = await processSubmissions(client, 20_000).catch((e) => ({ error: String(e) }));
-        // 巡回・手直しは20分に1回（pg_cron は10分おきのまま、毎時0・20・40分台の回だけ進める）。
-        // Vercel の無料枠の CPU（月4時間）を使い切ったため（柴野・2026-11-21）。提案・投稿の確認は10分おきのまま
-        if (new Date().getUTCMinutes() % 20 >= 10) {
-          const skipped = { skipped: '20分に1回' };
-          return { proposals, submissions, crawl: skipped, catalog: skipped, enrich: skipped };
-        }
-        const crawl = await crawlNext(client).catch((e) => ({ error: String(e) }));
-        const catalog = await crawlCatalogs(client, Math.min(40_000, Math.max(0, 85_000 - (Date.now() - started)))).catch((e) => ({ error: String(e) }));
-        const enrich = await autoEnrich(client, Math.max(0, 95_000 - (Date.now() - started)));
-        return { proposals, submissions, crawl, catalog, enrich };
-      });
-      // 毎回の結果をログに残す（Vercel のログで、どの店がどれだけ進んだかを見る）
-      console.log('[bot]', JSON.stringify({ tookMs: Date.now() - started, proposals, submissions, crawl, catalog, enrich }));
-      return res.status(200).json({ proposals, submissions, crawl, catalog, enrich });
+      // 中身は _bot.ts。2026-11-21 から GitHub Actions で回している。ここは古い pg_cron・手で回すとき用（20分に1回に絞る）
+      const r = await runBot(client, { everyOther: true });
+      return res.status(200).json(r);
     }
     return collect(req, res);
   }
