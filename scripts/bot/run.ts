@@ -3,6 +3,12 @@
 import { createClient } from '@supabase/supabase-js';
 import { runBot } from '../../api/_bot.js';
 
+// vercel env pull で取った値は、末尾に文字の「\n」や空白が付いていることがある（Vercel に入れたときの名残）。外してから使う
+for (const k of Object.keys(process.env)) {
+  const v = process.env[k];
+  if (v !== undefined) process.env[k] = v.replace(/(\\n|\s)+$/, '');
+}
+
 const url = process.env.VITE_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !key) {
