@@ -32,6 +32,7 @@ import SwipeRow from '../components/ui/SwipeRow';
 import Sheet from '../components/ui/Sheet';
 import { useDismissed, dismissEvent, restoreEvent } from '../lib/dismissed';
 import StampShelf from '../components/board/StampShelf';
+import EmptyWorkNudge from '../components/EmptyWorkNudge';
 import { getLike, setLike } from '../lib/likeStore';
 import { syncNotifyWithLike } from '../lib/notifications';
 
@@ -462,6 +463,13 @@ export default function Explore() {
   // 左へ払って隠した予定（興味なし）。探すにだけ効く
   const dismissed = useDismissed();
   const [dismissedOpen, setDismissedOpen] = useState(false);
+  // フォローしているのに予定が1件も無い作品（投稿のリクエストの案内を出す。EmptyWorkNudge）
+  const emptyWorks = useMemo(() => {
+    if (!items) return [];
+    const has = new Set(items.map((e) => e.workId));
+    return followedWorks.filter((w) => !has.has(w.id) && !excludedWorks.has(w.id));
+  }, [items, followedWorks, excludedWorks]);
+
   const visible = useMemo(() => {
     return queryItems.filter((e) => {
       if (dismissed.has(e.id)) return false;
@@ -811,6 +819,12 @@ export default function Explore() {
         <p className="px-4 pt-2 text-[12px] text-label-secondary leading-relaxed">
           選んだ作品の予定はまだありません。予定の多い作品で試してみましょう。
         </p>
+      )}
+
+      {tab === 'list' && items && items.length > 0 && followsReady && (
+        <div className="px-4">
+          <EmptyWorkNudge works={emptyWorks} />
+        </div>
       )}
 
       <div
