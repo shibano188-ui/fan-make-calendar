@@ -18,98 +18,145 @@
   <meta name="twitter:description" content="作品をフォローして、気になる予定に♡、ベルをONにするだけ。推しの予定を見逃さないための使い方。" />
   <meta name="twitter:image" content="https://fanhive.jp/og-image.png" />
   <link rel="canonical" href="https://fanhive.jp/guide.html" />
+  <!-- 書体は LP と同じ Noto Sans JP。LP のフォントは LP で使う字だけのサブセットなので流用せず、Google Fonts から読む
+       （privacy.html の外部サービスの一覧に書いてある） -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" />
   <style>
     /* 使い方ガイド（2026-11-22 第1段階: 本文と骨組み）。
        アプリからはアプリ内ブラウザ（SFSafariViewController / Custom Tabs）で開く前提。
        閉じるボタンはブラウザ側にあるので、ページに「戻る」は置かない（terms.html と同じ）。
+       色・角・余白・カードは LP（public/lp.html のテンプレート）にそろえてある。LP を変えたらここも見る。
        書いてある操作・料金は src/lib/premium.ts と各画面のコードに合わせてある。画面を変えたらここも直す。
        画像は public/guide/ に入れて、.shot の枠を <img> に差し替える（枠のコメントにファイル名を書いてある）。 */
     :root {
-      --bg: #ffffff; --bg2: #f5f4f0; --text: #1a1a1a; --sub: #555; --muted: #888; --line: #e2e2e2;
-      --accent: #e7bb5e; --accent-ink: #2a1c22; --accent-soft: #fbf3e0; --warn: #c0392b; --link: #0066cc;
+      --bg: #FFFBF3; --card: #ffffff; --text: #2A1C22; --body: #4A353B; --sub: #6B555C;
+      --line: #F5E8D2; --accent: #E7BB5E; --accent-ink: #2A1C22; --gold: #7F5D0C; --soft: #FDF3DF;
+      --ph: #FBF7EF; --ph-line: #E6D9C4; --warn: #e0483e;
+      --glow: 0 18px 40px -24px rgba(200,155,60,.45);
     }
     * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Segoe UI', sans-serif;
-      max-width: 720px; margin: 0 auto; padding: 16px 16px 24px; padding-top: calc(16px + env(safe-area-inset-top));
-      padding-bottom: calc(24px + env(safe-area-inset-bottom));
-      background: var(--bg); color: var(--text); line-height: 1.7; -webkit-text-size-adjust: 100%;
+      margin: 0; background: var(--bg); color: var(--text);
+      font-family: "Noto Sans JP", system-ui, sans-serif; line-height: 1.75; overflow-x: clip;
     }
-    h1 { font-size: 1.6rem; margin: 8px 0 4px; }
-    .lead { font-size: 1rem; color: var(--sub); margin: 0 0 20px; }
-    h2 { font-size: 1.2rem; margin: 40px 0 4px; padding-top: 8px; }
-    h2 .tag { display: inline-block; font-size: 0.75rem; font-weight: 700; color: var(--accent-ink); background: var(--accent); border-radius: 999px; padding: 1px 10px; margin-right: 8px; vertical-align: 2px; }
-    .sec-lead { font-size: 0.9rem; color: var(--muted); margin: 0 0 12px; }
-    h3 { font-size: 1rem; margin: 22px 0 2px; }
-    p, li { font-size: 0.95rem; color: #333; }
+    .wrap {
+      max-width: 520px; margin: 0 auto; padding: 0 20px;
+      padding-top: env(safe-area-inset-top); padding-bottom: calc(32px + env(safe-area-inset-bottom));
+    }
+    @media (min-width: 768px) { .wrap { max-width: 720px; } }
+    a { color: var(--gold); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    :focus-visible { outline: 3px solid #B9862A; outline-offset: 3px; border-radius: 6px; }
+
+    /* ヘッダー（LP と同じ） */
+    header { display: flex; align-items: center; justify-content: space-between; padding: 18px 0 6px; }
+    .brand { display: flex; align-items: center; gap: 8px; color: var(--text); }
+    .brand img { display: block; width: 22px; height: 22px; border-radius: 7px; }
+    .brand span { font-weight: 700; font-size: 19px; letter-spacing: .02em; }
+    .tagline { font-size: 13px; color: var(--sub); letter-spacing: .06em; }
+
+    h1 { font-weight: 700; font-size: clamp(28px, 8vw, 38px); line-height: 1.42; letter-spacing: -.01em; margin: 32px 0 6px; }
+    .lead { font-size: 15px; color: var(--sub); margin: 0 0 28px; }
+    h2 { font-weight: 700; font-size: clamp(22px, 6vw, 28px); line-height: 1.42; letter-spacing: -.01em; margin: 0 0 6px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    h2 .no { flex: none; width: 34px; height: 34px; border-radius: 999px; background: var(--soft); color: var(--gold); font-size: 17px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+    h2 .tag { font-size: 13px; font-weight: 700; color: var(--gold); background: var(--soft); border-radius: 999px; padding: 3px 10px; letter-spacing: .04em; }
+    .sec-lead { font-size: 15px; color: var(--sub); margin: 0 0 8px; }
+    h3 { font-size: 17px; font-weight: 700; margin: 24px 0 4px; letter-spacing: -.01em; }
+    p, li { font-size: 15px; line-height: 1.9; color: var(--body); }
     p { margin: 0 0 6px; }
     ol { padding-left: 22px; margin: 4px 0 6px; }
     li { margin: 2px 0; }
-    .where { font-size: 0.85rem; color: var(--muted); }
+    .where { font-size: 14px; color: var(--sub); }
     b.ui { font-weight: 700; color: var(--text); }
 
-    /* 目次 */
-    .toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; padding: 0; list-style: none; }
-    .toc a { display: block; font-size: 0.85rem; text-decoration: none; color: var(--text); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; }
+    section { scroll-margin-top: 16px; }
+    .sec { padding: 56px 0 0; }
+    .back { text-align: right; margin: 16px 0 0; font-size: 13px; }
+    .back a { font-weight: 700; }
 
-    /* まずはこれだけ（ページで一番目立たせる） */
-    .first { margin: 24px 0 8px; padding: 18px 16px 16px; border-radius: 20px; background: var(--accent-soft); border: 2px solid var(--accent); }
-    .first h2 { margin: 0 0 4px; padding: 0; font-size: 1.35rem; }
-    .first .sec-lead { color: var(--sub); }
-    .steps { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 12px; }
-    .step { display: flex; gap: 14px; align-items: flex-start; background: var(--bg); border-radius: 16px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-    .step .num { flex: none; width: 48px; height: 48px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 1.6rem; font-weight: 900; display: flex; align-items: center; justify-content: center; }
-    .step h3 { margin: 2px 0 2px; font-size: 1.1rem; }
+    /* 目次 */
+    #toc { scroll-margin-top: 16px; }
+    .toc-title { font-size: 13px; font-weight: 700; color: var(--sub); letter-spacing: .06em; margin: 0 0 8px; }
+    .toc { list-style: none; margin: 0; padding: 0; border-radius: 18px; background: var(--card); border: 1px solid var(--line); overflow: hidden; }
+    .toc li { margin: 0; }
+    .toc li + li { border-top: 1px solid var(--line); }
+    .toc a { display: flex; align-items: center; gap: 12px; padding: 13px 16px; color: var(--text); font-size: 16px; }
+    .toc a:hover { background: #FFFBF2; text-decoration: none; }
+    .toc .no { flex: none; width: 26px; height: 26px; border-radius: 999px; background: var(--soft); color: var(--gold); font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+    .toc .name { flex: 1; }
+    .toc .arrow { color: var(--sub); font-size: 18px; line-height: 1; }
+
+    /* まずはこれだけ（ページで一番目立たせる。LP の料金のプレミアムのカードと同じ金の線と影） */
+    .first { margin: 40px 0 0; padding: 22px 18px 20px; border-radius: 18px; background: var(--soft); border: 1.5px solid var(--accent); box-shadow: var(--glow); }
+    .first h2 .no { background: var(--card); }  /* 枠の地（--soft）と同じ色だと丸が見えない */
+    .steps { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 12px; }
+    .step { display: flex; gap: 14px; align-items: flex-start; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px 16px; margin: 0; }
+    .step .num { flex: none; width: 48px; height: 48px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 24px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+    .step h3 { margin: 4px 0 4px; font-size: 19px; }
     .step p { margin: 0; }
-    .step .shot { margin-top: 10px; }
-    .after { text-align: center; font-weight: 700; margin: 14px 0 0; }
-    .note { margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; border-left: 4px solid var(--warn); background: var(--bg); }
+    .after { text-align: center; font-weight: 700; color: var(--text); margin: 16px 0 0; }
+    .note { margin: 14px 0 0; padding: 12px 14px; border-radius: 14px; border-left: 4px solid var(--warn); background: var(--card); }
     .note p { margin: 0; }
     .note strong { color: var(--warn); }
 
     /* 画像の枠（あとで public/guide/ の画像に差し替える） */
-    .shot { margin: 10px 0 4px; }
-    .shot .ph { aspect-ratio: 9 / 16; max-width: 220px; border: 2px dashed var(--line); border-radius: 16px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 12px; font-size: 0.8rem; color: var(--muted); background: var(--bg2); }
-    .shot img { display: block; max-width: 220px; width: 100%; height: auto; border-radius: 16px; }
+    .shot { margin: 12px 0 4px; }
+    .shot .ph { aspect-ratio: 9 / 16; max-width: 220px; border: 2px dashed var(--ph-line); border-radius: 18px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 12px; font-size: 13px; color: var(--sub); background: var(--ph); }
+    .shot img { display: block; max-width: 220px; width: 100%; height: auto; border-radius: 18px; }
 
-    /* 料金の表 */
-    table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 0.85rem; }
-    th, td { border-bottom: 1px solid var(--line); padding: 8px 6px; text-align: left; vertical-align: top; }
-    th { font-weight: 700; color: var(--text); }
-    thead th:nth-child(3) { color: #a07a1f; }
-    td:first-child { font-weight: 600; width: 32%; }
-    .price { font-size: 0.85rem; color: var(--sub); }
+    /* 料金の表（LP のカードと同じ箱に入れる） */
+    .table-card { border-radius: 18px; background: var(--card); border: 1px solid var(--line); padding: 8px 14px; margin: 12px 0 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 10px 6px; text-align: left; vertical-align: top; color: var(--body); line-height: 1.7; }
+    tbody td { border-top: 1px solid var(--line); }
+    th { font-weight: 700; color: var(--sub); font-size: 13px; letter-spacing: .06em; }
+    thead th:nth-child(3) { color: var(--gold); }
+    td:first-child { font-weight: 700; color: var(--text); width: 32%; }
+    .price { font-size: 14px; color: var(--sub); margin: 12px 0 0; }
 
-    nav { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem; }
-    nav a { color: var(--link); margin-right: 16px; }
-    a { color: var(--link); }
+    footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 14px; }
+    footer a { margin-right: 16px; }
 
-    /* ダークの上書きはここ（最後）に置くこと。前に置くと後続の p,li{color:#333} などに負ける（同詳細度は後勝ち） */
+    /* ダークの上書きはここ（最後）に置くこと。前に置くと後の指定に負ける（同詳細度は後勝ち）。
+       LP には暗いテーマが無いので、LP の色味（暖かい地・金のアクセント）を暗くした値にしてある */
     @media (prefers-color-scheme: dark) {
-      :root { --bg: #000; --bg2: #1c1c1e; --text: #f2f2f7; --sub: #c7c7cc; --muted: #8e8e93; --line: #38383a; --accent-soft: #2a2416; --warn: #ff6b5e; --link: #6cb0ff; }
-      p, li { color: #d1d1d6; }
-      .step { background: #1c1c1e; box-shadow: none; }
-      .note { background: #1c1c1e; }
-      thead th:nth-child(3) { color: var(--accent); }
+      :root {
+        --bg: #17120f; --card: #221b17; --text: #f5ede4; --body: #e3d7cc; --sub: #b8a99d;
+        --line: #3a2f27; --soft: #2e2416; --gold: #E7BB5E; --ph: #1d1713; --ph-line: #4a3d33; --warn: #ff6b5e;
+        --glow: none;
+      }
+      .toc a:hover { background: #2a221c; }
     }
   </style>
 </head>
 <body>
-  <h1>FanHive 使い方ガイド</h1>
-  <p class="lead">FanHiveは、毎日開くアプリではありません。推しの予定を知らせてくれるので、届いたときに見て予約するだけです。</p>
+<div class="wrap">
+  <header>
+    <div class="brand"><img src="/icon-64.png" alt="" width="22" height="22" /><span>FanHive</span></div>
+    <span class="tagline">見逃さない推し活</span>
+  </header>
 
-  <ul class="toc">
-    <li><a href="#first">まずはこれだけ</a></li>
-    <li><a href="#know">知らなかった、をなくす</a></li>
-    <li><a href="#bury">埋もれない</a></li>
-    <li><a href="#forget">忘れない</a></li>
-    <li><a href="#more">もっと楽しむ</a></li>
-    <li><a href="#plan">無料とプレミアム</a></li>
-  </ul>
+  <h1>使い方ガイド</h1>
+  <p class="lead">推しの予定を見逃さないための使い方をまとめました。</p>
+
+  <nav id="toc" aria-labelledby="toc-title">
+    <p class="toc-title" id="toc-title">目次</p>
+    <ol class="toc">
+      <li><a href="#first"><span class="no">1</span><span class="name">まずはこれだけ</span><span class="arrow" aria-hidden="true">›</span></a></li>
+      <li><a href="#know"><span class="no">2</span><span class="name">知らなかった、をなくす</span><span class="arrow" aria-hidden="true">›</span></a></li>
+      <li><a href="#bury"><span class="no">3</span><span class="name">埋もれない</span><span class="arrow" aria-hidden="true">›</span></a></li>
+      <li><a href="#forget"><span class="no">4</span><span class="name">忘れない</span><span class="arrow" aria-hidden="true">›</span></a></li>
+      <li><a href="#more"><span class="no">5</span><span class="name">もっと楽しむ</span><span class="arrow" aria-hidden="true">›</span></a></li>
+      <li><a href="#plan"><span class="no">6</span><span class="name">無料とプレミアムの違い</span><span class="arrow" aria-hidden="true">›</span></a></li>
+    </ol>
+  </nav>
 
   <!-- ═══ 1. まずはこれだけ ═══ -->
   <section class="first" id="first">
-    <h2>まずはこれだけ</h2>
+    <h2><span class="no">1</span>まずはこれだけ</h2>
     <p class="sec-lead">3つやれば、あとは通知を待つだけです。</p>
     <ol class="steps">
       <li class="step">
@@ -124,7 +171,7 @@
         <span class="num">2</span>
         <div>
           <h3>気になる予定に ♡</h3>
-          <p><b class="ui">探す</b>で予定の ♡ を押すか、カードを右へ払います。♡ した予定はカレンダーに入ります。</p>
+          <p><b class="ui">探す</b>で予定の ♡ を押します。カードを右へ払っても、カレンダーに追加できます。</p>
           <figure class="shot"><!-- guide/first-like.webp --><div class="ph">画像：探すで ♡</div></figure>
         </div>
       </li>
@@ -141,11 +188,12 @@
       <p><strong>♡ だけでは通知はONになりません。</strong>♡ はカレンダーに入れる印、ベルが通知の印です。届けてほしい予定は、必ずベルもONにしてください。</p>
     </div>
     <p class="after">あとは、通知が届くのを待つだけ。</p>
+    <p class="back"><a href="#toc">↑ 目次へ</a></p>
   </section>
 
   <!-- ═══ 2. 知らなかった、をなくす ═══ -->
-  <section id="know">
-    <h2><span class="tag">知らない</span>知らなかった、をなくす</h2>
+  <section class="sec" id="know">
+    <h2><span class="no">2</span>知らなかった、をなくす<span class="tag">知らない</span></h2>
     <p class="sec-lead">推しの新しい予定が、向こうから届きます。</p>
 
     <h3>新着が毎朝届く</h3>
@@ -169,11 +217,12 @@
 
     <h3>フォローを見直す</h3>
     <p><b class="ui">マイページ</b> →<b class="ui">「フォロー中の作品」</b>で、増やしたり外したりできます。</p>
+    <p class="back"><a href="#toc">↑ 目次へ</a></p>
   </section>
 
   <!-- ═══ 3. 埋もれない ═══ -->
-  <section id="bury">
-    <h2><span class="tag">埋もれる</span>埋もれない</h2>
+  <section class="sec" id="bury">
+    <h2><span class="no">3</span>埋もれない<span class="tag">埋もれる</span></h2>
     <p class="sec-lead">届いた予定は、推しの作品ごとに整理されています。</p>
 
     <h3>新着を1件ずつ見る</h3>
@@ -192,17 +241,22 @@
     </ol>
     <figure class="shot"><!-- guide/bury-filter.webp --><div class="ph">画像：探すの絞り込み</div></figure>
 
-    <h3>要らない予定を隠す</h3>
-    <p><b class="ui">探す</b>でカードを左へ払うと、その予定は出なくなります。</p>
+    <!-- 探すのカードを払う（src/pages/Explore.tsx の SwipeRow）。カレンダーの行の払い方（4章）とは違う -->
+    <h3>探すのカードを払う</h3>
+    <ol>
+      <li>右へ払う：カレンダーに追加（♡ と同じ）</li>
+      <li>左へ払う：非表示。すぐ出る<b class="ui">「元に戻す」</b>で戻せます</li>
+    </ol>
 
     <h3>作品の並びで表示を切り替える</h3>
     <p><b class="ui">探す</b>と<b class="ui">カレンダー</b>の上にある作品の並びで、作品を押すとその作品が隠れます。もう一度押すと戻ります。</p>
     <p class="where">全部戻すときは、右端の︾で広げて<b class="ui">「すべて表示」</b>。</p>
+    <p class="back"><a href="#toc">↑ 目次へ</a></p>
   </section>
 
   <!-- ═══ 4. 忘れない ═══ -->
-  <section id="forget">
-    <h2><span class="tag">忘れる</span>忘れない</h2>
+  <section class="sec" id="forget">
+    <h2><span class="no">4</span>忘れない<span class="tag">忘れる</span></h2>
     <p class="sec-lead">ベルをONにした予定は、前もって知らせます。</p>
 
     <h3>通知の設定</h3>
@@ -227,8 +281,12 @@
     <p><b class="ui">カレンダー</b>でイベントの行を押し、会期の中から行く日を押します。何日でも選べて、もう一度押すと外れます。</p>
     <figure class="shot"><!-- guide/forget-visit.webp --><div class="ph">画像：行く日</div></figure>
 
-    <h3>カレンダーから外す</h3>
-    <p><b class="ui">カレンダー</b>で予定の行を左へ払います。間違えたら、すぐ出る<b class="ui">「元に戻す」</b>で戻せます。</p>
+    <!-- カレンダーの行を払う（src/components/item/CalendarSwipeRow.tsx）。探すのカードの払い方（3章）とは違う -->
+    <h3>カレンダーの行を払う</h3>
+    <ol>
+      <li>右へ払う：通知のON／OFF（ベルと同じ）</li>
+      <li>左へ払う：カレンダーから外す。すぐ出る<b class="ui">「元に戻す」</b>で戻せます</li>
+    </ol>
 
     <h3>いつものカレンダーに入れる（プレミアム）</h3>
     <ol>
@@ -236,11 +294,12 @@
       <li><b class="ui">「Appleのカレンダーに追加」</b>か<b class="ui">「Googleカレンダーと連携」</b>を押す</li>
     </ol>
     <p class="where">♡ した予定と自分の投稿が、自動で入ります。Outlook にも入れられます。</p>
+    <p class="back"><a href="#toc">↑ 目次へ</a></p>
   </section>
 
   <!-- ═══ 5. もっと楽しむ ═══ -->
-  <section id="more">
-    <h2>もっと楽しむ</h2>
+  <section class="sec" id="more">
+    <h2><span class="no">5</span>もっと楽しむ</h2>
 
     <h3>スタンプでとっておく</h3>
     <p>♡ するほどではないけど、とっておきたい予定に。スタンプのボタンを押して、欲しい・行きたい・買った・行ったから選びます。</p>
@@ -260,30 +319,35 @@
 
     <h3>プレミアム</h3>
     <p><b class="ui">マイページ</b>のプレミアムのカードから。違いは下の表のとおりです。</p>
+    <p class="back"><a href="#toc">↑ 目次へ</a></p>
   </section>
 
-  <!-- ═══ 無料とプレミアム（src/lib/premium.ts・src/lib/userThemes.ts・api/_ratelimit.ts に合わせる） ═══ -->
-  <section id="plan">
-    <h2>無料とプレミアムの違い</h2>
-    <table>
-      <thead><tr><th></th><th>無料</th><th>プレミアム</th></tr></thead>
-      <tbody>
-        <tr><td>予約受付・締切のお知らせ</td><td>ベルをONにした予定を、前もって・当日の朝に</td><td>それに加えて、受付が始まった瞬間と締切の直前にも</td></tr>
-        <tr><td>フォロー作品の新着</td><td>毎朝9時</td><td>すぐ届く。届き方（すぐ・1日3回）を作品ごとに選べる</td></tr>
-        <tr><td>値下げ・再入荷</td><td>なし</td><td>♡ したグッズが最安値を更新したとき・在庫が戻ったときにお知らせ</td></tr>
-        <tr><td>AIで作るテーマ</td><td>保存は1つまで（作れるのは1日3回）</td><td>何個でも保存して切り替え（1日20回）</td></tr>
-        <tr><td>いつものカレンダーに自動で入る</td><td>なし</td><td>Apple・Google・Outlook</td></tr>
-        <tr><td>フォローできる作品</td><td>5作品まで</td><td>無制限</td></tr>
-        <tr><td>広告</td><td>ホーム・探すの下に出る</td><td>出ない</td></tr>
-      </tbody>
-    </table>
+  <!-- ═══ 6. 無料とプレミアム（src/lib/premium.ts・src/lib/userThemes.ts・api/_ratelimit.ts に合わせる） ═══ -->
+  <section class="sec" id="plan">
+    <h2><span class="no">6</span>無料とプレミアムの違い</h2>
+    <div class="table-card">
+      <table>
+        <thead><tr><th></th><th>無料</th><th>プレミアム</th></tr></thead>
+        <tbody>
+          <tr><td>予約受付・締切のお知らせ</td><td>ベルをONにした予定を、前もって・当日の朝に</td><td>それに加えて、受付が始まった瞬間と締切の直前にも</td></tr>
+          <tr><td>フォロー作品の新着</td><td>毎朝9時</td><td>すぐ届く。届き方（すぐ・1日3回）を作品ごとに選べる</td></tr>
+          <tr><td>値下げ・再入荷</td><td>なし</td><td>♡ したグッズが最安値を更新したとき・在庫が戻ったときにお知らせ</td></tr>
+          <tr><td>AIで作るテーマ</td><td>保存は1つまで（作れるのは1日3回）</td><td>何個でも保存して切り替え（1日20回）</td></tr>
+          <tr><td>いつものカレンダーに自動で入る</td><td>なし</td><td>Apple・Google・Outlook</td></tr>
+          <tr><td>フォローできる作品</td><td>5作品まで</td><td>無制限</td></tr>
+          <tr><td>広告</td><td>ホーム・探すの下に出る</td><td>出ない</td></tr>
+        </tbody>
+      </table>
+    </div>
     <p class="price">月¥500、または年¥4,800。初めての方は最初の1か月が無料です。</p>
+    <p class="back"><a href="#toc">↑ 目次へ</a></p>
   </section>
 
-  <nav>
+  <footer>
     <a href="/terms.html">利用規約</a>
     <a href="/privacy.html">プライバシーポリシー</a>
     <a href="/tokushoho.html">特定商取引法に基づく表記</a>
-  </nav>
+  </footer>
+</div>
 </body>
 </html>
