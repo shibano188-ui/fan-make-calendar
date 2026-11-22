@@ -11,7 +11,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { excludeRegistered, fetchProductList, type ListProduct, type ProductList } from './_listsource.js';
 import { botCanFetch } from './_pace.js';
 import { listEvents, detectWork, type ListEvent } from './_listgroup.js';
-import { parseMovicList, lookupByUrl, parseReleaseText, searchByJan, stripShopNoise, type Candidate } from './_product-search.js';
+import { parseMovicList, lookupByUrl, parseReleaseText, searchByJan, searchYahooPage, stripShopNoise, isUsedTitle, type Candidate } from './_product-search.js';
 import { registerEvents, resolveWork, followedWorkId, workKey } from './_crawl.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -734,6 +734,37 @@ async function animateShopPage(page: number): Promise<{ published_at: string }[]
   return Array.isArray(body?.products) ? body.products : null;
 }
 
+/** JANコードで引いた商品を、作品と店ごとにまとめて登録する（同じ店のキャラ違いは1つの予定にまとまる）。
+ *  c（店に出た日時）が1週間より前の商品は、その日を登録日にして新着に並べない */
+type JanFound = { work: string; hit: Candidate; p: ListProduct; c: string };
+async function registerJanItems(db: Db, authorId: string, found: JanFound[]): Promise<{ added: number; merged: number }> {
+  const age = (c: string) => (Date.now() - Date.parse(c)) / 86400_000;
+  const groups = new Map<string, typeof found>();
+  for (const f of found) {
+    const k = `${f.work}\n${f.hit.retailer}\n${f.hit.shop}`;
+    groups.set(k, [...(groups.get(k) ?? []), f]);
+  }
+  let added = 0, merged = 0;
+  for (const g of groups.values()) {
+    const wid = await resolveWork(db, g[0].work);
+    if (!wid) continue;
+    const list: ProductList = { title: g[0].work, shop: g[0].hit.shop, retailer: g[0].hit.retailer, products: g.map((f) => f.p), nextPage: null };
+    const byUrl = new Map(g.map((f) => [f.p.url, f]));
+    const events = (await listEvents(list, g[0].work)).map((e) => ({
+      ...e, offers: e.offers.map((o) => ({ ...o, official: !!byUrl.get(o.url)?.hit.official })),
+    }));
+    // 店に出て1週間より前の商品（最初の回・引き直しで見つかったもの）は、店に出た日を登録日にして新着に並べない
+    const created = (e: ListEvent) => {
+      const c = e.offers.map((o) => byUrl.get(o.url)?.c).filter((x): x is string => !!x).sort()[0];
+      return c && age(c) > 7 ? new Date(c).toISOString() : null;
+    };
+    // 同じ商品は registerEvents が JANコードで見分ける。作品の予定を全部読む（rows）と転送量が増えるので渡さない
+    const r = await registerEvents(db, wid, events, [], authorId, null, null, created);
+    added += r.added; merged += r.merged;
+  }
+  return { added, merged };
+}
+
 async function crawlAnimateShop(db: Db, authorId: string): Promise<{ added: number; merged: number; read: number; note: string }> {
   const { data: st } = await db.from('bot_state').select('value').eq('key', 'catalog:animateshop').maybeSingle();
   const s: AShopState = { ...((st?.value ?? {}) as AShopState) };
@@ -772,7 +803,7 @@ async function crawlAnimateShop(db: Db, authorId: string): Promise<{ added: numb
 
   const batch = s.queue.splice(0, ASHOP_PER_RUN);
   const dict = await workDict(db);
-  const found: { work: string; hit: Candidate; p: ListProduct; c: string }[] = [];
+  const found: JanFound[] = [];
   const miss: AShopItem[] = [];
   for (const it of batch) {
     // もう登録してある商品（別の店の巡回で同じ JANコードが入っている）は引かない
@@ -802,38 +833,82 @@ async function crawlAnimateShop(db: Db, authorId: string): Promise<{ added: numb
     await db.from('bot_state').upsert({ key: retryKey, value: { items: [...retry.filter((x) => !again.has(x.j)), ...more].slice(-2000) }, updated_at: new Date().toISOString() });
   }
 
-  // 作品と店ごとにまとめて登録する（同じ店のキャラ違いは1つの予定にまとまる）
-  const groups = new Map<string, typeof found>();
-  for (const f of found) {
-    const k = `${f.work}\n${f.hit.retailer}\n${f.hit.shop}`;
-    groups.set(k, [...(groups.get(k) ?? []), f]);
-  }
-  let added = 0, merged = 0;
-  for (const g of groups.values()) {
-    const wid = await resolveWork(db, g[0].work);
-    if (!wid) continue;
-    const list: ProductList = { title: g[0].work, shop: g[0].hit.shop, retailer: g[0].hit.retailer, products: g.map((f) => f.p), nextPage: null };
-    const byUrl = new Map(g.map((f) => [f.p.url, f]));
-    const events = (await listEvents(list, g[0].work)).map((e) => ({
-      ...e, offers: e.offers.map((o) => ({ ...o, official: !!byUrl.get(o.url)?.hit.official })),
-    }));
-    // 店に出て1週間より前の商品（最初の回・引き直しで見つかったもの）は、店に出た日を登録日にして新着に並べない
-    const created = (e: ListEvent) => {
-      const c = e.offers.map((o) => byUrl.get(o.url)?.c).filter((x): x is string => !!x).sort()[0];
-      return c && age(c) > 7 ? new Date(c).toISOString() : null;
-    };
-    // 同じ商品は registerEvents が JANコードで見分ける。作品の予定を全部読む（rows）と転送量が増えるので渡さない
-    const r = await registerEvents(db, wid, events, [], authorId, null, null, created);
-    added += r.added; merged += r.merged;
-  }
+  const { added, merged } = await registerJanItems(db, authorId, found);
   await save(s);
   return { added, merged, read, note: `JANコードで ${batch.length}件引いた（見つからない ${miss.length}・登録 ${found.length}）・残り ${s.queue.length}件` };
 }
 
-/** 店の全作品の巡回を、1回ぶん進める。ムービック・KADOKAWAストア・コトブキヤ・アニメイト・eeo Store・AMNIBUS・アニメイトの海外版 */
+// ── 依頼作品を Yahoo! で探す ─────────────────────────
+// 作品の追加依頼が来たのに、巡回している店（ムービックなど）に商品が無く、日本のアニメイトも読めない作品（モブサイコ・2026-11-23 柴野）。
+// 1日1回、Yahoo! を作品名で引き、公式店（あみあみ・駿河屋）の予約受付中の商品を登録する。店のほかの巡回より先に回す。
+// 発売日は商品名の「《05月予約》」「2026/12発売」「2027年3月発売予定」から取る。日付の分からない商品・発売済みの在庫品は入れない
+const YAHOO_WORKS: { work: string; keyword: string }[] = [
+  { work: 'モブサイコ', keyword: 'モブサイコ100 予約' },
+];
+const YAHOO_PAGES = 3; // 150件まで
+
+/** 店の商品名から発売日を取る。あみあみの「《05月予約》」は年が無いので、今月より前の月なら来年 */
+export function releaseFromShopTitle(title: string, today: string): { date: string; dateLabel: string | null } | null {
+  const t = title.normalize('NFKC');
+  if (/発売済|在庫品/.test(t)) return null;
+  let m = t.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})発売/);
+  if (m) return parseReleaseText(`${m[1]}年${m[2]}月${m[3]}日`);
+  m = t.match(/(\d{4})\/(\d{1,2})発売/);
+  if (m) return parseReleaseText(`${m[1]}年${m[2]}月`);
+  m = t.match(/(\d{4})年\s*(\d{1,2})月\s*(上旬|中旬|下旬)?\s*発売/);
+  if (m) return parseReleaseText(`${m[1]}年${m[2]}月${m[3] ?? ''}`);
+  m = t.match(/《(\d{1,2})月(上旬|中旬|下旬)?予約》/);
+  if (m) {
+    const mon = Number(m[1]);
+    const y = Number(today.slice(0, 4)) + (mon < Number(today.slice(5, 7)) ? 1 : 0);
+    return parseReleaseText(`${y}年${mon}月${m[2] ?? ''}`);
+  }
+  return null;
+}
+
+async function crawlYahooWorks(db: Db, authorId: string): Promise<{ added: number; merged: number; read: number; note: string }> {
+  const { data: st } = await db.from('bot_state').select('value').eq('key', 'catalog:yahoo').maybeSingle();
+  const seen: Record<string, string> = { ...((st?.value ?? {}) as Record<string, string>) };
+  const w = YAHOO_WORKS.find((x) => !seen[x.work] || Date.now() - Date.parse(seen[x.work]) > 24 * 3600_000);
+  if (!w) return { added: 0, merged: 0, read: 0, note: '今日の分は済んでいる' };
+  const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+  const byJan = new Map<string, Candidate & { jan?: string }>();
+  let read = 0;
+  for (let i = 0; i < YAHOO_PAGES; i++) {
+    await delay(1100);
+    const hits = await searchYahooPage(w.keyword, 1 + i * 50).catch(() => []);
+    read += hits.length;
+    for (const h of hits) {
+      if (!h.official || !h.jan || h.stockLabel === '中古' || isUsedTitle(h.title)) continue;
+      if (!workKey(h.title).includes(workKey(w.work))) continue;
+      if (!byJan.has(h.jan)) byJan.set(h.jan, h);
+    }
+    if (hits.length < 50) break;
+  }
+  const found: JanFound[] = [];
+  for (const [jan, h] of byJan) {
+    const rel = releaseFromShopTitle(h.title, today);
+    if (!rel || rel.date < today) continue;
+    // もう登録してある商品（同じ JANコード）は入れない
+    const { data: had } = await db.from('events').select('id').eq('pool', 0).filter('offers', 'cs', JSON.stringify([{ jan }])).limit(1);
+    if (had?.length) continue;
+    found.push({
+      work: w.work, hit: h, c: new Date().toISOString(),
+      p: { title: janTitle([h]), url: h.url, price: h.price, inStock: true, stockLabel: '予約受付中', jan, image: h.image, images: h.image ? [h.image] : [], release: rel },
+    });
+  }
+  const r = await registerJanItems(db, authorId, found);
+  seen[w.work] = new Date().toISOString();
+  await db.from('bot_state').upsert({ key: 'catalog:yahoo', value: seen, updated_at: new Date().toISOString() });
+  return { ...r, read, note: `${w.work}: 予約受付中 ${found.length}件` };
+}
+
+/** 店の全作品の巡回を、1回ぶん進める。ムービック・KADOKAWAストア・コトブキヤ・アニメイト・eeo Store・AMNIBUS・アニメイトの海外版・依頼作品の Yahoo! */
 export async function crawlCatalogs(db: Db, budgetMs: number): Promise<Record<string, unknown>> {
   const { data: bot } = await db.from('staff').select('user_id').eq('role', 'bot').limit(1).maybeSingle();
   if (!bot?.user_id || budgetMs < 5000) return { skipped: true };
+  // 依頼作品を Yahoo! で探す（1日1回・作品ごと。店のほかの巡回に商品が無い作品なので先に回す。数秒で終わる）
+  const yahoo = await crawlYahooWorks(db, bot.user_id as string).catch((e) => ({ error: String(e) }));
   // 持ち時間は店どうしで等分
   const share = Math.floor(budgetMs / 3);
   const movic = await crawlMovic(db, bot.user_id as string, share).catch((e) => ({ error: String(e) }));
@@ -846,5 +921,5 @@ export async function crawlCatalogs(db: Db, budgetMs: number): Promise<Record<st
   const amnibus = await crawlAmnibus(db, bot.user_id as string).catch((e) => ({ error: String(e) }));
   // アニメイトの海外版も「1回に JANコードで引く数」で進むので、持ち時間の外
   const animateShop = await crawlAnimateShop(db, bot.user_id as string).catch((e) => ({ error: String(e) }));
-  return { movic, kadokawa, kotobukiya, animate, eeo, amnibus, animateShop };
+  return { movic, kadokawa, kotobukiya, animate, eeo, amnibus, animateShop, yahoo };
 }
