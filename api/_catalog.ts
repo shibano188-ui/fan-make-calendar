@@ -667,7 +667,7 @@ async function crawlAmnibus(db: Db, authorId: string): Promise<{ added: number; 
 // 新しい商品は日本の店に後から並ぶので、2・6・13日後に引き直す）。
 // 海外版の予約締切は日本の店の締切と違うので使わない。作品は日本語名で見分け、フォローされている作品の商品だけ入れる。
 const ANIMATE_SHOP = 'https://www.animate.shop';
-const ASHOP_PER_RUN = 20;            // 1回に JANコードで引く数（楽天・Yahoo! は1秒に1回ほどまで。1回30秒ほど）
+const ASHOP_PER_RUN = 12;            // 1回に JANコードで引く数（楽天・Yahoo! は1秒に1回ほどまで。1回20秒ほど。後ろの手直しの持ち時間を削りすぎない）
 const ASHOP_FIRST_DAYS = 14;         // 最初の回は、店に出て14日以内の商品まで（1日に50件ほど出る）
 const ASHOP_RETRY_AFTER = [2, 6, 13]; // 見つからなかった商品を引き直す日（店に出てからの日数）
 /** j=JANコード c=店に出た日時 d=発売日 l=発売日のあいまいさ（上旬・中など） n=引いた回数 */
@@ -764,6 +764,8 @@ async function crawlAnimateShop(db: Db, authorId: string): Promise<{ added: numb
     s.newest = newest || s.newest;
     s.dailyAt = new Date().toISOString();
     await db.from('bot_state').upsert({ key: retryKey, value: { items: retry.filter((x) => !due.includes(x)) }, updated_at: new Date().toISOString() });
+    // 引き直しの一覧から外した分は、すぐ並びに入れて残す（途中で落ちても消えないように）
+    await save(s);
   }
 
   const batch = s.queue.splice(0, ASHOP_PER_RUN);
