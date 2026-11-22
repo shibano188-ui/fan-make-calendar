@@ -661,7 +661,8 @@ async function crawlAmnibus(db: Db, authorId: string): Promise<{ added: number; 
 
 // ── アニメイトの海外版（animate.shop） ─────────────────────────
 // 日本のアニメイト通販は 403（アクセス制限）でボットから読めない（2026-11-21）。海外版の animate.shop は Shopify で、
-// /products.json（店に出た新しい順・250件ずつ）に JANコード（sku）と発売時期（説明文の Release Date）がある。
+// /products.json（店に出した日時 published_at の新しい順・250件ずつ。1日に60件ほど）に JANコード（sku）と発売時期（説明文の Release Date）がある。
+// created_at は順に並んでいない（1年前に作った商品が1ページ目にある）ので、区切りには published_at を使う。
 // 日本には送らない店なのでリンクには使わず、JANコードで楽天・Yahoo!を引いて、日本語名と日本の店のリンクにする。
 // 日本の店で見つからない商品は登録しない（アニメイト限定品・AGF の事後通販は日本の店に無いことが多い。
 // 新しい商品は日本の店に後から並ぶので、2・6・13日後に引き直す）。
@@ -672,7 +673,8 @@ const ASHOP_FIRST_DAYS = 14;         // 最初の回は、店に出て14日以�
 const ASHOP_RETRY_AFTER = [2, 6, 13]; // 見つからなかった商品を引き直す日（店に出てからの日数）
 /** j=JANコード c=店に出た日時 d=発売日 l=発売日のあいまいさ（上旬・中など） n=引いた回数 */
 interface AShopItem { j: string; c: string; d: string; l: string | null; n?: number }
-interface AShopState { newest?: string; dailyAt?: string; queue?: AShopItem[] }
+/** since=前に読んだ一番新しい商品の published_at（前の版の newest は created_at だったので使わない） */
+interface AShopState { since?: string; dailyAt?: string; queue?: AShopItem[] }
 
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 /** 説明文の「Release Date: Mid January 2027」「January 2027 (TBA)」「01/27/2027」「Late Decmeber 2026」（つづり違いがある）を、
@@ -704,7 +706,7 @@ export function animateShopItems(products: any[], today: string): AShopItem[] {
     const jan = [v.sku, p.handle].map((s) => String(s ?? '')).find((s) => /^\d{13}$/.test(s));
     const rel = parseAnimateShopRelease(String(p.body_html ?? ''));
     if (!jan || !rel || rel.date < since) return [];
-    return [{ j: jan, c: String(p.created_at), d: rel.date, l: rel.dateLabel }];
+    return [{ j: jan, c: String(p.published_at ?? p.created_at), d: rel.date, l: rel.dateLabel }];
   });
 }
 
@@ -725,10 +727,10 @@ export function janTitle(hits: Candidate[]): string {
   return stripShopNoise(t).replace(/(?:\s*【[^】]*】)+$/, '').replace(/^[\s/]+/, '').trim();
 }
 
-async function animateShopPage(page: number): Promise<{ created_at: string }[] | null> {
+async function animateShopPage(page: number): Promise<{ published_at: string }[] | null> {
   await delay(GAP_MS);
   const r = await fetch(`${ANIMATE_SHOP}/products.json?limit=250&page=${page}`, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(30000) }).catch(() => null);
-  const body = r?.ok ? await r.json().catch(() => null) as { products?: { created_at: string }[] } | null : null;
+  const body = r?.ok ? await r.json().catch(() => null) as { products?: { published_at: string }[] } | null : null;
   return Array.isArray(body?.products) ? body.products : null;
 }
 
@@ -743,25 +745,25 @@ async function crawlAnimateShop(db: Db, authorId: string): Promise<{ added: numb
 
   // 1日1回、前に見たところまでの新着と、引き直す日が来た商品を並べる
   if (!s.queue?.length) {
-    if (s.dailyAt && Date.now() - Date.parse(s.dailyAt) < 24 * 3600_000) return { added: 0, merged: 0, read: 0, note: '今日の新着は済んでいる' };
-    const cutoff = Date.parse(s.newest ?? new Date(Date.now() - ASHOP_FIRST_DAYS * 86400_000).toISOString());
+    if (s.since && s.dailyAt && Date.now() - Date.parse(s.dailyAt) < 24 * 3600_000) return { added: 0, merged: 0, read: 0, note: '今日の新着は済んでいる' };
+    const cutoff = Date.parse(s.since ?? new Date(Date.now() - ASHOP_FIRST_DAYS * 86400_000).toISOString());
     const fresh: AShopItem[] = [];
-    let newest = s.newest ?? '';
+    let newest = s.since ?? '';
     for (let page = 1; page <= 10; page++) {
       const ps = await animateShopPage(page);
       // 読めないときは進めない。次の回に読み直す
       if (!ps) return { added: 0, merged: 0, read, note: `${page}ページ目が読めない` };
       read += ps.length;
-      fresh.push(...animateShopItems(ps.filter((p) => Date.parse(p.created_at) > cutoff), today));
-      for (const p of ps) if (!newest || Date.parse(p.created_at) > Date.parse(newest)) newest = p.created_at;
-      if (ps.length < 250 || ps.some((p) => Date.parse(p.created_at) <= cutoff)) break;
+      fresh.push(...animateShopItems(ps.filter((p) => Date.parse(p.published_at) > cutoff), today));
+      for (const p of ps) if (!newest || Date.parse(p.published_at) > Date.parse(newest)) newest = p.published_at;
+      if (ps.length < 250 || ps.some((p) => Date.parse(p.published_at) <= cutoff)) break;
     }
     const { data: rt } = await db.from('bot_state').select('value').eq('key', retryKey).maybeSingle();
     const retry = (((rt?.value ?? {}) as { items?: AShopItem[] }).items ?? []);
     const due = retry.filter((x) => age(x.c) >= ASHOP_RETRY_AFTER[(x.n ?? 1) - 1]);
     const seen = new Set(fresh.map((x) => x.j));
     s.queue = [...fresh, ...due.filter((x) => !seen.has(x.j))];
-    s.newest = newest || s.newest;
+    s.since = newest || s.since;
     s.dailyAt = new Date().toISOString();
     await db.from('bot_state').upsert({ key: retryKey, value: { items: retry.filter((x) => !due.includes(x)) }, updated_at: new Date().toISOString() });
     // 引き直しの一覧から外した分は、すぐ並びに入れて残す（途中で落ちても消えないように）
@@ -796,7 +798,8 @@ async function crawlAnimateShop(db: Db, authorId: string): Promise<{ added: numb
     const { data: rt } = await db.from('bot_state').select('value').eq('key', retryKey).maybeSingle();
     const retry = (((rt?.value ?? {}) as { items?: AShopItem[] }).items ?? []);
     const more = miss.map((x) => ({ ...x, n: (x.n ?? 0) + 1 })).filter((x) => x.n <= ASHOP_RETRY_AFTER.length && x.d >= today);
-    await db.from('bot_state').upsert({ key: retryKey, value: { items: [...retry, ...more].slice(-2000) }, updated_at: new Date().toISOString() });
+    const again = new Set(more.map((x) => x.j));
+    await db.from('bot_state').upsert({ key: retryKey, value: { items: [...retry.filter((x) => !again.has(x.j)), ...more].slice(-2000) }, updated_at: new Date().toISOString() });
   }
 
   // 作品と店ごとにまとめて登録する（同じ店のキャラ違いは1つの予定にまとまる）
