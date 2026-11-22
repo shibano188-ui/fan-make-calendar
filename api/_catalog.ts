@@ -38,11 +38,15 @@ interface CatalogState {
   wid?: string | null; // 今の作品の works.id（作品ページの見出しから決めたもの）
   workName?: string;   // 今の作品の名前
   dailyAt?: string;    // 新着を最後に見た時刻
+  dailyPage?: number;  // 新着の今のページ（止まっていた日数ぶん多めに読むとき、次の回に続きを読む）
   firstDone?: string[]; // 先に読む作品（MOVIC_FIRST）のうち、順番を前に移したもの
 }
 
 const monthAgo = () => new Date(Date.now() + 9 * 3600_000 - 30 * 86400_000).toISOString().slice(0, 10);
 /** 最初の全件登録での登録日。発売から1か月より前・日付の無い在庫品は過去にする */
+/** 前に新着を見てから何日ぶんたったか（1〜7）。毎日なら1。ボットが止まっていた日数ぶん新着を多めに読んで、
+ *  そのあいだに一覧の後ろへ流れた商品を取りこぼさない（2026-11-22 柴野）。新着を見るのは24時間おきなので floor で数える */
+const catchUpDays = (dailyAt?: string) => (!dailyAt ? 1 : Math.min(7, Math.max(1, Math.floor((Date.now() - Date.parse(dailyAt)) / 86400_000))));
 const backdate = (e: ListEvent) => (!e.date ? new Date(Date.now() - 60 * 86400_000).toISOString() : e.date < monthAgo() ? `${e.date}T00:00:00+09:00` : null);
 
 // ── 作品名の辞書（作品の分類が無い店・新着で、商品名から作品を見分ける） ──
@@ -165,22 +169,30 @@ async function crawlMovic(db: Db, authorId: string, budgetMs: number): Promise<{
   if (s.phase === 'daily') {
     // 新着は1日1回。作品は、登録済みの作品名で商品名から見分ける（見分けられない商品は入れない）
     if (s.dailyAt && Date.now() - Date.parse(s.dailyAt) < 24 * 3600_000) return { added, merged, read, note: '今日の新着は済んでいる' };
-    const html = await getHtml(`${MOVIC}/shop/e/enew_snd/`);
-    // 読めないとき（混雑の 503 など）は見たことにしない。次の回にもう一度見る
-    if (!html) return { added, merged, read, note: '新着が読めない' };
+    const pages = catchUpDays(s.dailyAt);
     // フォローされている作品の商品だけ商品ページを読む（読むのが一番重い）
     const dict = await workDict(db);
-    const items = toList(parseMovicList(html)).filter((p) => p.inStock !== false && matchWork(p.title, dict));
-    read = items.length;
-    const { list } = await excludeRegistered({ title: 'ムービック 新着', shop: 'ムービック', retailer: 'ムービック', products: items, nextPage: null });
-    const { done, left } = await lookupMovicItems(list.products, until);
-    const r = await registerByTitle(db, authorId, 'ムービック', done);
-    added += r.added; merged += r.merged;
-    // 時間切れ・混雑で読み残したら、見たことにしない（次の回に残りを読む。登録済みは外れる）
-    if (left) return { added, merged, read, note: `新着の残り ${left}件は次の回` };
+    for (;;) {
+      const pg = s.dailyPage ?? 1;
+      const html = await getHtml(pg > 1 ? `${MOVIC}/shop/e/enew_snd_p${pg}/` : `${MOVIC}/shop/e/enew_snd/`);
+      // 読めないとき（混雑の 503 など）は見たことにしない。次の回にもう一度見る
+      if (!html) { await save(); return { added, merged, read, note: `新着 ${pg}ページ目が読めない` }; }
+      const items = toList(parseMovicList(html)).filter((p) => p.inStock !== false && matchWork(p.title, dict));
+      read += items.length;
+      const { list } = await excludeRegistered({ title: 'ムービック 新着', shop: 'ムービック', retailer: 'ムービック', products: items, nextPage: null });
+      const { done, left } = await lookupMovicItems(list.products, until);
+      const r = await registerByTitle(db, authorId, 'ムービック', done);
+      added += r.added; merged += r.merged;
+      // 時間切れ・混雑で読み残したら、見たことにしない（次の回に残りを読む。登録済みは外れる）
+      if (left) { await save(); return { added, merged, read, note: `新着 ${pg}ページ目の残り ${left}件は次の回` }; }
+      if (pg >= pages) break;
+      s.dailyPage = pg + 1;
+      if (Date.now() > until) { await save(); return { added, merged, read, note: `新着 ${pg}/${pages}ページまで` }; }
+    }
+    s.dailyPage = undefined;
     s.dailyAt = new Date().toISOString();
     await save();
-    return { added, merged, read, note: '新着' };
+    return { added, merged, read, note: pages > 1 ? `新着（${pages}日ぶん）` : '新着' };
   }
 
   if (!s.works?.length) { s.works = await movicWorks(); s.i = 0; s.page = 1; s.wid = null; }
@@ -317,16 +329,20 @@ async function crawlKadokawa(db: Db, authorId: string, budgetMs: number): Promis
 
   if (s.phase === 'daily') {
     if (s.dailyAt && Date.now() - Date.parse(s.dailyAt) < 24 * 3600_000) return { added, merged, read, note: '今日の新着は済んでいる' };
-    for (const cat of KADOKAWA_CATS) {
-      for (const p of [1, 2]) {
-        if (Date.now() > until) break;
-        const html = await page(cat, p);
-        if (html) await doPage(html);
-      }
+    // ふだんは分類ごとに2ページ。止まっていた日数ぶん多めに読む。
+    // 時間切れなら読んだ位置（ci・page）を覚えて、次の回に続きから（このページの残りも登録済みは外れる）
+    const pages = 2 * catchUpDays(s.dailyAt);
+    while ((s.ci ?? 0) < KADOKAWA_CATS.length) {
+      if (Date.now() > until) { await save(); return { added, merged, read, note: `新着 分類${(s.ci ?? 0) + 1}の${s.page ?? 1}/${pages}ページから次の回` }; }
+      const html = await page(KADOKAWA_CATS[s.ci ?? 0], s.page ?? 1);
+      if (html && !(await doPage(html))) { await save(); return { added, merged, read, note: '新着の残りは次の回' }; }
+      if ((s.page ?? 1) < pages) s.page = (s.page ?? 1) + 1;
+      else { s.ci = (s.ci ?? 0) + 1; s.page = 1; }
     }
+    s.ci = 0; s.page = 1;
     s.dailyAt = new Date().toISOString();
     await save();
-    return { added, merged, read, note: '新着' };
+    return { added, merged, read, note: pages > 2 ? `新着（${pages / 2}日ぶん）` : '新着' };
   }
 
   while (Date.now() < until && (s.ci ?? 0) < KADOKAWA_CATS.length) {
@@ -425,11 +441,19 @@ async function crawlKotobukiya(db: Db, authorId: string, budgetMs: number): Prom
 
   if (s.phase === 'daily') {
     if (s.dailyAt && Date.now() - Date.parse(s.dailyAt) < 24 * 3600_000) return { added, merged, read, note: '今日の新着は済んでいる' };
-    for (const cat of KOTOBUKIYA_CATS) {
-      if (Date.now() > until) break;
-      const html = await getSjis(`${KOTOBUKIYA}/shop/c/${cat}/`);
-      if (html) await doPage(html);
+    // ふだんは分類ごとに1ページ。止まっていた日数ぶん多めに読む。
+    // 時間切れなら読んだ位置（ci・page）を覚えて、次の回に続きから（このページの残りも登録済みは外れる）
+    const pages = catchUpDays(s.dailyAt);
+    while ((s.ci ?? 0) < KOTOBUKIYA_CATS.length) {
+      if (Date.now() > until) { await save(); return { added, merged, read, note: `新着 分類${(s.ci ?? 0) + 1}の${s.page ?? 1}/${pages}ページから次の回` }; }
+      const cat = KOTOBUKIYA_CATS[s.ci ?? 0];
+      const p = s.page ?? 1;
+      const html = await getSjis(p > 1 ? `${KOTOBUKIYA}/shop/c/${cat}_p${p}/` : `${KOTOBUKIYA}/shop/c/${cat}/`);
+      if (html && !(await doPage(html))) { await save(); return { added, merged, read, note: '新着の残りは次の回' }; }
+      if (p < pages) s.page = p + 1;
+      else { s.ci = (s.ci ?? 0) + 1; s.page = 1; }
     }
+    s.ci = 0; s.page = 1;
     s.dailyAt = new Date().toISOString();
     await save();
     return { added, merged, read, note: '新着' };
@@ -574,7 +598,7 @@ async function crawlEeo(db: Db, authorId: string): Promise<{ added: number; merg
     read += items.length;
     const r = await registerByTitle(db, authorId, 'eeo Store', items.filter((p) => p.inStock !== false), s.phase === 'initial' ? backdate : undefined);
     added += r.added; merged += r.merged;
-    const last = !items.length || (s.phase === 'daily' && (s.page ?? 1) >= EEO_DAILY_PAGES);
+    const last = !items.length || (s.phase === 'daily' && (s.page ?? 1) >= EEO_DAILY_PAGES * catchUpDays(s.dailyAt));
     if (last) {
       s.phase = 'daily'; s.page = 1; s.dailyAt = new Date().toISOString();
       break;
@@ -629,7 +653,7 @@ async function crawlAmnibus(db: Db, authorId: string): Promise<{ added: number; 
   if (!Array.isArray(body?.data)) return { added: 0, merged: 0, read: 0, note: `${page}ページ目が読めない` };
   const items = parseAmnibusRows(body.data, new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10));
   const r = await registerByTitle(db, authorId, 'AMNIBUS', items.filter((p) => p.inStock !== false), s.phase === 'initial' ? backdate : undefined);
-  const done = !items.length || (s.phase === 'daily' && page >= AMNIBUS_DAILY_PAGES);
+  const done = !items.length || (s.phase === 'daily' && page >= AMNIBUS_DAILY_PAGES * catchUpDays(s.dailyAt));
   if (done) { s.phase = 'daily'; s.page = 1; s.dailyAt = new Date().toISOString(); } else s.page = page + 1;
   await db.from('bot_state').upsert({ key: 'catalog:amnibus', value: s, updated_at: new Date().toISOString() });
   return { ...r, read: items.length, note: `${page}ページ目` };
