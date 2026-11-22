@@ -27,7 +27,8 @@ const END = '<!-- lp-og-tags:end -->';
 const html = fs.readFileSync(FILE, 'utf8');
 
 // テンプレート（JSON 文字列）を取り出して、中の meta を読む
-const tm = html.match(/<script type="__bundler\/template">\s*\n(.*)\n\s*<\/script>/);
+// Windows の手元（core.autocrlf=true）では改行が CRLF になるので、\r も許す
+const tm = html.match(/<script type="__bundler\/template">\s*\r?\n(.*)\r?\n\s*<\/script>/);
 if (!tm) throw new Error('テンプレート（__bundler/template）が見つからない。書き出しの形式が変わった？');
 const template = JSON.parse(tm[1]);
 
