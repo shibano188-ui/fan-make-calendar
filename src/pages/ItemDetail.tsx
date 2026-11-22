@@ -194,7 +194,7 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
     return <div className="min-h-screen flex flex-col items-center justify-center gap-3" style={{ backgroundColor: 'var(--bg-primary)' }}>
       <p className="text-label-secondary text-[14px]">見つかりませんでした</p>
       {shared
-        ? <a href="/lp" className="pressable text-[14px]" style={{ color: 'var(--accent-text)' }}>FanHive について</a>
+        ? <a href="/lp.html" className="pressable text-[14px]" style={{ color: 'var(--accent-text)' }}>FanHive について</a>
         : <button onClick={goBack} className="pressable text-[14px]" style={{ color: 'var(--accent-text)' }}>戻る</button>}
     </div>;
   }
@@ -419,7 +419,7 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
           style={{ paddingTop: 'calc(var(--sat) + 6px)', backgroundColor: 'var(--bg-primary)', borderBottom: scrolled ? line : '0.5px solid transparent' }}>
           {shared ? (
             <div className="flex-1 flex items-center justify-between px-2">
-              <a href="/lp" className="flex items-center gap-2">
+              <a href="/lp.html" className="flex items-center gap-2">
                 <FanHiveMark size={28} />
                 <span className="text-[16px] font-bold">FanHive</span>
               </a>
