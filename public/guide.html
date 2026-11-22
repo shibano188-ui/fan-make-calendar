@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>使い方ガイド - FanHive</title>
+  <meta name="description" content="FanHive の使い方。作品をフォローして、気になる予定に♡、ベルをONにするだけ。推しの予定を「知らない・埋もれる・忘れる」で見逃さないためのガイドです。" />
+  <meta property="og:title" content="使い方ガイド - FanHive" />
+  <meta property="og:description" content="作品をフォローして、気になる予定に♡、ベルをONにするだけ。推しの予定を見逃さないための使い方。" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://fanhive.jp/guide.html" />
+  <meta property="og:site_name" content="FanHive" />
+  <meta property="og:image" content="https://fanhive.jp/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="使い方ガイド - FanHive" />
+  <meta name="twitter:description" content="作品をフォローして、気になる予定に♡、ベルをONにするだけ。推しの予定を見逃さないための使い方。" />
+  <meta name="twitter:image" content="https://fanhive.jp/og-image.png" />
+  <link rel="canonical" href="https://fanhive.jp/guide.html" />
+  <style>
+    /* 使い方ガイド（2026-11-22 第1段階: 本文と骨組み）。
+       アプリからはアプリ内ブラウザ（SFSafariViewController / Custom Tabs）で開く前提。
+       閉じるボタンはブラウザ側にあるので、ページに「戻る」は置かない（terms.html と同じ）。
+       書いてある操作・料金は src/lib/premium.ts と各画面のコードに合わせてある。画面を変えたらここも直す。
+       画像は public/guide/ に入れて、.shot の枠を <img> に差し替える（枠のコメントにファイル名を書いてある）。 */
+    :root {
+      --bg: #ffffff; --bg2: #f5f4f0; --text: #1a1a1a; --sub: #555; --muted: #888; --line: #e2e2e2;
+      --accent: #e7bb5e; --accent-ink: #2a1c22; --accent-soft: #fbf3e0; --warn: #c0392b; --link: #0066cc;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Segoe UI', sans-serif;
+      max-width: 720px; margin: 0 auto; padding: 16px 16px 24px; padding-top: calc(16px + env(safe-area-inset-top));
+      padding-bottom: calc(24px + env(safe-area-inset-bottom));
+      background: var(--bg); color: var(--text); line-height: 1.7; -webkit-text-size-adjust: 100%;
+    }
+    h1 { font-size: 1.6rem; margin: 8px 0 4px; }
+    .lead { font-size: 1rem; color: var(--sub); margin: 0 0 20px; }
+    h2 { font-size: 1.2rem; margin: 40px 0 4px; padding-top: 8px; }
+    h2 .tag { display: inline-block; font-size: 0.75rem; font-weight: 700; color: var(--accent-ink); background: var(--accent); border-radius: 999px; padding: 1px 10px; margin-right: 8px; vertical-align: 2px; }
+    .sec-lead { font-size: 0.9rem; color: var(--muted); margin: 0 0 12px; }
+    h3 { font-size: 1rem; margin: 22px 0 2px; }
+    p, li { font-size: 0.95rem; color: #333; }
+    p { margin: 0 0 6px; }
+    ol { padding-left: 22px; margin: 4px 0 6px; }
+    li { margin: 2px 0; }
+    .where { font-size: 0.85rem; color: var(--muted); }
+    b.ui { font-weight: 700; color: var(--text); }
+
+    /* 目次 */
+    .toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; padding: 0; list-style: none; }
+    .toc a { display: block; font-size: 0.85rem; text-decoration: none; color: var(--text); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; }
+
+    /* まずはこれだけ（ページで一番目立たせる） */
+    .first { margin: 24px 0 8px; padding: 18px 16px 16px; border-radius: 20px; background: var(--accent-soft); border: 2px solid var(--accent); }
+    .first h2 { margin: 0 0 4px; padding: 0; font-size: 1.35rem; }
+    .first .sec-lead { color: var(--sub); }
+    .steps { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 12px; }
+    .step { display: flex; gap: 14px; align-items: flex-start; background: var(--bg); border-radius: 16px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    .step .num { flex: none; width: 48px; height: 48px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 1.6rem; font-weight: 900; display: flex; align-items: center; justify-content: center; }
+    .step h3 { margin: 2px 0 2px; font-size: 1.1rem; }
+    .step p { margin: 0; }
+    .step .shot { margin-top: 10px; }
+    .after { text-align: center; font-weight: 700; margin: 14px 0 0; }
+    .note { margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; border-left: 4px solid var(--warn); background: var(--bg); }
+    .note p { margin: 0; }
+    .note strong { color: var(--warn); }
+
+    /* 画像の枠（あとで public/guide/ の画像に差し替える） */
+    .shot { margin: 10px 0 4px; }
+    .shot .ph { aspect-ratio: 9 / 16; max-width: 220px; border: 2px dashed var(--line); border-radius: 16px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 12px; font-size: 0.8rem; color: var(--muted); background: var(--bg2); }
+    .shot img { display: block; max-width: 220px; width: 100%; height: auto; border-radius: 16px; }
+
+    /* 料金の表 */
+    table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 0.85rem; }
+    th, td { border-bottom: 1px solid var(--line); padding: 8px 6px; text-align: left; vertical-align: top; }
+    th { font-weight: 700; color: var(--text); }
+    thead th:nth-child(3) { color: #a07a1f; }
+    td:first-child { font-weight: 600; width: 32%; }
+    .price { font-size: 0.85rem; color: var(--sub); }
+
+    nav { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem; }
+    nav a { color: var(--link); margin-right: 16px; }
+    a { color: var(--link); }
+
+    /* ダークの上書きはここ（最後）に置くこと。前に置くと後続の p,li{color:#333} などに負ける（同詳細度は後勝ち） */
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #000; --bg2: #1c1c1e; --text: #f2f2f7; --sub: #c7c7cc; --muted: #8e8e93; --line: #38383a; --accent-soft: #2a2416; --warn: #ff6b5e; --link: #6cb0ff; }
+      p, li { color: #d1d1d6; }
+      .step { background: #1c1c1e; box-shadow: none; }
+      .note { background: #1c1c1e; }
+      thead th:nth-child(3) { color: var(--accent); }
+    }
+  </style>
+</head>
+<body>
+  <h1>FanHive 使い方ガイド</h1>
+  <p class="lead">FanHiveは、毎日開くアプリではありません。推しの予定を知らせてくれるので、届いたときに見て予約するだけです。</p>
+
+  <ul class="toc">
+    <li><a href="#first">まずはこれだけ</a></li>
+    <li><a href="#know">知らなかった、をなくす</a></li>
+    <li><a href="#bury">埋もれない</a></li>
+    <li><a href="#forget">忘れない</a></li>
+    <li><a href="#more">もっと楽しむ</a></li>
+    <li><a href="#plan">無料とプレミアム</a></li>
+  </ul>
+
+  <!-- ═══ 1. まずはこれだけ ═══ -->
+  <section class="first" id="first">
+    <h2>まずはこれだけ</h2>
+    <p class="sec-lead">3つやれば、あとは通知を待つだけです。</p>
+    <ol class="steps">
+      <li class="step">
+        <span class="num">1</span>
+        <div>
+          <h3>作品をフォロー</h3>
+          <p>推しの作品を選ぶと、その作品の予定が集まります。ホームの右端の<b class="ui">「作品を追加」</b>から選べます。</p>
+          <figure class="shot"><!-- guide/first-follow.webp --><div class="ph">画像：作品を追加</div></figure>
+        </div>
+      </li>
+      <li class="step">
+        <span class="num">2</span>
+        <div>
+          <h3>気になる予定に ♡</h3>
+          <p><b class="ui">探す</b>で予定の ♡ を押すか、カードを右へ払います。♡ した予定はカレンダーに入ります。</p>
+          <figure class="shot"><!-- guide/first-like.webp --><div class="ph">画像：探すで ♡</div></figure>
+        </div>
+      </li>
+      <li class="step">
+        <span class="num">3</span>
+        <div>
+          <h3>ベルをON</h3>
+          <p><b class="ui">カレンダー</b>で予定の行を右へ払います。予定の詳細ではベルを押します。</p>
+          <figure class="shot"><!-- guide/first-bell.webp --><div class="ph">画像：右へ払ってベルON</div></figure>
+        </div>
+      </li>
+    </ol>
+    <div class="note">
+      <p><strong>♡ だけでは通知はONになりません。</strong>♡ はカレンダーに入れる印、ベルが通知の印です。届けてほしい予定は、必ずベルもONにしてください。</p>
+    </div>
+    <p class="after">あとは、通知が届くのを待つだけ。</p>
+  </section>
+
+  <!-- ═══ 2. 知らなかった、をなくす ═══ -->
+  <section id="know">
+    <h2><span class="tag">知らない</span>知らなかった、をなくす</h2>
+    <p class="sec-lead">推しの新しい予定が、向こうから届きます。</p>
+
+    <h3>新着が毎朝届く</h3>
+    <p>フォロー中の作品に予定が追加されると、毎朝9時に1通でお知らせします。通知を押すと、新着を1件ずつ見られます。</p>
+    <p class="where">プレミアムなら、朝を待たずに届きます。</p>
+
+    <h3>Xの告知を共有して追加</h3>
+    <ol>
+      <li>Xで告知のポストの共有ボタンを押す</li>
+      <li>共有先から <b class="ui">FanHive</b> を選ぶ</li>
+      <li>AIが読み取った内容を確かめて投稿する</li>
+    </ol>
+    <p class="where">リンクを貼る場合は、下の <b class="ui">＋</b> →<b class="ui">「Xのポストから追加」</b>。</p>
+    <figure class="shot"><!-- guide/know-share.webp --><div class="ph">画像：Xから共有</div></figure>
+
+    <h3>推しの作品が見つからないとき</h3>
+    <p>作品を追加する画面で作品名を検索し、<b class="ui">「『作品名』を作成してフォロー」</b>を押します。略称・正式名でも検索してみてください。</p>
+
+    <h3>予定の情報を送る</h3>
+    <p>下の <b class="ui">＋</b> →<b class="ui">「情報を送る」</b>で、作品名とURLを送るだけ。内容の確認と登録はFanHiveが行います。</p>
+
+    <h3>フォローを見直す</h3>
+    <p><b class="ui">マイページ</b> →<b class="ui">「フォロー中の作品」</b>で、増やしたり外したりできます。</p>
+  </section>
+
+  <!-- ═══ 3. 埋もれない ═══ -->
+  <section id="bury">
+    <h2><span class="tag">埋もれる</span>埋もれない</h2>
+    <p class="sec-lead">届いた予定は、推しの作品ごとに整理されています。</p>
+
+    <h3>新着を1件ずつ見る</h3>
+    <p><b class="ui">ホーム</b>の上の「◯件の新着」か、作品カードの丸い画像を押します。右側を押すと次へ、左側で前へ、下へ払うと閉じます。</p>
+    <p class="where">見た新着は数から減ります。</p>
+    <figure class="shot"><!-- guide/bury-story.webp --><div class="ph">画像：新着を1件ずつ</div></figure>
+
+    <h3>作品カードの2つのボタン</h3>
+    <p><b class="ui">「新着を見る」</b>はその作品の新着だけ、<b class="ui">「この作品を探す」</b>はその作品の予定すべてを一覧で出します。</p>
+
+    <h3>探すで絞り込む</h3>
+    <ol>
+      <li>上で<b class="ui">グッズ</b>・<b class="ui">イベント</b>を切り替える</li>
+      <li><b class="ui">「未読」</b>でまだ見ていないものだけ、<b class="ui">「過去」</b>で終わった予定も出す</li>
+      <li>右上の絞り込みボタンで、状態・カテゴリ・地域を選ぶ</li>
+    </ol>
+    <figure class="shot"><!-- guide/bury-filter.webp --><div class="ph">画像：探すの絞り込み</div></figure>
+
+    <h3>要らない予定を隠す</h3>
+    <p><b class="ui">探す</b>でカードを左へ払うと、その予定は出なくなります。</p>
+
+    <h3>作品の並びで表示を切り替える</h3>
+    <p><b class="ui">探す</b>と<b class="ui">カレンダー</b>の上にある作品の並びで、作品を押すとその作品が隠れます。もう一度押すと戻ります。</p>
+    <p class="where">全部戻すときは、右端の︾で広げて<b class="ui">「すべて表示」</b>。</p>
+  </section>
+
+  <!-- ═══ 4. 忘れない ═══ -->
+  <section id="forget">
+    <h2><span class="tag">忘れる</span>忘れない</h2>
+    <p class="sec-lead">ベルをONにした予定は、前もって知らせます。</p>
+
+    <h3>通知の設定</h3>
+    <p><b class="ui">マイページ</b> →<b class="ui">「通知の設定」</b>で、何日前に知らせるか（当日のみ〜7日前。最初は3日前）を選べます。当日の朝にもお知らせします。</p>
+    <p class="where">通知が届かないときは、このページの一番上で許可の状態を確かめてください。作品ごとに新着のお知らせを止めることもできます。</p>
+
+    <h3>「あと◯日」で並ぶ</h3>
+    <p><b class="ui">カレンダー</b>では、予定が日ごとに「あと◯日」の大きな数字で並びます。</p>
+    <p class="where">上の<b class="ui">「これから7日」</b>の数字（予約締切・発売・受付開始・行く日）を押すと、その種類だけに絞れます。</p>
+    <figure class="shot"><!-- guide/forget-days.webp --><div class="ph">画像：あと◯日</div></figure>
+
+    <h3>日付未定の予定を仮置きする</h3>
+    <ol>
+      <li><b class="ui">カレンダー</b>の<b class="ui">「日付未定」</b>の欄を開く</li>
+      <li>予定の画像を長押しする</li>
+      <li>置きたい日まで運んで離す</li>
+    </ol>
+    <p class="where">やめるときは「日付未定」の欄へ運んで戻すか、一覧の<b class="ui">「仮置きをやめる」</b>を押します。</p>
+    <figure class="shot"><!-- guide/forget-tentative.webp --><div class="ph">画像：長押しで仮置き</div></figure>
+
+    <h3>行く日を選ぶ</h3>
+    <p><b class="ui">カレンダー</b>でイベントの行を押し、会期の中から行く日を押します。何日でも選べて、もう一度押すと外れます。</p>
+    <figure class="shot"><!-- guide/forget-visit.webp --><div class="ph">画像：行く日</div></figure>
+
+    <h3>カレンダーから外す</h3>
+    <p><b class="ui">カレンダー</b>で予定の行を左へ払います。間違えたら、すぐ出る<b class="ui">「元に戻す」</b>で戻せます。</p>
+
+    <h3>いつものカレンダーに入れる（プレミアム）</h3>
+    <ol>
+      <li><b class="ui">マイページ</b> →<b class="ui">「カレンダー連携」</b>を開く</li>
+      <li><b class="ui">「Appleのカレンダーに追加」</b>か<b class="ui">「Googleカレンダーと連携」</b>を押す</li>
+    </ol>
+    <p class="where">♡ した予定と自分の投稿が、自動で入ります。Outlook にも入れられます。</p>
+  </section>
+
+  <!-- ═══ 5. もっと楽しむ ═══ -->
+  <section id="more">
+    <h2>もっと楽しむ</h2>
+
+    <h3>スタンプでとっておく</h3>
+    <p>♡ するほどではないけど、とっておきたい予定に。スタンプのボタンを押して、欲しい・行きたい・買った・行ったから選びます。</p>
+    <p class="where">押した予定は、<b class="ui">探す</b>の<b class="ui">「スタンプ」</b>で見返せます。</p>
+
+    <h3>AIでテーマを作る</h3>
+    <ol>
+      <li><b class="ui">マイページ</b> →<b class="ui">「テーマ・カレンダーの配色」</b>を開く</li>
+      <li>テーマの並びの<b class="ui">「AIテーマ生成」</b>を押す</li>
+      <li>好きな雰囲気を言葉で伝える（参考の画像も使えます）</li>
+    </ol>
+    <p class="where">色・形・書体をまとめて作り、アプリ全体がその見た目になります。</p>
+    <figure class="shot"><!-- guide/more-theme.webp --><div class="ph">画像：AIテーマ</div></figure>
+
+    <h3>作品のアイコンを推しの画像にする</h3>
+    <p><b class="ui">ホーム</b>の作品カードで、アイコンを押して画像を選びます。</p>
+
+    <h3>プレミアム</h3>
+    <p><b class="ui">マイページ</b>のプレミアムのカードから。違いは下の表のとおりです。</p>
+  </section>
+
+  <!-- ═══ 無料とプレミアム（src/lib/premium.ts・src/lib/userThemes.ts・api/_ratelimit.ts に合わせる） ═══ -->
+  <section id="plan">
+    <h2>無料とプレミアムの違い</h2>
+    <table>
+      <thead><tr><th></th><th>無料</th><th>プレミアム</th></tr></thead>
+      <tbody>
+        <tr><td>予約受付・締切のお知らせ</td><td>ベルをONにした予定を、前もって・当日の朝に</td><td>それに加えて、受付が始まった瞬間と締切の直前にも</td></tr>
+        <tr><td>フォロー作品の新着</td><td>毎朝9時</td><td>すぐ届く。届き方（すぐ・1日3回）を作品ごとに選べる</td></tr>
+        <tr><td>値下げ・再入荷</td><td>なし</td><td>♡ したグッズが最安値を更新したとき・在庫が戻ったときにお知らせ</td></tr>
+        <tr><td>AIで作るテーマ</td><td>保存は1つまで（作れるのは1日3回）</td><td>何個でも保存して切り替え（1日20回）</td></tr>
+        <tr><td>いつものカレンダーに自動で入る</td><td>なし</td><td>Apple・Google・Outlook</td></tr>
+        <tr><td>フォローできる作品</td><td>5作品まで</td><td>無制限</td></tr>
+        <tr><td>広告</td><td>ホーム・探すの下に出る</td><td>出ない</td></tr>
+      </tbody>
+    </table>
+    <p class="price">月¥500、または年¥4,800。初めての方は最初の1か月が無料です。</p>
+  </section>
+
+  <nav>
+    <a href="/terms.html">利用規約</a>
+    <a href="/privacy.html">プライバシーポリシー</a>
+    <a href="/tokushoho.html">特定商取引法に基づく表記</a>
+  </nav>
+</body>
+</html>
