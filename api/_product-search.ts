@@ -96,12 +96,12 @@ function dedupeKey(u: string): string {
 }
 
 /** big=true のときは大きい画像（600px）も頼み、JANコードも返す（searchByJan 用） */
-async function searchYahoo(keyword: string, big = false): Promise<(Candidate & { jan?: string })[]> {
+async function searchYahoo(keyword: string, big = false, page?: { start: number; results: number }): Promise<(Candidate & { jan?: string })[]> {
   const appId = process.env.YAHOO_APP_ID?.trim();
   if (!appId) return [];
   // バリューコマース連携時: ck.jp.ap.valuecommerce.com/servlet/referral?sid=…&pid=…&vc_url= 形式をそのまま入れる
   const vcAffiliateId = process.env.YAHOO_VC_AFFILIATE_ID?.trim();
-  const params = new URLSearchParams({ appid: appId, query: keyword, results: big ? '10' : '8' });
+  const params = new URLSearchParams({ appid: appId, query: keyword, results: page ? String(page.results) : big ? '10' : '8', ...(page ? { start: String(page.start) } : {}) });
   if (big) params.set('image_size', '600');
   if (vcAffiliateId) { params.set('affiliate_type', 'vc'); params.set('affiliate_id', vcAffiliateId); }
   const r = await fetch(`https://shopping.yahooapis.jp/ShoppingWebService/V3/itemSearch?${params.toString()}`, {
@@ -460,6 +460,11 @@ export async function searchCandidatesWithMeta(keyword: string): Promise<{ items
   const officials = roundRobin(sorted.filter((c) => c.official), (c) => `${c.retailer}:${c.shopCode || c.shop}`, 6);
   const others = roundRobin(sorted.filter((c) => !c.official), (c) => `${c.retailer}:${c.shopCode || c.shop}`, 6);
   return { items: [...officials, ...others].slice(0, 24), animateTotal: animate.total };
+}
+
+/** Yahoo! をキーワードで50件ずつ引く（大きい画像・JANコードつき）。依頼作品の予約グッズを拾う巡回用（_catalog.ts） */
+export async function searchYahooPage(keyword: string, start: number): Promise<(Candidate & { jan?: string })[]> {
+  return searchYahoo(keyword, true, { start, results: 50 });
 }
 
 /** JANコードで楽天・Yahoo!を引く（海外版アニメイトの新着に日本の店のリンクと日本語名を付ける。_catalog.ts）。
