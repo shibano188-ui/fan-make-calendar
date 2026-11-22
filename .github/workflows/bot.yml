@@ -1,13 +1,13 @@
 # 運営のボット（提案・投稿の確認・店の巡回・グッズの手直し）を10分おきに回す。中身は api/_bot.ts。
 # 前は Supabase の pg_cron → Vercel（/api/metrics?task=bot）で回していたが、Vercel の無料枠の CPU（月4時間）を
 # ほぼこれで使い切ったので、公開リポジトリなら無料の GitHub Actions に移した（柴野・2026-11-21）。
-# GitHub の定期実行は混むと数分〜十数分遅れることがある。巡回なので気にしない。通知（5分おき）は pg_cron のまま。
+# 通知（5分おき）は pg_cron → Vercel のまま。
 # Secrets: VITE_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / ANTHROPIC_API_KEY / RAKUTEN_* / YAHOO_*（Vercel の本番と同じ値）
 name: ボット
 
+# GitHub の定期実行（schedule）はこのリポジトリだと数時間遅れる・動かないことがあるので使わない。
+# Supabase の pg_cron が10分おきに実行ボタン（workflow_dispatch）を押す（sql/2026-11-22-bot-cron-actions.sql）
 on:
-  schedule:
-    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 # 前の回が終わるまで次の回は待つ（重ねて回さない。店へのアクセスを二重にしない）
