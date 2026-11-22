@@ -61,7 +61,8 @@ async function workDict(db: Db): Promise<WorkDict> {
     for (const w of data ?? []) out.push({ key: workKey(String(w.name)), name: String(w.name) });
     if ((data ?? []).length < 1000) break;
   }
-  const { data: al } = await db.from('work_aliases').select('alias_norm, works(name, participant_count)').limit(10000);
+  // フォロワーのいる作品の別名だけ取る（!inner で絞る。全部取ると転送量が増える。Supabase の転送量の無料枠を超えたため・2026-11-22）
+  const { data: al } = await db.from('work_aliases').select('alias_norm, works!inner(name, participant_count)').gte('works.participant_count', 1).limit(10000);
   for (const a of al ?? []) {
     const w = a.works as { name?: string; participant_count?: number } | null;
     const name = Number(w?.participant_count ?? 0) >= 1 ? w?.name : undefined;
