@@ -1,5 +1,5 @@
 // LP（public/lp.html）の画面の画像を撮る（2026-11-23）。
-// 手元のアプリを開発用 DB（fanhive-dev）につないで開き、予定・フォロー・いいねの返事だけ架空の作品（ハチノコ・つきみ商店街）に差し替える。
+// 手元のアプリを開発用 DB（fanhive-dev）につないで開き、予定・フォロー・いいねの返事だけ架空の作品（ハチノコ・ウサノコ）に差し替える。
 // 本番の Supabase と fanhive.jp へのアクセスは全部止める（何も設定しないと手元の vite は本番につながるため）。
 //
 // 1. 開発用につないで起動（キーは LP にも載っている公開の値）:
@@ -16,7 +16,7 @@ const [path, out, ...rest] = process.argv.slice(2);
 const opt = Object.fromEntries(rest.map((a) => { const t = a.replace(/^--/, ''); const i = t.indexOf('='); return [t.slice(0, i), t.slice(i + 1)]; }));
 const IMG = fileURLToPath(new URL('./img', import.meta.url));
 const W1 = '11111111-1111-4111-8111-111111111111', W2 = '22222222-2222-4222-8222-222222222222';
-const works = { [W1]: 'ハチノコ', [W2]: 'つきみ商店街' };
+const works = { [W1]: 'ハチノコ', [W2]: 'ウサノコ' };
 // LP の文（10/9 締切・10/17 発売）に合わせて、アプリの今日を 2026-10-01 にする（10/9 締切が「あと8日」。SNS 用の画像の「今日から8日後」とも合う）
 const FAKE_NOW = '2026-10-01T12:00:00+09:00';
 const now = Date.parse(FAKE_NOW);
@@ -38,10 +38,10 @@ const EVENTS = [
   ev(W1, { title: 'ハチノコ ぬいぐるみS', event_date: '2026-10-24', end_date: '2026-10-24', price: 2970, category: '["グッズ","ぬい"]', image_url: JSON.stringify([img('hachi-nui')]), offers: [offer(2970)], created_at: ago(70) }),
   ev(W1, { title: 'ハチノコ ハニカムキーホルダー', event_date: '2026-11-14', end_date: '2026-11-14', is_order_made: true, preorder_start_date: '2026-09-29', preorder_end_date: '2026-10-23', price: 880, category: '["グッズ","キーホルダー"]', image_url: JSON.stringify([img('hachi-kh')]), offers: [offer(880)], created_at: ago(8) }),
   ev(W1, { title: 'ハチノコ POP UP SHOP', type: 'event', event_date: '2026-10-10', end_date: '2026-10-25', category: '["イベント"]', prefecture: '東京都', image_url: JSON.stringify([img('hachi-popup')]), retailer: null, created_at: ago(40) }),
-  ev(W2, { title: 'つきみ商店街 缶バッジ 第2弾', event_date: '2026-10-02', end_date: '2026-10-02', price: 550, category: '["グッズ","缶バッジ"]', image_url: JSON.stringify([img('tsuki-badge')]), offers: [offer(550)], retailer: 'つきみ商店街 公式', created_at: ago(90) }),
-  ev(W2, { title: 'つきみ商店街 アクリルスタンド', event_date: '2026-11-20', end_date: '2026-11-20', is_order_made: true, preorder_start_date: '2026-10-01', preorder_end_date: '2026-10-14', price: 1650, category: '["グッズ","アクスタ"]', image_url: JSON.stringify([img('tsuki-acst')]), offers: [offer(1650)], retailer: 'つきみ商店街 公式', created_at: ago(14) }),
-  ev(W2, { title: 'つきみ商店街 ポーチ', event_date: '2026-10-21', end_date: '2026-10-21', price: 2200, category: '["グッズ","ポーチ"]', image_url: JSON.stringify([img('tsuki-pouch')]), offers: [offer(2200)], retailer: 'つきみ商店街 公式', created_at: ago(26) }),
-  ev(W2, { title: 'つきみ商店街 原画展', type: 'event', event_date: '2026-10-05', end_date: '2026-10-18', category: '["イベント"]', prefecture: '大阪府', image_url: JSON.stringify([img('tsuki-ten')]), retailer: null, created_at: ago(60) }),
+  ev(W2, { title: 'ウサノコ 缶バッジ 第2弾', event_date: '2026-10-02', end_date: '2026-10-02', price: 550, category: '["グッズ","缶バッジ"]', image_url: JSON.stringify([img('usa-badge')]), offers: [offer(550)], retailer: 'ウサノコ公式ショップ', created_at: ago(90) }),
+  ev(W2, { title: 'ウサノコ アクリルスタンド', event_date: '2026-11-20', end_date: '2026-11-20', is_order_made: true, preorder_start_date: '2026-10-01', preorder_end_date: '2026-10-14', price: 1650, category: '["グッズ","アクスタ"]', image_url: JSON.stringify([img('usa-acst')]), offers: [offer(1650)], retailer: 'ウサノコ公式ショップ', created_at: ago(14) }),
+  ev(W2, { title: 'ウサノコ ポーチ', event_date: '2026-10-21', end_date: '2026-10-21', price: 2200, category: '["グッズ","ポーチ"]', image_url: JSON.stringify([img('usa-pouch')]), offers: [offer(2200)], retailer: 'ウサノコ公式ショップ', created_at: ago(26) }),
+  ev(W2, { title: 'ウサノコ 原画展', type: 'event', event_date: '2026-10-05', end_date: '2026-10-18', category: '["イベント"]', prefecture: '大阪府', image_url: JSON.stringify([img('usa-ten')]), retailer: null, created_at: ago(60) }),
 ];
 const json = (route, body) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
 
