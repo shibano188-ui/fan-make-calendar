@@ -95,12 +95,14 @@ function dedupeKey(u: string): string {
   } catch { return u; }
 }
 
-async function searchYahoo(keyword: string): Promise<Candidate[]> {
+/** big=true のときは大きい画像（600px）も頼み、JANコードも返す（searchByJan 用） */
+async function searchYahoo(keyword: string, big = false): Promise<(Candidate & { jan?: string })[]> {
   const appId = process.env.YAHOO_APP_ID?.trim();
   if (!appId) return [];
   // バリューコマース連携時: ck.jp.ap.valuecommerce.com/servlet/referral?sid=…&pid=…&vc_url= 形式をそのまま入れる
   const vcAffiliateId = process.env.YAHOO_VC_AFFILIATE_ID?.trim();
-  const params = new URLSearchParams({ appid: appId, query: keyword, results: '8' });
+  const params = new URLSearchParams({ appid: appId, query: keyword, results: big ? '10' : '8' });
+  if (big) params.set('image_size', '600');
   if (vcAffiliateId) { params.set('affiliate_type', 'vc'); params.set('affiliate_id', vcAffiliateId); }
   const r = await fetch(`https://shopping.yahooapis.jp/ShoppingWebService/V3/itemSearch?${params.toString()}`, {
     signal: AbortSignal.timeout(8000),
@@ -112,7 +114,8 @@ async function searchYahoo(keyword: string): Promise<Candidate[]> {
     title: it.name as string,
     price: it.price as number,
     url: it.url as string,
-    image: (it.image?.medium || it.image?.small || '') as string,
+    image: ((big && it.exImage?.url) || it.image?.medium || it.image?.small || '') as string,
+    ...(big && it.janCode ? { jan: String(it.janCode) } : {}),
     shop: (it.seller?.name || '') as string,
     retailer: 'Yahoo!',
     hasAffiliate: !!vcAffiliateId,
@@ -457,6 +460,17 @@ export async function searchCandidatesWithMeta(keyword: string): Promise<{ items
   const officials = roundRobin(sorted.filter((c) => c.official), (c) => `${c.retailer}:${c.shopCode || c.shop}`, 6);
   const others = roundRobin(sorted.filter((c) => !c.official), (c) => `${c.retailer}:${c.shopCode || c.shop}`, 6);
   return { items: [...officials, ...others].slice(0, 24), animateTotal: animate.total };
+}
+
+/** JANコードで楽天・Yahoo!を引く（海外版アニメイトの新着に日本の店のリンクと日本語名を付ける。_catalog.ts）。
+ *  中古は外す。Yahoo! は JANコードが返ってきて違うものも外す。楽天は JAN を返さないので、キーワードが JAN のときの結果をそのまま使う */
+export async function searchByJan(jan: string): Promise<Candidate[]> {
+  const [rakuten, yahoo] = await Promise.all([
+    rakutenRequest(jan, 10).catch(() => [] as Candidate[]),
+    searchYahoo(jan, true).catch(() => [] as (Candidate & { jan?: string })[]),
+  ]);
+  return [...rakuten, ...yahoo.filter((c) => !c.jan || c.jan === jan)]
+    .filter((c) => c.title && c.url && c.price > 0 && !isUsedTitle(c.title) && c.stockLabel !== '中古');
 }
 
 // ── マッチング（src/lib/searchProduct.ts と同じロジック。両者は同期を保つこと）──

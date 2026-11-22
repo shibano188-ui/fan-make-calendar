@@ -11,7 +11,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { excludeRegistered, fetchProductList, type ListProduct, type ProductList } from './_listsource.js';
 import { botCanFetch } from './_pace.js';
 import { listEvents, detectWork, type ListEvent } from './_listgroup.js';
-import { parseMovicList, lookupByUrl, parseReleaseText } from './_product-search.js';
+import { parseMovicList, lookupByUrl, parseReleaseText, searchByJan, stripShopNoise, type Candidate } from './_product-search.js';
 import { registerEvents, resolveWork, followedWorkId, workKey } from './_crawl.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -659,7 +659,173 @@ async function crawlAmnibus(db: Db, authorId: string): Promise<{ added: number; 
   return { ...r, read: items.length, note: `${page}ページ目` };
 }
 
-/** 店の全作品の巡回を、1回ぶん進める。ムービック・KADOKAWAストア・コトブキヤ・アニメイト・eeo Store・AMNIBUS */
+// ── アニメイトの海外版（animate.shop） ─────────────────────────
+// 日本のアニメイト通販は 403（アクセス制限）でボットから読めない（2026-11-21）。海外版の animate.shop は Shopify で、
+// /products.json（店に出た新しい順・250件ずつ）に JANコード（sku）と発売時期（説明文の Release Date）がある。
+// 日本には送らない店なのでリンクには使わず、JANコードで楽天・Yahoo!を引いて、日本語名と日本の店のリンクにする。
+// 日本の店で見つからない商品は登録しない（アニメイト限定品・AGF の事後通販は日本の店に無いことが多い。
+// 新しい商品は日本の店に後から並ぶので、2・6・13日後に引き直す）。
+// 海外版の予約締切は日本の店の締切と違うので使わない。作品は日本語名で見分け、フォローされている作品の商品だけ入れる。
+const ANIMATE_SHOP = 'https://www.animate.shop';
+const ASHOP_PER_RUN = 20;            // 1回に JANコードで引く数（楽天・Yahoo! は1秒に1回ほどまで。1回30秒ほど）
+const ASHOP_FIRST_DAYS = 14;         // 最初の回は、店に出て14日以内の商品まで（1日に50件ほど出る）
+const ASHOP_RETRY_AFTER = [2, 6, 13]; // 見つからなかった商品を引き直す日（店に出てからの日数）
+/** j=JANコード c=店に出た日時 d=発売日 l=発売日のあいまいさ（上旬・中など） n=引いた回数 */
+interface AShopItem { j: string; c: string; d: string; l: string | null; n?: number }
+interface AShopState { newest?: string; dailyAt?: string; queue?: AShopItem[] }
+
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+/** 説明文の「Release Date: Mid January 2027」「January 2027 (TBA)」「01/27/2027」「Late Decmeber 2026」（つづり違いがある）を、
+ *  アプリの日付の持ち方にする（parseReleaseText と同じ。上中下旬=5/15/25日、月のみ=末日） */
+export function parseAnimateShopRelease(body: string): { date: string; dateLabel: string | null } | null {
+  const t = body.replace(/<[^>]+>/g, '\n').match(/Release Date\s*:?\s*([^\n※]+)/i)?.[1]?.trim();
+  if (!t) return null;
+  const mon = (s: string) => MONTHS.indexOf(s.slice(0, 3).toLowerCase()) + 1;
+  let m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return parseReleaseText(`${m[3]}年${m[1]}月${m[2]}日`);
+  m = t.match(/^(Early|Mid|Late)\s+([A-Za-z]+)\.?\s+(\d{4})/i);
+  if (m && mon(m[2])) return parseReleaseText(`${m[3]}年${mon(m[2])}月${{ early: '上旬', mid: '中旬', late: '下旬' }[m[1].toLowerCase()]}`);
+  m = t.match(/^([A-Za-z]+)\.?\s+(\d{1,2}),?\s+(\d{4})/);
+  if (m && mon(m[1])) return parseReleaseText(`${m[3]}年${mon(m[1])}月${m[2]}日`);
+  m = t.match(/^([A-Za-z]+)\.?\s+(\d{4})/);
+  if (m && mon(m[1])) return parseReleaseText(`${m[2]}年${mon(m[1])}月`);
+  return null;
+}
+
+/** products.json の商品から、JANコードで引く商品を選ぶ。特典（Bonus）・売り切れ・JANコードの無いもの・発売から3日より前のものは外す */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function animateShopItems(products: any[], today: string): AShopItem[] {
+  const since = new Date(Date.parse(`${today}T00:00:00Z`) - 3 * 86400_000).toISOString().slice(0, 10);
+  return products.flatMap((p) => {
+    if (p.product_type === 'Bonus' || p.vendor === 'Bonus') return [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const v = (p.variants ?? []).find((x: any) => x.available);
+    if (!v) return [];
+    const jan = [v.sku, p.handle].map((s) => String(s ?? '')).find((s) => /^\d{13}$/.test(s));
+    const rel = parseAnimateShopRelease(String(p.body_html ?? ''));
+    if (!jan || !rel || rel.date < since) return [];
+    return [{ j: jan, c: String(p.created_at), d: rel.date, l: rel.dateLabel }];
+  });
+}
+
+/** 付けるリンク。あみあみ → 公式店（楽天ブックスなど）→ 在庫ありで安いもの */
+export function pickJanHit(hits: Candidate[]): Candidate {
+  const rank = (c: Candidate) => (/あみあみ/.test(c.shop) ? 0 : c.official ? 1 : 2);
+  return [...hits].sort((a, b) => rank(a) - rank(b) || Number(b.inStock !== false) - Number(a.inStock !== false) || a.price - b.price)[0];
+}
+
+/** 予定の名前。店の飾り（[メーカー]《01月予約》【送料無料】「2027/02発売 [グッズ]/」など）を落とす。
+ *  あみあみ・楽天ブックスの商品名が一番整っているので、あればそれを使う */
+export function janTitle(hits: Candidate[]): string {
+  const src = hits.find((c) => /あみあみ/.test(c.shop)) ?? hits.find((c) => /楽天ブックス/.test(c.shop)) ?? pickJanHit(hits);
+  const t = src.title.normalize('NFKC')
+    .replace(/■[^■]*■/g, ' ')
+    .replace(/^(?:【[^】]*】\s*)*\d{4}\/\d{1,2}発売\s*(?:\[[^\]]*\]\s*\/?)?/, '');
+  // 末尾の【】はメーカー名・返品の種別（【有限会社 キューズQ】【返品種別A】）。頭の【】はキャラ名のことがあるので残す
+  return stripShopNoise(t).replace(/(?:\s*【[^】]*】)+$/, '').replace(/^[\s/]+/, '').trim();
+}
+
+async function animateShopPage(page: number): Promise<{ created_at: string }[] | null> {
+  await delay(GAP_MS);
+  const r = await fetch(`${ANIMATE_SHOP}/products.json?limit=250&page=${page}`, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(30000) }).catch(() => null);
+  const body = r?.ok ? await r.json().catch(() => null) as { products?: { created_at: string }[] } | null : null;
+  return Array.isArray(body?.products) ? body.products : null;
+}
+
+async function crawlAnimateShop(db: Db, authorId: string): Promise<{ added: number; merged: number; read: number; note: string }> {
+  const { data: st } = await db.from('bot_state').select('value').eq('key', 'catalog:animateshop').maybeSingle();
+  const s: AShopState = { ...((st?.value ?? {}) as AShopState) };
+  const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+  const save = (v: AShopState) => db.from('bot_state').upsert({ key: 'catalog:animateshop', value: v, updated_at: new Date().toISOString() });
+  const retryKey = 'catalog:animateshop:retry';
+  const age = (c: string) => (Date.now() - Date.parse(c)) / 86400_000;
+  let read = 0;
+
+  // 1日1回、前に見たところまでの新着と、引き直す日が来た商品を並べる
+  if (!s.queue?.length) {
+    if (s.dailyAt && Date.now() - Date.parse(s.dailyAt) < 24 * 3600_000) return { added: 0, merged: 0, read: 0, note: '今日の新着は済んでいる' };
+    const cutoff = Date.parse(s.newest ?? new Date(Date.now() - ASHOP_FIRST_DAYS * 86400_000).toISOString());
+    const fresh: AShopItem[] = [];
+    let newest = s.newest ?? '';
+    for (let page = 1; page <= 10; page++) {
+      const ps = await animateShopPage(page);
+      // 読めないときは進めない。次の回に読み直す
+      if (!ps) return { added: 0, merged: 0, read, note: `${page}ページ目が読めない` };
+      read += ps.length;
+      fresh.push(...animateShopItems(ps.filter((p) => Date.parse(p.created_at) > cutoff), today));
+      for (const p of ps) if (!newest || Date.parse(p.created_at) > Date.parse(newest)) newest = p.created_at;
+      if (ps.length < 250 || ps.some((p) => Date.parse(p.created_at) <= cutoff)) break;
+    }
+    const { data: rt } = await db.from('bot_state').select('value').eq('key', retryKey).maybeSingle();
+    const retry = (((rt?.value ?? {}) as { items?: AShopItem[] }).items ?? []);
+    const due = retry.filter((x) => age(x.c) >= ASHOP_RETRY_AFTER[(x.n ?? 1) - 1]);
+    const seen = new Set(fresh.map((x) => x.j));
+    s.queue = [...fresh, ...due.filter((x) => !seen.has(x.j))];
+    s.newest = newest || s.newest;
+    s.dailyAt = new Date().toISOString();
+    await db.from('bot_state').upsert({ key: retryKey, value: { items: retry.filter((x) => !due.includes(x)) }, updated_at: new Date().toISOString() });
+  }
+
+  const batch = s.queue.splice(0, ASHOP_PER_RUN);
+  const dict = await workDict(db);
+  const found: { work: string; hit: Candidate; p: ListProduct; c: string }[] = [];
+  const miss: AShopItem[] = [];
+  for (const it of batch) {
+    // もう登録してある商品（別の店の巡回で同じ JANコードが入っている）は引かない
+    const { data: had } = await db.from('events').select('id').eq('pool', 0).filter('offers', 'cs', JSON.stringify([{ jan: it.j }])).limit(1);
+    if (had?.length) continue;
+    await delay(1100);
+    const hits = await searchByJan(it.j).catch(() => [] as Candidate[]);
+    if (!hits.length) { miss.push(it); continue; }
+    const title = janTitle(hits);
+    const work = matchWork(title, dict);
+    if (!work) continue;
+    const hit = pickJanHit(hits);
+    const future = it.d > today;
+    found.push({
+      work, hit, c: it.c,
+      p: {
+        title, url: hit.url, price: hit.price, inStock: future || hit.inStock !== false, ...(future ? { stockLabel: '予約受付中' } : {}),
+        jan: it.j, image: hit.image, images: hit.image ? [hit.image] : [], release: { date: it.d, dateLabel: it.l },
+      },
+    });
+  }
+  if (miss.length) {
+    const { data: rt } = await db.from('bot_state').select('value').eq('key', retryKey).maybeSingle();
+    const retry = (((rt?.value ?? {}) as { items?: AShopItem[] }).items ?? []);
+    const more = miss.map((x) => ({ ...x, n: (x.n ?? 0) + 1 })).filter((x) => x.n <= ASHOP_RETRY_AFTER.length && x.d >= today);
+    await db.from('bot_state').upsert({ key: retryKey, value: { items: [...retry, ...more].slice(-2000) }, updated_at: new Date().toISOString() });
+  }
+
+  // 作品と店ごとにまとめて登録する（同じ店のキャラ違いは1つの予定にまとまる）
+  const groups = new Map<string, typeof found>();
+  for (const f of found) {
+    const k = `${f.work}\n${f.hit.retailer}\n${f.hit.shop}`;
+    groups.set(k, [...(groups.get(k) ?? []), f]);
+  }
+  let added = 0, merged = 0;
+  for (const g of groups.values()) {
+    const wid = await resolveWork(db, g[0].work);
+    if (!wid) continue;
+    const list: ProductList = { title: g[0].work, shop: g[0].hit.shop, retailer: g[0].hit.retailer, products: g.map((f) => f.p), nextPage: null };
+    const byUrl = new Map(g.map((f) => [f.p.url, f]));
+    const events = (await listEvents(list, g[0].work)).map((e) => ({
+      ...e, offers: e.offers.map((o) => ({ ...o, official: !!byUrl.get(o.url)?.hit.official })),
+    }));
+    // 店に出て1週間より前の商品（最初の回・引き直しで見つかったもの）は、店に出た日を登録日にして新着に並べない
+    const created = (e: ListEvent) => {
+      const c = e.offers.map((o) => byUrl.get(o.url)?.c).filter((x): x is string => !!x).sort()[0];
+      return c && age(c) > 7 ? new Date(c).toISOString() : null;
+    };
+    // 同じ商品は registerEvents が JANコードで見分ける。作品の予定を全部読む（rows）と転送量が増えるので渡さない
+    const r = await registerEvents(db, wid, events, [], authorId, null, null, created);
+    added += r.added; merged += r.merged;
+  }
+  await save(s);
+  return { added, merged, read, note: `JANコードで ${batch.length}件引いた（見つからない ${miss.length}・登録 ${found.length}）・残り ${s.queue.length}件` };
+}
+
+/** 店の全作品の巡回を、1回ぶん進める。ムービック・KADOKAWAストア・コトブキヤ・アニメイト・eeo Store・AMNIBUS・アニメイトの海外版 */
 export async function crawlCatalogs(db: Db, budgetMs: number): Promise<Record<string, unknown>> {
   const { data: bot } = await db.from('staff').select('user_id').eq('role', 'bot').limit(1).maybeSingle();
   if (!bot?.user_id || budgetMs < 5000) return { skipped: true };
@@ -673,5 +839,7 @@ export async function crawlCatalogs(db: Db, budgetMs: number): Promise<Record<st
   // eeo Store と AMNIBUS も「1回に読むページ数」で進むので、持ち時間の外
   const eeo = await crawlEeo(db, bot.user_id as string).catch((e) => ({ error: String(e) }));
   const amnibus = await crawlAmnibus(db, bot.user_id as string).catch((e) => ({ error: String(e) }));
-  return { movic, kadokawa, kotobukiya, animate, eeo, amnibus };
+  // アニメイトの海外版も「1回に JANコードで引く数」で進むので、持ち時間の外
+  const animateShop = await crawlAnimateShop(db, bot.user_id as string).catch((e) => ({ error: String(e) }));
+  return { movic, kadokawa, kotobukiya, animate, eeo, amnibus, animateShop };
 }
