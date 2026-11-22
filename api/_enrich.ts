@@ -49,7 +49,9 @@ const DAY = 86400_000;
 async function loadEdits(db: Db): Promise<{ removed: Map<string, Set<string>>; dateEdited: Set<string> }> {
   const removed = new Map<string, Set<string>>();
   const dateEdited = new Set<string>();
-  const { data } = await db.from('event_edits').select('event_id, patch');
+  // 使う項目（取り消したリンク・日付の直し）を持つパッチだけ読む。全部読むと Supabase の転送量が増える（2026-11-22）
+  const { data } = await db.from('event_edits').select('event_id, patch')
+    .or(['removedOfferUrls', 'date', 'dateLabel', 'endDate', 'isOrderMade', 'preorderStart', 'preorderEnd'].map((k) => `patch->${k}.not.is.null`).join(','));
   for (const e of data ?? []) {
     const id = e.event_id as string;
     const p = (e.patch ?? {}) as Record<string, unknown>;

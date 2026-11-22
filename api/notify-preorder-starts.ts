@@ -75,11 +75,14 @@ async function loadRowsByDate(
 
   // 共同編集で日付が直された予定も拾う（直した日で通知が飛ぶようにする）。
   // 逆に、元の日付が今日でもパッチで先に動いたものは、呼び出し側の実効値の判定で外れる。
-  const patches = await loadEventPatches(db);
-  const patchedIds = [...patches.entries()]
-    .filter(([, p]) => days.includes(p[column] as string))
-    .map(([id]) => id);
+  // 前は event_edits を5分おきに全部読んでいて、Supabase の転送量の大半になっていた（2026-11-22）。
+  // 今は「その日付に直したパッチがある予定」と「元の日付が当たった予定」のパッチだけ読む
+  const key = column === 'preorder_start_date' ? 'preorderStart' : 'preorderEnd';
+  const { data: moved } = await db.from('event_edits').select('event_id').in(`patch->>${key}`, days);
   const known = new Set((baseRows ?? []).map((r) => r.id as string));
+  const movedIds = [...new Set((moved ?? []).map((r) => r.event_id as string))];
+  const patches = await loadEventPatches(db, [...new Set([...known, ...movedIds])]);
+  const patchedIds = movedIds.filter((id) => days.includes(patches.get(id)?.[column] as string));
   const missing = patchedIds.filter((id) => !known.has(id));
   const extra = missing.length
     ? (await db.from('events').select(cols).eq('pool', 0).in('id', missing)).data ?? []
