@@ -46,8 +46,9 @@ export default defineConfig({
         clientsClaim: true,
         skipWaiting: true,
         globPatterns: ['**/*.{js,css,html,svg,ico,woff,woff2}'],
-        // LP（lp.html と public/lp/ の画像・フォント）はアプリの利用者に先読みさせる必要が無いので外す
-        globIgnores: ['lp.html', 'lp/**'],
+        // LP（lp.html と public/lp/ の画像・フォント）と使い方ガイド（guide.html と public/guide/ の画像）は
+        // アプリの利用者に先読みさせる必要が無いので外す（入れると更新が1回遅れて見える）
+        globIgnores: ['lp.html', 'lp/**', 'guide.html', 'guide/**'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
