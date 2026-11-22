@@ -7,7 +7,8 @@
 // 2. 撮る（出来たら cwebp -q 85 -resize 660 0 で public/lp/ へ）:
 //    node scripts/lp-shots/shoot.mjs / home.png --click='text=ホーム' --h=820        → hero-home.webp
 //    node scripts/lp-shots/shoot.mjs /saved cal.png --h=775                         → calendar-oct.webp
-//    node scripts/lp-shots/shoot.mjs /saved card.png --scroll=640 --row='アクリルスタンド 全8種' → deadline-card.webp
+//    node scripts/lp-shots/shoot.mjs /saved card.png --scroll=640 --from='原画展' --to='POP UP SHOP' → deadline-card.webp（ボード3行）
+// 作品のアイコン（icon-*.png）を付けると、カレンダーのマスと作品の札がドット絵になる。画像の読み込みが遅いので --wait=8000
 // 商品画像は goods.html（SVG）を描き出したもの。SNS 用の画像は og.html を 1200x630 で撮る（cal.png を同じ場所に置く）
 import { webkit } from 'playwright';
 import { fileURLToPath } from 'node:url';
@@ -48,7 +49,7 @@ const json = (route, body) => route.fulfill({ status: 200, contentType: 'applica
 const b = await webkit.launch();
 const ctx = await b.newContext({ viewport: { width: 440, height: Number(opt.h ?? 893) }, deviceScaleFactor: 3 });
 await ctx.route(/jsgidtwxhueqgtvshdku|fanhive\.jp/, (r) => { console.log('BLOCKED', r.request().url().slice(0, 100)); return r.abort(); });
-await ctx.route(/mock\.fanhive\.test\/img\//, (r) => r.fulfill({ status: 200, contentType: 'image/png', body: readFileSync(`${IMG}/${r.request().url().split('/img/')[1].replace('.png', '')}.png`) }));
+await ctx.route(/mock\.fanhive\.test\/img\//, (r) => r.fulfill({ status: 200, contentType: 'image/png', headers: { 'Access-Control-Allow-Origin': '*' }, body: readFileSync(`${IMG}/${r.request().url().split('/img/')[1].replace('.png', '')}.png`) }));
 await ctx.route(/srlxgpodxdvfunyqejav\.supabase\.co\/rest\/v1\//, (route) => {
   const req = route.request();
   if (req.method() !== 'GET') return route.continue();
@@ -61,17 +62,32 @@ await ctx.route(/srlxgpodxdvfunyqejav\.supabase\.co\/rest\/v1\//, (route) => {
   }
   if (t === 'likes') return json(route, EVENTS.map((e) => ({ event_id: e.id, events: e })));
   if (t === 'participations') return json(route, [W1, W2].map((w, i) => ({ work_id: w, last_visited_at: ago(i + 1), works: { id: w, name: works[w], participant_count: 120 } })));
+  if (t === 'user_app_state') return json(route, [{ work_images: WORK_IMAGES }]);
   if (t === 'event_edits' || t === 'event_visits' || t === 'personal_events' || t === 'notifications') return json(route, []);
   return route.continue();
 });
-await ctx.addInitScript(() => { localStorage.setItem('fan_onboarding_done_v2', '1'); localStorage.setItem('fan_hints_seen', JSON.stringify(['cal-overview','cal-swipe','cal-visit','cal-fold','cal-undated','cal-icons','cal-custom','home-icon','ex-swipe','ex-stamp','ex-follow','item-share','my-fanstar','my-sync'])); });
+// 作品のアイコンはデータ URL で渡す（別のドメインの画像だと、カレンダーのドット絵を作る canvas が読めず、色の点に戻る）
+const dataUrl = (n) => `data:image/png;base64,${readFileSync(`${IMG}/${n}.png`).toString('base64')}`;
+const WORK_IMAGES = { [W1]: dataUrl('icon-hachi'), [W2]: dataUrl('icon-usa') };
+await ctx.addInitScript((wi) => { localStorage.setItem('fan_work_images', JSON.stringify(wi)); localStorage.setItem('fan_onboarding_done_v2', '1'); localStorage.setItem('fan_hints_seen', JSON.stringify(['cal-overview','cal-swipe','cal-visit','cal-fold','cal-undated','cal-icons','cal-custom','home-icon','ex-swipe','ex-stamp','ex-follow','item-share','my-fanstar','my-sync'])); }, WORK_IMAGES);
 await ctx.clock.setFixedTime(new Date(FAKE_NOW));
 const page = await ctx.newPage();
 await page.goto('http://localhost:5199' + path);
 await page.waitForTimeout(Number(opt.wait ?? 6000));
 if (opt.click) { await page.click(opt.click); await page.waitForTimeout(2500); }
 if (opt.scroll) { await page.mouse.wheel(0, Number(opt.scroll)); await page.waitForTimeout(1500); }
-if (opt.row) {
+if (opt.from && opt.to) {
+  // from の文字を含む行の上から、to の文字を含む行の下までを切り出す（ボードを何行か見せる）
+  const rowBox = (t) => page.evaluate((tt) => {
+    const el = [...document.querySelectorAll('body *')].find((e) => e.childElementCount === 0 && e.textContent?.includes(tt) && e.getBoundingClientRect().top > 150);
+    let n = el;
+    while (n && n.parentElement && n.getBoundingClientRect().width < 400) n = n.parentElement;
+    const r = n.getBoundingClientRect();
+    return { y: r.top, b: r.bottom };
+  }, t);
+  const a = await rowBox(opt.from), z = await rowBox(opt.to);
+  await page.screenshot({ path: out, clip: { x: 0, y: a.y - 6, width: 440, height: z.b - a.y + 12 } });
+} else if (opt.row) {
   // その文字を含む行（画面の幅いっぱいの要素）だけを切り出す
   const box = await page.evaluate((t) => {
     const el = [...document.querySelectorAll('body *')].find((e) => e.childElementCount === 0 && e.textContent?.includes(t) && e.getBoundingClientRect().top > 150);
