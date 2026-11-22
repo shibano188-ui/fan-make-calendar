@@ -560,8 +560,15 @@ async function crawlEeo(db: Db, authorId: string): Promise<{ added: number; merg
   let added = 0, merged = 0, read = 0;
   for (let n = 0; n < EEO_PAGES_PER_RUN; n++) {
     const html = await getHtml(`${EEO}/products/list?pageno=${s.page ?? 1}`);
-    // 読めないときは進めない。次の回に同じページを読む
-    if (!html) break;
+    // 読めないときは進めない。次の回に同じページを読む。
+    // ただし1ページ目は読める＝最後のページの先（eeo は空の一覧でなく 404 を返す）なので、読み終えたことにする。
+    // 2026-11-22 まで 844ページ目の 404 で止まり続けていた
+    if (!html) {
+      if ((s.page ?? 1) > 1 && await getHtml(`${EEO}/products/list?pageno=1`)) {
+        s.phase = 'daily'; s.page = 1; s.dailyAt = new Date().toISOString();
+      }
+      break;
+    }
     const items = parseEeoList(html, today);
     read += items.length;
     const r = await registerByTitle(db, authorId, 'eeo Store', items.filter((p) => p.inStock !== false), s.phase === 'initial' ? backdate : undefined);

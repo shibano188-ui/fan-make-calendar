@@ -16,6 +16,11 @@ const MIN_GAP: Record<string, number> = {
   'www.animate-onlineshop.jp': 1180_000,
 };
 
+/** ボットからは読まない店。アニメイト通販は 2026-11 から「アクセス制限のお知らせ」（403・海外向けサイトへの案内）しか返さない。
+ *  Vercel（東京）からも手元の回線からも同じ。制限している店に当て続けないよう止める（柴野・2026-11-22）。
+ *  人の操作（投稿画面でURLを貼る）は今までどおり読みに行く。制限が解けたらここから外す */
+const BOT_BLOCKED = new Set(['www.animate-onlineshop.jp']);
+
 interface PaceState { last: Record<string, string>; dirty: boolean }
 const store = new AsyncLocalStorage<PaceState>();
 
@@ -36,6 +41,7 @@ export async function runBotPaced<T>(db: Db, fn: () => Promise<T>): Promise<T> {
  *  （巡回はアニメイトを40分に1回にして、20分の枠の半分をプレミアムの人のグッズの取り直しに残す） */
 export function botCanFetch(host: string, gapMs?: number): boolean {
   const s = store.getStore();
+  if (s && BOT_BLOCKED.has(host)) return false;
   const gap = gapMs ?? MIN_GAP[host];
   if (!s || !gap) return true;
   const last = s.last[host];
@@ -45,6 +51,7 @@ export function botCanFetch(host: string, gapMs?: number): boolean {
 /** アクセスしてよければ true を返し、アクセスした時刻として記録する。ボットの外では常に true */
 export function botMayFetch(host: string): boolean {
   const s = store.getStore();
+  if (s && BOT_BLOCKED.has(host)) return false;
   if (!s || !MIN_GAP[host]) return true;
   if (!botCanFetch(host)) return false;
   s.last[host] = new Date().toISOString();
