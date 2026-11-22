@@ -15,11 +15,13 @@ if (!url || !key) {
   console.error('VITE_SUPABASE_URL と SUPABASE_SERVICE_ROLE_KEY が要る');
   process.exit(1);
 }
-// vercel env pull では「Sensitive」の変数が中身でなく [SENSITIVE] になる。そのまま Secrets に入れていたら、名前だけ出して止める
-const masked = ['VITE_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'ANTHROPIC_API_KEY', 'RAKUTEN_APP_ID', 'RAKUTEN_ACCESS_KEY', 'RAKUTEN_AFFILIATE_ID', 'YAHOO_APP_ID', 'YAHOO_VC_AFFILIATE_ID']
-  .filter((k) => process.env[k] === '[SENSITIVE]');
-if (masked.length) {
-  console.error('Secrets に本物の値が入っていない:', masked.join(', '));
+// vercel env pull では「Sensitive」の変数が中身でなく [SENSITIVE] になる。そのまま Secrets に入っていたら無いものとして扱う。
+// 楽天・Yahoo! のキーは無くても動く（店のリンク探しを飛ばすだけ。毎日の refresh-offers が Vercel で補う）。
+// Supabase と Anthropic のキーは要るので、無ければ名前を出して止める
+for (const k of Object.keys(process.env)) if (process.env[k] === '[SENSITIVE]') delete process.env[k];
+const missing = ['SUPABASE_SERVICE_ROLE_KEY', 'ANTHROPIC_API_KEY'].filter((k) => !process.env[k]);
+if (missing.length) {
+  console.error('Secrets に本物の値が入っていない:', missing.join(', '));
   process.exit(1);
 }
 const client = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
