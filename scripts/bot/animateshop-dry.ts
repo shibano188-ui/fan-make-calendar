@@ -10,7 +10,9 @@ const ps = ((await r.json()) as { products: any[] }).products;
 const items = animateShopItems(ps, new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10));
 console.log('items', items.length, 'of', ps.length);
 let hit = 0;
-for (const it of items.slice(0, 25)) {
+const known = ['4580892209959', '4550621825613', '4580838905907', '4904790915857', '4550687296358', '4580831922192', '4550621826481'].map((j) => ({ j, d: '-', l: null }));
+const rest = items.filter((x) => !x.j.startsWith('457019450'));
+for (const it of [...known, ...rest.slice(0, 18)]) {
   await new Promise((res) => setTimeout(res, 1100));
   const hits = await searchByJan(it.j);
   if (hits.length) hit++;
