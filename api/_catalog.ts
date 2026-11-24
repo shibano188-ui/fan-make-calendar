@@ -10,7 +10,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { excludeRegistered, fetchProductList, type ListProduct, type ProductList } from './_listsource.js';
 import { botCanFetch } from './_pace.js';
-import { listEvents, detectWork, type ListEvent } from './_listgroup.js';
+import { listEvents, detectWork, groupProducts, type ListEvent } from './_listgroup.js';
+import { representativePrice, type OfferRow } from './_offers.js';
 import { parseMovicList, lookupByUrl, parseReleaseText, searchByJan, searchYahooPage, stripShopNoise, isUsedTitle, type Candidate } from './_product-search.js';
 import { registerEvents, resolveWork, followedWorkId, workKey } from './_crawl.js';
 
@@ -734,6 +735,43 @@ async function animateShopPage(page: number): Promise<{ published_at: string }[]
   return Array.isArray(body?.products) ? body.products : null;
 }
 
+/** 前の回に入れた予定（同じ作品・同じ店・同じ発売日・30日以内に登録）と、キャラ違い・サイズ違いとして1つにまとまるなら、そこへ足す。
+ *  前の予定の商品名は「見出し＋違いの部分（label）」で組み立て直す。違いが名前の途中にあるもの（「クリアファイル（うさぎ）」）は
+ *  組み立て直せずまとまらないが、そのときは今までどおり別の予定になるだけ（混ぜるより分ける） */
+async function mergeIntoSibling(db: Db, wid: string, e: ListEvent): Promise<boolean> {
+  const first = e.offers[0];
+  if (!e.date || !first || e.items.length !== e.offers.length) return false;
+  const { data } = await db.from('events').select('id, title, offers, price, image_url')
+    .eq('work_id', wid).eq('pool', 0).eq('event_date', e.date)
+    .gte('created_at', new Date(Date.now() - 30 * 86400_000).toISOString()).limit(100);
+  for (const row of data ?? []) {
+    const offers = (Array.isArray(row.offers) ? row.offers : []) as OfferRow[];
+    if (!offers.length || !offers.every((o) => o.retailer === first.retailer && o.shop === first.shop)) continue;
+    const labeled = offers.filter((o) => o.label).length;
+    if (labeled && labeled !== offers.length) continue;
+    const title = String(row.title ?? '');
+    const product = (t: string, url: string, price: number | undefined): ListProduct =>
+      ({ title: t, url, price: price ?? 0, image: '', images: [], release: { date: e.date!, dateLabel: null } });
+    // 違いの部分は「〜 S」のように空白の後ろか、「〜(エレン)」のように括弧の中だった（括弧は label に残らない）
+    const groups = [(l: string) => `${title} ${l}`, (l: string) => `${title}(${l})`].map((name) => groupProducts([
+      ...offers.map((o) => product(labeled ? name(o.label!) : title, o.url, o.price)),
+      ...e.items.map((it, k) => product(it.title, e.offers[k].url, e.offers[k].price)),
+    ])).find((g) => g.length === 1);
+    if (!groups) continue;
+    const label = new Map(groups[0].items.map(({ p, label: l }) => [p.url, l]));
+    const next = [...offers, ...(e.offers as OfferRow[])].map((o) => ({ ...o, label: label.get(o.url) || o.label }));
+    const images = (() => { try { const v = JSON.parse(String(row.image_url)); return Array.isArray(v) ? v as string[] : [String(row.image_url)]; } catch { return row.image_url ? [String(row.image_url)] : []; } })();
+    const add = (() => { try { const v = JSON.parse(String(e.imageUrl)); return Array.isArray(v) ? v as string[] : [String(e.imageUrl)]; } catch { return e.imageUrl ? [e.imageUrl] : []; } })();
+    const all = [...new Set([...images, ...add])].slice(0, 10);
+    const { error } = await db.from('events').update({
+      title: groups[0].title, offers: next, price: representativePrice(next, (row.price as number | null) ?? null, false),
+      image_url: all.length === 0 ? null : all.length === 1 ? all[0] : JSON.stringify(all),
+    }).eq('id', row.id);
+    if (!error) return true;
+  }
+  return false;
+}
+
 /** JANコードで引いた商品を、作品と店ごとにまとめて登録する（同じ店のキャラ違いは1つの予定にまとまる）。
  *  c（店に出た日時）が1週間より前の商品は、その日を登録日にして新着に並べない */
 type JanFound = { work: string; hit: Candidate; p: ListProduct; c: string };
@@ -758,8 +796,13 @@ async function registerJanItems(db: Db, authorId: string, found: JanFound[]): Pr
       const c = e.offers.map((o) => byUrl.get(o.url)?.c).filter((x): x is string => !!x).sort()[0];
       return c && age(c) > 7 ? new Date(c).toISOString() : null;
     };
+    // 1回に12件ずつ引くので、同じシリーズのキャラ違い・サイズ違いが回をまたぐ。前の回に入れた予定にまとめられるものはまとめる
+    const rest: ListEvent[] = [];
+    for (const e of events) {
+      if (await mergeIntoSibling(db, wid, e)) merged++; else rest.push(e);
+    }
     // 同じ商品は registerEvents が JANコードで見分ける。作品の予定を全部読む（rows）と転送量が増えるので渡さない
-    const r = await registerEvents(db, wid, events, [], authorId, null, null, created);
+    const r = await registerEvents(db, wid, rest, [], authorId, null, null, created);
     added += r.added; merged += r.merged;
   }
   return { added, merged };
