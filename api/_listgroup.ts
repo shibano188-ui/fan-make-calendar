@@ -16,7 +16,7 @@ const ITEM_WORDS = [
   'ブロマイド', 'カード', '色紙', 'タペストリー', 'ポスター', 'クッション', 'ブランケット', 'タオル', 'ハンカチ',
   'ランチョンマット', 'ポーチ', 'バッグ', 'トート', '巾着', 'マグカップ', 'グラス', 'タンブラー', '湯呑', '茶碗',
   'プレート', '箸置き', 'おちょこ', 'とっくり', 'コースター', 'お守り', 'マグネット', 'のぼり', 'メモ', 'ノート',
-  'ボールペン', '下敷き', 'カレンダー', 'Tシャツ', 'パーカー', 'キャップ', 'ソックス', '靴下', 'ルームシューズ',
+  'ボールペン', '下敷き', 'カレンダー', 'Tシャツ', 'パーカー', 'スウェット', 'トレーナー', 'ジャージ', 'キャップ', 'ソックス', '靴下', 'ルームシューズ',
   'ミラー', '手ぬぐい', 'スタンド', 'パネル', 'ぬい',
 ].map((w) => w.normalize('NFKC').toLowerCase()).sort((a, b) => b.length - a.length);
 const itemWordIn = (s: string) => ITEM_WORDS.find((w) => s.toLowerCase().includes(w)) ?? null;
@@ -32,7 +32,7 @@ const CATEGORY_RULES: [string, RegExp][] = [
   ['アクスタ', /アクリルスタンド|アクスタ|スタンド/], ['缶バッジ', /缶バッ|バッジ/],
   ['キーホルダー', /キーホルダー|アクキー|キーリング|チャーム|ストラップ/], ['文房具', /カレンダー|手帳/], ['ステッカー', /ステッカー|シール/],
   ['カード', /カード|ブロマイド|色紙/], ['文房具', /ファイル|ボールペン|ノート|メモ|下敷き|文具|ペンケース/],
-  ['アパレル', /tシャツ|パーカー|キャップ|ソックス|靴下|ルームシューズ/i],
+  ['アパレル', /tシャツ|パーカー|スウェット|トレーナー|ジャージ|キャップ|ソックス|靴下|ルームシューズ/i],
   ['ガジェット', /イヤホン|充電|スマホケース|モバイルバッテリー/],
 ];
 export const categoryOf = (title: string) => CATEGORY_RULES.find(([, re]) => re.test(title))?.[0] ?? '雑貨';
@@ -46,6 +46,8 @@ const OPEN = /[(（]$/;
 const CLOSE = /^[)）]/;
 // 弾・期・vol の違いは別の商品（発売も別）。キャラ違いとしてまとめない
 const SERIES_NO = /第\s*[\d一二三四五六七八九十]+\s*[弾期]|vol\.?\s*\d|part\.?\s*\d|シーズン\s*\d/i;
+// 服のサイズ違い（「アッシュ S」「アッシュ XXL」「XLサイズ」）。大きいサイズは値段が上がることがあるので、値段が違ってもまとめる
+const SIZE_LABEL = /^(?:XS|S|M|L|X{1,3}L|\dXL|F|フリー)(?:サイズ)?$/i;
 
 /** 切り出しで片方だけ残った括弧を閉じる（「五条悟(戎橋」→「五条悟(戎橋)」） */
 const PAIRS: [string, string][] = [['(', ')'], ['【', '】'], ['「', '」'], ['『', '』'], ['<', '>']];
@@ -102,10 +104,12 @@ export function groupProducts(products: ListProduct[]): ProductGroup[] {
   const samePrice = (a: ListProduct, b: ListProduct) => a.price === b.price;
   for (let i = 0; i < products.length; i++) {
     for (let j = i + 1; j < products.length; j++) {
-      if (find(i) === find(j) || !sameRelease(products[i], products[j]) || !samePrice(products[i], products[j])) continue;
+      if (find(i) === find(j)) continue;
       // コミック・書籍は絶対にまとめない（巻・版の違いを1件にするとおかしくなる。本人指摘・2026-09-27）
       if (isBook(products[i].title) || isBook(products[j].title)) continue;
-      if (variantLabels([names[i], names[j]])) parent[find(j)] = find(i);
+      if (!sameRelease(products[i], products[j])) continue;
+      const labels = variantLabels([names[i], names[j]]);
+      if (labels && (samePrice(products[i], products[j]) || labels.every((l) => SIZE_LABEL.test(l)))) parent[find(j)] = find(i);
     }
   }
   const members = new Map<number, number[]>();
