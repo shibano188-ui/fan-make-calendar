@@ -32,7 +32,8 @@ import PendingProposals, { samePatch } from '../components/item/PendingProposals
 import LineLoader from '../components/ui/LineLoader';
 import UserProfileModal from '../components/UserProfileModal';
 import { useConfirm } from '../components/ui/ConfirmDialog';
-import { usePremium, canFollowMore, FREE_FOLLOW_LIMIT, useFeature, isPreorderSoon } from '../lib/premium';
+import { useFeature, isPreorderSoon } from '../lib/premium';
+import { useFollowGate } from '../hooks/useFollowGate';
 import PromoLine from '../components/ui/PromoLine';
 import { countdownLabel } from '../lib/relativeDay';
 import GetAppSheet, { openAppHref } from '../components/item/GetAppSheet';
@@ -115,7 +116,7 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
     getMyStaffRole(user.id).then((r) => { if (alive) setIsStaff(r === 'admin'); }).catch(() => {});
     return () => { alive = false; };
   }, [user]);
-  const premium = usePremium();
+  const followGate = useFollowGate();
   const instantAlerts = useFeature('instantAlerts');
   const [following, setFollowing] = useState(false);
   const [followCount, setFollowCount] = useState(0);
@@ -242,10 +243,7 @@ export default function ItemDetail({ shared = false }: { shared?: boolean }) {
   const onFollow = async () => {
     if (!user || !event.workId) return;
     // 解除は常に可。追加だけ無料プランの上限で止める（今フォロー中のものは取り上げない）
-    if (!following && !canFollowMore(followCount, premium)) {
-      toast(`フォローは${FREE_FOLLOW_LIMIT}作品までです。今フォロー中の作品はそのまま使えます`);
-      return;
-    }
+    if (!following && await followGate(followCount)) return;
     haptic.select();
     const prev = following;
     setFollowing(!prev);

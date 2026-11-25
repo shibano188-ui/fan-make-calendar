@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { X, Search, Plus, Check } from 'lucide-react';
 import Sheet from './ui/Sheet';
 import { logSearch } from '../lib/dataLogs';
@@ -11,7 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from './ui/Toast';
 import { useConfirm } from './ui/ConfirmDialog';
 import { haptic } from '../lib/haptics';
-import { usePremium, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
+import { useFollowGate } from '../hooks/useFollowGate';
 
 interface Props {
   open: boolean;
@@ -27,26 +26,15 @@ export default function WorkFollowSheet({ open, onClose, onChanged, onPick }: Pr
   const { user } = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
-  const navigate = useNavigate();
   const [follows, setFollows] = useState<Work[]>([]);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Work[] | null>(null);
   // 表記ゆれ辞書からの正式名候補
   const [masterNames, setMasterNames] = useState<string[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const premium = usePremium();
-  // 上限に達していたら新規フォローだけ止める。**今フォロー中のものは触らない**（不利益変更にしない）。
-  // 止めるだけで終わらせず、その場でプレミアムの案内へ送る（欲しいと思った瞬間が一番効く）
-  const blocked = async () => {
-    if (canFollowMore(follows.length, premium)) return false;
-    const go = await confirm({
-      title: `フォローは${FREE_FOLLOW_LIMIT}作品までです`,
-      message: 'プレミアムなら作品を無制限にフォローできます。今フォロー中の作品はそのまま使えます。',
-      confirmLabel: 'プレミアムを見る',
-    });
-    if (go) navigate('/premium');
-    return true;
-  };
+  // 上限に達していたら新規フォローだけ止めて、プレミアムの案内へ送る（hooks/useFollowGate.ts）
+  const gate = useFollowGate();
+  const blocked = () => gate(follows.length);
 
   const fkey = user ? `follows:${user.id}` : '';
   const syncCache = (ws: Work[]) => { if (fkey) setCached(fkey, ws); };

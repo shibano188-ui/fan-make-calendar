@@ -52,10 +52,33 @@ export const PREMIUM_FEATURES = {
 export type PremiumFeature = keyof typeof PREMIUM_FEATURES;
 
 /** 無料プランでフォローできる作品数。
- *  2026-07-26時点の実データは 最大4作品・中央値2・作品マスタ13件なので、5なら**誰も引っかからない**。
- *  作品が増えてから締める前提で、数字はここ1つだけを変える。
- *  **既に上限を超えている人からは絶対に取り上げない**（追加が止まるだけ）。不利益変更にしないため。 */
-export const FREE_FOLLOW_LIMIT = 5;
+ *  2026-11-26 柴野: これから入る人は1作品まで。それより前にアカウントを作った人は5作品のまま
+ *  （直近30日に開いた人のうち、2作品以上フォローしているのは34人。今いる人の使い方は変えない）。
+ *  **既に上限を超えている人からは絶対に取り上げない**（追加が止まるだけ）。不利益変更にしないため。
+ *  数字はここだけを変える。画面の文言は freeFollowLimit() から作る */
+export const FREE_FOLLOW_LIMIT_LEGACY = 5;
+export const FREE_FOLLOW_LIMIT_NEW = 1;
+/** この時刻以降に作られたアカウントが FREE_FOLLOW_LIMIT_NEW になる */
+const FOLLOW_LIMIT_SINCE = Date.parse('2026-11-27T00:00:00+09:00');
+
+// 今のアカウントがいつ作られたか。AuthContext がログインのたびに入れる。
+// 分からないときは今いる人として扱う（取り上げる側に倒さない）
+let accountCreatedAt: number | null = null;
+
+export function setFollowLimitAccount(createdAt: string | null | undefined): void {
+  const t = createdAt ? Date.parse(createdAt) : NaN;
+  accountCreatedAt = Number.isNaN(t) ? null : t;
+}
+
+/** 今のアカウントが無料でフォローできる作品数 */
+export function freeFollowLimit(): number {
+  return accountCreatedAt !== null && accountCreatedAt >= FOLLOW_LIMIT_SINCE ? FREE_FOLLOW_LIMIT_NEW : FREE_FOLLOW_LIMIT_LEGACY;
+}
+
+/** 上限に当たったときの見出し */
+export function followLimitTitle(): string {
+  return `無料プランのフォローは${freeFollowLimit()}作品までです`;
+}
 
 /** 案内画面に出す並び順。効き目の大きい順に置く（上から読まれて途中でやめられる前提）。
  *  PREMIUM_FEATURES に足したらここにも足す（漏れると案内に出ない）。 */
@@ -65,20 +88,20 @@ export const PREMIUM_FEATURE_ORDER: PremiumFeature[] = [
 ];
 
 /** 案内画面に出す一行説明。使う人の言葉で書く（機能名だけでは何が嬉しいか伝わらない）。
- *  FREE_FOLLOW_LIMIT を参照するので、この定義より後ろに置くこと。 */
+ */
 export const PREMIUM_FEATURE_NOTES: Record<PremiumFeature, string> = {
   instantAlerts: 'いいねしたグッズの予約受付が始まった瞬間と、締切の直前に届きます。無料プランは、ベルを押した予定を前もって・当日の朝にお知らせします。',
   priceAlerts: 'いいねしたグッズが過去の最安値を更新したとき、売り切れから在庫が戻ったときに知らせます。',
   newEventDigest: 'フォロー中の作品に予定が追加されたら、朝を待たずにホームで見られます。通知も「すぐ」「1日3回」から、作品ごとに選べます。無料プランは毎朝9時です。',
   noAds: 'アプリの下に出る広告が消えます。',
   calendarAutoSync: 'いいねした予定と自分の投稿が、Apple・Google・Outlookのカレンダーに自動で入ります。',
-  unlimitedFollow: `フォローできる作品の数が無制限になります（無料プランは${FREE_FOLLOW_LIMIT}作品まで）。`,
+  unlimitedFollow: 'フォローできる作品の数が無制限になります。',
   themes: '好きな雰囲気を言葉で伝えると、色・形・書体をまとめて作ります。作ったテーマを何個でも保存して切り替えられます（無料プランは1つまで）。',
 };
 
 /** もう1作品フォローできるか。`count` は今フォローしている数。 */
 export function canFollowMore(count: number, premium: boolean): boolean {
-  return premium || count < FREE_FOLLOW_LIMIT;
+  return premium || count < freeFollowLimit();
 }
 
 /** 課金が有効か。'grace'（支払い猶予中）は使わせ続ける＝解約ではないため。 */

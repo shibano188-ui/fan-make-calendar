@@ -6,7 +6,7 @@ import { resolveWorkName, sameWorkName } from '../lib/workName';
 import { getMyStaffRole, getPersonalEvent, createPersonalEvent, updatePersonalEvent, deletePersonalEvent, searchWorks, getOrCreateWork, createEvents, addEventSchedules, toggleLike, upsertParticipation, findDuplicateEvents, findDuplicatesByTitleGlobal, distinguishSameNameByPlace, isOtherPlaceMatch, listAllParticipatedWorks, type Work } from '../lib/api';
 import { serializeCategories, parseCategories, parseImageUrls, serializeImageUrls, GOODS_SUBCATEGORIES, GOODS_TAG, ONBOARDING_DEMO_KEY } from '../lib/constants';
 import { DEMO_POST_TEXT } from '../lib/demoPost';
-import { isPremiumCached, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
+import { isPremiumCached, canFollowMore, freeFollowLimit } from '../lib/premium';
 import { affiliatize, buildOffer, primaryOffer, isAffiliateUrl, offerUrl, isNoiseLink } from '../lib/affiliate';
 import { parseEventsApiWithMeta, verifyAgainstPost, type ParsedEvent, type ListMeta } from '../lib/parseEvents';
 import { logAiExtraction, logSearch } from '../lib/dataLogs';
@@ -859,7 +859,7 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
   // 投稿できるのはフォローしている作品か、今フォローできる作品だけ（柴野の判断・2026-09-27）。
   // フォローしていない作品に投稿できると、投稿した予定が「探す」に出ず、フォローの意味も薄れるため。
   // フォローできる（上限に空きがある）なら、投稿と一緒にフォローする（下の onSubmit・bulkPost）
-  const FOLLOW_TO_POST = `フォローしている作品にだけ投稿できます。フォローは${FREE_FOLLOW_LIMIT}作品までなので、フォロー中の作品を外すか、プレミアムで増やしてください`;
+  const FOLLOW_TO_POST = `フォローしている作品にだけ投稿できます。無料プランのフォローは${freeFollowLimit()}作品までなので、フォロー中の作品を外すか、プレミアムで増やしてください`;
   const canPostTo = (follows: Work[], id: string | null, name: string) =>
     follows.some((w) => (id ? w.id === id : sameWorkName(w.name, name))) || canFollowMore(follows.length, isPremiumCached());
 
@@ -1030,7 +1030,7 @@ export default function PostNew({ personal = false }: { personal?: boolean } = {
       forgetShare();
       // 黙って増えないと「なぜフォローされていないのか」が分からないので、そのときだけ伝える
       toast(followSkipped
-        ? `投稿しました（フォローは${FREE_FOLLOW_LIMIT}作品までのため追加していません）`
+        ? `投稿しました（無料プランのフォローは${freeFollowLimit()}作品までのため追加していません）`
         : '投稿しました');
       setSaving(false);
       // 一覧から選んだ候補を投稿したときは、積んだ履歴の分も戻る

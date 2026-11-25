@@ -22,7 +22,8 @@ import { REGIONS, ADJACENT } from '../lib/prefectures';
 import { useAuth } from '../contexts/AuthContext';
 import { useHiddenContent } from '../hooks/useHiddenContent';
 import { haptic } from '../lib/haptics';
-import { usePremium, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
+import { usePremium } from '../lib/premium';
+import { useFollowGate } from '../hooks/useFollowGate';
 import { storySince, freeCutoff } from '../lib/story';
 import { useAdBanner } from '../lib/useAdBanner';
 import { useTourStep, finishTourNow } from '../components/OnboardingTour';
@@ -60,6 +61,7 @@ export default function Explore() {
   const { isHidden } = useHiddenContent(user?.id);
   const toast = useToast();
   const premium = usePremium();
+  const followGate = useFollowGate();
   // 作品・状態・カテゴリ・地域・近くの は、ホーム・探す・カレンダーで共通（lib/sharedFilters.ts）
   const _sf = loadSharedFilters();
   const _ss = loadExploreSession();
@@ -294,10 +296,7 @@ export default function Explore() {
     if (!user) return;
     const has = followed.has(w.id);
     // 解除は常に可。追加だけ無料プランの上限で止める（今フォロー中のものは取り上げない）
-    if (!has && !canFollowMore(followed.size, premium)) {
-      toast(`フォローは${FREE_FOLLOW_LIMIT}作品までです。今フォロー中の作品はそのまま使えます`);
-      return;
-    }
+    if (!has && await followGate(followed.size)) return;
     haptic.select();
     setFollowed((prev) => { const n = new Set(prev); has ? n.delete(w.id) : n.add(w.id); return n; });
     setFollowedWorks((prev) => has ? prev.filter((x) => x.id !== w.id) : [...prev, w]);
