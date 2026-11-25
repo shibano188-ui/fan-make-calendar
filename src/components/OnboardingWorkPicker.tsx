@@ -9,7 +9,7 @@ import { loadPickerCandidates, loadFeaturedWorks } from '../lib/onboardingPreloa
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from './ui/Toast';
 import { haptic } from '../lib/haptics';
-import { usePremium, canFollowMore, FREE_FOLLOW_LIMIT } from '../lib/premium';
+import { usePremium, canFollowMore, freeFollowLimit } from '../lib/premium';
 import { FOLLOWS_EVENT } from '../lib/constants';
 
 // オンボーディングの1枚目: 推しの作品を選ぶ。
@@ -174,7 +174,7 @@ export default function OnboardingWorkPicker({ onCountChange, onRequested }: Pro
       </div>
 
       {!canAdd && (
-        <p className="mt-2 text-[12px] text-label-tertiary text-center">フォローは{FREE_FOLLOW_LIMIT}作品までです（プレミアムで増やせます）</p>
+        <p className="mt-2 text-[12px] text-label-tertiary text-center">無料プランのフォローは{freeFollowLimit()}作品までです（プレミアムで増やせます）</p>
       )}
 
       {searching ? (

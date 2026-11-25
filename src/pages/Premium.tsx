@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
-import { X } from 'lucide-react';
+import { X, Bell, TrendingDown, Sparkles, CalendarSync, Palette, ChevronDown } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { usePremium, FREE_FOLLOW_LIMIT } from '../lib/premium';
+import { usePremium, freeFollowLimit } from '../lib/premium';
 import { PLANS, planOf, trialAvailable, billingSupported, billingNotConfigured, startPurchase, restorePurchase, lastPurchaseError, yen, type PlanId } from '../lib/billing';
 import { useToast } from '../components/ui/Toast';
 import { haptic } from '../lib/haptics';
+import { HeroArt, FollowArt, NoAdsArt } from '../components/premium/PremiumArt';
 
 // プレミアムの案内＝購入画面。設計は [[fanhive-paywall-design]]。
 //
@@ -60,8 +61,14 @@ export default function Premium() {
   const selected = planOf(plan);
   const shown = allPlans ? PLANS : PLANS.filter((p) => p.id === plan);
 
-  const headline = '推し活を、もっと便利に';
-  const subline = 'プレミアムプランに加入すると以下の機能が使えます';
+  // 2026-11-26 柴野: 機能を全部並べた表は文字が多すぎて圧倒される。主役は「フォロー無制限」と「広告なし」の2つにして、
+  // 絵つきで大きく見せる。ほかの機能は1行ずつ小さく並べ、無料との細かい差は「無料と比べる」の下に畳む
+  const [params] = useSearchParams();
+  const fromFollow = params.get('from') === 'follow';
+  const [compare, setCompare] = useState(false);
+  const limit = freeFollowLimit();
+  const headline = fromFollow ? '推しを、いくつでも。' : '推し活を、もっと自由に。';
+  const subline = 'プレミアムなら、フォローの上限と広告がなくなります';
 
   const onBuy = async () => {
     haptic.select();
@@ -117,17 +124,25 @@ export default function Premium() {
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--bg-primary)' }}>
       <div className="mx-auto w-full max-w-app flex-1 flex flex-col">
-        <div className="flex items-center px-2 py-2" style={{ paddingTop: 'calc(var(--sat) + 8px)' }}>
-          <button onClick={() => { haptic.select(); close(); }} aria-label="閉じる" className="pressable tap-44 p-2">
-            <X size={22} />
-          </button>
+        {/* 上の絵の帯。はちみつ色をうっすら敷いて、閉じるボタンもこの上に置く */}
+        <div className="relative pb-1" style={{ background: 'linear-gradient(180deg, color-mix(in srgb, #FBC000 22%, var(--bg-primary)) 0%, var(--bg-primary) 100%)' }}>
+          <div className="flex items-center px-2 py-2" style={{ paddingTop: 'calc(var(--sat) + 8px)' }}>
+            <button onClick={() => { haptic.select(); close(); }} aria-label="閉じる" className="pressable tap-44 p-2">
+              <X size={22} />
+            </button>
+          </div>
+          <div className="mx-auto max-w-[280px] px-4 -mt-6">
+            <HeroArt />
+          </div>
+          <div className="px-5 text-center">
+            <p className="text-[11px] font-bold tracking-[0.2em]" style={{ color: 'var(--accent-text)' }}>FANHIVE PREMIUM</p>
+            <h1 className="text-[26px] font-bold leading-tight mt-1">{headline}</h1>
+            {!premium && <p className="text-[13px] text-label-secondary mt-2 leading-relaxed">{subline}</p>}
+          </div>
         </div>
 
         {/* 購入ボタンはプランのすぐ下に置く。本文を flex-1 で伸ばすと、画面の一番下まで押し下げられて見つけにくい（2026-09-29 柴野） */}
         <div className="px-5 pb-4">
-          <h1 className="text-[24px] font-bold leading-tight">{headline}</h1>
-          <p className="text-[13px] text-label-secondary mt-2 leading-relaxed">{subline}</p>
-
           {premium ? (
             <div className="mt-6 border-t border-subtle pt-4">
               <p className="text-[15px] font-semibold">プレミアムを利用中です</p>
@@ -144,35 +159,75 @@ export default function Premium() {
             </div>
           ) : (
             <>
-              {/* 無料との差。上から効き目の大きい順に並べる（下ほど読まれない） */}
-              <div className="mt-6">
-                <div className="flex text-[11px] text-label-tertiary pb-1.5 border-b border-subtle">
-                  <span className="flex-1" />
-                  <span className="w-[80px] text-center">無料</span>
-                  <span className="w-[82px] text-center font-semibold" style={{ color: 'var(--accent-text)' }}>プレミアム</span>
-                </div>
+              {/* 主役の2つ。絵と大きな文字だけで伝える */}
+              <div className="mt-5 grid grid-cols-2 gap-2.5">
                 {[
-                  // 2026-10-05 に今の動きに合わせて直した（前は「翌朝まとめて」と書いていたが、無料の人に届くのは
-                  // ベルを押した予定の当日の朝の通知だけ）。新着の行を足した（無料は毎朝9時、プレミアムはすぐ・作品ごとに選べる）
-                  ['受付開始のお知らせ', '当日の朝', '始まった瞬間'],
-                  ['新着のお知らせ', '毎朝9時', 'すぐ・選べる'],
-                  ['値下げ・再入荷', 'なし', 'お知らせ'],
-                  // 言葉から作るテーマ（2026-08-23）。無料でも作れるが、保存は1つまで
-                  ['作れるテーマ', '1つまで', '何個でも'],
-                  ['テーマを作れる回数', '1日3回', '1日20回'],
-                  // 無料は「手動」ではなく「できない」。1件ずつ追加する導線は
-                  // ItemDetail の EXTERNAL_CALENDAR_ENABLED=false で今は出していない
-                  ['外部カレンダー連携', 'できない', '自動で同期'],
-                  ['フォローできる作品', `${FREE_FOLLOW_LIMIT}作品まで`, '無制限'],
-                  ['広告', '表示', '非表示'],
-                ].map(([label, free, paid]) => (
-                  <div key={label} className="flex items-center py-2.5 border-b border-subtle">
-                    <span className="flex-1 text-[13px]">{label}</span>
-                    <span className="w-[80px] text-center text-[12px] text-label-tertiary">{free}</span>
-                    <span className="w-[82px] text-center text-[12px] font-semibold">{paid}</span>
+                  { art: <FollowArt />, big: 'フォロー無制限', small: `無料は${limit}作品まで` },
+                  { art: <NoAdsArt />, big: '広告なし', small: '画面の下の広告が消えます' },
+                ].map((b) => (
+                  <div key={b.big} className="rounded-[16px] px-3 pt-3 pb-3.5" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                    {b.art}
+                    <p className="text-[16px] font-bold mt-2 leading-tight">{b.big}</p>
+                    <p className="text-[11px] text-label-secondary mt-1">{b.small}</p>
                   </div>
                 ))}
               </div>
+
+              {/* ほかにも。1行ずつ、言い切りで */}
+              <p className="text-[12px] font-semibold text-label-secondary mt-5 mb-1">ほかにも</p>
+              <div className="grid grid-cols-1 gap-y-1">
+                {[
+                  { icon: Bell, text: '予約の受付が始まった瞬間にお知らせ' },
+                  { icon: TrendingDown, text: '値下げ・再入荷をお知らせ' },
+                  { icon: Sparkles, text: 'フォロー作品の新着をすぐ見られる' },
+                  { icon: CalendarSync, text: 'いつものカレンダーに自動で同期' },
+                  { icon: Palette, text: '作ったテーマを何個でも保存' },
+                ].map(({ icon: Icon, text }) => (
+                  <div key={text} className="flex items-center gap-2.5 py-1">
+                    <span className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: 'color-mix(in srgb, #FBC000 22%, var(--bg-primary))' }}>
+                      <Icon size={15} style={{ color: 'var(--label-primary)' }} />
+                    </span>
+                    <span className="text-[13px]">{text}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* 無料との細かい差。読みたい人だけ開く */}
+              <button onClick={() => { haptic.select(); setCompare((v) => !v); }} aria-expanded={compare}
+                className="pressable mt-2 flex items-center gap-1 text-[12px] text-label-secondary py-1">
+                無料と比べる
+                <ChevronDown size={14} style={{ transform: compare ? 'rotate(180deg)' : undefined, transition: 'transform 0.2s' }} />
+              </button>
+              {compare && (
+                <div className="mt-1">
+                  <div className="flex text-[11px] text-label-tertiary pb-1.5 border-b border-subtle">
+                    <span className="flex-1" />
+                    <span className="w-[80px] text-center">無料</span>
+                    <span className="w-[82px] text-center font-semibold" style={{ color: 'var(--accent-text)' }}>プレミアム</span>
+                  </div>
+                  {[
+                    // 2026-10-05 に今の動きに合わせて直した（無料の人に届くのは、ベルを押した予定の当日の朝の通知だけ）
+                    ['フォローできる作品', `${limit}作品まで`, '無制限'],
+                    ['広告', '表示', '非表示'],
+                    ['受付開始のお知らせ', '当日の朝', '始まった瞬間'],
+                    ['新着のお知らせ', '毎朝9時', 'すぐ・選べる'],
+                    ['値下げ・再入荷', 'なし', 'お知らせ'],
+                    // 言葉から作るテーマ（2026-08-23）。無料でも作れるが、保存は1つまで
+                    ['作れるテーマ', '1つまで', '何個でも'],
+                    ['テーマを作れる回数', '1日3回', '1日20回'],
+                    // 無料は「手動」ではなく「できない」。1件ずつ追加する導線は
+                    // ItemDetail の EXTERNAL_CALENDAR_ENABLED=false で今は出していない
+                    ['外部カレンダー連携', 'できない', '自動で同期'],
+                  ].map(([label, free, paid]) => (
+                    <div key={label} className="flex items-center py-2.5 border-b border-subtle">
+                      <span className="flex-1 text-[13px]">{label}</span>
+                      <span className="w-[80px] text-center text-[12px] text-label-tertiary">{free}</span>
+                      <span className="w-[82px] text-center text-[12px] font-semibold">{paid}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* プラン。既定は年払いだけ見せ、月払いは「すべてのプランを見る」の裏に置く */}
               <div className="mt-5 flex flex-col gap-2">
@@ -217,7 +272,9 @@ export default function Premium() {
 
         {/* 購入。金額・期間と規約はボタンのすぐ下に置く（別画面に逃がすと審査で落ちる） */}
         {!premium && (
-          <div className="px-5 pt-2" style={{ paddingBottom: 'max(16px, var(--sab))' }}>
+          // 下に貼りつける。絵を足して縦に長くなったので、どこまで読んでもボタンと金額が見えているようにする
+          <div className="sticky bottom-0 px-5 pt-3 border-t border-subtle"
+            style={{ paddingBottom: 'max(16px, var(--sab))', backgroundColor: 'var(--bg-primary)' }}>
             <button onClick={onBuy} disabled={busy}
               className="pressable w-full py-3.5 rounded-full text-[15px] font-bold disabled:opacity-50"
               style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>

@@ -4,7 +4,7 @@ import { Capacitor } from '@capacitor/core';
 import { supabase } from '../lib/supabase';
 import { setAppStateUser, setAppStateSync, syncAppState } from '../lib/appState';
 import { setStampUser } from '../lib/stampStore';
-import { refreshPremium, clearPremium } from '../lib/premium';
+import { refreshPremium, clearPremium, setFollowLimitAccount } from '../lib/premium';
 import { configureBilling } from '../lib/billing';
 import { IS_AUTOMATED, setScreenLogUser } from '../lib/screenLog';
 import { setAcquisitionUser } from '../lib/acquisition';
@@ -67,6 +67,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ]);
       }
       if (cancelled) return;
+      // 無料のフォロー上限はアカウントを作った日で変わる。画面が user を見る前に入れる
+      setFollowLimitAccount(u.created_at);
       setUser(u);
       setLoading(false);
       // 課金SDKのユーザーIDを Supabase の user_id に合わせる。
@@ -105,6 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         setLoading(false);
         clearPremium();       // 別アカウントに有料状態を持ち越さない
+        setFollowLimitAccount(null);
         setAppStateSync(false);
         setStampUser(null);
         setScreenLogUser(null);
