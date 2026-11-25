@@ -125,7 +125,7 @@ function SyncArt() {
   );
 }
 
-/** 7. AIのテーマを何個でも（保存は無制限・作れるのは1日20回なので「作り放題」とは書かない）: 言葉の吹き出しから、スマホの見た目が次々に変わる */
+/** 7. AIテーマを好きなだけ保存（保存は無制限・作れるのは1日20回なので「作り放題」「生成し放題」とは書かない）: 言葉の吹き出しから、スマホの見た目が次々に変わる */
 function ThemeArt() {
   const sw = ['#FFB74D', '#4FC3F7', '#BA68C8', '#81C784'];
   return (
@@ -158,7 +158,7 @@ export function PremiumSlides() {
     // 分かりにくい3つだけ、短い補足を1行（2026-11-26 柴野「そもそもどういうこと？ってなりそう」）
     { art: <NewArt />, line: '新着をすぐ見られる', note: '無料は毎朝9時にまとめて' },
     { art: <SyncArt />, line: 'いつものカレンダーに自動で', note: 'Apple・Google・Outlook と同期' },
-    { art: <ThemeArt />, line: 'AIのテーマを何個でも', note: '言葉で伝えると、アプリの見た目をAIが作ります' },
+    { art: <ThemeArt />, line: 'AIテーマを好きなだけ保存', note: '言葉で伝えると、アプリの見た目をAIが作ります（1日20回）' },
   ];
   const [at, setAt] = useState(0);
   const boxRef = useRef<HTMLDivElement>(null);
