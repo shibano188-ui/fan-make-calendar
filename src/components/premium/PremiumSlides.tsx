@@ -130,12 +130,17 @@ function ThemeArt() {
   const sw = ['#FFB74D', '#4FC3F7', '#BA68C8', '#81C784'];
   return (
     <svg viewBox="0 0 320 220" className="w-full h-full" aria-hidden="true">
-      <g>
-        <rect x="14" y="44" width="132" height="46" rx="14" fill="var(--bg-primary)" stroke="var(--label-primary)" strokeWidth="2.5" />
-        <path d="M110 89 l14 16 l-2 -17 z" fill="var(--bg-primary)" stroke="var(--label-primary)" strokeWidth="2.5" strokeLinejoin="round" />
-        <text x="80" y="73" textAnchor="middle" fontSize="15" fontWeight="700" fill="var(--label-primary)">夜の水族館</text>
-      </g>
-      <text x="150" y="132" fontSize="20" fill={HONEY} style={{ animation: 'pwRing 2.6s ease-in-out infinite', transformBox: 'fill-box', transformOrigin: 'center' }}>✦</text>
+      {/* 言葉の例を吹き出しで（2026-11-26 柴野「いくつか例を吹き出しに」） */}
+      {[['推しの色で', 18, 30], ['レトロゲーム風', 6, 86], ['パステルでかわいく', 18, 142]].map(([t, x, y], i) => {
+        const w = (t as string).length * 13 + 22;
+        return (
+          <g key={t as string} style={{ animation: `pwNew 2.6s ${(i * 0.25).toFixed(2)}s ease-out both`, }}>
+            <rect x={x as number} y={y as number} width={w} height="34" rx="12" fill="var(--bg-primary)" stroke="var(--label-primary)" strokeWidth="2" />
+            <text x={(x as number) + w / 2} y={(y as number) + 22} textAnchor="middle" fontSize="13" fontWeight="700" fill="var(--label-primary)">{t}</text>
+          </g>
+        );
+      })}
+      <text x="176" y="126" fontSize="20" fill={HONEY} style={{ animation: 'pwRing 2.6s ease-in-out infinite', transformBox: 'fill-box', transformOrigin: 'center' }}>✦</text>
       {sw.map((c, i) => (
         // 傾きは外の g、出てくる動きは中の rect に分ける（同じ要素に付けると CSS の動きが傾きを上書きする）
         <g key={i} transform={`rotate(${(i - 1.5) * 9} 236 240)`}>
@@ -156,9 +161,9 @@ export function PremiumSlides() {
     { art: <AlertArt />, line: '受付開始の瞬間に通知' },
     { art: <PriceArt />, line: '値下げ・再入荷も通知' },
     // 分かりにくい3つだけ、短い補足を1行（2026-11-26 柴野「そもそもどういうこと？ってなりそう」）
-    { art: <NewArt />, line: '新着をすぐ見られる', note: '無料は毎朝9時にまとめて' },
+    { art: <NewArt />, line: 'グッズやイベントの新着をすぐに確認' },
     { art: <SyncArt />, line: 'いつものカレンダーに自動で', note: 'Apple・Google・Outlook と同期' },
-    { art: <ThemeArt />, line: '推しのテーマを好きなだけ保存', note: '言葉で伝えると、アプリの見た目をAIが作ります（1日20回）' },
+    { art: <ThemeArt />, line: '推しのテーマを好きなだけ保存', note: 'アプリ全体の見た目を、あなたが伝えたイメージに合わせてAIが生成します' },
   ];
   const [at, setAt] = useState(0);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -184,7 +189,8 @@ export function PremiumSlides() {
         {slides.map((s) => (
           <div key={s.line} className="snap-center flex-shrink-0 w-full flex flex-col items-center px-6">
             <div className="w-full max-w-[320px] aspect-[32/22]">{s.art}</div>
-            <p className="text-[24px] font-extrabold mt-3 text-center leading-tight">{s.line}</p>
+            {/* 長い一言は少し小さくして1行に収める（スライドごとに高さが変わって絵が跳ねないように） */}
+            <p className={`${s.line.length > 14 ? 'text-[20px]' : 'text-[24px]'} font-extrabold mt-3 text-center leading-tight whitespace-nowrap`}>{s.line}</p>
             <p className="text-[12px] text-label-secondary mt-1.5 min-h-[32px] px-2 text-center leading-snug">{s.note ?? ''}</p>
           </div>
         ))}
