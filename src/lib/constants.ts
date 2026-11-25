@@ -16,6 +16,8 @@ export const DEFAULT_AVATAR = '🐝';
 export const SHOW_ONBOARDING = true;
 // 案内を見終わった印。バナー広告を伏せる判断（adSuppress.ts）でも読むのでここに置く
 export const ONBOARDING_KEY = 'fan_onboarding_done_v2';
+/** 課金の案内（/premium）を一度でも開いたか。前からの人にも、新しい案内を1回だけ見せるのに使う（2026-11-26 柴野） */
+export const PAYWALL_SEEN_KEY = 'fan_paywall_seen_v1';
 /** 初回オンボーディングのAI体験（/post?demo=1）をやり終えたか。
  *  投稿画面から戻ってきたときに、最後のカードを「自分の推しでやってみる」に切り替えるために使う。
  *  オンボーディングを閉じるときに一緒に消す。 */

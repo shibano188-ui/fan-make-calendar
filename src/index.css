@@ -294,7 +294,7 @@ body[data-tour-step] [data-bottom-nav] * {
   from { transform: scaleY(1); }
   to   { transform: scaleY(0.45); }
 }
-/* 課金の案内のスライド（components/premium/PremiumSlides.tsx）。どれも 3.2 秒で1回り */
+/* 課金の案内のスライド（components/premium/PremiumSlides.tsx）。どれも 2.6 秒で1回り */
 @keyframes pwPop {
   0%, 4%   { transform: scale(0); opacity: 0; }
   14%, 86% { transform: scale(1); opacity: 1; }

@@ -7,6 +7,7 @@ import { usePremium, freeFollowLimit } from '../lib/premium';
 import { PLANS, planOf, trialAvailable, billingSupported, billingNotConfigured, startPurchase, restorePurchase, lastPurchaseError, yen, type PlanId } from '../lib/billing';
 import { useToast } from '../components/ui/Toast';
 import { haptic } from '../lib/haptics';
+import { PAYWALL_SEEN_KEY } from '../lib/constants';
 import { PremiumSlides } from '../components/premium/PremiumSlides';
 import Sheet from '../components/ui/Sheet';
 
@@ -47,6 +48,8 @@ export default function Premium() {
 
   // 開いたら一番上から。前の画面（マイページの下の方など）のスクロール位置を引き継ぐと、左上の × が隠れる
   useEffect(() => { window.scrollTo(0, 0); }, []);
+  // 一度見たら、ホームから自動では出さない（Home.tsx）
+  useEffect(() => { try { localStorage.setItem(PAYWALL_SEEN_KEY, '1'); } catch { /* ignore */ } }, []);
 
   useEffect(() => {
     let alive = true;
