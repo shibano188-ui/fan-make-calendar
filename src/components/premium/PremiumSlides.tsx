@@ -185,7 +185,7 @@ export function PremiumSlides() {
           <div key={s.line} className="snap-center flex-shrink-0 w-full flex flex-col items-center px-6">
             <div className="w-full max-w-[320px] aspect-[32/22]">{s.art}</div>
             <p className="text-[24px] font-extrabold mt-3 text-center leading-tight">{s.line}</p>
-            <p className="text-[12px] text-label-secondary mt-1.5 h-4 text-center">{s.note ?? ''}</p>
+            <p className="text-[12px] text-label-secondary mt-1.5 min-h-[32px] px-2 text-center leading-snug">{s.note ?? ''}</p>
           </div>
         ))}
       </div>
