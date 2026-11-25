@@ -147,7 +147,7 @@ export default function Premium() {
 
         {premium ? (
           <div className="px-5 pb-6">
-            <PremiumSlides followLimit={limit} />
+            <PremiumSlides />
             <div className="mt-8 border-t border-subtle pt-4">
               <p className="text-[15px] font-semibold">プレミアムを利用中です</p>
               <p className="text-[12px] text-label-secondary mt-1 leading-relaxed">
@@ -166,7 +166,7 @@ export default function Premium() {
           <>
             {/* 説明は絵のスライドだけ。1枚に一言 */}
             <div className="flex-1 flex flex-col justify-center pb-2">
-              <PremiumSlides followLimit={limit} />
+              <PremiumSlides />
             </div>
 
             {/* 購入。プラン・金額・期間・規約はボタンのすぐそばに置く（別画面に逃がすと審査で落ちる） */}

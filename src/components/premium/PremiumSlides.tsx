@@ -82,12 +82,75 @@ function PriceArt() {
   );
 }
 
-export function PremiumSlides({ followLimit }: { followLimit: number }) {
+/** 5. 新着をすぐ: 作品の丸に新着の輪が付き、NEW が出る */
+function NewArt() {
+  return (
+    <svg viewBox="0 0 320 220" className="w-full h-full" aria-hidden="true">
+      {[0, 1, 2].map((i) => {
+        const cx = 90 + i * 70;
+        return (
+          <g key={i}>
+            <circle cx={cx} cy="100" r="30" fill="none" stroke={i === 1 ? '#e5484d' : 'var(--fill-secondary)'} strokeWidth="5"
+              style={i === 1 ? { animation: 'pwRingIn 3.2s ease-out infinite', transformBox: 'fill-box', transformOrigin: 'center' } : undefined} />
+            <circle cx={cx} cy="100" r="23" fill={COLORS[i * 2 + 1]} />
+            <rect x={cx - 20} y="146" width="40" height="7" rx="3.5" fill="var(--label-primary)" opacity="0.3" />
+          </g>
+        );
+      })}
+      <g style={{ animation: 'pwNew 3.2s ease-in-out infinite' }}>
+        <rect x="170" y="56" width="46" height="22" rx="11" fill="#e5484d" />
+        <text x="193" y="72" textAnchor="middle" fontSize="13" fontWeight="800" fill="#fff" fontFamily="Outfit, sans-serif">NEW</text>
+      </g>
+    </svg>
+  );
+}
+
+/** 6. いつものカレンダーに自動で: 予定のカードがカレンダーのマスへ飛んでいく */
+function SyncArt() {
+  return (
+    <svg viewBox="0 0 320 220" className="w-full h-full" aria-hidden="true">
+      <rect x="150" y="40" width="140" height="150" rx="14" fill="var(--bg-primary)" stroke="var(--label-primary)" strokeWidth="3" />
+      <rect x="150" y="40" width="140" height="30" rx="14" fill="#e5484d" />
+      <rect x="150" y="56" width="140" height="14" fill="#e5484d" />
+      {Array.from({ length: 12 }, (_, i) => (
+        <rect key={i} x={162 + (i % 4) * 30} y={82 + Math.floor(i / 4) * 34} width="24" height="26" rx="4" fill="var(--fill-tertiary)" />
+      ))}
+      <rect x="222" y="116" width="24" height="26" rx="4" fill={HONEY} style={{ animation: 'pwNew 3.2s ease-in-out infinite' }} />
+      <g style={{ animation: 'pwSend 3.2s ease-in-out infinite' }}>
+        <rect x="28" y="96" width="84" height="40" rx="9" fill={HONEY} stroke={INK} strokeWidth="2.5" />
+        <rect x="38" y="106" width="50" height="7" rx="3.5" fill={INK} />
+        <rect x="38" y="119" width="34" height="7" rx="3.5" fill={INK} opacity="0.4" />
+      </g>
+    </svg>
+  );
+}
+
+/** 7. テーマを何個でも: スマホの色が次々に変わる */
+function ThemeArt() {
+  const sw = ['#FFB74D', '#4FC3F7', '#BA68C8', '#81C784', '#F06292'];
+  return (
+    <svg viewBox="0 0 320 220" className="w-full h-full" aria-hidden="true">
+      {sw.map((c, i) => (
+        // 傾きは外の g、出てくる動きは中の rect に分ける（同じ要素に付けると CSS の動きが傾きを上書きする）
+        <g key={i} transform={`rotate(${(i - 2) * 9} 160 230)`}>
+          <rect x="128" y="40" width="64" height="130" rx="14" fill={c} stroke="var(--bg-primary)" strokeWidth="3"
+            style={{ animation: `pwPop 3.2s ${(i * 0.12).toFixed(2)}s both infinite`, transformBox: 'fill-box', transformOrigin: 'bottom' }} />
+          <circle cx="160" cy="62" r="7" fill="#fff" opacity="0.7" />
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+export function PremiumSlides() {
   const slides = [
-    { art: <FollowArt />, line: '推しを、いくつでも', note: `無料は${followLimit}作品まで` },
+    { art: <FollowArt />, line: '推しを、いくつでも' },
     { art: <NoAdsArt />, line: '広告が消える' },
     { art: <AlertArt />, line: '受付開始の瞬間に通知' },
     { art: <PriceArt />, line: '値下げ・再入荷も通知' },
+    { art: <NewArt />, line: '新着をすぐ見られる' },
+    { art: <SyncArt />, line: 'いつものカレンダーに自動で' },
+    { art: <ThemeArt />, line: 'テーマを何個でも' },
   ];
   const [at, setAt] = useState(0);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -114,7 +177,6 @@ export function PremiumSlides({ followLimit }: { followLimit: number }) {
           <div key={s.line} className="snap-center flex-shrink-0 w-full flex flex-col items-center px-6">
             <div className="w-full max-w-[320px] aspect-[32/22]">{s.art}</div>
             <p className="text-[24px] font-extrabold mt-3 text-center leading-tight">{s.line}</p>
-            <p className="text-[12px] text-label-tertiary mt-1 h-4">{s.note ?? ''}</p>
           </div>
         ))}
       </div>
