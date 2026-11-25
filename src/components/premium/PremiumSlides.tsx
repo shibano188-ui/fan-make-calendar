@@ -145,7 +145,7 @@ function ThemeArt() {
 export function PremiumSlides() {
   const slides = [
     { art: <FollowArt />, line: '推しを、いくつでも' },
-    { art: <NoAdsArt />, line: '広告が消える' },
+    { art: <NoAdsArt />, line: '広告なし' },
     { art: <AlertArt />, line: '受付開始の瞬間に通知' },
     { art: <PriceArt />, line: '値下げ・再入荷も通知' },
     { art: <NewArt />, line: '新着をすぐ見られる' },
