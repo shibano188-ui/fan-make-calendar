@@ -294,15 +294,30 @@ body[data-tour-step] [data-bottom-nav] * {
   from { transform: scaleY(1); }
   to   { transform: scaleY(0.45); }
 }
-/* 課金の案内の絵（components/premium/PremiumArt.tsx）。六角形がふわふわ・ハチが上下にゆれる */
-@keyframes pwFloat {
-  from { transform: translateY(0) rotate(0deg); }
-  to   { transform: translateY(-5px) rotate(12deg); }
+/* 課金の案内のスライド（components/premium/PremiumSlides.tsx）。どれも 3.2 秒で1回り */
+@keyframes pwPop {
+  0%, 4%   { transform: scale(0); opacity: 0; }
+  14%, 86% { transform: scale(1); opacity: 1; }
+  100%     { transform: scale(1); opacity: 1; }
 }
-@keyframes pwBob {
-  from { transform: translateY(0); }
-  to   { transform: translateY(-5px); }
+@keyframes pwFlyAway {
+  0%, 30%  { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+  70%      { transform: translate(110px, -150px) rotate(-25deg); opacity: 0; }
+  100%     { transform: translate(110px, -150px) rotate(-25deg); opacity: 0; }
 }
+@keyframes pwDrop {
+  0%, 15%  { transform: translateY(-80px); opacity: 0; }
+  30%, 100% { transform: translateY(0); opacity: 1; }
+}
+@keyframes pwRing {
+  0%, 28%, 52%, 100% { transform: rotate(0deg); }
+  33% { transform: rotate(14deg); }
+  39% { transform: rotate(-12deg); }
+  45% { transform: rotate(8deg); }
+}
+@keyframes pwStrike { 0%, 25% { transform: scaleX(0); } 45%, 100% { transform: scaleX(1); } }
+@keyframes pwOld    { 0%, 40% { opacity: 1; } 55%, 100% { opacity: 0.35; } }
+@keyframes pwNew    { 0%, 45% { opacity: 0; } 60%, 100% { opacity: 1; } }
 /* 探すの「グッズ⇄イベント」の文字の入れ替え */
 @keyframes labelSwap {
   from { opacity: 0; transform: translateY(45%); filter: blur(2px); }
