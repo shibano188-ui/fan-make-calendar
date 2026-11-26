@@ -4,6 +4,7 @@ import { ChevronLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { loadMyGot, loadSampleGot, imageOf, type MyGot } from '../room/data';
 import { ROOM_PREVIEW } from '../room/preview';
+import { shareImage, saveImage } from '../lib/shareImage';
 
 // 今月のまとめ画像（2026-11-26 柴野「コラージュの方がいい」）。その月に「買った」「行った」を押した予定を、
 // 切り抜いたステッカーにしてコラージュで並べる。一番の物（値段の高い物）を大きく、ほかは大きさ・向きを変えて重ねる。
@@ -140,12 +141,8 @@ export default function Matome() {
   useEffect(() => { if (items?.length && cvRef.current) draw(cvRef.current, items, month, style, showTotal); }, [items, style, showTotal, month]);
 
   const blob = () => new Promise<Blob | null>((ok) => cvRef.current ? cvRef.current.toBlob(ok, 'image/png') : ok(null));
-  const save = async () => { const b = await blob(); if (!b) return; const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `fanhive-${month}.png`; a.click(); };
-  const share = async () => {
-    const b = await blob(); if (!b) return;
-    const data = { files: [new File([b], `fanhive-${month}.png`, { type: 'image/png' })], text: `${month}月 #FanHive`, url: 'https://fanhive.jp/lp.html' };
-    try { if (navigator.canShare?.(data)) await navigator.share(data); else await save(); } catch { /* 閉じただけ */ }
-  };
+  const save = async () => { const b = await blob(); if (b) await saveImage(b, `fanhive-${month}.png`); };
+  const share = async () => { const b = await blob(); if (b) await shareImage(b, `fanhive-${month}.png`, `${month}月のまとめ #FanHive`); };
   const pill = (on: boolean) => `rounded-full px-3 py-1.5 text-[13px] font-semibold ${on ? 'bg-label-primary text-bg-primary' : 'bg-bg-secondary text-label-primary'}`;
 
   const empty = useMemo(() => items !== null && items.length === 0, [items]);
@@ -167,7 +164,7 @@ export default function Matome() {
           {sample && <p className="px-4 pb-2 text-[12px] text-label-tertiary">見本（「買った」「行った」を押すと自分の1枚になる）</p>}
           <div className="px-4"><canvas ref={cvRef} className="w-full rounded-xl" style={{ aspectRatio: '4 / 5', boxShadow: '0 8px 24px rgba(0,0,0,.12)' }} /></div>
           <div className="flex gap-2 px-4 pt-4">
-            <button onClick={share} className="pressable flex-1 rounded-full py-3 text-[15px] font-bold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>共有する</button>
+            <button onClick={share} className="pressable flex-1 rounded-full py-3 text-[15px] font-bold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>X などに共有</button>
             <button onClick={save} className="pressable flex-1 rounded-full py-3 text-[15px] font-bold bg-bg-secondary">保存する</button>
           </div>
         </>

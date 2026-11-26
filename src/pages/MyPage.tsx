@@ -32,6 +32,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
 import { openExternal } from '../lib/openExternal';
 import { haptic, hapticsDebug } from '../lib/haptics';
+import { ROOM_PREVIEW } from '../room/preview';
+import { Images } from 'lucide-react';
 
 const ALL_PREFS = REGIONS.flatMap((r) => r.prefectures);
 
@@ -365,6 +367,14 @@ export default function MyPage() {
           <span className="text-[14px] flex-1">テーマ・カレンダーの配色</span>
           <ChevronRight size={16} className="text-label-tertiary" />
         </button>
+        {/* 今月のまとめ画像（まだプレビューだけ） */}
+        {ROOM_PREVIEW && (
+          <button onClick={() => { haptic.select(); navigate('/matome'); }} className="w-full flex items-center gap-2 px-3 py-2.5 pressable text-left">
+            <Images size={16} className="text-label-secondary" />
+            <span className="text-[14px] flex-1">今月のまとめ画像</span>
+            <ChevronRight size={16} className="text-label-tertiary" />
+          </button>
+        )}
         {/* フォロー中の作品（フォロー解除・作品ごとの通知はここから） */}
         <button onClick={() => { haptic.select(); navigate('/follows'); }} className="w-full flex items-center gap-2 px-3 py-2.5 pressable text-left">
           <Star size={16} className="text-label-secondary" />

@@ -34,6 +34,7 @@ const KEYS = {
   story_since:         'fan_story_since',
   dismissed_event_ids: 'fan_dismissed_event_ids',
   tentative_dates:     'fan_tentative_dates',
+  room:                'fan_room_state',
 } as const;
 
 export type AppStateColumn = keyof typeof KEYS;
@@ -42,7 +43,8 @@ export type AppStateColumn = keyof typeof KEYS;
  *  流したら空にする（work_settings / work_order は 2026-09-21 に流し済み）。 */
 // sql/2026-10-04-home-story.sql は 2026-10-04 に柴野が本番に流した。
 // dismissed_event_ids・tentative_dates（sql/2026-11-07-dismissed-events.sql）は 2026-11-07 に柴野が本番に流した
-const PENDING_COLS: AppStateColumn[] = [];
+// room（部屋の並び・キャラ・ステッカー・コイン・案内の進み・2026-11-27）は sql/2026-11-27-user-room.sql。まだどこにも流していない
+const PENDING_COLS: AppStateColumn[] = ['room'];
 
 // 配列で持つもの（それ以外＝work_colors / work_images はオブジェクト）
 const IS_ARRAY: Record<AppStateColumn, boolean> = {
@@ -61,6 +63,7 @@ const IS_ARRAY: Record<AppStateColumn, boolean> = {
   story_since:         false,
   dismissed_event_ids: true,
   tentative_dates:     false,
+  room:                false,
 };
 
 function readLocal(col: AppStateColumn): unknown {

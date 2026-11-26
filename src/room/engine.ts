@@ -6,7 +6,8 @@ import * as THREE from 'three';
 
 export type RoomGoods = { id: string; img: string; kind: 'stand' | 'card' | 'badge' | 'poster' | 'ticket'; title: string; sub: string; h: number };
 export type RoomSample = { img: string; title: string; date?: string | null };
-export type RoomOpts = { goods: RoomGoods[]; samples: RoomSample[]; userId?: string | null; onMatome?: () => void; onOpen?: () => void; onClose?: () => void };
+export type RoomState = { layout?: Record<string, string | null>; char?: 'A' | 'B'; myStk?: { id: string; pix: string }[]; placed?: { id: string; x: number; y: number; r: number }[]; coins?: number; cans?: { id: string; name: string; col: string; col2: string; code: string }[]; tut?: number | 'done' };
+export type RoomOpts = { goods: RoomGoods[]; samples: RoomSample[]; userId?: string | null; state?: RoomState | null; save?: (s: RoomState) => void; share?: (blob: Blob, name: string, text: string) => Promise<unknown>; onMatome?: () => void; onOpen?: () => void; onClose?: () => void };
 
 export function startRoom(root: HTMLElement, opts: RoomOpts): { destroy: () => void } {
 const $ = (id) => root.querySelector('#' + id);
@@ -79,10 +80,12 @@ function bodyPath(g, W, H, k, top) { g.beginPath(); g.roundRect(0, top * k, W * 
 const PAL = ['#2e2a38', '#ffffff', '#ff6f61', '#ffc94a', '#5fcfb0', '#9d8cf0', '#7cc7ff', '#ff9ec4', '#a0704a'];
 const HEART = ['............', '.000...000..', '07770.07770.', '07177077770.', '07177777770.', '07777777770.', '.077777770..', '..0777770...', '...07770....', '....070.....', '.....0......', '............'].join('');
 const BEEFACE = ['.0........0.', '..0......0..', '...0....0...', '..00333300..', '.0333333330.', '000333333000', '010333333010', '000333333000', '000733337000', '.0033883300.', '..00333300..', '....0000....'].join('');
-const loadJ = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
-let myStk = loadJ('fh-mystk6', null) || [{ id: 'bee', pix: BEEFACE }];
-let placedStk = loadJ('fh-placed6', null) || [{ id: 'bee', x: 0.5, y: 0.77, r: -0.12 }];
-const saveStk = () => { localStorage.setItem('fh-mystk6', JSON.stringify(myStk)); localStorage.setItem('fh-placed6', JSON.stringify(placedStk)); };
+const ST = opts.state && typeof opts.state === 'object' ? { ...opts.state } : {};
+let persistT = 0;
+const persist = () => { clearTimeout(persistT); persistT = setTimeout(() => opts.save?.({ ...ST }), 700); };
+let myStk = Array.isArray(ST.myStk) && ST.myStk.length ? ST.myStk : [{ id: 'bee', pix: BEEFACE }];
+let placedStk = Array.isArray(ST.placed) ? ST.placed : [{ id: 'bee', x: 0.5, y: 0.77, r: -0.12 }];
+const saveStk = () => { ST.myStk = myStk; ST.placed = placedStk; persist(); };
 function stickerCanvas(pix, cell) {
   const N = 12, pad = 2, c = document.createElement('canvas'); c.width = c.height = (N + pad * 2) * cell; const g = c.getContext('2d');
   const on = (x, y) => x >= 0 && y >= 0 && x < N && y < N && pix[y * N + x] !== '.';
@@ -558,11 +561,11 @@ function makeBee({ type = 'A', shirt, skinC = '#e8bf9a', headC = '#d9a43a', acce
   }
   return { g, legs, arms, head };
 }
-let charId = localStorage.getItem('fh-char') === 'B' ? 'B' : 'A';
+let charId = ST.char === 'B' ? 'B' : 'A';
 let ME = makeBee({ type: charId }), me = ME.g, legs = ME.legs, arms = ME.arms, head = ME.head;
 me.position.set(0.3, 0, 1.2); me.rotation.y = Math.PI; scene.add(me);
 function setChar(id) {
-  charId = id; localStorage.setItem('fh-char', id);
+  charId = id; ST.char = id; persist(); tutHit('dress');
   const nb = makeBee({ type: id }); nb.g.position.copy(me.position); nb.g.rotation.copy(me.rotation);
   scene.remove(me); scene.add(nb.g); ME = nb; me = nb.g; legs = nb.legs; arms = nb.arms; head = nb.head;
 }
@@ -608,17 +611,20 @@ const OWNERS = [
   ] },
 ];
 const OWN = Object.fromEntries(OWNERS.map((o) => [o.id, o]));
+const props = [];
 // ほかの人の部屋は、アプリにある予定の画像で埋める（試作の画像は使わない）
 const SAMPLE = (k) => opts.samples.length ? opts.samples[k % opts.samples.length] : null;
 OWNERS.forEach((o, oi) => { if (o.id === 'me') return; o.goods = o.goods.map((gd, i) => { const s = SAMPLE(oi * 7 + i); return s && { ...gd, img: s.img, title: s.title }; }).filter(Boolean); const f = SAMPLE(oi * 7); o.fav = f?.img; o.favName = f?.title ?? ''; });
-// 置き場所: 端末に残した並び → 無ければ空いている所に順に
-const ROOM_KEY = 'fh-room-app:' + (opts.userId || 'guest');
-{ let saved = {}; try { saved = JSON.parse(localStorage.getItem(ROOM_KEY) || '{}'); } catch { saved = {}; }
+// 自販機で出た缶も、自分のグッズとして戻す
+(ST.cans || []).forEach((c) => OWN.me.goods.push({ id: c.id, kind: 'can', h: 0.24, col: c.col, col2: c.col2, code: c.code, title: c.name, sub: '町の自販機で出た · コイン 3' }));
+// 置き場所: 残した並び → 無ければ空いている所に順に
+{ const saved = ST.layout || {};
   const used = new Set();
   OWN.me.goods.forEach((gd) => { const s = saved[gd.id]; gd.slot = s && SLOTS[s] && !used.has(s) && fits(gd, s) ? s : undefined; if (gd.slot) used.add(gd.slot); });
   OWN.me.goods.forEach((gd) => { if (gd.slot !== undefined || saved[gd.id] === null) { gd.slot ??= null; return; } gd.slot = Object.keys(SLOTS).find((id) => !used.has(id) && fits(gd, id)) ?? null; if (gd.slot) used.add(gd.slot); }); }
-const saveRoom = () => localStorage.setItem(ROOM_KEY, JSON.stringify(Object.fromEntries(OWN.me.goods.filter((g) => g.id).map((g) => [g.id, g.slot]))));
+const saveRoom = () => { ST.layout = Object.fromEntries(OWN.me.goods.filter((g) => g.id).map((g) => [g.id, g.slot])); persist(); };
 const pickables = [];
+
 OWNERS.forEach((o) => {
   o.group = new THREE.Group(); o.group.visible = o.id === 'me'; room.add(o.group);
   o.anchors = walls.map((w) => { const a = new THREE.Group(); a.position.copy(w.g.position); a.rotation.copy(w.g.rotation); o.group.add(a); return a; });
@@ -629,6 +635,12 @@ OWNERS.forEach((o) => {
     npc.g.traverse((m) => { m.userData = data; }); data.obj = npc.g; pickables.push(npc.g);
   }
 });
+// 壁のカレンダー: 押すと今月のまとめ画像を作る（自分の部屋だけ）
+{ const m = new Date().getMonth() + 1;
+  const calTex = pix(16, 20, (g) => { g.fillStyle = '#fffaf0'; g.fillRect(0, 0, 16, 20); g.fillStyle = '#ff6f61'; g.fillRect(0, 0, 16, 6); ptext(g, String(m), m > 9 ? 4 : 6, 1, '#ffffff');
+    g.fillStyle = '#c9c3d6'; for (let y = 8; y < 19; y += 3) for (let x = 2; x < 15; x += 3) g.fillRect(x, y, 2, 2); g.fillStyle = '#ffc94a'; g.fillRect(8, 14, 2, 2); g.fillStyle = '#5b5068'; g.fillRect(7, 0, 2, 1); });
+  const cal = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.62), new THREE.MeshBasicMaterial({ map: calTex })); cal.position.set(1.5, 1.6 - WH / 2, 0.04);
+  OWN.me.anchors[1].add(cal); crisp(cal); cal.userData = { prop: 'calendar', title: 'カレンダー' }; pickables.push(cal); }
 function framed(tex, w, h, frameCol, matCol, z = 0.04) {
   const g = new THREE.Group();
   g.add(mesh(new THREE.BoxGeometry(w + 0.1, h + 0.1, z), lam({ color: frameCol })));
@@ -764,11 +776,13 @@ const myHouse = building(cellPos(0, 0), new THREE.Vector3(0, 0, 1), { w: 4.0, h:
 box(0.3, 0.4, 0.3, flat({ color: '#ffc94a' }), 1.6, 0.9, 2.6, town); box(0.06, 0.7, 0.06, flat({ color: '#5c5a55' }), 1.6, 0.35, 2.6, town); circ(1.6, 2.6, 0.22);
 acts.push({ x: 0, z: 2.3, r: 1.3, stand: new THREE.Vector3(0, 0, 2.4), label: '部屋に入る', mesh: myHouse.door, act: () => goto('room', { owner: 'me' }) });
 const RING1 = { '1,0': 'mitsuba', '-1,0': 'neru', '1,-1': 'kohaku', '0,1': 'arcade', '-1,1': 'anime', '0,-1': 'books' };
-const GAMES = [{ id: 'RUN', ok: true, col: '#ff6f61', label: '走る' }, { id: 'RACE', col: '#7cc7ff', label: 'レース' }, { id: 'FIGHT', col: '#ffc94a', label: '格闘' }, { id: 'DELIVERY', col: '#5fcfb0', label: '配達' }];
+const GAMES = [{ id: 'RUN', ok: true, col: '#ff6f61', label: '走る' }, { id: 'RACE', ok: true, col: '#7cc7ff', label: 'いすレース' }, { id: 'FIGHT', ok: true, col: '#ffc94a', label: '自販機ずもう' }, { id: 'DELIVERY', ok: true, col: '#5fcfb0', label: '段ボールつみ' }];
 function cabScreen(gm) { return pix(24, 18, (g) => {
   if (gm.ok) { ['#f7d7a8', '#f3c38f', '#e9a87a'].forEach((c, i) => { g.fillStyle = c; g.fillRect(0, i * 4, 24, 4); }); g.fillStyle = '#5a5a60'; g.fillRect(0, 12, 24, 6); g.fillStyle = '#e8e2cf'; for (let x = 1; x < 24; x += 6) g.fillRect(x, 15, 3, 1);
     g.fillStyle = '#d9a43a'; g.fillRect(6, 5, 4, 3); g.fillStyle = '#e9e6df'; g.fillRect(6, 8, 4, 3); g.fillStyle = '#3f4a66'; g.fillRect(6, 11, 4, 1); g.fillStyle = '#f07c2a'; g.fillRect(16, 9, 3, 3); g.fillStyle = '#f5c518'; g.fillRect(12, 6, 2, 2); }
-  else { g.fillStyle = '#1d1a29'; g.fillRect(0, 0, 24, 18); ptext(g, 'SOON', 4, 7, '#6f6a85'); }
+  else if (gm.id === 'RACE') { g.fillStyle = '#cfc6b6'; g.fillRect(0, 0, 24, 18); g.fillStyle = '#6a6670'; g.fillRect(5, 0, 14, 18); g.fillStyle = '#e8e2cf'; g.fillRect(9, 2, 1, 3); g.fillRect(14, 8, 1, 3); g.fillStyle = '#f07c2a'; g.fillRect(15, 3, 3, 3); g.fillStyle = '#4a4458'; g.fillRect(9, 11, 5, 4); g.fillStyle = '#d9a43a'; g.fillRect(10, 8, 3, 3); }
+  else if (gm.id === 'FIGHT') { g.fillStyle = '#3b3650'; g.fillRect(0, 0, 24, 18); g.fillStyle = '#c9b48a'; g.fillRect(0, 13, 24, 5); g.fillStyle = '#e2574c'; g.fillRect(13, 4, 6, 9); g.fillStyle = '#dff4ff'; g.fillRect(14, 5, 4, 3); g.fillStyle = '#d9a43a'; g.fillRect(7, 6, 4, 3); g.fillStyle = '#e9e6df'; g.fillRect(7, 9, 4, 4); }
+  else { g.fillStyle = '#f3c38f'; g.fillRect(0, 0, 24, 18); g.fillStyle = '#5a5a60'; g.fillRect(0, 15, 24, 3); [[8, 12, 8], [7, 9, 9], [9, 6, 7], [6, 3, 8]].forEach(([x, y, w]) => { g.fillStyle = '#c9a06a'; g.fillRect(x, y, w, 3); g.fillStyle = '#e8d9b8'; g.fillRect(x + (w >> 1), y, 1, 3); }); }
 }); }
 let arcadeSign = null;
 for (let q = -2; q <= 2; q++) for (let r = -2; r <= 2; r++) {
@@ -877,7 +891,8 @@ function buyDrink() {
   if (S.coins < 3) { flashPrompt('コインが 3 枚いる'); return; }
   S.coins -= 3; drawHud(true); setTimeout(() => drawHud(), 300); buzz();
   const [name, col, col2, code] = DRINKS[Math.floor(Math.random() * DRINKS.length)], first = !gotDrinks.has(name); gotDrinks.add(name);
-  const gd = { kind: 'can', h: 0.24, col, col2, code, title: name, sub: '町の自販機で出た · コイン 3', slot: null, owner: OWN.me };
+  const gd = { id: 'can-' + Date.now(), kind: 'can', h: 0.24, col, col2, code, title: name, sub: '町の自販機で出た · コイン 3', slot: null, owner: OWN.me };
+  ST.cans = [...(ST.cans || []), { id: gd.id, name, col, col2, code }]; persist();
   OWN.me.goods.push(gd); makeGoods(gd);
   openTalk({ name: '自販機', lines: [`ガコン。「${name}」が出た。`, first ? '部屋の棚に飾れる。' : 'また出た。'] });
 }
@@ -978,7 +993,7 @@ function addItem(kind, x, z) {
 }
 
 // ───────── 状態 ─────────
-const S = { power: 'off', mode: 'room', owner: 'me', coins: 0, items: 0, yaw: 0.35, pitch: 0.42, dist: 3.4, edit: false, sel: null, busy: false, near: null, snap: true, menu: false, bootT: 0, turn: 0, get: null, spinT: null, intro: 0 };
+const S = { power: 'off', mode: 'room', owner: 'me', coins: ST.coins || 0, items: 0, yaw: 0.35, pitch: 0.42, dist: 3.4, edit: false, sel: null, busy: false, near: null, snap: true, menu: false, bootT: 0, turn: 0, get: null, spinT: null, intro: 0 };
 const camGoal = { pos: new THREE.Vector3(), look: new THREE.Vector3() };
 const camNow = { pos: new THREE.Vector3(2, 3, 5), look: new THREE.Vector3(0, 1, 0) };
 const joy = { x: 0, y: 0 };
@@ -988,6 +1003,7 @@ const card = $('card'), promptEl = $('prompt'), promptT = $('promptT'), menuEl =
 // ───────── HUD ─────────
 const hud = $('hud');
 function drawHud(flash) {
+  if (ST.coins !== S.coins) { ST.coins = S.coins; persist(); }
   const w = Math.round((L.sw || 300) / 3), h = 14; hud.width = w; hud.height = h;
   const g = hud.getContext('2d'); g.clearRect(0, 0, w, h);
   const label = S.mode === 'town' ? 'TOWN' : OWN[S.owner].en;
@@ -1134,7 +1150,7 @@ function renderLib() {
   libL.querySelectorAll('button[data-id]').forEach((b) => { const src = stkCv(b.dataset.id, 6), c = document.createElement('canvas'); c.width = src.width; c.height = src.height; c.getContext('2d').drawImage(src, 0, 0); b.appendChild(c); });
   $('libAdd').onclick = openStk;
 }
-function openLib() { S.busy = true; unfocus(); promptEl.classList.remove('on'); renderLib(); libEl.classList.add('on'); trashEl.classList.add('on'); }
+function openLib() { tutHit('stk'); S.busy = true; unfocus(); promptEl.classList.remove('on'); renderLib(); libEl.classList.add('on'); trashEl.classList.add('on'); }
 function closeLib() { libEl.classList.remove('on'); trashEl.classList.remove('on'); S.busy = false; }
 $('libEnd').onclick = closeLib;
 let drag = null;
@@ -1164,7 +1180,7 @@ function dragEnd(e) {
   if (d.kind === 'placed') {
     if (!d.moved) { placedStk[d.idx].r += 0.35; }
     else if (toTrash) { placedStk.splice(d.idx, 1); toast('はがした'); }
-    else { const b = onBody(e); if (b) { placedStk[d.idx].x = b[0]; placedStk[d.idx].y = b[1]; } }
+    else { const b = onBody(e); if (b) { placedStk[d.idx].x = b[0]; placedStk[d.idx].y = b[1]; tutHit('stk'); } }
   } else {
     if (!d.moved) addPlaced(d.id);
     else if (toTrash) { myStk = myStk.filter((m) => m.id !== d.id); placedStk = placedStk.filter((p) => p.id !== d.id); renderLib(); toast('消した'); }
@@ -1250,7 +1266,7 @@ function tap(ev) {
   if (talkS) { nextTalk(); return; }
   if (S.get) { endGet(); return; }
   if (S.edit) { editTap(ev); return; }
-  if (S.mode === 'room') { const gd = pick(ev); if (gd) { if (gd.npc) return talk(gd); return getItem(gd); } unfocus(); setRay(ev); return walkHere(ray.intersectObject(floor, false)[0]?.point); }
+  if (S.mode === 'room') { const gd = pick(ev); if (gd) { if (gd.prop) return opts.onMatome?.(); if (gd.npc) return talk(gd); return getItem(gd); } unfocus(); setRay(ev); return walkHere(ray.intersectObject(floor, false)[0]?.point); }
   setRay(ev); const hit = ray.intersectObjects([...acts.map((a) => a.mesh), ...npcs.map((n) => n.g)], true)[0];
   const n = hit?.object.userData.npc; if (n) { if (me.position.distanceTo(n.g.position) < 1.6) talkTo(n); else { S.walkTo = n.g.position.clone().lerp(me.position, 0.25); S.pending = { act: () => talkTo(n) }; } return; }
   const a = hit?.object.userData.act; if (a) { if (Math.hypot(me.position.x - a.x, me.position.z - a.z) < a.r) a.act(); else { S.walkTo = a.stand.clone(); S.pending = a; } return; }
@@ -1276,6 +1292,7 @@ function fanfare() {
 const getEl = $('get'), GET_H = 0.82;
 function getItem(gd) {
   if (S.get || S.busy || !gd.obj || S.spinT != null) return;
+  tutHit('get');
   unfocus(); joy.x = joy.y = 0; S.walkTo = null; S.pending = null; promptEl.classList.remove('on');
   const o = gd.obj; scene.attach(o); setLayer(o, HELD);
   const toCam = camera.position.clone().sub(me.position), base = Math.atan2(toCam.x, toCam.z);
@@ -1352,7 +1369,7 @@ function stepPuffs(dt) { for (let i = puffs.length - 1; i >= 0; i--) { const p =
 
 // ───────── かざりかえ: 選んで → 置き場所を押す（入れかえ・しまう） ─────────
 const tray = $('tray'), trayL = $('trayL'), trayT = $('trayT');
-function startEdit() { if (S.mode !== 'room' || S.owner !== 'me') return; S.edit = true; S.sel = null; tray.classList.add('on'); promptEl.classList.remove('on'); renderTray(); }
+function startEdit() { if (S.mode !== 'room' || S.owner !== 'me') return; tutHit('edit'); S.edit = true; S.sel = null; tray.classList.add('on'); promptEl.classList.remove('on'); renderTray(); }
 function endEdit() { if (!S.edit) return; S.edit = false; select(null); tray.classList.remove('on'); markers.forEach((m) => { m.visible = false; }); }
 function select(gd) { S.sel = gd; pointer.visible = !!(gd && gd.slot); renderTray(); }
 function renderTray() {
@@ -1384,6 +1401,7 @@ function editTap(ev) {
 // ───────── スクショ ─────────
 let shotBlob = null;
 function makeShot(src) {
+  tutHit('shot');
   const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
   g.fillStyle = CON.body; g.fillRect(0, 0, W, H);
   g.fillStyle = CON.speck; for (let i = 0; i < 900; i++) g.fillRect(Math.random() * W | 0, Math.random() * H | 0, 6, 6);
@@ -1414,11 +1432,7 @@ function makeShot(src) {
 $('shotClose').onclick = () => $('shot').classList.remove('on');
 const shotReady = () => new Promise((ok) => { const w = () => shotBlob ? ok(shotBlob) : setTimeout(w, 50); w(); });
 $('shotSave').onclick = async () => { const b = await shotReady(); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'fanhive-room.png'; a.click(); };
-$('shotShare').onclick = async () => {
-  const file = new File([await shotReady()], 'fanhive-room.png', { type: 'image/png' });
-  const data = { files: [file], text: 'わたしの部屋 #FanHive', url: 'https://fanhive.jp/lp.html' };
-  try { if (navigator.canShare && navigator.canShare(data)) await navigator.share(data); else $('shotSave').click(); } catch { /* 閉じただけ */ }
-};
+$('shotShare').onclick = async () => { const b = await shotReady(); if (opts.share) await opts.share(b, 'fanhive-room.png', 'わたしの部屋 #FanHive'); };
 
 // ───────── 部屋 ⇄ 町 ─────────
 const fadeEl = $('fade');
@@ -1437,6 +1451,7 @@ function goto(mode, opt = {}) {
       me.position.copy(door).addScaledVector(fwd, 0.75); me.position.y = 0; me.rotation.y = Math.atan2(fwd.x, fwd.z);
       S.yaw = Math.atan2(fwd.x, fwd.z); S.dist = 3.6; S.pitch = 0.5; scene.fog = new THREE.Fog('#efc9a0', 20, 60);
       if (!introDone) { introDone = true; S.intro = 2.2; }
+      tutHit('town');
     } else {
       setOwner(opt.owner || 'me');
       me.position.set(0, 0, R - 0.9); me.rotation.y = Math.PI; S.yaw = 0; S.dist = 3.4; S.pitch = 0.42; scene.fog = null;
@@ -1445,30 +1460,54 @@ function goto(mode, opt = {}) {
   }, 380);
 }
 
-// ───────── ミニゲーム（ゲームセンターの台で遊ぶ） ─────────
+// ───────── ミニゲーム（ゲームセンターの台で遊ぶ）。どれも A と十字ボタンだけ ─────────
+// 走る（コーンをとぶ）・いすレース（事務いすで商店街を下る）・自販機ずもう（A を連打して押し出す）・段ボールつみ（A で落として積む）
 const mgEl = $('mg'), mgC = $('mgC'), mgG = mgC.getContext('2d');
-const mg = { on: false, phase: 'title', t: 0, y: 0, vy: 0, jumps: 0, obs: [], coins: [], got: 0, speed: 70, spawn: 0, cspawn: 0, hurt: 0 };
+const mg = { on: false, phase: 'title', t: 0, got: 0 };
+const MG_INFO = { RUN: ['JUMP OVER CONES', 'A: JUMP'], RACE: ['ROLL DOWN THE STREET', 'LEFT RIGHT: MOVE'], FIGHT: ['PUSH THE MACHINE OUT', 'MASH A'], DELIVERY: ['STACK THE BOXES', 'A: DROP'] };
 function startMinigame(gm) {
   S.busy = true; joy.x = joy.y = 0; drawDpad('');
-  Object.assign(mg, { on: true, game: gm, phase: 'title', t: 0, y: 0, vy: 0, jumps: 0, obs: [], coins: [], got: 0, speed: 72, spawn: 1.2, cspawn: .4, hurt: 0 });
+  Object.assign(mg, { on: true, game: gm, phase: 'title', t: 0, got: 0, end: '' }); mgInit();
   mgEl.classList.add('on'); promptEl.classList.remove('on');
 }
+function mgInit() {
+  const id = mg.game.id;
+  if (id === 'RUN') Object.assign(mg, { y: 0, vy: 0, jumps: 0, obs: [], coins: [], speed: 72, spawn: 1.2, cspawn: .4, hurt: 0 });
+  if (id === 'RACE') Object.assign(mg, { lane: 1, lx: 1, lastX: 0, obs: [], coins: [], speed: 70, spawn: 0.9, cspawn: 0.5, hurt: 0, scroll: 0 });
+  if (id === 'FIGHT') Object.assign(mg, { p: 0, push: 0.3, surge: 0.8, mash: 0, shake: 0 });
+  if (id === 'DELIVERY') Object.assign(mg, { stack: [{ x: 66, w: 60 }], cur: null, dir: 1, fall: [], scroll: 0, miss: 0 });
+}
 function mgA() {
-  if (mg.phase === 'title' && mg.t > 0.3) { mg.phase = 'play'; mg.t = 0; }
-  else if (mg.phase === 'play' && mg.jumps < 2) { mg.vy = mg.jumps ? -150 : -175; mg.jumps++; }
-  else if (mg.phase === 'result' && mg.t > 0.8) endMinigame();
+  if (mg.phase === 'title') { if (mg.t > 0.3) { mg.phase = 'play'; mg.t = 0; if (mg.game.id === 'DELIVERY') newBox(); } return; }
+  if (mg.phase === 'result') { if (mg.t > 0.8) endMinigame(); return; }
+  const id = mg.game.id;
+  if (id === 'RUN' && mg.jumps < 2) { mg.vy = mg.jumps ? -150 : -175; mg.jumps++; }
+  if (id === 'FIGHT') { mg.p += 0.05; mg.mash = 0.12; mg.shake = 0.08; }
+  if (id === 'DELIVERY' && mg.cur) dropBox();
 }
 function mgB() { if (mg.phase === 'title') { mg.got = 0; endMinigame(); } else if (mg.phase === 'result') endMinigame(); }
 mgC.addEventListener('pointerdown', (e) => { e.preventDefault(); if (S.power === 'on') mgA(); });
 function endMinigame() { S.coins += mg.got; mg.on = false; mgEl.classList.remove('on'); S.busy = false; drawHud(true); setTimeout(() => drawHud(), 500); }
+const mgDone = (end = 'CLEAR!') => { mg.phase = 'result'; mg.t = 0; mg.end = end; };
+const cx96 = (s, sc = 1) => 96 - ptw(s, sc) / 2;
+// 小さなはち男（横向き・上から）
+function beeSide(g, x, y, f, Bt) {
+  g.fillStyle = '#2d2a28'; g.fillRect(x + (f ? 1 : 4), y + 14, 3, 2); g.fillRect(x + (f ? 5 : 2), y + 14, 3, 2);
+  g.fillStyle = Bt ? '#b6a8ee' : '#3f4a66'; g.fillRect(x + (Bt ? 1 : 2), y + 10, Bt ? 7 : 5, 4);
+  g.fillStyle = Bt ? '#fff6ea' : '#e9e6df'; g.fillRect(x + 1, y + 5, 7, 6); g.fillStyle = '#e8bf9a'; g.fillRect(x + (f ? 0 : 8), y + 7, 1, 3);
+  g.fillStyle = '#d9a43a'; g.fillRect(x + 1, y, 7, 6); g.fillStyle = '#1b1712'; g.fillRect(x + 6, y + 1, 2, 3); g.fillRect(x + 3, y - 2, 1, 2); g.fillRect(x + 6, y - 3, 1, 3);
+  if (Bt) { g.fillStyle = '#ff6f61'; g.fillRect(x + 1, y - 1, 3, 2); }
+}
+function hudCoins(g, left) {
+  g.fillStyle = 'rgba(20,16,30,.55)'; g.fillRect(3, 3, 44, 9); g.fillStyle = '#f5c518'; g.fillRect(5, 5, 5, 5); ptext(g, 'x' + String(mg.got).padStart(2, '0'), 12, 5, '#fff');
+  if (left != null) { g.fillStyle = 'rgba(20,16,30,.55)'; g.fillRect(150, 3, 39, 9); ptext(g, 'T ' + String(Math.ceil(left)).padStart(2, '0'), 153, 5, left < 4 ? '#ff8f8f' : '#fff'); }
+}
 const GROUND = 118;
-function mgStep(dt) {
-  const g = mgG; mg.t += dt; g.imageSmoothingEnabled = false;
+function runStep(g, dt) {
   const skyC = ['#f7d7a8', '#f3c38f', '#e9a87a', '#d99a80'];
   for (let i = 0; i < 4; i++) { g.fillStyle = skyC[i]; g.fillRect(0, i * 22, 192, 22); }
   const sp = mg.phase === 'play' ? mg.speed : 20, off = (mg.t * sp * 0.25) % 48;
-  g.fillStyle = '#b48c7a';
-  for (let i = -1; i < 6; i++) { const x = i * 48 - off; g.fillRect(x, 70, 20, 48); g.fillRect(x + 22, 58, 14, 60); g.fillRect(x + 38, 80, 10, 38); }
+  g.fillStyle = '#b48c7a'; for (let i = -1; i < 6; i++) { const x = i * 48 - off; g.fillRect(x, 70, 20, 48); g.fillRect(x + 22, 58, 14, 60); g.fillRect(x + 38, 80, 10, 38); }
   g.fillStyle = '#9c7466'; for (let i = -1; i < 6; i++) { const x = i * 48 - off; for (let wy = 64; wy < 110; wy += 8) g.fillRect(x + 26, wy, 2, 3); }
   const off2 = (mg.t * sp * 0.6) % 64; g.fillStyle = '#3a3438';
   for (let i = -1; i < 5; i++) { const x = i * 64 - off2; g.fillRect(x, 40, 2, 78); g.fillRect(x - 5, 44, 12, 1); }
@@ -1476,48 +1515,136 @@ function mgStep(dt) {
   g.fillStyle = '#5a5a60'; g.fillRect(0, GROUND, 192, 26); g.fillStyle = '#e8e2cf';
   const off3 = (mg.t * sp) % 24; for (let i = -1; i < 9; i++) g.fillRect(i * 24 - off3, GROUND + 12, 12, 2);
   g.fillStyle = '#bdb6a8'; g.fillRect(0, GROUND, 192, 3);
-  if (mg.phase === 'title') {
-    g.fillStyle = 'rgba(20,16,30,.62)'; g.fillRect(0, 0, 192, 144);
-    ptext(g, mg.game.id, 96 - ptw(mg.game.id, 4) / 2, 34, '#ffe14d', 4, '#ff6f61');
-    ptext(g, 'JUMP OVER CONES', 96 - ptw('JUMP OVER CONES') / 2, 70, '#ffffff');
-    if (mg.t % .8 < .5) ptext(g, 'PRESS A', 96 - ptw('PRESS A') / 2, 96, '#ffffff');
-    ptext(g, 'START: BACK', 96 - ptw('START: BACK') / 2, 120, '#b6a8ee');
-    return;
-  }
-  if (mg.phase === 'play') {
-    mg.speed = 72 + mg.t * 4;
-    mg.vy += 520 * dt; mg.y = Math.min(0, mg.y + mg.vy * dt); if (mg.y === 0) { mg.vy = 0; mg.jumps = 0; }
+  if (mg.phase !== 'play') return;
+  mg.speed = 72 + mg.t * 4;
+  mg.vy += 520 * dt; mg.y = Math.min(0, mg.y + mg.vy * dt); if (mg.y === 0) { mg.vy = 0; mg.jumps = 0; }
+  mg.spawn -= dt; mg.cspawn -= dt;
+  if (mg.spawn < 0) { mg.obs.push({ x: 200, k: Math.random() < .5 ? 'cone' : 'sign' }); mg.spawn = 0.8 + Math.random() * 0.9; }
+  if (mg.cspawn < 0) { const hy = Math.random() < .5 ? 0 : 26 + Math.random() * 18; for (let i = 0; i < 3; i++) mg.coins.push({ x: 200 + i * 10, y: GROUND - 10 - hy }); mg.cspawn = 0.9 + Math.random() * .6; }
+  mg.obs.forEach((o) => o.x -= mg.speed * dt); mg.coins.forEach((c) => c.x -= mg.speed * dt);
+  const py = GROUND - 16 + mg.y, pxx = 34;
+  mg.coins = mg.coins.filter((c) => { if (Math.abs(c.x - (pxx + 4)) < 7 && Math.abs(c.y - (py + 6)) < 10) { mg.got++; return false; } return c.x > -10; });
+  mg.obs = mg.obs.filter((o) => { const w = o.k === 'cone' ? 8 : 10, h = o.k === 'cone' ? 10 : 15; if (!o.hit && mg.hurt <= 0 && o.x < pxx + 7 && o.x + w > pxx + 1 && py + 15 > GROUND - h) { o.hit = true; mg.hurt = 0.8; mg.got = Math.max(0, mg.got - 3); buzz(); } return o.x > -12; });
+  mg.hurt -= dt;
+  mg.coins.forEach((c) => { g.fillStyle = '#b37800'; g.fillRect(c.x - 2, c.y - 2, 5, 5); g.fillStyle = '#f5c518'; g.fillRect(c.x - 2, c.y - 2, 4, 4); g.fillStyle = '#fff3a8'; g.fillRect(c.x - 1, c.y - 1, 1, 2); });
+  mg.obs.forEach((o) => { if (o.k === 'cone') { g.fillStyle = '#f07c2a'; for (let i = 0; i < 10; i++) g.fillRect(o.x + 4 - (i >> 1) * 0.5, GROUND - 10 + i, 1 + i * 0.8, 1); g.fillStyle = '#fff'; g.fillRect(o.x + 2, GROUND - 5, 5, 1); }
+    else { g.fillStyle = '#6b6b70'; g.fillRect(o.x + 4, GROUND - 8, 2, 8); g.fillStyle = '#e5484d'; g.fillRect(o.x, GROUND - 15, 10, 8); ptext(g, '!', o.x + 3, GROUND - 14, '#fff'); } });
+  if (!(mg.hurt > 0 && Math.floor(mg.t * 20) % 2)) beeSide(g, pxx, py, Math.floor(mg.t * 12) % 2, charId === 'B');
+  const left = Math.max(0, 15 - mg.t); hudCoins(g, left);
+  if (mg.t < 1.5) ptext(g, 'A: JUMP', cx96('A: JUMP'), 26, '#2a2540');
+  if (left <= 0) mgDone();
+}
+// いすレース: 上から見た商店街。3 本の車線を左右で動く
+function raceStep(g, dt) {
+  const play = mg.phase === 'play', sp = play ? mg.speed : 25; mg.scroll += sp * dt;
+  g.fillStyle = '#cfc6b6'; g.fillRect(0, 0, 192, 144);
+  // 両側の店（上から見た屋根とひさし）
+  const cols = ['#ff7a6b', '#7cc7ff', '#ffc94a', '#5fcfb0', '#b6a8ee'];
+  for (let i = -1; i < 6; i++) { const y = i * 30 + (mg.scroll * 0.9) % 30; [[0, 26], [166, 26]].forEach(([x, w], s) => { g.fillStyle = '#8f877a'; g.fillRect(x, y, w, 28); g.fillStyle = cols[(i + 7 + s * 2 + Math.floor(mg.scroll / 30)) % 5]; g.fillRect(s ? x : x + w - 6, y + 2, 6, 24); g.fillStyle = '#fffaf0'; for (let k = 0; k < 24; k += 4) g.fillRect(s ? x + 1 : x + w - 5, y + 2 + k, 1, 2); }); }
+  g.fillStyle = '#6a6670'; g.fillRect(36, 0, 120, 144); g.fillStyle = '#e8e2cf';
+  for (let i = -1; i < 10; i++) { const y = i * 16 + (mg.scroll % 16); g.fillRect(75, y, 2, 8); g.fillRect(115, y, 2, 8); }
+  const laneX = (l) => 56 + l * 40;
+  if (play) {
+    const jx = joy.x || (keys['arrowleft'] || keys['a'] ? -1 : keys['arrowright'] || keys['d'] ? 1 : 0);
+    if (jx !== mg.lastX && jx !== 0) mg.lane = Math.max(0, Math.min(2, mg.lane + jx)); mg.lastX = jx;
+    mg.lx += (mg.lane - mg.lx) * Math.min(1, dt * 14); mg.speed = 70 + mg.t * 5;
     mg.spawn -= dt; mg.cspawn -= dt;
-    if (mg.spawn < 0) { mg.obs.push({ x: 200, k: Math.random() < .5 ? 'cone' : 'sign' }); mg.spawn = 0.8 + Math.random() * 0.9; }
-    if (mg.cspawn < 0) { const hy = Math.random() < .5 ? 0 : 26 + Math.random() * 18; for (let i = 0; i < 3; i++) mg.coins.push({ x: 200 + i * 10, y: GROUND - 10 - hy }); mg.cspawn = 0.9 + Math.random() * .6; }
-    mg.obs.forEach((o) => o.x -= mg.speed * dt); mg.coins.forEach((c) => c.x -= mg.speed * dt);
-    const py = GROUND - 16 + mg.y, pxx = 34;
-    mg.coins = mg.coins.filter((c) => { if (Math.abs(c.x - (pxx + 4)) < 7 && Math.abs(c.y - (py + 6)) < 10) { mg.got++; return false; } return c.x > -10; });
-    mg.obs = mg.obs.filter((o) => { const w = o.k === 'cone' ? 8 : 10, h = o.k === 'cone' ? 10 : 15; if (!o.hit && mg.hurt <= 0 && o.x < pxx + 7 && o.x + w > pxx + 1 && py + 15 > GROUND - h) { o.hit = true; mg.hurt = 0.8; mg.got = Math.max(0, mg.got - 3); } return o.x > -12; });
+    if (mg.spawn < 0) { const k = ['cone', 'pigeon', 'cart'][Math.floor(Math.random() * 3)]; mg.obs.push({ l: Math.floor(Math.random() * 3), y: -16, k, d: Math.random() < .5 ? -1 : 1, px: 0 }); mg.spawn = Math.max(0.4, 0.95 - mg.t * 0.02) + Math.random() * 0.4; }
+    if (mg.cspawn < 0) { const l = Math.floor(Math.random() * 3); for (let i = 0; i < 3; i++) mg.coins.push({ l, y: -10 - i * 12 }); mg.cspawn = 0.8 + Math.random() * 0.5; }
+    mg.obs.forEach((o) => { o.y += mg.speed * dt; if (o.k === 'pigeon') { o.px += o.d * dt * 14; if (Math.abs(o.px) > 16) o.d *= -1; } });
+    mg.coins.forEach((c) => { c.y += mg.speed * dt; });
+    const pxp = laneX(mg.lx);
+    mg.coins = mg.coins.filter((c) => { if (Math.abs(laneX(c.l) - pxp) < 10 && Math.abs(c.y - 112) < 9) { mg.got++; return false; } return c.y < 150; });
+    mg.obs = mg.obs.filter((o) => { const ox = laneX(o.l) + (o.px || 0); if (!o.hit && mg.hurt <= 0 && Math.abs(ox - pxp) < 12 && Math.abs(o.y - 112) < 11) { o.hit = true; mg.hurt = 0.9; mg.got = Math.max(0, mg.got - 3); buzz(); } return o.y < 160; });
     mg.hurt -= dt;
-    mg.coins.forEach((c) => { g.fillStyle = '#b37800'; g.fillRect(c.x - 2, c.y - 2, 5, 5); g.fillStyle = '#f5c518'; g.fillRect(c.x - 2, c.y - 2, 4, 4); g.fillStyle = '#fff3a8'; g.fillRect(c.x - 1, c.y - 1, 1, 2); });
-    mg.obs.forEach((o) => { if (o.k === 'cone') { g.fillStyle = '#f07c2a'; for (let i = 0; i < 10; i++) g.fillRect(o.x + 4 - (i >> 1) * 0.5, GROUND - 10 + i, 1 + i * 0.8, 1); g.fillStyle = '#fff'; g.fillRect(o.x + 2, GROUND - 5, 5, 1); }
-      else { g.fillStyle = '#6b6b70'; g.fillRect(o.x + 4, GROUND - 8, 2, 8); g.fillStyle = '#e5484d'; g.fillRect(o.x, GROUND - 15, 10, 8); ptext(g, '!', o.x + 3, GROUND - 14, '#fff'); } });
-    if (!(mg.hurt > 0 && Math.floor(mg.t * 20) % 2)) {
-      const f = Math.floor(mg.t * 12) % 2, x = pxx, y = py, Bt = charId === 'B';
-      g.fillStyle = '#2d2a28'; g.fillRect(x + (f ? 1 : 4), y + 14, 3, 2); g.fillRect(x + (f ? 5 : 2), y + 14, 3, 2);
-      g.fillStyle = Bt ? '#b6a8ee' : '#3f4a66'; g.fillRect(x + (Bt ? 1 : 2), y + 10, Bt ? 7 : 5, 4);
-      g.fillStyle = Bt ? '#fff6ea' : '#e9e6df'; g.fillRect(x + 1, y + 5, 7, 6); g.fillStyle = '#e8bf9a'; g.fillRect(x + (f ? 0 : 8), y + 7, 1, 3);
-      g.fillStyle = '#d9a43a'; g.fillRect(x + 1, y, 7, 6); g.fillStyle = '#1b1712'; g.fillRect(x + 6, y + 1, 2, 3); g.fillRect(x + 3, y - 2, 1, 2); g.fillRect(x + 6, y - 3, 1, 3);
-      if (Bt) { g.fillStyle = '#ff6f61'; g.fillRect(x + 1, y - 1, 3, 2); }
-    }
-    const left = Math.max(0, 15 - mg.t);
-    g.fillStyle = 'rgba(20,16,30,.55)'; g.fillRect(3, 3, 44, 9); g.fillRect(150, 3, 39, 9);
-    g.fillStyle = '#f5c518'; g.fillRect(5, 5, 5, 5); ptext(g, 'x' + String(mg.got).padStart(2, '0'), 12, 5, '#fff');
-    ptext(g, 'T ' + String(Math.ceil(left)).padStart(2, '0'), 153, 5, left < 4 ? '#ff8f8f' : '#fff');
-    if (mg.t < 1.5) ptext(g, 'A: JUMP', 96 - ptw('A: JUMP') / 2, 26, '#2a2540');
-    if (left <= 0) { mg.phase = 'result'; mg.t = 0; }
-    return;
   }
-  g.fillStyle = 'rgba(20,16,30,.72)'; g.fillRect(0, 0, 192, 144);
-  ptext(g, 'CLEAR!', 96 - ptw('CLEAR!', 3) / 2, 34, '#ffe14d', 3, '#ff6f61');
-  g.fillStyle = '#f5c518'; g.fillRect(70, 72, 7, 7); ptext(g, '+' + mg.got, 82, 71, '#fff', 2);
-  if (mg.t > 0.8) ptext(g, 'PRESS A', 96 - ptw('PRESS A') / 2, 106, mg.t % .6 < .3 ? '#fff' : '#b6a8ee');
+  mg.coins.forEach((c) => { const x = laneX(c.l); g.fillStyle = '#b37800'; g.fillRect(x - 2, c.y - 2, 5, 5); g.fillStyle = '#f5c518'; g.fillRect(x - 2, c.y - 2, 4, 4); });
+  mg.obs.forEach((o) => { const x = laneX(o.l) + (o.px || 0), y = o.y;
+    if (o.k === 'cone') { g.fillStyle = '#f07c2a'; g.fillRect(x - 4, y - 4, 9, 9); g.fillStyle = '#fff'; g.fillRect(x - 2, y - 2, 5, 5); g.fillStyle = '#f07c2a'; g.fillRect(x - 1, y - 1, 3, 3); }
+    if (o.k === 'pigeon') { g.fillStyle = '#8d8a98'; g.fillRect(x - 3, y - 4, 7, 9); g.fillStyle = '#5fbfa6'; g.fillRect(x - 2, y - 5, 5, 2); g.fillStyle = '#e2574c'; g.fillRect(x, y - 7, 1, 2); }
+    if (o.k === 'cart') { g.fillStyle = '#c9c3d6'; g.fillRect(x - 6, y - 8, 13, 15); g.fillStyle = '#6d6280'; for (let k = 0; k < 13; k += 3) g.fillRect(x - 6 + k, y - 8, 1, 15); g.fillStyle = '#ff6f61'; g.fillRect(x - 6, y + 5, 13, 2); } });
+  // じぶん（事務いすにすわったはち男を上から）
+  const x = laneX(mg.lx), y = 112;
+  if (!(mg.hurt > 0 && Math.floor(mg.t * 20) % 2)) {
+    g.fillStyle = '#2e2a38'; [[-6, 6], [6, 6], [0, 9], [-5, -2], [5, -2]].forEach(([dx, dy]) => g.fillRect(x + dx - 1, y + dy - 1, 3, 3));
+    g.fillStyle = '#4a4458'; g.fillRect(x - 5, y - 1, 11, 9); g.fillStyle = charId === 'B' ? '#fff6ea' : '#e9e6df'; g.fillRect(x - 4, y - 3, 9, 7);
+    g.fillStyle = '#d9a43a'; g.fillRect(x - 3, y - 8, 7, 6); g.fillStyle = '#1b1712'; g.fillRect(x - 4, y - 7, 2, 3); g.fillRect(x + 3, y - 7, 2, 3); g.fillRect(x - 2, y - 11, 1, 3); g.fillRect(x + 2, y - 11, 1, 3);
+  }
+  if (play) { const left = Math.max(0, 20 - mg.t); hudCoins(g, left); if (mg.t < 1.5) ptext(g, 'LEFT RIGHT', cx96('LEFT RIGHT'), 26, '#fff'); if (left <= 0) mgDone(); }
+}
+// 自販機ずもう: 横から見た土俵。A を連打して、自販機を外へ押し出す
+function fightStep(g, dt) {
+  const play = mg.phase === 'play';
+  const sky = ['#2d2a3a', '#3b3650', '#4d4566']; for (let i = 0; i < 3; i++) { g.fillStyle = sky[i]; g.fillRect(0, i * 30, 192, 30); }
+  g.fillStyle = '#ffe7a8'; [[20, 14], [60, 30], [140, 10], [172, 26], [100, 20]].forEach(([x, y]) => g.fillRect(x, y, 1, 1));
+  g.fillStyle = '#ff8fc8'; for (let i = 0; i < 6; i++) { g.fillRect(8 + i * 34, 52, 6, 8); g.fillStyle = i % 2 ? '#ff8fc8' : '#ffc94a'; } // ちょうちん
+  g.fillStyle = '#c9b48a'; g.fillRect(0, 96, 192, 48); g.fillStyle = '#e8d9b8'; g.fillRect(0, 96, 192, 3);
+  g.fillStyle = '#fffaf0'; g.fillRect(24, 104, 2, 30); g.fillRect(166, 104, 2, 30); // 俵
+  if (play) {
+    mg.surge -= dt; if (mg.surge < 0) { mg.push = 0.22 + Math.random() * 0.32 + mg.t * 0.018; mg.surge = 0.5 + Math.random() * 1.1; }
+    mg.p -= mg.push * dt; mg.mash -= dt; mg.shake -= dt;
+    if (mg.p >= 1) { mg.got = 10 + Math.max(0, Math.ceil(20 - mg.t)); mgDone('WIN!'); buzz(); }
+    else if (mg.p <= -1) { mg.got = 1; mgDone('OUT...'); }
+    else if (mg.t > 20) { mg.got = 3; mgDone('DRAW'); }
+  }
+  const mid = 96 + mg.p * 66, sh = mg.shake > 0 ? (Math.random() - 0.5) * 2 : 0;
+  // 自販機
+  const vx = mid + 4 + sh; g.fillStyle = '#e2574c'; g.fillRect(vx, 66, 24, 46); g.fillStyle = '#dff4ff'; g.fillRect(vx + 3, 70, 18, 16);
+  ['#3498db', '#f1c40f', '#2ecc71', '#e67e22', '#9d8cf0', '#ff9ec4'].forEach((c, i) => { g.fillStyle = c; g.fillRect(vx + 5 + (i % 3) * 5, 72 + Math.floor(i / 3) * 7, 3, 5); });
+  g.fillStyle = Math.floor(mg.t * 6) % 2 ? '#ffe14d' : '#8a7a40'; g.fillRect(vx + 18, 90, 2, 2); g.fillStyle = '#222'; g.fillRect(vx + 5, 100, 14, 4);
+  if (mg.push > 0.45) ptext(g, '!', vx + 10, 58, '#ffe14d');
+  // じぶん（押している）
+  const bx = mid - 14 - sh; beeSide(g, bx, 96, mg.mash > 0 ? 1 : 0, charId === 'B'); g.fillStyle = '#e8bf9a'; g.fillRect(bx + 8, 102, 4, 2);
+  // 押し具合
+  g.fillStyle = 'rgba(20,16,30,.55)'; g.fillRect(46, 18, 100, 7); g.fillStyle = '#5fcfb0'; g.fillRect(96, 19, Math.max(0, mg.p) * 49, 5); g.fillStyle = '#ff6f61'; g.fillRect(96 + Math.min(0, mg.p) * 49, 19, -Math.min(0, mg.p) * 49, 5); g.fillStyle = '#fff'; g.fillRect(95, 17, 1, 9);
+  if (play) { hudCoins(g, Math.max(0, 20 - mg.t)); if (mg.t < 1.5) ptext(g, 'MASH A', cx96('MASH A'), 34, '#fff'); }
+}
+// 段ボールつみ: 左右に動く箱を A で落とす。はみ出た分は落ちる
+const BOX_H = 10, BASE_Y = 126;
+function newBox() { const top = mg.stack[mg.stack.length - 1]; mg.cur = { x: mg.dir > 0 ? -top.w : 192, w: top.w, v: 62 + mg.stack.length * 6 }; }
+function dropBox() {
+  const top = mg.stack[mg.stack.length - 1], c = mg.cur, l = Math.max(c.x, top.x), r = Math.min(c.x + c.w, top.x + top.w);
+  const y = BASE_Y - mg.stack.length * BOX_H;
+  if (r - l < 1) { mg.fall.push({ x: c.x, w: c.w, y, vy: 0 }); mg.cur = null; mg.miss = 0.9; buzz(); return; }
+  const perfect = Math.abs(c.x - top.x) < 1.6;
+  const nx = perfect ? top.x : l, nw = perfect ? top.w : r - l;
+  if (!perfect) { if (c.x < l) mg.fall.push({ x: c.x, w: l - c.x, y, vy: 0 }); if (c.x + c.w > r) mg.fall.push({ x: r, w: c.x + c.w - r, y, vy: 0 }); }
+  mg.stack.push({ x: nx, w: nw, perfect }); mg.got += perfect ? 2 : 1; mg.dir *= -1; newBox();
+}
+function boxDraw(g, x, y, w, perfect) {
+  g.fillStyle = '#c9a06a'; g.fillRect(Math.round(x), y, Math.round(w), BOX_H - 1); g.fillStyle = '#a8814e'; g.fillRect(Math.round(x), y + BOX_H - 2, Math.round(w), 1);
+  g.fillStyle = perfect ? '#ffe14d' : '#e8d9b8'; g.fillRect(Math.round(x + w / 2) - 1, y, 3, BOX_H - 1);
+}
+function deliveryStep(g, dt) {
+  const play = mg.phase === 'play';
+  const target = Math.max(0, (mg.stack.length - 7) * BOX_H); mg.scroll += (target - mg.scroll) * Math.min(1, dt * 4);
+  const sky = ['#f7d7a8', '#f3c38f', '#e9a87a']; for (let i = 0; i < 3; i++) { g.fillStyle = sky[i]; g.fillRect(0, i * 48, 192, 48); }
+  g.fillStyle = '#b48c7a'; for (let i = 0; i < 5; i++) g.fillRect(i * 44 - 6, 60 + (i % 2) * 14 + mg.scroll * 0.3, 30, 90);
+  const gy = BASE_Y + BOX_H + mg.scroll; g.fillStyle = '#5a5a60'; g.fillRect(0, gy, 192, 40);
+  g.fillStyle = '#4a4458'; g.fillRect(58, gy - 3, 76, 3); g.fillStyle = '#2e2a38'; g.fillRect(62, gy, 5, 4); g.fillRect(125, gy, 5, 4); g.fillRect(130, gy - 22, 3, 22); // 台車
+  mg.stack.forEach((b, i) => { if (i) boxDraw(g, b.x, BASE_Y - (i - 1) * BOX_H + mg.scroll - BOX_H + BOX_H, b.w, b.perfect); });
+  if (play && mg.cur) { const c = mg.cur; c.x += mg.dir * c.v * dt; if (c.x > 192 - c.w + 30 || c.x < -30) { mg.dir *= -1; c.x = Math.max(-30, Math.min(192 - c.w + 30, c.x)); } }
+  if (mg.cur) boxDraw(g, mg.cur.x, BASE_Y - (mg.stack.length) * BOX_H + mg.scroll, mg.cur.w);
+  mg.fall = mg.fall.filter((f) => { f.vy += 300 * dt; f.y += f.vy * dt; boxDraw(g, f.x, Math.round(f.y + mg.scroll), f.w); return f.y < 200; });
+  if (play && mg.miss > 0) { mg.miss -= dt; if (mg.miss <= 0) mgDone(mg.stack.length > 12 ? 'NICE!' : 'CLEAR!'); }
+  if (play) { hudCoins(g); g.fillStyle = 'rgba(20,16,30,.55)'; g.fillRect(150, 3, 39, 9); ptext(g, String(mg.stack.length - 1).padStart(2, '0') + ' BOX', 152, 5, '#fff'); if (mg.t < 1.5) ptext(g, 'A: DROP', cx96('A: DROP'), 26, '#2a2540'); }
+}
+function mgStep(dt) {
+  const g = mgG; mg.t += dt; g.imageSmoothingEnabled = false; const id = mg.game.id;
+  ({ RUN: runStep, RACE: raceStep, FIGHT: fightStep, DELIVERY: deliveryStep })[id](g, dt);
+  if (mg.phase === 'title') {
+    const [l1] = MG_INFO[id];
+    g.fillStyle = 'rgba(20,16,30,.62)'; g.fillRect(0, 0, 192, 144);
+    ptext(g, id, cx96(id, id.length > 5 ? 3 : 4), 30, '#ffe14d', id.length > 5 ? 3 : 4, '#ff6f61');
+    ptext(g, l1, cx96(l1), 70, '#ffffff');
+    if (mg.t % .8 < .5) ptext(g, 'PRESS A', cx96('PRESS A'), 96, '#ffffff');
+    ptext(g, 'START: BACK', cx96('START: BACK'), 120, '#b6a8ee');
+  } else if (mg.phase === 'result') {
+    g.fillStyle = 'rgba(20,16,30,.72)'; g.fillRect(0, 0, 192, 144);
+    ptext(g, mg.end, cx96(mg.end, 3), 34, '#ffe14d', 3, '#ff6f61');
+    g.fillStyle = '#f5c518'; g.fillRect(70, 72, 7, 7); ptext(g, '+' + mg.got, 82, 71, '#fff', 2);
+    if (mg.t > 0.8) ptext(g, 'PRESS A', cx96('PRESS A'), 106, mg.t % .6 < .3 ? '#fff' : '#b6a8ee');
+  }
 }
 
 // ───────── 当たり（四角を回したもの・円） ─────────
@@ -1530,6 +1657,41 @@ function pushOut(p, o, rad) {
   p.x = o.x + lx * c + lz * s; p.z = o.z - lx * s + lz * c;
 }
 
+// ───────── 案内（大家さん）: はじめて部屋に入ったら、できることを 1 つずつ。やるとすすむ ─────────
+const TUT = [
+  { say: '大家です。引っ越しおつかれさま。', auto: 3 },
+  { say: '十字ボタンで歩けるよ。行きたい所を押しても歩く。', done: 'walk' },
+  { say: '画面をなぞるか L・R で、まわりが見られる。', done: 'look' },
+  { say: '棚のグッズを押すと、手に取って見られるよ。', done: 'get' },
+  { say: '「撮る」か、左下のカメラのボタンで写真になる。', done: 'shot' },
+  { say: 'START の「かざりかえる」で、置き場所を変えられる。', done: 'edit' },
+  { say: 'ゲーム機のステッカーは指で動かせる。START の「マイステッカー」で描ける。', done: 'stk' },
+  { say: 'SELECT で着がえ。', done: 'dress' },
+  { say: '壁のカレンダーから、今月のまとめ画像が作れる。', auto: 5 },
+  { say: 'ドアの前の EXIT から、町に出られる。', done: 'town' },
+  { say: 'ゲームセンターは道の先。台の前で A。自販機はコイン 3 枚。', auto: 6, town: true },
+];
+let tutI = ST.tut === 'done' ? -1 : (typeof ST.tut === 'number' ? ST.tut : 0), tutT = 0, walkAcc = 0, lookAcc = 0, lastYaw = null;
+const tutEl = $('tut');
+const oya = makeBee({ type: 'A', shirt: '#c9b28a', bottom: '#5a4a3a', headC: '#b8862e' }); oya.g.position.set(-1.3, 0, 1.0); OWN.me.group.add(oya.g); oya.g.visible = tutI >= 0;
+function tutShow() { if (tutI < 0) { tutEl.classList.remove('on'); oya.g.visible = false; return; } $('tutL').textContent = TUT[tutI].say; tutT = 0; }
+function tutNext() { tutI++; if (tutI >= TUT.length) { tutI = -1; ST.tut = 'done'; } else ST.tut = tutI; persist(); tutShow(); }
+function tutHit(kind) { if (tutI >= 0 && TUT[tutI].done === kind) { buzz(); tutNext(); } }
+$('tutSkip').onclick = (e) => { e.stopPropagation(); tutI = -1; ST.tut = 'done'; persist(); tutShow(); };
+function stepTut(dt) {
+  if (tutI < 0) return;
+  const st = TUT[tutI], here = st.town ? S.mode === 'town' : (S.mode === 'room' && S.owner === 'me') || st.done === 'town';
+  const show = S.power === 'on' && here && !S.get && !mg.on && !S.menu && !S.edit && !talkS && !stkEl.classList.contains('on') && !libEl.classList.contains('on');
+  if (show && !tutEl.classList.contains('on')) $('tutL').textContent = st.say;
+  tutEl.classList.toggle('on', show);
+  if (!show) return;
+  tutT += dt; if (st.auto && tutT > st.auto) tutNext();
+  if (lastYaw != null) lookAcc += Math.abs(S.yaw - lastYaw); lastYaw = S.yaw;
+  if (st.done === 'look' && lookAcc > 1.0) tutHit('look');
+  if (st.done === 'walk' && walkAcc > 1.6) tutHit('walk');
+  oya.g.visible = S.mode === 'room';
+  const d = me.position.clone().sub(oya.g.position); oya.g.rotation.y = Math.atan2(d.x, d.z); oya.head.rotation.z = Math.sin(performance.now() / 600) * 0.1;
+}
 // ───────── 住人の動き ─────────
 function stepNpcs(dt, t) {
   for (const n of npcs) {
@@ -1560,7 +1722,7 @@ function nearest() {
     for (const n of npcs) { const d = me.position.distanceTo(n.g.position); if (d < 1.5 && d < bd) { bd = d; best = { label: n.cat ? 'ねこをなでる' : `${n.name}${n.fan ? 'さん' : ''}と話す`, act: () => talkTo(n) }; } } return best; }
   let best = null, bd = 1.5;
   for (const o of pickables) { if (!visible(o)) continue; o.getWorldPosition(tmpV); const d = Math.hypot(me.position.x - tmpV.x, me.position.z - tmpV.z); if (d < bd) { bd = d; best = o.userData; } }
-  return best && { label: best.npc ? `${best.title}と話す` : 'グッズを見る', act: () => best.npc ? talk(best) : getItem(best) };
+  return best && { label: best.prop ? '今月のまとめを作る' : best.npc ? `${best.title}と話す` : 'グッズを見る', act: () => best.prop ? opts.onMatome?.() : best.npc ? talk(best) : getItem(best) };
 }
 function tick() {
   if (dead) return; raf = requestAnimationFrame(tick);
@@ -1582,11 +1744,11 @@ function tick() {
     unfocus(); S.pending = null; S.walkTo = null; moving = true;
     S.hold = (S.hold || 0) + dt; S.spd = THREE.MathUtils.lerp(S.spd || 0, (S.mode === 'town' ? (S.hold > 1.2 ? 4.6 : 3.4) : 2.0), Math.min(1, dt * 7));
     mv.normalize(); let dr = Math.atan2(mv.x, mv.z) - me.rotation.y; dr = Math.atan2(Math.sin(dr), Math.cos(dr)); me.rotation.y += dr * Math.min(1, dt * 16);
-    me.position.addScaledVector(mv, S.spd * dt); walkMark.visible = false;
+    me.position.addScaledVector(mv, S.spd * dt); walkMark.visible = false; walkAcc += S.spd * dt;
   } else if (free && S.walkTo) {
     S.hold = 0; const d = S.walkTo.clone().sub(me.position); d.y = 0; const dist = d.length();
     if (dist > 0.08) { moving = true; let dr = Math.atan2(d.x, d.z) - me.rotation.y; dr = Math.atan2(Math.sin(dr), Math.cos(dr)); me.rotation.y += dr * Math.min(1, dt * 14);
-      const before = me.position.clone(); me.position.addScaledVector(d.normalize(), Math.min(dist, dt * (S.mode === 'town' ? 3.4 : 1.8)));
+      const before = me.position.clone(); me.position.addScaledVector(d.normalize(), Math.min(dist, dt * (S.mode === 'town' ? 3.4 : 1.8))); walkAcc += dt * 1.8;
       S.lastPos = before; if (S.mode === 'town') S.yaw += Math.atan2(Math.sin(me.rotation.y + Math.PI - S.yaw), Math.cos(me.rotation.y + Math.PI - S.yaw)) * Math.min(1, dt * 0.9); }
     else { S.walkTo = null; walkMark.visible = false; if (S.pending) { const p = S.pending; S.pending = null; p.act(); } }
   } else { S.hold = 0; S.spd = 0; }
@@ -1612,6 +1774,7 @@ function tick() {
   if (walkMark.visible) { walkMark.userData.t += dt; walkMark.scale.setScalar(1 + Math.sin(walkMark.userData.t * 8) * 0.12); }
   // 町の住人
   if (S.mode === 'town') stepNpcs(dt, t);
+  stepTut(dt);
   // 近くで A を押すとできること
   S.near = (S.busy || S.get || S.menu || S.edit) ? null : nearest();
   if (performance.now() > promptLock) { if (S.near && !card.classList.contains('on')) { promptT.textContent = S.near.label; promptEl.classList.add('on'); } else promptEl.classList.remove('on'); }

@@ -19,6 +19,7 @@ export const ROOM_MARKUP = `  <div class="dock">
         <div class="tv" id="tv">
           <div class="scan"></div>
           <div class="hud"><canvas id="hud"></canvas></div>
+          <div class="tut" id="tut"><div class="tn">大家さん</div><div class="tl" id="tutL"></div><button id="tutSkip">とばす</button></div>
           <div class="prompt" id="prompt"><i>A</i><span id="promptT"></span></div>
           <div class="card" id="card"><img id="cImg" alt=""><div style="flex:1;min-width:0"><div class="t" id="cT"></div><div class="s" id="cS"></div></div></div>
           <div class="get" id="get"><div class="gx"><div class="gt" id="gT"></div><div class="gs" id="gS"></div></div><div class="gb"><button class="y" id="gShot">撮る</button><button id="gBack">もどす</button></div></div>
@@ -44,5 +45,5 @@ export const ROOM_MARKUP = `  <div class="dock">
     <canvas class="sbag" id="sBagFront" style="z-index:4"></canvas>
   </div>
   <canvas class="ghost" id="ghost"></canvas>
-  <div class="shot" id="shot"><img id="shotImg" alt="スクショ"><div class="row"><button class="a" id="shotShare">共有する</button><button class="b" id="shotSave">保存する</button></div><button class="b" id="shotClose" style="flex:none;padding:10px 28px">閉じる</button><small>アプリでは、共有するとリンクも一緒に付きます。このページでは画像を長押しで保存できます</small></div>
+  <div class="shot" id="shot"><img id="shotImg" alt="スクショ"><div class="row"><button class="a" id="shotShare">X などに共有</button><button class="b" id="shotSave">保存する</button></div><button class="b" id="shotClose" style="flex:none;padding:10px 28px">閉じる</button></div>
 `;
