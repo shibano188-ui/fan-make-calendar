@@ -60,7 +60,7 @@ export default function RoomDock({ events }: { events: CalendarEvent[] | null })
       {hint && (
         <div className="fhr-hint" role="note">
           <b>マイホーム</b>
-          <span>ゲーム機を押すと、買ったグッズを飾った部屋に入れる</span>
+          <span>ゲーム機を押すと、グッズを飾った部屋へ</span>
         </div>
       )}
     </>
