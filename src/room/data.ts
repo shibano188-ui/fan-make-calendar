@@ -60,3 +60,11 @@ export function toGoods(list: MyGot[]): RoomGoods[] {
 export function toSamples(events: CalendarEvent[]): RoomSample[] {
   return events.flatMap((e) => { if (deriveItemType(e) === 'event') return []; const img = imageOf(e); return img ? [{ img, title: e.title, date: e.date ?? null }] : []; }).slice(0, 40);
 }
+
+/** 見本（プレビュー用）: 画像のある新しいグッズ */
+export async function loadSampleGot(): Promise<MyGot[]> {
+  const { data } = await supabase.from('events').select('*').not('image_url', 'is', null).order('created_at', { ascending: false }).limit(60);
+  const now = new Date().toISOString();
+  return (data ?? []).map((r) => eventFromRow(r as Record<string, unknown>)).filter((e) => deriveItemType(e) === 'goods' && imageOf(e)).slice(0, 9)
+    .map((event, i) => ({ event, stamp: 'bought' as const, at: new Date(Date.now() - i * 2.6e8).toISOString() || now }));
+}

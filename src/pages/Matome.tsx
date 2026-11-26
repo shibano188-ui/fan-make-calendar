@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { loadMyGot, imageOf, type MyGot } from '../room/data';
+import { loadMyGot, loadSampleGot, imageOf, type MyGot } from '../room/data';
+import { ROOM_PREVIEW } from '../room/preview';
 
 // 今月のまとめ画像（2026-11-26 柴野「コラージュの方がいい」）。その月に「買った」「行った」を押した予定を、
 // 切り抜いたステッカーにしてコラージュで並べる。一番の物（値段の高い物）を大きく、ほかは大きさ・向きを変えて重ねる。
@@ -113,15 +114,18 @@ export default function Matome() {
   const { user } = useAuth();
   const now = new Date(), month = now.getMonth() + 1;
   const [items, setItems] = useState<Item[] | null>(null);
+  const [sample, setSample] = useState(false);
   const [style, setStyle] = useState<Style>('n');
   const [showTotal, setShowTotal] = useState(true);
   const cvRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    if (!user) return; linkFonts();
+    linkFonts();
     let alive = true;
     void (async () => {
-      const got = (await loadMyGot(user.id)).filter((g) => { const d = new Date(g.at); return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); });
+      let got = user ? (await loadMyGot(user.id)).filter((g) => { const d = new Date(g.at); return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); }) : [];
+      // プレビューでは、まだ何も無い人に見本を出す
+      if (!got.length && ROOM_PREVIEW) { got = await loadSampleGot(); if (alive) setSample(true); }
       // 値段の高い物を大きく
       got.sort((a, b) => (b.event.price ?? 0) - (a.event.price ?? 0));
       const list: Item[] = [];
@@ -160,6 +164,7 @@ export default function Matome() {
             <button className={pill(style === 'r')} onClick={() => setStyle('r')}>レトロ</button>
             <button className={pill(showTotal)} onClick={() => setShowTotal((v) => !v)}>合計金額</button>
           </div>
+          {sample && <p className="px-4 pb-2 text-[12px] text-label-tertiary">見本（「買った」「行った」を押すと自分の1枚になる）</p>}
           <div className="px-4"><canvas ref={cvRef} className="w-full rounded-xl" style={{ aspectRatio: '4 / 5', boxShadow: '0 8px 24px rgba(0,0,0,.12)' }} /></div>
           <div className="flex gap-2 px-4 pt-4">
             <button onClick={share} className="pressable flex-1 rounded-full py-3 text-[15px] font-bold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>共有する</button>
