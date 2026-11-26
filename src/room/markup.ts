@@ -19,7 +19,8 @@ export const ROOM_MARKUP = `  <div class="dock">
         <div class="tv" id="tv">
           <div class="scan"></div>
           <div class="hud"><canvas id="hud"></canvas></div>
-          <div class="tut" id="tut"><div class="tn">大家さん</div><div class="tl" id="tutL"></div><button id="tutSkip">とばす</button></div>
+          <div class="tut" id="tut"><div class="tn">大家さん<button id="tutSkip">スキップ</button></div><div class="tl" id="tutL"></div><button class="nx" id="tutNext">次へ ▶</button></div>
+          <canvas class="cur" id="cur" width="12" height="17"></canvas>
           <div class="prompt" id="prompt"><i>A</i><span id="promptT"></span></div>
           <div class="card" id="card"><img id="cImg" alt=""><div style="flex:1;min-width:0"><div class="t" id="cT"></div><div class="s" id="cS"></div></div></div>
           <div class="get" id="get"><div class="gx"><div class="gt" id="gT"></div><div class="gs" id="gS"></div></div><div class="gb"><button class="y" id="gShot">撮る</button><button id="gBack">もどす</button></div></div>
@@ -41,6 +42,7 @@ export const ROOM_MARKUP = `  <div class="dock">
       <button class="pbtn" id="bSel" aria-label="SELECT キャラを着がえる"><canvas width="24" height="15"></canvas></button>
       <button class="pbtn" id="bStart" aria-label="START メニュー"><canvas width="24" height="15"></canvas></button>
       <button class="pbtn" id="bShot" aria-label="スクショ"><canvas width="16" height="16"></canvas></button>
+      <button class="pbtn" id="bHome" aria-label="自分の部屋へ"><canvas width="16" height="16"></canvas></button>
     </div>
     <canvas class="sbag" id="sBagFront" style="z-index:4"></canvas>
   </div>

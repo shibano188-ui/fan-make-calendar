@@ -126,3 +126,13 @@
 .fhr-hint::after { content:""; position:absolute; left:50%; bottom:-7px; margin-left:-7px; border:7px solid transparent; border-bottom:0; border-top-color:#1d1a29; }
 @keyframes fhrHint { 50% { transform:translateX(-50%) translateY(-4px); } }
 @media (prefers-reduced-motion: reduce) { .fhr-hint { animation:none; } }
+/* 案内: 次へ（A でも）・スキップは小さく別に */
+.fhr .tut .tn { display:flex; justify-content:space-between; align-items:center; }
+.fhr .tut .tn button { all:unset; cursor:pointer; font:10px/1 var(--dot); color:#a9a5b4; padding:2px 0 2px 8px; }
+.fhr .tut button.nx { all:unset; cursor:pointer; grid-column:2; grid-row:1 / 3; align-self:end; font:12px/1 var(--dot); color:#1d1a29; background:#ffc94a; padding:6px 9px; box-shadow:0 0 0 2px #1d1a29; }
+.fhr .tut button.nx:active { transform:translateY(2px); }
+/* 押したグッズの上の矢印（レトロなカーソル） */
+.fhr .cur { position:absolute; left:0; top:0; width:24px; height:34px; image-rendering:pixelated; pointer-events:none; display:none; filter:drop-shadow(1px 2px 0 rgba(0,0,0,.35)); }
+.fhr .cur.on { display:block; }
+/* 部屋を開いている間は、アプリの案内の吹き出しを隠す */
+html[data-room-open] [data-hint-layer] { display:none !important; }

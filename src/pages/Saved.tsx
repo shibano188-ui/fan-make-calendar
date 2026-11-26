@@ -1,4 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ROOM_PREVIEW } from '../room/preview';
+import { Images } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useNavigationType } from 'react-router-dom';
 import { SlidersHorizontal, Crown, Palette, MoreHorizontal } from 'lucide-react';
@@ -419,6 +421,14 @@ export default function Saved() {
                     className="pressable flex-shrink-0 text-[12px] font-bold px-2.5 h-7 rounded-full"
                     style={{ backgroundColor: 'var(--label-primary)', color: 'var(--bg-primary)' }}>
                     今日
+                  </button>
+                )}
+                {/* その月のまとめ画像（まだプレビューだけ） */}
+                {ROOM_PREVIEW && (
+                  <button onClick={() => { haptic.select(); navigate(`/matome?m=${year}-${month}`); }}
+                    className="pressable flex-shrink-0 flex items-center gap-1 text-[12px] font-bold px-2.5 h-7 rounded-full"
+                    style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+                    <Images size={14} aria-hidden />まとめ画像
                   </button>
                 )}
               </div>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { loadMyGot, loadSampleGot, imageOf, type MyGot } from '../room/data';
@@ -11,12 +11,37 @@ import { shareImage, saveImage } from '../lib/shareImage';
 // 「買った」「行った」の文字と件数は書かない。試作 → Obsidian: Projects/fanhive-room-mock/matome.html
 
 const W = 1080, H = 1350, K = 2; // 下書きは 540×675 の座標で、2 倍で描く
-// 置き場所（大事な順）: [中心x, 中心y, 大きさ, 回転, 日付x, 日付y]
-const POS: [number, number, number, number, number, number][] = [
-  [404, 318, 370, 4, 440, 470], [140, 316, 205, -8, 66, 410], [410, 92, 210, 7, 330, 150], [352, 572, 160, -5, 330, 640], [214, 548, 150, 7, 196, 606],
-  [286, 200, 150, 10, 268, 268], [40, 470, 175, -24, 92, 556], [272, 410, 140, -11, 250, 470], [498, 548, 124, 16, 470, 600],
-];
-const DRAW_ORDER = [2, 1, 6, 5, 4, 7, 3, 0, 8];
+
+// 並べ方: 大事な物から、空いている所へ大きい順に置く。ほかの物と重なるのは端が少しかかる程度まで。
+// 左上の月の数字には少しだけかかってよい。下の合計と FanHive の帯にはかけない
+type Rect = { x: number; y: number; w: number; h: number };
+type Place = { cx: number; cy: number; w: number; h: number; rot: number };
+const inter = (a: Rect, b: Rect) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+const ANCHORS: [number, number][] = [[390, 330], [150, 370], [410, 115], [130, 520], [300, 515], [455, 545], [265, 300], [120, 440], [455, 440]];
+const ROT = [3, -6, 5, -3, 7, -5, 4, -7, 6];
+function layout(sts: HTMLCanvasElement[]): (Place | null)[] {
+  const n = sts.length, header: Rect = { x: 0, y: 0, w: 290, h: 240 }, foot: Rect = { x: 0, y: 675 - 92, w: 540, h: 92 };
+  const sizes = n <= 3 ? [360, 270, 250] : n <= 6 ? [330, 225, 210, 200, 190, 180] : [310, 205, 190, 178, 168, 160, 152, 146, 140];
+  const placed: Rect[] = [];
+  return sts.map((st, i) => {
+    const asp = st.width / st.height;
+    for (let k = 1; k >= 0.5; k -= 0.07) {
+      const size = sizes[i] * k, w = asp >= 1 ? size : size * asp, h = asp >= 1 ? size / asp : size;
+      let best: Rect | null = null, bs = Infinity;
+      for (let y = 10; y + h <= 675 - 60; y += 6) for (let x = 8; x + w <= 532; x += 6) {
+        const r = { x, y, w, h }, a = w * h;
+        let ov = 0; for (const p of placed) ov = Math.max(ov, inter(r, p) / Math.min(a, p.w * p.h));
+        if (ov > 0.07) continue;
+        const hov = inter(r, header) / a; if (hov > 0.16) continue;
+        if (inter(r, foot) / a > 0.04) continue;
+        const [ax, ay] = ANCHORS[i % ANCHORS.length], d = Math.hypot(x + w / 2 - ax, y + h / 2 - ay) + ov * 500 + hov * 300;
+        if (d < bs) { bs = d; best = r; }
+      }
+      if (best) { placed.push(best); return { cx: best.x + best.w / 2, cy: best.y + best.h / 2, w: best.w, h: best.h, rot: i ? ROT[i % ROT.length] : 2 }; }
+    }
+    return null;
+  });
+}
 
 const loadImg = (src: string) => new Promise<HTMLImageElement | null>((ok) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = src; });
 
@@ -67,12 +92,12 @@ function draw(cv: HTMLCanvasElement, items: Item[], month: number, style: Style,
     g.fillStyle = gr; g.fillText(num, 36, 450); g.lineWidth = 8; g.strokeStyle = ink; g.strokeText(num, 36, 450);
   }
   g.fillStyle = ink; g.font = `800 ${style === 'n' ? 128 : 120}px -apple-system, "Hiragino Sans", sans-serif`; g.fillText('月', 36 + nw - 10, style === 'n' ? 460 : 440);
-  // ステッカー
-  const n = Math.min(items.length, POS.length);
-  for (const pi of DRAW_ORDER) {
-    if (pi >= n) continue; const { st } = items[pi]; const [cx, cy, size, rot] = POS[pi];
-    const k = size * K / Math.max(st.width, st.height), w = st.width * k, h = st.height * k;
-    g.save(); g.translate(cx * K, cy * K); g.rotate(rot * Math.PI / 180);
+  // ステッカー（大事な物ほど上に重ねる）
+  const places = layout(items.map((it) => it.st));
+  for (let pi = items.length - 1; pi >= 0; pi--) {
+    const pl = places[pi]; if (!pl) continue; const { st } = items[pi];
+    const w = pl.w * K, h = pl.h * K;
+    g.save(); g.translate(pl.cx * K, pl.cy * K); g.rotate(pl.rot * Math.PI / 180);
     if (style === 'n') { g.shadowColor = 'rgba(60,40,10,.22)'; g.shadowBlur = 22; g.shadowOffsetY = 14; g.drawImage(st, -w / 2, -h / 2, w, h); }
     else {
       const sil = document.createElement('canvas'); sil.width = st.width; sil.height = st.height; const s = sil.getContext('2d')!; s.drawImage(st, 0, 0); s.globalCompositeOperation = 'source-in'; s.fillStyle = ink; s.fillRect(0, 0, sil.width, sil.height);
@@ -80,16 +105,12 @@ function draw(cv: HTMLCanvasElement, items: Item[], month: number, style: Style,
       for (const [dx, dy] of [[-4, 0], [4, 0], [0, -4], [0, 4]]) g.drawImage(sil, -w / 2 + dx, -h / 2 + dy, w, h);
       g.drawImage(st, -w / 2, -h / 2, w, h);
     }
+    // 日付の札（左下の角に貼る）
+    const d = new Date(items[pi].got.at), t = `${d.getMonth() + 1}.${String(d.getDate()).padStart(2, '0')}`;
+    g.shadowColor = 'transparent'; g.font = '500 22px "DM Mono", ui-monospace, monospace'; const tw = g.measureText(t).width;
+    g.fillStyle = style === 'n' ? 'rgba(251,192,0,.88)' : ink; g.fillRect(-w / 2 + 4, h / 2 - 30, tw + 20, 34);
+    g.fillStyle = style === 'n' ? ink : '#fff'; g.textBaseline = 'middle'; g.fillText(t, -w / 2 + 14, h / 2 - 12);
     g.restore();
-  }
-  // 日付の札
-  g.font = '500 22px "DM Mono", ui-monospace, monospace';
-  for (let pi = 0; pi < n; pi++) {
-    const d = new Date(items[pi].got.at), t = `${d.getMonth() + 1}.${String(d.getDate()).padStart(2, '0')}`, [, , , rot, dx, dy] = POS[pi];
-    const tw = g.measureText(t).width;
-    g.save(); g.translate(dx * K, dy * K); g.rotate(rot * 0.4 * Math.PI / 180);
-    g.fillStyle = style === 'n' ? 'rgba(251,192,0,.8)' : ink; g.fillRect(0, 0, tw + 20, 34);
-    g.fillStyle = style === 'n' ? ink : '#fff'; g.textBaseline = 'middle'; g.fillText(t, 10, 18); g.restore();
   }
   // 合計
   if (showTotal) {
@@ -113,7 +134,9 @@ function linkFonts() {
 export default function Matome() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const now = new Date(), month = now.getMonth() + 1;
+  const [params] = useSearchParams();
+  const m = /^(\d{4})-(\d{1,2})$/.exec(params.get('m') ?? '');
+  const now = m ? new Date(+m[1], +m[2] - 1, 1) : new Date(), month = now.getMonth() + 1;
   const [items, setItems] = useState<Item[] | null>(null);
   const [sample, setSample] = useState(false);
   const [style, setStyle] = useState<Style>('n');
@@ -130,7 +153,7 @@ export default function Matome() {
       // 値段の高い物を大きく
       got.sort((a, b) => (b.event.price ?? 0) - (a.event.price ?? 0));
       const list: Item[] = [];
-      for (const g of got.slice(0, POS.length)) { const src = imageOf(g.event, 640); const im = src ? await loadImg(src) : null; if (im) list.push({ got: g, st: cutSticker(im) }); }
+      for (const g of got.slice(0, 9)) { const src = imageOf(g.event, 640); const im = src ? await loadImg(src) : null; if (im) list.push({ got: g, st: cutSticker(im) }); }
       await Promise.all(['800 60px Outfit', '500 22px "DM Mono"'].map((f) => document.fonts?.load(f).catch(() => null)));
       if (alive) setItems(list);
     })();

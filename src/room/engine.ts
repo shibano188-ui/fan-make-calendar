@@ -9,6 +9,9 @@ export type RoomSample = { img: string; title: string; date?: string | null };
 export type RoomState = { layout?: Record<string, string | null>; char?: 'A' | 'B'; myStk?: { id: string; pix: string }[]; placed?: { id: string; x: number; y: number; r: number }[]; coins?: number; cans?: { id: string; name: string; col: string; col2: string; code: string }[]; tut?: number | 'done' };
 export type RoomOpts = { goods: RoomGoods[]; samples: RoomSample[]; userId?: string | null; state?: RoomState | null; save?: (s: RoomState) => void; share?: (blob: Blob, name: string, text: string) => Promise<unknown>; onMatome?: () => void; onOpen?: () => void; onClose?: () => void };
 
+// ゲームを閉じても、画面を移ってもどっても、遊んでいた所から続ける（アプリを開いている間だけ覚える）
+const SESSION: { s: null | { mode: string; owner: string; pos: number[]; ry: number; yaw: number; pitch: number; dist: number }; reopen: boolean } = { s: null, reopen: false };
+
 export function startRoom(root: HTMLElement, opts: RoomOpts): { destroy: () => void } {
 const $ = (id) => root.querySelector('#' + id);
 const DPR = Math.min(2, devicePixelRatio || 1);
@@ -68,6 +71,7 @@ function layoutConsole() {
   place('bSel', Math.round(cw / 2 - 84), ch - 90, 72, 45);
   place('bStart', Math.round(cw / 2 + 2), ch - 90, 72, 45);
   place('bShot', 30, ch - 96, 48, 48);
+  place('bHome', cw - 26 - 50, ch - 116, 48, 48);
 }
 // 角: 右下だけ大きく丸い（本体は肩ボタンのぶん下がっている）
 function bodyTest(W, H, top) {
@@ -190,7 +194,12 @@ function drawShotBtn() {
   for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const d = Math.hypot(x - 7.5, y - 7.5); if (d < 7.6) px(g, x, y, d > 6.6 ? line : (d < 5.8 && y < 5 ? hi : fill)); }
   g.fillStyle = line; g.fillRect(4, 6, 8, 5); g.fillRect(6, 5, 3, 1); g.fillStyle = fill; g.fillRect(6, 7, 3, 3); g.fillStyle = line; g.fillRect(7, 8, 1, 1); g.fillStyle = '#ffffff'; g.fillRect(10, 7, 1, 1);
 }
-function drawButtons() { drawShotBtn(); drawPow(); drawPill('bSel', 'SELECT'); drawPill('bStart', 'START'); drawA(); drawDpad(); drawShoulder('bL', 'L'); drawShoulder('bR', 'R'); document.documentElement.style.setProperty('--btn', CON.btn); }
+function drawHomeBtn() {
+  const g = $('bHome').querySelector('canvas').getContext('2d'), [fill, line, hi] = CON.pill; g.clearRect(0, 0, 16, 16);
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const d = Math.hypot(x - 7.5, y - 7.5); if (d < 7.6) px(g, x, y, d > 6.6 ? line : (d < 5.8 && y < 5 ? hi : fill)); }
+  g.fillStyle = line; for (let i = 0; i < 4; i++) g.fillRect(7 - i, 4 + i, 2 + i * 2, 1); g.fillRect(4, 8, 8, 4); g.fillStyle = fill; g.fillRect(7, 9, 2, 3);
+}
+function drawButtons() { drawShotBtn(); drawHomeBtn(); drawPow(); drawPill('bSel', 'SELECT'); drawPill('bStart', 'START'); drawA(); drawDpad(); drawShoulder('bL', 'L'); drawShoulder('bR', 'R'); document.documentElement.style.setProperty('--btn', CON.btn); }
 
 // ───────── カバン（ホーム・ドット絵）: 画面の下のはしで、くたっと口が開いている ─────────
 const bagEl = $('bag'), BAG = {};
@@ -776,13 +785,13 @@ const myHouse = building(cellPos(0, 0), new THREE.Vector3(0, 0, 1), { w: 4.0, h:
 box(0.3, 0.4, 0.3, flat({ color: '#ffc94a' }), 1.6, 0.9, 2.6, town); box(0.06, 0.7, 0.06, flat({ color: '#5c5a55' }), 1.6, 0.35, 2.6, town); circ(1.6, 2.6, 0.22);
 acts.push({ x: 0, z: 2.3, r: 1.3, stand: new THREE.Vector3(0, 0, 2.4), label: '部屋に入る', mesh: myHouse.door, act: () => goto('room', { owner: 'me' }) });
 const RING1 = { '1,0': 'mitsuba', '-1,0': 'neru', '1,-1': 'kohaku', '0,1': 'arcade', '-1,1': 'anime', '0,-1': 'books' };
-const GAMES = [{ id: 'RUN', ok: true, col: '#ff6f61', label: '走る' }, { id: 'RACE', ok: true, col: '#7cc7ff', label: 'いすレース' }, { id: 'FIGHT', ok: true, col: '#ffc94a', label: '自販機ずもう' }, { id: 'DELIVERY', ok: true, col: '#5fcfb0', label: '段ボールつみ' }];
+const GAMES = [{ id: 'RUN', ok: true, col: '#ff6f61', label: '走る' }, { id: 'RACE', ok: true, col: '#7cc7ff', label: 'いすレース' }, { id: 'FIGHT', ok: true, col: '#ffc94a', label: '自販機ずもう' }, { id: 'DELIVERY', ok: true, col: '#5fcfb0', label: '配達' }];
 function cabScreen(gm) { return pix(24, 18, (g) => {
   if (gm.ok) { ['#f7d7a8', '#f3c38f', '#e9a87a'].forEach((c, i) => { g.fillStyle = c; g.fillRect(0, i * 4, 24, 4); }); g.fillStyle = '#5a5a60'; g.fillRect(0, 12, 24, 6); g.fillStyle = '#e8e2cf'; for (let x = 1; x < 24; x += 6) g.fillRect(x, 15, 3, 1);
     g.fillStyle = '#d9a43a'; g.fillRect(6, 5, 4, 3); g.fillStyle = '#e9e6df'; g.fillRect(6, 8, 4, 3); g.fillStyle = '#3f4a66'; g.fillRect(6, 11, 4, 1); g.fillStyle = '#f07c2a'; g.fillRect(16, 9, 3, 3); g.fillStyle = '#f5c518'; g.fillRect(12, 6, 2, 2); }
   else if (gm.id === 'RACE') { g.fillStyle = '#cfc6b6'; g.fillRect(0, 0, 24, 18); g.fillStyle = '#6a6670'; g.fillRect(5, 0, 14, 18); g.fillStyle = '#e8e2cf'; g.fillRect(9, 2, 1, 3); g.fillRect(14, 8, 1, 3); g.fillStyle = '#f07c2a'; g.fillRect(15, 3, 3, 3); g.fillStyle = '#4a4458'; g.fillRect(9, 11, 5, 4); g.fillStyle = '#d9a43a'; g.fillRect(10, 8, 3, 3); }
   else if (gm.id === 'FIGHT') { g.fillStyle = '#3b3650'; g.fillRect(0, 0, 24, 18); g.fillStyle = '#c9b48a'; g.fillRect(0, 13, 24, 5); g.fillStyle = '#e2574c'; g.fillRect(13, 4, 6, 9); g.fillStyle = '#dff4ff'; g.fillRect(14, 5, 4, 3); g.fillStyle = '#d9a43a'; g.fillRect(7, 6, 4, 3); g.fillStyle = '#e9e6df'; g.fillRect(7, 9, 4, 4); }
-  else { g.fillStyle = '#f3c38f'; g.fillRect(0, 0, 24, 18); g.fillStyle = '#5a5a60'; g.fillRect(0, 15, 24, 3); [[8, 12, 8], [7, 9, 9], [9, 6, 7], [6, 3, 8]].forEach(([x, y, w]) => { g.fillStyle = '#c9a06a'; g.fillRect(x, y, w, 3); g.fillStyle = '#e8d9b8'; g.fillRect(x + (w >> 1), y, 1, 3); }); }
+  else { g.fillStyle = '#dbe9f2'; g.fillRect(0, 0, 24, 18); g.fillStyle = '#7a6a52'; for (let x = 0; x < 24; x++) { const y = 13 + Math.round(Math.sin(x / 4) * 2); g.fillRect(x, y, 1, 18 - y); } g.fillStyle = '#d9a43a'; g.fillRect(7, 6, 3, 3); g.fillStyle = '#e9e6df'; g.fillRect(7, 9, 3, 3); [0, 1, 2].forEach((i) => { g.fillStyle = '#c9a06a'; g.fillRect(10 + i, 7 - i * 3, 4, 3); }); }
 }); }
 let arcadeSign = null;
 for (let q = -2; q <= 2; q++) for (let r = -2; r <= 2; r++) {
@@ -1047,7 +1056,7 @@ function geom() {
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const anim = (el, kf, o) => el.animate(kf, { fill: 'forwards', ...o, duration: reduce ? 1 : o.duration });
 async function openConsole() {
-  if (S.power !== 'off' || S.anim) return; S.anim = true; root.style.zIndex = '200'; opts.onOpen?.();
+  if (S.power !== 'off' || S.anim) return; S.anim = true; root.style.zIndex = '200'; document.documentElement.dataset.roomOpen = '1'; opts.onOpen?.();
   const { T0, T1 } = geom();
   stage.classList.add('open'); consoleEl.style.zIndex = 3;
   [consoleEl, dim, sBack, sItems, sFront, tv].forEach((e) => e.getAnimations().forEach((a) => a.cancel()));
@@ -1069,11 +1078,12 @@ async function closeConsole() {
   await anim(consoleEl, [{ transform: 'none' }, { transform: T1 }], { duration: 440, easing: 'cubic-bezier(.4,0,.6,1)' }).finished;
   consoleEl.style.zIndex = 3;
   await anim(consoleEl, [{ transform: T1 }, { transform: T0 }], { duration: 360, easing: 'cubic-bezier(.5,0,.75,.4)' }).finished;
-  stage.classList.remove('open'); bagCon.visible = true; root.style.zIndex = ''; opts.onClose?.();
+  stage.classList.remove('open'); bagCon.visible = true; root.style.zIndex = ''; delete document.documentElement.dataset.roomOpen; opts.onClose?.();
   [consoleEl, dim, sBack, sItems, sFront, tv].forEach((e) => e.getAnimations().forEach((a) => a.cancel()));
   S.anim = false;
 }
 $('bPow').addEventListener('click', () => { if (S.power === 'on') closeConsole(); });
+$('bHome').addEventListener('click', () => { if (S.power !== 'on' || mg.on || S.busy || S.get) return; buzz(); if (S.mode === 'room' && S.owner === 'me') { flashPrompt('ここが自分の部屋'); return; } closeMenu(); goto('room', { owner: 'me' }); });
 $('bShot').addEventListener('click', () => { if (S.power !== 'on' || S.menu || stkEl.classList.contains('on')) return; buzz(); S.shot = true; tv.animate([{ filter: 'brightness(2.2)' }, { filter: 'brightness(1)' }], { duration: reduce ? 1 : 260 }); });
 
 // ───────── SELECT: キャラを着がえる（A ⇄ B。くるっと回って入れかわる） ─────────
@@ -1096,7 +1106,7 @@ function menuDo(k) {
   if (k === 'shot') S.shot = true;
   if (k === 'move') S.edit ? endEdit() : startEdit();
   if (k === 'lib') openLib();
-  if (k === 'matome') opts.onMatome?.();
+  if (k === 'matome') toMatome();
 }
 menuBtns.forEach((b, i) => b.addEventListener('click', () => { if (!b.disabled) menuDo(b.dataset.k); }));
 $('bStart').addEventListener('click', () => { if (S.power !== 'on') return; if (mg.on) return mgB(); if ($('stk').classList.contains('on')) return; if ($('lib').classList.contains('on')) return closeLib(); S.menu ? closeMenu() : openMenu(); });
@@ -1215,6 +1225,7 @@ function pressA() {
   if (S.menu) { if (!menuBtns[menuSel].disabled) menuDo(menuBtns[menuSel].dataset.k); return; }
   if (mg.on) return mgA();
   if (talkS) return nextTalk();
+  if (tutEl.classList.contains('on')) { tutNext(); return; }
   if (S.get) return endGet();
   if (S.busy) return;
   if (card.classList.contains('on')) return unfocus();
@@ -1257,7 +1268,7 @@ function pick(ev, list = pickables.filter(visible)) {
   if (S.mode !== 'room') return null; setRay(ev);
   const hit = ray.intersectObjects(list, true)[0];
   if (hit) return hit.object.userData;
-  const r = el.getBoundingClientRect(), mx = ev.clientX - r.left, my = ev.clientY - r.top; let best = null, bd = 44;
+  const r = el.getBoundingClientRect(), mx = ev.clientX - r.left, my = ev.clientY - r.top; let best = null, bd = 22;
   for (const o of list) { tmpBox.setFromObject(o).getCenter(tmpV).project(camera); if (tmpV.z > 1) continue; const sx = (tmpV.x + 1) / 2 * r.width, sy = (1 - tmpV.y) / 2 * r.height, d = Math.hypot(sx - mx, sy - my); if (d < bd) { bd = d; best = o.userData; } }
   return best;
 }
@@ -1266,7 +1277,7 @@ function tap(ev) {
   if (talkS) { nextTalk(); return; }
   if (S.get) { endGet(); return; }
   if (S.edit) { editTap(ev); return; }
-  if (S.mode === 'room') { const gd = pick(ev); if (gd) { if (gd.prop) return opts.onMatome?.(); if (gd.npc) return talk(gd); return getItem(gd); } unfocus(); setRay(ev); return walkHere(ray.intersectObject(floor, false)[0]?.point); }
+  if (S.mode === 'room') { const gd = pick(ev); if (gd) { if (gd.prop) return toMatome(); if (gd.npc) return talk(gd); if (S.aim === gd) return getItem(gd); return aimAt(gd); } aimAt(null); unfocus(); setRay(ev); return walkHere(ray.intersectObject(floor, false)[0]?.point); }
   setRay(ev); const hit = ray.intersectObjects([...acts.map((a) => a.mesh), ...npcs.map((n) => n.g)], true)[0];
   const n = hit?.object.userData.npc; if (n) { if (me.position.distanceTo(n.g.position) < 1.6) talkTo(n); else { S.walkTo = n.g.position.clone().lerp(me.position, 0.25); S.pending = { act: () => talkTo(n) }; } return; }
   const a = hit?.object.userData.act; if (a) { if (Math.hypot(me.position.x - a.x, me.position.z - a.z) < a.r) a.act(); else { S.walkTo = a.stand.clone(); S.pending = a; } return; }
@@ -1279,6 +1290,17 @@ const buzz = () => { try { navigator.vibrate?.(8); } catch { /* なし */ } };
 function talk(d) { $('cImg').src = d.img; $('cT').textContent = d.title; $('cS').textContent = d.sub || ''; card.classList.add('on'); }
 function unfocus() { card.classList.remove('on'); }
 
+// ───────── 印（カーソル）: 押したグッズの上に小さな矢印。もう 1 回押すか A で手に取る ─────────
+const curEl = $('cur');
+{ const g = curEl.getContext('2d'); const P = ['0...........', '00..........', '010.........', '0110........', '01110.......', '011110......', '0111110.....', '01111110....', '011111110...', '0111111110..', '01111100000.', '0110110.....', '010.0110....', '00..0110....', '0....0110...', '.....0110...', '......00....'];
+  P.forEach((r, y) => [...r].forEach((ch, x) => { if (ch !== '.') px(g, x, y, ch === '0' ? '#1d1a29' : '#ffffff'); })); }
+function aimAt(gd) { S.aim = gd || null; if (!gd) curEl.classList.remove('on'); }
+function stepCursor(t) {
+  const gd = S.aim; if (!gd || !gd.obj || !visible(gd.obj) || S.get || S.edit || S.mode !== 'room') { curEl.classList.remove('on'); if (S.aim && (S.mode !== 'room' || S.get)) S.aim = null; return; }
+  tmpBox.setFromObject(gd.obj); tmpV.set((tmpBox.min.x + tmpBox.max.x) / 2, tmpBox.max.y, (tmpBox.min.z + tmpBox.max.z) / 2).project(camera);
+  const r = el.getBoundingClientRect(), x = (tmpV.x + 1) / 2 * r.width, y = (1 - tmpV.y) / 2 * r.height;
+  curEl.style.transform = `translate(${Math.round(x - 2)}px, ${Math.round(y - 30 - Math.abs(Math.sin(t * 4)) * 5)}px)`; curEl.classList.add('on');
+}
 // ───────── グッズを掲げる（重要なアイテムを手に入れたときのように） ─────────
 let actx;
 function fanfare() {
@@ -1432,7 +1454,7 @@ function makeShot(src) {
 $('shotClose').onclick = () => $('shot').classList.remove('on');
 const shotReady = () => new Promise((ok) => { const w = () => shotBlob ? ok(shotBlob) : setTimeout(w, 50); w(); });
 $('shotSave').onclick = async () => { const b = await shotReady(); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'fanhive-room.png'; a.click(); };
-$('shotShare').onclick = async () => { const b = await shotReady(); if (opts.share) await opts.share(b, 'fanhive-room.png', 'わたしの部屋 #FanHive'); };
+$('shotShare').onclick = async () => { const b = await shotReady(); if (opts.share) await opts.share(b, 'fanhive-room.png', '#FanHive'); };
 
 // ───────── 部屋 ⇄ 町 ─────────
 const fadeEl = $('fade');
@@ -1461,10 +1483,11 @@ function goto(mode, opt = {}) {
 }
 
 // ───────── ミニゲーム（ゲームセンターの台で遊ぶ）。どれも A と十字ボタンだけ ─────────
-// 走る（コーンをとぶ）・いすレース（事務いすで商店街を下る）・自販機ずもう（A を連打して押し出す）・段ボールつみ（A で落として積む）
+// 走る（コーンをとぶ・はとはくぐる）・いすレース（事務いすで商店街を下る）・自販機ずもう（A を連打して押し出す）・配達（背負った荷物を左右で支えて運ぶ）
+// どれも一番の記録を残す（ST.best）。遊ぶたびに少しずつ速く・強くなる
 const mgEl = $('mg'), mgC = $('mgC'), mgG = mgC.getContext('2d');
 const mg = { on: false, phase: 'title', t: 0, got: 0 };
-const MG_INFO = { RUN: ['JUMP OVER CONES', 'A: JUMP'], RACE: ['ROLL DOWN THE STREET', 'LEFT RIGHT: MOVE'], FIGHT: ['PUSH THE MACHINE OUT', 'MASH A'], DELIVERY: ['STACK THE BOXES', 'A: DROP'] };
+const MG_INFO = { RUN: ['JUMP OVER CONES', 'A: JUMP'], RACE: ['ROLL DOWN THE STREET', 'LEFT RIGHT: MOVE'], FIGHT: ['PUSH THE MACHINE OUT', 'MASH A'], DELIVERY: ['CARRY THE BOXES 300M', 'LEFT RIGHT: BALANCE'] };
 function startMinigame(gm) {
   S.busy = true; joy.x = joy.y = 0; drawDpad('');
   Object.assign(mg, { on: true, game: gm, phase: 'title', t: 0, got: 0, end: '' }); mgInit();
@@ -1472,23 +1495,28 @@ function startMinigame(gm) {
 }
 function mgInit() {
   const id = mg.game.id;
-  if (id === 'RUN') Object.assign(mg, { y: 0, vy: 0, jumps: 0, obs: [], coins: [], speed: 72, spawn: 1.2, cspawn: .4, hurt: 0 });
+  mg.score = 0; mg.newBest = false;
+  if (id === 'RUN') Object.assign(mg, { y: 0, vy: 0, jumps: 0, obs: [], coins: [], speed: 82, spawn: 1.0, cspawn: .4, hurt: 0 });
   if (id === 'RACE') Object.assign(mg, { lane: 1, lx: 1, lastX: 0, obs: [], coins: [], speed: 70, spawn: 0.9, cspawn: 0.5, hurt: 0, scroll: 0 });
   if (id === 'FIGHT') Object.assign(mg, { p: 0, push: 0.3, surge: 0.8, mash: 0, shake: 0 });
-  if (id === 'DELIVERY') Object.assign(mg, { stack: [{ x: 66, w: 60 }], cur: null, dir: 1, fall: [], scroll: 0, miss: 0 });
+  if (id === 'DELIVERY') Object.assign(mg, { dist: 0, th: 0, w: 0, boxes: 3, next: 60, gust: 0, gustT: 2, fallT: 0, walk: 0 });
 }
 function mgA() {
-  if (mg.phase === 'title') { if (mg.t > 0.3) { mg.phase = 'play'; mg.t = 0; if (mg.game.id === 'DELIVERY') newBox(); } return; }
+  if (mg.phase === 'title') { if (mg.t > 0.3) { mg.phase = 'play'; mg.t = 0; } return; }
   if (mg.phase === 'result') { if (mg.t > 0.8) endMinigame(); return; }
   const id = mg.game.id;
   if (id === 'RUN' && mg.jumps < 2) { mg.vy = mg.jumps ? -150 : -175; mg.jumps++; }
-  if (id === 'FIGHT') { mg.p += 0.05; mg.mash = 0.12; mg.shake = 0.08; }
-  if (id === 'DELIVERY' && mg.cur) dropBox();
+  if (id === 'FIGHT') { mg.p += 0.042; mg.mash = 0.12; mg.shake = 0.08; }
 }
 function mgB() { if (mg.phase === 'title') { mg.got = 0; endMinigame(); } else if (mg.phase === 'result') endMinigame(); }
 mgC.addEventListener('pointerdown', (e) => { e.preventDefault(); if (S.power === 'on') mgA(); });
 function endMinigame() { S.coins += mg.got; mg.on = false; mgEl.classList.remove('on'); S.busy = false; drawHud(true); setTimeout(() => drawHud(), 500); }
-const mgDone = (end = 'CLEAR!') => { mg.phase = 'result'; mg.t = 0; mg.end = end; };
+const mgDone = (end = 'CLEAR!') => {
+  mg.phase = 'result'; mg.t = 0; mg.end = end;
+  const id = mg.game.id, sc = id === 'DELIVERY' ? mg.score : mg.got; ST.best = { ...(ST.best || {}) };
+  if (sc > (ST.best[id] || 0)) { ST.best[id] = sc; mg.newBest = sc > 0; persist(); }
+};
+const bestOf = (id) => (ST.best || {})[id] || 0;
 const cx96 = (s, sc = 1) => 96 - ptw(s, sc) / 2;
 // 小さなはち男（横向き・上から）
 function beeSide(g, x, y, f, Bt) {
@@ -1516,21 +1544,22 @@ function runStep(g, dt) {
   const off3 = (mg.t * sp) % 24; for (let i = -1; i < 9; i++) g.fillRect(i * 24 - off3, GROUND + 12, 12, 2);
   g.fillStyle = '#bdb6a8'; g.fillRect(0, GROUND, 192, 3);
   if (mg.phase !== 'play') return;
-  mg.speed = 72 + mg.t * 4;
+  mg.speed = 82 + mg.t * 7;
   mg.vy += 520 * dt; mg.y = Math.min(0, mg.y + mg.vy * dt); if (mg.y === 0) { mg.vy = 0; mg.jumps = 0; }
   mg.spawn -= dt; mg.cspawn -= dt;
-  if (mg.spawn < 0) { mg.obs.push({ x: 200, k: Math.random() < .5 ? 'cone' : 'sign' }); mg.spawn = 0.8 + Math.random() * 0.9; }
+  if (mg.spawn < 0) { const r = Math.random(); mg.obs.push({ x: 200, k: r < .4 ? 'cone' : r < .75 ? 'sign' : 'bird' }); mg.spawn = Math.max(0.38, 0.8 - mg.t * 0.02) + Math.random() * 0.5; }
   if (mg.cspawn < 0) { const hy = Math.random() < .5 ? 0 : 26 + Math.random() * 18; for (let i = 0; i < 3; i++) mg.coins.push({ x: 200 + i * 10, y: GROUND - 10 - hy }); mg.cspawn = 0.9 + Math.random() * .6; }
   mg.obs.forEach((o) => o.x -= mg.speed * dt); mg.coins.forEach((c) => c.x -= mg.speed * dt);
   const py = GROUND - 16 + mg.y, pxx = 34;
   mg.coins = mg.coins.filter((c) => { if (Math.abs(c.x - (pxx + 4)) < 7 && Math.abs(c.y - (py + 6)) < 10) { mg.got++; return false; } return c.x > -10; });
-  mg.obs = mg.obs.filter((o) => { const w = o.k === 'cone' ? 8 : 10, h = o.k === 'cone' ? 10 : 15; if (!o.hit && mg.hurt <= 0 && o.x < pxx + 7 && o.x + w > pxx + 1 && py + 15 > GROUND - h) { o.hit = true; mg.hurt = 0.8; mg.got = Math.max(0, mg.got - 3); buzz(); } return o.x > -12; });
+  mg.obs = mg.obs.filter((o) => { const w = o.k === 'cone' ? 8 : 10, h = o.k === 'cone' ? 10 : 15; const hitY = o.k === 'bird' ? (py < GROUND - 30 && py + 14 > GROUND - 40) : py + 15 > GROUND - h; if (!o.hit && mg.hurt <= 0 && o.x < pxx + 7 && o.x + w > pxx + 1 && hitY) { o.hit = true; mg.hurt = 0.8; mg.got = Math.max(0, mg.got - 3); buzz(); } return o.x > -12; });
   mg.hurt -= dt;
   mg.coins.forEach((c) => { g.fillStyle = '#b37800'; g.fillRect(c.x - 2, c.y - 2, 5, 5); g.fillStyle = '#f5c518'; g.fillRect(c.x - 2, c.y - 2, 4, 4); g.fillStyle = '#fff3a8'; g.fillRect(c.x - 1, c.y - 1, 1, 2); });
   mg.obs.forEach((o) => { if (o.k === 'cone') { g.fillStyle = '#f07c2a'; for (let i = 0; i < 10; i++) g.fillRect(o.x + 4 - (i >> 1) * 0.5, GROUND - 10 + i, 1 + i * 0.8, 1); g.fillStyle = '#fff'; g.fillRect(o.x + 2, GROUND - 5, 5, 1); }
+    else if (o.k === 'bird') { const f = Math.floor(mg.t * 8) % 2; g.fillStyle = '#8d8a98'; g.fillRect(o.x + 2, GROUND - 38, 7, 4); g.fillRect(o.x + (f ? 0 : 3), GROUND - (f ? 41 : 35), 5, 2); g.fillStyle = '#e2574c'; g.fillRect(o.x + 1, GROUND - 37, 1, 1); }
     else { g.fillStyle = '#6b6b70'; g.fillRect(o.x + 4, GROUND - 8, 2, 8); g.fillStyle = '#e5484d'; g.fillRect(o.x, GROUND - 15, 10, 8); ptext(g, '!', o.x + 3, GROUND - 14, '#fff'); } });
   if (!(mg.hurt > 0 && Math.floor(mg.t * 20) % 2)) beeSide(g, pxx, py, Math.floor(mg.t * 12) % 2, charId === 'B');
-  const left = Math.max(0, 15 - mg.t); hudCoins(g, left);
+  const left = Math.max(0, 20 - mg.t); hudCoins(g, left);
   if (mg.t < 1.5) ptext(g, 'A: JUMP', cx96('A: JUMP'), 26, '#2a2540');
   if (left <= 0) mgDone();
 }
@@ -1547,9 +1576,9 @@ function raceStep(g, dt) {
   if (play) {
     const jx = joy.x || (keys['arrowleft'] || keys['a'] ? -1 : keys['arrowright'] || keys['d'] ? 1 : 0);
     if (jx !== mg.lastX && jx !== 0) mg.lane = Math.max(0, Math.min(2, mg.lane + jx)); mg.lastX = jx;
-    mg.lx += (mg.lane - mg.lx) * Math.min(1, dt * 14); mg.speed = 70 + mg.t * 5;
+    mg.lx += (mg.lane - mg.lx) * Math.min(1, dt * 14); mg.speed = 82 + mg.t * 9;
     mg.spawn -= dt; mg.cspawn -= dt;
-    if (mg.spawn < 0) { const k = ['cone', 'pigeon', 'cart'][Math.floor(Math.random() * 3)]; mg.obs.push({ l: Math.floor(Math.random() * 3), y: -16, k, d: Math.random() < .5 ? -1 : 1, px: 0 }); mg.spawn = Math.max(0.4, 0.95 - mg.t * 0.02) + Math.random() * 0.4; }
+    if (mg.spawn < 0) { const l = Math.floor(Math.random() * 3), two = Math.random() < 0.25 + mg.t * 0.015; [l, ...(two ? [(l + 1 + Math.floor(Math.random() * 2)) % 3] : [])].forEach((ln) => mg.obs.push({ l: ln, y: -16, k: ['cone', 'pigeon', 'cart'][Math.floor(Math.random() * 3)], d: Math.random() < .5 ? -1 : 1, px: 0 })); mg.spawn = Math.max(0.3, 0.75 - mg.t * 0.02) + Math.random() * 0.35; }
     if (mg.cspawn < 0) { const l = Math.floor(Math.random() * 3); for (let i = 0; i < 3; i++) mg.coins.push({ l, y: -10 - i * 12 }); mg.cspawn = 0.8 + Math.random() * 0.5; }
     mg.obs.forEach((o) => { o.y += mg.speed * dt; if (o.k === 'pigeon') { o.px += o.d * dt * 14; if (Math.abs(o.px) > 16) o.d *= -1; } });
     mg.coins.forEach((c) => { c.y += mg.speed * dt; });
@@ -1570,7 +1599,7 @@ function raceStep(g, dt) {
     g.fillStyle = '#4a4458'; g.fillRect(x - 5, y - 1, 11, 9); g.fillStyle = charId === 'B' ? '#fff6ea' : '#e9e6df'; g.fillRect(x - 4, y - 3, 9, 7);
     g.fillStyle = '#d9a43a'; g.fillRect(x - 3, y - 8, 7, 6); g.fillStyle = '#1b1712'; g.fillRect(x - 4, y - 7, 2, 3); g.fillRect(x + 3, y - 7, 2, 3); g.fillRect(x - 2, y - 11, 1, 3); g.fillRect(x + 2, y - 11, 1, 3);
   }
-  if (play) { const left = Math.max(0, 20 - mg.t); hudCoins(g, left); if (mg.t < 1.5) ptext(g, 'LEFT RIGHT', cx96('LEFT RIGHT'), 26, '#fff'); if (left <= 0) mgDone(); }
+  if (play) { const left = Math.max(0, 25 - mg.t); hudCoins(g, left); if (mg.t < 1.5) ptext(g, 'LEFT RIGHT', cx96('LEFT RIGHT'), 26, '#fff'); if (left <= 0) mgDone(); }
 }
 // 自販機ずもう: 横から見た土俵。A を連打して、自販機を外へ押し出す
 function fightStep(g, dt) {
@@ -1581,7 +1610,7 @@ function fightStep(g, dt) {
   g.fillStyle = '#c9b48a'; g.fillRect(0, 96, 192, 48); g.fillStyle = '#e8d9b8'; g.fillRect(0, 96, 192, 3);
   g.fillStyle = '#fffaf0'; g.fillRect(24, 104, 2, 30); g.fillRect(166, 104, 2, 30); // 俵
   if (play) {
-    mg.surge -= dt; if (mg.surge < 0) { mg.push = 0.22 + Math.random() * 0.32 + mg.t * 0.018; mg.surge = 0.5 + Math.random() * 1.1; }
+    mg.surge -= dt; if (mg.surge < 0) { mg.push = 0.3 + Math.random() * 0.45 + mg.t * 0.03; mg.surge = 0.4 + Math.random() * 1.0; }
     mg.p -= mg.push * dt; mg.mash -= dt; mg.shake -= dt;
     if (mg.p >= 1) { mg.got = 10 + Math.max(0, Math.ceil(20 - mg.t)); mgDone('WIN!'); buzz(); }
     else if (mg.p <= -1) { mg.got = 1; mgDone('OUT...'); }
@@ -1599,35 +1628,48 @@ function fightStep(g, dt) {
   g.fillStyle = 'rgba(20,16,30,.55)'; g.fillRect(46, 18, 100, 7); g.fillStyle = '#5fcfb0'; g.fillRect(96, 19, Math.max(0, mg.p) * 49, 5); g.fillStyle = '#ff6f61'; g.fillRect(96 + Math.min(0, mg.p) * 49, 19, -Math.min(0, mg.p) * 49, 5); g.fillStyle = '#fff'; g.fillRect(95, 17, 1, 9);
   if (play) { hudCoins(g, Math.max(0, 20 - mg.t)); if (mg.t < 1.5) ptext(g, 'MASH A', cx96('MASH A'), 34, '#fff'); }
 }
-// 段ボールつみ: 左右に動く箱を A で落とす。はみ出た分は落ちる
-const BOX_H = 10, BASE_Y = 126;
-function newBox() { const top = mg.stack[mg.stack.length - 1]; mg.cur = { x: mg.dir > 0 ? -top.w : 192, w: top.w, v: 62 + mg.stack.length * 6 }; }
-function dropBox() {
-  const top = mg.stack[mg.stack.length - 1], c = mg.cur, l = Math.max(c.x, top.x), r = Math.min(c.x + c.w, top.x + top.w);
-  const y = BASE_Y - mg.stack.length * BOX_H;
-  if (r - l < 1) { mg.fall.push({ x: c.x, w: c.w, y, vy: 0 }); mg.cur = null; mg.miss = 0.9; buzz(); return; }
-  const perfect = Math.abs(c.x - top.x) < 1.6;
-  const nx = perfect ? top.x : l, nw = perfect ? top.w : r - l;
-  if (!perfect) { if (c.x < l) mg.fall.push({ x: c.x, w: l - c.x, y, vy: 0 }); if (c.x + c.w > r) mg.fall.push({ x: r, w: c.x + c.w - r, y, vy: 0 }); }
-  mg.stack.push({ x: nx, w: nw, perfect }); mg.got += perfect ? 2 : 1; mg.dir *= -1; newBox();
-}
-function boxDraw(g, x, y, w, perfect) {
-  g.fillStyle = '#c9a06a'; g.fillRect(Math.round(x), y, Math.round(w), BOX_H - 1); g.fillStyle = '#a8814e'; g.fillRect(Math.round(x), y + BOX_H - 2, Math.round(w), 1);
-  g.fillStyle = perfect ? '#ffe14d' : '#e8d9b8'; g.fillRect(Math.round(x + w / 2) - 1, y, 3, BOX_H - 1);
-}
+// 配達: 背中に積んだ段ボールを、左右でバランスを取りながら坂道を運ぶ。とちゅうで荷物が増える。300M で届く
+const GOAL_M = 300;
+const hAt = (x) => 9 * Math.sin(x / 38) + 5 * Math.sin(x / 15 + 1) + 3 * Math.sin(x / 6 + 2) * Math.min(1, x / 80);
 function deliveryStep(g, dt) {
   const play = mg.phase === 'play';
-  const target = Math.max(0, (mg.stack.length - 7) * BOX_H); mg.scroll += (target - mg.scroll) * Math.min(1, dt * 4);
-  const sky = ['#f7d7a8', '#f3c38f', '#e9a87a']; for (let i = 0; i < 3; i++) { g.fillStyle = sky[i]; g.fillRect(0, i * 48, 192, 48); }
-  g.fillStyle = '#b48c7a'; for (let i = 0; i < 5; i++) g.fillRect(i * 44 - 6, 60 + (i % 2) * 14 + mg.scroll * 0.3, 30, 90);
-  const gy = BASE_Y + BOX_H + mg.scroll; g.fillStyle = '#5a5a60'; g.fillRect(0, gy, 192, 40);
-  g.fillStyle = '#4a4458'; g.fillRect(58, gy - 3, 76, 3); g.fillStyle = '#2e2a38'; g.fillRect(62, gy, 5, 4); g.fillRect(125, gy, 5, 4); g.fillRect(130, gy - 22, 3, 22); // 台車
-  mg.stack.forEach((b, i) => { if (i) boxDraw(g, b.x, BASE_Y - (i - 1) * BOX_H + mg.scroll - BOX_H + BOX_H, b.w, b.perfect); });
-  if (play && mg.cur) { const c = mg.cur; c.x += mg.dir * c.v * dt; if (c.x > 192 - c.w + 30 || c.x < -30) { mg.dir *= -1; c.x = Math.max(-30, Math.min(192 - c.w + 30, c.x)); } }
-  if (mg.cur) boxDraw(g, mg.cur.x, BASE_Y - (mg.stack.length) * BOX_H + mg.scroll, mg.cur.w);
-  mg.fall = mg.fall.filter((f) => { f.vy += 300 * dt; f.y += f.vy * dt; boxDraw(g, f.x, Math.round(f.y + mg.scroll), f.w); return f.y < 200; });
-  if (play && mg.miss > 0) { mg.miss -= dt; if (mg.miss <= 0) mgDone(mg.stack.length > 12 ? 'NICE!' : 'CLEAR!'); }
-  if (play) { hudCoins(g); g.fillStyle = 'rgba(20,16,30,.55)'; g.fillRect(150, 3, 39, 9); ptext(g, String(mg.stack.length - 1).padStart(2, '0') + ' BOX', 152, 5, '#fff'); if (mg.t < 1.5) ptext(g, 'A: DROP', cx96('A: DROP'), 26, '#2a2540'); }
+  if (play && !mg.fallT) {
+    const v = 20 + Math.min(16, mg.dist / 18);
+    mg.dist += v * dt; mg.walk += dt * v / 5;
+    const slope = (hAt(mg.dist + 2) - hAt(mg.dist - 2)) / 4;
+    const jx = joy.x || (keys['arrowleft'] || keys['a'] ? -1 : keys['arrowright'] || keys['d'] ? 1 : 0);
+    mg.gustT -= dt; if (mg.gustT < 0) { mg.gust = (Math.random() - 0.5) * (0.9 + mg.dist / 160); mg.gustT = 0.8 + Math.random() * 1.8; }
+    const tall = 0.7 + mg.boxes * 0.16;
+    mg.w += (Math.sin(mg.th) * 3.4 * tall + slope * 2.4 + mg.gust + jx * 3.2 - mg.w * 1.1) * dt; mg.th += mg.w * dt;
+    if (Math.abs(mg.th) > 0.85) { mg.fallT = 0.001; buzz(); }
+    if (mg.dist >= mg.next) { mg.boxes++; mg.next += 60; mg.got += 2; }
+    if (mg.dist >= GOAL_M) { mg.got += 10 + mg.boxes * 2; mg.score = GOAL_M; mgDone('DELIVERED!'); }
+  }
+  if (mg.fallT) { mg.fallT += dt; if (mg.fallT > 1.1 && mg.phase === 'play') { mg.got += Math.floor(mg.dist / 30); mg.score = Math.floor(mg.dist); mgDone('DROPPED'); } }
+  // 空と遠くの山
+  const sky = ['#cfe3f0', '#dbe9f2', '#eef2ea']; for (let i = 0; i < 3; i++) { g.fillStyle = sky[i]; g.fillRect(0, i * 30, 192, 30); }
+  g.fillStyle = '#b9c8c0'; for (let x = 0; x < 192; x++) { const y = 62 + Math.sin((x + mg.dist * 0.3) / 22) * 8 + Math.sin((x + mg.dist * 0.3) / 9) * 3; g.fillRect(x, y, 1, 144 - y); }
+  // 地面（1 マス＝0.5M）
+  const gy = (sx) => Math.round(108 - hAt(mg.dist + (sx - 50) * 0.5) * 1.3);
+  for (let x = 0; x < 192; x++) { const y = gy(x); g.fillStyle = '#8fb06a'; g.fillRect(x, y, 1, 2); g.fillStyle = '#7a6a52'; g.fillRect(x, y + 2, 1, 144 - y); if ((x + Math.floor(mg.dist * 2)) % 9 === 0) { g.fillStyle = '#6a5a44'; g.fillRect(x, y + 6, 1, 1); } }
+  // 荷物の置き場（拾うと増える）とゴールの旗
+  const sxOf = (m) => 50 + (m - mg.dist) * 2;
+  const px0 = sxOf(mg.next); if (px0 < 200) { const y = gy(px0); g.fillStyle = '#c9a06a'; g.fillRect(px0 - 3, y - 6, 7, 6); g.fillStyle = '#e8d9b8'; g.fillRect(px0, y - 6, 1, 6); }
+  const fx = sxOf(GOAL_M); if (fx < 200) { const y = gy(fx); g.fillStyle = '#4a4458'; g.fillRect(fx, y - 22, 1, 22); g.fillStyle = '#ff6f61'; g.fillRect(fx + 1, y - 22, 8, 5); }
+  // じぶんと背中の荷物
+  const y0 = gy(50) - 16; beeSide(g, 46, y0, play && !mg.fallT ? Math.floor(mg.walk) % 2 : 0, charId === 'B');
+  for (let i = 0; i < mg.boxes; i++) {
+    g.save(); g.translate(48, y0 + 8);
+    if (mg.fallT) { g.translate(i * mg.fallT * 18 * Math.sign(mg.th || 1), mg.fallT * mg.fallT * 60); g.rotate(mg.th * (1 + i * 0.4) + mg.fallT * 2 * Math.sign(mg.th || 1)); }
+    else g.rotate(mg.th);
+    g.fillStyle = '#c9a06a'; g.fillRect(-5, -8 - i * 7, 10, 7); g.fillStyle = '#a8814e'; g.fillRect(-5, -2 - i * 7, 10, 1); g.fillStyle = '#e8d9b8'; g.fillRect(-1, -8 - i * 7, 2, 7);
+    g.restore();
+  }
+  if (play) {
+    hudCoins(g); g.fillStyle = 'rgba(20,16,30,.55)'; g.fillRect(122, 3, 67, 9); ptext(g, String(Math.floor(mg.dist)).padStart(3, '0') + '/' + GOAL_M + 'M', 124, 5, '#fff');
+    const lean = Math.max(-1, Math.min(1, mg.th / 0.85)); g.fillStyle = 'rgba(20,16,30,.55)'; g.fillRect(66, 16, 60, 5); g.fillStyle = Math.abs(lean) > 0.7 ? '#ff6f61' : '#5fcfb0'; g.fillRect(95 + lean * 28, 16, 3, 5);
+    if (mg.t < 1.8) ptext(g, 'LEFT RIGHT', cx96('LEFT RIGHT'), 28, '#2a2540');
+  }
 }
 function mgStep(dt) {
   const g = mgG; mg.t += dt; g.imageSmoothingEnabled = false; const id = mg.game.id;
@@ -1639,11 +1681,13 @@ function mgStep(dt) {
     ptext(g, l1, cx96(l1), 70, '#ffffff');
     if (mg.t % .8 < .5) ptext(g, 'PRESS A', cx96('PRESS A'), 96, '#ffffff');
     ptext(g, 'START: BACK', cx96('START: BACK'), 120, '#b6a8ee');
+    if (bestOf(id)) { const b = 'BEST ' + bestOf(id) + (id === 'DELIVERY' ? 'M' : ''); ptext(g, b, cx96(b), 82, '#ffc94a'); }
   } else if (mg.phase === 'result') {
     g.fillStyle = 'rgba(20,16,30,.72)'; g.fillRect(0, 0, 192, 144);
     ptext(g, mg.end, cx96(mg.end, 3), 34, '#ffe14d', 3, '#ff6f61');
     g.fillStyle = '#f5c518'; g.fillRect(70, 72, 7, 7); ptext(g, '+' + mg.got, 82, 71, '#fff', 2);
-    if (mg.t > 0.8) ptext(g, 'PRESS A', cx96('PRESS A'), 106, mg.t % .6 < .3 ? '#fff' : '#b6a8ee');
+    const b = mg.newBest ? 'NEW BEST!' : 'BEST ' + bestOf(id) + (id === 'DELIVERY' ? 'M' : ''); ptext(g, b, cx96(b), 90, mg.newBest ? '#ffc94a' : '#c9c4d6');
+    if (mg.t > 0.8) ptext(g, 'PRESS A', cx96('PRESS A'), 112, mg.t % .6 < .3 ? '#fff' : '#b6a8ee');
   }
 }
 
@@ -1678,6 +1722,7 @@ function tutShow() { if (tutI < 0) { tutEl.classList.remove('on'); oya.g.visible
 function tutNext() { tutI++; if (tutI >= TUT.length) { tutI = -1; ST.tut = 'done'; } else ST.tut = tutI; persist(); tutShow(); }
 function tutHit(kind) { if (tutI >= 0 && TUT[tutI].done === kind) { buzz(); tutNext(); } }
 $('tutSkip').onclick = (e) => { e.stopPropagation(); tutI = -1; ST.tut = 'done'; persist(); tutShow(); };
+$('tutNext').onclick = (e) => { e.stopPropagation(); buzz(); tutNext(); };
 function stepTut(dt) {
   if (tutI < 0) return;
   const st = TUT[tutI], here = st.town ? S.mode === 'town' : (S.mode === 'room' && S.owner === 'me') || st.done === 'town';
@@ -1722,10 +1767,10 @@ function nearest() {
     for (const n of npcs) { const d = me.position.distanceTo(n.g.position); if (d < 1.5 && d < bd) { bd = d; best = { label: n.cat ? 'ねこをなでる' : `${n.name}${n.fan ? 'さん' : ''}と話す`, act: () => talkTo(n) }; } } return best; }
   let best = null, bd = 1.5;
   for (const o of pickables) { if (!visible(o)) continue; o.getWorldPosition(tmpV); const d = Math.hypot(me.position.x - tmpV.x, me.position.z - tmpV.z); if (d < bd) { bd = d; best = o.userData; } }
-  return best && { label: best.prop ? '今月のまとめを作る' : best.npc ? `${best.title}と話す` : 'グッズを見る', act: () => best.prop ? opts.onMatome?.() : best.npc ? talk(best) : getItem(best) };
+  return best && { label: best.prop ? '今月のまとめを作る' : best.npc ? `${best.title}と話す` : 'グッズを見る', act: () => best.prop ? toMatome() : best.npc ? talk(best) : getItem(best) };
 }
 function tick() {
-  if (dead) return; raf = requestAnimationFrame(tick);
+  if (dead) return; raf = requestAnimationFrame(tick); if (S.power === 'on') keepSession();
   const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
   if (S.power === 'off') { renderBag(t); return; }
   if (S.power === 'boot') { S.bootT += dt; drawBoot(S.bootT); if (S.bootT > 1.9) { S.power = 'on'; bootEl.style.display = 'none'; drawPow(); } if (S.bootT < 1.4) return; }
@@ -1741,7 +1786,7 @@ function tick() {
   const mv = new THREE.Vector3().addScaledVector(fwd, -iy).addScaledVector(right, ix);
   const free = !S.busy && !S.get && S.spinT == null;
   if (free && mv.lengthSq() > 0.02) {
-    unfocus(); S.pending = null; S.walkTo = null; moving = true;
+    unfocus(); S.pending = null; S.walkTo = null; moving = true; if (S.aim) aimAt(null);
     S.hold = (S.hold || 0) + dt; S.spd = THREE.MathUtils.lerp(S.spd || 0, (S.mode === 'town' ? (S.hold > 1.2 ? 4.6 : 3.4) : 2.0), Math.min(1, dt * 7));
     mv.normalize(); let dr = Math.atan2(mv.x, mv.z) - me.rotation.y; dr = Math.atan2(Math.sin(dr), Math.cos(dr)); me.rotation.y += dr * Math.min(1, dt * 16);
     me.position.addScaledVector(mv, S.spd * dt); walkMark.visible = false; walkAcc += S.spd * dt;
@@ -1776,7 +1821,8 @@ function tick() {
   if (S.mode === 'town') stepNpcs(dt, t);
   stepTut(dt);
   // 近くで A を押すとできること
-  S.near = (S.busy || S.get || S.menu || S.edit) ? null : nearest();
+  S.near = (S.busy || S.get || S.menu || S.edit) ? null : S.aim && S.mode === 'room' ? { label: 'グッズを見る', act: () => getItem(S.aim) } : nearest();
+  stepCursor(t);
   if (performance.now() > promptLock) { if (S.near && !card.classList.contains('on')) { promptT.textContent = S.near.label; promptEl.classList.add('on'); } else promptEl.classList.remove('on'); }
   // 着がえ: くるっと回って、半分で入れかわる
   if (S.spinT != null) { S.spinT += dt; const k = Math.min(1, S.spinT / 0.62), e = k < .5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2; me.rotation.y = S.spinBase + e * Math.PI * 4; me.position.y = Math.sin(k * Math.PI) * 0.25;
@@ -1835,9 +1881,22 @@ let promptLock = 0;
 function flashPrompt(t) { promptT.textContent = t; promptEl.classList.add('on'); promptLock = performance.now() + 1400; }
 scene.background = new THREE.Color('#14121c');
 let rT; onWin('resize', () => { clearTimeout(rT); rT = setTimeout(resize, 120); });
+const toMatome = () => { SESSION.reopen = true; opts.onMatome?.(); };
+// 続きから: 部屋か町か・どこにいたか・カメラ
+if (SESSION.s) { const v = SESSION.s; S.mode = v.mode; room.visible = v.mode === 'room'; town.visible = v.mode === 'town';
+  if (v.mode === 'room') { setOwner(v.owner); scene.fog = null; } else { scene.fog = new THREE.Fog('#efc9a0', 20, 60); introDone = true; }
+  me.position.set(v.pos[0], 0, v.pos[2]); me.rotation.y = v.ry; S.yaw = v.yaw; S.pitch = v.pitch; S.dist = v.dist; S.snap = true; }
+const keepSession = () => { SESSION.s = { mode: S.mode, owner: S.owner, pos: [me.position.x, 0, me.position.z], ry: me.rotation.y, yaw: S.yaw, pitch: S.pitch, dist: S.dist }; };
+// まとめ画像などからもどったときは、すぐにゲーム機を開いた所へ
+function quickOpen() {
+  geom(); stage.classList.add('open'); root.style.zIndex = '200'; document.documentElement.dataset.roomOpen = '1';
+  [sBack, sItems, sFront].forEach((e) => { e.style.opacity = '0'; }); dim.animate([{ opacity: 1 }, { opacity: 1 }], { duration: 1, fill: 'forwards' });
+  consoleEl.style.zIndex = 5; S.power = 'on'; bootEl.style.display = 'none'; drawPow(); drawSkin(); opts.onOpen?.();
+}
 resize(); tick();
+if (SESSION.reopen) { SESSION.reopen = false; requestAnimationFrame(quickOpen); }
 document.fonts?.ready.then(() => drawBag());
 window.__room = { npcs, talkTo, buyDrink, walkHere, get myStk() { return myStk; }, get placedStk() { return placedStk; }, openLib, renderStickers, bagCon, bagItems, bagCam, BAG, S, OWN, camera, get me() { return me; }, goto, startMinigame, items, mg, el, R, openConsole, closeConsole, acts, pickables, getItem, endGet, startEdit, endEdit, moveTo, markers, SLOTS, openStk, myHouse, setChar };
 
-return { destroy: () => { dead = true; cancelAnimationFrame(raf); offs.forEach((f) => f()); try { renderer.dispose(); bagR.dispose(); } catch { /* なし */ } } };
+return { destroy: () => { dead = true; delete document.documentElement.dataset.roomOpen; cancelAnimationFrame(raf); offs.forEach((f) => f()); try { renderer.dispose(); bagR.dispose(); } catch { /* なし */ } } };
 }
