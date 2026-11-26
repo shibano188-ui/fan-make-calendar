@@ -1499,7 +1499,7 @@ function mgInit() {
   if (id === 'RUN') Object.assign(mg, { y: 0, vy: 0, jumps: 0, obs: [], coins: [], speed: 82, spawn: 1.0, cspawn: .4, hurt: 0 });
   if (id === 'RACE') Object.assign(mg, { lane: 1, lx: 1, lastX: 0, obs: [], coins: [], speed: 70, spawn: 0.9, cspawn: 0.5, hurt: 0, scroll: 0 });
   if (id === 'FIGHT') Object.assign(mg, { p: 0, push: 0.3, surge: 0.8, mash: 0, shake: 0 });
-  if (id === 'DELIVERY') Object.assign(mg, { dist: 0, th: 0, w: 0, boxes: 3, next: 60, gust: 0, gustT: 2, fallT: 0, walk: 0 });
+  if (id === 'DELIVERY') Object.assign(mg, { dist: 0, th: 0, w: 0, boxes: 2, next: 60, gust: 0, gustT: 2, fallT: 0, walk: 0 });
 }
 function mgA() {
   if (mg.phase === 'title') { if (mg.t > 0.3) { mg.phase = 'play'; mg.t = 0; } return; }
@@ -1639,8 +1639,8 @@ function deliveryStep(g, dt) {
     const slope = (hAt(mg.dist + 2) - hAt(mg.dist - 2)) / 4;
     const jx = joy.x || (keys['arrowleft'] || keys['a'] ? -1 : keys['arrowright'] || keys['d'] ? 1 : 0);
     mg.gustT -= dt; if (mg.gustT < 0) { mg.gust = (Math.random() - 0.5) * (0.9 + mg.dist / 160); mg.gustT = 0.8 + Math.random() * 1.8; }
-    const tall = 0.7 + mg.boxes * 0.16;
-    mg.w += (Math.sin(mg.th) * 3.4 * tall + slope * 2.4 + mg.gust + jx * 3.2 - mg.w * 1.1) * dt; mg.th += mg.w * dt;
+    const tall = 0.6 + mg.boxes * 0.14;
+    mg.w += (Math.sin(mg.th) * 2.6 * tall + slope * 2.4 + mg.gust + jx * 3.2 - mg.w * 1.1) * dt; mg.th += mg.w * dt;
     if (Math.abs(mg.th) > 0.85) { mg.fallT = 0.001; buzz(); }
     if (mg.dist >= mg.next) { mg.boxes++; mg.next += 60; mg.got += 2; }
     if (mg.dist >= GOAL_M) { mg.got += 10 + mg.boxes * 2; mg.score = GOAL_M; mgDone('DELIVERED!'); }

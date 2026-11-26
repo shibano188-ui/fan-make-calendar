@@ -20,12 +20,12 @@ const inter = (a: Rect, b: Rect) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) -
 const ANCHORS: [number, number][] = [[390, 330], [150, 370], [410, 115], [130, 520], [300, 515], [455, 545], [265, 300], [120, 440], [455, 440]];
 const ROT = [3, -6, 5, -3, 7, -5, 4, -7, 6];
 function layout(sts: HTMLCanvasElement[]): (Place | null)[] {
-  const n = sts.length, header: Rect = { x: 0, y: 0, w: 290, h: 240 }, foot: Rect = { x: 0, y: 675 - 92, w: 540, h: 92 };
+  const n = sts.length, header: Rect = { x: 0, y: 0, w: 290, h: 240 }, foot: Rect = { x: 0, y: 675 - 112, w: 540, h: 112 };
   const sizes = n <= 3 ? [360, 270, 250] : n <= 6 ? [330, 225, 210, 200, 190, 180] : [310, 205, 190, 178, 168, 160, 152, 146, 140];
   const placed: Rect[] = [];
   return sts.map((st, i) => {
     const asp = st.width / st.height;
-    for (let k = 1; k >= 0.5; k -= 0.07) {
+    for (let k = 1; k >= 0.62; k -= 0.06) {
       const size = sizes[i] * k, w = asp >= 1 ? size : size * asp, h = asp >= 1 ? size / asp : size;
       let best: Rect | null = null, bs = Infinity;
       for (let y = 10; y + h <= 675 - 60; y += 6) for (let x = 8; x + w <= 532; x += 6) {
