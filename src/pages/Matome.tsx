@@ -130,7 +130,7 @@ export default function Matome() {
       got.sort((a, b) => (b.event.price ?? 0) - (a.event.price ?? 0));
       const list: Item[] = [];
       for (const g of got.slice(0, POS.length)) { const src = imageOf(g.event, 640); const im = src ? await loadImg(src) : null; if (im) list.push({ got: g, st: cutSticker(im) }); }
-      await document.fonts?.ready;
+      await Promise.all(['800 60px Outfit', '500 22px "DM Mono"'].map((f) => document.fonts?.load(f).catch(() => null)));
       if (alive) setItems(list);
     })();
     return () => { alive = false; };
