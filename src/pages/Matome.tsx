@@ -131,7 +131,8 @@ function linkFonts() {
   const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = 'https://fonts.googleapis.com/css2?family=Outfit:wght@800&family=DM+Mono:wght@500&display=swap'; document.head.appendChild(l);
 }
 
-export default function Matome() {
+/** overlay: ゲームの上に重ねて開く（ゲームを閉じないので、もどるとそのまま続きから） */
+export default function Matome({ overlay = false }: { overlay?: boolean } = {}) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [params] = useSearchParams();
@@ -170,7 +171,7 @@ export default function Matome() {
 
   const empty = useMemo(() => items !== null && items.length === 0, [items]);
   return (
-    <div className="min-h-[100dvh] pb-10" style={{ backgroundColor: 'var(--bg-primary)', paddingTop: 'var(--sat)' }}>
+    <div className={overlay ? 'fixed inset-0 z-[300] overflow-y-auto pb-10' : 'min-h-[100dvh] pb-10'} style={{ backgroundColor: 'var(--bg-primary)', paddingTop: 'var(--sat)' }}>
       <div className="flex items-center gap-2 px-2 h-12">
         <button onClick={() => navigate(-1)} aria-label="もどる" className="pressable tap-44 flex items-center justify-center"><ChevronLeft size={24} /></button>
         <h1 className="text-[17px] font-bold">{month}月のまとめ</h1>

@@ -591,6 +591,7 @@ function outline(img, rows = 14) {
 const clearMat = new THREE.MeshPhongMaterial({ color: '#dff3ff', transparent: true, opacity: .5, shininess: 140, specular: '#ffffff', flatShading: true });
 const glossMat = new THREE.MeshPhongMaterial({ color: '#ffffff', transparent: true, opacity: .1, shininess: 220, specular: '#ffffff', depthWrite: false });
 const edgeMat = new THREE.LineBasicMaterial({ color: '#c7ecff', transparent: true, opacity: 0.9 });
+THREE.LineSegments.prototype.raycast = () => {}; // 飾り線は押せない
 const holoTex = (() => { const c = document.createElement('canvas'); c.width = 64; c.height = 64; const g = c.getContext('2d'); const gr = g.createLinearGradient(0, 0, 64, 64);
   ['#ff9ad5', '#9ee7ff', '#fff59a', '#b5a6ff', '#9affc7', '#ff9ad5'].forEach((col, i) => gr.addColorStop(i / 5, col)); g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
   const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t; })();
@@ -1258,7 +1259,9 @@ el.addEventListener('pointermove', (ev) => {
 const endTouch = (ev) => { const t = touches.get(ev.pointerId); touches.delete(ev.pointerId); if (!t) return; if (!t.moved && performance.now() - t.t0 < 600) tap(ev); };
 el.addEventListener('pointerup', endTouch); el.addEventListener('pointercancel', (ev) => touches.delete(ev.pointerId));
 
-const ray = new THREE.Raycaster(); ray.layers.enableAll();
+// 線（アクスタの縁・ケースの枠）は当たりに入れない。three.js の線は、光線から 1 の距離まで当たった扱いになり、
+// となりの棚のアクスタが選ばれていた（2026-11-27 柴野「全然違うグッズを選んでしまう」）
+const ray = new THREE.Raycaster(); ray.layers.enableAll(); ray.params.Line.threshold = 0;
 const ndc = new THREE.Vector2();
 function setRay(ev) { const r = el.getBoundingClientRect(); ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera); }
 const visible = (o) => { if (!o.parent) return false; let p = o; while (p) { if (!p.visible) return false; p = p.parent; } return true; };
@@ -1826,7 +1829,7 @@ function tick() {
   if (performance.now() > promptLock) { if (S.near && !card.classList.contains('on')) { promptT.textContent = S.near.label; promptEl.classList.add('on'); } else promptEl.classList.remove('on'); }
   // 着がえ: くるっと回って、半分で入れかわる
   if (S.spinT != null) { S.spinT += dt; const k = Math.min(1, S.spinT / 0.62), e = k < .5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2; me.rotation.y = S.spinBase + e * Math.PI * 4; me.position.y = Math.sin(k * Math.PI) * 0.25;
-    if (!S.spinSwap && k > 0.5) { S.spinSwap = true; setChar(charId === 'A' ? 'B' : 'A'); burst(me.position.clone().setY(0.9)); toast(`TYPE ${charId}<small>${CHAR_SUB[charId]}</small>`); }
+    if (!S.spinSwap && k > 0.5) { S.spinSwap = true; setChar(charId === 'A' ? 'B' : 'A'); burst(me.position.clone().setY(0.9)); toast(`TYPE ${charId}`); }
     if (k >= 1) { S.spinT = null; me.position.y = 0; } }
   // ポーズ
   if (S.get) stepGet(dt, t);
@@ -1881,7 +1884,7 @@ let promptLock = 0;
 function flashPrompt(t) { promptT.textContent = t; promptEl.classList.add('on'); promptLock = performance.now() + 1400; }
 scene.background = new THREE.Color('#14121c');
 let rT; onWin('resize', () => { clearTimeout(rT); rT = setTimeout(resize, 120); });
-const toMatome = () => { SESSION.reopen = true; opts.onMatome?.(); };
+const toMatome = () => { opts.onMatome?.(); };
 // 続きから: 部屋か町か・どこにいたか・カメラ
 if (SESSION.s) { const v = SESSION.s; S.mode = v.mode; room.visible = v.mode === 'room'; town.visible = v.mode === 'town';
   if (v.mode === 'room') { setOwner(v.owner); scene.fog = null; } else { scene.fog = new THREE.Fog('#efc9a0', 20, 60); introDone = true; }

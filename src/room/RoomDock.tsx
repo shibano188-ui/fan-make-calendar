@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { CalendarEvent } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { loadMyGot, toGoods, toSamples } from './data';
@@ -17,6 +17,7 @@ const STATE_KEY = 'fan_room_state';
 const readState = (): RoomState | null => { try { return JSON.parse(localStorage.getItem(STATE_KEY) ?? 'null') as RoomState | null; } catch { return null; } };
 const saveState = (s: RoomState) => { try { localStorage.setItem(STATE_KEY, JSON.stringify(s)); } catch { /* なし */ } pushAppState('room', s); };
 const HINT_ID = 'room-bag';
+const Matome = lazy(() => import('../pages/Matome'));
 
 let fontLinked = false;
 function linkFont() {
@@ -28,6 +29,9 @@ export default function RoomDock({ events }: { events: CalendarEvent[] | null })
   const { user } = useAuth();
   const navigate = useNavigate();
   const ref = useRef<HTMLDivElement>(null);
+  // 今月のまとめ画像は、同じホームの上に重ねて開く（?matome=1）。別の画面へ移るとゲームが作り直され、もどるときにホームが一瞬映っていた
+  const [params] = useSearchParams();
+  const showMatome = params.has('matome');
   const [hint, setHint] = useState(() => !loadHintsSeen().has(HINT_ID));
   const evRef = useRef(events); evRef.current = events;
   const ready = !!events;
@@ -46,7 +50,7 @@ export default function RoomDock({ events }: { events: CalendarEvent[] | null })
       // まだ何も「買った」を押していない人には、見本を置いておく（プレビューで見るため）
       if (!goods.length) goods = samples.slice(0, 9).map((s, i) => ({ id: 'sample-' + i, img: s.img, title: s.title, sub: '見本（「買った」を押すと自分のグッズが届く）', kind: (['stand', 'card', 'badge', 'card', 'poster', 'badge', 'stand', 'card', 'badge'] as const)[i], h: 0.45 }));
       root.innerHTML = ROOM_MARKUP;
-      const r = startRoom(root, { goods, samples, userId: user?.id, state: readState(), save: saveState, share: shareImage, onMatome: () => navigate('/matome'),
+      const r = startRoom(root, { goods, samples, userId: user?.id, state: readState(), save: saveState, share: shareImage, onMatome: () => navigate({ search: '?matome=1' }),
         onOpen: () => { markHintsSeen(HINT_ID); setHint(false); } });
       stop = r.destroy;
     })();
@@ -56,6 +60,7 @@ export default function RoomDock({ events }: { events: CalendarEvent[] | null })
   return (
     <>
       <div ref={ref} className="fhr" />
+      {showMatome && <Suspense fallback={null}><Matome overlay /></Suspense>}
       {/* はじめての人に: カバンの中のゲーム機が、マイホームの入口 */}
       {hint && (
         <div className="fhr-hint" role="note">
