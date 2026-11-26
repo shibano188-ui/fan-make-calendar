@@ -1300,9 +1300,10 @@ const curEl = $('cur');
 function aimAt(gd) { S.aim = gd || null; if (!gd) curEl.classList.remove('on'); }
 function stepCursor(t) {
   const gd = S.aim; if (!gd || !gd.obj || !visible(gd.obj) || S.get || S.edit || S.mode !== 'room') { curEl.classList.remove('on'); if (S.aim && (S.mode !== 'room' || S.get)) S.aim = null; return; }
-  tmpBox.setFromObject(gd.obj); tmpV.set((tmpBox.min.x + tmpBox.max.x) / 2, tmpBox.max.y, (tmpBox.min.z + tmpBox.max.z) / 2).project(camera);
+  // 矢印の先（絵の左上）が、グッズの上の方（高さの 6 割）を指す。浮かせすぎると、どれを指しているか分からない
+  tmpBox.setFromObject(gd.obj); tmpV.set((tmpBox.min.x + tmpBox.max.x) / 2, tmpBox.min.y + (tmpBox.max.y - tmpBox.min.y) * 0.6, (tmpBox.min.z + tmpBox.max.z) / 2).project(camera);
   const r = el.getBoundingClientRect(), x = (tmpV.x + 1) / 2 * r.width, y = (1 - tmpV.y) / 2 * r.height;
-  curEl.style.transform = `translate(${Math.round(x - 2)}px, ${Math.round(y - 30 - Math.abs(Math.sin(t * 4)) * 5)}px)`; curEl.classList.add('on');
+  curEl.style.transform = `translate(${Math.round(x)}px, ${Math.round(y - Math.abs(Math.sin(t * 4)) * 3)}px)`; curEl.classList.add('on');
 }
 // ───────── グッズを掲げる（重要なアイテムを手に入れたときのように） ─────────
 let actx;
