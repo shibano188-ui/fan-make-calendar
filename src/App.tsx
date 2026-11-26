@@ -31,6 +31,7 @@ const MyPage          = lazy(() => import('./pages/MyPage'));
 const PostNew         = lazy(() => import('./pages/PostNew'));
 const SubmitInfo      = lazy(() => import('./pages/SubmitInfo'));
 const Feedback        = lazy(() => import('./pages/Feedback'));
+const Matome          = lazy(() => import('./pages/Matome'));
 const Survey          = lazy(() => import('./pages/Survey'));
 const ItemDetail      = lazy(() => import('./pages/ItemDetail'));
 const Customize       = lazy(() => import('./pages/Customize'));
@@ -364,6 +365,7 @@ export default function App() {
                     {/* 自分用の予定は、みんなへの投稿と同じフォーム（PostNew）を自分用に切り替えて使う */}
                     <Route path="/personal/:id" element={<PostNew personal />} />
                     <Route path="/item/:id" element={<ItemDetail />} />
+                    <Route path="/matome" element={<Matome />} />
                     <Route path="/customize" element={<Customize />} />
                     <Route path="/customize/theme" element={<ThemeCreate />} />
                     <Route path="/price-drops" element={<PriceDrops />} />

@@ -1,0 +1,138 @@
+/* ホームの下のカバンと、ゲーム機の部屋（試作 game.html 第7版から移した）。.fhr の中だけに効く */
+.fhr { --ink:#1c1c1e; --sub:#6e6e73; --ter:#aeaeb2; --line:#e5e5ea; --accent:#FBC000; --dot:"DotGothic16", ui-monospace, monospace; position:fixed; left:50%; top:0; bottom:0; width:min(100vw, 480px); transform:translateX(-50%); z-index:99; pointer-events:none; font-family:-apple-system,"Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif; color:var(--ink); }
+.fhr * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+.fhr .stage.open, .fhr .shot.on { pointer-events:auto; }
+  /* 画面の下のはしからのぞくカバン（下はタブの裏に隠れる） */
+  .fhr .dock { position:absolute; left:0; right:0; bottom:30px; height:198px; z-index:4; pointer-events:none; }
+  .fhr .dock::before { content:""; position:absolute; left:0; right:0; top:40px; bottom:0; background:linear-gradient(to bottom, transparent, var(--bg-primary, #fff) 46%); }
+  .fhr .bag { position:absolute; left:50%; top:0; width:390px; height:198px; margin-left:-195px; cursor:pointer; border:none; padding:0; background:none; display:block; transform-origin:50% 100%; pointer-events:auto; }
+  .fhr .bag canvas { position:absolute; left:0; top:0; pointer-events:none; }
+  .fhr .bag:focus-visible { outline:3px solid var(--accent); outline-offset:-4px; border-radius:12px; }
+
+  /* ゲーム機（カバンから出たとき） */
+  .fhr .stage { position:absolute; inset:0; z-index:30; visibility:hidden; pointer-events:none; }
+  .fhr .stage.open { visibility:visible; pointer-events:auto; }
+  .fhr .dim { position:absolute; inset:0; background:rgba(24,20,34,.58); opacity:0; }
+  .fhr .sbag { position:absolute; pointer-events:none; }
+  .fhr .console { position:absolute; left:10px; right:10px; top:max(10px, env(safe-area-inset-top)); bottom:max(12px, env(safe-area-inset-bottom)); max-width:420px; margin:0 auto; z-index:3; transform-origin:50% 50%; }
+  .fhr .console > .skin { position:absolute; left:0; top:0; pointer-events:none; z-index:1; }
+  .fhr .screen { position:absolute; overflow:hidden; background:#151519; z-index:2; }
+  .fhr .tv { position:absolute; inset:0; transform-origin:50% 50%; }
+  .fhr .tv > canvas:first-child { display:block; width:100%; height:100%; touch-action:none; }
+  .fhr .scan { position:absolute; inset:0; pointer-events:none; background:repeating-linear-gradient(0deg, rgba(0,0,0,.07) 0 1px, transparent 1px 3px); }
+  .fhr .pbtn, .fhr .abtn, .fhr .dpad, .fhr .sbtn { position:absolute; border:none; padding:0; background:none; cursor:pointer; touch-action:none; z-index:2; }
+  .fhr .sbtn { z-index:0; }
+  .fhr .pbtn canvas, .fhr .abtn canvas, .fhr .dpad canvas, .fhr .sbtn canvas { display:block; width:100%; height:100%; image-rendering:pixelated; }
+  .fhr .pbtn:active, .fhr .abtn:active, .fhr .sbtn:active { transform:translateY(3px); }
+  .fhr #bSel, .fhr #bStart { transform:rotate(-24deg); }
+  .fhr #bSel:active, .fhr #bStart:active { transform:rotate(-24deg) translateY(3px); }
+  .fhr .pbtn:focus-visible, .fhr .abtn:focus-visible, .fhr .sbtn:focus-visible { outline:2px solid #fff; outline-offset:2px; border-radius:999px; }
+  .fhr .hud { position:absolute; left:0; right:0; top:0; pointer-events:none; }
+  .fhr .hud canvas { width:100%; image-rendering:pixelated; display:block; }
+  .fhr .prompt { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); display:flex; align-items:center; gap:8px; white-space:nowrap; font:13px/1 var(--dot); color:#fff; background:#1d1a29; padding:7px 12px 7px 8px; box-shadow:0 0 0 2px #fff, 0 0 0 4px #1d1a29; opacity:0; transition:opacity .15s; pointer-events:none; }
+  .fhr .prompt.on { opacity:1; }
+  .fhr .prompt i { font-style:normal; width:20px; height:20px; border-radius:50%; background:var(--btn, #ff6f61); color:#fff; display:grid; place-items:center; font:12px/1 var(--dot); }
+  .fhr .card { position:absolute; left:10px; right:10px; bottom:10px; background:#fffdf7; padding:10px 12px; display:flex; gap:10px; align-items:center; box-shadow:0 0 0 2px #1d1a29, 0 0 0 4px #fff, 0 0 0 6px #1d1a29; transform:translateY(170%); transition:transform .3s cubic-bezier(.2,.9,.3,1); }
+  .fhr .card.on { transform:none; }
+  .fhr .card img { width:52px; height:52px; object-fit:contain; background:#fff; }
+  .fhr .card .t { font:13px/1.4 var(--dot); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .fhr .card .s { font:11px/1.4 var(--dot); color:#6e6a7a; margin-top:3px; }
+  /* グッズを掲げたときの文字の箱 */
+  .fhr .get { position:absolute; left:8px; right:8px; bottom:8px; background:rgba(22,18,34,.92); color:#fff; padding:9px 10px 9px 12px; display:flex; gap:10px; align-items:center; box-shadow:0 0 0 2px #fff, 0 0 0 4px #1d1a29; transform:translateY(160%); transition:transform .35s cubic-bezier(.2,.9,.3,1); }
+  .fhr .get.on { transform:none; }
+  .fhr .get .gx { flex:1; min-width:0; } .fhr .get .gt { font:13px/1.4 var(--dot); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .fhr .get .gs { font:11px/1.4 var(--dot); color:#c9c4d6; margin-top:3px; }
+  .fhr .get .gb { display:flex; flex-direction:column; gap:8px; }
+  .fhr .get button, .fhr .tray button, .fhr .stk button { all:unset; cursor:pointer; font:13px/1 var(--dot); padding:7px 12px; background:#fffdf7; color:#1d1a29; box-shadow:0 0 0 2px #1d1a29; }
+  .fhr .get button.y, .fhr .tray button.y, .fhr .stk button.y { background:#ffc94a; }
+  .fhr .get button:active, .fhr .tray button:active, .fhr .stk button:active { transform:translateY(2px); }
+  .fhr .tray button[disabled] { opacity:.4; cursor:default; }
+  /* かざりかえ */
+  .fhr .tray { position:absolute; left:8px; right:8px; bottom:8px; background:#fffdf7; padding:8px 10px; box-shadow:0 0 0 2px #1d1a29, 0 0 0 4px #fff, 0 0 0 6px #1d1a29; display:none; flex-direction:column; gap:8px; }
+  .fhr .tray.on { display:flex; }
+  .fhr .tray .tt { font:12px/1.3 var(--dot); color:#1d1a29; }
+  .fhr .tray .tl { display:flex; gap:6px; overflow-x:auto; min-height:44px; align-items:center; scrollbar-width:none; }
+  .fhr .tray .tl button { padding:3px; background:#fff; width:44px; height:44px; flex:0 0 auto; }
+  .fhr .tray .tl button.sel { box-shadow:0 0 0 3px #ff6f61; }
+  .fhr .tray .tl img { width:100%; height:100%; object-fit:contain; display:block; }
+  .fhr .tray .tl em { font:11px var(--dot); color:#8a8597; font-style:normal; }
+  .fhr .tray .tb { display:flex; gap:8px; justify-content:flex-end; }
+  /* ステッカーをつくる */
+  .fhr .stk { position:absolute; inset:0; background:#f7f2ff; display:none; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:10px; }
+  .fhr .stk.on { display:flex; }
+  .fhr .stk .st { font:15px/1 var(--dot); color:#1d1a29; }
+  .fhr .stk canvas { width:min(204px, 64vw); height:min(204px, 64vw); image-rendering:pixelated; touch-action:none; box-shadow:0 0 0 2px #1d1a29; background:#fff; }
+  .fhr .stk .pal { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; max-width:250px; }
+  .fhr .stk .pal button { width:24px; height:24px; padding:0; box-shadow:0 0 0 2px #1d1a29; }
+  .fhr .stk .pal button.sel { box-shadow:0 0 0 2px #1d1a29, 0 0 0 5px #ffc94a; }
+  .fhr .stk .pal button.er { background:repeating-linear-gradient(45deg,#fff 0 3px,#ddd 3px 6px); }
+  .fhr .stk .row { display:flex; gap:10px; }
+  /* マイステッカー: 本体のどこにでも貼れる・ドラッグで動かす・ゴミ箱ではがす */
+  .fhr .stks { position:absolute; inset:0; z-index:1; pointer-events:none; }
+  .fhr .stks canvas { position:absolute; pointer-events:auto; touch-action:none; cursor:grab; filter:drop-shadow(0 1.5px 1.2px rgba(60,40,20,.32)); }
+  .fhr .stks canvas.away { opacity:.2; }
+  .fhr .ghost { position:absolute; z-index:60; pointer-events:none; display:none; width:56px; height:56px; image-rendering:pixelated; filter:drop-shadow(0 8px 8px rgba(0,0,0,.35)); }
+  .fhr .trash { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); display:none; flex-direction:column; align-items:center; gap:3px; padding:8px 14px 6px; background:#fffdf7; box-shadow:0 0 0 2px #1d1a29, 0 0 0 4px #fff, 0 0 0 6px #1d1a29; font:11px var(--dot); color:#1d1a29; z-index:8; pointer-events:none; }
+  .fhr .trash.on { display:flex; } .fhr .trash.hot { background:#ff6f61; color:#fff; transform:translateX(-50%) scale(1.12); }
+  .fhr .trash canvas { width:28px; height:32px; image-rendering:pixelated; }
+  .fhr .lib { position:absolute; left:8px; right:8px; top:30px; bottom:8px; background:#fffdf7; padding:10px; box-shadow:0 0 0 2px #1d1a29, 0 0 0 4px #fff, 0 0 0 6px #1d1a29; display:none; flex-direction:column; gap:8px; }
+  .fhr .lib.on { display:flex; }
+  .fhr .lib .lt { font:14px/1 var(--dot); color:#1d1a29; display:flex; justify-content:space-between; align-items:center; }
+  .fhr .lib .ll { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; overflow:auto; align-content:start; flex:1; padding:3px; }
+  .fhr .lib .ll button { all:unset; aspect-ratio:1; background:#f4f0fa; display:grid; place-items:center; cursor:grab; touch-action:none; box-shadow:0 0 0 2px #d9d2ea; }
+  .fhr .lib .ll button canvas { width:78%; image-rendering:pixelated; pointer-events:none; }
+  .fhr .lib .ll button.add { font:12px/1.3 var(--dot); color:#5d5390; text-align:center; cursor:pointer; background:#fff; box-shadow:0 0 0 2px #b6a8ee; }
+  .fhr .lib .lh { font:11px/1.4 var(--dot); color:#6e6a7a; padding-bottom:58px; }
+  .fhr .lib button.y, .fhr .talk button { all:unset; cursor:pointer; font:13px/1 var(--dot); padding:7px 12px; background:#ffc94a; color:#1d1a29; box-shadow:0 0 0 2px #1d1a29; }
+  /* 話す */
+  .fhr .talk { position:absolute; left:8px; right:8px; bottom:8px; background:#fffdf7; color:#1d1a29; padding:10px 12px; box-shadow:0 0 0 2px #1d1a29, 0 0 0 4px #fff, 0 0 0 6px #1d1a29; display:none; flex-direction:column; gap:6px; }
+  .fhr .talk.on { display:flex; }
+  .fhr .talk .tn { font:11px/1 var(--dot); color:#6e6a7a; }
+  .fhr .talk .tl { font:14px/1.5 var(--dot); min-height:21px; }
+  .fhr .talk .tb { display:flex; gap:8px; justify-content:flex-end; }
+  .fhr .talk .tb:empty { display:none; }
+  .fhr .menu { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); min-width:220px; background:#fffdf7; padding:10px 8px; display:none; flex-direction:column; box-shadow:0 0 0 2px #1d1a29, 0 0 0 4px #fff, 0 0 0 6px #1d1a29, 0 10px 0 6px rgba(0,0,0,.25); }
+  .fhr .menu.on { display:flex; }
+  .fhr .menu button { all:unset; cursor:pointer; font:15px/1 var(--dot); color:#1d1a29; padding:9px 10px 9px 28px; position:relative; }
+  .fhr .menu button.sel::before { content:""; position:absolute; left:10px; top:50%; margin-top:-5px; border:5px solid transparent; border-left:7px solid #1d1a29; border-right:0; }
+  .fhr .menu button[disabled] { color:#a9a5b4; }
+  .fhr .toast { position:absolute; left:50%; top:42%; transform:translate(-50%,-50%); font:22px/1 var(--dot); color:#fff; background:#1d1a29; padding:12px 18px; box-shadow:0 0 0 2px #fff, 0 0 0 4px #1d1a29; opacity:0; pointer-events:none; transition:opacity .2s; text-align:center; white-space:nowrap; }
+  .fhr .toast small { display:block; font-size:11px; margin-top:6px; color:#c9c4d6; }
+  .fhr .toast.on { opacity:1; }
+  .fhr .fade { position:absolute; inset:0; background:#000; opacity:0; pointer-events:none; transition:opacity .35s; }
+  .fhr .fade.on { opacity:1; }
+  .fhr .mg { position:absolute; inset:0; display:none; }
+  .fhr .mg.on { display:block; }
+  .fhr .mg canvas { width:100%; height:100%; image-rendering:pixelated; display:block; touch-action:none; }
+  .fhr .boot { position:absolute; inset:0; width:100%; height:100%; image-rendering:pixelated; pointer-events:none; }
+
+  .fhr .shot { position:absolute; inset:0; z-index:40; background:rgba(20,16,30,.86); display:none; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:20px; }
+  .fhr .shot.on { display:flex; }
+  .fhr .shot img, .fhr .shot canvas.prev { width:100%; max-width:330px; border-radius:6px; box-shadow:0 10px 30px rgba(0,0,0,.5); }
+  .fhr .shot .row { display:flex; gap:10px; width:100%; max-width:330px; }
+  .fhr .shot button { flex:1; border:none; border-radius:999px; padding:12px 0; font:inherit; font-size:14px; font-weight:700; cursor:pointer; }
+  .fhr .shot .a { background:#FBC000; color:#1c1c1e; } .fhr .shot .b { background:rgba(255,255,255,.15); color:#fff; }
+  .fhr .shot small { color:rgba(255,255,255,.7); font-size:11px; }/* カバンはアプリのタブの上にのぞかせる（タブの高さは RoomDock が --fhr-nav に入れる） */
+.fhr .dock { bottom:calc(var(--fhr-nav, 78px) - 46px); }
+/* 大家さんの案内（画面の上・やるとすすむ） */
+.fhr .tut { position:absolute; left:8px; right:8px; top:34px; background:#fffdf7; color:#1d1a29; padding:8px 10px; box-shadow:0 0 0 2px #1d1a29, 0 0 0 4px #fff, 0 0 0 6px #1d1a29; display:none; grid-template-columns:1fr auto; gap:2px 8px; pointer-events:auto; }
+.fhr .tut.on { display:grid; }
+.fhr .tut .tn { font:11px/1 var(--dot); color:#6e6a7a; grid-column:1; }
+.fhr .tut .tl { font:13px/1.45 var(--dot); grid-column:1; }
+.fhr .tut button { all:unset; cursor:pointer; grid-column:2; grid-row:1 / 3; align-self:center; font:11px/1 var(--dot); color:#6e6a7a; padding:6px 4px; }
+/* ホームの吹き出し（はじめてだけ・ゲーム機を押すと消える） */
+.fhr-hint { position:fixed; left:50%; transform:translateX(-50%); bottom:calc(var(--fhr-nav, 78px) + 150px); z-index:98; width:max-content; max-width:min(320px, 86vw); background:#1d1a29; color:#fff; padding:9px 13px 10px; border-radius:12px; font-size:12px; line-height:1.45; box-shadow:0 6px 18px rgba(0,0,0,.18); pointer-events:none; animation:fhrHint 2.4s ease-in-out infinite; }
+.fhr-hint b { display:block; font:13px/1.3 "DotGothic16", ui-monospace, monospace; color:#ffc94a; margin-bottom:2px; }
+.fhr-hint::after { content:""; position:absolute; left:50%; bottom:-7px; margin-left:-7px; border:7px solid transparent; border-bottom:0; border-top-color:#1d1a29; }
+@keyframes fhrHint { 50% { transform:translateX(-50%) translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .fhr-hint { animation:none; } }
+/* 案内: 次へ（A でも）・スキップは小さく別に */
+.fhr .tut .tn { display:flex; justify-content:space-between; align-items:center; }
+.fhr .tut .tn button { all:unset; cursor:pointer; font:10px/1 var(--dot); color:#a9a5b4; padding:2px 0 2px 8px; }
+.fhr .tut button.nx { all:unset; cursor:pointer; grid-column:2; grid-row:1 / 3; align-self:end; font:12px/1 var(--dot); color:#1d1a29; background:#ffc94a; padding:6px 9px; box-shadow:0 0 0 2px #1d1a29; }
+.fhr .tut button.nx:active { transform:translateY(2px); }
+/* 押したグッズの上の矢印（レトロなカーソル） */
+.fhr .cur { position:absolute; left:0; top:0; width:24px; height:34px; image-rendering:pixelated; pointer-events:none; display:none; filter:drop-shadow(1px 2px 0 rgba(0,0,0,.35)); }
+.fhr .cur.on { display:block; }
+/* 部屋を開いている間は、アプリの案内の吹き出しを隠す */
+html[data-room-open] [data-hint-layer] { display:none !important; }

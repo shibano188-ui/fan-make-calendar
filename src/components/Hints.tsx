@@ -138,7 +138,7 @@ function HintBubble({ hint, el, onClose }: { hint: Hint; el: Element; onClose: (
   const top = above ? rect.top - h - 12 : rect.bottom + 12;
   const arrowX = Math.min(Math.max(rect.left + rect.width / 2, 28), vw - 28);
   return createPortal(
-    <>
+    <div data-hint-layer>
       {/* 指している部品の縁取り（押すのは邪魔しない） */}
       <div className="fixed pointer-events-none rounded-[12px]"
         style={{ zIndex: 240, top: rect.top - 3, left: rect.left - 3, width: rect.width + 6, height: rect.height + 6, boxShadow: '0 0 0 2px var(--accent-color)', animation: 'tourPulse 1.4s ease-out infinite' }} />
@@ -150,7 +150,7 @@ function HintBubble({ hint, el, onClose }: { hint: Hint; el: Element; onClose: (
         <button className="pressable flex-shrink-0 px-3 h-8 rounded-full text-[13px] font-bold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}
           onClick={(ev) => { ev.stopPropagation(); onClose(); }}>OK</button>
       </div>
-    </>,
+    </div>,
     document.body,
   );
 }

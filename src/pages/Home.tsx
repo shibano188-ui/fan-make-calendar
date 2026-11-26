@@ -27,6 +27,8 @@ import { WorkStoryCard, WeekStoryCard, AddWorkCard, type CardBeta } from '../com
 import { useBeta } from '../lib/beta';
 import { useWorkImagePicker } from '../components/story/useWorkImagePicker';
 import { useSearchSuggest, SuggestList } from '../components/ui/SearchSuggest';
+import RoomDock from '../room/RoomDock';
+import { ROOM_PREVIEW } from '../room/preview';
 
 // ホーム（2026-10-04 作り直し・柴野）。仕様 → Obsidian: Decisions/2026-10-04-fanhive-home-story-premium.md
 //   上: プロフィール（アイコン・名前・称号・ヌシ・連続記録・追加した予定）
@@ -267,7 +269,8 @@ export default function Home() {
       const el = cardsRef.current;
       if (!el) return;
       const top = el.getBoundingClientRect().top + window.scrollY;
-      setCardH(Math.max(330, Math.round(window.innerHeight - top - 124)));
+      // 部屋のカバンを出すとき（プレビュー）は、カバンがのぞく分だけ短く
+      setCardH(Math.max(330, Math.round(window.innerHeight - top - 124 - (ROOM_PREVIEW ? 150 : 0))));
     };
     measure();
     window.addEventListener('resize', measure);
@@ -359,6 +362,7 @@ export default function Home() {
             navigate(`/item/${e.id}${tab ? `?tab=${tab}` : ''}`);
           }} />
       )}
+      {ROOM_PREVIEW && <RoomDock events={items} />}
     </div>
   );
 }
