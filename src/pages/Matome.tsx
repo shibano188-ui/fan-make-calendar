@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { loadMyGot, loadSampleGot, imageOf, type MyGot } from '../room/data';
+import { loadMyGot, loadSampleGot, imageOf, canvasSafe, type MyGot } from '../room/data';
 import { ROOM_PREVIEW } from '../room/preview';
 import { shareImage, saveImage } from '../lib/shareImage';
 
@@ -154,7 +154,7 @@ export default function Matome({ overlay = false }: { overlay?: boolean } = {}) 
       // 値段の高い物を大きく
       got.sort((a, b) => (b.event.price ?? 0) - (a.event.price ?? 0));
       const list: Item[] = [];
-      for (const g of got.slice(0, 9)) { const src = imageOf(g.event, 640); const im = src ? await loadImg(src) : null; if (im) list.push({ got: g, st: cutSticker(im) }); }
+      for (const g of got.slice(0, 9)) { const src0 = imageOf(g.event, 640), src = src0 ? await canvasSafe(src0) : null; const im = src ? await loadImg(src) : null; if (im) list.push({ got: g, st: cutSticker(im) }); }
       await Promise.all(['800 60px Outfit', '500 22px "DM Mono"'].map((f) => document.fonts?.load(f).catch(() => null)));
       if (alive) setItems(list);
     })();
@@ -187,10 +187,10 @@ export default function Matome({ overlay = false }: { overlay?: boolean } = {}) 
           </div>
           {sample && <p className="px-4 pb-2 text-[12px] text-label-tertiary">見本（「買った」「行った」を押すと自分の1枚になる）</p>}
           <div className="px-4"><canvas ref={cvRef} className="w-full rounded-xl" style={{ aspectRatio: '4 / 5', boxShadow: '0 8px 24px rgba(0,0,0,.12)' }} /></div>
-          <div className="flex gap-2 px-4 pt-4">
+          {!sample && <div className="flex gap-2 px-4 pt-4">
             <button onClick={share} className="pressable flex-1 rounded-full py-3 text-[15px] font-bold" style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>X などに共有</button>
             <button onClick={save} className="pressable flex-1 rounded-full py-3 text-[15px] font-bold bg-bg-secondary">保存する</button>
-          </div>
+          </div>}
         </>
       )}
     </div>

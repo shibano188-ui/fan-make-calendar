@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { CalendarEvent } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { loadMyGot, toGoods, toSamples } from './data';
+import { loadMyGot, toGoods, toSamples, canvasSafeAll } from './data';
 import type { RoomState } from './engine';
 import { pushAppState } from '../lib/appState';
 import { shareImage } from '../lib/shareImage';
@@ -45,8 +45,9 @@ export default function RoomDock({ events }: { events: CalendarEvent[] | null })
     void (async () => {
       const [{ startRoom }, { ROOM_MARKUP }, got] = await Promise.all([import('./engine'), import('./markup'), user ? loadMyGot(user.id) : Promise.resolve([])]);
       if (cancelled) return;
-      const samples = toSamples(events);
-      let goods = toGoods(got);
+      const samples = await canvasSafeAll(toSamples(events).slice(0, 24));
+      let goods = await canvasSafeAll(toGoods(got));
+      if (cancelled) return;
       // まだ何も「買った」を押していない人には、見本を置いておく（プレビューで見るため）
       if (!goods.length) goods = samples.slice(0, 9).map((s, i) => ({ id: 'sample-' + i, img: s.img, title: s.title, sub: '見本（「買った」を押すと自分のグッズが届く）', kind: (['stand', 'card', 'badge', 'card', 'poster', 'badge', 'stand', 'card', 'badge'] as const)[i], h: 0.45 }));
       root.innerHTML = ROOM_MARKUP;

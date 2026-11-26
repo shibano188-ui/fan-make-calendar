@@ -1,3 +1,4 @@
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { supabase } from '../lib/supabase';
 import { eventFromRow } from '../lib/api';
 import { parseImageUrls } from '../lib/constants';
@@ -67,4 +68,28 @@ export async function loadSampleGot(): Promise<MyGot[]> {
   const now = new Date().toISOString();
   return (data ?? []).map((r) => eventFromRow(r as Record<string, unknown>)).filter((e) => deriveItemType(e) === 'goods' && imageOf(e)).slice(0, 9)
     .map((event, i) => ({ event, stamp: 'bought' as const, at: new Date(Date.now() - i * 2.6e8).toISOString() || now }));
+}
+
+// iPhone のアプリ（同梱・capacitor://localhost）では /_vercel/image が自分の出どころに無く、よその画像はキャンバスで読めない。
+// fanhive.jp から CapacitorHttp で取って data URL にする（Web と Android はそのまま）
+const IOS = Capacitor.getPlatform() === 'ios';
+const dataCache = new Map<string, Promise<string | null>>();
+export function canvasSafe(url: string): Promise<string | null> {
+  if (!IOS) return Promise.resolve(url);
+  const abs = url.startsWith('/') ? 'https://fanhive.jp' + url : url;
+  let p = dataCache.get(abs);
+  if (!p) {
+    p = CapacitorHttp.get({ url: abs, responseType: 'blob' })
+      .then((r) => (typeof r.data === 'string' && r.data ? `data:${(r.headers?.['Content-Type'] ?? r.headers?.['content-type'] ?? 'image/webp')};base64,${r.data}` : null))
+      .catch(() => null);
+    dataCache.set(abs, p);
+  }
+  return p;
+}
+/** img を持つ物の一覧を、iPhone でも読める形にそろえる（読めなかった物は外す） */
+export async function canvasSafeAll<T extends { img: string }>(list: T[]): Promise<T[]> {
+  if (!IOS) return list;
+  const out: T[] = [];
+  for (const x of list) { const img = await canvasSafe(x.img); if (img) out.push({ ...x, img }); }
+  return out;
 }

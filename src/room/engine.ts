@@ -1764,7 +1764,7 @@ function stepNpcs(dt, t) {
   }
 }
 // ───────── 毎フレーム ─────────
-const clock = new THREE.Clock(); let walkT = 0;
+const clock = new THREE.Clock(); let walkT = 0, lastBagT = -1;
 const camRay = new THREE.Raycaster();
 function nearest() {
   if (S.mode === 'town') { let best = null, bd = 1e9; for (const a of acts) { const d = Math.hypot(me.position.x - a.x, me.position.z - a.z); if (d < a.r && d < bd) { bd = d; best = a; } }
@@ -1776,7 +1776,8 @@ function nearest() {
 function tick() {
   if (dead) return; raf = requestAnimationFrame(tick); if (S.power === 'on') keepSession();
   const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
-  if (S.power === 'off') { renderBag(t); return; }
+  if (document.hidden) return;
+  if (S.power === 'off') { if (t - lastBagT > 1 / 15) { lastBagT = t; renderBag(t); } return; }
   if (S.power === 'boot') { S.bootT += dt; drawBoot(S.bootT); if (S.bootT > 1.9) { S.power = 'on'; bootEl.style.display = 'none'; drawPow(); } if (S.bootT < 1.4) return; }
   if (mg.on) { mgStep(dt); if (S.shot) { S.shot = false; makeShot(mgC); } return; }
   holoTex.offset.set(t * 0.08 + camNow.pos.x * 0.05, camNow.pos.z * 0.04);
