@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Bell, Crown, CalendarSync, Palette, Pencil, Check, MessageCircle, MessageSquareText, MapPin, UserRound, Star, Trash2, Lightbulb } from 'lucide-react';
+import { ChevronRight, Bell, Crown, CalendarSync, Palette, Pencil, Check, MessageCircle, MessageSquareText, MapPin, UserRound, Star, Trash2, Lightbulb, Images } from 'lucide-react';
 
 // マイページ下部の規約類。iOS は画面を同梱していて住所が capacitor://localhost になるので、
 // 本番の URL を固定で開く（openExternal は http(s) しか開かない）
@@ -363,6 +363,12 @@ export default function MyPage() {
         <button onClick={() => { haptic.select(); navigate('/customize'); }} className="w-full flex items-center gap-2 px-3 py-2.5 pressable text-left">
           <Palette size={16} className="text-label-secondary" />
           <span className="text-[14px] flex-1">テーマ・カレンダーの配色</span>
+          <ChevronRight size={16} className="text-label-tertiary" />
+        </button>
+        {/* 今月のまとめ画像 */}
+        <button onClick={() => { haptic.select(); navigate('/matome'); }} className="w-full flex items-center gap-2 px-3 py-2.5 pressable text-left">
+          <Images size={16} className="text-label-secondary" />
+          <span className="text-[14px] flex-1">今月のまとめ画像</span>
           <ChevronRight size={16} className="text-label-tertiary" />
         </button>
         {/* フォロー中の作品（フォロー解除・作品ごとの通知はここから） */}
