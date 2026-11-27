@@ -3,9 +3,12 @@ import { useNavigate, useNavigationType, useSearchParams } from 'react-router-do
 import { TrendingDown, ChevronRight } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import { deriveItemType, deriveStatus, todayStr } from '../design/tokens';
-import { loadSeenEventIds, addSeenEventId, FOLLOWS_EVENT } from '../lib/constants';
+import { loadSeenEventIds, addSeenEventId, FOLLOWS_EVENT, PAYWALL_SEEN_KEY, ONBOARDING_KEY, FEATURE_PREMIUM } from '../lib/constants';
+import { Capacitor } from '@capacitor/core';
+import { useTourStep } from '../components/OnboardingTour';
+import { hasPendingEvent } from '../lib/deepLink';
 import { listExploreEvents, listAllParticipatedWorks, listFollowDates, toggleLike, listLikedEventIds, listMyPriceChanges, type Work } from '../lib/api';
-import { useFeature, usePremium } from '../lib/premium';
+import { useFeature, usePremium, isPremiumCached } from '../lib/premium';
 import { unseenChanges } from '../lib/priceAlerts';
 import { getCached, setCached, loadCachedLarge, setCachedLarge, EXPLORE_EVENTS_KEY } from '../lib/swrCache';
 import { buildWorkColorMap } from '../lib/workColors';
@@ -52,6 +55,18 @@ export default function Home() {
   const { isHidden } = useHiddenContent(user?.id);
   const toast = useToast();
   const premium = usePremium();
+  const tourStep = useTourStep();
+  // 前から使っている無料の人に、新しい課金の案内を1回だけ出す（2026-11-28 柴野）。
+  // 案内（/premium）を一度でも開いた人には出さない（開くと PAYWALL_SEEN_KEY が付く。初回の案内の最後でも開く）。
+  // 買えるのはアプリだけなので、アプリで、最初の案内を終えた人に、ホームを開いて少したってから
+  useEffect(() => {
+    if (!FEATURE_PREMIUM || !Capacitor.isNativePlatform() || premium || tourStep) return;
+    try { if (localStorage.getItem(PAYWALL_SEEN_KEY) || !localStorage.getItem(ONBOARDING_KEY)) return; } catch { return; }
+    if (hasPendingEvent()) return;
+    // 会員の判定がサーバーで確定するのを待つ（端末の覚えが古いと、買った人に出てしまう）
+    const t = setTimeout(() => { if (!isPremiumCached()) navigate('/premium?from=intro'); }, 2500);
+    return () => clearTimeout(t);
+  }, [premium, tourStep, navigate]);
   const [items, setItems] = useState<CalendarEvent[] | null>(null);
   const [follows, setFollows] = useState<Work[]>([]);
   // フォロー中の作品を読み終えたか。一覧はキャッシュから先に出るので、読み終える前に「0作品」として
