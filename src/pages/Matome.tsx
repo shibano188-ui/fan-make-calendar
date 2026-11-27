@@ -67,54 +67,38 @@ function cutSticker(img: HTMLImageElement, S = 640, border = 14): HTMLCanvasElem
   return out;
 }
 
-type Style = 'n' | 'r';
 type Item = { got: MyGot; st: HTMLCanvasElement };
 
-function draw(cv: HTMLCanvasElement, items: Item[], month: number, style: Style, showTotal: boolean) {
+function draw(cv: HTMLCanvasElement, items: Item[], month: number, showTotal: boolean) {
   cv.width = W; cv.height = H; const g = cv.getContext('2d')!;
-  const ink = style === 'r' ? '#2a2540' : '#1c1c1e';
-  // 地
-  if (style === 'n') {
-    g.fillStyle = '#f4efe6'; g.fillRect(0, 0, W, H); g.fillStyle = '#d9d2c5';
-    for (let y = 18; y < H; y += 36) for (let x = 18; x < W; x += 36) { g.beginPath(); g.arc(x, y, 2, 0, 7); g.fill(); }
-  } else {
-    for (let y = 0; y < H; y += 6) for (let x = 0; x < W; x += 6) { const t = y / H; g.fillStyle = ((x + y) / 6 & 1) ? (t < .5 ? '#ece8ff' : '#e3f0ff') : (t < .5 ? '#e4dfff' : '#dbe9ff'); g.fillRect(x, y, 6, 6); }
-    g.fillStyle = 'rgba(80,70,160,.10)'; for (let x = 0; x < W; x += 60) g.fillRect(x, 0, 6, H); for (let y = 0; y < H; y += 60) g.fillRect(0, y, W, 6);
-  }
+  const ink = '#1c1c1e';
+  // 地（点の方眼）
+  g.fillStyle = '#f4efe6'; g.fillRect(0, 0, W, H); g.fillStyle = '#d9d2c5';
+  for (let y = 18; y < H; y += 36) for (let x = 18; x < W; x += 36) { g.beginPath(); g.arc(x, y, 2, 0, 7); g.fill(); }
   // 後ろに大きな月の数字
   g.textBaseline = 'alphabetic';
-  g.font = `800 ${style === 'n' ? 520 : 460}px Outfit, sans-serif`;
+  g.font = '800 520px Outfit, sans-serif';
   const num = String(month), nw = g.measureText(num).width;
-  if (style === 'n') { g.fillStyle = '#FBC000'; g.fillText(num, 36 - 20, 470); }
-  else {
-    const gr = g.createLinearGradient(30, 60, 30 + nw, 470); ['#ff9ad5', '#ffe08a', '#9effc8', '#8ad8ff', '#c79bff'].forEach((c, i) => gr.addColorStop(i / 4, c));
-    g.fillStyle = gr; g.fillText(num, 36, 450); g.lineWidth = 8; g.strokeStyle = ink; g.strokeText(num, 36, 450);
-  }
-  g.fillStyle = ink; g.font = `800 ${style === 'n' ? 128 : 120}px -apple-system, "Hiragino Sans", sans-serif`; g.fillText('月', 36 + nw - 10, style === 'n' ? 460 : 440);
+  g.fillStyle = '#FBC000'; g.fillText(num, 36 - 20, 470);
+  g.fillStyle = ink; g.font = '800 128px -apple-system, "Hiragino Sans", sans-serif'; g.fillText('月', 36 + nw - 10, 460);
   // ステッカー（大事な物ほど上に重ねる）
   const places = layout(items.map((it) => it.st));
   for (let pi = items.length - 1; pi >= 0; pi--) {
     const pl = places[pi]; if (!pl) continue; const { st } = items[pi];
     const w = pl.w * K, h = pl.h * K;
     g.save(); g.translate(pl.cx * K, pl.cy * K); g.rotate(pl.rot * Math.PI / 180);
-    if (style === 'n') { g.shadowColor = 'rgba(60,40,10,.22)'; g.shadowBlur = 22; g.shadowOffsetY = 14; g.drawImage(st, -w / 2, -h / 2, w, h); }
-    else {
-      const sil = document.createElement('canvas'); sil.width = st.width; sil.height = st.height; const s = sil.getContext('2d')!; s.drawImage(st, 0, 0); s.globalCompositeOperation = 'source-in'; s.fillStyle = ink; s.fillRect(0, 0, sil.width, sil.height);
-      g.globalAlpha = 0.85; g.drawImage(sil, -w / 2 + 10, -h / 2 + 12, w, h); g.globalAlpha = 1;
-      for (const [dx, dy] of [[-4, 0], [4, 0], [0, -4], [0, 4]]) g.drawImage(sil, -w / 2 + dx, -h / 2 + dy, w, h);
-      g.drawImage(st, -w / 2, -h / 2, w, h);
-    }
+    g.shadowColor = 'rgba(60,40,10,.22)'; g.shadowBlur = 22; g.shadowOffsetY = 14; g.drawImage(st, -w / 2, -h / 2, w, h);
     // 日付の札（左下の角に貼る）
     const d = new Date(items[pi].got.at), t = `${d.getMonth() + 1}.${String(d.getDate()).padStart(2, '0')}`;
     g.shadowColor = 'transparent'; g.font = '500 22px "DM Mono", ui-monospace, monospace'; const tw = g.measureText(t).width;
-    g.fillStyle = style === 'n' ? 'rgba(251,192,0,.88)' : ink; g.fillRect(-w / 2 + 4, h / 2 - 30, tw + 20, 34);
-    g.fillStyle = style === 'n' ? ink : '#fff'; g.textBaseline = 'middle'; g.fillText(t, -w / 2 + 14, h / 2 - 12);
+    g.fillStyle = 'rgba(251,192,0,.88)'; g.fillRect(-w / 2 + 4, h / 2 - 30, tw + 20, 34);
+    g.fillStyle = ink; g.textBaseline = 'middle'; g.fillText(t, -w / 2 + 14, h / 2 - 12);
     g.restore();
   }
   // 合計
   if (showTotal) {
     const total = items.reduce((a, it) => a + (it.got.stamp === 'bought' ? it.got.event.price ?? 0 : 0), 0);
-    g.textBaseline = 'alphabetic'; g.fillStyle = style === 'n' ? '#6e6e73' : ink; g.font = '22px -apple-system, "Hiragino Sans", sans-serif'; g.fillText('合計', 56, H - 182);
+    g.textBaseline = 'alphabetic'; g.fillStyle = '#6e6e73'; g.font = '22px -apple-system, "Hiragino Sans", sans-serif'; g.fillText('合計', 56, H - 182);
     g.fillStyle = ink; g.font = '800 60px Outfit, sans-serif'; g.fillText('¥' + total.toLocaleString(), 52, H - 116);
   }
   // 下
@@ -138,7 +122,6 @@ export default function Matome() {
   const now = m ? new Date(+m[1], +m[2] - 1, 1) : new Date(), month = now.getMonth() + 1;
   const [items, setItems] = useState<Item[] | null>(null);
   const [sample, setSample] = useState(false);
-  const [style, setStyle] = useState<Style>('n');
   const [showTotal, setShowTotal] = useState(true);
   const cvRef = useRef<HTMLCanvasElement>(null);
 
@@ -160,7 +143,7 @@ export default function Matome() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  useEffect(() => { if (items?.length && cvRef.current) draw(cvRef.current, items, month, style, showTotal); }, [items, style, showTotal, month]);
+  useEffect(() => { if (items?.length && cvRef.current) draw(cvRef.current, items, month, showTotal); }, [items, showTotal, month]);
 
   const blob = () => new Promise<Blob | null>((ok) => cvRef.current ? cvRef.current.toBlob(ok, 'image/png') : ok(null));
   const save = async () => { const b = await blob(); if (b) await saveImage(b, `fanhive-${month}.png`); };
@@ -179,8 +162,6 @@ export default function Matome() {
       {!!items?.length && (
         <>
           <div className="flex gap-2 px-4 pb-3">
-            <button className={pill(style === 'n')} onClick={() => setStyle('n')}>通常</button>
-            <button className={pill(style === 'r')} onClick={() => setStyle('r')}>レトロ</button>
             <button className={pill(showTotal)} onClick={() => setShowTotal((v) => !v)}>合計金額</button>
           </div>
           {sample && <p className="px-4 pb-2 text-[12px] text-label-tertiary">見本（「買った」「行った」を押すと自分の1枚になる）</p>}
