@@ -365,7 +365,7 @@ function linksText(date, items, summaries = []) {
     out.push(`[画像] ${file}`);
     out.push(`${work}｜${e.title.replace(/\s+/g, ' ').trim()}`);
     out.push(`${mdw(date)} ${kinds}${price ? ` ／ ${price}` : ''}`);
-    out.push(`FanHive: https://fanhive.jp/item/${e.id}`);
+    out.push(`FanHive: https://fanhive.jp/e/${e.id}`); // 共有ページ（アプリへ案内する）。/item/ はアプリの画面そのもの
     if (shown.length) {
       out.push('販売先:');
       for (const o of shown) out.push(`  ${o.retailer || 'お店'}${o.label ? `（${o.label}）` : ''} ${plainUrl(o.url)}`);

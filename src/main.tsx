@@ -45,6 +45,18 @@ if (
   window.history.replaceState(null, '', START_PATH);
 }
 
+// ブラウザで初めて来た人が予定の直リンク（fanhive.jp/item/<id>）を開いたら、共有ページ（/e/<id>）に差し替える
+// （2026-11-28 柴野「アプリを入れていない人が、いいねや通知を使えちゃうと変」。X に /item/ のリンクを載せていた）。
+// 共有ページは押せる物を減らし、アプリへ案内する。アプリ（Android・iOS）と、案内を終えた Web の人は今までどおり
+const itemLink = /^\/item\/([^/]+)\/?$/.exec(window.location.pathname);
+if (
+  itemLink &&
+  !Capacitor.isNativePlatform() &&
+  SHOW_ONBOARDING && !localStorage.getItem(ONBOARDING_KEY)
+) {
+  window.history.replaceState(null, '', `/e/${itemLink[1]}`);
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
