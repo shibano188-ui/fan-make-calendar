@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useNavigationType } from 'react-router-dom';
-import { SlidersHorizontal, Crown, Palette, MoreHorizontal } from 'lucide-react';
+import { SlidersHorizontal, Crown, Palette, MoreHorizontal, Images } from 'lucide-react';
 import type { CalendarEvent, EventVisit } from '../types';
 import Chip from '../components/ui/Chip';
 import WorkChipsRow from '../components/WorkChipsRow';
@@ -421,6 +421,12 @@ export default function Saved() {
                     今日
                   </button>
                 )}
+                {/* その月のまとめ画像（「買った」「行った」を押した物をコラージュに・2026-11-28 全員に） */}
+                <button onClick={() => { haptic.select(); navigate(`/matome?m=${year}-${month}`); }}
+                  className="pressable flex-shrink-0 flex items-center gap-1 text-[12px] font-bold px-2.5 h-7 rounded-full"
+                  style={{ backgroundColor: 'var(--accent-color)', color: 'var(--accent-on)' }}>
+                  <Images size={14} aria-hidden />まとめ画像
+                </button>
               </div>
             } />
 
