@@ -71,15 +71,20 @@ LP は `public/lp.html`（`https://fanhive.jp/lp.html`）。アプリと同じ�
 - 書き出し直したら `node scripts/lp-og-tags.mjs` → `npm run build` の順に流してからコミットする。
   文字だけ直したときも `lp-og-tags.mjs` は流す（`<head>` の `lp-og-tags` の間＝X のカードはここを見る。手で直さない）
   書き出しにフォントが埋め込まれていたら（lp.html が数MBになる）、先に `python scripts/lp-fonts.py` で外す
-- **フォントは Google Fonts の Zen Maru Gothic（500/700/900）**（2026-11-28 から。プライバシーポリシーにも書いてある）。
-  `public/lp/fonts/` のサブセットは `press.html` がまだ使っている
+- **フォントは Zen Maru Gothic の 500 と 900 を、LP で使っている字だけにして自分で配る**（`public/lp/fonts/zen-maru-gothic-*.woff2`）。
+  **文言を変えたら `python scripts/lp-fonts-zen.py <元のフォントのフォルダ>` を流し**、表示された `?v=` をテンプレートの `@font-face` に書く
+  （流さないと、新しく使った字だけ端末の書体で出る）。Google Fonts には取りに行かない（測ったら約665KB・49本で重かった）。
+  `noto-sans-jp-*.woff2` は `press.html` が使っている
+- **動き**: 最初の画面は CSS のアニメ（ずっと続くものは、最初の画面が見えていないとき・タブが裏のときは止める）。
+  「困りごと」「共有するだけ」はスクロールに合わせて動く。JS は進み具合を場面の `--p` に入れるだけで、動きは CSS で transform と opacity だけを計算する。
+  1つの要素に transform の動きを2つ付けない（Chrome が合成で動かせず、毎フレーム計算し直す）。「動きを減らす」設定では止まった形を出す
 - **色は `--bg` #ECECEC・`--honey` #EF8F00・`--ink` #5A1F3D の3つだけ**。グラデーション・白・半透明・影は使わない。
   文字は `--ink`、はちみつ色の上の文字は太字12px以上。最初の画面の動きの元は `docs/design/lp-hero-flower.html`
 - 見た目の確認は `node scripts/lp-shots/page.mjs --out=<フォルダ>`（390px と 1280px で画面1枚ずつ撮る。`--reduce` で「動きを減らす」設定）
 - **計測を壊さない**: `sendEvent`・`track`・`storeClick`・`trackPageViewOnce`・`applyMeta` は残す。ストアのボタンは必ず `storeClick(store, placement)` を通す。
   placement（`hero`/`mid`/`footer`）の意味は変えない。ボタンを足すなら新しい placement にして、ダッシュボードの `LP_PLACE`（`api/_dashboard-html.ts`）にも足す。
   `/lp.html` の名前は変えない（配った `?src=` 付きのリンクが切れる）。仕組みは `sql/2026-09-30-lp-daily.sql`
-- 料金・通知の説明は `src/lib/premium.ts` の実装に合わせる
+- 料金・通知の説明は `src/lib/premium.ts` の実装に合わせる。料金欄の表は、アプリの `src/pages/Premium.tsx` の「無料と比べる」と同じ8行・同じ言い回しにしてある（アプリを変えたら LP も）
 
 ## 困ったら
 
