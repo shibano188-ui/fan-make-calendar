@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FanHive LP 最初の画面（参考デザイン）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#5A1F3D}a:hover{color:#5A1F3D}
+.fh-band{animation:fhBand .7s cubic-bezier(.2,.8,.3,1) both}
+.fh-drip{transform-box:fill-box;transform-origin:50% 0;animation:fhGrow .9s cubic-bezier(.5,0,.3,1) both,fhStretch 4.2s ease-in-out infinite}
+.fh-d1{animation-delay:.5s,1.6s}.fh-d2{animation-delay:.65s,2.3s}.fh-d3{animation-delay:.55s,1.9s}
+.fh-d4{animation-delay:.75s,2.7s}.fh-d5{animation-delay:.6s,2.1s}.fh-d6{animation-delay:.7s,2.5s}
+.fh-petal{transform-box:fill-box;transform-origin:50% 100%;animation:fhBloom .7s cubic-bezier(.3,1.4,.5,1) both}
+.fh-p1{animation-delay:1s}.fh-p2{animation-delay:1.12s}.fh-p3{animation-delay:1.24s}.fh-p4{animation-delay:1.36s}.fh-p5{animation-delay:1.48s}
+.fh-core{transform-box:fill-box;transform-origin:50% 50%;animation:fhBloom .6s cubic-bezier(.3,1.5,.5,1) 1.7s both}
+.fh-bud{transform-box:fill-box;transform-origin:50% 100%;animation:fhBloom .6s cubic-bezier(.3,1.4,.5,1) 1.9s both}
+.fh-label{animation:fhPop .5s cubic-bezier(.3,1.4,.5,1) 2s both}
+.fh-up{animation:fhUp .6s cubic-bezier(.2,.8,.3,1) both}
+.fh-u1{animation-delay:2.3s}.fh-u2{animation-delay:2.45s}.fh-u3{animation-delay:2.6s}
+.fh-bee{position:absolute;width:28px;height:28px;margin:-28px 0 0 -14px;animation:fhLand .9s cubic-bezier(.3,.1,.3,1) both}
+.fh-hop{transform-origin:50% 100%;animation:fhHop 2.5s ease-in-out infinite}
+.fh-msg{position:absolute;left:0;right:0;top:0;display:flex;flex-direction:column;align-items:center;opacity:0;animation:fhMsg 10s ease-in-out infinite both}
+.fh-m1{animation-delay:2s}.fh-m2{animation-delay:4.5s}.fh-m3{animation-delay:7s}.fh-m4{animation-delay:9.5s}
+@keyframes fhMsg{0%{opacity:0;transform:translateY(8px)}3%{opacity:1;transform:none}22%{opacity:1;transform:none}25%{opacity:0;transform:translateY(-8px)}100%{opacity:0;transform:translateY(-8px)}}
+.fh-wing{transform-box:fill-box;transform-origin:50% 100%;animation:fhFlap .14s linear infinite alternate}
+.fh-b1{animation-delay:2.4s}.fh-b2{animation-delay:2.6s}.fh-b3{animation-delay:2.8s}.fh-b4{animation-delay:3s}.fh-b5{animation-delay:3.2s}
+.fh-h1{animation-delay:4.35s}.fh-h2{animation-delay:4.4s}.fh-h3{animation-delay:4.45s}.fh-h4{animation-delay:4.5s}.fh-h5{animation-delay:4.55s}
+.fh-btn{transition:transform .12s ease}
+.fh-btn:active{transform:translateY(2px)}
+.fh-btn:focus-visible{outline:3px solid #EF8F00;outline-offset:3px}
+@keyframes fhBand{from{transform:translateY(-130px)}to{transform:none}}
+@keyframes fhGrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes fhStretch{0%,100%{transform:scaleY(1)}50%{transform:scaleY(1.14)}}
+@keyframes fhBloom{from{transform:scale(0);opacity:0}to{transform:none;opacity:1}}
+@keyframes fhPop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
+@keyframes fhUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes fhLand{0%{transform:translate(var(--fx),-160px);opacity:0}20%{opacity:1}70%{transform:translate(0,-18px)}85%{transform:translate(0,2px) scale(1.1,.9)}100%{transform:none;opacity:1}}
+@keyframes fhHop{0%,55%,100%{transform:none}8%{transform:scale(1.12,.86)}20%{transform:translateY(-16px) scale(.94,1.08)}32%{transform:translateY(0) scale(1.1,.9)}42%{transform:none}}
+@keyframes fhFlap{from{transform:scaleY(1)}to{transform:scaleY(.5)}}
+@media (prefers-reduced-motion: reduce){
+  .fh-band,.fh-drip,.fh-petal,.fh-core,.fh-bud,.fh-label,.fh-up,.fh-bee,.fh-hop,.fh-wing,.fh-msg{animation:none}
+  .fh-m1{opacity:1}
+}
+</style>
+<style>html{background:#ECECEC}body{display:flex;justify-content:center}</style>
+</head>
+<body>
+<!-- 参考デザイン：スマホ幅390pxで作った最初の画面。色は #ECECEC / #EF8F00 / #5A1F3D の3色だけ。 -->
+<div style="width: 390px; height: 844px; box-sizing: border-box; position: relative; overflow: hidden; background: #ECECEC; color: #5A1F3D; font-family: 'Zen Maru Gothic', sans-serif;">
+  <svg aria-hidden="true" width="390" height="460" viewBox="0 0 390 460" style="position: absolute; left: 0; top: 0;">
+    <defs>
+      <filter id="gooE1" x="-5%" y="-5%" width="110%" height="120%">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="b"></feGaussianBlur>
+        <feColorMatrix in="b" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -8"></feColorMatrix>
+      </filter>
+    </defs>
+    <g filter="url(#gooE1)" fill="#EF8F00">
+      <rect class="fh-band" x="-20" y="-20" width="430" height="130"></rect>
+      <path class="fh-drip fh-d1" d="M28 100 C28 125 32 140 32 154 A6 6 0 0 0 44 154 C44 140 48 125 48 100 Z"></path>
+      <path class="fh-drip fh-d2" d="M86 100 C86 115 89 124 89 132 A4 4 0 0 0 97 132 C97 124 100 115 100 100 Z"></path>
+      <path class="fh-drip fh-d3" d="M142 100 C142 118 145 130 145 142 A5 5 0 0 0 155 142 C155 130 158 118 158 100 Z"></path>
+      <path class="fh-drip fh-d4" d="M240 100 C240 125 244 142 244 162 A6 6 0 0 0 256 162 C256 142 260 125 260 100 Z"></path>
+      <path class="fh-drip fh-d5" d="M296 100 C296 114 299 122 299 130 A4 4 0 0 0 307 130 C307 122 310 114 310 100 Z"></path>
+      <path class="fh-drip fh-d6" d="M344 100 C344 120 347 134 347 150 A5 5 0 0 0 357 150 C357 134 360 120 360 100 Z"></path>
+    </g>
+    <ellipse cx="36" cy="148" rx="1.6" ry="4" fill="#ECECEC"></ellipse>
+    <ellipse cx="248" cy="155" rx="1.6" ry="5" fill="#ECECEC"></ellipse>
+
+    <path d="M195 372 C195 395 190 412 176 428" fill="none" stroke="#5A1F3D" stroke-width="3" stroke-linecap="round"></path>
+    <g class="fh-bud"><path d="M150 424 C158 414 172 414 176 426 C172 438 156 438 150 424 Z" fill="#5A1F3D"></path></g>
+
+    <g transform="translate(0 340) scale(1 0.42) translate(0 -340)">
+      <g transform="rotate(0.00 195 340)"><path class="fh-petal" style="animation-delay:1.00s" d="M195 334 C179 316 172 282 174 250 A21 21 0 0 1 216 250 C218 282 211 316 195 334 Z" fill="#ECECEC" stroke="#5A1F3D" stroke-width="3" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path></g>
+      <g transform="rotate(25.71 195 340)"><path class="fh-petal" style="animation-delay:1.04s" d="M195 334 C179 316 172 282 174 250 A21 21 0 0 1 216 250 C218 282 211 316 195 334 Z" fill="#ECECEC" stroke="#5A1F3D" stroke-width="3" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path></g>
+      <g transform="rotate(51.43 195 340)"><path class="fh-petal" style="animation-delay:1.09s" d="M195 334 C179 316 172 282 174 250 A21 21 0 0 1 216 250 C218 282 211 316 195 334 Z" fill="#ECECEC" stroke="#5A1F3D" stroke-width="3" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path></g>
+      <g transform="rotate(77.14 195 340)"><path class="fh-petal" style="animation-delay:1.13s" d="M195 334 C179 316 172 282 174 250 A21 21 0 0 1 216 250 C218 282 211 316 195 334 Z" fill="#ECECEC" stroke="#5A1F3D" stroke-width="3" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path></g>
+      <g transform="rotate(102.86 195 340)"><path class="fh-petal" style="animation-delay:1.17s" d="M195 334 C179 316 172 282 174 250 A21 21 0 0 1 216 250 C218 282 211 316 195 334 Z" fill="#ECECEC" stroke="#5A1F3D" stroke-width="3" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path></g>
+      <g transform="rotate(128.57 195 340)"><path class="fh-petal" style="animation-delay:1.21s" d="M195 334 C179 316 172 282 174 250 A21 21 0 0 1 216 250 C218 282 211 316 195 334 Z" fill="#ECECEC" stroke="#5A1F3D" stroke-width="3" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path></g>
+      <g transform="rotate(154.29 195 340)"><path class="fh-petal" style="animation-delay:1.26s" d="M195 334 C179 316 172 282 174 250 A21 21 0 0 1 216 250 C218 282 211 316 195 334 Z" fill="#ECECEC" stroke="#5A1F3D" stroke-width="3" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path></g>
+      <g transform="rotate(180.00 195 340)"><path class="fh-petal" style="animation-delay:1.30s" d="M195 334 C179 316 172 282 174 250 A21 21 0 0 1 216 250 C218 282 211 316 195 334 Z" fill="#ECECEC" stroke="#5A1F3D" stroke-width="3" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path></g>
+      <g transform="rotate(205.71 195 340)"><path class="fh-petal" style="animation-delay:1.34s" d="M195 334 C179 316 172 282 174 250 A21 21 0 0 1 216 250 C218 282 211 316 195 334 Z" fill="#ECECEC" stroke="#5A1F3D" stroke-width="3" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path></g>
+      <g transform="rotate(231.43 195 340)"><path class="fh-petal" style="animation-delay:1.39s" d="M195 334 C179 316 172 282 174 250 A21 21 0 0 1 216 250 C218 282 211 316 195 334 Z" fill="#ECECEC" stroke="#5A1F3D" stroke-width="3" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path></g>
+      <g transform="rotate(257.14 195 340)"><path class="fh-petal" style="animation-delay:1.43s" d="M195 334 C179 316 172 282 174 250 A21 21 0 0 1 216 250 C218 282 211 316 195 334 Z" fill="#ECECEC" stroke="#5A1F3D" stroke-width="3" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path></g>
+      <g transform="rotate(282.86 195 340)"><path class="fh-petal" style="animation-delay:1.47s" d="M195 334 C179 316 172 282 174 250 A21 21 0 0 1 216 250 C218 282 211 316 195 334 Z" fill="#ECECEC" stroke="#5A1F3D" stroke-width="3" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path></g>
+      <g transform="rotate(308.57 195 340)"><path class="fh-petal" style="animation-delay:1.51s" d="M195 334 C179 316 172 282 174 250 A21 21 0 0 1 216 250 C218 282 211 316 195 334 Z" fill="#ECECEC" stroke="#5A1F3D" stroke-width="3" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path></g>
+      <g transform="rotate(334.29 195 340)"><path class="fh-petal" style="animation-delay:1.56s" d="M195 334 C179 316 172 282 174 250 A21 21 0 0 1 216 250 C218 282 211 316 195 334 Z" fill="#ECECEC" stroke="#5A1F3D" stroke-width="3" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path></g>
+    </g>
+    <ellipse class="fh-core" cx="195" cy="340" rx="68" ry="28" fill="#EF8F00" stroke="#5A1F3D" stroke-width="3"></ellipse>
+  </svg>
+
+  <header style="position: absolute; left: 20px; right: 20px; top: 16px; display: flex; align-items: center; justify-content: space-between; color: #5A1F3D;">
+    <span style="font-weight: 900; font-size: 22px; letter-spacing: 0.01em;">FanHive</span>
+    <span style="font-size: 19px; font-weight: 700;">見逃さない推し活</span>
+  </header>
+
+  <div aria-hidden="true">
+    <div class="fh-bee fh-b1" style="left: 107px; top: 322px; --fx: -120px;"><div class="fh-hop fh-h1"><svg width="28" height="28" viewBox="0 0 28 28"><path d="M11 11 Q9 5 6 5 M17 11 Q19 5 22 5" fill="none" stroke="#5A1F3D" stroke-width="1.5" stroke-linecap="round"></path><circle cx="6" cy="5" r="1.4" fill="#5A1F3D"></circle><circle cx="22" cy="5" r="1.4" fill="#5A1F3D"></circle><circle class="fh-wing" cx="7" cy="13" r="6" fill="#ECECEC" stroke="#5A1F3D" stroke-width="1.5"></circle><circle class="fh-wing" cx="21" cy="13" r="6" fill="#ECECEC" stroke="#5A1F3D" stroke-width="1.5"></circle><circle cx="14" cy="18" r="9" fill="#EF8F00" stroke="#5A1F3D" stroke-width="1.8"></circle><circle cx="11" cy="17" r="1.5" fill="#5A1F3D"></circle><circle cx="17" cy="17" r="1.5" fill="#5A1F3D"></circle></svg></div></div>
+    <div class="fh-bee fh-b2" style="left: 151px; top: 316px; --fx: -60px;"><div class="fh-hop fh-h2"><svg width="28" height="28" viewBox="0 0 28 28"><path d="M11 11 Q9 5 6 5 M17 11 Q19 5 22 5" fill="none" stroke="#5A1F3D" stroke-width="1.5" stroke-linecap="round"></path><circle cx="6" cy="5" r="1.4" fill="#5A1F3D"></circle><circle cx="22" cy="5" r="1.4" fill="#5A1F3D"></circle><circle class="fh-wing" cx="7" cy="13" r="6" fill="#ECECEC" stroke="#5A1F3D" stroke-width="1.5"></circle><circle class="fh-wing" cx="21" cy="13" r="6" fill="#ECECEC" stroke="#5A1F3D" stroke-width="1.5"></circle><circle cx="14" cy="18" r="9" fill="#EF8F00" stroke="#5A1F3D" stroke-width="1.8"></circle><circle cx="11" cy="17" r="1.5" fill="#5A1F3D"></circle><circle cx="17" cy="17" r="1.5" fill="#5A1F3D"></circle></svg></div></div>
+    <div class="fh-bee fh-b3" style="left: 195px; top: 314px; --fx: 0px;"><div class="fh-hop fh-h3"><svg width="28" height="28" viewBox="0 0 28 28"><path d="M11 11 Q9 5 6 5 M17 11 Q19 5 22 5" fill="none" stroke="#5A1F3D" stroke-width="1.5" stroke-linecap="round"></path><circle cx="6" cy="5" r="1.4" fill="#5A1F3D"></circle><circle cx="22" cy="5" r="1.4" fill="#5A1F3D"></circle><circle class="fh-wing" cx="7" cy="13" r="6" fill="#ECECEC" stroke="#5A1F3D" stroke-width="1.5"></circle><circle class="fh-wing" cx="21" cy="13" r="6" fill="#ECECEC" stroke="#5A1F3D" stroke-width="1.5"></circle><circle cx="14" cy="18" r="9" fill="#EF8F00" stroke="#5A1F3D" stroke-width="1.8"></circle><circle cx="11" cy="17" r="1.5" fill="#5A1F3D"></circle><circle cx="17" cy="17" r="1.5" fill="#5A1F3D"></circle></svg></div></div>
+    <div class="fh-bee fh-b4" style="left: 239px; top: 316px; --fx: 60px;"><div class="fh-hop fh-h4"><svg width="28" height="28" viewBox="0 0 28 28"><path d="M11 11 Q9 5 6 5 M17 11 Q19 5 22 5" fill="none" stroke="#5A1F3D" stroke-width="1.5" stroke-linecap="round"></path><circle cx="6" cy="5" r="1.4" fill="#5A1F3D"></circle><circle cx="22" cy="5" r="1.4" fill="#5A1F3D"></circle><circle class="fh-wing" cx="7" cy="13" r="6" fill="#ECECEC" stroke="#5A1F3D" stroke-width="1.5"></circle><circle class="fh-wing" cx="21" cy="13" r="6" fill="#ECECEC" stroke="#5A1F3D" stroke-width="1.5"></circle><circle cx="14" cy="18" r="9" fill="#EF8F00" stroke="#5A1F3D" stroke-width="1.8"></circle><circle cx="11" cy="17" r="1.5" fill="#5A1F3D"></circle><circle cx="17" cy="17" r="1.5" fill="#5A1F3D"></circle></svg></div></div>
+    <div class="fh-bee fh-b5" style="left: 283px; top: 322px; --fx: 120px;"><div class="fh-hop fh-h5"><svg width="28" height="28" viewBox="0 0 28 28"><path d="M11 11 Q9 5 6 5 M17 11 Q19 5 22 5" fill="none" stroke="#5A1F3D" stroke-width="1.5" stroke-linecap="round"></path><circle cx="6" cy="5" r="1.4" fill="#5A1F3D"></circle><circle cx="22" cy="5" r="1.4" fill="#5A1F3D"></circle><circle class="fh-wing" cx="7" cy="13" r="6" fill="#ECECEC" stroke="#5A1F3D" stroke-width="1.5"></circle><circle class="fh-wing" cx="21" cy="13" r="6" fill="#ECECEC" stroke="#5A1F3D" stroke-width="1.5"></circle><circle cx="14" cy="18" r="9" fill="#EF8F00" stroke="#5A1F3D" stroke-width="1.8"></circle><circle cx="11" cy="17" r="1.5" fill="#5A1F3D"></circle><circle cx="17" cy="17" r="1.5" fill="#5A1F3D"></circle></svg></div></div>
+  </div>
+
+  <div class="fh-label" style="position: absolute; left: 127px; top: 324px; width: 136px; height: 40px; text-align: center; color: #5A1F3D; line-height: 1.15;">
+    <div class="fh-msg fh-m1"><span style="font-size: 12px; font-weight: 900;">予約締切</span><span style="font-size: 20px; font-weight: 900;">あと2日</span></div>
+    <div class="fh-msg fh-m2"><span style="font-size: 12px; font-weight: 900;">発売日</span><span style="font-size: 20px; font-weight: 900;">あと5日</span></div>
+    <div class="fh-msg fh-m3"><span style="font-size: 12px; font-weight: 900;">再販</span><span style="font-size: 20px; font-weight: 900;">受付中</span></div>
+    <div class="fh-msg fh-m4"><span style="font-size: 12px; font-weight: 900;">イベント</span><span style="font-size: 20px; font-weight: 900;">明日</span></div>
+  </div>
+
+  <div style="position: absolute; left: 20px; right: 20px; top: 476px; display: flex; flex-direction: column; align-items: center; text-align: center;">
+    <h1 class="fh-up fh-u1" style="margin: 0; font-weight: 900; font-size: 38px; line-height: 1.32; color: #5A1F3D;">推しの予定、<br>もう見逃さない。</h1>
+    <p class="fh-up fh-u2" style="margin: 14px 0 0; font-size: 15px; font-weight: 500; line-height: 1.9; color: #5A1F3D;">推しの作品をフォローするだけ。<br>締切も発売日も、向こうから届きます。</p>
+    <div class="fh-up fh-u3" style="margin-top: 22px; width: 100%; display: flex; flex-direction: column; gap: 10px;">
+      <a class="fh-btn" href="#" style="display: block; text-align: center; text-decoration: none; background: #5A1F3D; color: #ECECEC; font-weight: 900; font-size: 16px; border-radius: 18px; padding: 16px;">App Store でダウンロード</a>
+      <a class="fh-btn" href="#" style="display: block; text-align: center; text-decoration: none; background: transparent; color: #5A1F3D; font-weight: 900; font-size: 16px; border-radius: 18px; padding: 14px; border: 2px solid #5A1F3D;">Google Play でダウンロード</a>
+    </div>
+  </div>
+</div>
+</body>
+</html>
