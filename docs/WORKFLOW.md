@@ -68,12 +68,16 @@ LP は `public/lp.html`（`https://fanhive.jp/lp.html`）。アプリと同じ�
 
 - **デザインツールの書き出し（バンドル形式）**。画面の文字・計測・アニメは、末尾の `<script type="__bundler/template">` の JSON 文字列の中にある
 - 画像・フォントは `public/lp/`（Service Worker の先読みから外してある）
-- 書き出し直したら `python scripts/lp-fonts.py` → `node scripts/lp-og-tags.mjs` → `npm run build` の順に流してからコミットする。
+- 書き出し直したら `node scripts/lp-og-tags.mjs` → `npm run build` の順に流してからコミットする。
   文字だけ直したときも `lp-og-tags.mjs` は流す（`<head>` の `lp-og-tags` の間＝X のカードはここを見る。手で直さない）
-- **フォントは LP で使っている字だけのサブセット**。新しく使った字はフォントに無く、端末の書体で出る
-  （足すには、フォントが埋め込まれたままの書き出しに対して `lp-fonts.py` を流し直す）
+  書き出しにフォントが埋め込まれていたら（lp.html が数MBになる）、先に `python scripts/lp-fonts.py` で外す
+- **フォントは Google Fonts の Zen Maru Gothic（500/700/900）**（2026-11-28 から。プライバシーポリシーにも書いてある）。
+  `public/lp/fonts/` のサブセットは `press.html` がまだ使っている
+- **色は `--bg` #ECECEC・`--honey` #EF8F00・`--ink` #5A1F3D の3つだけ**。グラデーション・白・半透明・影は使わない。
+  文字は `--ink`、はちみつ色の上の文字は太字12px以上。最初の画面の動きの元は `docs/design/lp-hero-flower.html`
+- 見た目の確認は `node scripts/lp-shots/page.mjs --out=<フォルダ>`（390px と 1280px で画面1枚ずつ撮る。`--reduce` で「動きを減らす」設定）
 - **計測を壊さない**: `sendEvent`・`track`・`storeClick`・`trackPageViewOnce`・`applyMeta` は残す。ストアのボタンは必ず `storeClick(store, placement)` を通す。
-  placement（`hero`/`footer`）の意味は変えない。ボタンを足すなら新しい placement にして、ダッシュボードの `LP_PLACE`（`api/_dashboard-html.ts`）にも足す。
+  placement（`hero`/`mid`/`footer`）の意味は変えない。ボタンを足すなら新しい placement にして、ダッシュボードの `LP_PLACE`（`api/_dashboard-html.ts`）にも足す。
   `/lp.html` の名前は変えない（配った `?src=` 付きのリンクが切れる）。仕組みは `sql/2026-09-30-lp-daily.sql`
 - 料金・通知の説明は `src/lib/premium.ts` の実装に合わせる
 
